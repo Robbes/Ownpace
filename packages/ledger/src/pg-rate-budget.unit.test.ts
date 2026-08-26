@@ -18,7 +18,7 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { createPgliteDb } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
-import { PgRateBudget } from './pg-rate-budget.ts';
+import { PgByteBudget, PgRateBudget } from './pg-rate-budget.ts';
 import type { LedgerDriver, LedgerConnection } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
 
@@ -47,6 +47,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await conn.query('DELETE FROM rate_budget');
+  await conn.query('DELETE FROM byte_budget');
 });
 
 async function tokensLeft(tenantId: string, provider: string): Promise<number | null> {
@@ -159,5 +160,93 @@ describe('PgRateBudget', () => {
   it('refuses a rate that would never grant anything', async () => {
     expect(() => new PgRateBudget(db, { requestsPerSecond: 0 })).toThrow(/positive/);
     expect(() => new PgRateBudget(db, { requestsPerSecond: -1 })).toThrow(/positive/);
+  });
+});
+
+/**
+ * The daily byte meter's pg twin (workplan 0090 T2). The semantics are pinned
+ * on `InProcessByteBudget` where they are cheap; what THIS tier proves is the
+ * shared-and-durable half — two instances over one database read one meter,
+ * and the accumulate-or-reset is one statement whose read and write cannot be
+ * separated. Same honesty note as the rate tests above: PGlite is a single
+ * connection, so genuine multi-connection contention lives in the integration
+ * tier.
+ */
+describe('PgByteBudget', () => {
+  it('meters ONE budget across two independent instances', async () => {
+    // Two instances are what two Trigger.dev task runs are. Instance-local
+    // state would leave each seeing only its own half.
+    const a = new PgByteBudget(db, { bytesPerDay: 1000 });
+    const b = new PgByteBudget(db, { bytesPerDay: 1000 });
+    await a.spend(TENANT, 'gmail-imap', 400);
+    const seen = await b.spend(TENANT, 'gmail-imap', 300);
+    expect(seen.spentBytes).toBe(700);
+    expect(seen.remainingBytes).toBe(300);
+  });
+
+  it('records past the ceiling rather than refusing, with remaining floored at zero', async () => {
+    const budget = new PgByteBudget(db, { bytesPerDay: 1000 });
+    const state = await budget.spend(TENANT, 'gmail-imap', 1500);
+    expect(state.spentBytes).toBe(1500);
+    expect(state.remainingBytes).toBe(0);
+  });
+
+  it('starts a fresh window once 24 hours have passed, anchored at the next byte', async () => {
+    const budget = new PgByteBudget(db, { bytesPerDay: 1000 });
+    await budget.spend(TENANT, 'gmail-imap', 900);
+    // Rewind the window past its edge — the pg equivalent of advancing the
+    // clock, same trick as the refill test above.
+    await conn.query(
+      `UPDATE byte_budget SET window_started_at = clock_timestamp() - interval '25 hours'
+        WHERE tenant_id = $1 AND provider = 'gmail-imap'`,
+      [TENANT],
+    );
+    // Before any new byte, the expired window reads as untouched…
+    const idle = await budget.state(TENANT, 'gmail-imap');
+    expect(idle.spentBytes).toBe(0);
+    expect(idle.windowResetsAt).toBeNull();
+    // …and the next spend resets rather than accumulates.
+    const fresh = await budget.spend(TENANT, 'gmail-imap', 100);
+    expect(fresh.spentBytes).toBe(100);
+    expect(fresh.remainingBytes).toBe(900);
+  });
+
+  it('keeps tenants and providers on separate meters', async () => {
+    const budget = new PgByteBudget(db, { bytesPerDay: 1000 });
+    await budget.spend(TENANT, 'gmail-imap', 800);
+    expect((await budget.state(OTHER_TENANT, 'gmail-imap')).spentBytes).toBe(0);
+    expect((await budget.state(TENANT, 'other-provider')).spentBytes).toBe(0);
+  });
+
+  it('does not lose bytes when twenty spends overlap', async () => {
+    // Same caveat as the rate twin: PGlite serialises these in the JavaScript
+    // sense. What this pins is that accumulate-or-reset is ONE statement, so
+    // the row lock is sufficient on a real server.
+    const budget = new PgByteBudget(db, { bytesPerDay: 100_000 });
+    await Promise.all(
+      Array.from({ length: 20 }, () => budget.spend(TENANT, 'race', 10)),
+    );
+    expect((await budget.state(TENANT, 'race')).spentBytes).toBe(200);
+  }, 30_000);
+
+  it('counts garbage as nothing', async () => {
+    const budget = new PgByteBudget(db, { bytesPerDay: 1000 });
+    await budget.spend(TENANT, 'gmail-imap', 400);
+    expect((await budget.spend(TENANT, 'gmail-imap', Number.NaN)).spentBytes).toBe(400);
+    expect((await budget.spend(TENANT, 'gmail-imap', -50)).spentBytes).toBe(400);
+  });
+
+  it('reads state without spending, and an unmetered pair as a full budget', async () => {
+    const budget = new PgByteBudget(db, { bytesPerDay: 1000 });
+    const untouched = await budget.state(TENANT, 'never-used');
+    expect(untouched.remainingBytes).toBe(1000);
+    expect(untouched.windowResetsAt).toBeNull();
+    await budget.spend(TENANT, 'gmail-imap', 250);
+    await budget.state(TENANT, 'gmail-imap');
+    expect((await budget.state(TENANT, 'gmail-imap')).spentBytes).toBe(250);
+  });
+
+  it('refuses a ceiling that would never grant anything', async () => {
+    expect(() => new PgByteBudget(db, { bytesPerDay: 0 })).toThrow(/positive/);
   });
 });

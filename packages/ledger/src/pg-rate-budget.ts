@@ -33,7 +33,13 @@
 
 import { sql } from 'drizzle-orm';
 import type { PgDatabase } from './db-types.ts';
-import type { RateBudget, RateBudgetConfig } from '@openmig/shared';
+import type {
+  ByteBudget,
+  ByteBudgetConfig,
+  ByteBudgetState,
+  RateBudget,
+  RateBudgetConfig,
+} from '@openmig/shared';
 
 /** How long to sleep when a bucket is empty and the server did not say. */
 const FALLBACK_WAIT_MS = 50;
@@ -120,6 +126,107 @@ export class PgRateBudget implements RateBudget {
     // and spin this loop at full speed — the opposite of a rate limiter.
     const ms = Number(first.wait_ms);
     return Number.isFinite(ms) ? Math.max(1, Math.ceil(ms)) : FALLBACK_WAIT_MS;
+  }
+}
+
+/**
+ * The daily byte meter, in Postgres (workplan 0090 T2) — the shared twin of
+ * `InProcessByteBudget`, same table reasoning as `PgRateBudget` above: the
+ * ceiling belongs to the provider's endpoint, every runner spends against it,
+ * and a daily window must survive process restarts, so the state lives in the
+ * one store that is already up whenever a sync runs (migration 0030,
+ * `byte_budget`).
+ *
+ * `spend` is one statement for the same reason `take` is: read-then-write
+ * across two statements loses updates under concurrency, and two runners
+ * fetching for one tenant concurrently is the normal case, not the edge. The
+ * window check and the accumulate-or-reset both happen inside the upsert, so
+ * simultaneous spends serialise on the row and each sees the other's bytes.
+ *
+ * `spend` never refuses and never waits — the bytes were already fetched by
+ * the time the number exists, and hiding them would be masking (hard rule 9).
+ * The GATE is the caller reading the state and stopping (0090 T4).
+ */
+export class PgByteBudget implements ByteBudget {
+  private readonly ceiling: number;
+
+  private readonly db: PgDatabase;
+  constructor(db: PgDatabase, config: ByteBudgetConfig) {
+    this.db = db;
+    this.ceiling = config.bytesPerDay;
+    if (!(this.ceiling > 0)) throw new Error(`bytesPerDay must be positive, got ${this.ceiling}`);
+  }
+
+  async spend(tenantId: string, provider: string, bytes: number): Promise<ByteBudgetState> {
+    // Garbage in, zero recorded — a NaN or negative "size" must not refill
+    // the meter. Rounded because the column counts whole bytes.
+    const n = Number.isFinite(bytes) && bytes > 0 ? Math.round(bytes) : 0;
+    const rows = await this.db.execute(sql`
+      INSERT INTO byte_budget (tenant_id, provider, window_started_at, spent_bytes)
+      VALUES (${tenantId}::uuid, ${provider}, clock_timestamp(), ${n}::bigint)
+      ON CONFLICT (tenant_id, provider) DO UPDATE SET
+        spent_bytes = CASE
+          WHEN clock_timestamp() >= byte_budget.window_started_at + interval '24 hours'
+          THEN ${n}::bigint
+          ELSE byte_budget.spent_bytes + ${n}::bigint
+        END,
+        window_started_at = CASE
+          WHEN clock_timestamp() >= byte_budget.window_started_at + interval '24 hours'
+          THEN clock_timestamp()
+          ELSE byte_budget.window_started_at
+        END
+      RETURNING spent_bytes::text AS spent_bytes, window_started_at
+    `);
+    const row = resultRows<{ spent_bytes: string; window_started_at: unknown }>(rows)[0];
+    // The upsert always returns its row; a driver that hands back nothing is
+    // answered with the SAFE reading — a full window — so a broken read makes
+    // the caller stop early rather than fetch uncounted.
+    if (!row) {
+      return {
+        spentBytes: this.ceiling,
+        ceilingBytes: this.ceiling,
+        remainingBytes: 0,
+        windowResetsAt: null,
+      };
+    }
+    return this.describe(Number(row.spent_bytes), row.window_started_at);
+  }
+
+  async state(tenantId: string, provider: string): Promise<ByteBudgetState> {
+    const rows = await this.db.execute(sql`
+      SELECT spent_bytes::text AS spent_bytes, window_started_at,
+             (clock_timestamp() >= window_started_at + interval '24 hours') AS expired
+        FROM byte_budget
+       WHERE tenant_id = ${tenantId}::uuid AND provider = ${provider}
+    `);
+    const row = resultRows<{ spent_bytes: string; window_started_at: unknown; expired: unknown }>(
+      rows,
+    )[0];
+    if (!row || row.expired === true || row.expired === 't') {
+      return {
+        spentBytes: 0,
+        ceilingBytes: this.ceiling,
+        remainingBytes: this.ceiling,
+        windowResetsAt: null,
+      };
+    }
+    return this.describe(Number(row.spent_bytes), row.window_started_at);
+  }
+
+  private describe(spentRaw: number, windowStartedAt: unknown): ByteBudgetState {
+    // A driver handing back a shape Number() cannot read must err SHORT — an
+    // unreadable meter that reads as empty would count nothing, the exact
+    // failure this table exists to fix.
+    const spent = Number.isFinite(spentRaw) ? spentRaw : this.ceiling;
+    const started = new Date(windowStartedAt as string | number | Date);
+    return {
+      spentBytes: spent,
+      ceilingBytes: this.ceiling,
+      remainingBytes: Math.max(0, this.ceiling - spent),
+      windowResetsAt: Number.isNaN(started.getTime())
+        ? null
+        : new Date(started.getTime() + 24 * 60 * 60 * 1000),
+    };
   }
 }
 

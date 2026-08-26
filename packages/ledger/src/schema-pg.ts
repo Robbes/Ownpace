@@ -1003,6 +1003,29 @@ export const rateBudget = pgTable(
   (t) => [primaryKey({ columns: [t.tenantId, t.provider] })],
 );
 
+/**
+ * The daily byte meter beside the token bucket — migration 0030, workplan
+ * 0090 T2. Declared with the migration rather than after it, because
+ * `rate_budget` shipped invisible to the ORM and the gap took an integration
+ * test to notice (see the comment above).
+ *
+ * Counted on fetch, never on write, and never joined with billing: ADR-0014
+ * counts each item's FIRST copy, this counts what the provider actually sent,
+ * re-fetches included. Two meters, deliberately.
+ */
+export const byteBudget = pgTable(
+  'byte_budget',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    provider: text('provider').notNull(),
+    /** Start of the fixed 24-hour window, anchored at the first byte after a reset. */
+    windowStartedAt: timestamp('window_started_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Whole bytes — counted, never fractional. */
+    spentBytes: bigint('spent_bytes', { mode: 'bigint' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.provider] })],
+);
+
 // `erasure_record` used to be declared here. It is the receipt WE produce for a
 // customer as their processor, and it moved to `@openmig/managed` (ADR-0036).
 // The appliance produces no receipt: its operator IS the customer, and a
