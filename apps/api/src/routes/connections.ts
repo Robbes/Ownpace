@@ -32,8 +32,10 @@ import {
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
 import {
+  isGoogleGrantKind,
   isQualifiableKind,
   qualifyAccount,
+  qualifyGoogleGrant,
   type AccountQualification,
 } from '@openmig/orchestration/account-qualification';
 import { z } from 'zod';
@@ -82,9 +84,13 @@ async function qualifyAndRemember(
   creds: Record<string, string>,
   actor: string,
 ): Promise<AccountQualification | undefined> {
-  if (!isQualifiableKind(kind)) return undefined;
+  if (!isQualifiableKind(kind) && !isGoogleGrantKind(kind)) return undefined;
   try {
-    const qualification = await qualifyAccount(kind, config, creds);
+    // Probe-qualified for the Basic-auth families; grant-qualified for the
+    // Google kinds (0106 T1a) — the token response's scope field says what
+    // the grant ACTUALLY carries, never the wizard kind it was typed under.
+    const qualification =
+      (await qualifyAccount(kind, config, creds)) ?? (await qualifyGoogleGrant(kind, creds));
     if (!qualification) return undefined;
     await withTenantDb(tenantId, pool(), async (db) => {
       await db

@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { isQualifiableKind, qualifyAccount } from './account-qualification.ts';
+import { isQualifiableKind, qualifyAccount, qualifyGoogleGrant } from './account-qualification.ts';
 
 const CREDS = { username: 'probe', password: 'pw' };
 const DAV_CONFIG = { url: 'https://dav.example.net/dav/' };
@@ -165,5 +165,98 @@ describe('the boundary', () => {
       expect(isQualifiableKind(kind), kind).toBe(false);
       expect(await qualifyAccount(kind, {}, CREDS)).toBeUndefined();
     }
+  });
+});
+
+describe('the grant-qualified half: what a stored Google grant carries (0106 T1a)', () => {
+  const GOOGLE_CREDS = { clientId: 'cid', clientSecret: 'sec', refreshToken: 'rt' };
+
+  it('an answered exchange yields measured yes AND measured no, with the re-consent remedy', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: { body?: string }) =>
+      new Response(
+        JSON.stringify({
+          access_token: 'at',
+          scope:
+            'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/carddav',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const q = await qualifyGoogleGrant('google_calendar', GOOGLE_CREDS, 'https://stub/token');
+      expect(q?.domains.calendar.answer).toBe('yes');
+      expect(q?.domains.contact.answer).toBe('yes');
+      // Absent from an enumeration that ARRIVED — a measured no, and the
+      // remedy is the grant world's own: asking is granting.
+      expect(q?.domains.mail.answer).toBe('no');
+      expect(q?.domains.mail.detail).toContain('re-consent');
+      expect(q?.domains.file.answer).toBe('no');
+      // The exchange went to the given endpoint with the stored trio.
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://stub/token');
+      const sent = String(fetchMock.mock.calls[0]?.[1]?.body ?? '');
+      expect(sent).toContain('grant_type=refresh_token');
+      expect(sent).toContain('client_id=cid');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('the broader drive scope also satisfies the file domain', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({ scope: 'https://www.googleapis.com/auth/drive' }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
+    try {
+      const q = await qualifyGoogleGrant('google_drive', GOOGLE_CREDS, 'https://stub/token');
+      expect(q?.domains.file.answer).toBe('yes');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a refused exchange enumerates nothing: every domain unknown, carrying Google\'s words', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{"error":"invalid_grant"}', { status: 400 })),
+    );
+    try {
+      const q = await qualifyGoogleGrant('gmail', GOOGLE_CREDS, 'https://stub/token');
+      for (const domain of ['mail', 'calendar', 'contact', 'file'] as const) {
+        expect(q?.domains[domain].answer).toBe('unknown');
+        expect(q?.domains[domain].detail).toContain('invalid_grant');
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a service-account key is unknown-with-words and never exchanged — its scopes live in the admin console', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const q = await qualifyGoogleGrant(
+        'google_drive',
+        { serviceAccountKey: '{"type":"service_account"}' },
+        'https://stub/token',
+      );
+      expect(q?.domains.file.answer).toBe('unknown');
+      expect(q?.domains.file.detail).toContain('admin console');
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('missing refresh token is unknown naming the gap; a non-Google kind is not this half\'s to answer', async () => {
+    const q = await qualifyGoogleGrant('gmail', { clientId: 'cid' }, 'https://stub/token');
+    expect(q?.domains.mail.answer).toBe('unknown');
+    expect(q?.domains.mail.detail).toContain('refreshToken');
+    expect(await qualifyGoogleGrant('imap', GOOGLE_CREDS, 'https://stub/token')).toBeUndefined();
   });
 });

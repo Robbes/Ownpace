@@ -268,3 +268,125 @@ export function qualificationReportLines(qualification: AccountQualification): r
   if (qualification.scheduling) lines.push(qualification.scheduling.sentence);
   return lines;
 }
+
+// ======================= The grant-qualified half (T1a) =======================
+
+/** Google's token endpoint — a parameter so tests exchange against a stub. */
+export const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
+
+export const GOOGLE_GRANT_KINDS = [
+  'gmail',
+  'google_calendar',
+  'google_contacts',
+  'google_drive',
+] as const;
+
+export function isGoogleGrantKind(kind: string): boolean {
+  return (GOOGLE_GRANT_KINDS as ReadonlyArray<string>).includes(kind);
+}
+
+/**
+ * The product's own scope needs, domain by domain — what a grant must carry
+ * for each face to actually work here. These are the scopes the factories
+ * mint tokens with (GMAIL_SCOPE, GOOGLE_CALDAV_SCOPE, GOOGLE_CARDDAV_SCOPE,
+ * DRIVE_READONLY_SCOPE); drive also accepts the broader read-write scope a
+ * person may have granted elsewhere.
+ */
+const GOOGLE_DOMAIN_SCOPES: Record<
+  'mail' | 'calendar' | 'contact' | 'file',
+  ReadonlyArray<string>
+> = {
+  mail: ['https://mail.google.com/'],
+  calendar: ['https://www.googleapis.com/auth/calendar'],
+  contact: ['https://www.googleapis.com/auth/carddav'],
+  file: [
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/drive',
+  ],
+};
+
+const DWD_UNMEASURED =
+  "Unmeasured — a service-account key's scopes live in the Workspace admin " +
+  'console domain-wide delegation grant, which no token response enumerates.';
+
+function allUnknown(why: string): AccountQualification {
+  const domain: QualifiedDomain = { answer: 'unknown', detail: why };
+  return { domains: { mail: domain, calendar: domain, contact: domain, file: domain } };
+}
+
+/**
+ * Read what a stored Google grant ACTUALLY CARRIES (0106 T1a) — no new flow
+ * needed: exchanging the refresh token yields a token response whose `scope`
+ * field enumerates the grant, so the qualification is read, never assumed
+ * from the wizard kind the credential happened to be typed under.
+ *
+ * An answered exchange is the OAuth twin of JMAP's session document: a scope
+ * absent from an enumeration that arrived is a MEASURED no — and the remedy
+ * rides the sentence, because in the grant-qualified world asking is
+ * granting: adding the domain means re-consenting with its scope (the
+ * stepout's job, 0089 + T1b). A refused exchange enumerates nothing: every
+ * domain stays unknown, carrying Google's own words — the same words the
+ * headline probe fails with, so the two never disagree.
+ */
+export async function qualifyGoogleGrant(
+  kind: string,
+  creds: Record<string, string>,
+  tokenEndpoint: string = GOOGLE_TOKEN_ENDPOINT,
+): Promise<AccountQualification | undefined> {
+  if (!isGoogleGrantKind(kind)) return undefined;
+  if (creds.serviceAccountKey) return allUnknown(DWD_UNMEASURED);
+  const clientId = creds.clientId;
+  const refreshToken = creds.refreshToken;
+  if (!clientId || !refreshToken) {
+    return allUnknown(
+      'Unmeasured — the stored credentials carry no clientId/refreshToken pair to read the grant from.',
+    );
+  }
+  let granted: ReadonlySet<string>;
+  try {
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      refresh_token: refreshToken,
+      ...(creds.clientSecret ? { client_secret: creds.clientSecret } : {}),
+    });
+    const response = await fetch(tokenEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    if (!response.ok) {
+      const head = (await response.text()).slice(0, 200);
+      return allUnknown(
+        `Unmeasured — the token exchange answered ${response.status}: ${head}`,
+      );
+    }
+    const token = (await response.json()) as { scope?: string };
+    granted = new Set((token.scope ?? '').split(' ').filter(Boolean));
+  } catch (err) {
+    return allUnknown(
+      `Unmeasured — the token exchange failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  const domainFromGrant = (domain: 'mail' | 'calendar' | 'contact' | 'file'): QualifiedDomain => {
+    const accepted = GOOGLE_DOMAIN_SCOPES[domain];
+    const carried = accepted.find((scope) => granted.has(scope));
+    return carried
+      ? { answer: 'yes', detail: `The grant carries ${carried}.` }
+      : {
+          answer: 'no',
+          detail:
+            `The grant does not carry ${accepted[0]} — asking is granting: ` +
+            're-consent with that scope to add this domain.',
+        };
+  };
+  return {
+    domains: {
+      mail: domainFromGrant('mail'),
+      calendar: domainFromGrant('calendar'),
+      contact: domainFromGrant('contact'),
+      file: domainFromGrant('file'),
+    },
+  };
+}
