@@ -26,6 +26,7 @@ import {
   DEFAULT_CONCURRENCY,
 } from '@openmig/shared';
 import { log, isLevelEnabled, type DiscardedListing, type PassMetrics } from '@openmig/shared';
+import type { BudgetPause, ByteBudgetState, DownloadMeter } from '@openmig/shared';
 
 export type { PassMetrics };
 
@@ -356,6 +357,16 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
   readonly ledger: Ledger;
   readonly cursors?: CursorStore;
   readonly concurrency?: number;
+  /**
+   * The source endpoint's daily download meter (workplan 0090 T4). Absent
+   * means no ceiling and no gate. When present, the pass reads it before
+   * each fetch and STOPS at zero remaining — a scheduled pause
+   * (`DomainSyncResult.budgetPause`): nothing fails, nothing retries, the
+   * paused folder's cursor stays put, and the next pass continues by itself
+   * once the window resets. Approaching a cap whose penalty is losing access
+   * to your own live mail is a stop, not something to push through.
+   */
+  readonly downloadMeter?: DownloadMeter;
   /** List folders on the source */
   readonly listFolders: () => Promise<ReadonlyArray<Folder>>;
   /** List items in a folder since a cursor */
@@ -599,6 +610,15 @@ export interface DomainSyncResult {
    * for §19's dashboards and feeds it to the metrics registry.
    */
   readonly metrics?: PassMetrics;
+  /**
+   * Set when the pass stopped at the day's download ceiling (0090 T4). A
+   * SCHEDULED PAUSE, not an error: no item failed because of it, no retry is
+   * owed, the paused folder's cursor stayed put so the next pass re-lists it
+   * (the ledger fast-path skips what was already copied without fetching),
+   * and the migration continues by itself once the window resets. Absent on
+   * any pass that never hit the ceiling.
+   */
+  readonly budgetPause?: BudgetPause;
 }
 
 /**
@@ -633,6 +653,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     sourceRef,
     listCollectionKeys,
     listDiscardedKeys,
+    downloadMeter,
   } = deps;
 
   const phases = startPhaseTiming();
@@ -711,9 +732,50 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    */
   let fullyEnumerated = true;
 
-  const folders = await listFolders();
+  /**
+   * Set the moment the download meter reads empty (0090 T4), and never
+   * cleared: the pass stops taking new work. NOT an error and NOT a failure —
+   * no ledger row, no retry counter, no failure queue entry. Items left
+   * unprocessed are simply not scanned; the paused folder keeps its cursor,
+   * so the next pass re-lists it and the ledger fast-path skips what was
+   * already copied WITHOUT fetching — which is exactly how the migration
+   * "continues by itself tomorrow".
+   */
+  let budgetPause: BudgetPause | undefined;
+  const pauseNow = (state: ByteBudgetState): void => {
+    if (budgetPause) return;
+    budgetPause = {
+      provider: downloadMeter!.provider,
+      ceilingBytes: state.ceilingBytes,
+      spentBytes: state.spentBytes,
+      windowResetsAt: state.windowResetsAt ? state.windowResetsAt.toISOString() : null,
+    };
+    // The T4 sentence: the limit, how much of it was used, when it resets,
+    // and that the migration continues by itself. Named from OUR OWN meter —
+    // never from a provider response nobody here has observed (T1 residue).
+    log.info(
+      `[sync] ${domain}: the day's download budget for ${budgetPause.provider} is spent — ` +
+        `${budgetPause.spentBytes} of ${budgetPause.ceilingBytes} bytes. This is a scheduled ` +
+        `pause, not an error: nothing failed, the cursor stays where it is, and the migration ` +
+        `continues by itself` +
+        (budgetPause.windowResetsAt ? ` after the window resets at ${budgetPause.windowResetsAt}` : ' tomorrow') +
+        `. It is not retried into: the ceiling's reported penalty is a lockout of the account's ` +
+        `own live mail.`,
+    );
+  };
+
+  // The pass-start reading. A pass that begins with nothing left to spend
+  // has no business listing anything — yesterday's pass already said why.
+  if (downloadMeter) {
+    const opening = await downloadMeter.budget.state(downloadMeter.tenantId, downloadMeter.provider);
+    if (opening.remainingBytes <= 0) pauseNow(opening);
+  }
+
+  const folders = budgetPause ? [] : await listFolders();
 
   for (const folder of folders) {
+    // Set mid-pass by the pre-fetch gate below: stop LISTING new folders too.
+    if (budgetPause) break;
     const collectionId = await ensureCollection(folder);
     // Hoisted: this is the source collection PATH (as opposed to `collectionId`,
     // the target's handle for it), and it is now needed three times — for the
@@ -770,6 +832,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     }
 
     await mapWithConcurrency(items, concurrency, async (item) => {
+      // Paused: the rest of this folder's items are tomorrow's work. Not
+      // scanned, not failed — they were never looked at. (Items already in
+      // flight when the pause lands still finish; the overshoot is bounded
+      // by `concurrency` bodies, the same bound the loop already accepts.)
+      if (budgetPause) return;
       scanned += 1;
       let naturalKeyHash = naturalKey(item);
       const version = sourceVersion?.(item);
@@ -952,6 +1019,25 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       // to compute; on a fetch failure there is none, which is honest.
       let ch = '';
       try {
+        // The pre-fetch gate (0090 T4): read the meter BEFORE spending it.
+        // At zero remaining this item is left for tomorrow — un-counted, not
+        // failed — and the pass stops taking new work. Reading costs one
+        // round trip against a fetch that costs hundreds; the same overhead
+        // argument the shared rate budget already recorded. Deliberately
+        // AFTER the ledger fast-path above: an already-copied item skips
+        // without fetching, and a skip downloads nothing worth gating.
+        if (downloadMeter) {
+          const meterState = await downloadMeter.budget.state(
+            downloadMeter.tenantId,
+            downloadMeter.provider,
+          );
+          if (meterState.remainingBytes <= 0) {
+            pauseNow(meterState);
+            scanned -= 1;
+            return;
+          }
+        }
+
         // Fetch raw data
         const { raw, sizeBytes } = await timed(phases, 'fetchMs', () => fetchRaw(item));
 
@@ -1280,7 +1366,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // operator RETRY therefore also clears the mapping's cursors, forcing the
     // full re-list that puts the item back in front of the loop.
     const retryablePending = failures.some((f) => !f.needsDecision);
-    if (cursors && !retryablePending) {
+    // A PAUSED folder keeps its cursor too, for the same reason a retrying
+    // one does: advancing it would retire the items the pause left
+    // unprocessed, and the next pass — the one the pause promises — would
+    // never see them.
+    if (cursors && !retryablePending && !budgetPause) {
       await cursors.set(tenantId, mappingId, collectionPath, nextCursor);
     }
   }
@@ -1450,6 +1540,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     deletions: reportedDeletions,
     drift,
     ...(unplaceableDiscards ? { unplaceableDiscards } : {}),
+    ...(budgetPause ? { budgetPause } : {}),
     metrics: summarise(phases, scanned),
   };
 }

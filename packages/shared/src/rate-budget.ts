@@ -154,6 +154,34 @@ export interface ByteBudget {
   state(tenantId: string, provider: string): Promise<ByteBudgetState>;
 }
 
+/**
+ * A byte budget with its key halves attached — what a connector spends and a
+ * pass gate reads (workplan 0090 T3/T4). The budget is keyed by
+ * (tenant, provider) because a provider-endpoint limit is shared by every
+ * mapping a tenant runs against it; the carrier travels with those two
+ * strings so no consumer invents its own.
+ */
+export interface DownloadMeter {
+  readonly budget: ByteBudget;
+  readonly tenantId: string;
+  readonly provider: string;
+}
+
+/**
+ * What a pass reports when it stopped at the day's download ceiling (0090
+ * T4). A SCHEDULED PAUSE, not an error: nothing failed, nothing is retried,
+ * the cursor stays where it is, and the next pass continues by itself. The
+ * numbers are the sentence's evidence — what the limit is, how much of it
+ * was used, and when it resets.
+ */
+export interface BudgetPause {
+  readonly provider: string;
+  readonly ceilingBytes: number;
+  readonly spentBytes: number;
+  /** ISO timestamp, or null when the meter reported no running window. */
+  readonly windowResetsAt: string | null;
+}
+
 /** Garbage in, zero recorded: a NaN or negative "size" must not refill the meter. */
 function countableBytes(bytes: number): number {
   return Number.isFinite(bytes) && bytes > 0 ? bytes : 0;

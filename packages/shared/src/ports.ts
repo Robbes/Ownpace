@@ -1,5 +1,6 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import type { TenantId, MappingId } from './ids.ts';
+import type { BudgetPause, DownloadMeter } from './rate-budget.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
 import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail.ts';
 import type { CalendarFolder, RawCalendarEvent } from './calendar.ts';
@@ -1734,6 +1735,14 @@ export interface ReconcileDeps {
    * has to rely on.
    */
   readonly excludeSpecialUse?: ReadonlyArray<SpecialUse>;
+  /**
+   * The mail source endpoint's daily download meter (workplan 0090 T4).
+   * Absent means the endpoint has no ceiling — no gate, no pause. When
+   * present, the pass reads it before fetching and STOPS at zero remaining:
+   * a scheduled pause (`ReconcileResult.budgetPause`), never an error, and
+   * never something to retry into.
+   */
+  readonly downloadMeter?: DownloadMeter;
 }
 
 /** Summary of a single shadow pass. */
@@ -1783,6 +1792,13 @@ export interface ReconcileResult {
    * long comment on the same field in `DomainSyncResult`. Absent when none.
    */
   readonly reappearedAfterRemoval?: number;
+  /**
+   * Set when the pass stopped at the day's download ceiling (0090 T4). A
+   * scheduled pause, not an error: nothing failed, the paused folder's cursor
+   * stayed put, and the next pass continues by itself. Absent on a pass that
+   * never hit the ceiling — including every pass with no meter at all.
+   */
+  readonly budgetPause?: BudgetPause;
 }
 
 /**

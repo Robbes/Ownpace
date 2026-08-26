@@ -308,6 +308,10 @@ export async function buildDepsFromMapping(
       target,
       ledger,
       cursors,
+      // The same meter the connector spends, handed to the loop as its gate
+      // (0090 T4): one instance, one row, so the state the gate reads is the
+      // state every runner's fetches moved.
+      ...(byteMeter ? { downloadMeter: byteMeter } : {}),
       // The shared default, not a literal. This path is the MANAGED edition's,
       // and its `?? 4` was written independently of the three other copies of
       // the same number — so retuning the default anywhere else would have left
