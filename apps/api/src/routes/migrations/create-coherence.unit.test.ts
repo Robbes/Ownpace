@@ -59,6 +59,8 @@ describe('target/domain coherence — the server refuses, naming both sides', ()
       { targetType: 'caldav', domains: ['calendar'] },
       { targetType: 'carddav', domains: ['contact'] },
       { targetType: 'webdav', domains: ['file'] },
+      // The account-shaped kind (0106 T4a): both DAV domains through one row.
+      { targetType: 'soverin', domains: ['calendar', 'contact'] },
     ] as const;
     for (const { targetType, domains } of ok) {
       const result = CreateMappingSchema.safeParse(

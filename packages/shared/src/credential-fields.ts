@@ -243,7 +243,7 @@ const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
   },
 ];
 
-const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav'] as const;
+const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin'] as const;
 
 /**
  * The DAV targets' escape hatch (0105 T1): a full base URL, for a provider
@@ -262,7 +262,9 @@ const TARGET_DAV_URL: CredentialField = {
   hintKey: 'wizard.targetDavUrl.hint',
 };
 
-const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav'] as const;
+// `soverin` is DAV-shaped at the door (0106 T4a): one account, the DAV base
+// URL as its escape hatch, exactly like the protocol trio.
+const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav', 'soverin'] as const;
 
 /**
  * What to ask for, or `[]` when the type is not one this product connects to.
@@ -357,6 +359,7 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   caldav: 'CalDAV',
   carddav: 'CardDAV',
   webdav: 'WebDAV',
+  soverin: 'Soverin',
 };
 
 /**

@@ -59,7 +59,7 @@ export interface AccountQualification {
 
 /** The kinds this measuring half covers — the Basic-auth account families.
  *  OAuth families are grant-qualified instead (0106 T1). */
-export const QUALIFIABLE_KINDS = ['caldav', 'carddav', 'webdav', 'nextcloud', 'imap', 'jmap'] as const;
+export const QUALIFIABLE_KINDS = ['caldav', 'carddav', 'webdav', 'nextcloud', 'soverin', 'imap', 'jmap'] as const;
 
 export function isQualifiableKind(kind: string): boolean {
   return (QUALIFIABLE_KINDS as ReadonlyArray<string>).includes(kind);

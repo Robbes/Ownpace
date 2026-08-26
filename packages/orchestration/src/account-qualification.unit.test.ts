@@ -71,6 +71,20 @@ describe('the DAV family: three faces from one credential', () => {
     }
   });
 
+  it('kind soverin is DAV-shaped here: the same three faces from the one app-password (0106 T4a)', async () => {
+    vi.stubGlobal('fetch', davAnsweringFetch());
+    try {
+      const q = await qualifyAccount('soverin', DAV_CONFIG, CREDS);
+      expect(q?.domains.calendar.answer).toBe('yes');
+      expect(q?.domains.contact.answer).toBe('yes');
+      expect(q?.domains.file.answer).toBe('yes');
+      expect(q?.domains.mail.answer).toBe('unknown');
+      expect(q?.scheduling?.capability).toBe('auto-schedule');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('a per-protocol app-password shows as UNKNOWN on the refused face — never as no (the Soverin scenario)', async () => {
     vi.stubGlobal('fetch', davAnsweringFetch({ refuseCalendarFace: true }));
     try {
@@ -158,7 +172,7 @@ describe('the JMAP face: the one place an honest NO exists', () => {
 
 describe('the boundary', () => {
   it('covers exactly the Basic-auth account families; OAuth kinds are grant-qualified (T1), not probed', async () => {
-    for (const kind of ['caldav', 'carddav', 'webdav', 'nextcloud', 'imap', 'jmap']) {
+    for (const kind of ['caldav', 'carddav', 'webdav', 'nextcloud', 'soverin', 'imap', 'jmap']) {
       expect(isQualifiableKind(kind), kind).toBe(true);
     }
     for (const kind of ['gmail', 'google_drive', 'google_calendar', 'o365', 'dropbox', 'box']) {
