@@ -41,7 +41,14 @@ that, and this section plus D are walked again.
 2. Connections → Add, role **target**, type **caldav**. Host and port from
    Soverin's documentation; if their DAV root lives behind a path, put the
    full URL in **DAV base URL** — that field exists for exactly this.
-   Credentials: the Soverin mailbox. Save & test.
+   Credentials: the Soverin mailbox — **an app-password goes straight into
+   the password field.** IMAP, CalDAV, CardDAV and SMTP submission all speak
+   Basic auth here; no OIDC token exists or is needed anywhere on the
+   Soverin side. Whether one app-password covers all four protocols or
+   Soverin scopes them per protocol is not something to assume: the Test
+   button answers it — a 401 on caldav beside a passing imap means
+   protocol-scoped, and the fix is minting another app-password for DAV in
+   Soverin's settings. Save & test.
 3. **Read the whole test result aloud.** It carries two sentences now:
    - *Connected. N collections visible.* — the credentials and the URL are
      right;
@@ -160,12 +167,22 @@ On the Spark's own Nextcloud (the source we host and may write to):
    LIVE_TARGET_SUB=<the owner email you signed in with>
    ```
 
-   The last three are **mint mode**: the nightly signs itself a fresh
-   one-hour owner token per run, exactly the way the managed smoke's
-   `mint()` does — because any token pasted tonight is expired by tomorrow
-   night. On a stack that verifies only against a real issuer, set
-   `LIVE_TARGET_API_TOKEN=<a long-lived token>` instead; when both are set,
-   the static token wins.
+   Three different credentials, three different systems — worth keeping
+   straight:
+
+   - `LIVE_CATCHALL_*` — the **ownpace.eu catch-all** inbox's IMAP login.
+   - `LIVE_CONTROL_SMTP_*` — the **Soverin** submission server, so the
+     control mail originates at the target's own MTA. A Soverin
+     app-password is the password here, exactly as in section A; whether
+     the same app-password covers SMTP as well as IMAP/DAV is Soverin's
+     scoping choice — the first control send answers it.
+   - `LIVE_TARGET_*` — **our own product API**, nothing Soverin-shaped.
+     The last three are **mint mode**: the nightly signs itself a fresh
+     one-hour owner token per run for OUR API, exactly the way the managed
+     smoke's `mint()` does — because any token pasted tonight is expired
+     by tomorrow night. On a stack that verifies only against a real
+     issuer, set `LIVE_TARGET_API_TOKEN=<a long-lived token>` instead;
+     when both are set, the static token wins.
 
 2. Trigger **E2E (live target)** once by hand (workflow_dispatch) and read
    its verdict line: `live-target: control=arrived sweep=silent sync=2/2
