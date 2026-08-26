@@ -144,6 +144,10 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
           // Non-secret config only — `knownConnectionValues` filters it
           // through the descriptor before any of it leaves this route.
           config: schema.connection.config,
+          // What the last test measured this account can carry (0106 T2):
+          // the list shows badges without anybody pressing Test again.
+          qualification: schema.connection.qualification,
+          updatedAt: schema.connection.updatedAt,
         })
         .from(schema.connection)
         .where(eq(schema.connection.tenantId, tenantId));
@@ -171,6 +175,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
       return connections.map(({ config, ...c }) => ({
         ...c,
         createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
         usedByMailboxes: usedBy.get(c.id) ?? 0,
         /**
          * What this connection already knows, so a rotation only asks for

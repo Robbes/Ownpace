@@ -200,6 +200,19 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
           {connection.usedByMailboxes} {t('connections.usedBy')}
         </span>
         <span className="text-xs text-gray-400">{relativeToNow(connection.createdAt)}</span>
+        {connection.qualification && (
+          /* What the LAST test measured this account can carry (0106 T2) —
+             the stored record, visible without pressing Test. The title
+             carries each domain's evidence line for whoever hovers. */
+          <span
+            className="text-xs text-gray-500"
+            title={(['mail', 'calendar', 'contact', 'file'] as const)
+              .map((d) => connection.qualification!.domains[d].detail)
+              .join('\n')}
+          >
+            {qualificationText(t, connection.qualification)}
+          </span>
+        )}
 
         {/* wrap, and only push right once there is room to (workplan 0068):
             on a phone these four actions overflowed the card horizontally and

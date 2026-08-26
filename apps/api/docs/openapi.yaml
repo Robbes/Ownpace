@@ -1015,6 +1015,23 @@ paths:
                         usedByMailboxes:
                           type: integer
                           description: How many mailboxes depend on this connection.
+                        updatedAt: { type: string, format: date-time }
+                        qualification:
+                          type: object
+                          nullable: true
+                          description: |
+                            What the LAST test measured this account can carry
+                            (workplan 0106 T2) — per domain, three states.
+                            Absent/null = never qualified, which is absence of
+                            measurement, never "no".
+                          properties:
+                            domains:
+                              type: object
+                              properties:
+                                mail: { $ref: '#/components/schemas/QualifiedDomain' }
+                                calendar: { $ref: '#/components/schemas/QualifiedDomain' }
+                                contact: { $ref: '#/components/schemas/QualifiedDomain' }
+                                file: { $ref: '#/components/schemas/QualifiedDomain' }
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       tags: [Connections]
