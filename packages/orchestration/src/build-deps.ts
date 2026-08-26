@@ -243,6 +243,10 @@ export async function buildDeps(
       ...(config.targetFolderPrefix !== undefined
         ? { targetFolderPrefix: config.targetFolderPrefix }
         : {}),
+      // The same meter the connector spends, handed to the loop as its gate
+      // (0090 T4): one instance, so the state the gate reads is the state the
+      // fetches moved.
+      ...(byteMeter ? { downloadMeter: byteMeter } : {}),
     },
     closable,
   );

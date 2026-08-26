@@ -191,6 +191,10 @@ export const runShadowPass: RunShadowPass = async (deps) => {
           : folder,
       ),
     ...(onCollision ? { onCollision } : {}),
+    // The endpoint's daily download meter (0090 T4) — absent means no
+    // ceiling; present means the loop stops at zero remaining, as a
+    // scheduled pause rather than an error.
+    ...(deps.downloadMeter ? { downloadMeter: deps.downloadMeter } : {}),
   });
 
   // Return compatible ReconcileResult (map failed to 0 for backward compatibility)
@@ -211,6 +215,9 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     ...(result.reappearedAfterRemoval > 0
       ? { reappearedAfterRemoval: result.reappearedAfterRemoval }
       : {}),
+    // A scheduled pause is a fact the pass summary must carry — a caller who
+    // sees created: 0 with no reason would read a pause as a stall.
+    ...(result.budgetPause ? { budgetPause: result.budgetPause } : {}),
   };
 };
 
