@@ -439,11 +439,15 @@ live in [README.md](./README.md), the register.
   never used for advertising or model training, and is never read by a person outside the
   narrow cases the policy names. Two structural facts carry more weight than any promise —
   **Google is never a migration target**, and **nothing is ever deleted at the source**.
-- **The redirect endpoint is `/oauth/google/callback`, never `/webhooks/…`.** An OAuth redirect
-  is a **browser GET carrying the user's authorization code**; a webhook is an unauthenticated
-  server-to-server POST. Filing the callback under a webhook path is how it ends up mounted in a
-  router that skips CSRF and accepts POST, which is precisely the mapping-hijack that 0089 T1's
-  signed `state` exists to prevent. Different trust model, different route tree, different name.
+- **The redirect endpoint is `/api/migrations/google/callback`, never `/webhooks/…`.** An OAuth
+  redirect is a **browser GET carrying the user's authorization code**; a webhook is an
+  unauthenticated server-to-server POST. Filing the callback under a webhook path is how it ends
+  up mounted in a router that skips CSRF and accepts POST, which is precisely the mapping-hijack
+  that 0089 T1's signed `state` exists to prevent. Different trust model, different route tree,
+  different name. (This bullet originally named `/oauth/google/callback`; 0089 T1 shipped the
+  route at `/api/migrations/google/callback`, which keeps the same trust property, and the
+  registered URIs in [`docs/google-oauth-verification.md`](../google-oauth-verification.md) §4b
+  must carry the path the code actually serves.)
 - **No authorized JavaScript origin is registered.** The flow is server-side
   authorization-code: the browser is redirected, and the token exchange happens on the server
   with the client secret. A JS origin is only needed for browser-side OAuth, which this is not,
@@ -468,7 +472,11 @@ live in [README.md](./README.md), the register.
   *sensitive* — brand review only. Gmail and Drive are *restricted* — brand review **plus** an
   annual third-party security assessment. So contacts and calendar ship on the managed client
   first, and mail and files stay bring-your-own until the assessment is actually paid for.
-  Whatever is not yet covered says so on the page rather than failing at the consent screen.
+  The owner's stated intent (2026-08-26) is to buy the assessment for **Drive, later**; mail
+  stays outside it — the app-password fallback (0089 T7) plus bring-your-own cover it. An
+  intent is not a purchase: nothing may be offered on the managed client until the assessment
+  actually exists. Whatever is not yet covered says so on the page rather than failing at the
+  consent screen.
 - **Owning a client never widens a grant.** Same scopes, same per-user consent, same read-only
   posture, same revocation by the account holder in their own Google settings. What changes is
   who registered the client, not what the token can read — and the consent screen must show the

@@ -1,11 +1,11 @@
 # Workplan 0090 — the cap we do not count
 
-## Status — 2026-08-20 (update this block at the end of every session)
+## Status — 2026-08-26 (update this block at the end of every session)
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 Verify the limit before building against it | 📋 Planned (blocking) | Three numbers and one behaviour, none of them read from Google here — `support.google.com` is blocked by this sandbox's egress proxy. **Nothing below should be built to a guessed threshold.** |
-| T2 A byte-aware budget beside the request-aware one | 📋 Planned (needs T1) | `RateBudgetConfig` is `requestsPerSecond` only. A byte ceiling is invisible to it, by construction. |
+| T1 Verify the limit before building against it | ✅ **Done 2026-08-26** (one residue open: what the client observes at the limit) | The owner read Google's *Gmail bandwidth limits* page in the Workspace Admin Help (Dutch UI, screenshot, 2026-08-26): **IMAP download 2 500 MB/day, POP download 1 250 MB/day, IMAP upload 500 MB/day**; webclient separately 750 MB/hour / 1 250 MB/day down, 300 MB/hour / 1 500 MB/day up (incl. Gmail SMTP). The page: limits *"gelden voor alle edities van Google Workspace en kunnen zonder voorafgaande kennisgeving worden gewijzigd"*. Per the owner's search summary (secondary — not on the page itself): the limits apply **equally to app passwords and XOAUTH2**, and the penalty is a **24-hour temporary lockout of IMAP/POP access, with the Gmail web interface staying reachable**. Full record in T1 below. |
+| T2 A byte-aware budget beside the request-aware one | 📋 Planned — **unblocked 2026-08-26** (T1 done) | `RateBudgetConfig` is `requestsPerSecond` only. A byte ceiling is invisible to it, by construction. The window is a **day** — the IMAP table carries no hourly ceiling (only the webclient's does), so T2's daily-window design holds. |
 | T3 Wire the IMAP sources to it | 📋 Planned (needs T2) | No IMAP source consumes a budget at all today. Graph and DAV do; IMAP does not. |
 | T4 Refuse before the lockout, not after | 📋 Planned (needs T2) | Approaching a cap whose penalty is losing access to your own live mail is a stop, not something to push through. |
 | T5 Say it in the price | 📋 Planned | A 2.5 GB/day ceiling and ADR-0014's 750 GB Small band describe very different calendars. The pre-preflight should say so. |
@@ -48,24 +48,38 @@ because of us** — while the product's whole claim is that nothing breaks until
 migration that finishes slowly is working as designed (ADR-0014 sells a period, at your own
 pace). A migration that locks a mailbox is not a slow success; it is an outage we caused.
 
-## T1 — verify the limit before building against it (blocking)
+## T1 — verify the limit before building against it ✅ 2026-08-26
 
-Four things, none of them established here, and a threshold built to a guessed number is worse
-than none because it reads as protection:
+Four things were asked; here is what came back, each with its source. The primary source is
+Google's **Gmail bandwidth limits** page in the Workspace Admin Help, read by the owner in a
+browser on **2026-08-26** (Dutch UI; screenshot provided — this sandbox's egress proxy still
+blocks `support.google.com`, so the page itself was not read here). Claims from the owner's
+accompanying search summary are marked **(secondary)** — consistent with the page but not on it.
 
-1. The **download** ceiling per account per day (reported ~2,500 MB — the figure this plan is
-   named after, and the one most often quoted for Workspace).
-2. The **upload** ceiling (reported ~500 MB/day). Gmail is never a target here, so this should
-   be irrelevant — worth confirming rather than assuming, since a source pass still writes
-   flags in some configurations.
-3. Whether the ceiling differs by **credential type** (app password vs XOAUTH2) or by **account
-   type** (personal vs Workspace). The owner's source attributed it to app passwords; this plan
-   assumes the endpoint, and the assumption is exactly what needs testing.
-4. The **penalty**, precisely: throttling, temporary lockout, duration, and what the client
-   actually observes when it happens. A refusal cannot name a cause it has never seen.
-
-`support.google.com` is blocked by this sandbox's egress proxy, so this is a task for someone
-with a browser, and the answers belong in this file with their source and date.
+1. **The download ceiling: 2 500 MB/day via IMAP.** The page's POP/IMAP table:
+   *Downloaden via IMAP* **2500 MB** per day, *Downloaden met POP* **1250 MB** per day. The
+   webclient has its own separate table (750 MB/hour, 1 250 MB/day down) which does not govern
+   this product. **The IMAP table is per-day only — no hourly ceiling** — so T2's daily window
+   is the right shape.
+2. **The upload ceiling: 500 MB/day via IMAP** (*Uploaden via IMAP* 500 MB). Gmail is never a
+   target here, so this governs only flag writes on a source pass — metadata, nowhere near
+   500 MB/day. Confirmed irrelevant, as hoped.
+3. **Credential type: the limits apply equally to app passwords and XOAUTH2** (secondary). So
+   the cap belongs to the endpoint, exactly as this plan assumed — 0089 T7's app-password path
+   adds no new exposure, and every Gmail-over-OAuth migration shipping today already runs
+   against it. **Account type:** the page says the limits hold for *all editions of Google
+   Workspace* and may change without notice; personal (consumer) Gmail is not named on it, and
+   the same 2 500 MB figure is the one commonly reported there (secondary). Build to
+   2 500 MB/day for both; a personal-specific difference, if one ever surfaces, only moves the
+   configured number.
+4. **The penalty: a temporary lockout of IMAP/POP access for ~24 hours, with the Gmail web
+   interface staying reachable** (secondary). This confirms the plan's premise — the failure
+   mode is the customer losing IMAP access to their own live mail, not a polite 429. **Still
+   open, deliberately:** what the *client* actually observes at the limit (which IMAP response,
+   at which command — commonly reported as an alert naming exceeded bandwidth, unverified).
+   T4's refusal must not invent words for a response nobody here has seen; it names the cause
+   from our own byte counter, which is knowledge we hold either way, and the first observed
+   lockout response gets recorded here when reality provides one.
 
 ## T2 — a byte-aware budget beside the request-aware one
 

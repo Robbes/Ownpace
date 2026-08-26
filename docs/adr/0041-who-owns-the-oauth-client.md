@@ -1,9 +1,12 @@
 # ADR-0041: Who owns the OAuth client — the managed edition brings its own, the appliance never does
 
-- **Status:** Proposed — owner decision pending. Written 2026-08-20 after the owner hit the
+- **Status:** **Accepted 2026-08-26** — by the owner, as proposed, with two additions recorded
+  under *Decision*: the Drive assessment is intended **later** (an intent, not a purchase), and
+  the client registered 2026-08-20 is the **test (OTA) client**, with production getting its own
+  client before real customers exist. Written 2026-08-20 after the owner hit the
   Google Workspace setup manual while adding a contacts source and asked why it could not
   simply be a consent popup.
-- **Date:** 2026-08-20
+- **Date:** 2026-08-20; accepted 2026-08-26
 - **Deciders:** owner
 - **Relates to:** [ADR-0003](./0003-two-editions-one-core.md) (two editions, one core — the
   reason a single answer cannot serve both), [ADR-0033](./0033-domain-wide-delegation.md)
@@ -34,11 +37,15 @@
   never used for advertising or model training, and is never read by a person outside the
   narrow cases the policy names. Two structural facts carry more weight than any promise —
   **Google is never a migration target**, and **nothing is ever deleted at the source**.
-- **The redirect endpoint is `/oauth/google/callback`, never `/webhooks/…`.** An OAuth redirect
-  is a **browser GET carrying the user's authorization code**; a webhook is an unauthenticated
-  server-to-server POST. Filing the callback under a webhook path is how it ends up mounted in a
-  router that skips CSRF and accepts POST, which is precisely the mapping-hijack that 0089 T1's
-  signed `state` exists to prevent. Different trust model, different route tree, different name.
+- **The redirect endpoint is `/api/migrations/google/callback`, never `/webhooks/…`.** An OAuth
+  redirect is a **browser GET carrying the user's authorization code**; a webhook is an
+  unauthenticated server-to-server POST. Filing the callback under a webhook path is how it ends
+  up mounted in a router that skips CSRF and accepts POST, which is precisely the mapping-hijack
+  that 0089 T1's signed `state` exists to prevent. Different trust model, different route tree,
+  different name. (This bullet originally named `/oauth/google/callback`; 0089 T1 shipped the
+  route at `/api/migrations/google/callback`, which keeps the same trust property, and the
+  registered URIs in [`docs/google-oauth-verification.md`](../google-oauth-verification.md) §4b
+  must carry the path the code actually serves.)
 - **No authorized JavaScript origin is registered.** The flow is server-side
   authorization-code: the browser is redirected, and the token exchange happens on the server
   with the client secret. A JS origin is only needed for browser-side OAuth, which this is not,
@@ -63,7 +70,11 @@
   *sensitive* — brand review only. Gmail and Drive are *restricted* — brand review **plus** an
   annual third-party security assessment. So contacts and calendar ship on the managed client
   first, and mail and files stay bring-your-own until the assessment is actually paid for.
-  Whatever is not yet covered says so on the page rather than failing at the consent screen.
+  The owner's stated intent (2026-08-26) is to buy the assessment for **Drive, later**; mail
+  stays outside it — the app-password fallback (0089 T7) plus bring-your-own cover it. An
+  intent is not a purchase: nothing may be offered on the managed client until the assessment
+  actually exists. Whatever is not yet covered says so on the page rather than failing at the
+  consent screen.
 - **Owning a client never widens a grant.** Same scopes, same per-user consent, same read-only
   posture, same revocation by the account holder in their own Google settings. What changes is
   who registered the client, not what the token can read — and the consent screen must show the
@@ -223,7 +234,22 @@ it is a convenience purchase for consumers in the managed edition.
 May Ownpace register **one** OAuth client that customers consent to, so that adding a Google
 source is a popup instead of a console?
 
-## Decision (proposed)
+## Decision (accepted 2026-08-26)
+
+**The owner accepted the four points below as proposed**, and added two things the proposal had
+left open:
+
+1. **Drive, later.** The assessment is intended for Drive eventually — not bought now, not
+   scheduled, and nothing waits on it (it buys convenience, never capability). Mail stays
+   outside the assessment: bring-your-own plus the app-password fallback (0089 T7) cover it.
+2. **One client per environment, starting now.** The client registered 2026-08-20 is the
+   **test (OTA) client**; production gets its own client — with its own secret and exactly one
+   redirect URI — before real customers exist. The configuration record is
+   [`docs/google-oauth-verification.md`](../google-oauth-verification.md) §4b.
+
+One check remains open from the proposal and is the first gate of workplan 0089 T5: the scope
+classification of `.../auth/carddav` and `.../auth/caldav` (sensitive vs restricted), which
+decides whether the cheap slice is cheap. It needs a browser this sandbox has not got.
 
 ### 1. Not in the appliance. Ever.
 
