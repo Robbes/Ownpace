@@ -297,7 +297,11 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     // Through the SAME zod object the create route validates, so a value this
     // accepts is one create would accept — port coerced because a form sends
     // strings and the schema wants a number.
-    const shaped = { ...values, ...(values.port ? { port: Number(values.port) } : {}) };
+    const shaped = {
+      ...values,
+      ...(values.port ? { port: Number(values.port) } : {}),
+      ...(values.mailPort ? { mailPort: Number(values.mailPort) } : {}),
+    };
     const configShape =
       role === 'source' ? CreateMappingBase.shape.sourceConfig : CreateMappingBase.shape.targetConfig;
     const checked = configShape.safeParse(shaped);
@@ -490,7 +494,11 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     }
 
     const values = parsed.data.values;
-    const shaped = { ...values, ...(values.port ? { port: Number(values.port) } : {}) };
+    const shaped = {
+      ...values,
+      ...(values.port ? { port: Number(values.port) } : {}),
+      ...(values.mailPort ? { mailPort: Number(values.mailPort) } : {}),
+    };
     const configShape =
       row.role === 'source' ? CreateMappingBase.shape.sourceConfig : CreateMappingBase.shape.targetConfig;
     const checked = configShape.safeParse(shaped);

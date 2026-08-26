@@ -69,6 +69,34 @@ describe('target/domain coherence — the server refuses, naming both sides', ()
       expect(result.success, `${targetType} + ${domains.join(',')}`).toBe(true);
     }
   });
+
+  it('soverin + email demands the mail server BY NAME, and accepts once it is stored (0106 T4b)', () => {
+    const withEmail = (targetConfig: Record<string, unknown>) =>
+      body({
+        targetType: 'soverin',
+        targetConfig,
+        syncConfig: { domains: ['email', 'calendar'] },
+      });
+    const bare = { host: 'dav.example.nl', port: 443, username: 'a@example.nl', password: 'x' };
+    // Without a stored mail server: refused, naming the field and the way out.
+    const msg = refusalText(withEmail(bare));
+    expect(msg).toContain('targetConfig.mailHost is missing');
+    expect(msg).toContain('drop the email data type');
+    // With one: accepted — the account carries mail through what was TYPED.
+    expect(
+      CreateMappingSchema.safeParse(withEmail({ ...bare, mailHost: 'imap.example.nl' })).success,
+    ).toBe(true);
+    // Calendars and contacts alone never demand it (the T4a shape stays).
+    expect(
+      CreateMappingSchema.safeParse(
+        body({
+          targetType: 'soverin',
+          targetConfig: bare,
+          syncConfig: { domains: ['calendar', 'contact'] },
+        }),
+      ).success,
+    ).toBe(true);
+  });
 });
 
 describe('source-type / credential coherence — the app registration is demanded by name (0037 T6)', () => {

@@ -22,6 +22,7 @@ import {
   buildFileSourceFromConnection,
   buildSourceConnectorFromCredentials,
   buildTargetWriterFromCredentials,
+  mailTargetConfigFromConnection,
 } from './build-deps-from-mapping.ts';
 import { GmailFolderView } from './gmail-source-factory.ts';
 import type { SourceConfig, TargetConfig } from '@openmig/shared';
@@ -210,6 +211,66 @@ describe('buildTargetWriterFromCredentials', () => {
     expect(() =>
       buildTargetWriterFromCredentials({ type: 'caldav' } as unknown as TargetConfig, {}),
     ).toThrow(/Unsupported target type/);
+  });
+});
+
+/**
+ * The account kind's mail seam (0106 T4b): connection KIND resolves the mail
+ * protocol here and nowhere downstream. What must hold: a protocol row passes
+ * through untouched, a soverin row's stored mail face becomes the imap-dav
+ * shape the writer switch already speaks, and an account with NO stored mail
+ * server refuses by field name — never by guessing a host from the provider's
+ * name.
+ */
+describe('mailTargetConfigFromConnection — kind resolves protocol at ONE seam', () => {
+  const CREDS = { username: 'a@example.nl', password: 'pw' };
+
+  it('passes a protocol row through untouched — the seam only exists for account kinds', () => {
+    const stored = { type: 'jmap', baseUrl: 'https://jmap.example', user: 'a@example' };
+    expect(mailTargetConfigFromConnection('jmap', stored, CREDS)).toBe(stored);
+  });
+
+  it('turns a soverin row with a stored mail face into the imap-dav shape, writer included', () => {
+    const resolved = mailTargetConfigFromConnection(
+      'soverin',
+      { host: 'dav.example.nl', port: 443, useSsl: true, mailHost: 'imap.example.nl', mailPort: 993 },
+      CREDS,
+    ) as unknown as { type: string; host: string; port: number; tls: boolean; user: string };
+    expect(resolved.type).toBe('imap-dav');
+    expect(resolved.host).toBe('imap.example.nl');
+    expect(resolved.port).toBe(993);
+    expect(resolved.tls).toBe(true);
+    // The account's one credential names the user; nothing else can.
+    expect(resolved.user).toBe('a@example.nl');
+    // And the existing writer switch speaks the resolved shape unchanged.
+    expect(
+      buildTargetWriterFromCredentials(resolved as unknown as TargetConfig, { password: 'pw' }),
+    ).toBeInstanceOf(ImapFlowDavMailTarget);
+  });
+
+  it('reads mailPort tolerantly (probe routes carry strings) and defaults to 993', () => {
+    const asString = mailTargetConfigFromConnection(
+      'soverin',
+      { mailHost: 'imap.example.nl', mailPort: '143' },
+      CREDS,
+    ) as unknown as { port: number };
+    expect(asString.port).toBe(143);
+    const absent = mailTargetConfigFromConnection(
+      'soverin',
+      { mailHost: 'imap.example.nl' },
+      CREDS,
+    ) as unknown as { port: number };
+    expect(absent.port).toBe(993);
+  });
+
+  it('refuses a soverin row with NO stored mail server, naming the field — never guessing a host', () => {
+    expect(() => mailTargetConfigFromConnection('soverin', { host: 'dav.example.nl' }, CREDS)).toThrow(
+      /config\.mailHost is missing/,
+    );
+    // The refusal also says what still works, so nobody rips out a healthy row.
+    expect(() =>
+      mailTargetConfigFromConnection('soverin', { host: 'dav.example.nl' }, CREDS),
+    ).toThrow(/calendar and contact faces are unaffected/);
   });
 });
 

@@ -243,8 +243,17 @@ export function targetConnectionConfig(
   // The DAV-shaped types — the protocol trio and the `soverin` account kind
   // (0106 T4a). `url`, when given, is the full DAV base the endpoint
   // resolver prefers over host+port (0105 T1) — the door for a provider
-  // whose DAV root lives behind a path.
-  return { ...base, ...(cfg.url ? { url: cfg.url } : {}) };
+  // whose DAV root lives behind a path. The account kind alone may also
+  // store its MAIL face (T4b): the IMAP host the person typed, which the
+  // mail seam resolves into the imap-dav writer — scoped to `soverin` so a
+  // protocol row can never grow a face its kind does not carry.
+  return {
+    ...base,
+    ...(cfg.url ? { url: cfg.url } : {}),
+    ...(body.targetType === 'soverin' && cfg.mailHost
+      ? { mailHost: cfg.mailHost, ...(cfg.mailPort ? { mailPort: cfg.mailPort } : {}) }
+      : {}),
+  };
 }
 
 /**
@@ -491,6 +500,14 @@ export const CreateMappingBase = z.object({
      * the existing doors changes shape.
      */
     url: z.string().optional(),
+    /**
+     * The soverin account kind's MAIL face (0106 T4b): the account's IMAP
+     * host, typed by the person — never pre-filled from our memory of a
+     * provider. Demanded by the superRefine, by name, exactly when the email
+     * domain is ticked on a soverin target.
+     */
+    mailHost: z.string().optional(),
+    mailPort: z.number().optional(),
   }),
   syncConfig: z.object({
     domains: z.array(z.enum(['email', 'calendar', 'contact', 'file'])).default(['email']),
@@ -811,6 +828,27 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
   const domainRefusal = targetDomainRefusal(body.targetType, body.syncConfig.domains);
   if (domainRefusal) {
     ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: domainRefusal });
+  }
+  // The soverin account kind carries mail only through a mail server the
+  // person NAMED (0106 T4b — never guessed from the provider's name). A
+  // reused connection is exempt here because its stored config may already
+  // carry the host; the mail seam refuses at build time with the same field
+  // name if it does not.
+  if (
+    body.targetType === 'soverin' &&
+    body.syncConfig.domains.includes('email') &&
+    !body.targetConnectionId &&
+    !body.targetConfig.mailHost?.trim()
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['targetConfig', 'mailHost'],
+      message:
+        "A soverin target carries email only when the account's mail server is stored: " +
+        'targetConfig.mailHost is missing. Enter the IMAP host your provider names (the ' +
+        'account settings page lists it) — or drop the email data type; calendars and ' +
+        'contacts need no mail server.',
+    });
   }
   if (body.syncConfig.schedule !== undefined) {
     const cronProblem = describeCronScheduleProblem(body.syncConfig.schedule);

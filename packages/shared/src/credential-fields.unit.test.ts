@@ -108,3 +108,27 @@ describe('the DAV targets ask for an optional base URL (0105 T1)', () => {
     }
   });
 });
+
+describe('the soverin mail face is asked at ITS door only (0106 T4b)', () => {
+  it('soverin offers optional mailHost + mailPort — typed, never pre-filled', () => {
+    const fields = credentialFieldsFor('target', 'soverin');
+    const mailHost = fields.find((f) => f.key === 'mailHost');
+    const mailPort = fields.find((f) => f.key === 'mailPort');
+    expect(mailHost).toBeDefined();
+    expect(mailPort).toBeDefined();
+    // Optional: an account used only for calendars and contacts needs no
+    // mail server — the create door demands it when email is ticked instead.
+    expect(mailHost?.required).not.toBe(true);
+    expect(mailHost?.secret, 'a host name is not a secret').not.toBe(true);
+    expect(mailPort?.numeric).toBe(true);
+  });
+
+  it('the protocol trio, imap and jmap never grow a mail face', () => {
+    for (const type of ['caldav', 'carddav', 'webdav', 'imap', 'jmap']) {
+      expect(
+        credentialFieldsFor('target', type).some((f) => f.key === 'mailHost'),
+        `${type} must not ask for a mailHost`,
+      ).toBe(false);
+    }
+  });
+});

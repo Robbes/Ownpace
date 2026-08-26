@@ -78,8 +78,58 @@ describe('the DAV family: three faces from one credential', () => {
       expect(q?.domains.calendar.answer).toBe('yes');
       expect(q?.domains.contact.answer).toBe('yes');
       expect(q?.domains.file.answer).toBe('yes');
+      // No stored mail server: unmeasured, with the remedy ON the sentence.
       expect(q?.domains.mail.answer).toBe('unknown');
+      expect(q?.domains.mail.detail).toContain('mailHost');
       expect(q?.scheduling?.capability).toBe('auto-schedule');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a soverin account that NAMES its mail server gets the mail face measured too (0106 T4b)', async () => {
+    vi.stubGlobal('fetch', davAnsweringFetch());
+    const asked: Array<Record<string, unknown>> = [];
+    try {
+      const q = await qualifyAccount(
+        'soverin',
+        { ...DAV_CONFIG, mailHost: 'imap.example.net', mailPort: 993 },
+        CREDS,
+        {
+          imapListable: (cfg) => {
+            asked.push(cfg);
+            return { listFolders: async () => ['INBOX', 'Sent'] };
+          },
+        },
+      );
+      expect(q?.domains.mail).toEqual({ answer: 'yes', detail: '2 folders visible.' });
+      // The face was asked at the STORED mail host, not the DAV endpoint.
+      expect(asked[0]?.host).toBe('imap.example.net');
+      // The DAV faces are unchanged beside it.
+      expect(q?.domains.calendar.answer).toBe('yes');
+      expect(q?.domains.contact.answer).toBe('yes');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a refused mail listing on a soverin account stays UNKNOWN — never a no', async () => {
+    vi.stubGlobal('fetch', davAnsweringFetch());
+    try {
+      const q = await qualifyAccount(
+        'soverin',
+        { ...DAV_CONFIG, mailHost: 'imap.example.net' },
+        CREDS,
+        {
+          imapListable: () => ({
+            listFolders: async () => {
+              throw new Error('LOGIN failed');
+            },
+          }),
+        },
+      );
+      expect(q?.domains.mail.answer).toBe('unknown');
+      expect(q?.domains.mail.detail).toContain('LOGIN failed');
     } finally {
       vi.unstubAllGlobals();
     }

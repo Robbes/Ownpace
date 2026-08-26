@@ -167,8 +167,7 @@ export async function buildDepsFromMapping(
     
     // Parse connector configs from the connection config JSONB
     const sourceConfig = sourceConnection.config as unknown as SourceConfig;
-    const targetConfig = targetConnection.config as unknown as TargetConfig;
-    
+
     // Decrypt source credentials
     let sourceCredentials: Record<string, string>;
     if (sourceConnection.secretRef) {
@@ -195,7 +194,19 @@ export async function buildDepsFromMapping(
         throw new Error('Target connection has no credentials');
       }
     }
-    
+
+    // The mail TargetConfig is resolved BY KIND at this one seam (0106 T4b):
+    // a protocol row's config already IS the writer's shape, while the
+    // `soverin` ACCOUNT row stores its mail face as mailHost/mailPort —
+    // turned into the imap-dav shape here, or refused naming the missing
+    // field. Kind resolves protocol at the edge and nowhere downstream (the
+    // #597 guard).
+    const targetConfig = mailTargetConfigFromConnection(
+      targetConnection.kind,
+      targetConnection.config as Record<string, unknown>,
+      targetCredentials,
+    );
+
     return {
       sourceConfig,
       targetConfig,
@@ -741,6 +752,52 @@ function buildImapSourceFromCredentials(
     },
     throttleLimiter,
   );
+}
+
+/**
+ * A stored connection row's config, as the mail path's TargetConfig
+ * (0106 T4b) — the ONE seam where connection KIND resolves the mail
+ * protocol.
+ *
+ * A protocol row (`jmap`, `imap`) already stores the writer's shape, `type`
+ * discriminant included, and passes through untouched. The `soverin` ACCOUNT
+ * row stores its DAV faces in url/host+port and its mail face — when the
+ * person stored one — in `mailHost`/`mailPort`; here that face becomes the
+ * imap-dav shape `buildTargetWriterFromCredentials` already speaks, so
+ * nothing downstream learns the kind exists. An account with NO stored mail
+ * server refuses by field name rather than guessing a host from the
+ * provider's name (the never-guess rule): the create door demands the field
+ * when email is ticked, and this refusal catches the reused-connection path
+ * the create door cannot see into.
+ *
+ * `mailPort` is read tolerantly (the connections probe route carries values
+ * as strings) and defaults to 993 — the same IMAPS default the imap kind's
+ * own door uses.
+ */
+export function mailTargetConfigFromConnection(
+  kind: string,
+  config: Record<string, unknown>,
+  credentials: Record<string, string>,
+): TargetConfig {
+  if (kind !== 'soverin') return config as unknown as TargetConfig;
+  const mailHost = typeof config.mailHost === 'string' ? config.mailHost.trim() : '';
+  if (!mailHost) {
+    throw new Error(
+      'This soverin connection stores no mail server, so its mail face cannot be built: ' +
+        "config.mailHost is missing. Add the account's IMAP host to the connection (your " +
+        'provider’s account settings page names it) — the calendar and contact faces are ' +
+        'unaffected.',
+    );
+  }
+  const portRaw = Number(config.mailPort);
+  return {
+    type: 'imap-dav',
+    host: mailHost,
+    port: Number.isFinite(portRaw) && portRaw > 0 ? portRaw : 993,
+    // Same asymmetry rule as every IMAP door: TLS unless said otherwise.
+    tls: config.useSsl !== false,
+    user: String(config.user ?? credentials.username ?? ''),
+  } as unknown as TargetConfig;
 }
 
 /**

@@ -20,7 +20,10 @@ Legend: ✅ migrates · 🔁 detected & reported, owner decides (never acted on 
 | **Source** | ✅ password (`imap`) | ✅ IMAP+XOAUTH2 with your Entra app (`oauth2`), Graph fallback behind it; ✅ Graph REST (`graph`) | ⏳ IMAP+XOAUTH2 with your Google client (`gmail`, workplan 0044) — Stage 5 |
 | **Target** | ✅ IMAP half of `imap-dav` | — (targets are where you migrate *to*) | 🚫 never a target |
 
-Also a target: **JMAP** (`jmap` — Stalwart / La Suite / mosa.cloud).
+Also a target: **JMAP** (`jmap` — Stalwart / La Suite / mosa.cloud), and **Soverin**
+(`soverin`, workplan 0106 T4b) — the account kind's mail face: the IMAP half of `imap-dav`,
+driven from the mail server the person STORED on the connection (`mailHost` — demanded by
+name when email is ticked, never guessed from the provider's name).
 
 What migrates: messages as **verbatim RFC822 bytes**, the folder tree, and the four flags the
 engines map (`$seen`, `$flagged`, `$draft`, `$answered` — the last one absent from the Graph
@@ -46,9 +49,6 @@ Not (yet) migrated:
   empty migration" is the lie that refusal prevents (workplan 0027; manual runbook for the
   definition + members).
 - ⛔ **Category/label colours and non-flag keywords** — only the four mapped flags travel.
-- ⛔ **Mail through the `soverin` account kind** — the kind exists and carries
-  calendar+contact (see Calendars); its mail face waits for the mail target builder to
-  speak it (workplan 0106 T4b). Until then a Soverin mailbox is an ordinary `imap` target.
 
 ## Calendars
 
@@ -57,10 +57,11 @@ Not (yet) migrated:
 | **Source** | ✅ (`caldav`) | ⏳ Graph (`graph-calendar`) — WIRED in workplan 0054 (before it, the config parsed but could not build: the connector had no call site); **workplan 0059 fixed a delta loop that re-requested page one forever on any calendar with more than one page, and the `/$delta` path Graph does not serve**; appliance mapping files; shared mailbox via `source.mailbox` | ⏳ CalDAV with OAuth (`google-calendar`, workplan 0045) — Stage 6 |
 | **Target** | ✅ CalDAV only | — | 🚫 never a target |
 
-Also a target: **Soverin** (`soverin`, workplan 0106 T4a) — the first provider-named
-**account** kind: one connection row, one app-password, carrying calendar *and* contact
-mappings through the same CalDAV/CardDAV writers the protocol kinds use. What the account
-actually answers per face is measured and stored (the 0106 qualification), never assumed.
+Also a target: **Soverin** (`soverin`, workplan 0106 T4a+T4b) — the first provider-named
+**account** kind: one connection row, one app-password, carrying email, calendar *and*
+contact mappings through the same writers the protocol kinds use (mail via the stored
+`mailHost`, see Email). What the account actually answers per face is measured and stored
+(the 0106 qualification), never assumed.
 
 What migrates: events as **iCal objects**, with recurring series and their exceptions
 preserved over CalDAV; incremental sync via RFC 6578 sync-tokens (ctag fallback); the

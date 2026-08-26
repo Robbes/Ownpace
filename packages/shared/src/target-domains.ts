@@ -41,12 +41,13 @@ export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<Discove
   // one credential, several protocol faces — the `nextcloud` model given a
   // wizard door. Ground truth stays the engines: calendar and contact ride
   // the existing DAV builders (the per-domain factories already route any
-  // non-jmap kind to carddav/webdav endpoints). Mail is NOT here yet — the
-  // mail target builder does not speak this kind (T4b), and promising a
-  // domain the builders cannot drive is exactly what this table exists to
-  // prevent. Files stay out until a Soverin account MEASURES a file face
+  // non-jmap kind to carddav/webdav endpoints), and email rides the IMAP
+  // half of `imap-dav` since T4b — resolved at the one mail seam from the
+  // account's STORED mail server (`mailHost`, typed by the person; the
+  // create door demands it by name when email is ticked, never guesses a
+  // host). Files stay out until a Soverin account MEASURES a file face
   // (the qualification's job, never this table's guess).
-  soverin: ['calendar', 'contact'],
+  soverin: ['email', 'calendar', 'contact'],
 };
 
 const PROTOCOL_NAMES: Record<WizardTargetType, string> = {

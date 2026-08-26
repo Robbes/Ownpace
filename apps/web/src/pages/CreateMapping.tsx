@@ -95,6 +95,9 @@ interface FormData {
   targetPort: string;
   /** DAV targets only (0105 T1): full DAV base URL; wins over host+port when set. */
   targetUrl: string;
+  /** soverin only (0106 T4b): the account's IMAP host — typed, never guessed. */
+  targetMailHost: string;
+  targetMailPort: string;
   targetUsername: string;
   targetPassword: string;
   targetSsl: boolean;
@@ -128,6 +131,8 @@ const initialFormData: FormData = {
   targetHost: '',
   targetPort: '443',
   targetUrl: '',
+  targetMailHost: '',
+  targetMailPort: '',
   targetUsername: '',
   targetPassword: '',
   targetSsl: true,
@@ -290,6 +295,8 @@ const DRAFT_FIELDS = [
   'targetHost',
   'targetPort',
   'targetUrl',
+  'targetMailHost',
+  'targetMailPort',
   'targetFolderPrefix',
   'domains',
   'schedule',
@@ -461,6 +468,14 @@ const CreateMapping: React.FC = () => {
     password: formData.targetPassword,
     useSsl: formData.targetSsl,
     ...(formData.targetUrl.trim() ? { url: formData.targetUrl.trim() } : {}),
+    ...(formData.targetMailHost.trim()
+      ? {
+          mailHost: formData.targetMailHost.trim(),
+          ...(formData.targetMailPort.trim()
+            ? { mailPort: Number(formData.targetMailPort) }
+            : {}),
+        }
+      : {}),
   });
 
   const handleNext = () => {
@@ -599,6 +614,8 @@ const CreateMapping: React.FC = () => {
             host: formData.targetHost,
             port: formData.targetPort,
             url: formData.targetUrl,
+            mailHost: formData.targetMailHost,
+            mailPort: formData.targetMailPort,
           };
     // Only what this provider actually asks for, and only what was filled in:
     // posting an empty optional would store "" where the connector expects the
@@ -975,6 +992,8 @@ const CreateMapping: React.FC = () => {
     username: 'targetUsername',
     password: 'targetPassword',
     url: 'targetUrl',
+    mailHost: 'targetMailHost',
+    mailPort: 'targetMailPort',
   };
 
   const SOURCE_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {

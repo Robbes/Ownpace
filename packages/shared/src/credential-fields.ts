@@ -267,6 +267,24 @@ const TARGET_DAV_URL: CredentialField = {
 const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav', 'soverin'] as const;
 
 /**
+ * The account kind's MAIL face (0106 T4b): the IMAP host the person's provider
+ * names, typed here rather than guessed anywhere — a provider directory may
+ * one day PRE-FILL it (T5, parked), but the record stays what was typed and
+ * what Test measured. Optional, because an account used only for calendars
+ * and contacts needs no mail server; the create door demands it the moment
+ * the email domain is ticked, by name.
+ */
+const SOVERIN_MAIL_FIELDS: ReadonlyArray<CredentialField> = [
+  {
+    key: 'mailHost',
+    labelKey: 'wizard.soverinMailHost',
+    placeholder: 'imap.example.com',
+    hintKey: 'wizard.soverinMailHost.hint',
+  },
+  { key: 'mailPort', labelKey: 'wizard.soverinMailPort', numeric: true, placeholder: '993' },
+];
+
+/**
  * What to ask for, or `[]` when the type is not one this product connects to.
  * An empty list is a refusal to guess, not a form with no fields — callers
  * check it and say so.
@@ -276,6 +294,9 @@ export function credentialFieldsFor(
   type: string,
 ): ReadonlyArray<CredentialField> {
   if (role === 'target') {
+    if (type === 'soverin') {
+      return [...TARGET_FIELDS, TARGET_DAV_URL, ...SOVERIN_MAIL_FIELDS];
+    }
     if ((DAV_TARGET_TYPES as ReadonlyArray<string>).includes(type)) {
       return [...TARGET_FIELDS, TARGET_DAV_URL];
     }
