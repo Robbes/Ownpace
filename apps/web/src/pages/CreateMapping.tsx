@@ -41,6 +41,7 @@ import {
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage } from '../services/api.ts';
+import { FamilyIcon, FrontDoorIcon } from '../components/FrontDoorIcon.tsx';
 import { useMutation } from '@tanstack/react-query';
 
 type Step = 'source' | 'target' | 'migration' | 'review';
@@ -1406,8 +1407,13 @@ const CreateMapping: React.FC = () => {
         selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
       }`}
     >
-      <p className="font-medium text-gray-900">{card.nameKey ? t(card.nameKey) : card.name}</p>
-      <p className="text-sm text-gray-500 mt-1">{t(card.hintKey)}</p>
+      <div className="flex items-start gap-3">
+        <FrontDoorIcon type={card.id} />
+        <div>
+          <p className="font-medium text-gray-900">{card.nameKey ? t(card.nameKey) : card.name}</p>
+          <p className="text-sm text-gray-500 mt-1">{t(card.hintKey)}</p>
+        </div>
+      </div>
     </button>
   );
 
@@ -1505,7 +1511,8 @@ const CreateMapping: React.FC = () => {
             <div className="space-y-3">
               {grouped.families.map((family) => (
                 <div key={family.id}>
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">
+                  <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">
+                    <FamilyIcon family={family.id} />
                     {family.label}
                   </p>
                   <div className={grid}>{family.members.map(renderCard)}</div>

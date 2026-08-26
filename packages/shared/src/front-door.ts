@@ -76,6 +76,63 @@ export function frontDoorFamilyOf(id: string): string | undefined {
   return FRONT_DOOR_FAMILIES.find((f) => f.members.includes(id))?.id;
 }
 
+/**
+ * The front door's icons (workplan 0107 T2), one registry on the same ids.
+ *
+ * Provider-lane entries carry a MARK — a brand-colored tile with the
+ * provider's initial. That is the deliberate floor: recognition without a
+ * trademark question, shipped for every provider on day one. A real brand
+ * SVG is a per-provider CONTENT swap behind the owner's nod, reviewed for
+ * that brand's usage terms — never a code change, and never a prerequisite.
+ * Protocol-lane entries carry a generic GLYPH on purpose: a protocol is not
+ * a brand, and drawing it like one would re-mix the levels T1 separated.
+ * The lanes stay visually distinct because the invariant is pinned: marks
+ * on providers only, glyphs on protocols only.
+ */
+export type FrontDoorIcon =
+  | { readonly kind: 'mark'; readonly initial: string; readonly background: string }
+  | {
+      readonly kind: 'glyph';
+      readonly glyph: 'mail' | 'server' | 'calendar' | 'contacts' | 'files';
+    };
+
+const M365_MARK: FrontDoorIcon = { kind: 'mark', initial: 'M', background: '#0067b8' };
+const GOOGLE_MARK: FrontDoorIcon = { kind: 'mark', initial: 'G', background: '#4285f4' };
+
+export const FRONT_DOOR_ICONS: Readonly<Record<string, FrontDoorIcon>> = {
+  // Protocols — one honest generic glyph each.
+  imap: { kind: 'glyph', glyph: 'mail' },
+  jmap: { kind: 'glyph', glyph: 'server' },
+  caldav: { kind: 'glyph', glyph: 'calendar' },
+  carddav: { kind: 'glyph', glyph: 'contacts' },
+  webdav: { kind: 'glyph', glyph: 'files' },
+  // Microsoft 365's two methods share the provider's one mark — same
+  // account, same face; the card text says how it connects.
+  oauth2: M365_MARK,
+  graph: M365_MARK,
+  // The Google products keep the G and wear their product's own color —
+  // the four colors are what makes them tell apart at a glance.
+  gmail: { kind: 'mark', initial: 'G', background: '#ea4335' },
+  'google-calendar': { kind: 'mark', initial: 'G', background: '#4285f4' },
+  'google-contacts': { kind: 'mark', initial: 'G', background: '#1a73e8' },
+  'google-drive': { kind: 'mark', initial: 'G', background: '#0f9d58' },
+  dropbox: { kind: 'mark', initial: 'D', background: '#0061ff' },
+  box: { kind: 'mark', initial: 'B', background: '#0061d5' },
+  // Neutral slate until Soverin's own brand color is confirmed — a wrong
+  // brand color would be a small guess, and this file does not guess.
+  soverin: { kind: 'mark', initial: 'S', background: '#334155' },
+};
+
+/** The mark a family HEADING wears — the provider's face over its methods. */
+export const FAMILY_ICONS: Readonly<Record<string, FrontDoorIcon>> = {
+  microsoft365: M365_MARK,
+  google: GOOGLE_MARK,
+};
+
+export function frontDoorIconOf(id: string): FrontDoorIcon | undefined {
+  return FRONT_DOOR_ICONS[id];
+}
+
 export interface FrontDoorPartition<T> {
   /** Families with at least TWO present members, in declaration order —
    *  a sub-heading over a single card would be noise, so a lone member
