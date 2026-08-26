@@ -170,6 +170,38 @@ above `chunkSize`, which **defaults to 10 MB** and is configurable via `WebDAVSy
 Only claim what has been run: Nextcloud is the one target with real, repeated evidence across all
 three domains.
 
+## Scheduling and invitation mail on the target
+
+A CalDAV target that implements RFC 6638 auto-scheduling will **send mail on
+writes**: PUT an event carrying `ATTENDEE`s and the server invites them;
+DELETE an organiser copy and it cancels. A migration triggers both, at scale
+(workplan 0103; ADR-0043). The product protects itself in the object — every
+`ATTENDEE`/`ORGANIZER` it writes carries `SCHEDULE-AGENT=CLIENT`, every DELETE
+carries `Schedule-Reply: F` — and **measures** the target rather than trusting
+it: `detectCaldavScheduling` reads the `calendar-auto-schedule` compliance
+class with one OPTIONS request, API-only.
+
+Where you also **run** the target, a global switch exists:
+
+| Target | Off-switch | Verified from |
+|---|---|---|
+| Nextcloud | `occ config:app:set dav sendInvitations --value no` (invitations); `dav sendEventReminders` / `sendEventRemindersToSharedUsers` (reminder mail) | the `dav` app's own source: the iMIP plugin registers only when `sendInvitations` = `yes` (the default) |
+| Stalwart (≥ 0.12.1) | scheduling `enable = false`, or the per-account permission | vendor scheduling docs + changelog |
+
+**Both switches are instance-wide.** On a customer's LIVE server they silence
+the customer's real users too — every genuine invitation, not just the
+migration's. So this is a **migration-window decision an operator makes and
+reverses deliberately**, never something this tool flips (hard rule 2's
+spirit: no mutating somebody's server config on the way past), and never a
+default. The object-level neutralising above is what protects a migration
+into a server whose switches you cannot touch.
+
+Reminders are usually *wanted* after a migration — people moved their
+calendar to keep being reminded — so the reminder switches are for the
+window only. Note also that Nextcloud skips reminders whose trigger is in
+the past and skips invitation mail for events that already ended, so
+imported *history* is quiet there by its own design; future events are not.
+
 ## Reliability
 
 `CalDAVTargetWriter`, `CarddavTargetWriter` and `WebDAVTargetWriter` retry a write up to 3 times

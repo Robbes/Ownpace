@@ -126,6 +126,19 @@ describe('the mail nobody should get — the gate stays armed and asserting', ()
     ).toMatch(/UNKNOWN[^\n]*unmeasured/);
   });
 
+  it('keeps the operator switches documented with the live-server caveat (T4)', () => {
+    const doc = readFileSync(join(COMPOSE, '..', '..', 'docs', 'dav-sync.md'), 'utf8');
+    expect(doc, 'dav-sync.md no longer names the Nextcloud invitation switch').toContain(
+      'sendInvitations',
+    );
+    expect(
+      doc,
+      'the live-server caveat is gone: both switches are instance-wide, and\n' +
+        'without the warning an operator silences a customer’s real users to\n' +
+        'quiet a migration.',
+    ).toMatch(/instance-wide[\s\S]{0,300}LIVE server/);
+  });
+
   it('the apply half can never spend the canary (E2E #88)', () => {
     const smoke = strip('smoke-managed.sh');
     expect(
