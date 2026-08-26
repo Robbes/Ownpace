@@ -1,0 +1,99 @@
+name: E2E (live target)
+
+# ==============================================================================
+# The soft lane (workplan 0105 T4): the nightly against a target we do NOT
+# host. Deliberately a SEPARATE workflow from the hermetic gates:
+#
+#   - The hermetic gates answer "did WE regress" and must never depend on
+#     internet mail latency, greylisting, spam filtering, or a provider's
+#     uptime. This lane answers "does the world behave".
+#   - Red here means INVESTIGATE. It triggers on schedule and dispatch only —
+#     never on a PR — so it blocks nothing by construction.
+#   - Unconfigured, the lane STANDS DOWN loudly-but-green: the driver prints
+#     exactly which variables would arm it and exits 0. HALF-configured is
+#     red, naming exactly the missing variables — a checker somebody started
+#     to set up and left is a mistake, not a choice.
+#
+# What a full run does (scripts/live-target-lane.ts holds the decisions,
+# unit-tested; live-target-nightly.ts is plumbing):
+#   1. The DAY-AFTER SWEEP: query the catch-all for YESTERDAY's date-stamped
+#      tag. A real provider's queue drains on its own schedule (we cannot
+#      `docker exec cron.php` a SaaS); time is the drain's substitute, and
+#      this gives every run a 24-hour queue window for free.
+#   2. The POSITIVE CONTROL: one mail sent through the target platform's own
+#      submission server to a tag-addressed @ownpace.eu recipient, which MUST
+#      arrive — silence is only meaningful from a catcher that just proved it
+#      can see. Its tag family (openmig-control-…) is disjoint from the
+#      canary family (openmig-live-…), so the control can never count against
+#      the silence it proves.
+#   3. The SYNC: trigger the persistent T1 tenant's mappings through the
+#      product API, then a settle window before believing any silence.
+#   4. The SILENCE: nothing in the catch-all may carry today's canary tag.
+#
+# Credentials: NOTHING here is a GitHub secret. The LIVE_* variables live in
+# the Spark's persisted .env (the same file the managed gate restores, outside
+# every checkout), because they are the Spark's harness plumbing — rule 3, and
+# 0105's two-credential-kinds rule: the product holds what it needs to
+# MIGRATE (SecretStore, via the UI); the gate holds what it needs to JUDGE.
+#
+# Variables read (all from the persisted .env; see scripts/live-target-lane.ts):
+#   LIVE_CATCHALL_HOST / _USER / _PASSWORD   (+ _PORT 993, _MAILBOX INBOX)
+#   LIVE_CONTROL_SMTP_HOST / _USER / _PASSWORD (+ _PORT 465, LIVE_CONTROL_FROM)
+#   LIVE_TARGET_API_URL / _TOKEN / LIVE_TARGET_MAPPINGS (comma-separated ids)
+#   LIVE_CANARY_DOMAIN (default ownpace.eu), LIVE_SETTLE_MINUTES (default 10)
+# ==============================================================================
+
+on:
+  schedule:
+    # 04:30 UTC — between e2e.yml's 03:30 (pglite) and e2e-managed's 05:30.
+    # This lane runs no Docker stack (node + IMAP + HTTPS only), so it is
+    # light; the slot just keeps the Spark's log lines legible.
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  live-target:
+    runs-on: [self-hosted, linux, arm64]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Arm from the persisted .env (checkout's own clean would destroy a tracked copy)
+        # Same persistence convention as e2e-managed.yml, same reason: the
+        # checkout runs `git clean -ffdx` by design, so anything that must
+        # survive lives OUTSIDE it. Only LIVE_* lines are read; nothing is
+        # echoed (GITHUB_ENV writes do not appear in the log). A missing file
+        # or no LIVE_* lines is the driver's honest stand-down, not an error
+        # here — the lane's whole posture is that unarmed is a state it can
+        # SAY, not one the workflow has to fail around.
+        run: |
+          set -euo pipefail
+          case "${MANAGED_ENV_PERSIST_DIR:-}" in
+            *'$'*)
+              echo "::error::MANAGED_ENV_PERSIST_DIR contains an unexpanded variable: ${MANAGED_ENV_PERSIST_DIR}"
+              echo "Set it to an absolute path, or delete the variable — the default expands \$HOME correctly."
+              exit 1
+              ;;
+          esac
+          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}"
+          if [ -f "${PERSIST_DIR}/.env" ]; then
+            grep -E '^LIVE_[A-Z_]+=' "${PERSIST_DIR}/.env" >> "$GITHUB_ENV" || true
+            echo "armed from ${PERSIST_DIR}/.env ($(grep -cE '^LIVE_[A-Z_]+=' "${PERSIST_DIR}/.env" || true) LIVE_* line(s))"
+          else
+            echo "no persisted .env at ${PERSIST_DIR} — the driver will stand down and say so"
+          fi
+        env:
+          MANAGED_ENV_PERSIST_DIR: ${{ vars.MANAGED_ENV_PERSIST_DIR }}
+
+      - name: Run the lane
+        run: pnpm exec tsx scripts/live-target-nightly.ts
