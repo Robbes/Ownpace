@@ -66,11 +66,14 @@ describe('route registration', () => {
         'POST /:mappingId/finish',
         'POST /:mappingId/moves/:hash/apply',
         'POST /:mappingId/moves/:hash/keep',
-        // The sharing checklist (ADR-0032, workplan 0052) — same three
+        // The sharing checklist (ADR-0032, workplan 0052) — same four
         // verbs on both editions: read the queue, rescan the inventory,
-        // settle one row (apply / done-by-hand / skip).
+        // settle one row (apply / done-by-hand / skip), and the one-go
+        // press (0104 T1) that applies every open clean row at the chosen
+        // moment.
         'GET /:mappingId/sharing',
         'POST /:mappingId/sharing/:grantId/decision',
+        'POST /:mappingId/sharing/apply-all',
         'POST /:mappingId/sharing/rescan',
         'POST /:mappingId/verify/start',
       ].sort(),
@@ -95,6 +98,12 @@ describe('route registration', () => {
       'PATCH /:mappingId/apply-deletions',
       'POST /:mappingId/deletions/:hash/apply',
       'POST /:mappingId/moves/:hash/apply',
+      // The sharing press (0104 T1) DESTROYS nothing — it CREATES shares,
+      // the same synchronous OCS call the per-row decision route has made
+      // since 0052, bounded by the checklist a human curates. If checklists
+      // ever reach worker scale, this is the route that moves behind
+      // Trigger.dev — deliberately, not by a test quietly widening.
+      'POST /:mappingId/sharing/apply-all',
     ]);
   });
 

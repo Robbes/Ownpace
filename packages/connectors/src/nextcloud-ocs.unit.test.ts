@@ -15,6 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import type { HttpClient, HttpRequestOptions } from './dav-http.types.ts';
 import {
+  createNextcloudShare,
   createNextcloudUserShare,
   nextcloudPermissionsFor,
   ocsOriginFrom,
@@ -124,5 +125,130 @@ describe('ocsOriginFrom', () => {
       'https://cloud.example.nl',
     );
     expect(ocsOriginFrom('not a url')).toBeUndefined();
+  });
+});
+
+describe('createNextcloudShare — the grantee the target does not know (0104 T0)', () => {
+  // Most of the people a cutover owes an announcement have no account on the
+  // target: the source knew them by ADDRESS. A user share cannot reach them;
+  // share-by-mail can, and it MAILS the link — the platform's own
+  // notification, at the moment the grant is applied.
+  function sequencedHttp(responses: Array<{ status: number; body: string }>) {
+    const calls: HttpRequestOptions[] = [];
+    const httpClient: HttpClient = {
+      async request(options) {
+        calls.push(options);
+        const r = responses[Math.min(calls.length - 1, responses.length - 1)]!;
+        return { status: r.status, body: r.body, headers: {} };
+      },
+    };
+    return { httpClient, calls };
+  }
+
+  // Deliberately DUTCH: the fallback must key on the locale-independent OCS
+  // statuscode, never on the translated sentence.
+  const NO_SUCH_ACCOUNT = JSON.stringify({
+    ocs: { meta: { status: 'failure', statuscode: 404, message: 'Gebruiker bestaat niet' } },
+  });
+
+  it('a known account gets a user share: one call, shareType 0, via user', async () => {
+    const { httpClient, calls } = sequencedHttp([{ status: 200, body: OK_ENVELOPE }]);
+
+    const result = await createNextcloudShare(OPTIONS(httpClient), {
+      path: 'a.txt',
+      shareWith: 'bram',
+      role: 'reader',
+    });
+
+    expect(result).toEqual({ ok: true, via: 'user' });
+    expect(calls).toHaveLength(1);
+    expect(String(calls[0]!.body)).toContain('shareType=0');
+  });
+
+  it('an unknown account falls back to SHARE-BY-MAIL: shareType 4, same path and level', async () => {
+    const { httpClient, calls } = sequencedHttp([
+      { status: 404, body: NO_SUCH_ACCOUNT },
+      { status: 200, body: OK_ENVELOPE },
+    ]);
+
+    const result = await createNextcloudShare(OPTIONS(httpClient), {
+      path: 'Projects/budget.xlsx',
+      shareWith: 'anna@example.nl',
+      role: 'writer',
+    });
+
+    expect(result).toEqual({ ok: true, via: 'mail' });
+    expect(calls).toHaveLength(2);
+    const second = String(calls[1]!.body);
+    expect(second).toContain('shareType=4');
+    expect(second).toContain('shareWith=anna%40example.nl');
+    expect(second).toContain('permissions=15');
+  });
+
+  it('the note rides the attempt — the owner’s context travels inside the platform’s mail', async () => {
+    const { httpClient, calls } = sequencedHttp([
+      { status: 404, body: NO_SUCH_ACCOUNT },
+      { status: 200, body: OK_ENVELOPE },
+    ]);
+
+    await createNextcloudShare(OPTIONS(httpClient), {
+      path: 'a.txt',
+      shareWith: 'anna@example.nl',
+      role: 'reader',
+      note: 'This replaces the share on the old platform.',
+    });
+
+    const expected = new URLSearchParams({
+      note: 'This replaces the share on the old platform.',
+    }).toString();
+    for (const call of calls) {
+      expect(String(call.body)).toContain(expected);
+    }
+  });
+
+  it('a non-404 refusal does NOT try a second door — a permissions problem is not an invitation', async () => {
+    const { httpClient, calls } = sequencedHttp([
+      {
+        status: 403,
+        body: JSON.stringify({
+          ocs: { meta: { status: 'failure', statuscode: 403, message: 'Sharing is disabled' } },
+        }),
+      },
+    ]);
+
+    const result = await createNextcloudShare(OPTIONS(httpClient), {
+      path: 'a.txt',
+      shareWith: 'anna@example.nl',
+      role: 'reader',
+    });
+
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) expect(result.reason).toContain('Sharing is disabled');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('when both doors refuse, the answer names both — nothing was created, twice, visibly', async () => {
+    const { httpClient, calls } = sequencedHttp([
+      { status: 404, body: NO_SUCH_ACCOUNT },
+      {
+        status: 404,
+        body: JSON.stringify({
+          ocs: { meta: { status: 'failure', statuscode: 404, message: 'Wrong path, file/folder does not exist' } },
+        }),
+      },
+    ]);
+
+    const result = await createNextcloudShare(OPTIONS(httpClient), {
+      path: 'gone.txt',
+      shareWith: 'anna@example.nl',
+      role: 'reader',
+    });
+
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) {
+      expect(result.reason).toContain('Gebruiker bestaat niet');
+      expect(result.reason).toContain('Wrong path');
+    }
+    expect(calls).toHaveLength(2);
   });
 });

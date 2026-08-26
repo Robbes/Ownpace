@@ -108,7 +108,7 @@ import {
   directoryNotEnumerable,
   directoryAvailability,
   driveSharingAvailability,
-  createNextcloudUserShare,
+  createNextcloudShare,
   type HttpClient,
 } from '@openmig/connectors';
 import {
@@ -122,6 +122,7 @@ import {
   resolveCoverage,
   coverageIncompleteReason,
   buildIdentity,
+  applyAllOpenShareGrants,
   applyShareGrant,
   markShareGrant,
   refreshShareGrants,
@@ -1485,6 +1486,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       const nextcloudCapabilityFor = (
         m: (typeof mappings)[number],
         granteeOverride: string | undefined,
+        note?: string,
       ) => {
         const t = m.config.domains?.files?.target ?? m.config.target;
         if (!t || t.type !== 'webdav') return undefined;
@@ -1501,7 +1503,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                 'nobody to share with. Handle it by hand and mark the row done.',
             };
           }
-          return createNextcloudUserShare(
+          return createNextcloudShare(
             {
               webdavUrl: t.url,
               username: t.user,
@@ -1523,6 +1525,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                 : row.onLabel,
               shareWith,
               role: row.role,
+              ...(note ? { note } : {}),
             },
           );
         };
@@ -1727,6 +1730,40 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           });
         }
         return sendJson(res, 200, { status: 'ok', grant: outcome.row });
+      }
+      // THE ONE-GO PRESS (0104 T1) — same verb as managed (ADR-0026): every
+      // open, clean, addressable grant applied in one recorded action, at or
+      // after cutover. The target notifies the grantees itself; this press is
+      // the chosen announcement moment. Links and manual verdicts stay on the
+      // checklist untouched.
+      const sharingApplyAllMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/sharing\/apply-all$/.exec(req.url)
+          : null;
+      if (sharingApplyAllMatch) {
+        const id = decodeURIComponent(sharingApplyAllMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const body = ((await readJson(req).catch(() => ({}))) ?? {}) as { note?: string };
+        const note =
+          typeof body.note === 'string' && body.note.trim()
+            ? body.note.trim().slice(0, 500)
+            : undefined;
+        const lifecycle = await mappingStatus(m);
+        const createShare = nextcloudCapabilityFor(m, undefined, note);
+        const outcome = await applyAllOpenShareGrants({
+          tenantId: m.config.tenantId as TenantId,
+          mappingId: m.mailboxMappingId as MappingId,
+          ledger,
+          decidedBy: 'operator',
+          onError: (msg: string, err: unknown) => log.error(msg, err),
+          lifecycleDone: lifecycle === 'done',
+          ...(createShare ? { createShare } : {}),
+        });
+        if (!outcome.ok) {
+          return sendJson(res, 409, { error: outcome.code, reason: outcome.reason });
+        }
+        return sendJson(res, 200, { status: 'ok', pressedBy: 'operator', ...outcome });
       }
       // The §14.2 permission inventory (workplan 0029 T1/T3/T4). Markdown,
       // same shape and same words as managed (ADR-0026), derived on every
