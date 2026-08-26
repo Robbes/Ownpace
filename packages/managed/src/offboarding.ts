@@ -88,6 +88,7 @@ export const PURGED_TABLES = [
   'tenant_closure',
   'audit_log',
   'rate_budget',
+  'byte_budget',
 ] as const;
 
 /**
