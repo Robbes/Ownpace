@@ -53,6 +53,11 @@ if [ "$m" = "DELETE" ]; then
   echo -n "\${DELETE_ANSWER:-204}"
   exit 0
 fi
+if [ "$m" = "POST" ]; then
+  printf '%s\\n' "\${args[@]}" >> "$ARGDIR/ocs-posts.txt"
+  echo -n '{"ocs":{"meta":{"status":"ok","statuscode":200}}}'
+  exit 0
+fi
 cat >> "$ARGDIR/bodies.txt" 2>/dev/null; echo -n 201
 `;
 

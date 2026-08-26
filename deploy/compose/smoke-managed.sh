@@ -2276,6 +2276,60 @@ if [ -n "$BALANCE_TAG" ]; then
   else
     echo "nothing addressed to the canary reached the catcher during seed or sync"
   fi
+
+  # ---------- the moment, pressed (0104 T2, final stage) ----------
+  # The gate now presses the REAL thing: the rescan discovers the source
+  # share the seed created, one press applies every open clean row through
+  # the target's own share API, and the target's mail — the announcement —
+  # must arrive carrying the note only the press writes. The seed's own
+  # share-by-mail sent one mail at seed time (the seed's act, tag-addressed,
+  # caught like everything else); the press's mail is told apart by that
+  # note. The mapping is put into 'done' for exactly the press and restored
+  # straight after — the same fabricate-and-retract shape the apply half
+  # uses — because a share applied before cutover is the wrong announcement
+  # from the right channel, and the gate must not normalise it. The applied
+  # share_grant row STAYS in the ledger, one per run, deliberately: it is
+  # the record of a mail that really went to a real address.
+  note "the moment, pressed"
+  rescan_out="$(curl -sS -X POST -H "Authorization: Bearer $APPLY_TOKEN" -w $'\n%{http_code}' \
+    "$API/api/migrations/$APPLY_MAPPING/sharing/rescan")"
+  echo "rescan: HTTP ${rescan_out##*$'\n'}"
+  press_open="$(jq -r '.open // 0' <<<"${rescan_out%$'\n'*}" 2>/dev/null || echo 0)"
+  if [ "${press_open:-0}" -lt 1 ]; then
+    echo "the rescan found no open sharing rows — the seeded source share was not"
+    echo "discovered (scanNextcloudShares, or the seed's ocs() share: one of the two)."
+    fail=1
+  else
+    prior_status="$(q "SELECT status FROM mailbox_mapping WHERE id='$APPLY_MAPPING'")"
+    q "UPDATE mailbox_mapping SET status='done' WHERE id='$APPLY_MAPPING'" >/dev/null
+    press_out="$(curl -sS -X POST -H "Authorization: Bearer $APPLY_TOKEN" -H 'Content-Type: application/json' \
+      -d "{\"note\":\"Everything moved for run ${BALANCE_TAG}.\"}" -w $'\n%{http_code}' \
+      "$API/api/migrations/$APPLY_MAPPING/sharing/apply-all")"
+    q "UPDATE mailbox_mapping SET status='${prior_status}' WHERE id='$APPLY_MAPPING'" >/dev/null
+    echo "press: HTTP ${press_out##*$'\n'}"
+    press_applied="$(jq -r '.applied | length' <<<"${press_out%$'\n'*}" 2>/dev/null || echo 0)"
+    if [ "${press_applied:-0}" -lt 1 ]; then
+      echo "the press applied nothing:"
+      jq -r '.refused // .reason // .' <<<"${press_out%$'\n'*}" 2>/dev/null | awk 'NR<=6 {print "    " $0}'
+      fail=1
+    else
+      echo "press applied ${press_applied} grant(s) — the target announces them itself"
+      press_mail=0
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        press_mail="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
+          --data-urlencode "query=\"Everything moved for run ${BALANCE_TAG}\"" | jq -r '.messages_count // 0')"
+        [ "${press_mail:-0}" -ge 1 ] && break
+        sleep 3
+      done
+      if [ "${press_mail:-0}" -ge 1 ]; then
+        echo "the announcement arrived: the target's own mail carries the press's note"
+      else
+        echo "the press applied but its mail never reached the catcher — the announcement"
+        echo "path is broken between the target's share-by-mail and delivery."
+        fail=1
+      fi
+    fi
+  fi
 fi
 
 note "balance — take back what this run added"
@@ -2364,7 +2418,23 @@ fi
 # reach and is the operator's call, not this gate's.
 # THE CANCEL SIDE (0103 T2). The take-back just DELETEd the organiser copy on
 # an armed target — under RFC 6638 exactly the write that fans out CANCEL.
+#
+# DRAIN THE QUEUE, THEN TRUST THE QUIET (the owner's question, 2026-08-26:
+# "how do you know Nextcloud doesn't queue mails to send out later?"). For
+# iMIP we know structurally: SCHEDULE-AGENT=CLIENT means the server never
+# COMPOSES a message, so there is nothing to queue. But Nextcloud does have
+# genuinely queued mail channels — activity digests, calendar reminders —
+# they ride background jobs, and this demo runs no cron. A queued mail would
+# not send "later"; it would sit until something ran the jobs, invisible to
+# a gate that already said PASS. So the gate runs the jobs ITSELF and only
+# then believes the silence: "no queue fired yet" becomes "the queue was
+# drained and still nothing".
 if [ -n "$BALANCE_TAG" ]; then
+  if ! docker exec -u www-data "${NEXTCLOUD_CONTAINER:-ownpace-nextcloud}" php -f /var/www/html/cron.php >/dev/null 2>&1; then
+    echo "the queue drain itself failed — the silence below is UN-drained, and a queued"
+    echo "mail could still be sitting behind it (docker exec … php -f cron.php)."
+    fail=1
+  fi
   sched_mail_after="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
     --data-urlencode "query=openmig-attendee-${BALANCE_TAG}" | jq -r '.messages_count // 0')"
   if [ "${sched_mail_after:-0}" -gt 0 ]; then

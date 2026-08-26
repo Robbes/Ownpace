@@ -397,9 +397,14 @@ async function nextcloudCapabilityFor(
       ),
   );
   const target = rows[0];
-  if (!target || target.kind !== 'webdav') return undefined;
+  // 'webdav' and 'nextcloud' are the same door here: the demo seeds its DAV
+  // connections as kind 'nextcloud' with a baseUrl, and the first live press
+  // would have refused no_share_api on the very stack the gate runs against
+  // (found while building 0104 T2's proof — reading beat waiting for the red).
+  if (!target || (target.kind !== 'webdav' && target.kind !== 'nextcloud')) return undefined;
 
   const config = (target.config ?? {}) as {
+    baseUrl?: string;
     host?: string;
     port?: number;
     useSsl?: boolean;
@@ -408,7 +413,9 @@ async function nextcloudCapabilityFor(
   const creds = target.secretRef
     ? SecretStore.decryptCredentials(target.secretRef)
     : (config.credentials ?? {});
-  const origin = `${config.useSsl === false ? 'http' : 'https'}://${config.host}${config.port ? `:${config.port}` : ''}`;
+  const origin =
+    config.baseUrl ??
+    `${config.useSsl === false ? 'http' : 'https'}://${config.host}${config.port ? `:${config.port}` : ''}`;
 
   return async (row) => {
     const shareWith = granteeOverride ?? row.grantee;

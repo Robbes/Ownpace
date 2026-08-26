@@ -167,6 +167,17 @@ count() { # count <collection> <needle>  — number of matching hrefs, not lines
     "http://localhost/remote.php/dav/$1" 2>/dev/null | grep -o "$2" | wc -l | tr -d ' '
 }
 
+# ocs <method> <path> [field=value...] — the OCS door beside dav()'s DAV one,
+# for the share the inventory must find (0104 T2). Prints the JSON body; the
+# caller reads the envelope.
+ocs() {
+  local method="$1" path="$2"; shift 2
+  local args=(-sS -X "$method" -u "${DAVUSER}:${PASS}" -H 'OCS-APIRequest: true' -H 'Accept: application/json')
+  local field
+  for field in "$@"; do args+=(--data-urlencode "$field"); done
+  docker exec "$NC" curl "${args[@]}" "http://localhost/ocs/v2.php/apps/files_sharing/api/v1/${path}?format=json"
+}
+
 # Nextcloud's own layout is not symmetric — calendars live under
 # `calendars/<user>/`, address books under `addressbooks/users/<user>/`. Both
 # spellings are tried rather than assumed, because getting it wrong produces a
@@ -298,6 +309,26 @@ END:VCARD")
 "Ownpace demo file ${n}. Seeded so the file lane has something to copy.")
     echo "[seed-dav] file ${SUFFIX}${n}: HTTP ${code}"
     case "$code" in 201|204) ;; *) fail "file PUT ${SUFFIX}${n} returned ${code}" ;; esac
+
+    # THE SHARE THE INVENTORY MUST FIND (0104 T2). The source really shares
+    # its tagged file BY MAIL with a tag-addressed outsider — which SENDS ONE
+    # MAIL FROM THE SOURCE, here, at seed time: the seed's own act, caught by
+    # the catcher like everything else, and told apart from the press's later
+    # mail by the note only the press writes. Tag-gated like the canary: the
+    # fixed demo fixture stays share-free. Deleting the file at --remove
+    # takes the share with it (Nextcloud removes shares with their subject),
+    # so the take-back needs no extra verb.
+    if [ "$n" = "1" ] && [ -n "$TAG" ]; then
+      share_body="$(ocs POST shares \
+        "path=/openmig-demo-file-${SUFFIX}1.txt" \
+        "shareType=4" \
+        "shareWith=openmig-grantee-${TAG}@example.invalid")"
+      if grep -q '"status":"ok"' <<<"$share_body"; then
+        echo "[seed-dav] source share ${SUFFIX}1 -> openmig-grantee-${TAG}@example.invalid (by mail)"
+      else
+        fail "source share for ${SUFFIX}1 was refused: $(head -c 200 <<<"$share_body")"
+      fi
+    fi
   done
 fi
 
