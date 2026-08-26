@@ -89,6 +89,15 @@ export const connection = pgTable(
     status: text('status', { enum: ['connected', 'error', 'revoked'] })
       .notNull()
       .default('connected'),
+    // What this account can CARRY, per domain, measured at the last test
+    // (workplan 0106 T0): an AccountQualification blob — {mail, calendar,
+    // contact, file} each yes|no|unknown with a sentence, plus the folded-in
+    // scheduling verdict. NULL means never qualified (an older row, or a kind
+    // qualification does not cover yet) — absence of measurement, never "no".
+    // Deliberately NOT part of `config`: config is what the person TYPED,
+    // this is what the provider ANSWERED, and blurring intent with
+    // measurement is how a stale answer gets re-saved as a choice.
+    qualification: jsonb('qualification'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -102,3 +102,37 @@ export function schedulingText(
       return scheduling.sentence;
   }
 }
+
+/**
+ * The account's per-domain qualification (0106 T0), as one line: what the
+ * last test measured this account can carry. Three marks, deliberately
+ * three: ✓ and ✗ both required an ANSWER; `?` is unmeasured, and rendering
+ * it as either yes or no would be the exact lie the third state exists to
+ * prevent. The hint sentence rides along whenever a `?` is on the line.
+ */
+export function qualificationText(
+  t: Translate,
+  qualification:
+    | {
+        domains: Record<
+          'mail' | 'calendar' | 'contact' | 'file',
+          { answer: 'yes' | 'no' | 'unknown'; detail: string }
+        >;
+      }
+    | undefined,
+): string | null {
+  if (!qualification) return null;
+  const mark = { yes: '✓', no: '✗', unknown: '?' } as const;
+  const label: Record<'mail' | 'calendar' | 'contact' | 'file', StringKey> = {
+    mail: 'domain.email',
+    calendar: 'domain.calendar',
+    contact: 'domain.contact',
+    file: 'domain.file',
+  };
+  const order = ['mail', 'calendar', 'contact', 'file'] as const;
+  const line = order
+    .map((domain) => `${t(label[domain])} ${mark[qualification.domains[domain].answer]}`)
+    .join(' · ');
+  const anyUnknown = order.some((domain) => qualification.domains[domain].answer === 'unknown');
+  return `${t('probe.qualify.lead')} ${line}${anyUnknown ? ` — ${t('probe.qualify.unknownHint')}` : ''}`;
+}

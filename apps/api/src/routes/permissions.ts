@@ -50,6 +50,10 @@ import {
   STORED_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
 import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
+import {
+  qualificationReportLines,
+  qualifyAccount,
+} from '@openmig/orchestration/account-qualification';
 import { davUrl } from '@openmig/orchestration/dav-endpoint';
 import { Pool } from 'pg';
 import { serverFault } from '../server-fault.ts';
@@ -193,8 +197,8 @@ export async function resolveMappingMailbox(
 async function tenantTargetConduct(
   tenantId: string,
 ): Promise<(() => Promise<readonly string[]>) | undefined> {
-  const { rows } = await pool().query<{ secret_ref: string | null; config: unknown }>(
-    `SELECT secret_ref, config FROM connection
+  const { rows } = await pool().query<{ secret_ref: string | null; config: unknown; kind: string }>(
+    `SELECT secret_ref, config, kind FROM connection
       WHERE tenant_id = $1 AND role = 'target' AND kind IN ('caldav', 'nextcloud', 'webdav') LIMIT 1`,
     [tenantId],
   );
@@ -207,6 +211,14 @@ async function tenantTargetConduct(
     const creds = target.secret_ref
       ? SecretStore.decryptCredentials(target.secret_ref)
       : (config.credentials ?? {});
+    // The full qualification when the kind supports it (0106 T0): which
+    // object types this account answered for, with the scheduling verdict
+    // folded into the calendar face it belongs to.
+    const qualification = await qualifyAccount(target.kind, config, {
+      username: creds.username ?? '',
+      password: creds.password ?? '',
+    });
+    if (qualification) return qualificationReportLines(qualification);
     const verdict = await measureTargetScheduling(
       davUrl(config),
       creds.username ?? '',

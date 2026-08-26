@@ -917,6 +917,11 @@ const en = {
     'This target does not advertise calendar auto-scheduling, so invitation fan-out cannot happen here. Ownpace neutralises what it writes anyway.',
   'probe.scheduling.unknown':
     'Whether this target auto-schedules is UNMEASURED — it answered no DAV compliance header. Unmeasured is not safe; Ownpace still neutralises every calendar object it writes.',
+  // The account's per-domain qualification line (0106 T0). Three marks,
+  // deliberately three: '?' is unmeasured, never a quiet yes or no.
+  'probe.qualify.lead': 'Can carry:',
+  'probe.qualify.unknownHint': "'?' is unmeasured — not safe to assume either way",
+
   'connections.ok': 'Reached it. The credentials still work.',
   'connections.failed': 'Could not reach it.',
   // The delete refusal's FRAME (workplan 0071). The migrations it names are
@@ -1940,6 +1945,9 @@ const nl: Record<keyof typeof en, string> = {
     'Dit doel adverteert geen automatische agendaplanning; uitnodigingen kunnen hier dus niet uitwaaieren. Ownpace neutraliseert hoe dan ook wat het schrijft.',
   'probe.scheduling.unknown':
     'Of dit doel automatisch plant is NIET GEMETEN — het gaf geen DAV-compliance-header terug. Niet gemeten is niet veilig; Ownpace neutraliseert nog steeds elk agenda-object dat het schrijft.',
+  'probe.qualify.lead': 'Kan dragen:',
+  'probe.qualify.unknownHint': "'?' is niet gemeten — geen van beide aannemen is veilig",
+
   'connections.ok': 'Bereikt. De inloggegevens werken nog.',
   'connections.failed': 'Kon deze niet bereiken.',
   'connections.inUse.lead': 'Nog in gebruik door',

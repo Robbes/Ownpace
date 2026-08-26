@@ -36,6 +36,10 @@ import {
   applyMappingRelocation,
 } from '@openmig/orchestration';
 import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
+import {
+  qualificationReportLines,
+  qualifyAccount,
+} from '@openmig/orchestration/account-qualification';
 import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
@@ -1956,11 +1960,17 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           davTarget?.url && davTarget.user
             ? async (): Promise<readonly string[]> => {
                 const passwordFromEnv = davTarget.auth?.passwordFromEnv;
-                const verdict = await measureTargetScheduling(
-                  davTarget.url!,
-                  davTarget.user!,
-                  passwordFromEnv ? (process.env[passwordFromEnv] ?? '') : '',
+                const password = passwordFromEnv ? (process.env[passwordFromEnv] ?? '') : '';
+                // The full qualification when the kind supports it (0106 T0):
+                // the appliance holds no row for it, so the record IS this
+                // report, measured live — same lines as the managed edition.
+                const qualification = await qualifyAccount(
+                  davTarget.type ?? 'webdav',
+                  { url: davTarget.url },
+                  { username: davTarget.user!, password },
                 );
+                if (qualification) return qualificationReportLines(qualification);
+                const verdict = await measureTargetScheduling(davTarget.url!, davTarget.user!, password);
                 return [verdict.sentence];
               }
             : undefined;

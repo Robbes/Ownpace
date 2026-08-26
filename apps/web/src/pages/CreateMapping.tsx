@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import React, { useState } from 'react';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
-import { probeText, schedulingText } from '../i18n/probe-text.ts';
+import { probeText, qualificationText, schedulingText } from '../i18n/probe-text.ts';
 import type { StringKey } from '../i18n/index.tsx';
 import { useNavigate, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1317,6 +1317,10 @@ const CreateMapping: React.FC = () => {
               {r.scheduling && (
                 /* What this target will DO with calendar writes (0105 T0). */
                 <span className="block mt-1">{schedulingText(t, r.scheduling)}</span>
+              )}
+              {r.qualification && (
+                /* What this account CAN CARRY (0106 T0). */
+                <span className="block mt-1">{qualificationText(t, r.qualification)}</span>
               )}
             </p>
           </div>
