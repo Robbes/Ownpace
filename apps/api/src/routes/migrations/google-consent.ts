@@ -115,6 +115,39 @@ export class ConsentFlowStore {
   }
 }
 
+/**
+ * Google forbids a raw-IP redirect URI — except loopback, which it permits
+ * over plain http (the browser is where the redirect lives; Google never
+ * connects to it). An appliance browsed at a bare address therefore cannot
+ * be an OAuth redirect target, and the honest place to say so is HERE,
+ * with the two supported shapes named, rather than at Google's screen with
+ * a bare invalid_request (workplan 0089 T6). Null = nothing stands in the
+ * way.
+ */
+export function rawIpCallbackRefusal(redirectUri: string): string | null {
+  let host: string;
+  try {
+    host = new URL(redirectUri).hostname;
+  } catch {
+    return `The callback address derived for this API is not a valid URL: ${redirectUri}.`;
+  }
+  const bare = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+  const isLoopback = bare === 'localhost' || bare === '::1' || /^127\./.test(bare);
+  if (isLoopback) return null;
+  const isV4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(bare);
+  const isV6 = bare.includes(':');
+  if (!isV4 && !isV6) return null;
+  return (
+    `Google does not accept a raw IP address as an OAuth redirect URI, and this API's ` +
+    `callback would be ${redirectUri}. Two supported ways out: forward a local port to this ` +
+    `box and register http://localhost:<port>/api/migrations/google/callback (Google permits ` +
+    `loopback over plain http — it only redirects the browser, which is where the forward ` +
+    `lives), or give this box a hostname under a domain you own and register the callback ` +
+    `under that name (a private address in public DNS is allowed; Google's objection is to ` +
+    `the IP literal, not the network). Until then, the paste-a-token path keeps working.`
+  );
+}
+
 /** Google's consent URL, with the two parameters that must never be forgotten. */
 export function consentUrl(p: {
   clientId: string;
