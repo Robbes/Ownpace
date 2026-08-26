@@ -47,16 +47,29 @@ export interface CalendarSyncDeps {
   readonly onCollision?: 'skip' | 'fail';
   /** Create every target directory under this folder — see `MappingConfig.targetFolderPrefix`. */
   readonly targetFolderPrefix?: string;
+  /**
+   * Measure-and-record what this target will DO with the calendar objects
+   * this pass writes (0105 T0) — `schedulingRecorder` in orchestration.
+   * Called before any write, so the first pass of a mapping's life records
+   * the verdict before the first calendar object lands. The closure holds
+   * its own once-per-mapping guard and never throws: a mapping must not
+   * fail to migrate because an advisory record could not be written.
+   */
+  readonly recordTargetScheduling?: () => Promise<void>;
 }
 
 /**
  * Run CalDAV sync using the generalized domain sync loop.
- * 
+ *
  * Idempotent: running twice creates 0 items on the second run.
  * Non-destructive: never deletes or overwrites on the target.
  */
 export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyncResult> {
   const { tenantId, mappingId, source, target, ledger, cursors, concurrency } = deps;
+
+  // BEFORE the loop, deliberately — the whole point of the record is that
+  // the measurement provably preceded the first write (workplan 0105 T0).
+  await deps.recordTargetScheduling?.();
 
   return runDomainSync<CalendarSource, CalendarTargetWriter, RawCalendarEvent, CalendarFolder>({
     tenantId,

@@ -30,7 +30,7 @@ import {
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
 import { useT, useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
-import { probeText } from '../i18n/probe-text.ts';
+import { probeText, schedulingText } from '../i18n/probe-text.ts';
 import {
   inUseMigrations,
   invalidCredentialFields,
@@ -307,6 +307,11 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
             result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
             locale,
           )}
+          {result.scheduling && (
+            /* What this target will DO with calendar writes (0105 T0) —
+               measured by the probe, said in the reader's language. */
+            <span className="block mt-1">{schedulingText(t, result.scheduling)}</span>
+          )}
         </p>
       )}
     </li>
@@ -462,6 +467,9 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
             result.outcome,
             result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
             locale,
+          )}
+          {result.scheduling && (
+            <span className="block mt-1">{schedulingText(t, result.scheduling)}</span>
           )}
         </p>
       )}

@@ -15,7 +15,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { ProbeOutcome } from '@openmig/shared';
-import { probeText } from './probe-text.ts';
+import { probeText, schedulingText } from './probe-text.ts';
 import { STRINGS, type StringKey } from './strings.ts';
 
 /** A `t` bound to one locale, with the same interpolation the app uses. */
@@ -127,5 +127,39 @@ describe('a credential refusal is OURS, so it is translated (workplan 0083)', ()
     // Every pre-existing call site omits the argument; none of them may start
     // rendering something different because this parameter was added.
     expect(probeText(en, { code: 'credentialsRefused', refusal }, 'IGNORED')).toBe(refusal.en);
+  });
+});
+
+describe('schedulingText — the verdict a DAV target test carries (0105 T0)', () => {
+  it('says auto-schedule in the reader\'s language, and that it was MEASURED', () => {
+    const verdict = { capability: 'auto-schedule', sentence: 'server english' };
+    expect(schedulingText(en, verdict)).toContain('measured on this target, not assumed');
+    expect(schedulingText(nl, verdict)).toContain('gemeten op dit doel, niet aangenomen');
+  });
+
+  it('unknown is worded as unmeasured-never-safe in BOTH languages', () => {
+    // The run-#6 lesson survives translation: a Dutch screen must not soften
+    // "unmeasured" into anything a reader could file under "fine".
+    const verdict = { capability: 'unknown', sentence: 'server english' };
+    expect(schedulingText(en, verdict)).toContain('UNMEASURED');
+    expect(schedulingText(en, verdict)).toContain('not safe');
+    expect(schedulingText(nl, verdict)).toContain('NIET GEMETEN');
+    expect(schedulingText(nl, verdict)).toContain('niet veilig');
+  });
+
+  it('none says fan-out cannot happen here', () => {
+    expect(schedulingText(en, { capability: 'none', sentence: 'x' })).toContain('cannot happen here');
+    expect(schedulingText(nl, { capability: 'none', sentence: 'x' })).toContain('uitwaaieren');
+  });
+
+  it('a capability this build has no words for falls back to the server\'s sentence', () => {
+    // The probeText rule, inherited: never render less than what arrived.
+    expect(schedulingText(nl, { capability: 'brand-new', sentence: 'the server said this' })).toBe(
+      'the server said this',
+    );
+  });
+
+  it('no verdict means nothing at all — not an empty line', () => {
+    expect(schedulingText(en, undefined)).toBeNull();
   });
 });

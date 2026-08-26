@@ -35,6 +35,7 @@ import {
   buildFileSource,
 } from './dav-factories.ts';
 import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint.ts';
+import { schedulingRecorder } from './target-scheduling.ts';
 import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory.ts';
 import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory.ts';
 import {
@@ -441,6 +442,7 @@ export async function buildDomainDepsFromMapping(
     // all. The managed Drive path was wired (T5) and unreachable.
     // Attach close() so the caller releases the pool after the pass (never leak it).
     if (domain === 'calendar') {
+      const calendarTargetEndpoint = davEndpointFromCreds('target', tgt.config, tgt.creds);
       return withClose(
         {
           ...common,
@@ -456,10 +458,10 @@ export async function buildDomainDepsFromMapping(
                   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
                 )
               : buildCalendarSource(davEndpointFromCreds('source', src.config, src.creds)),
-          target: buildCalendarTarget(
-            davEndpointFromCreds('target', tgt.config, tgt.creds),
-            targetDeps,
-          ),
+          target: buildCalendarTarget(calendarTargetEndpoint, targetDeps),
+          // The verdict, recorded before the mapping's first calendar write
+          // (0105 T0) — measured on the SAME endpoint the writer just got.
+          recordTargetScheduling: schedulingRecorder(calendarTargetEndpoint, targetDeps),
         } satisfies CalendarSyncDeps,
         db,
       );

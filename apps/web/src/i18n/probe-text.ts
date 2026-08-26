@@ -77,3 +77,28 @@ export function probeText(
       return fallback;
   }
 }
+
+/**
+ * The scheduling verdict a DAV target's probe carries (0105 T0), in the
+ * reader's language. The capability is OURS — a closed code measured by one
+ * OPTIONS request — so it gets dictionary sentences; a code this build does
+ * not know falls back to the server's own English `sentence`, never a blank.
+ * Returns null when the probe carried no verdict (a source, a mail target,
+ * an older API), so callers can render nothing at all.
+ */
+export function schedulingText(
+  t: Translate,
+  scheduling: { capability: string; sentence: string } | undefined,
+): string | null {
+  if (!scheduling) return null;
+  switch (scheduling.capability) {
+    case 'auto-schedule':
+      return t('probe.scheduling.autoSchedule');
+    case 'none':
+      return t('probe.scheduling.none');
+    case 'unknown':
+      return t('probe.scheduling.unknown');
+    default:
+      return scheduling.sentence;
+  }
+}

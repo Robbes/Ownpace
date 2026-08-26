@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import React, { useState } from 'react';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
-import { probeText } from '../i18n/probe-text.ts';
+import { probeText, schedulingText } from '../i18n/probe-text.ts';
 import type { StringKey } from '../i18n/index.tsx';
 import { useNavigate, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1307,6 +1307,10 @@ const CreateMapping: React.FC = () => {
                 because that string is what you paste into their console. */}
             <p className="text-gray-700 min-w-0 break-words">
               {probeText(t, r.outcome, (r.ok ? r.detail : r.reason) ?? '', locale)}
+              {r.scheduling && (
+                /* What this target will DO with calendar writes (0105 T0). */
+                <span className="block mt-1">{schedulingText(t, r.scheduling)}</span>
+              )}
             </p>
           </div>
         )}

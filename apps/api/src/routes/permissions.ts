@@ -49,6 +49,8 @@ import {
   buildGoogleDriveSourceFrom,
   STORED_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
+import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
+import { davUrl } from '@openmig/orchestration/dav-endpoint';
 import { Pool } from 'pg';
 import { serverFault } from '../server-fault.ts';
 
@@ -120,6 +122,11 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     // attempted when the connection can actually make them.
     const delegation = mailboxDelegations();
 
+    // The target's side of the story (0105 T0): measured live at report
+    // time, same derive-on-every-read philosophy as the scans. Undefined for
+    // a tenant with no DAV target — the section then does not appear.
+    const measureTargetConduct = await tenantTargetConduct(tenantId);
+
     const markdown = await runPermissionInventory({
       mappingLabel: mailbox,
       generatedOn: new Date().toISOString().slice(0, 10),
@@ -133,6 +140,7 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       // reason a reader can act on, and they are different reasons.
       scanCalendars: scans.scanCalendars,
       scanDrive: scans.scanDrive,
+      ...(measureTargetConduct ? { measureTargetConduct } : {}),
       error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
     });
 
@@ -173,6 +181,39 @@ export async function resolveMappingMailbox(
   );
   const address = rows[0]?.primary_address?.trim() ?? '';
   return address === '' ? undefined : address;
+}
+
+/**
+ * What the tenant's TARGET will do with what a migration writes (0105 T0) —
+ * the scheduling verdict, measured on the connected DAV target the way the
+ * scans resolve the source. Returns undefined when no such target is
+ * connected: a mail-only tenant gets no section rather than a vacuous one.
+ * carddav is excluded — an address-book target has no scheduling to measure.
+ */
+async function tenantTargetConduct(
+  tenantId: string,
+): Promise<(() => Promise<readonly string[]>) | undefined> {
+  const { rows } = await pool().query<{ secret_ref: string | null; config: unknown }>(
+    `SELECT secret_ref, config FROM connection
+      WHERE tenant_id = $1 AND role = 'target' AND kind IN ('caldav', 'nextcloud', 'webdav') LIMIT 1`,
+    [tenantId],
+  );
+  const target = rows[0];
+  if (!target) return undefined;
+  return async () => {
+    const config = (target.config ?? {}) as Record<string, unknown> & {
+      credentials?: Record<string, string>;
+    };
+    const creds = target.secret_ref
+      ? SecretStore.decryptCredentials(target.secret_ref)
+      : (config.credentials ?? {});
+    const verdict = await measureTargetScheduling(
+      davUrl(config),
+      creds.username ?? '',
+      creds.password ?? '',
+    );
+    return [verdict.sentence];
+  };
 }
 
 /**

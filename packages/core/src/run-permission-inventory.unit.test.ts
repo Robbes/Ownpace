@@ -112,3 +112,37 @@ describe('the findings', () => {
     expect(bare).not.toContain('**Generated:**');
   });
 });
+
+describe('what the target will do with what we write (0105 T0)', () => {
+  it('renders the measured sentences as their own section, before the blind spots', async () => {
+    const md = await runPermissionInventory({
+      delegationReason: REASON,
+      measureTargetConduct: async () => [
+        'This target does not advertise calendar auto-scheduling, so invitation fan-out cannot happen here.',
+      ],
+    });
+    expect(md).toContain('## What the target will do with what we write');
+    expect(md).toContain('fan-out cannot happen here');
+    // Before the blind spots: it answers "will this make noise?" first.
+    expect(md.indexOf('## What the target will do')).toBeLessThan(
+      md.indexOf('## Read this first'),
+    );
+  });
+
+  it('a measurement that throws becomes a stated unmeasured-is-not-safe line, never a dropped section', async () => {
+    const md = await runPermissionInventory({
+      delegationReason: REASON,
+      measureTargetConduct: async () => {
+        throw new Error('the target never answered');
+      },
+    });
+    expect(md).toContain('## What the target will do with what we write');
+    expect(md).toContain('the target never answered');
+    expect(md).toContain('Unmeasured is not safe');
+  });
+
+  it('no dep, no section — a mail-only migration gets no vacuous target paragraph', async () => {
+    const md = await runPermissionInventory({ delegationReason: REASON });
+    expect(md).not.toContain('## What the target will do');
+  });
+});
