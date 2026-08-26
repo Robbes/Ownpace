@@ -32,10 +32,10 @@ in the managed edition only.
 | **Terms of service** | ✅ Drafted | [`site/legal/terms.md`](../site/legal/terms.md) |
 | **Support email** | ✅ `support@ownpace.eu` | Named in both documents and in `site/legal/README.md` |
 | Domain ownership verified in Search Console | ⬜ Owner action | `ownpace.eu` |
-| Demo video showing the consent flow and each scope in use | ⬜ Blocked on 0089 T1 | There is no OAuth flow to film yet |
+| Demo video showing the consent flow and each scope in use | ⬜ Owner action — **unblocked 2026-08-26** | 0089 T1 shipped: there is now a flow to film |
 | Scope justification, per scope | ✅ Drafted | §3 below |
-| In-product disclosure before the consent screen | ⬜ Blocked on 0089 T1 | §4 below |
-| Annual third-party security assessment, **restricted scopes only** | ⬜ Deferred deliberately | ADR-0041 — Drive is the only scope this would ever be bought for |
+| In-product disclosure before the consent screen | ⬜ Buildable — **unblocked 2026-08-26** (0089 T1 shipped) | §4 below |
+| Annual third-party security assessment, **restricted scopes only** | ⬜ Deferred deliberately | ADR-0041 — Drive is the only scope this would ever be bought for; the owner's stated intent (2026-08-26) is to buy it for Drive **later**. An intent is not a purchase — nothing is offered until it exists |
 
 **The two documents are drafts and must not be published as they stand.** Both carry
 `«PLACEHOLDER»` tokens for things only the owner can supply — legal entity, address, company
@@ -101,7 +101,11 @@ real question better than a promise:
 
 ## 4b. The client's own configuration
 
-The owner registered a client on 2026-08-20. What goes in the console, and why:
+The owner registered a client on 2026-08-20, and **decided its role on 2026-08-26 when
+accepting ADR-0041: it is the test (OTA) client.** Production gets its own client — own secret,
+exactly one redirect URI — before real customers exist; the "one client now, split before
+production" paragraph below is thereby a decision rather than a recommendation. What goes in
+the console, and why:
 
 **Authorized JavaScript origins: none.** The flow is server-side authorization-code — the
 browser is redirected and the token exchange happens on the server with the client secret. A JS
@@ -115,6 +119,21 @@ trailing slash or a missing port is a failure and not a near-miss:
 https://app.ownpace.eu/oauth/google/callback          production
 https://app.ota.ownpace.eu/oauth/google/callback      test / dev
 ```
+
+⚠️ **The path changed when the flow shipped (2026-08-26) and the console must follow.** 0089
+T1's callback landed at **`/api/migrations/google/callback`** — same trust property (a browser
+GET, nowhere near a webhook router), different path than the `/oauth/google/callback` planned
+here and registered on 2026-08-20. Google matches byte-for-byte, so the registered entries
+never match the shipped route. Replace them before the consent flow is first exercised:
+
+```
+https://app.ownpace.eu/api/migrations/google/callback          production
+https://app.ota.ownpace.eu/api/migrations/google/callback      test / dev
+http://localhost:3123/api/migrations/google/callback           developer loopback (optional)
+```
+
+ADR-0041's operative rule now names this path; the rest of this section's `/oauth/google/…`
+mentions record what was planned and registered, and the block above is what must be true.
 
 ⚠️ **The second one changed on 2026-08-20 and the console must follow.** It was registered as
 `https://ota.ownpace.eu/oauth/google/callback` when the test app lived at `ota.ownpace.eu`; the
@@ -130,7 +149,7 @@ before any HTTP error appears.
 
 **One subdomain per environment** — the owner's own suggestion, and better than the loopback
 workaround it replaced. Loopback is no longer needed at all; if a developer wants it,
-`http://localhost:3123/oauth/google/callback` is a third entry and nothing depends on it.
+`http://localhost:3123/api/migrations/google/callback` is a third entry and nothing depends on it.
 
 **Why these carry no port, confirmed by the owner 2026-08-20:** netbird maps each external name
 on the **default port (443/https)** to a specific internal port on the box. So the port is an
@@ -191,7 +210,7 @@ will actually be in the URL bar.
 **Production on `app.` rather than `www.`** — a recommendation, not a requirement. The managed
 application and the marketing site want different cookie scopes, different CSP, and independent
 deploys, and Google's verification cares about the registrable domain rather than the label, so
-a subdomain costs nothing. `https://www.ownpace.eu/oauth/google/callback` works if the app is
+a subdomain costs nothing. `https://www.ownpace.eu/api/migrations/google/callback` works if the app is
 genuinely served there; what must not happen is registering `www` while the site is canonical on
 the apex, because Google's match runs before any redirect of ours.
 
@@ -202,10 +221,12 @@ production incident, per ADR-0041.
 
 Three further things decided here rather than improvised in the console:
 
-1. **`/oauth/google/callback`, not `/webhooks/google`.** A webhook is an unauthenticated
-   server-to-server POST; an OAuth redirect is a browser GET carrying the user's authorization
-   code. Filing the callback under a webhook path invites it into a router that skips CSRF and
-   accepts POST — the exact mapping-hijack 0089 T1's signed `state` exists to prevent.
+1. **`/api/migrations/google/callback`, not `/webhooks/google`.** A webhook is an
+   unauthenticated server-to-server POST; an OAuth redirect is a browser GET carrying the
+   user's authorization code. Filing the callback under a webhook path invites it into a router
+   that skips CSRF and accepts POST — the exact mapping-hijack 0089 T1's signed `state` exists
+   to prevent. (Planned as `/oauth/google/callback`; the shipped route kept the trust property
+   and moved the path — see the warning above.)
 2. **`www` or apex is a real choice.** Register the host the service actually serves on, and the
    host the privacy policy and home page are verified on. A site canonical on the apex with only
    a `www` URI registered fails at Google before our own redirect ever runs.
@@ -255,7 +276,10 @@ appears. Ownpace's version, once 0089 T1 exists:
 2. **Fill the placeholders** in the two legal documents (`site/legal/README.md` lists them).
 3. **Build the front door** (0086 T1) so the documents have a URL on `ownpace.eu`.
 4. **Verify domain ownership** in Search Console.
-5. **Build the consent flow** (0089 T1) so there is something to film.
+5. ~~**Build the consent flow** (0089 T1) so there is something to film.~~ ✅ Shipped
+   2026-08-26 — and remember the console follow-up it created (§4b: the callback path is
+   `/api/migrations/google/callback`).
 6. **Submit for sensitive scopes only** — contacts and calendar.
-7. **Stop there** unless and until Drive's popup is worth an annual assessment. It is a
-   convenience purchase and nothing is blocked without it.
+7. **Stop there** until Drive's popup is worth an annual assessment. The owner's stated intent
+   (2026-08-26) is to buy it for Drive later; it stays a convenience purchase and nothing is
+   blocked without it.
