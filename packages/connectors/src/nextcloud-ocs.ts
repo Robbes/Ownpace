@@ -42,10 +42,28 @@ export interface CreateUserShareRequest {
   readonly shareWith: string;
   /** The source's own word for the level — anything write-ish becomes an editor share. */
   readonly role: string;
+  /**
+   * The owner's context, carried INSIDE the platform's own notification
+   * ("this replaces the share on the old platform") — 0104's whole point is
+   * that the announcement comes from the target, so the context must ride
+   * the same mail. Modern Nextcloud accepts `note` at create; a server that
+   * ignores it still shares correctly, it just says less.
+   */
+  readonly note?: string;
 }
 
 export type CreateShareResult =
   | { readonly ok: true }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * `createNextcloudShare`'s answer also says WHICH door the grantee was
+ * reached through — a user share notifies in-app (and by mail per that
+ * user's own settings); a share-by-mail always mails the link. The sharing
+ * queue can show that word; `applyShareGrant` needs only the `ok`.
+ */
+export type CreateShareOutcome =
+  | { readonly ok: true; readonly via: 'user' | 'mail' }
   | { readonly ok: false; readonly reason: string };
 
 /**
@@ -74,13 +92,16 @@ interface OcsEnvelope {
 }
 
 /**
- * Create one user share. One grant, one call, one answer — §11.2's "one item,
- * one decision" carried into the sharing queue.
+ * One OCS share attempt, one answer. The OCS statuscode travels back with a
+ * refusal because it is the one LOCALE-INDEPENDENT fact in the reply:
+ * `meta.message` is a translated human sentence, and branching on its words
+ * would break on the first non-English server.
  */
-export async function createNextcloudUserShare(
+async function attemptOcsShare(
   options: NextcloudShareOptions,
   request: CreateUserShareRequest,
-): Promise<CreateShareResult> {
+  shareType: '0' | '4',
+): Promise<{ ok: true } | { ok: false; reason: string; statuscode?: number }> {
   const origin = ocsOriginFrom(options.webdavUrl);
   if (!origin) {
     return {
@@ -91,9 +112,10 @@ export async function createNextcloudUserShare(
 
   const body = new URLSearchParams({
     path: request.path.startsWith('/') ? request.path : `/${request.path}`,
-    shareType: '0', // a USER share — the only kind ADR-0032's first slice creates
+    shareType,
     shareWith: request.shareWith,
     permissions: String(nextcloudPermissionsFor(request.role)),
+    ...(request.note?.trim() ? { note: request.note.trim() } : {}),
   }).toString();
 
   let response;
@@ -129,5 +151,55 @@ export async function createNextcloudUserShare(
   // that is not Nextcloud answers with whatever it answers, equally worth
   // showing unchanged.
   const said = meta?.message?.trim() ? meta.message : response.body.slice(0, 300);
-  return { ok: false, reason: `OCS answered ${response.status}: ${said}` };
+  return {
+    ok: false,
+    reason: `OCS answered ${response.status}: ${said}`,
+    ...(typeof meta?.statuscode === 'number' ? { statuscode: meta.statuscode } : {}),
+  };
+}
+
+/**
+ * Create one user share. One grant, one call, one answer — §11.2's "one item,
+ * one decision" carried into the sharing queue.
+ */
+export async function createNextcloudUserShare(
+  options: NextcloudShareOptions,
+  request: CreateUserShareRequest,
+): Promise<CreateShareResult> {
+  const attempt = await attemptOcsShare(options, request, '0');
+  return attempt.ok ? { ok: true } : { ok: false, reason: attempt.reason };
+}
+
+/**
+ * Create one share for whoever the grantee is: a user share when the target
+ * knows them, a SHARE-BY-MAIL when it does not (0104 T0).
+ *
+ * Most of the people a cutover owes an announcement are OUTSIDERS — grantees
+ * the source platform knew by address, with no account on the target. A user
+ * share cannot reach them; Nextcloud's share-by-mail can, and it MAILS the
+ * link through the instance's own SMTP — which is the entire point: the
+ * announcement comes from the platform, at the moment the grant is applied
+ * (creation is deferrable, the notification rides creation).
+ *
+ * The fallback fires ONLY on OCS statuscode 404 from the user attempt — the
+ * locale-independent "no such account" (a missing PATH answers 404 too, and
+ * then the mail attempt refuses on the same missing path: one extra call,
+ * the same honest refusal). Every other refusal comes back unchanged — a
+ * permissions problem or a non-Nextcloud server is not an invitation to try
+ * a second door.
+ */
+export async function createNextcloudShare(
+  options: NextcloudShareOptions,
+  request: CreateUserShareRequest,
+): Promise<CreateShareOutcome> {
+  const asUser = await attemptOcsShare(options, request, '0');
+  if (asUser.ok) return { ok: true, via: 'user' };
+  if (asUser.statuscode !== 404) return { ok: false, reason: asUser.reason };
+
+  const byMail = await attemptOcsShare(options, request, '4');
+  if (byMail.ok) return { ok: true, via: 'mail' };
+  return {
+    ok: false,
+    reason: `not a target account (${asUser.reason}), and share-by-mail also refused — ${byMail.reason}`,
+  };
 }

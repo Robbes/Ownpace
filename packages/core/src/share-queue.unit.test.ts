@@ -18,6 +18,8 @@ import { describe, it, expect } from 'vitest';
 import type { MappingId, PermissionGrant, TenantId } from '@openmig/shared';
 import { MemoryLedger } from './__testing__/memory.ts';
 import {
+  NOT_CUT_OVER_REASON,
+  applyAllOpenShareGrants,
   applyShareGrant,
   markShareGrant,
   refreshShareGrants,
@@ -267,5 +269,161 @@ describe('markShareGrant — the by-hand tick', () => {
 
     const again = await markShareGrant(deps(ledger), link.id, 'skipped');
     expect(again).toMatchObject({ ok: false, code: 'already_settled' });
+  });
+});
+
+describe('applyAllOpenShareGrants — the one-go press (0104 T1)', () => {
+  // The press batches the DECISION, never the rules: every row still walks
+  // through applyShareGrant's gates, links and manual verdicts stay on the
+  // checklist (the fallback digest's audience), and one target refusal never
+  // costs the grantees whose shares succeeded their announcement.
+  const SECOND_PERSON: PermissionGrant = {
+    subject: 'drive_item',
+    on: 'Plans/q4.docx',
+    grantee: 'bram@example.nl',
+    role: 'reader',
+    raw: '{"type":"user","role":"reader","emailAddress":"bram@example.nl"}',
+  };
+  const MANUAL_GRANT: PermissionGrant = {
+    subject: 'mailbox',
+    on: 'shared@example.nl',
+    grantee: 'anna@example.nl',
+    role: 'FullAccess',
+    raw: 'FullAccess',
+  };
+
+  async function pressReady(ledger: MemoryLedger) {
+    await refreshed(ledger, [PERSON_GRANT, SECOND_PERSON, LINK_GRANT, MANUAL_GRANT]);
+  }
+
+  it('refuses before cutover with the SAME sentence the per-row apply uses — one source, proved', async () => {
+    const ledger = new MemoryLedger();
+    await pressReady(ledger);
+    const row = (await ledger.listShareGrants(TENANT, MAPPING)).find(
+      (r) => r.verdict === 'clean' && !r.viaLink,
+    )!;
+
+    const press = await applyAllOpenShareGrants({
+      ...deps(ledger),
+      lifecycleDone: false,
+      createShare: async () => ({ ok: true }),
+    });
+    const perRow = await applyShareGrant(
+      { ...deps(ledger), lifecycleDone: false, createShare: async () => ({ ok: true }) },
+      row.id,
+    );
+
+    expect(press).toMatchObject({ ok: false, code: 'not_cut_over', reason: NOT_CUT_OVER_REASON });
+    if (!press.ok && !perRow.ok) expect(press.reason).toBe(perRow.reason);
+  });
+
+  it('applies every open clean addressable row; links and manual stay for the checklist', async () => {
+    const ledger = new MemoryLedger();
+    await pressReady(ledger);
+    const shared: string[] = [];
+
+    const outcome = await applyAllOpenShareGrants({
+      ...deps(ledger),
+      lifecycleDone: true,
+      createShare: async (row) => {
+        shared.push(row.grantee ?? '');
+        return { ok: true };
+      },
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.applied).toHaveLength(2);
+    expect(outcome.refused).toHaveLength(0);
+    expect(outcome.leftForChecklist).toEqual({ links: 1, manual: 1 });
+    expect(shared.sort()).toEqual(['anna@example.nl', 'bram@example.nl']);
+
+    const rows = await ledger.listShareGrants(TENANT, MAPPING);
+    expect(rows.filter((r) => r.state === 'applied')).toHaveLength(2);
+    // The link and the manual verdict are still OPEN — the press left the
+    // checklist's own work exactly where it was.
+    expect(rows.filter((r) => r.state === 'open')).toHaveLength(2);
+  });
+
+  it('one refusal never stops the next: the refused row stays open, verbatim', async () => {
+    const ledger = new MemoryLedger();
+    await pressReady(ledger);
+
+    const outcome = await applyAllOpenShareGrants({
+      ...deps(ledger),
+      lifecycleDone: true,
+      createShare: async (row) =>
+        row.grantee === 'anna@example.nl'
+          ? { ok: false, reason: 'OCS answered 403: Sharing is disabled for this folder' }
+          : { ok: true },
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.applied).toHaveLength(1);
+    expect(outcome.refused).toHaveLength(1);
+    expect(outcome.refused[0]).toMatchObject({
+      grantee: 'anna@example.nl',
+      code: 'target_refused',
+    });
+    expect(outcome.refused[0]!.reason).toContain('Sharing is disabled');
+
+    const rows = await ledger.listShareGrants(TENANT, MAPPING);
+    expect(rows.find((r) => r.grantee === 'anna@example.nl' && r.verdict === 'clean' && !r.viaLink)!.state).toBe('open');
+  });
+
+  it('a second press retries exactly the refused rows — settled ones are never re-mailed', async () => {
+    const ledger = new MemoryLedger();
+    await pressReady(ledger);
+
+    await applyAllOpenShareGrants({
+      ...deps(ledger),
+      lifecycleDone: true,
+      createShare: async (row) =>
+        row.grantee === 'anna@example.nl'
+          ? { ok: false, reason: 'temporarily unavailable' }
+          : { ok: true },
+    });
+
+    const secondPressShared: string[] = [];
+    const retry = await applyAllOpenShareGrants({
+      ...deps(ledger),
+      lifecycleDone: true,
+      createShare: async (row) => {
+        secondPressShared.push(row.grantee ?? '');
+        return { ok: true };
+      },
+    });
+
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) return;
+    // Only the row the target refused last time — bram's applied share must
+    // not produce a SECOND platform notification.
+    expect(secondPressShared).toEqual(['anna@example.nl']);
+    expect(retry.applied).toHaveLength(1);
+  });
+
+  it('the press lands once in the audit log, counted and attributed', async () => {
+    const ledger = new MemoryLedger();
+    await pressReady(ledger);
+
+    await applyAllOpenShareGrants({
+      ...deps(ledger),
+      lifecycleDone: true,
+      createShare: async () => ({ ok: true }),
+    });
+
+    const presses = ledger.auditEvents.filter((e) => e.action === 'share.apply_all');
+    expect(presses).toHaveLength(1);
+    expect(presses[0]).toMatchObject({
+      actor: 'owner@example.nl',
+      entity: 'share_grant',
+      detail: {
+        attempted: 2,
+        applied: 2,
+        refused: 0,
+        leftForChecklist: { links: 1, manual: 1 },
+      },
+    });
   });
 });

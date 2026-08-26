@@ -105,16 +105,17 @@ describe('every 500 carries a reference', () => {
   });
 
   it('gives each operating queue its own code, not one shared operating_failed', () => {
-    // Owner decision, workplan 0081 T6. These nineteen routes serve six
+    // Owner decision, workplan 0081 T6. These twenty routes serve six
     // different queues; one shared code puts a caller back where this workplan
     // started — a fault it cannot tell apart from a different fault. Pinned
     // because the way this regresses is a copy-pasted catch block, which no
-    // amount of care at review time reliably catches.
+    // amount of care at review time reliably catches. (Twentieth: the sharing
+    // queue's one-go press, sharing_apply_all_failed — 0104 T1.)
     const source = readFileSync(join(SRC, 'routes/migrations/operating-routes.ts'), 'utf8');
     const codes = [...source.matchAll(/serverError\(res, '([a-z_]+)',/g)].flatMap((m) =>
       m[1] ? [m[1]] : [],
     );
-    expect(codes.length).toBe(19);
+    expect(codes.length).toBe(20);
     // Named, not counted: a Set-size comparison would report "18 !== 19" and
     // leave the next person to find WHICH two collided.
     const seen = new Set<string>();

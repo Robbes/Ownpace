@@ -243,6 +243,17 @@ async function audit(
  * (Graph/Drive verified against vendor references in workplan 0103; Box and
  * Dropbox to be re-verified at build time.)
  */
+/**
+ * One sentence, one source: the per-row apply and the one-go press both
+ * refuse a not-yet-cut-over migration with exactly these words. Two copies
+ * would drift, and a gate paraphrasing its own rule eventually disagrees
+ * with it (workplan 0084, run #18).
+ */
+export const NOT_CUT_OVER_REASON =
+  'Shares are applied at or after cutover, not before: the share invite is an ' +
+  'announcement that the new system is live, and this migration is not finished. ' +
+  'Finish it, then work the sharing checklist (ADR-0032).';
+
 export async function applyShareGrant(
   deps: ApplyShareDeps,
   grantId: string,
@@ -270,14 +281,7 @@ export async function applyShareGrant(
     };
   }
   if (!deps.lifecycleDone) {
-    return {
-      ok: false,
-      code: 'not_cut_over',
-      reason:
-        'Shares are applied at or after cutover, not before: the share invite is an ' +
-        'announcement that the new system is live, and this migration is not finished. ' +
-        'Finish it, then work the sharing checklist (ADR-0032).',
-    };
+    return { ok: false, code: 'not_cut_over', reason: NOT_CUT_OVER_REASON };
   }
   if (!deps.createShare) {
     return {
@@ -315,6 +319,100 @@ export async function applyShareGrant(
   }
   await audit(deps, 'share.applied', settled);
   return { ok: true, row: settled };
+}
+
+/** What one press did, row by row — the moment's receipt. */
+export interface ApplyAllOutcome {
+  readonly ok: true;
+  /** Rows the press applied — each one a share the TARGET now announces itself. */
+  readonly applied: ReadonlyArray<ShareGrantRow>;
+  /** Rows the target refused; they stay OPEN with the server's words. */
+  readonly refused: ReadonlyArray<{
+    readonly id: string;
+    readonly on: string;
+    readonly grantee?: string;
+    readonly code: string;
+    readonly reason: string;
+  }>;
+  /**
+   * Rows the press deliberately does not touch: links (no addressable
+   * audience) and manual verdicts. They are the fallback digest's audience
+   * (0104 T3) and the checklist's to settle — a press that converted them to
+   * refusals would bury the checklist in noise about its own design.
+   */
+  readonly leftForChecklist: { readonly links: number; readonly manual: number };
+}
+
+/**
+ * THE ONE-GO PRESS (0104 T1). Every open, clean, addressable grant applied
+ * in one recorded human action, at or after cutover — and because creating a
+ * share is what makes the target notify its grantee, this press IS the
+ * chosen moment: one wave of platform-native announcements, exactly when a
+ * person decided.
+ *
+ * Each row still walks through `applyShareGrant`, gates and all — the press
+ * batches the decision, never the rules. A refusal on one row never stops
+ * the next (the grantee whose share failed is exactly who a retry press is
+ * for; the rows that succeeded must not wait on them). Applied rows carry
+ * `decidedBy`/`decidedAt` per row, and the press itself lands once in the
+ * audit log with its counts — who pressed, when, what happened.
+ */
+export async function applyAllOpenShareGrants(deps: ApplyShareDeps): Promise<
+  ApplyAllOutcome | { ok: false; code: 'not_cut_over'; reason: string }
+> {
+  if (!deps.lifecycleDone) {
+    return { ok: false, code: 'not_cut_over', reason: NOT_CUT_OVER_REASON };
+  }
+
+  const rows = await deps.ledger.listShareGrants(deps.tenantId, deps.mappingId);
+  const open = rows.filter((r) => r.state === 'open');
+  const links = open.filter((r) => r.viaLink).length;
+  const manual = open.filter((r) => !r.viaLink && r.verdict !== 'clean').length;
+  const candidates = open.filter((r) => !r.viaLink && r.verdict === 'clean');
+
+  const applied: ShareGrantRow[] = [];
+  const refused: Array<{
+    id: string;
+    on: string;
+    grantee?: string;
+    code: string;
+    reason: string;
+  }> = [];
+  for (const row of candidates) {
+    const outcome = await applyShareGrant(deps, row.id);
+    if (outcome.ok) {
+      applied.push(outcome.row);
+    } else {
+      refused.push({
+        id: row.id,
+        on: row.onLabel,
+        ...(row.grantee ? { grantee: row.grantee } : {}),
+        code: outcome.code,
+        reason: outcome.reason,
+      });
+    }
+  }
+
+  // The press is recorded as its own event — one action, its counts, its
+  // presser — beside the per-row `share.applied` entries each success wrote.
+  try {
+    await deps.ledger.recordAuditEvent(deps.tenantId, {
+      actor: deps.decidedBy,
+      action: 'share.apply_all',
+      entity: 'share_grant',
+      detail: {
+        mappingId: deps.mappingId,
+        attempted: candidates.length,
+        applied: applied.length,
+        refused: refused.length,
+        leftForChecklist: { links, manual },
+      },
+    });
+  } catch (err) {
+    deps.onError?.('recording the apply-all press failed (the shares themselves stand)', err);
+  }
+
+  return { ok: true, applied, refused, leftForChecklist: { links, manual } };
 }
 
 /**

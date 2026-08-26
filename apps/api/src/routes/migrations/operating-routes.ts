@@ -74,6 +74,7 @@ import type {
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth.ts';
 import { getTriggerClient } from '@openmig/scheduler';
 import {
+  applyAllOpenShareGrants,
   applyShareGrant,
   evaluateApplyDeletion,
   evaluateApplyRelocation,
@@ -82,7 +83,7 @@ import {
   summariseShareGrants,
 } from '@openmig/core';
 import { SecretStore } from '@openmig/core/secret-store';
-import { createNextcloudUserShare } from '@openmig/connectors';
+import { createNextcloudShare } from '@openmig/connectors';
 import type { ShareGrantRow } from '@openmig/shared';
 import { resolveMappingMailbox, tenantInventoryScans } from '../permissions.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
@@ -371,6 +372,7 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
 async function nextcloudCapabilityFor(
   s: Scoped,
   granteeOverride: string | undefined,
+  note?: string,
 ): Promise<((row: ShareGrantRow) => Promise<{ ok: true } | { ok: false; reason: string }>) | undefined> {
   const rows = await withTenantDb(s.tenantId, pool(), (db) =>
     db
@@ -414,7 +416,7 @@ async function nextcloudCapabilityFor(
           'to share with. Handle it by hand and mark the row done.',
       };
     }
-    return createNextcloudUserShare(
+    return createNextcloudShare(
       {
         webdavUrl: origin,
         username: creds.username ?? '',
@@ -432,6 +434,7 @@ async function nextcloudCapabilityFor(
         path: target.prefix ? `${target.prefix}/${row.onLabel}` : row.onLabel,
         shareWith,
         role: row.role,
+        ...(note ? { note } : {}),
       },
     );
   };
@@ -542,6 +545,50 @@ router.post(
       res.json({ status: 'ok', grant: outcome.row });
     } catch (error) {
       serverError(res, 'sharing_decision_failed', 'recording this sharing decision', error);
+    }
+  },
+);
+
+/**
+ * THE ONE-GO PRESS (0104 T1): every open, clean, addressable grant applied
+ * in one recorded action, at or after cutover. Creating the shares is what
+ * makes the TARGET notify the grantees — so this press is the chosen
+ * announcement moment, one wave of platform-native mail, not a mail sent by
+ * this product. The optional `note` rides inside the platform's own
+ * notification; links and manual verdicts stay on the checklist untouched
+ * (they are the fallback digest's audience, 0104 T3).
+ */
+router.post(
+  '/:mappingId/sharing/apply-all',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const note = typeof (req.body as { note?: unknown } | undefined)?.note === 'string'
+        ? (req.body as { note: string }).note.trim().slice(0, 500)
+        : undefined;
+      const decidedBy = req.userId ?? 'unknown';
+
+      const outcome = await withLedger(s.tenantId, async (l) => {
+        const createShare = await nextcloudCapabilityFor(s, undefined, note);
+        return applyAllOpenShareGrants({
+          tenantId: s.tenantId as TenantId,
+          mappingId: s.mappingId as MappingId,
+          ledger: l,
+          decidedBy,
+          onError: (m: string, err: unknown) => log.error(m, err),
+          lifecycleDone: s.lifecycle === 'done',
+          ...(createShare ? { createShare } : {}),
+        });
+      });
+
+      if (!outcome.ok) {
+        return void res.status(409).json({ error: outcome.code, reason: outcome.reason });
+      }
+      res.json({ status: 'ok', pressedBy: decidedBy, ...outcome });
+    } catch (error) {
+      serverError(res, 'sharing_apply_all_failed', 'applying the sharing queue in one go', error);
     }
   },
 );

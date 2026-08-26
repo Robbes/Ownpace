@@ -1645,6 +1645,61 @@ paths:
                         scannedAt: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown mapping. }
+  /api/migrations/{mappingId}/sharing/apply-all:
+    post:
+      tags: [Migrations]
+      summary: Apply every open, clean sharing row in one recorded press
+      description: |
+        The one-go press (workplan 0104 T1): every open row with a clean
+        verdict and an addressable grantee is applied through the target's
+        share API, in one recorded human action, at or after cutover — and
+        because creating a share is what makes the target notify its grantee,
+        this press is the chosen announcement moment: one wave of
+        platform-native mail, sent by the target, not by this product. The
+        optional `note` rides inside the platform's own notification. Link
+        shares and manual verdicts stay on the checklist untouched (they are
+        the fallback digest's audience). A refusal on one row never stops the
+        next; refused rows stay open with the target's words, and a second
+        press retries exactly those.
+      parameters:
+        - { name: mappingId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string, maxLength: 500, description: The owner's context, carried inside the platform's own notification where the API supports it. }
+      responses:
+        '200':
+          description: What the press did, row by row.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  pressedBy: { type: string }
+                  applied: { type: array, items: { type: object } }
+                  refused:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        on: { type: string }
+                        grantee: { type: string }
+                        code: { type: string }
+                        reason: { type: string }
+                  leftForChecklist:
+                    type: object
+                    properties:
+                      links: { type: integer }
+                      manual: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Unknown mapping. }
+        '409': { description: Not cut over yet — the press refuses with the reason. }
   /api/migrations/{mappingId}/sharing/rescan:
     post:
       tags: [Migrations]
