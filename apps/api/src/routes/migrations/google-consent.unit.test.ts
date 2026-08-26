@@ -15,6 +15,7 @@ import {
   consentResultPage,
   consentUrl,
   exchangeCode,
+  rawIpCallbackRefusal,
 } from './google-consent.ts';
 
 const PENDING = {
@@ -139,6 +140,32 @@ describe('the exchange: granted is read, never assumed', () => {
       expect(r.reason).toContain('invalid_client');
       expect(r.reason).not.toContain('shh');
     }
+  });
+});
+
+describe('a raw-IP callback refuses with the two ways out named (0089 T6)', () => {
+  const cb = (host: string) => `https://${host}:3123/api/migrations/google/callback`;
+
+  it('refuses the appliance-at-a-bare-address case, naming the port-forward AND the hostname shape', () => {
+    const refusal = rawIpCallbackRefusal(cb('100.97.25.131'));
+    expect(refusal).toContain('raw IP address');
+    expect(refusal).toContain('http://localhost:<port>');
+    expect(refusal).toContain('hostname under a domain you own');
+    expect(refusal).toContain('paste-a-token path keeps working');
+  });
+
+  it('refuses an IPv6 literal the same way', () => {
+    expect(rawIpCallbackRefusal(cb('[fd7a::1234]'))).toContain('raw IP address');
+  });
+
+  it('permits loopback — Google does, and the port-forward remedy depends on it', () => {
+    expect(rawIpCallbackRefusal('http://localhost:3124/api/migrations/google/callback')).toBeNull();
+    expect(rawIpCallbackRefusal('http://127.0.0.1:3124/api/migrations/google/callback')).toBeNull();
+    expect(rawIpCallbackRefusal('http://[::1]:3124/api/migrations/google/callback')).toBeNull();
+  });
+
+  it('permits a hostname — the objection is to the IP literal, not the network', () => {
+    expect(rawIpCallbackRefusal(cb('app.example.nl'))).toBeNull();
   });
 });
 
