@@ -90,9 +90,20 @@ can neither list, revoke, nor survive a restart.
   fetches URLs; a link that died on preview would be a support ticket generator with no
   attacker in sight. Until the grant lands, opening is repeatable; after it, the page says
   "already granted" and offers nothing.
-- **Expiry short, because the bearer risk is real**: proposed default **7 days** — long
-  enough to hand over a link across a weekend, short enough to bound a forwarded or
-  intercepted one. Owner-visible at issue time; re-issue is cheap and revocation immediate.
+- **Expiry is the owner's choice, made at issue time** (the owner's steer, 2026-08-26:
+  control over comfort-by-default). The issue dialog offers **1 day / 7 days / 30 days**
+  with **7 days pre-filled** — long enough to hand a link across a weekend, short enough to
+  bound a forwarded or intercepted one — and the chosen date is shown beside the link the
+  moment it is created, so the owner sends it knowing exactly what they sent. Re-issue is
+  cheap and revocation immediate, whichever expiry was picked.
+- **The person granting sees where they stand too**: the grant page states the link's
+  validity in plain words (*"this link works until Thursday 4 September"*) before the
+  button, so an expiry never lands as a surprise mid-intention — and the expiry bounds
+  **beginnings, not completions**: it is checked when the flow starts, and a consent begun
+  legitimately in the link's last minute finishes under the OAuth state's own ten-minute
+  bound. **Revocation, by contrast, stops everything** — it is re-checked at the callback
+  before anything is stored, because it is the owner's kill switch and a kill switch that
+  loses to a race is not one.
 
 ### 2. A middleware that grants nothing
 
@@ -117,9 +128,13 @@ public access-request door).
 ### 3. The owner's surface: issue, list, revoke
 
 On the mapping's view: **Create grant link** → `POST /api/migrations/:mappingId/links`
-(authenticated, owner's session) → the URL, once, with the expiry stated beside it and
-ADR-0035's division of labour made visible: *you* send this to the person, we never do.
-Beside it: the list (issued when, expires when, used/revoked state) and a revoke button.
+(authenticated, owner's session, expiry chosen in the dialog) → the URL, once, with the
+chosen expiry stated beside it and ADR-0035's division of labour made visible: *you* send
+this to the person, we never do. Beside it: the list (issued when, expires when,
+used/revoked state) and a revoke button — and a link that **expired unused** shows
+prominently rather than greyed away, because it means somebody was asked and never managed
+to answer: the one-click follow-up is re-issue, and the list should make that the obvious
+next move rather than a hunt.
 
 **Issuing refuses early when the link could not succeed** — the same principle as 0089 T6's
 "refused HERE, not at Google's screen". A grant link needs the mapping's source to be a Google
@@ -183,7 +198,11 @@ build, not a decision smuggled in here.
 
 1. **Consent-only first?** The migrator page shows disclosure + one button; the progress
    'view' link stays a reserved `purpose`, built when it is its own ask.
-2. **Seven days** as the grant link's default expiry?
+2. ~~Seven days as the default expiry?~~ **Steered by the owner, 2026-08-26**: expiry is
+   the owner's choice at issue time, for control on both sides — designed above as a
+   1/7/30-day picker with 7 pre-filled, validity shown to the migrator on the grant page,
+   expiry bounding beginnings while revocation stops everything. The preset values
+   themselves are still adjustable in this review.
 3. **ADR-0035's formal status** — it is still Proposed while four of its decisions are
    recorded as owner-decided. This plan builds on it; accepting it (or amending it) in the
    same review would close that gap.
