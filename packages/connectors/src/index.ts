@@ -96,6 +96,7 @@ export * from './graph-permissions.ts';
 export * from './graph-permission-scan.ts';
 export * from './drive-sharing-availability.ts';
 export * from './nextcloud-ocs.ts';
+export * from './nextcloud-share-scan.ts';
 // Proving the consent runbook actually worked (0027 T0).
 export * from './graph-access-check.ts';
 // Google Drive as a file source (workplan 0042): the connector, the OAuth flow

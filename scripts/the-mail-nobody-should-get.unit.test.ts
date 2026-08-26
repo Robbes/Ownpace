@@ -21,7 +21,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -216,7 +216,8 @@ describe('the bytes the seed actually puts', () => {
   // The stub answers exactly the calls seed-demo-dav-content.sh makes:
   // the two exec probes; discover()'s Depth:0 PROPFIND (207); dav() PUTs
   // (record stdin, 201) and DELETEs (204); count()'s Depth:1 PROPFIND
-  // (list what was stored, so the script's own verification stays honest).
+  // (list what was stored, so the script's own verification stays honest);
+  // ocs()'s share POST (record the fields, answer the ok envelope).
   const STUB = `#!/usr/bin/env bash
 set -u
 CAP="\${SEED_STUB_DIR:?}"
@@ -229,12 +230,13 @@ case "$1" in
   curl) shift ;;
   *) echo "stub docker: unexpected command $1" >&2; exit 64 ;;
 esac
-method=""; wantscode=0; hasbody=0; url=""
+method=""; wantscode=0; hasbody=0; url=""; fields=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -X) method="$2"; shift 2 ;;
     -w) wantscode=1; shift 2 ;;
     --data-binary) hasbody=1; shift 2 ;;
+    --data-urlencode) fields="$fields $2"; shift 2 ;;
     -H|-u|-o) shift 2 ;;
     -sS|-s|-S) shift ;;
     *) url="$1"; shift ;;
@@ -248,6 +250,9 @@ case "$method" in
     cat > "$CAP/puts/$(printf '%s' "$path" | tr '/' '_')"
     printf '%s\\n' "$path" >> "$CAP/manifest.txt"
     printf 201 ;;
+  POST)
+    printf '%s%s\\n' "$url" "$fields" >> "$CAP/ocs-posts.txt"
+    printf '{"ocs":{"meta":{"status":"ok","statuscode":200}}}' ;;
   DELETE) printf 204 ;;
   PROPFIND)
     if [ "$wantscode" = 1 ]; then printf 207; else cat "$CAP/manifest.txt" 2>/dev/null || true; fi ;;
@@ -296,6 +301,14 @@ esac
       const event2 = put(dir, `calendars_tenant-b-source_personal_openmig-demo-event-${tag}-2.ics`);
       expect(event2, 'the canary rides event 1 only').not.toMatch(/ATTENDEE|ORGANIZER/);
       expect(event2).toMatch(/\nEND:VEVENT\r?\n/);
+      const ocsPosts = readFileSync(join(dir, 'ocs-posts.txt'), 'utf8');
+      expect(
+        ocsPosts,
+        'the tagged seed no longer shares its file BY MAIL with the tag-addressed\n' +
+          'outsider — the inventory then has nothing to find and the press (0104 T2)\n' +
+          'has nothing to press.',
+      ).toContain('shareType=4');
+      expect(ocsPosts).toContain(`openmig-grantee-${tag}@example.invalid`);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -311,6 +324,11 @@ esac
           'also give the smoke a constant address a previous run could answer for.',
       ).not.toMatch(/ATTENDEE|ORGANIZER/);
       expect(event1).toMatch(/\nEND:VEVENT\r?\n/);
+      expect(
+        existsSync(join(dir, 'ocs-posts.txt')),
+        'an untagged seed created a share — the fixed fixture must stay share-free\n' +
+          '(and share-by-mail from the seed would mail a CONSTANT address).',
+      ).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

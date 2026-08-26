@@ -40,6 +40,7 @@ import {
   resolveUserDriveId,
   scanCalendarPermissions,
   scanDrivePermissions,
+  scanNextcloudShares,
   type HttpClient,
 } from '@openmig/connectors';
 import { runPermissionInventory } from '@openmig/core';
@@ -212,6 +213,16 @@ export async function tenantInventoryScans(
   );
   const googleDriveConnection = driveRows[0];
 
+  // A Nextcloud (or plain-WebDAV) source: its outbound shares are one OCS GET
+  // away (0104 T2). Before this, a DAV source's sharing was a blind spot with
+  // a Graph-worded reason — the wrong errand entirely.
+  const { rows: davRows } = await pool().query<{ secret_ref: string | null; config: unknown }>(
+    `SELECT secret_ref, config FROM connection
+      WHERE tenant_id = $1 AND role = 'source' AND kind IN ('nextcloud', 'webdav') LIMIT 1`,
+    [tenantId],
+  );
+  const davSourceConnection = davRows[0];
+
   return {
     scanCalendars: async () =>
       available.ok
@@ -231,7 +242,17 @@ export async function tenantInventoryScans(
                   'covers files only. Capture calendar sharing by hand before cutover',
               ),
             }
-          : { kind: 'not_discoverable' as const, reason: available.reason },
+          : davSourceConnection && !graphTenantId
+            ? {
+                // Same courtesy for a Nextcloud tenant (0104 T2): the file
+                // share scan covers files; calendar sharing stays by hand.
+                kind: 'not_discoverable' as const,
+                reason: permissionsNotDiscoverable(
+                  'Nextcloud calendar sharing is not yet read by this tool — the share ' +
+                    'scan covers files only. Capture calendar sharing by hand before cutover',
+                ),
+              }
+            : { kind: 'not_discoverable' as const, reason: available.reason },
     scanDrive: async () => {
       if (googleDriveConnection) {
         try {
@@ -257,6 +278,27 @@ export async function tenantInventoryScans(
             ),
           };
         }
+      }
+      if (davSourceConnection) {
+        const config = (davSourceConnection.config ?? {}) as {
+          baseUrl?: string;
+          host?: string;
+          port?: number;
+          useSsl?: boolean;
+          credentials?: Record<string, string>;
+        };
+        const creds = davSourceConnection.secret_ref
+          ? SecretStore.decryptCredentials(davSourceConnection.secret_ref)
+          : (config.credentials ?? {});
+        const webdavUrl =
+          config.baseUrl ??
+          `${config.useSsl === false ? 'http' : 'https'}://${config.host}${config.port ? `:${config.port}` : ''}`;
+        return scanNextcloudShares({
+          webdavUrl,
+          username: creds.username ?? '',
+          password: creds.password ?? '',
+          httpClient,
+        });
       }
       // The consent decision answers first, because it holds whatever the
       // credentials say: a deployment without `Files.Read.All` would get a

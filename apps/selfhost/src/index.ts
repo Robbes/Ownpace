@@ -109,6 +109,7 @@ import {
   directoryAvailability,
   driveSharingAvailability,
   createNextcloudShare,
+  scanNextcloudShares,
   type HttpClient,
 } from '@openmig/connectors';
 import {
@@ -1407,6 +1408,14 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         // outbound shares are readable with the scope the pass already uses —
         // same env credential names, no extra consent decision.
         const hasGoogleDriveSource = mappings.some((m) => m.config.source.type === 'google-drive');
+        // A Nextcloud/WebDAV files source: its outbound shares are one OCS
+        // GET away (0104 T2) — before this, a DAV appliance's sharing was a
+        // blind spot wearing a Graph-worded reason.
+        const davFilesSource = mappings
+          .map((m) => (m.config.domains?.files?.source ?? m.config.source) as
+            | { type?: string; url?: string; user?: string; auth?: { passwordFromEnv?: string } }
+            | undefined)
+          .find((src) => src?.type === 'webdav');
         const available = directoryAvailability(process.env, graphSource?.tenantId);
         const scanOptions = { applicationPermissions: true } as const;
         const driveSharing = driveSharingAvailability(process.env);
@@ -1436,6 +1445,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                   }
                 : { kind: 'not_discoverable' as const, reason: available.reason },
           scanDrive: async (): Promise<PermissionListing> => {
+            if (davFilesSource?.url && davFilesSource.user) {
+              const passwordFromEnv = davFilesSource.auth?.passwordFromEnv;
+              return scanNextcloudShares({
+                webdavUrl: davFilesSource.url,
+                username: davFilesSource.user,
+                password: passwordFromEnv ? (process.env[passwordFromEnv] ?? '') : '',
+                httpClient: detectorHttpClient,
+              });
+            }
             if (hasGoogleDriveSource) {
               // Same factory and env names as a pass; a refusal (missing
               // variable, bad consent) arrives verbatim as the blind spot.
