@@ -12,8 +12,8 @@ run's tag, and a net-zero take-back.
 
 ## Before the sitting
 
-- PRs #601–#604 merged (the verdict, the DAV-URL door, the catch-all reader,
-  this runbook + the nightly).
+- PRs #601–#603 merged (the verdict, the DAV-URL door, and the live lane —
+  catch-all reader, this runbook, the nightly).
 - At hand, on paper or in a password manager — never in the repo:
   - the Soverin mailbox credentials (IMAP/CalDAV/CardDAV — same account);
   - the ownpace.eu **catch-all** inbox's IMAP host, user, password.
