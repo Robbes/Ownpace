@@ -2181,6 +2181,68 @@ fi
 
 if [ -n "$BALANCE_TAG" ]; then
   note "the mail nobody should get"
+
+  # THE PIPE, PROVED FIRST (0104 T2 first stage; the owner's question,
+  # 2026-08-26: "was Nextcloud at all able to mail?"). Until this control, no
+  # run had ever shown a mail LEAVING the target and ARRIVING at the catcher —
+  # so every silence assertion below was one SMTP typo away from
+  # silence-by-inability, the exact disease 0103 exists to end, one layer
+  # deeper. The control: the target account writes its own tag-named file and
+  # shares it BY MAIL — the same OCS channel a cutover-moment announcement
+  # will ride (0104 T0) — and that mail must actually arrive. Tag-addressed
+  # both ways, cleaned up after, independent of what the sync copied or the
+  # apply half consumed.
+  mailproof_file="openmig-mailproof-${BALANCE_TAG}.txt"
+  mailproof_addr="openmig-mailproof-${BALANCE_TAG}@example.invalid"
+  put_code="$(curl -sS -o /dev/null -w '%{http_code}' -X PUT \
+    -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
+    --data-binary "the mail-pipe proof for tag ${BALANCE_TAG}" \
+    "http://localhost:${nc_port:-8083}/remote.php/dav/files/${TARGET_DAV_USER}/${mailproof_file}")"
+  share_id=""
+  share_code="(not attempted)"
+  if [ "$put_code" = "201" ] || [ "$put_code" = "204" ]; then
+    share_out="$(curl -sS -X POST -H 'OCS-APIRequest: true' -H 'Accept: application/json' \
+      -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
+      --data-urlencode "path=/${mailproof_file}" \
+      --data-urlencode "shareType=4" \
+      --data-urlencode "shareWith=${mailproof_addr}" \
+      -w $'\n%{http_code}' \
+      "http://localhost:${nc_port:-8083}/ocs/v2.php/apps/files_sharing/api/v1/shares")"
+    share_code="${share_out##*$'\n'}"
+    share_id="$(jq -r '.ocs.data.id // empty' <<<"${share_out%$'\n'*}" 2>/dev/null || true)"
+  fi
+  if [ -z "$share_id" ]; then
+    echo "the mail-pipe control could not create its share (file PUT ${put_code}, OCS ${share_code})"
+    echo "— sharebymail off, or OCS refused. Remedy: occ app:enable sharebymail. Until a"
+    echo "mail can LEAVE the target, the silence assertions below are unfalsifiable."
+    fail=1
+  else
+    pipe_mail=0
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      pipe_mail="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
+        --data-urlencode "query=${mailproof_addr}" | jq -r '.messages_count // 0')"
+      [ "${pipe_mail:-0}" -ge 1 ] && break
+      sleep 3
+    done
+    if [ "${pipe_mail:-0}" -ge 1 ]; then
+      echo "the pipe is live: the target's own mailer delivered a share mail to the catcher"
+    else
+      echo "Nextcloud accepted the share (id ${share_id}) but its mail NEVER reached the"
+      echo "catcher — the SMTP pipe is broken (SMTP_* env, or mailpit unreachable from the"
+      echo "target), and every silence below would be silence-by-inability. Fix the pipe,"
+      echo "then trust the quiet."
+      fail=1
+    fi
+    share_del="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE -H 'OCS-APIRequest: true' \
+      -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
+      "http://localhost:${nc_port:-8083}/ocs/v2.php/apps/files_sharing/api/v1/shares/${share_id}")"
+    case "$share_del" in 200|404) ;; *) echo "mailproof share ${share_id} not cleaned up (HTTP ${share_del})"; fail=1 ;; esac
+  fi
+  file_del="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
+    -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
+    "http://localhost:${nc_port:-8083}/remote.php/dav/files/${TARGET_DAV_USER}/${mailproof_file}")"
+  case "$file_del" in 204|200|404) ;; *) echo "mailproof file not cleaned up (HTTP ${file_del})"; fail=1 ;; esac
+
   sched_href="remote.php/dav/calendars/${TARGET_DAV_USER}/personal/openmig-demo-event-${BALANCE_TAG}-1.ics"
   # Through the PUBLISHED port, as any real DAV client would — the product
   # itself only ever has the API, and the gate should walk through the same
