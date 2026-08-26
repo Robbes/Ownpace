@@ -156,6 +156,44 @@ describe('the mail nobody should get — the gate stays armed and asserting', ()
         'both, by construction.',
     ).toMatch(/pick_disposable\(\)[\s\S]{0,600}!~ '\$CANARY_RE'/);
   });
+
+  it('the pipe is proved before the silence is believed (0104 T2, first stage)', () => {
+    const smoke = strip('smoke-managed.sh');
+    expect(
+      smoke,
+      'the positive mail-pipe control is gone. Until it existed, no run had\n' +
+        'ever shown a mail LEAVING the target and ARRIVING at the catcher —\n' +
+        'E2E #89’s silence rode an unproven pipe (the owner’s question,\n' +
+        '2026-08-26), one SMTP typo away from silence-by-inability.',
+    ).toMatch(/openmig-mailproof-\$\{BALANCE_TAG\}@example\.invalid/);
+    expect(
+      smoke,
+      'the control creates the share but never asserts the mail ARRIVED —\n' +
+        'sending is the target’s claim, arrival is the catcher’s evidence.',
+    ).toMatch(/query=\$\{mailproof_addr\}[\s\S]{0,400}-ge 1/);
+    const pipe = smoke.indexOf('openmig-mailproof-');
+    const silence = smoke.indexOf('query=openmig-attendee-');
+    expect(
+      pipe >= 0 && silence >= 0 && pipe < silence,
+      'the pipe control must run BEFORE the canary silence assertions: a\n' +
+        'silence believed first and a broken pipe found later is a pass that\n' +
+        'proved nothing, in the order a reader trusts it.',
+    ).toBe(true);
+  });
+
+  it('the pipe control takes back what it made', () => {
+    const smoke = strip('smoke-managed.sh');
+    expect(
+      smoke,
+      'the mailproof share is never deleted — every run would leave one more\n' +
+        'share on the demo target, a measurement changing the thing it\n' +
+        'measures (the --fresh lesson, again).',
+    ).toMatch(/DELETE[\s\S]{0,200}\/shares\/\$\{share_id\}/);
+    expect(
+      smoke,
+      'the mailproof file is never deleted — same leak, DAV side.',
+    ).toMatch(/-X DELETE[\s\S]{0,200}files\/\$\{TARGET_DAV_USER\}\/\$\{mailproof_file\}/);
+  });
 });
 
 /**
