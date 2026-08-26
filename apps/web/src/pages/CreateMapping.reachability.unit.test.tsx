@@ -202,6 +202,72 @@ describe('a disabled Next never names a field that is not on screen', () => {
   });
 });
 
+/**
+ * The domain step reads the account's RECORD (0106 T3a): a matrix-allowed
+ * tick the chosen target account MEASURED it cannot carry is locked with
+ * the account's own evidence, while unknown never locks anything — the
+ * three-state spine, asserted where a person actually meets it.
+ */
+describe('the domain step reads the account’s record (0106 T3a)', () => {
+  const soverinTarget = {
+    id: 'c0000000-0000-4000-8000-0000000000d1',
+    role: 'target' as const,
+    kind: 'soverin',
+    displayName: 'One Soverin account',
+    status: 'connected' as const,
+    createdAt: '2026-08-26T00:00:00.000Z',
+    usedByMailboxes: 0,
+    qualification: {
+      domains: {
+        mail: { answer: 'unknown' as const, detail: 'Unmeasured — no mail server stored.' },
+        calendar: { answer: 'yes' as const, detail: '3 calendars visible.' },
+        contact: {
+          answer: 'no' as const,
+          detail: 'The session answered and does not advertise contacts.',
+        },
+        file: { answer: 'unknown' as const, detail: '' },
+      },
+    },
+  };
+
+  it('locks a matrix-allowed tick the account MEASURED it cannot carry — and never locks unknown', async () => {
+    listMock.mockResolvedValue([soverinTarget]);
+    renderWizard();
+    // Source: the plain IMAP walk.
+    fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
+    fill(/^Source Username/, 'anna@acme.example');
+    fill(/^Host$/, 'mail.example.com');
+    await waitFor(() => expect(nextButton()).toBeEnabled());
+    fireEvent.click(nextButton());
+    // Target: the account kind, reusing the stored (qualified) connection.
+    fireEvent.click(await screen.findByRole('button', { name: /^Soverin/ }));
+    await waitFor(() => expect(queryFieldFor(/^Use a target connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Use a target connection/), {
+      target: { value: soverinTarget.id },
+    });
+    await waitFor(() => expect(nextButton()).toBeEnabled());
+    fireEvent.click(nextButton());
+    // The MIGRATION step carries the name, the data types and the schedule
+    // on one screen (workplan 0070's four-step shape) — the cards are here.
+
+    // Contacts is matrix-ALLOWED on a soverin target, and the record says no:
+    // locked, the short line on the card, the account's own evidence on hover.
+    const contactsCard = await screen.findByRole('button', { name: /Contacts/ });
+    expect(contactsCard).toBeDisabled();
+    expect(contactsCard.textContent).toContain('This account answered it cannot carry this');
+    expect(screen.getByTitle(/does not advertise contacts/)).toBeTruthy();
+    // Unknown NEVER locks (a refusal is never a no, and neither is silence):
+    // email is unmeasured — hinted, still tickable.
+    const emailCard = screen.getByRole('button', { name: /Email/ });
+    expect(emailCard).toBeEnabled();
+    expect(emailCard.textContent).toContain('Not yet measured for this account');
+    // A measured yes adds nothing — the card stays plain.
+    const calendarCard = screen.getByRole('button', { name: /Calendar/ });
+    expect(calendarCard).toBeEnabled();
+    expect(calendarCard.textContent).not.toContain('cannot carry');
+  });
+});
+
 describe('reusing a stored connection', () => {
   const boxConnection = {
     id: 'c0000000-0000-4000-8000-00000000000b',

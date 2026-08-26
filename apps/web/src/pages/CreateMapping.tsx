@@ -28,6 +28,7 @@ import {
   describeCronScheduleProblem,
   credentialFieldsFor,
   partitionFrontDoor,
+  qualifiedAnswerFor,
   type CredentialField,
 } from '@openmig/shared';
 // The SAME cron library — same pinned version — the managed tick evaluates
@@ -832,6 +833,18 @@ const CreateMapping: React.FC = () => {
   const allowedDomains = TARGET_TYPE_DOMAINS[formData.targetType].filter(
     (d) => !sourceAllowed || sourceAllowed.includes(d),
   );
+
+  // The chosen target ACCOUNT's measured record (0106 T3a): a reused
+  // connection's stored qualification, or — for freshly typed credentials —
+  // what the last Test measured. It refines the domain step BENEATH the
+  // static matrix: a measured no locks the tick carrying the account's own
+  // evidence, unknown stays tickable with the unmeasured hint, and an
+  // absent record changes nothing (unqualified is not disqualified).
+  const targetQualification =
+    (formData.targetConnectionId
+      ? reusableTargets.find((c) => c.id === formData.targetConnectionId)?.qualification
+      : undefined) ?? probeResults.target?.qualification;
+  const measuredAnswerFor = (d: Domain) => qualifiedAnswerFor(targetQualification, d);
 
   // oauth2/graph authenticate with the customer's own Entra app registration
   // (0037 T6): no host/port to type, an app registration to enter instead.
@@ -1722,10 +1735,19 @@ const CreateMapping: React.FC = () => {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {dataTypes.map((type) => {
                   const unavailable = !allowedDomains.includes(type.id);
+                  const measured = measuredAnswerFor(type.id);
+                  // The account's own record, beneath the matrix (0106 T3a):
+                  // only a MEASURED no locks a matrix-allowed tick — the
+                  // create API refuses the same combination in the same
+                  // sentence (measuredNoRefusal) — while unknown never locks
+                  // anything (a refusal is never a no, and neither is
+                  // silence).
+                  const measuredNo = !unavailable && measured?.answer === 'no';
                   // A selected-but-unavailable type stays clickable: it must be
                   // DESELECTABLE, or going back and changing the target would
                   // trap the wizard behind a button that cannot be un-pressed.
-                  const locked = unavailable && !formData.domains.includes(type.id);
+                  const locked =
+                    (unavailable || measuredNo) && !formData.domains.includes(type.id);
                   return (
                     <button
                       key={type.id}
@@ -1751,6 +1773,16 @@ const CreateMapping: React.FC = () => {
                           {unavailable && (
                             <p className="text-xs text-amber-700 mt-1">
                               {t('wizard.domain.notForTarget')}
+                            </p>
+                          )}
+                          {measuredNo && (
+                            <p className="text-xs text-amber-700 mt-1" title={measured?.detail}>
+                              {t('wizard.domain.measuredNo')}
+                            </p>
+                          )}
+                          {!unavailable && !measuredNo && measured?.answer === 'unknown' && (
+                            <p className="text-xs text-gray-400 mt-1" title={measured?.detail}>
+                              {t('wizard.domain.unmeasured')}
                             </p>
                           )}
                         </div>
