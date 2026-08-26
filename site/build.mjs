@@ -44,6 +44,7 @@ import {
   firstMonth,
 } from './prices.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
+import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION } from './profiles.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, 'dist');
@@ -385,6 +386,34 @@ nav.site a.lang:hover { border-color: var(--teal); color: var(--teal); }
   letter-spacing: 0.05em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 999px;
 }
 
+/* calculator (workplan 0088 T3) */
+.calc fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem 1.25rem; margin: 1.25rem 0; }
+.calc legend { font-weight: 650; padding: 0 0.4rem; }
+.calc .opts { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; }
+.calc label.opt { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.2rem 0; cursor: pointer; }
+.calc .hint { color: var(--muted); font-size: 0.9rem; margin: 0.5rem 0 0; }
+.calc .amounts { display: grid; gap: 0.5rem 1rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); margin-top: 0.75rem; }
+.calc .amount { display: flex; align-items: baseline; gap: 0.5rem; }
+.calc .amount input { width: 6.5rem; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+.calc .amount .items { color: var(--muted); font-size: 0.8rem; }
+.calc .amount[data-off] { opacity: 0.45; }
+#paths-line { font-weight: 600; margin: 1.5rem 0 0.5rem; }
+.axes { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1rem 0; }
+.axis { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem; position: relative; }
+.axis .val { font-size: 1.6rem; font-weight: 700; }
+.axis .decides { display: none; position: absolute; top: 0.75rem; right: 1rem;
+  background: var(--mint); color: #06201c; font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 999px; }
+.axis[data-decides] .decides { display: inline-block; }
+.axis[data-decides] { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
+@media (prefers-color-scheme: dark) { .axis[data-decides] { border-color: var(--mint); box-shadow: 0 0 0 1px var(--mint); } }
+#tier-card { border: 1px solid var(--teal); box-shadow: 0 0 0 1px var(--teal); border-radius: 12px; padding: 1.25rem; margin: 1rem 0; }
+@media (prefers-color-scheme: dark) { #tier-card { border-color: var(--mint); box-shadow: 0 0 0 1px var(--mint); } }
+#tier-card h3 { margin: 0 0 0.5rem; }
+#tier-card ul { list-style: none; padding: 0; margin: 0.75rem 0; }
+#tier-card ul li { padding: 0.3rem 0; border-top: 1px solid var(--line); }
+.calc .fine { color: var(--muted); font-size: 0.9rem; }
+
 footer.site { border-top: 1px solid var(--line); margin-top: 5rem; padding: 2.5rem 0 4rem; color: var(--muted); font-size: 0.92rem; }
 footer.site .wrap { display: flex; gap: 2rem; flex-wrap: wrap; justify-content: space-between; }
 footer.site a { color: var(--muted); }
@@ -396,7 +425,7 @@ footer.site .build { font-size: 0.8rem; opacity: 0.7; }
 // ------------------------------------------------------------------ layout --
 
 /** Every page, in every locale, so the switcher and hreflang can be built. */
-const PAGE_KEYS = ['home', 'how', 'pricing', 'privacy', 'terms'];
+const PAGE_KEYS = ['home', 'how', 'pricing', 'calculator', 'privacy', 'terms'];
 
 const urlFor = (locale, key) => {
   const file = COPY[locale].files[key];
@@ -588,6 +617,240 @@ ${cards(c.wont)}
 `;
 }
 
+// -------------------------------------------------------------- calculator --
+
+/**
+ * The pre-preflight calculator (workplan 0088 T3; owner decision 2026-08-26,
+ * shape (a) of the CSP fork): one page per locale, ONE inline script shared
+ * by both, allowed by hash and nowhere else.
+ *
+ * WHY THE SCRIPT IS LOCALE-BLIND. The site's CSP pins the script by sha256 in
+ * `deploy/compose/www-nginx.conf`. One script for both locales means one hash
+ * and one conf line; every localised word reaches the script through the
+ * page's embedded JSON config instead. `site/calculator.unit.test.ts` fails
+ * if the rendered script's hash and the conf's pinned hash disagree — the
+ * drift that would otherwise kill the calculator silently (a blocked script
+ * leaves a perfectly rendered, perfectly dead page).
+ *
+ * The ARITHMETIC lives in `site/calculator.mjs`, imported by the tests and
+ * inlined here verbatim (exports stripped) — the code in the visitor's
+ * browser is byte-for-byte the code the tests exercised.
+ */
+const CALC_LIB = readFileSync(join(HERE, 'calculator.mjs'), 'utf8').replace(/^export /gm, '');
+
+/**
+ * The DOM half: read the config JSON, wire the inputs, recompute on change.
+ * Every computed string lands via `textContent` — nothing here writes HTML,
+ * which is what keeps a page-with-a-script as inert as the pages without one.
+ */
+const CALC_GLUE = `
+(function () {
+  var cfg = JSON.parse(document.getElementById('calc-config').textContent);
+  var S = cfg.strings;
+  function $(id) { return document.getElementById(id); }
+  function euro(n) { return '\\u20ac' + n; }
+  function sizeOf(gb) { return gb >= 1000 ? (gb / 1000) + ' TB' : gb + ' GB'; }
+  function radio(name) {
+    var el = document.querySelector('input[name="' + name + '"]:checked');
+    return el ? el.value : null;
+  }
+  function ticked() {
+    return cfg.objectTypes.filter(function (t) { return $('what-' + t).checked; });
+  }
+  function gbOf(t) {
+    var n = Number($('gb-' + t).value);
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+  function prefill() {
+    var who = radio('who');
+    cfg.objectTypes.forEach(function (t) {
+      var cell = cfg.profiles[who][t];
+      $('gb-' + t).value = String(cell.gb);
+      $('items-' + t).textContent = fill(S.itemsAssumed, cell.items.toLocaleString(cfg.locale));
+    });
+  }
+  function recompute() {
+    var who = radio('who');
+    var from = radio('from');
+    var until = radio('until');
+    var types = ticked();
+    cfg.objectTypes.forEach(function (t) {
+      var row = $('amount-' + t);
+      if (types.indexOf(t) === -1) row.setAttribute('data-off', ''); else row.removeAttribute('data-off');
+    });
+
+    var paths = cfg.accounts[who] * types.length;
+    var gb = types.reduce(function (sum, t) { return sum + gbOf(t); }, 0);
+    gb = Math.round(gb * 10) / 10;
+
+    var names = types.map(function (t) { return S.what[t]; }).join(', ');
+    $('paths-line').textContent =
+      types.length === 0 ? S.pathsNone
+        : paths === 1 ? fill(S.pathsOne, names)
+        : fill(S.pathsMany, names, S.forWho[who], paths);
+
+    var b = band(gb);
+    $('axis-paths-val').textContent = String(paths);
+    $('axis-data-val').textContent = sizeOf(gb);
+    $('band-line').textContent = fill(S.bandLine, b.low, b.high);
+
+    var d = deriveTier(cfg.tiers, paths, gb);
+    var pathsAxis = $('axis-paths'), dataAxis = $('axis-data');
+    pathsAxis.removeAttribute('data-decides'); dataAxis.removeAttribute('data-decides');
+    if (d.decidedBy === 'paths' || d.decidedBy === 'both') pathsAxis.setAttribute('data-decides', '');
+    if (d.decidedBy === 'data' || d.decidedBy === 'both') dataAxis.setAttribute('data-decides', '');
+
+    var card = $('tier-card'), beyond = $('beyond-line');
+    if (!d.tier || types.length === 0) {
+      card.hidden = true;
+      beyond.hidden = types.length === 0;
+      $('topup-line').textContent = '';
+      $('gmail-line').hidden = true;
+      return;
+    }
+    beyond.hidden = true;
+    card.hidden = false;
+    var t = d.tier;
+    $('tier-name').textContent = fill(S.tierLine, t.name);
+    $('tier-setup').textContent = fill(S.tierSetup, euro(t.setup));
+    $('tier-monthly').textContent = fill(S.tierMonthly, euro(t.monthly));
+    $('tier-first').textContent = fill(S.tierFirstMonth, euro(t.setup + t.monthly));
+    $('tier-three').textContent = fill(S.tierThree, euro(t.setup + t.monthly * 3));
+
+    var next = cfg.tiers[cfg.tiers.indexOf(t) + 1];
+    var vs = topUpAgainstStepUp(t, next);
+    $('topup-line').textContent = !vs ? '' :
+      fill(S.topUpLine, t.name, euro(vs.topUpOnce), sizeOf(t.dataGb), next.name, euro(vs.stepUpNow), euro(vs.stepUpMonthlyMore))
+      + ' ' + (vs.extraUpFront <= 0 ? S.topUpCheaper
+        : vs.paybackDays === null ? ''
+        : fill(S.topUpBreakEven, euro(vs.extraUpFront), euro(vs.stepUpMonthlyMore), vs.paybackDays));
+
+    var gmail = $('gmail-line');
+    var mailGb = types.indexOf('mail') !== -1 ? gbOf('mail') : 0;
+    if (from === 'google' && mailGb > 0) {
+      var days = gmailMailDays(mailGb);
+      var chosen = { m1: 30, m3: 90, m6: 180, ready: null }[until];
+      gmail.textContent = fill(S.gmailCeiling, mailGb, days)
+        + (chosen !== null && days > chosen ? ' ' + fill(S.gmailLonger, S.until[until]) : '');
+      gmail.hidden = false;
+    } else {
+      gmail.hidden = true;
+    }
+  }
+  document.querySelectorAll('input[name="who"]').forEach(function (el) {
+    el.addEventListener('change', function () { prefill(); recompute(); });
+  });
+  document.querySelectorAll('#calc input').forEach(function (el) {
+    el.addEventListener('input', recompute);
+    el.addEventListener('change', recompute);
+  });
+  prefill();
+  recompute();
+})();
+`;
+
+/** The one script, the one hash. Exported for the drift test against nginx. */
+export const CALC_SCRIPT = CALC_LIB + CALC_GLUE;
+
+function calculatorPage(locale) {
+  const c = COPY[locale].calc;
+  const config = {
+    locale: COPY[locale].htmlLang,
+    objectTypes: OBJECT_TYPES,
+    accounts: Object.fromEntries(CUSTOMER_TYPES.map((w) => [w.id, w.accounts])),
+    profiles: INDICATIVE_PROFILES,
+    tiers: TIERS.map(({ id, name, paths, dataGb, setup, monthly }) => ({ id, name, paths, dataGb, setup, monthly })),
+    strings: c,
+  };
+  const radios = (name, options, checkedId) =>
+    Object.entries(options)
+      .map(
+        ([id, label]) =>
+          `<label class="opt"><input type="radio" name="${name}" value="${id}"${id === checkedId ? ' checked' : ''} /> ${esc(label)}</label>`,
+      )
+      .join('\n      ');
+  const defaultTicked = ['mail', 'contacts', 'calendar', 'files'];
+  const whatBoxes = OBJECT_TYPES.map(
+    (t) =>
+      `<label class="opt"><input type="checkbox" id="what-${t}"${defaultTicked.includes(t) ? ' checked' : ''} /> ${esc(c.what[t])}</label>`,
+  ).join('\n      ');
+  const amounts = OBJECT_TYPES.map(
+    (t) => `<div class="amount" id="amount-${t}"><label for="gb-${t}">${esc(c.what[t])}</label>
+        <input id="gb-${t}" type="number" min="0" step="0.1" inputmode="decimal" /> <span>${esc(c.gbLabel)}</span>
+        <span class="items" id="items-${t}"></span></div>`,
+  ).join('\n      ');
+
+  // The JSON block is data, not an executable script: the CSP's script-src
+  // governs what RUNS, and this never does. `<` is escaped so no value can
+  // close the element.
+  const configJson = JSON.stringify(config).replace(/</g, '\\u003c');
+
+  return `
+<h1>${esc(c.title)}</h1>
+<p class="lede">${esc(c.lede)}</p>
+
+<div id="calc" class="calc">
+  <fieldset><legend>${esc(c.whoLegend)}</legend>
+    <div class="opts">${radios('who', c.who, 'individual')}</div>
+  </fieldset>
+  <fieldset><legend>${esc(c.fromLegend)}</legend>
+    <div class="opts">${radios('from', c.from, 'google')}</div>
+  </fieldset>
+  <fieldset><legend>${esc(c.whatLegend)}</legend>
+    <div class="opts">${whatBoxes}</div>
+  </fieldset>
+  <fieldset><legend>${esc(c.howMuchLegend)}</legend>
+    <p class="hint">${esc(c.howMuchHint)}</p>
+    <div class="amounts">${amounts}</div>
+  </fieldset>
+  <fieldset><legend>${esc(c.untilLegend)}</legend>
+    <div class="opts">${radios('until', c.until, 'ready')}</div>
+    <p class="hint">${esc(c.untilHint)}</p>
+  </fieldset>
+</div>
+
+<p id="paths-line"></p>
+
+<div class="axes">
+  <div class="axis" id="axis-paths"><span class="decides">${esc(c.axisDecides)}</span>
+    <div>${esc(c.axisPaths)}</div><div class="val" id="axis-paths-val"></div></div>
+  <div class="axis" id="axis-data"><span class="decides">${esc(c.axisDecides)}</span>
+    <div>${esc(c.axisData)}</div><div class="val" id="axis-data-val"></div>
+    <div class="fine" id="band-line"></div></div>
+</div>
+
+<div id="tier-card" hidden>
+  <h3 id="tier-name"></h3>
+  <p class="fine">${esc(c.tierDerived)}</p>
+  <ul>
+    <li id="tier-setup"></li>
+    <li id="tier-monthly"></li>
+    <li id="tier-first"></li>
+    <li id="tier-three"></li>
+  </ul>
+  <p class="fine">${esc(c.stepUpRule)}</p>
+</div>
+<p id="beyond-line" hidden>${esc(c.beyondLine)} <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+
+<p id="gmail-line" class="fine" hidden></p>
+<p id="topup-line" class="fine"></p>
+<p>${esc(c.billDown)}</p>
+<p><strong>${esc(c.cannotKnow)}</strong></p>
+
+<h2>${esc(c.assumptionsTitle)}</h2>
+<p class="fine">${esc(
+    c.assumptionsVersion
+      .replace('{0}', String(PROFILES_VERSION.version))
+      .replace('{1}', PROFILES_VERSION.date),
+  )}</p>
+<p><a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${esc(c.seeAllTiers)}</a></p>
+
+<noscript><p class="draft">${esc(c.noscript)}</p></noscript>
+<script type="application/json" id="calc-config">${configJson}</script>
+<script>${CALC_SCRIPT}</script>
+`;
+}
+
 // -------------------------------------------------------------------- main --
 
 /** Source file for each locale/page. Legal documents keep their own names. */
@@ -601,6 +864,7 @@ const META = {
     home: ['Ownpace — move your data at your own pace', 'Move your mail, contacts, calendar and files from Google or Microsoft to a European provider, continuously, and cut over when you are ready.'],
     how: ['How it works — Ownpace', 'What a migration looks like from the first connection to the cutover.'],
     pricing: ['Pricing — Ownpace', 'Five tiers, published in full. Priced on how many migrations run at once and how much data you have moved.'],
+    calculator: ['Estimate your migration — Ownpace', 'Five questions, an indicative band, and the tier it lands on — derived, never picked. No account, no email, nothing stored.'],
     privacy: ['Privacy policy — Ownpace', 'What Ownpace holds, why, for how long, and what it never does.'],
     terms: ['Terms of service — Ownpace', 'The terms for the managed Ownpace service.'],
   },
@@ -608,6 +872,7 @@ const META = {
     home: ['Ownpace — verhuis uw gegevens in uw eigen tempo', 'Verhuis uw e-mail, contacten, agenda en bestanden van Google of Microsoft naar een Europese aanbieder, doorlopend, en stap over wanneer u er klaar voor bent.'],
     how: ['Hoe het werkt — Ownpace', 'Hoe een verhuizing verloopt, van de eerste koppeling tot de overstap.'],
     pricing: ['Prijzen — Ownpace', 'Vijf pakketten, volledig gepubliceerd. Geprijsd op hoeveel verhuizingen tegelijk lopen en hoeveel gegevens u hebt verhuisd.'],
+    calculator: ['Schat uw verhuizing — Ownpace', 'Vijf vragen, een indicatieve bandbreedte, en het pakket waar dat op uitkomt — afgeleid, nooit gekozen. Geen account, geen e-mail, niets wordt bewaard.'],
     privacy: ['Privacyverklaring — Ownpace', 'Wat Ownpace bewaart, waarom, hoe lang, en wat het nooit doet.'],
     terms: ['Servicevoorwaarden — Ownpace', 'De voorwaarden voor de beheerde Ownpace-dienst.'],
   },
@@ -622,6 +887,8 @@ function build() {
       let body;
       if (key === 'home') {
         body = landing(locale);
+      } else if (key === 'calculator') {
+        body = calculatorPage(locale);
       } else {
         const md = readFileSync(join(HERE, SOURCE[locale][key]), 'utf8');
         body = markdown(md);
