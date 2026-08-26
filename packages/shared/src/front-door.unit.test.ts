@@ -14,8 +14,10 @@ import { describe, it, expect } from 'vitest';
 import { connectableTypes } from './credential-fields.ts';
 import {
   FAMILY_DISPLAY_NAMES,
+  FAMILY_ICONS,
   FRONT_DOOR_FAMILIES,
   FRONT_DOOR_GROUPS,
+  FRONT_DOOR_ICONS,
   frontDoorFamilyOf,
   partitionFrontDoor,
 } from './front-door.ts';
@@ -42,6 +44,26 @@ describe('every connectable id is placed', () => {
         seen.add(member);
       }
     }
+  });
+
+  it('every placed id and every family wears an icon, and the lanes stay visually distinct (0107 T2)', () => {
+    for (const [id, group] of Object.entries(FRONT_DOOR_GROUPS)) {
+      const icon = FRONT_DOOR_ICONS[id];
+      expect(icon, `'${id}' is placed but has no icon — add it to FRONT_DOOR_ICONS`).toBeDefined();
+      // Marks on providers only, glyphs on protocols only: a protocol is not
+      // a brand, and a brand is not a protocol.
+      expect(icon?.kind, `'${id}' (${group}) wears the other lane's icon kind`).toBe(
+        group === 'provider' ? 'mark' : 'glyph',
+      );
+    }
+    for (const family of FRONT_DOOR_FAMILIES) {
+      expect(FAMILY_ICONS[family.id], `family '${family.id}' has no mark`).toBeDefined();
+      expect(FAMILY_ICONS[family.id]?.kind).toBe('mark');
+    }
+  });
+
+  it('the two Microsoft 365 methods share ONE mark — same account, same face', () => {
+    expect(FRONT_DOOR_ICONS.oauth2).toBe(FRONT_DOOR_ICONS.graph);
   });
 
   it('frontDoorFamilyOf answers for members and stays silent for standalones', () => {
