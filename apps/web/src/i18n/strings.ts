@@ -185,6 +185,16 @@ const en = {
     'The email to {email} could not be sent. Tell them yourself, and check the mail settings.',
   'queue.mailSkipped': 'Nobody was emailed, as you asked.',
   'wizard.proto.imap.hint': 'Standard email protocol',
+  // The consent you can click (0089 T1): the button that replaces the OAuth
+  // Playground walk. The full evidence stays in the API's refusals; these
+  // are the button's own words.
+  'wizard.google.connect': 'Connect with Google',
+  'wizard.google.connect.hint':
+    'Opens Google’s consent screen against your own OAuth client and fills the refresh token ' +
+    'in for you. Pasting a token you already have keeps working.',
+  'wizard.google.connect.needsClient':
+    'Enter the Client ID and client secret first — the consent runs against your own Google client.',
+  'wizard.google.received': 'Consent received — the refresh token has been filled in below.',
   // The two Microsoft 365 connection methods (0107 T1): the family heading
   // says WHO, the card says HOW — "OAuth2" as a card name said neither.
   'wizard.group.provider': 'Your provider',
@@ -1259,6 +1269,13 @@ const nl: Record<keyof typeof en, string> = {
     'e-mailinstellingen.',
   'queue.mailSkipped': 'Er is niemand gemaild, zoals u vroeg.',
   'wizard.proto.imap.hint': 'Standaard e-mailprotocol',
+  'wizard.google.connect': 'Verbinden met Google',
+  'wizard.google.connect.hint':
+    'Opent het toestemmingsscherm van Google met uw eigen OAuth-client en vult het ' +
+    'vernieuwingstoken voor u in. Een token plakken dat u al heeft, blijft gewoon werken.',
+  'wizard.google.connect.needsClient':
+    'Vul eerst de Client-ID en het clientgeheim in — de toestemming loopt via uw eigen Google-client.',
+  'wizard.google.received': 'Toestemming ontvangen — het vernieuwingstoken is hieronder ingevuld.',
   'wizard.group.provider': 'Uw aanbieder',
   'wizard.group.protocol': 'Elke server, via protocol',
   'wizard.m365.viaImap': 'Via IMAP',

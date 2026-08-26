@@ -40,10 +40,11 @@ That is a deliberate trade, and it is the reason this guide exists at all rather
 *our* Google credentials would mean shipping those credentials to everyone who downloads it —
 which is exactly the thing nobody should do with a secret.
 
-What we can do, and have not built yet, is run the consent step for you against **your own**
-client. That would remove the redirect URI in step 3 and the whole of step 4 — the two most
-awkward parts of this guide — while changing nothing about who holds the credential. It is
-planned.
+What we can do — and now do — is run the consent step for you against
+**your own** client: the wizard's **Connect with Google** button opens Google's consent
+screen with your client ID and secret, and fills the refresh token in for you. That removes
+the whole of step 4 and changes step 3's redirect URI, while changing nothing about who
+holds the credential. Both steps below keep their manual path for anyone who prefers it.
 
 ---
 
@@ -84,15 +85,25 @@ You made this choice at the top of this guide. To restate it in the console's ow
 
 **APIs & Services → Credentials → Create credentials → OAuth client ID.**
 
-Pick **Web application** and add `https://developers.google.com/oauthplayground` as an
-authorised redirect URI. That is only to obtain the refresh token in step 4; Ownpace
-never redirects anywhere, because it uses the refresh token directly from then on.
+Pick **Web application** and add an authorised redirect URI:
+
+- **Using the wizard's Connect with Google button:** add
+  `https://<your Ownpace address>/api/migrations/google/callback` — the wizard shows the
+  exact value to register when you press the button, so a mismatch is visible before
+  Google refuses it.
+- **Using the manual Playground path (step 4):** add
+  `https://developers.google.com/oauthplayground` instead.
+
+Either way the redirect exists only to obtain the refresh token once; migrations use the
+refresh token directly from then on.
 
 Copy the **client ID** and **client secret**.
 
 ## 4. The refresh token
 
-The one value that cannot be read out of a console. Using Google's own
+The one value that cannot be read out of a console. **The wizard's Connect with Google
+button does this step for you** — enter the client ID and secret from step 3, press it,
+consent in the popup, and the token lands in the field. Manually, using Google's own
 [OAuth Playground](https://developers.google.com/oauthplayground/):
 
 1. Gear icon → **Use your own OAuth credentials** → paste the client ID and secret.

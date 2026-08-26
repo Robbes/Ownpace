@@ -415,6 +415,23 @@ export interface TestConnectionResult {
 
 export const mappingApi = {
   /**
+   * Start the authorization-code round-trip against the customer's own
+   * Google client (workplan 0089 T1). The answer is Google's consent URL to
+   * open in a popup — plus the exact redirect URI the customer must have
+   * registered, so a mismatch is shown before Google shows it. Nothing is
+   * stored; the refresh token comes back to the wizard window and lands in
+   * the same field a pasted one does.
+   */
+  googleAuthorize: async (p: {
+    sourceType: 'gmail' | 'google-calendar' | 'google-contacts' | 'google-drive';
+    clientId: string;
+    clientSecret: string;
+  }): Promise<{ url: string; redirectUri: string; scope: string }> => {
+    const response = await apiClient.post('/migrations/google/authorize', p);
+    return response.data as { url: string; redirectUri: string; scope: string };
+  },
+
+  /**
    * The shared drives a Google credential can see (workplan 0049) — the
    * wizard's "browse" behind rootFolderId. Read-only; nothing stored.
    */

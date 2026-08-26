@@ -158,6 +158,25 @@ describe('failures', () => {
     await expect(provider.getToken()).rejects.toThrow(/revoked|expired/i);
   });
 
+  it('names the seven-day Testing trap FIRST, with its one-click remedy (0089 T2)', async () => {
+    // External + Testing expires refresh tokens after seven days — the cause
+    // most likely for a recently set-up personal account, and the only one
+    // fixed by a single click. The hint must name the status AND the remedy,
+    // and must never send anyone hunting for the removed enable-IMAP toggle.
+    const { fetchImpl } = fakeEndpoint([
+      { ok: false, status: 400, body: '{"error":"invalid_grant"}' },
+    ]);
+    const provider = new GoogleTokenProvider(CREDS, { tokenEndpoint: ENDPOINT, fetchImpl });
+
+    const error = String(await provider.getToken().catch((e: Error) => e));
+    expect(error).toContain('seven days');
+    expect(error).toContain('Testing');
+    expect(error).toContain('Production');
+    // The seven-day cause reads BEFORE the legacy three — most likely first.
+    expect(error.indexOf('seven days')).toBeLessThan(error.indexOf('revoked'));
+    expect(error.toLowerCase()).not.toContain('enable imap');
+  });
+
   it('NEVER puts the client secret or refresh token in the error', async () => {
     // Errors reach logs and the owner's failures queue. Including the request
     // body would put a live credential in both.
