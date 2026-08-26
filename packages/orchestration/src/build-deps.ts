@@ -26,9 +26,12 @@ import {
   type FileTargetWriter,
   type SourceConfig,
   type TargetConfig,
+  InProcessByteBudget,
+  imapDownloadPlan,
 } from '@openmig/shared';
 import {
   createTokenProvider,
+  type ImapByteMeter,
 } from '@openmig/connectors';
 import { PgLedger } from '@openmig/ledger';
 import { PgCursorStore } from '@openmig/ledger';
@@ -190,8 +193,32 @@ export async function buildDeps(
   // else the top-level source/target (see resolveMailConfig).
   const { source: mailSource, target: mailTarget, concurrency } = resolveMailConfig(config);
 
+  // The daily DOWNLOAD meter for the mail source's endpoint (workplan 0090
+  // T3) — same decision rule as the managed edition (`imapDownloadPlan`,
+  // hard rule 5), in-process state: on the appliance one process is the
+  // whole service. One honest residue rides with that and is recorded in
+  // the workplan: a restart forgets the day's count, so the window restarts
+  // conservative-side-out only in the sense that nothing OVER-counts —
+  // headroom under the ceiling is the mitigation until somebody wires this
+  // to the appliance's own durable store.
+  const downloadPlan = imapDownloadPlan(
+    mailSource.type === 'gmail'
+      ? 'imap.gmail.com'
+      : mailSource.type === 'imap-oauth2'
+        ? mailSource.host
+        : undefined,
+    config.domains?.mail?.throttleConfig?.downloadBytesPerDay,
+  );
+  const byteMeter: ImapByteMeter | undefined = downloadPlan
+    ? {
+        budget: new InProcessByteBudget({ bytesPerDay: downloadPlan.bytesPerDay }),
+        tenantId: config.tenantId,
+        provider: downloadPlan.provider,
+      }
+    : undefined;
+
   // Build source connector from config
-  const source = buildSourceConnector(mailSource, throttleLimiter);
+  const source = buildSourceConnector(mailSource, throttleLimiter, byteMeter);
 
   // Build target writer from config
   const target = buildTargetWriter(mailTarget);
@@ -274,11 +301,14 @@ function buildThrottleLimiter(config: MappingConfig): ThrottleLimiter | undefine
  * graph-mail (workplan 0023 T2 — ADR-0006's IMAP-disabled fallback).
  * Note: For graph-calendar and graph-contacts, use separate build functions.
  */
-function buildSourceConnector(sourceConfig: MappingConfig['source'], throttleLimiter?: ThrottleLimiter): SourceConnector {
+function buildSourceConnector(sourceConfig: MappingConfig['source'], throttleLimiter?: ThrottleLimiter, byteMeter?: ImapByteMeter): SourceConnector {
   switch (sourceConfig.type) {
     case 'imap-oauth2':
-      return buildImapSource(sourceConfig, throttleLimiter);
+      return buildImapSource(sourceConfig, throttleLimiter, byteMeter);
     case 'graph-mail':
+      // No byteMeter: 0090's verified ceiling belongs to Gmail's IMAP
+      // endpoint, and inventing one for Graph would be the plan's own
+      // warning realised.
       return buildGraphMailSource(sourceConfig, throttleLimiter);
     case 'gmail':
       // The env-specific half only: read the three GOOGLE_* variables and hand
@@ -295,6 +325,8 @@ function buildSourceConnector(sourceConfig: MappingConfig['source'], throttleLim
           serviceAccountKey: process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
         },
         ENV_GMAIL_CREDENTIAL_NAMES,
+        undefined,
+        byteMeter,
       );
 
     default:
@@ -350,7 +382,7 @@ function buildGraphMailSource(sourceConfig: MappingConfig['source'], throttleLim
 /**
  * Build an IMAP source connector.
  */
-function buildImapSource(sourceConfig: MappingConfig['source'], throttleLimiter?: ThrottleLimiter): SourceConnector {
+function buildImapSource(sourceConfig: MappingConfig['source'], throttleLimiter?: ThrottleLimiter, byteMeter?: ImapByteMeter): SourceConnector {
   if (sourceConfig.type !== 'imap-oauth2') {
     throw new Error(`Expected imap-oauth2 source, got: ${sourceConfig.type}`);
   }
@@ -399,7 +431,7 @@ function buildImapSource(sourceConfig: MappingConfig['source'], throttleLimiter?
     tokenProvider: tokenProviderConfig ? createTokenProvider(tokenProviderConfig) : undefined,
   };
 
-  const imap = buildImapSourceFrom(sourceConfig, resolvedAuth, throttleLimiter);
+  const imap = buildImapSourceFrom(sourceConfig, resolvedAuth, throttleLimiter, byteMeter);
 
   // The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): OAUTH2_TENANT_ID
   // is the signal, since graph needs it for the token endpoint and plain IMAP does

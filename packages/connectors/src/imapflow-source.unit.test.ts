@@ -142,6 +142,27 @@ function source(extra: Record<string, unknown> = {}) {
 
 const INBOX: MailFolder = { path: 'INBOX', name: 'INBOX', specialUse: 'inbox' };
 
+/** A byte meter that only records — the semantics live in @openmig/shared. */
+function fakeMeter() {
+  const spends: Array<{ tenantId: string; provider: string; bytes: number }> = [];
+  const state = {
+    spentBytes: 0,
+    ceilingBytes: 1000,
+    remainingBytes: 1000,
+    windowResetsAt: null,
+  };
+  return {
+    spends,
+    budget: {
+      spend: async (tenantId: string, provider: string, bytes: number) => {
+        spends.push({ tenantId, provider, bytes });
+        return state;
+      },
+      state: async () => state,
+    },
+  };
+}
+
 beforeEach(() => {
   calls = [];
   connects = 0;
@@ -388,6 +409,48 @@ describe('fetch', () => {
     messages = [];
     await source().fetch(item).catch(() => undefined);
     expect(calls).toContain('release(INBOX)');
+  });
+
+  // The daily download meter (workplan 0090 T3). Counted on FETCH, with the
+  // body's actual length — the provider's cap is on what it sent, so this is
+  // the one place the number is true.
+  describe('the download meter', () => {
+    it('spends the meter with the fetched body length, under the configured key', async () => {
+      const bytes = Buffer.from('From: a\r\n\r\na longer body than the listing said');
+      messages = [{ uid: 7, source: bytes }];
+      const meter = fakeMeter();
+      const s = source({
+        byteMeter: { budget: meter.budget, tenantId: 'tenant-1', provider: 'gmail-imap' },
+      });
+      await s.fetch(item);
+      expect(meter.spends).toEqual([
+        { tenantId: 'tenant-1', provider: 'gmail-imap', bytes: bytes.length },
+      ]);
+    });
+
+    it('spends NOTHING without a meter — a server with no ceiling gets no invented cap', async () => {
+      messages = [{ uid: 7, source: Buffer.from('From: a\r\n\r\nbody') }];
+      await expect(source().fetch(item)).resolves.toBeDefined();
+    });
+
+    it('does not spend on a fetch that failed — no bytes arrived to count', async () => {
+      messages = [{ uid: 7 }];
+      const meter = fakeMeter();
+      const s = source({
+        byteMeter: { budget: meter.budget, tenantId: 'tenant-1', provider: 'gmail-imap' },
+      });
+      await s.fetch(item).catch(() => undefined);
+      expect(meter.spends).toEqual([]);
+    });
+
+    it('does not spend on a listing — bodies are what the meter counts', async () => {
+      const meter = fakeMeter();
+      const s = source({
+        byteMeter: { budget: meter.budget, tenantId: 'tenant-1', provider: 'gmail-imap' },
+      });
+      await s.listFolders();
+      expect(meter.spends).toEqual([]);
+    });
   });
 });
 

@@ -29,12 +29,21 @@ export interface ThrottleConfig {
   
   /** Base backoff in milliseconds (default: 1000) */
   baseBackoffMs: number;
-  
+
   /** Max backoff in milliseconds (default: 60000) */
   maxBackoffMs: number;
-  
+
   /** Jitter range in milliseconds (default: 500) */
   jitterMs: number;
+
+  /**
+   * Daily DOWNLOAD ceiling in bytes for the mail source's endpoint (workplan
+   * 0090 T3). Optional and deliberately without a default: the built-in
+   * Gmail ceiling lives in `imapDownloadPlan` (keyed by endpoint, not kind),
+   * and every other server gets no invented cap. Setting this overrides the
+   * built-in for any host — including setting headroom under Gmail's.
+   */
+  downloadBytesPerDay?: number;
 }
 
 /**

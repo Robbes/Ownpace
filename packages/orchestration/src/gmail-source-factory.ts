@@ -29,7 +29,7 @@
 
 import { CREDENTIAL_STORE_NL, CredentialRefusalError, missingAccountAddress } from '@openmig/shared';
 import type { MailFolder, MailItem, RawMessage, SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
-import { GoogleTokenProvider } from '@openmig/connectors';
+import { GoogleTokenProvider, type ImapByteMeter } from '@openmig/connectors';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory.ts';
 import {
@@ -157,6 +157,7 @@ export function buildGmailSourceFrom(
   naming: GoogleCredentialNaming = ENV_GMAIL_CREDENTIAL_NAMES,
   makeTokenProvider: GmailTokenProviderFactory = (c, scope) =>
     new GoogleTokenProvider(c, { scope }),
+  byteMeter?: ImapByteMeter,
 ): SourceConnector {
   // A service-account key selects domain-wide delegation (ADR-0033); the
   // subject is the mailbox this mapping migrates — the same address XOAUTH2
@@ -217,6 +218,10 @@ export function buildGmailSourceFrom(
       // only invite typos (the same argument the O365 path records).
       { host: 'imap.gmail.com', port: 993, tls: true, user },
       { authType: 'XOAUTH2', tokenProvider },
+      undefined,
+      // The Gmail download meter (workplan 0090 T3) — this endpoint is the
+      // one the verified 2 500 MB/day ceiling belongs to.
+      byteMeter,
     ),
   );
 }

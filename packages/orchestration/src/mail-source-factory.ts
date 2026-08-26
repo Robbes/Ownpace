@@ -33,6 +33,7 @@ import {
   ImapFlowSource,
   MailSourceWithGraphFallback,
   createTokenProvider,
+  type ImapByteMeter,
 } from '@openmig/connectors';
 
 /**
@@ -195,6 +196,7 @@ export function buildImapSourceFrom(
   endpoint: ImapEndpoint,
   auth: ResolvedImapAuth,
   throttleLimiter?: ThrottleLimiter,
+  byteMeter?: ImapByteMeter,
 ): SourceConnector {
   const imapConfig = {
     host: endpoint.host,
@@ -217,6 +219,11 @@ export function buildImapSourceFrom(
     authType: auth.authType,
     tokenProvider: auth.tokenProvider,
     throttleLimiter,
+    // The daily download meter (workplan 0090 T3) — the connector spends it
+    // on every fetched body. Which endpoints get one, and with what ceiling,
+    // is `imapDownloadPlan`'s decision, made by the caller who holds the
+    // budget store; this seam only carries it through.
+    byteMeter,
   };
 
   // **CUT OVER TO `imapflow` on 2026-08-06 (workplan 0032 T3).**

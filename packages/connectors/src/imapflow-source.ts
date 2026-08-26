@@ -380,6 +380,19 @@ export class ImapFlowSource implements SourceConnector {
         throw new Error(`No body found for message: ${item.sourceRef}`);
       }
 
+      // The daily download meter (workplan 0090 T3): counted on FETCH, after
+      // the bytes are known — a re-fetch spends it again, deliberately,
+      // because the provider's cap is on what it SENT. Bodies only: listings
+      // and envelopes also cross the wire but are small against a body, and
+      // the meter's own doc says the ceiling should carry headroom rather
+      // than pretend to be exact. Awaited, not fire-and-forget — a meter
+      // that cannot record must not be sailed past, since every uncounted
+      // byte moves the customer toward a lockout nothing here saw coming.
+      const meter = this.config.byteMeter;
+      if (meter) {
+        await meter.budget.spend(meter.tenantId, meter.provider, message.source.length);
+      }
+
       return { item, rfc822: message.source };
     } finally {
       lock.release();

@@ -14,6 +14,7 @@ import {
   type ThrottleConfigMapping,
   createThrottleLimiterFromMapping,
   DEFAULT_THROTTLE_CONFIG,
+  imapDownloadPlan,
   type TenantId,
   type MappingId,
   type SourceConfig,
@@ -23,9 +24,10 @@ import {
   parseGoogleDriveSource,
   log,
 } from '@openmig/shared';
-import { connection as connectionTable, mailbox as mailboxTable, PgRateBudget } from '@openmig/ledger';
+import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget } from '@openmig/ledger';
 import {
   createTokenProvider,
+  type ImapByteMeter,
 } from '@openmig/connectors';
 import type { CalendarSyncDeps, ContactSyncDeps, FileSyncDeps } from '@openmig/core';
 import {
@@ -256,12 +258,35 @@ export async function buildDepsFromMapping(
   const throttleLimiter = storedThrottle
     ? createThrottleLimiterFromMapping({ mapping: storedThrottle }, {}, sharedBudget)
     : createThrottleLimiterFromMapping(throttleConfigMapping, {}, sharedBudget);
-  
+
+  // The daily DOWNLOAD meter for the mail source's endpoint (workplan 0090
+  // T3). Which endpoints get one is `imapDownloadPlan`'s decision — keyed by
+  // HOST, so a plain imap-oauth2 connection pointed at imap.gmail.com is
+  // metered exactly like the gmail kind, and any other server gets no
+  // invented cap. Pg-backed for the same reason as the rate budget above:
+  // the ceiling belongs to the tenant's account at the provider, and every
+  // runner spends against the one row.
+  const imapHost =
+    mappingConfig.source.type === 'gmail'
+      ? 'imap.gmail.com'
+      : mappingConfig.source.type === 'imap-oauth2'
+        ? mappingConfig.source.host
+        : undefined;
+  const downloadPlan = imapDownloadPlan(imapHost, storedThrottle?.downloadBytesPerDay);
+  const byteMeter: ImapByteMeter | undefined = downloadPlan
+    ? {
+        budget: new PgByteBudget(db, { bytesPerDay: downloadPlan.bytesPerDay }),
+        tenantId,
+        provider: downloadPlan.provider,
+      }
+    : undefined;
+
   // Build source connector with decrypted credentials
   const source = buildSourceConnectorFromCredentials(
     mappingConfig.source,
     sourceCredentials,
-    throttleLimiter
+    throttleLimiter,
+    byteMeter
   );
   
   // Build target writer with decrypted credentials
@@ -601,9 +626,12 @@ export function buildFileSourceFromConnection(src: {
 export function buildSourceConnectorFromCredentials(
   sourceConfig: SourceConfig,
   credentials: Record<string, string>,
-  throttleLimiter?: ThrottleLimiter
+  throttleLimiter?: ThrottleLimiter,
+  byteMeter?: ImapByteMeter
 ): SourceConnector {
   if (sourceConfig.type === 'graph-mail') {
+    // No byteMeter: 0090's verified ceiling belongs to Gmail's IMAP endpoint,
+    // and inventing one for Graph would be the plan's own warning realised.
     return buildGraphMailSourceFromCredentials(sourceConfig, credentials, throttleLimiter);
   }
   if (sourceConfig.type === 'gmail') {
@@ -611,13 +639,19 @@ export function buildSourceConnectorFromCredentials(
     // refusal for missing ones lives in the shared factory, so both editions
     // refuse in the same words (rule 5) — here in the stored-credential
     // vocabulary a managed operator can act on, not env-var names.
-    return buildGmailSourceFrom(sourceConfig.user, credentials, STORED_GMAIL_CREDENTIAL_NAMES);
+    return buildGmailSourceFrom(
+      sourceConfig.user,
+      credentials,
+      STORED_GMAIL_CREDENTIAL_NAMES,
+      undefined,
+      byteMeter,
+    );
   }
   if (sourceConfig.type !== 'imap-oauth2') {
     throw new Error(`buildDepsFromMapping only supports imap-oauth2, graph-mail and gmail mail sources, got: ${sourceConfig.type}`);
   }
 
-  return buildImapSourceFromCredentials(sourceConfig, credentials, throttleLimiter);
+  return buildImapSourceFromCredentials(sourceConfig, credentials, throttleLimiter, byteMeter);
 }
 
 /**
@@ -664,7 +698,8 @@ function buildGraphMailSourceFromCredentials(
 function buildImapSourceFromCredentials(
   sourceConfig: SourceConfig,
   credentials: Record<string, string>,
-  throttleLimiter?: ThrottleLimiter
+  throttleLimiter?: ThrottleLimiter,
+  byteMeter?: ImapByteMeter
 ): SourceConnector {
   if (sourceConfig.type !== 'imap-oauth2') {
     throw new Error(`Expected imap-oauth2, got: ${(sourceConfig as { type: string }).type}`);
@@ -736,6 +771,7 @@ function buildImapSourceFromCredentials(
       tokenProvider,
     },
     throttleLimiter,
+    byteMeter,
   );
 
   // The runtime IMAP-disabled fallback (workplan 0023 T3, ADR-0006): tenantId is
