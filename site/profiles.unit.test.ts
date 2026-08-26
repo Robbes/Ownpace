@@ -43,7 +43,9 @@ describe('no silent gaps', () => {
   it('declares no customer type or object type the other tables do not know', () => {
     // The reverse direction: a profile for a type the page cannot offer is a
     // number nobody can ever see or argue with.
-    const knownWho = new Set(CUSTOMER_TYPES.map((c) => c.id));
+    // Widened to string on purpose: the whole point of this direction is
+    // asking about keys the const-typed table does NOT know.
+    const knownWho = new Set<string>(CUSTOMER_TYPES.map((c) => c.id));
     for (const key of Object.keys(INDICATIVE_PROFILES)) {
       expect(knownWho.has(key), `profile for unknown customer type "${key}"`).toBe(true);
       for (const obj of Object.keys(INDICATIVE_PROFILES[key]!)) {
