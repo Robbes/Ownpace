@@ -621,6 +621,15 @@ export interface ConnectionSummary {
    * ever being opened.
    */
   knownValues?: Record<string, string>;
+  /**
+   * What the LAST test measured this account can carry (0106 T2) — the
+   * stored record, so the list shows badges without anybody pressing Test.
+   * Null/absent = never qualified (an older row, or a kind qualification
+   * does not cover): absence of measurement, never "no".
+   */
+  qualification?: TestConnectionResult['qualification'] | null;
+  /** When the row (and so the qualification) last changed. */
+  updatedAt?: string;
 }
 
 export const connectionsApi = {
