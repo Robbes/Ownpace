@@ -38,6 +38,16 @@ export interface PermissionReportInput {
   readonly mappingLabel?: string;
   /** ISO date, passed in rather than read: this module stays pure. */
   readonly generatedOn?: string;
+  /**
+   * What the TARGET will do with what this migration writes (0105 T0) —
+   * will-do/cannot-do sentences MEASURED against the target, never assumed.
+   * Rendered right after the header, before the blind spots: it answers the
+   * owner's first question ("will this make noise?") before the document
+   * asks them for any work. Omitted entirely when nothing was measured —
+   * an empty section would read as "nothing to say", which is `unknown`
+   * wearing a safe face.
+   */
+  readonly targetConduct?: readonly string[];
 }
 
 /** Render the permission inventory as Markdown. Always returns a document. */
@@ -64,6 +74,13 @@ export function renderPermissionReport(input: PermissionReportInput): string {
       'somebody unable to do their job on the first Monday after cutover.',
   );
   out.push('');
+
+  if (input.targetConduct && input.targetConduct.length > 0) {
+    out.push('## What the target will do with what we write');
+    out.push('');
+    for (const line of input.targetConduct) out.push(`- ${line}`);
+    out.push('');
+  }
 
   // Blind spots first, deliberately — see the module comment.
   if (blind.length > 0) {

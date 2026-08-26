@@ -25,6 +25,17 @@
 import { isCredentialRefusal } from '@openmig/shared';
 import type { SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
+import { measureTargetScheduling } from './target-scheduling.ts';
+import type { SchedulingVerdict } from './target-scheduling.ts';
+
+// The verdict's own module holds the recorder too; re-exported here so the
+// probe's consumers keep one import site for everything a test result carries.
+export {
+  CALENDAR_TARGET_SCHEDULING_ACTION,
+  measureTargetScheduling,
+  schedulingRecorder,
+} from './target-scheduling.ts';
+export type { SchedulingVerdict } from './target-scheduling.ts';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import {
   buildFileSourceFromConnection,
@@ -58,7 +69,17 @@ import { davEndpointFromCreds } from './dav-endpoint.ts';
  * shown before anything was created instead of after (rule 9).
  */
 export type ProbeResult =
-  | { readonly ok: true; readonly detail: string; readonly outcome: ProbeOutcome }
+  | {
+      readonly ok: true;
+      readonly detail: string;
+      readonly outcome: ProbeOutcome;
+      /**
+       * DAV targets only (0105 T0): what this target will DO with the
+       * calendar objects a migration writes — measured by one OPTIONS
+       * request, never assumed. Absent on every other probe.
+       */
+      readonly scheduling?: SchedulingVerdict;
+    }
   | { readonly ok: false; readonly reason: string; readonly outcome: ProbeOutcome };
 
 /** The English `detail` for a successful listing — the fallback, not the UI. */
@@ -235,10 +256,24 @@ export async function probeTargetConnection(
           ? new CarddavSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password })
           : new WebdavFileSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password });
     const folders = await listable.listFolders();
+    // What this target will DO with calendar writes (0105 T0, the 0103 T3
+    // remainder): measured here, at the moment a person is looking at the
+    // test result, on the exact endpoint a pass would write to. carddav is
+    // skipped — an address-book target has no scheduling to measure.
+    const scheduling =
+      targetType === 'carddav'
+        ? undefined
+        : await measureTargetScheduling(endpoint.url, endpoint.username, endpoint.password);
     return {
       ok: true,
-      detail: connectedDetail(folders.length, 'collection'),
+      // Appended to the fallback text so every consumer that shows `detail`
+      // shows the verdict; the structured field is beside it for UIs that
+      // render their own words.
+      detail:
+        connectedDetail(folders.length, 'collection') +
+        (scheduling ? ` ${scheduling.sentence}` : ''),
       outcome: { code: 'connected', count: folders.length, unit: 'collection' },
+      ...(scheduling ? { scheduling } : {}),
     };
   } catch (err) {
     return providerRefused(err);

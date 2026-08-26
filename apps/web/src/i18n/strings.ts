@@ -904,6 +904,15 @@ const en = {
   'probe.unit.addressBook.many': 'address books',
   'probe.unit.collection.one': 'collection',
   'probe.unit.collection.many': 'collections',
+  // The scheduling verdict a DAV target's test carries (0105 T0): three
+  // closed codes, so a Dutch screen can say it in Dutch. The English
+  // fallback for an unknown code is the server's own `sentence`.
+  'probe.scheduling.autoSchedule':
+    'This target runs calendar auto-scheduling (RFC 6638): a raw import would invite every attendee of every migrated meeting. Ownpace neutralises each calendar object it writes, so migrating sends no invitations — measured on this target, not assumed.',
+  'probe.scheduling.none':
+    'This target does not advertise calendar auto-scheduling, so invitation fan-out cannot happen here. Ownpace neutralises what it writes anyway.',
+  'probe.scheduling.unknown':
+    'Whether this target auto-schedules is UNMEASURED — it answered no DAV compliance header. Unmeasured is not safe; Ownpace still neutralises every calendar object it writes.',
   'connections.ok': 'Reached it. The credentials still work.',
   'connections.failed': 'Could not reach it.',
   // The delete refusal's FRAME (workplan 0071). The migrations it names are
@@ -1918,6 +1927,12 @@ const nl: Record<keyof typeof en, string> = {
   'probe.unit.addressBook.many': 'adresboeken',
   'probe.unit.collection.one': 'verzameling',
   'probe.unit.collection.many': 'verzamelingen',
+  'probe.scheduling.autoSchedule':
+    'Dit doel draait automatische agendaplanning (RFC 6638): een rauwe import zou elke deelnemer van elke gemigreerde afspraak uitnodigen. Ownpace neutraliseert elk agenda-object dat het schrijft, dus migreren verstuurt geen uitnodigingen — gemeten op dit doel, niet aangenomen.',
+  'probe.scheduling.none':
+    'Dit doel adverteert geen automatische agendaplanning; uitnodigingen kunnen hier dus niet uitwaaieren. Ownpace neutraliseert hoe dan ook wat het schrijft.',
+  'probe.scheduling.unknown':
+    'Of dit doel automatisch plant is NIET GEMETEN — het gaf geen DAV-compliance-header terug. Niet gemeten is niet veilig; Ownpace neutraliseert nog steeds elk agenda-object dat het schrijft.',
   'connections.ok': 'Bereikt. De inloggegevens werken nog.',
   'connections.failed': 'Kon deze niet bereiken.',
   'connections.inUse.lead': 'Nog in gebruik door',

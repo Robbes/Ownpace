@@ -10,7 +10,11 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { probeSourceConnection, probeTargetConnection } from './probe-connection.ts';
+import {
+  measureTargetScheduling,
+  probeSourceConnection,
+  probeTargetConnection,
+} from './probe-connection.ts';
 
 describe('probeSourceConnection: refusals are answers, in the builders\' own words', () => {
   it('a gmail source with missing credentials refuses in the STORED vocabulary', async () => {
@@ -141,5 +145,115 @@ describe('whose refusal is it? (workplan 0083)', () => {
     // string somebody pastes into a provider's console.
     const result = await probeSourceConnection('carrier_pigeon', {}, {});
     expect(result.outcome?.code).not.toBe('credentialsRefused');
+  });
+});
+
+describe('the scheduling verdict: measured at test time, never assumed (0105 T0)', () => {
+  const verdictFor = (dav: string | undefined, status = 200) =>
+    measureTargetScheduling('https://dav.example.net/dav/', 'probe', 'pw', {
+      request: async ({ method, headers }) => {
+        // One OPTIONS, authenticated the same way the writes would be —
+        // an anonymous answer could describe a different server face.
+        expect(method).toBe('OPTIONS');
+        expect(headers?.Authorization).toBe(`Basic ${Buffer.from('probe:pw').toString('base64')}`);
+        const responseHeaders: Record<string, string> = dav === undefined ? {} : { DAV: dav };
+        return { status, body: '', headers: responseHeaders };
+      },
+    });
+
+  it('calendar-auto-schedule advertised: fan-out is REAL here, and the sentence says the neutralising is load-bearing', async () => {
+    const verdict = await verdictFor('1, 2, calendar-access, calendar-auto-schedule');
+    expect(verdict.capability).toBe('auto-schedule');
+    expect(verdict.sentence).toContain('neutralises');
+    expect(verdict.sentence).toContain('measured on this target, not assumed');
+  });
+
+  it('a DAV header without the class: RFC 6638 fan-out cannot happen on this target', async () => {
+    const verdict = await verdictFor('1, 2, calendar-access');
+    expect(verdict.capability).toBe('none');
+    expect(verdict.sentence).toContain('cannot happen here');
+  });
+
+  it('no DAV header at all is UNMEASURED — reported as unmeasured, never as safe (the run-#6 lesson)', async () => {
+    const verdict = await verdictFor(undefined);
+    expect(verdict.capability).toBe('unknown');
+    expect(verdict.sentence).toContain('UNMEASURED');
+    expect(verdict.sentence).toContain('not safe');
+  });
+
+  // The wiring: the verdict rides the SAME probe result the test-connection
+  // button already renders, so no consumer has to know it exists to show it.
+  const COLLECTION_MULTISTATUS = `<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav">
+  <d:response>
+    <d:href>/dav/addressbooks/probe/contacts/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:current-user-principal><d:href>/dav/principals/probe/</d:href></d:current-user-principal>
+        <card:addressbook-home-set><d:href>/dav/addressbooks/probe/</d:href></card:addressbook-home-set>
+        <d:resourcetype><d:collection/><card:addressbook/></d:resourcetype>
+        <d:displayname>contacts</d:displayname>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>`;
+
+  const davAnsweringFetch = (dav: string) =>
+    vi.fn(async (_url: string, init?: { method?: string }) =>
+      init?.method === 'OPTIONS'
+        ? new Response('', { status: 200, headers: { DAV: dav } })
+        : new Response(COLLECTION_MULTISTATUS, {
+            status: 207,
+            headers: { 'content-type': 'application/xml; charset=utf-8' },
+          }),
+    );
+
+  it('a webdav target probe carries the verdict, appended to the detail every consumer already shows', async () => {
+    const fetchMock = davAnsweringFetch('1, 2, calendar-access, calendar-auto-schedule');
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const result = await probeTargetConnection(
+        'webdav',
+        { url: 'https://dav.example.net/dav/files/probe/' },
+        { username: 'probe', password: 'pw' },
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.scheduling?.capability).toBe('auto-schedule');
+        // Appended, not replacing: the count sentence still leads.
+        expect(result.detail).toMatch(
+          /^Connected\. \d+ collections? visible\. This target runs calendar auto-scheduling/,
+        );
+      }
+      // Measured on the exact endpoint the listing proved — not some other URL.
+      const options = fetchMock.mock.calls.find(
+        (c) => (c[1] as { method?: string } | undefined)?.method === 'OPTIONS',
+      );
+      expect(options?.[0]).toBe('https://dav.example.net/dav/files/probe/');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a carddav target has no scheduling to measure: no verdict, and no OPTIONS ever sent', async () => {
+    const fetchMock = davAnsweringFetch('1, 2, calendar-access, calendar-auto-schedule');
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const result = await probeTargetConnection(
+        'carddav',
+        { url: 'https://dav.example.net/dav/' },
+        { username: 'probe', password: 'pw' },
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.scheduling).toBeUndefined();
+        expect(result.detail).not.toContain('auto-schedul');
+      }
+      const methods = fetchMock.mock.calls.map((c) => (c[1] as { method?: string } | undefined)?.method);
+      expect(methods).not.toContain('OPTIONS');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

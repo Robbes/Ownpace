@@ -37,6 +37,14 @@ export interface PermissionInventoryDeps {
   scanCalendars?(): Promise<PermissionListing>;
   /** File and folder sharing. Omit for a source that has no drive. */
   scanDrive?(): Promise<PermissionListing>;
+  /**
+   * What the TARGET will do with what this migration writes (0105 T0):
+   * will-do/cannot-do sentences, MEASURED against the target — e.g. the
+   * scheduling verdict `measureTargetScheduling` returns. Omit when no
+   * target this question applies to is connected; a thrown measurement
+   * becomes a stated unmeasured-is-not-safe line, never a dropped section.
+   */
+  measureTargetConduct?(): Promise<readonly string[]>;
   error?(message: string, err: unknown): void;
 }
 
@@ -53,8 +61,25 @@ export async function runPermissionInventory(deps: PermissionInventoryDeps): Pro
   sections.push(await section('Calendar sharing', deps.scanCalendars, deps.error));
   sections.push(await section('File and folder sharing', deps.scanDrive, deps.error));
 
+  let targetConduct: readonly string[] = [];
+  if (deps.measureTargetConduct) {
+    try {
+      targetConduct = await deps.measureTargetConduct();
+    } catch (err) {
+      deps.error?.('[permissions] the target conduct could not be measured', err);
+      // The run-#6 rule again: a measurement that failed is stated as
+      // unmeasured, never dropped — dropped reads as "nothing to say".
+      targetConduct = [
+        `The target's conduct could not be measured: ${
+          err instanceof Error ? err.message : String(err)
+        }. Unmeasured is not safe — treat scheduling fan-out as possible until it is measured.`,
+      ];
+    }
+  }
+
   return renderPermissionReport({
     sections,
+    ...(targetConduct.length > 0 ? { targetConduct } : {}),
     ...(deps.mappingLabel ? { mappingLabel: deps.mappingLabel } : {}),
     ...(deps.generatedOn ? { generatedOn: deps.generatedOn } : {}),
   });

@@ -65,6 +65,7 @@ import {
   graphEntraCredsFromEnv,
 } from './graph-domain-source-factory.ts';
 import { withClose, type WithClose } from './deps-lifecycle.ts';
+import { schedulingRecorder } from './target-scheduling.ts';
 import {
   buildGraphMailSourceFrom,
   buildImapSourceFrom,
@@ -606,8 +607,11 @@ function buildDomainDepsWithLedger(
   // credentials (shared with the managed DB path via dav-factories).
   let source: CalendarSource | ContactSource | FileSource;
   let target: CalendarTargetWriter | ContactTargetWriter | FileTargetWriter;
+  // Calendar only (0105 T0): measure-and-record what the target will DO with
+  // the objects the pass writes, before the first of them lands.
+  let recordTargetScheduling: (() => Promise<void>) | undefined;
   switch (domain) {
-    case 'calendar':
+    case 'calendar': {
       // Google Calendar (workplan 0045) is CalDAV with OAuth: the same
       // connector, aimed at Google's fixed principal, on a Bearer token
       // minted from env credentials — so it must not ride the endpoint
@@ -635,8 +639,13 @@ function buildDomainDepsWithLedger(
               ENV_GOOGLE_CALENDAR_CREDENTIAL_NAMES,
             )
           : buildCalendarSource(davEndpoint(sourceConfig, 'caldav', 'source'), domainThrottleLimiter);
-      target = buildCalendarTarget(davEndpoint(targetConfig, 'caldav', 'target'), targetDeps);
+      const calendarTargetEndpoint = davEndpoint(targetConfig, 'caldav', 'target');
+      target = buildCalendarTarget(calendarTargetEndpoint, targetDeps);
+      // The verdict, recorded before the mapping's first calendar write
+      // (0105 T0) — measured on the SAME endpoint the writer just got.
+      recordTargetScheduling = schedulingRecorder(calendarTargetEndpoint, targetDeps);
       break;
+    }
     case 'contact': {
       // Google Contacts (workplan 0045): CardDAV with OAuth, same argument.
       source =
@@ -750,6 +759,7 @@ function buildDomainDepsWithLedger(
       ...(config.targetFolderPrefix !== undefined
         ? { targetFolderPrefix: config.targetFolderPrefix }
         : {}),
+      ...(recordTargetScheduling ? { recordTargetScheduling } : {}),
     },
     closable,
   );

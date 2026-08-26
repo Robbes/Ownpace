@@ -385,6 +385,14 @@ export interface TestConnectionResult {
    * still shows what it always showed.
    */
   outcome?: ProbeOutcome;
+  /**
+   * DAV targets only (0105 T0): what this target will DO with the calendar
+   * objects a migration writes, measured by one OPTIONS at test time.
+   * `capability` is the code a localised screen renders in its own words;
+   * `sentence` the server's English for a capability this build has no
+   * words for yet.
+   */
+  scheduling?: { capability: 'auto-schedule' | 'none' | 'unknown'; sentence: string };
 }
 
 export const mappingApi = {

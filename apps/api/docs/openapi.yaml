@@ -1147,6 +1147,17 @@ paths:
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
+                  scheduling:
+                    type: object
+                    description: |
+                      DAV targets only (workplan 0105 T0): what this target
+                      will DO with the calendar objects a migration writes —
+                      measured by one OPTIONS request at test time, never
+                      assumed. `sentence` is the English fallback; the UI
+                      renders `capability` in the reader's language.
+                    properties:
+                      capability: { type: string, enum: [auto-schedule, none, unknown] }
+                      sentence: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: No such connection for this tenant. }
   /api/setup/{side}/{provider}:

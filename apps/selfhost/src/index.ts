@@ -35,6 +35,7 @@ import {
   applyMappingDeletion,
   applyMappingRelocation,
 } from '@openmig/orchestration';
+import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
 import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
@@ -1940,6 +1941,30 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const delegation = mailboxDelegations();
         const scans = inventoryScansFor(mailbox);
 
+        // The target's side of the story (0105 T0): the first mapping with a
+        // DAV-shaped calendar (or files) target, measured live at report
+        // time. Same passwordFromEnv resolution as every appliance credential.
+        const davTarget = mappings
+          .map(
+            (m) =>
+              (m.config.domains?.calendar?.target ?? m.config.target) as
+                | { type?: string; url?: string; user?: string; auth?: { passwordFromEnv?: string } }
+                | undefined,
+          )
+          .find((t) => t?.type === 'caldav' || t?.type === 'webdav');
+        const measureTargetConduct =
+          davTarget?.url && davTarget.user
+            ? async (): Promise<readonly string[]> => {
+                const passwordFromEnv = davTarget.auth?.passwordFromEnv;
+                const verdict = await measureTargetScheduling(
+                  davTarget.url!,
+                  davTarget.user!,
+                  passwordFromEnv ? (process.env[passwordFromEnv] ?? '') : '',
+                );
+                return [verdict.sentence];
+              }
+            : undefined;
+
         const markdown = await runPermissionInventory({
           mappingLabel: mailbox,
           generatedOn: new Date().toISOString().slice(0, 10),
@@ -1950,6 +1975,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           // these is unconfigured — each has its own reason, and they differ.
           scanCalendars: scans.scanCalendars,
           scanDrive: scans.scanDrive,
+          ...(measureTargetConduct ? { measureTargetConduct } : {}),
           error: (m, err) => log.error(m, err instanceof Error ? err.message : err),
         });
         res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
