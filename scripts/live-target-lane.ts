@@ -23,6 +23,7 @@
  *     never reused by construction.
  */
 
+import { createHmac } from 'node:crypto';
 import type { CatchallConfig, CaughtMail } from './live-catchall.ts';
 
 /** The canary tag for a run day — what a migrated fixture would carry. */
@@ -93,34 +94,73 @@ export function controlFromEnv(env: {
   };
 }
 
-const API_REQUIRED = ['LIVE_TARGET_API_URL', 'LIVE_TARGET_API_TOKEN', 'LIVE_TARGET_MAPPINGS'] as const;
+/**
+ * How the nightly authenticates to the product API. Two modes, because the
+ * smoke's own lesson applies here nightly: the stack's tokens EXPIRE.
+ *
+ *   - `mint`: sign a fresh 1-hour owner token per run with the stack's
+ *     JWT_SECRET — exactly what `smoke-managed.sh`'s `mint()` does, and
+ *     proven nightly by the hermetic gate. This is the mode for today's
+ *     Spark stack; the secret is already gate-side plumbing (rule 3).
+ *   - `token`: a static bearer, verbatim — for a stack that verifies against
+ *     a real issuer and can hand out a long-lived credential. A SHORT-lived
+ *     token pasted here would 401 every night after the first hour, which is
+ *     precisely why this is not the only mode.
+ */
+export type ApiAuth =
+  | { readonly mode: 'token'; readonly token: string }
+  | { readonly mode: 'mint'; readonly jwtSecret: string; readonly tenantId: string; readonly sub: string };
+
+const API_BASE_REQUIRED = ['LIVE_TARGET_API_URL', 'LIVE_TARGET_MAPPINGS'] as const;
+const API_MINT_REQUIRED = ['LIVE_TARGET_JWT_SECRET', 'LIVE_TARGET_TENANT', 'LIVE_TARGET_SUB'] as const;
+const API_AUTH_SENTENCE =
+  'either LIVE_TARGET_API_TOKEN, or all of ' + API_MINT_REQUIRED.join('+');
 
 /** The product half: the persistent T1 tenant's API and its mapping ids. */
 export type ApiConfig =
   | {
       readonly on: true;
       readonly url: string;
-      readonly token: string;
+      readonly auth: ApiAuth;
       readonly mappings: ReadonlyArray<string>;
     }
   | { readonly on: false; readonly misconfigured: boolean; readonly reason: string };
 
 export function apiFromEnv(env: { readonly [key: string]: string | undefined }): ApiConfig {
   const url = env.LIVE_TARGET_API_URL?.trim();
-  const token = env.LIVE_TARGET_API_TOKEN ?? '';
+  const token = env.LIVE_TARGET_API_TOKEN?.trim() ?? '';
   const mappings = (env.LIVE_TARGET_MAPPINGS ?? '')
     .split(',')
     .map((id) => id.trim())
     .filter(Boolean);
-  const touched = Boolean(url || token || mappings.length > 0);
+  const mintTouched = API_MINT_REQUIRED.some((name) => env[name]?.trim());
+  const touched = Boolean(url || token || mappings.length > 0 || mintTouched);
   if (!touched) {
     return {
       on: false,
       misconfigured: false,
-      reason: `no live tenant configured yet (${API_REQUIRED.join(', ')})`,
+      reason: `no live tenant configured yet (${API_BASE_REQUIRED.join(', ')}, plus ${API_AUTH_SENTENCE})`,
     };
   }
-  const missing = API_REQUIRED.filter((name) => !env[name]?.trim());
+  const missing: string[] = API_BASE_REQUIRED.filter((name) => !env[name]?.trim());
+  const mintMissing = API_MINT_REQUIRED.filter((name) => !env[name]?.trim());
+  // One complete auth is required. A static token wins when both are set —
+  // deterministic, and the mode a real issuer will eventually need.
+  const auth: ApiAuth | undefined = token
+    ? { mode: 'token', token }
+    : mintMissing.length === 0
+      ? {
+          mode: 'mint',
+          jwtSecret: env.LIVE_TARGET_JWT_SECRET!.trim(),
+          tenantId: env.LIVE_TARGET_TENANT!.trim(),
+          sub: env.LIVE_TARGET_SUB!.trim(),
+        }
+      : undefined;
+  if (!auth) {
+    // Half a mint config names ITS missing halves; no auth at all names the
+    // whole either-or — both are exact remedies, not categories.
+    missing.push(mintTouched ? mintMissing.join(', ') : API_AUTH_SENTENCE);
+  }
   if (missing.length > 0) {
     return {
       on: false,
@@ -130,7 +170,35 @@ export function apiFromEnv(env: { readonly [key: string]: string | undefined }):
         'Set them all, or unset the rest.',
     };
   }
-  return { on: true, url: url!.replace(/\/$/, ''), token, mappings };
+  return { on: true, url: url!.replace(/\/$/, ''), auth: auth!, mappings };
+}
+
+/**
+ * The bearer for one run. Mint mode signs the same claims the managed
+ * smoke's `mint()` signs — {sub, email, tenantId, role: 'owner'}, HS256,
+ * one hour — with `node:crypto` so the harness needs no JWT dependency.
+ * The same caveat as the smoke's, worth restating: a stack that verifies
+ * ONLY against a real issuer refuses these; that stack wants `token` mode.
+ */
+export function mintBearer(auth: ApiAuth, now: Date): string {
+  if (auth.mode === 'token') return auth.token;
+  const b64url = (value: string): string => Buffer.from(value).toString('base64url');
+  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const iat = Math.floor(now.getTime() / 1000);
+  const payload = b64url(
+    JSON.stringify({
+      sub: auth.sub,
+      email: auth.sub.includes('@') ? auth.sub : `${auth.sub}@live.local`,
+      tenantId: auth.tenantId,
+      role: 'owner',
+      iat,
+      exp: iat + 3600,
+    }),
+  );
+  const signature = createHmac('sha256', auth.jwtSecret)
+    .update(`${header}.${payload}`)
+    .digest('base64url');
+  return `${header}.${payload}.${signature}`;
 }
 
 /** The canary/control address domain — the one we own. */

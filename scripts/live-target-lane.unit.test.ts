@@ -8,12 +8,14 @@
 
 import { describe, it, expect } from 'vitest';
 import type { CatchallConfig } from './live-catchall.ts';
+import { createHmac } from 'node:crypto';
 import {
   apiFromEnv,
   canaryDomain,
   controlFromEnv,
   controlTag,
   liveTag,
+  mintBearer,
   runLane,
   type LaneDeps,
 } from './live-target-lane.ts';
@@ -85,21 +87,82 @@ describe('the config readers keep the notifierFromEnv discipline', () => {
     expect(config).toMatchObject({ on: true, port: 465, from: 'box@example.net' });
   });
 
-  it('api: mappings split on commas; half-set is misconfigured with names', () => {
+  it('api: a static token reads as token mode, mappings split on commas', () => {
     const on = apiFromEnv({
       LIVE_TARGET_API_URL: 'https://api.example.net/',
       LIVE_TARGET_API_TOKEN: 't',
       LIVE_TARGET_MAPPINGS: 'a, b ,c',
     });
-    expect(on).toMatchObject({ on: true, url: 'https://api.example.net', mappings: ['a', 'b', 'c'] });
+    expect(on).toMatchObject({
+      on: true,
+      url: 'https://api.example.net',
+      auth: { mode: 'token', token: 't' },
+      mappings: ['a', 'b', 'c'],
+    });
+  });
 
-    const half = apiFromEnv({ LIVE_TARGET_API_URL: 'https://api.example.net' });
-    expect(half.on).toBe(false);
-    if (!half.on) {
-      expect(half.misconfigured).toBe(true);
-      expect(half.reason).toContain('LIVE_TARGET_API_TOKEN');
-      expect(half.reason).toContain('LIVE_TARGET_MAPPINGS');
+  it('api: the full mint trio reads as mint mode — the smoke\'s own mechanism, nightly', () => {
+    const on = apiFromEnv({
+      LIVE_TARGET_API_URL: 'https://api.example.net',
+      LIVE_TARGET_MAPPINGS: 'a',
+      LIVE_TARGET_JWT_SECRET: 's3cret',
+      LIVE_TARGET_TENANT: 'tenant-1',
+      LIVE_TARGET_SUB: 'owner@ownpace.eu',
+    });
+    expect(on).toMatchObject({
+      on: true,
+      auth: { mode: 'mint', jwtSecret: 's3cret', tenantId: 'tenant-1', sub: 'owner@ownpace.eu' },
+    });
+  });
+
+  it('api: no auth at all names the either-or; HALF a mint trio names its exact missing halves', () => {
+    const noAuth = apiFromEnv({ LIVE_TARGET_API_URL: 'https://api.example.net' });
+    expect(noAuth.on).toBe(false);
+    if (!noAuth.on) {
+      expect(noAuth.misconfigured).toBe(true);
+      expect(noAuth.reason).toContain('LIVE_TARGET_MAPPINGS');
+      expect(noAuth.reason).toContain('either LIVE_TARGET_API_TOKEN, or all of');
     }
+
+    const halfMint = apiFromEnv({
+      LIVE_TARGET_API_URL: 'https://api.example.net',
+      LIVE_TARGET_MAPPINGS: 'a',
+      LIVE_TARGET_JWT_SECRET: 's3cret',
+    });
+    expect(halfMint.on).toBe(false);
+    if (!halfMint.on) {
+      expect(halfMint.misconfigured).toBe(true);
+      expect(halfMint.reason).toContain('LIVE_TARGET_TENANT');
+      expect(halfMint.reason).toContain('LIVE_TARGET_SUB');
+      expect(halfMint.reason).not.toContain('either LIVE_TARGET_API_TOKEN');
+    }
+  });
+
+  it('mintBearer: token mode is verbatim; mint mode signs the smoke\'s claims, verifiably', () => {
+    expect(mintBearer({ mode: 'token', token: 'abc' }, NOW)).toBe('abc');
+
+    const minted = mintBearer(
+      { mode: 'mint', jwtSecret: 's3cret', tenantId: 'tenant-1', sub: 'owner@ownpace.eu' },
+      NOW,
+    );
+    const [header, payload, signature] = minted.split('.');
+    expect(header && payload && signature).toBeTruthy();
+    const claims = JSON.parse(Buffer.from(payload!, 'base64url').toString());
+    expect(claims).toMatchObject({
+      sub: 'owner@ownpace.eu',
+      email: 'owner@ownpace.eu',
+      tenantId: 'tenant-1',
+      role: 'owner',
+    });
+    // One hour, from the run's own clock — the property a pasted static
+    // token cannot have.
+    expect(claims.exp - claims.iat).toBe(3600);
+    expect(claims.iat).toBe(Math.floor(NOW.getTime() / 1000));
+    // Verified INDEPENDENTLY of the implementation's own hmac call.
+    const expected = createHmac('sha256', 's3cret')
+      .update(`${header}.${payload}`)
+      .digest('base64url');
+    expect(signature).toBe(expected);
   });
 
   it('the canary domain defaults to the one we own', () => {
@@ -178,7 +241,7 @@ describe('runLane: the postures', () => {
     const { deps, said } = quietDeps({
       control: { on: true, host: 'smtp', port: 465, user: 'u', password: 'p', from: 'u' },
       wait: async () => [{ subject: 'control', from: 'u', to: ['openmig-control-20260826@ownpace.eu'] }],
-      api: { on: true, url: 'https://api', token: 't', mappings: ['m1'] },
+      api: { on: true, url: 'https://api', auth: { mode: 'token', token: 't' }, mappings: ['m1'] },
       search: async (tag) =>
         tag === 'openmig-live-20260826'
           ? [{ subject: 'Uitnodiging', from: 'soverin@prov.example', to: ['a@b.example'] }]
@@ -196,7 +259,7 @@ describe('runLane: the postures', () => {
     const { deps } = quietDeps({
       control: { on: true, host: 'smtp', port: 465, user: 'u', password: 'p', from: 'u' },
       wait: async () => [{ subject: 'control', from: 'u', to: ['openmig-control-20260826@ownpace.eu'] }],
-      api: { on: true, url: 'https://api', token: 't', mappings: ['m1', 'm2'] },
+      api: { on: true, url: 'https://api', auth: { mode: 'token', token: 't' }, mappings: ['m1', 'm2'] },
       settle: async (ms) => {
         settled.push(ms);
       },
@@ -214,7 +277,7 @@ describe('runLane: the postures', () => {
 
   it('a refused sync trigger is RED and names the mapping', async () => {
     const { deps } = quietDeps({
-      api: { on: true, url: 'https://api', token: 't', mappings: ['m1'] },
+      api: { on: true, url: 'https://api', auth: { mode: 'token', token: 't' }, mappings: ['m1'] },
       triggerSync: async () => ({ ok: false, detail: '409 not_cut_over' }),
     });
     const result = await runLane(deps);

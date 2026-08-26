@@ -17,6 +17,7 @@ import {
   apiFromEnv,
   canaryDomain,
   controlFromEnv,
+  mintBearer,
   runLane,
   type ApiConfig,
   type ControlConfig,
@@ -65,7 +66,9 @@ async function main(): Promise<number> {
         const response = await fetch(`${config.url}/api/migrations/${mappingId}/sync`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${config.token}`,
+            // Fresh per call in mint mode — a static short-lived token here
+            // would 401 every night after its first hour (the smoke's lesson).
+            Authorization: `Bearer ${mintBearer(config.auth, new Date())}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ type: 'delta' }),

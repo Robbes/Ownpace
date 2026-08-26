@@ -39,7 +39,11 @@ name: E2E (live target)
 # Variables read (all from the persisted .env; see scripts/live-target-lane.ts):
 #   LIVE_CATCHALL_HOST / _USER / _PASSWORD   (+ _PORT 993, _MAILBOX INBOX)
 #   LIVE_CONTROL_SMTP_HOST / _USER / _PASSWORD (+ _PORT 465, LIVE_CONTROL_FROM)
-#   LIVE_TARGET_API_URL / _TOKEN / LIVE_TARGET_MAPPINGS (comma-separated ids)
+#   LIVE_TARGET_API_URL / LIVE_TARGET_MAPPINGS (comma-separated ids), plus
+#     auth: LIVE_TARGET_JWT_SECRET + LIVE_TARGET_TENANT + LIVE_TARGET_SUB
+#     (mint mode — a fresh 1-hour owner token per run, the smoke's own
+#     mechanism; a static token pasted tonight is expired by tomorrow night)
+#     or LIVE_TARGET_API_TOKEN (a long-lived token from a real issuer)
 #   LIVE_CANARY_DOMAIN (default ownpace.eu), LIVE_SETTLE_MINUTES (default 10)
 # ==============================================================================
 

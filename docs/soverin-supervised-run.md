@@ -28,7 +28,16 @@ run's tag, and a net-zero take-back.
 
 ## A — the front door (this is T1, and it is the owner's act)
 
-1. Sign in to the product as the tenant owner.
+Everything this section creates — tenant, connections, mappings — is the
+**persistent registration the nightly reuses**: it lives in the Spark's
+long-lived managed stack (the same one the 05:30 hermetic gate runs
+against), rows in its Postgres with credentials SecretStore-encrypted. The
+gate recreates its own containers but never `down -v`'s the volumes and
+never touches a foreign tenant, so this survives night after night. The one
+thing that would take it with it is rebuilding that stack from scratch — do
+that, and this section plus D are walked again.
+
+1. Sign in to the product (the Spark's managed web app) as the tenant owner.
 2. Connections → Add, role **target**, type **caldav**. Host and port from
    Soverin's documentation; if their DAV root lives behind a path, put the
    full URL in **DAV base URL** — that field exists for exactly this.
@@ -92,9 +101,11 @@ On the Spark's own Nextcloud (the source we host and may write to):
    calendar/address book, target = the Soverin connections from A. Per-domain
    by construction: the caldav target carries `calendar`, the carddav one
    `contact` (`TARGET_TYPE_DOMAINS`).
-2. Run the sync for both (the mapping page's run button, or
+2. **Note both mapping ids** — step H needs them. Each is in the mapping
+   page's URL, or listed by `GET /api/mappings`.
+3. Run the sync for both (the mapping page's run button, or
    `POST /api/migrations/<id>/sync`).
-3. While it runs, nothing else: a handful of DAV writes is the whole load —
+4. While it runs, nothing else: a handful of DAV writes is the whole load —
    no load worth a provider's attention.
 
 ## E — the byte-check, through the published door
@@ -142,8 +153,19 @@ On the Spark's own Nextcloud (the source we host and may write to):
    ```text
    LIVE_CATCHALL_HOST=…    LIVE_CATCHALL_USER=…    LIVE_CATCHALL_PASSWORD=…
    LIVE_CONTROL_SMTP_HOST=…  LIVE_CONTROL_SMTP_USER=…  LIVE_CONTROL_SMTP_PASSWORD=…
-   LIVE_TARGET_API_URL=…   LIVE_TARGET_API_TOKEN=…  LIVE_TARGET_MAPPINGS=<id>,<id>
+   LIVE_TARGET_API_URL=http://localhost:3001
+   LIVE_TARGET_MAPPINGS=<id>,<id>            # from D — the mapping page URLs
+   LIVE_TARGET_JWT_SECRET=<the stack's own JWT_SECRET, already in this file>
+   LIVE_TARGET_TENANT=<the tenant id from A>
+   LIVE_TARGET_SUB=<the owner email you signed in with>
    ```
+
+   The last three are **mint mode**: the nightly signs itself a fresh
+   one-hour owner token per run, exactly the way the managed smoke's
+   `mint()` does — because any token pasted tonight is expired by tomorrow
+   night. On a stack that verifies only against a real issuer, set
+   `LIVE_TARGET_API_TOKEN=<a long-lived token>` instead; when both are set,
+   the static token wins.
 
 2. Trigger **E2E (live target)** once by hand (workflow_dispatch) and read
    its verdict line: `live-target: control=arrived sweep=silent sync=2/2
