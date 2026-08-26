@@ -1,17 +1,17 @@
 # Workplan 0104 — the announcement a cutover owes
 
-## Status — 2026-08-25 (update this block at the end of every session)
+## Status — 2026-08-26 (update this block at the end of every session)
 
 | Task | Status | Evidence |
 |---|---|---|
-| Research | ✅ **Done 2026-08-25** | This document. The owner's hypothesis holds and the platforms force the conclusion: no API anywhere defers or resends a share notification, so the one-moment announcement must be **Ownpace's own mail**, assembled from `share_grant`, pressed once. |
-| T0 Whose mail is it — the ADR seed | ⬜ proposed | Grantee addresses are personal data (§17); the tenant admin is the controller. Proposal: the announcement is **the tenant's mail** — the product assembles and the admin presses — never operator-initiated. |
-| T1 Assemble per-grantee digests | ⬜ proposed | One digest per grantee from settled `share_grant` rows (`applied` + `done_manual`; `skipped` excluded; still-`open` rows flagged to the presser, not mailed about). EN/NL. |
-| T2 One press, at cutover | ⬜ proposed | A single send action in the cutover window (§5 states), through 0030's mailer. The press is recorded (who, when); a second press is an explicit *resend*, never a silent duplicate. |
-| T3 Template 6 | ⬜ proposed | `cutover-communication-templates.md` covers the tenant's own users five ways and the outsiders zero — add "To people your organisation shares files with", EN/NL. |
-| T4 The gate | ⬜ proposed | Mailpit: exactly one mail per distinct grantee at press, **zero before** — riding the armed catcher and per-run token discipline 0103 T2 built. |
+| Research | ✅ **Done 2026-08-25, corrected 2026-08-26** | This document. First conclusion said the one-moment announcement must be Ownpace's own mail; the owner corrected it, and the correction holds: **the platform's own notification is the announcement**, released at the chosen moment — because share *creation* is deferrable even though the notification is not, and this product already defers creation to cutover (`not_cut_over` in `share-queue.ts`). Ownpace's own mail is the **fallback lane**, not the headline. |
+| T0 Wire the first target share API | ⬜ proposed | `createShare` for Nextcloud (OCS Share API): user shares and share-by-mail, the owner's note passed through, notifications deliberately **ON** — at the moment, the platform mail with its own deep link IS the announcement. The interface exists (`share-queue.ts`); no implementation does yet. |
+| T1 One go, one press | ⬜ proposed | "Apply all open clean grants" as a single recorded human press, at or after cutover (the existing per-row gate generalised; still ADR-0032's human press, still `not_cut_over`-refused early). Per-row outcomes recorded; a second press retries only rows that failed, never re-mails settled ones. |
+| T2 The gate proves the mail ARRIVES | 🟡 first stage | Positive control: the demo target really delivers a share mail into Mailpit, asserted **arrived** — which also makes 0103's canary silence falsifiable end-to-end (a broken target mailer can no longer fake silence). First stage rides the smoke as a share-by-mail probe; final stage rides the real `createShare` path with deep link + note asserted in the caught mail. |
+| T3 The fallback digest | ⬜ proposed | Ownpace's own mail (0030's mailer, Template 6 EN/NL) **only** for rows the platform cannot announce: `viaLink` (no addressable audience), `manual` verdicts, targets without a share API, and platforms whose API carries no message. Assembled per grantee from `share_grant`; the tenant admin presses (§17 — grantee addresses are the tenant's data; never operator-initiated). |
+| T4 Flags restated | ⬜ proposed | The four cloud silence flags recorded beside `applyShareGrant` (0103 T6) are for any **pre-moment** technical write a future needs — at the chosen moment the apply notifies on purpose. Same flags, opposite press, one policy: mail happens exactly once, when a person chose. |
 
-## The owner's framing, which the research confirms
+## The owner's framing, which the research now serves
 
 > my assumption is that at some cutover one needs to inform all people shared
 > with, that they have shared files at a new (different) platform. so, I think
@@ -19,51 +19,71 @@
 > during migration of a separate folder/file over and over again.
 > — the owner, 2026-08-25
 
-Exactly right, and it is already half-built into the posture:
+> the message is most powerful/working when [it] came from the target
+> platform itself.
+> — the owner, 2026-08-26, correcting this document's first conclusion
 
-- **Per-item silence during migration** is ADR-0043 plus 0052's design: share
-  application is one-at-a-time and human-pressed, and the future bulk verb's
-  silence flags are recorded beside `applyShareGrant` (0103 T6). Nothing
-  drips notifications per folder while a migration runs.
-- **The one chosen moment** has no platform primitive. Verified: Google
-  Drive's `sendNotificationEmail=false` grants silently and offers **no way
-  to send that notification later**; Graph's `sendInvitation:false` likewise
-  grants without mail and has no deferred notify. Silence at grant time is
-  permanent silence, platform-side. So the announcement is necessarily
-  **ours**: a mail the product composes and a person sends once.
+Both hold together, and the reconciliation is one sentence: **no platform can
+defer or resend its notification, but every platform lets you defer the
+*creation* — and the notification rides creation.** This product already
+holds share creation until cutover (`not_cut_over` is a refusal, not advice),
+so applying the held grants at the chosen moment with notifications ON
+produces exactly one wave of platform-native mail — the real sender, the real
+deep link, the recipient's own language — at the time the owner picked.
+
+- **Per-item silence during migration** — nothing to suppress: no shares are
+  created while a migration runs, by construction. The copying of files and
+  folders itself notifies nobody.
+- **The one chosen moment** — the batch apply is the moment. Where the API
+  carries a message, the owner's context ("this replaces the share on the old
+  platform") rides inside the platform's own mail: Drive `emailMessage`,
+  Graph `invite.message`, Dropbox `custom_message`, Nextcloud's share note.
+  Box's collaboration create carries no message — its rows also get the
+  fallback digest.
+
+## What the platform mail still cannot say — the fallback lane
+
+The first conclusion was wrong as a headline and right as a remainder. Rows
+no platform will announce:
+
+- **`viaLink` rows** — re-creating a link re-opens access to an unknown set
+  of people; refused (ADR-0032), so nobody is notified platform-side.
+- **`manual` verdicts** — a person carried the right over by hand; whether
+  anything was mailed is unknown.
+- **Targets without a share API** — plain WebDAV, CalDAV and JMAP have no
+  portable share verb (`no_share_api` refusal).
+- **Message-less APIs** (Box) — the share mail arrives but cannot carry the
+  migration context.
+
+For exactly these, and only these, the announcement is Ownpace's own mail:
+per-grantee digests from `share_grant`, Template 6, the tenant admin presses
+once, recorded. Counts visible to the operator, addresses never (§17).
 
 ## What the product already holds
 
-Everything the announcement needs exists:
-
-- **Who**: `share_grant.grantee` — every settled row carries the address the
-  source platform knew. `done_manual` rows included (the person carried the
-  share over by hand; the outsider still needs the new address).
-- **What**: `subject`/`on` per row — each grantee's digest lists *their*
-  items, not the tenant's inventory (least disclosure, §17).
-- **When**: the cutover runbook's window and states (§5) — the moment is
-  Template 3's ("Cutover Complete"), because before cutover the old platform
-  still answers and an early announcement points people at a target that may
-  yet be rolled back (rollback is a setback — ADR on record — and an
-  announcement cannot be unsent).
-- **How**: 0030's mail infrastructure, already gated by Mailpit in OTA.
-- **The one per-item exception stays**: the checklist's *Apply* button sends
-  the platform's own invitation for that grant, deliberately, labelled
-  outward-facing — that is a person deciding per row, which ADR-0043 permits
-  by definition.
+- **Who**: `share_grant.grantee` — every row carries the address the source
+  platform knew. **What**: `subject`/`on` per row. **When**: Template 3's
+  moment ("Cutover Complete") — before it, the old platform still answers and
+  rollback is possible; an announcement cannot be unsent. **How** (fallback
+  lane): 0030's mail infrastructure, gated by Mailpit in OTA.
+- **The hold**: `applyShareGrant` refuses before cutover (`not_cut_over`),
+  refuses links, refuses manual verdicts — the deferral the whole model rests
+  on is already enforced, tested, and merged.
 
 ## What this deliberately does not do
 
 - **No platform-side re-notify hacks** (delete + re-grant to force a mail
-  would drop and re-issue permissions — a real outage for the grantee, and
-  non-destructive rules forbid it).
-- **No operator-initiated send.** The grantee list is the tenant's data about
-  third parties; the operator can see counts, not press send (§17 roles).
-- **No announcement before cutover completes.** See the rollback argument
-  above.
+  drops and re-issues permissions — a real outage for the grantee).
+- **No silent bulk creation before the moment.** Early creation with
+  notifications suppressed would make the platform mail impossible forever
+  (no resend exists) and burn the announcement. The hold is the feature.
+- **No operator-initiated send, either lane.** §17 roles.
+- **No announcement before cutover completes.** Rollback argument above.
 
 ## Sources
 
-- [Drive `permissions.create`](https://developers.google.com/workspace/drive/api/reference/rest/v3/permissions/create) — `sendNotificationEmail` exists only at create; no resend surface ([confirmed against the method list](https://developers.google.com/resources/api-libraries/documentation/drive/v3/python/latest/drive_v3.permissions.html))
-- [Graph `driveItem: invite`](https://learn.microsoft.com/en-us/graph/api/driveitem-invite?view=graph-rest-1.0) — `sendInvitation` at invite time only
-- Repo: `share_grant` schema (grantee column), `share-queue.ts` ("the message comes from the platform" — the per-item exception), ADR-0043, workplans 0052/0103, `docs/cutover-communication-templates.md` (five templates, none to outsiders), `docs/cutover-runbook.md` (§ states, the window)
+- [Drive `permissions.create`](https://developers.google.com/workspace/drive/api/reference/rest/v3/permissions/create) — `sendNotificationEmail` (default true) + `emailMessage` exist only at create; no resend surface
+- [Graph `driveItem: invite`](https://learn.microsoft.com/en-us/graph/api/driveitem-invite?view=graph-rest-1.0) — `sendInvitation` + `message` at invite time only
+- [Dropbox `share_folder`/`add_folder_member`](https://www.dropbox.com/developers/documentation/http/documentation#sharing-add_folder_member) — `custom_message`; Box `POST /collaborations` — `notify` but no message field (fallback lane)
+- Nextcloud OCS Share API (`POST /ocs/v2.php/apps/files_sharing/api/v1/shares`) — shareType 0 (user) / 4 (share-by-mail), `note`; share-by-mail always mails the link through the instance's SMTP
+- Repo: `share-queue.ts` (`not_cut_over`, `link_share`, `manual_only`, `no_share_api` refusals; the recorded silence flags), `share_grant` schema (grantee column), ADR-0032, ADR-0043, workplans 0052/0103, `docs/cutover-communication-templates.md`, `docs/cutover-runbook.md`
