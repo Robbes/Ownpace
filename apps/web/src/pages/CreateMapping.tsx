@@ -93,6 +93,8 @@ interface FormData {
   targetConnectionId: string;
   targetHost: string;
   targetPort: string;
+  /** DAV targets only (0105 T1): full DAV base URL; wins over host+port when set. */
+  targetUrl: string;
   targetUsername: string;
   targetPassword: string;
   targetSsl: boolean;
@@ -125,6 +127,7 @@ const initialFormData: FormData = {
   targetConnectionId: '',
   targetHost: '',
   targetPort: '443',
+  targetUrl: '',
   targetUsername: '',
   targetPassword: '',
   targetSsl: true,
@@ -286,6 +289,7 @@ const DRAFT_FIELDS = [
   'sourceTenantId',
   'targetHost',
   'targetPort',
+  'targetUrl',
   'targetFolderPrefix',
   'domains',
   'schedule',
@@ -456,6 +460,7 @@ const CreateMapping: React.FC = () => {
     username: formData.targetUsername,
     password: formData.targetPassword,
     useSsl: formData.targetSsl,
+    ...(formData.targetUrl.trim() ? { url: formData.targetUrl.trim() } : {}),
   });
 
   const handleNext = () => {
@@ -593,6 +598,7 @@ const CreateMapping: React.FC = () => {
             password: formData.targetPassword,
             host: formData.targetHost,
             port: formData.targetPort,
+            url: formData.targetUrl,
           };
     // Only what this provider actually asks for, and only what was filled in:
     // posting an empty optional would store "" where the connector expects the
@@ -968,6 +974,7 @@ const CreateMapping: React.FC = () => {
     port: 'targetPort',
     username: 'targetUsername',
     password: 'targetPassword',
+    url: 'targetUrl',
   };
 
   const SOURCE_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
@@ -1781,7 +1788,10 @@ const CreateMapping: React.FC = () => {
                   <div>
                     <dt className="text-sm text-gray-500">{t('wizard.review.target')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {formData.targetType} ({formData.targetHost}:{formData.targetPort})
+                      {formData.targetType}{' '}
+                      {formData.targetUrl.trim()
+                        ? `(${formData.targetUrl.trim()})`
+                        : `(${formData.targetHost}:${formData.targetPort})`}
                     </dd>
                   </div>
                   <div>

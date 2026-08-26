@@ -246,6 +246,25 @@ const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
 const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav'] as const;
 
 /**
+ * The DAV targets' escape hatch (0105 T1): a full base URL, for a provider
+ * whose DAV root is NOT at the host root and whose `/.well-known` does not
+ * lead there. host+port alone can only say `https://host:port/`; a customer
+ * target like `https://mail.example.com/dav/` was inexpressible through this
+ * door until the field existed. Optional — when present it wins over
+ * host+port (`davUrl`'s existing precedence), when absent nothing changes.
+ * DAV types only: an IMAP target has no URL, and a JMAP target's baseUrl is
+ * derived (the clients append `/.well-known/jmap` themselves).
+ */
+const TARGET_DAV_URL: CredentialField = {
+  key: 'url',
+  labelKey: 'wizard.targetDavUrl',
+  placeholder: 'https://cloud.example.com/remote.php/dav',
+  hintKey: 'wizard.targetDavUrl.hint',
+};
+
+const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav'] as const;
+
+/**
  * What to ask for, or `[]` when the type is not one this product connects to.
  * An empty list is a refusal to guess, not a form with no fields — callers
  * check it and say so.
@@ -255,6 +274,9 @@ export function credentialFieldsFor(
   type: string,
 ): ReadonlyArray<CredentialField> {
   if (role === 'target') {
+    if ((DAV_TARGET_TYPES as ReadonlyArray<string>).includes(type)) {
+      return [...TARGET_FIELDS, TARGET_DAV_URL];
+    }
     return (TARGET_TYPES as ReadonlyArray<string>).includes(type) ? TARGET_FIELDS : [];
   }
   return SOURCE_FIELDS[type] ?? [];

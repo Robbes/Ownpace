@@ -20,7 +20,7 @@ import {
   credentialFieldsFor,
   wizardTypeForConnectionKind,
 } from '@openmig/shared';
-import { CreateMappingBase, sourceKindFor } from './index.ts';
+import { CreateMappingBase, sourceKindFor, targetConnectionConfig } from './index.ts';
 
 /** The wizard vocabularies the create route accepts, read off the schema itself. */
 function acceptedTypes(field: 'sourceType' | 'targetType'): string[] {
@@ -104,5 +104,39 @@ describe('connection kind and wizard type are inverses', () => {
   it('leaves kinds that are already wizard types alone', () => {
     expect(wizardTypeForConnectionKind('box')).toBe('box');
     expect(wizardTypeForConnectionKind('dropbox')).toBe('dropbox');
+  });
+});
+
+describe('the DAV url escape hatch is stored, and only where it means something (0105 T1)', () => {
+  const cfg = {
+    host: 'mail.example.com',
+    port: 443,
+    username: 'u',
+    password: 'p',
+    useSsl: true,
+    url: 'https://mail.example.com/dav/',
+  };
+
+  it('a caldav target stores the url beside host and port — davUrl prefers it', () => {
+    const stored = targetConnectionConfig({ targetType: 'caldav', targetConfig: cfg } as never);
+    expect(stored.url).toBe('https://mail.example.com/dav/');
+    expect(stored.host).toBe('mail.example.com');
+  });
+
+  it('absent url stores nothing extra — existing rows keep their exact shape', () => {
+    const { url: _url, ...bare } = cfg;
+    const stored = targetConnectionConfig({ targetType: 'webdav', targetConfig: bare } as never);
+    expect('url' in stored).toBe(false);
+  });
+
+  it('a jmap target derives its baseUrl and never stores a pasted url', () => {
+    const stored = targetConnectionConfig({ targetType: 'jmap', targetConfig: cfg } as never);
+    expect('url' in stored).toBe(false);
+    expect(stored.baseUrl).toBe('https://mail.example.com:443');
+  });
+
+  it('an imap target has no URL at all', () => {
+    const stored = targetConnectionConfig({ targetType: 'imap', targetConfig: cfg } as never);
+    expect('url' in stored).toBe(false);
   });
 });

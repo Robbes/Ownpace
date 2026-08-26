@@ -282,6 +282,10 @@ const en = {
   'wizard.selectTarget': 'Select Target System',
   'wizard.host': 'Host',
   'wizard.port': 'Port',
+  // The DAV escape hatch (0105 T1) — see credential-fields.ts.
+  'wizard.targetDavUrl': 'DAV base URL (optional)',
+  'wizard.targetDavUrl.hint':
+    "Only needed when the server's DAV root is not at the host root. When filled in, this full URL is used and host and port are ignored.",
   'wizard.useSsl': 'Use SSL/TLS',
   'wizard.migrationName': 'Migration Name',
   'wizard.migrationNameHint': 'A friendly name to identify this migration',
@@ -1330,6 +1334,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.selectTarget': 'Kies het doelsysteem',
   'wizard.host': 'Host',
   'wizard.port': 'Poort',
+  'wizard.targetDavUrl': 'DAV-basis-URL (optioneel)',
+  'wizard.targetDavUrl.hint':
+    'Alleen nodig wanneer de DAV-root van de server niet op de hostroot staat. Indien ingevuld wordt deze volledige URL gebruikt en worden host en poort genegeerd.',
   'wizard.useSsl': 'SSL/TLS gebruiken',
   'wizard.migrationName': 'Naam van de migratie',
   'wizard.migrationNameHint': 'Een herkenbare naam voor deze migratie',

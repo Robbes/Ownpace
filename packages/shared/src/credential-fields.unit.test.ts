@@ -77,3 +77,27 @@ describe('what each side can offer', () => {
     expect(connectableTypes('target')).toEqual(['jmap', 'imap', 'caldav', 'carddav', 'webdav']);
   });
 });
+
+describe('the DAV targets ask for an optional base URL (0105 T1)', () => {
+  it('caldav, carddav and webdav offer url, and it gates nothing', () => {
+    // The escape hatch for a provider whose DAV root lives behind a path —
+    // host+port can only ever say https://host:port/.
+    for (const type of ['caldav', 'carddav', 'webdav']) {
+      const url = credentialFieldsFor('target', type).find((f) => f.key === 'url');
+      expect(url, `${type} has no url field`).toBeDefined();
+      expect(url?.required, `${type}'s url must stay optional — host+port keep working`).not.toBe(
+        true,
+      );
+      expect(url?.secret, 'a URL is not a secret').not.toBe(true);
+    }
+  });
+
+  it('imap and jmap targets do NOT — one has no URL, the other derives its own', () => {
+    for (const type of ['imap', 'jmap']) {
+      expect(
+        credentialFieldsFor('target', type).some((f) => f.key === 'url'),
+        `${type} must not ask for a url`,
+      ).toBe(false);
+    }
+  });
+});
