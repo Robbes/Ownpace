@@ -147,6 +147,12 @@ docker exec "$NC" sh -lc 'command -v curl >/dev/null' \
 dav() {
   local method="$1" path="$2" ctype="${3:-}" body="${4:-}"
   local args=(-sS -o /dev/null -w '%{http_code}' -X "$method" -u "${DAVUSER}:${PASS}")
+  # Schedule-Reply: F on every DELETE (RFC 6638 §8.1, 0103 T5): the take-back
+  # removes organiser copies of events that can carry attendees — the canary
+  # above does — and on a scheduling server a bare DELETE fans out CANCEL.
+  # This header says "remove, tell nobody"; servers without scheduling ignore
+  # an unknown header.
+  [ "$method" = "DELETE" ] && args+=(-H 'Schedule-Reply: F')
   [ -n "$ctype" ] && args+=(-H "Content-Type: ${ctype}")
   [ -n "$body" ] && args+=(--data-binary @-)
   docker exec -i "$NC" curl "${args[@]}" "http://localhost/remote.php/dav/${path}" <<<"$body"

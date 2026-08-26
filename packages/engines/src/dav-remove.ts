@@ -132,7 +132,14 @@ export async function removeDavResource(deps: RemoveDavResourceDeps): Promise<Re
   const response = await send({
     method: 'DELETE',
     url,
-    headers: { Authorization: authorization },
+    // Schedule-Reply: F (RFC 6638 §8.1) — this DELETE is a migration's
+    // bookkeeping, not a person declining a meeting. On a scheduling server
+    // it suppresses the iTIP reply/cancel a bare DELETE can fan out to the
+    // organiser and attendees; elsewhere it is an unknown header, ignored
+    // (0103 T5, ADR-0043). Belt to the writer's SCHEDULE-AGENT=CLIENT
+    // braces: either alone silences an honouring server, and a server
+    // honouring neither is T3's measurement to expose.
+    headers: { Authorization: authorization, 'Schedule-Reply': 'F' },
   });
 
   // 404/410 mean it is already gone. Reported as a successful removal rather than

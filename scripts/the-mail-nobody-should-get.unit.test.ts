@@ -99,6 +99,17 @@ describe('the mail nobody should get — the gate stays armed and asserting', ()
     ).toBe(2);
   });
 
+  it('take-back DELETEs carry Schedule-Reply: F (0103 T5)', () => {
+    const seed = strip('seed-demo-dav-content.sh');
+    expect(
+      seed,
+      'seed-demo-dav-content.sh DELETEs without Schedule-Reply: F. The\n' +
+        'take-back removes organiser copies that can carry attendees — the\n' +
+        'canary above does — and on a scheduling server a bare DELETE fans\n' +
+        'out CANCEL to all of them.',
+    ).toMatch(/"\$method" = "DELETE"[^\n]*Schedule-Reply: F/);
+  });
+
   it('the apply half can never spend the canary (E2E #88)', () => {
     const smoke = strip('smoke-managed.sh');
     expect(

@@ -186,3 +186,31 @@ describe('removeDavResource', () => {
     });
   });
 });
+
+/**
+ * A DELETE THAT CANCELS NOTHING (0103 T5 / ADR-0043). This removal is a
+ * migration's bookkeeping, never a person declining a meeting — RFC 6638's
+ * Schedule-Reply: F is how a client says so, and a server without scheduling
+ * ignores an unknown header. Belt to the writer's SCHEDULE-AGENT=CLIENT.
+ */
+describe('the removal tells the server to tell nobody', () => {
+  it('sends Schedule-Reply: F on the DELETE', async () => {
+    const seen: Array<{ method: string; headers?: Record<string, string> }> = [];
+    await removeDavResource({
+      url: 'https://dav.example.com/calendars/a/personal/e1.ics',
+      authorization: 'Basic abc',
+      request: async (o) => {
+        seen.push({ method: o.method, headers: o.headers });
+        return { status: 204, headers: {}, body: '' };
+      },
+    });
+    const del = seen.find((c) => c.method === 'DELETE');
+    expect(del, 'no DELETE was issued').toBeTruthy();
+    expect(
+      del!.headers?.['Schedule-Reply'],
+      'the DELETE carries no Schedule-Reply: F, so on a scheduling target it\n' +
+        'is a person declining or an organiser cancelling — and the server\n' +
+        'MAILS the other side of years-old meetings on our bookkeeping.',
+    ).toBe('F');
+  });
+});
