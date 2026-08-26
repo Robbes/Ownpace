@@ -492,7 +492,7 @@ export class PgLedger implements Ledger {
 
   async latestAuditEventAt(
     tenantId: TenantId,
-    filter: { readonly actor: string; readonly action: string },
+    filter: { readonly actor?: string; readonly action: string; readonly mappingId?: string },
   ): Promise<string | undefined> {
     const rows = await this.db
       .select({ at: schemaPg.auditLog.at })
@@ -500,8 +500,12 @@ export class PgLedger implements Ledger {
       .where(
         and(
           eq(schemaPg.auditLog.tenantId, tenantId),
-          eq(schemaPg.auditLog.actor, filter.actor),
+          ...(filter.actor !== undefined ? [eq(schemaPg.auditLog.actor, filter.actor)] : []),
           eq(schemaPg.auditLog.action, filter.action),
+          // The mapping lives in the JSON detail, where recordAuditEvent puts it.
+          ...(filter.mappingId !== undefined
+            ? [sql`${schemaPg.auditLog.detail} ->> 'mappingId' = ${filter.mappingId}`]
+            : []),
         ),
       )
       .orderBy(desc(schemaPg.auditLog.at))

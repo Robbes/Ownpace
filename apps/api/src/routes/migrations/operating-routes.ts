@@ -41,6 +41,8 @@ import type { Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
+import { assembleShareAnnouncements, renderShareAnnouncement } from '@openmig/shared';
+import { channelIsOn, tellMessage } from '../../access-notify.ts';
 import {
   DELETIONS_MEANING,
   DELETION_GUIDANCE,
@@ -70,10 +72,12 @@ import type {
   DecisionAccepted,
   MappingId,
   TenantId,
+  NotificationLocale,
 } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth.ts';
 import { getTriggerClient } from '@openmig/scheduler';
 import {
+  NOT_CUT_OVER_REASON,
   applyAllOpenShareGrants,
   applyShareGrant,
   evaluateApplyDeletion,
@@ -596,6 +600,114 @@ router.post(
       res.json({ status: 'ok', pressedBy: decidedBy, ...outcome });
     } catch (error) {
       serverError(res, 'sharing_apply_all_failed', 'applying the sharing queue in one go', error);
+    }
+  },
+);
+
+/**
+ * THE ANNOUNCEMENT THE PLATFORM CANNOT MAKE (0104 T3). One press mails a
+ * Template-6 digest to each grantee of a BY-HAND share (`done_manual`) —
+ * the rows the one-go press could not announce because no API created them.
+ * The note is REQUIRED: the "where" must come from the person who carried
+ * the shares, or the mail is noise with a subject line. A prior press makes
+ * the next one an EXPLICIT resend (`confirmResend`), never a silent
+ * duplicate. Per grantee: their items only (§17 — least disclosure).
+ */
+router.post(
+  '/:mappingId/sharing/announce',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const body = (req.body ?? {}) as { note?: unknown; locale?: unknown; confirmResend?: unknown };
+      const note = typeof body.note === 'string' ? body.note.trim().slice(0, 1000) : '';
+      if (!note) {
+        return void res.status(400).json({
+          error: 'note_required',
+          reason:
+            'The announcement must say where things live now — write one or two sentences ' +
+            'with the new location. The product cannot know where a by-hand share landed.',
+        });
+      }
+      const locale: NotificationLocale = body.locale === 'nl' ? 'nl' : 'en';
+      if (s.lifecycle !== 'done') {
+        return void res.status(409).json({ error: 'not_cut_over', reason: NOT_CUT_OVER_REASON });
+      }
+      if (!channelIsOn()) {
+        return void res.status(409).json({
+          error: 'notifications_off',
+          reason:
+            'No mail channel is configured (SMTP_* / NOTIFY_*), so nobody can be told. ' +
+            'Configure the channel, then press again — nothing was sent.',
+        });
+      }
+      const decidedBy = req.userId ?? 'unknown';
+
+      const outcome = await withLedger(s.tenantId, async (l) => {
+        const previous = await l.latestAuditEventAt(s.tenantId as TenantId, {
+          action: 'share.announce',
+          mappingId: s.mappingId,
+        });
+        if (previous && body.confirmResend !== true) {
+          return {
+            refused: {
+              error: 'already_announced',
+              reason:
+                `This migration's fallback announcement was already sent on ${previous}. ` +
+                'Sending again mails the same people again — pass confirmResend: true ' +
+                'to do that on purpose.',
+            },
+          } as const;
+        }
+
+        const rows = await l.listShareGrants(s.tenantId as TenantId, s.mappingId as MappingId);
+        const assembly = assembleShareAnnouncements(rows);
+        const sent: string[] = [];
+        const failed: string[] = [];
+        for (const digest of assembly.digests) {
+          const result = await tellMessage(
+            digest.grantee,
+            locale,
+            renderShareAnnouncement(digest, locale, note),
+          );
+          (result === 'sent' ? sent : failed).push(digest.grantee);
+        }
+        try {
+          await l.recordAuditEvent(s.tenantId as TenantId, {
+            actor: decidedBy,
+            action: 'share.announce',
+            entity: 'share_grant',
+            detail: {
+              mappingId: s.mappingId,
+              grantees: assembly.digests.length,
+              sent: sent.length,
+              failed: failed.length,
+              withoutAddress: assembly.withoutAddress,
+              locale,
+              resend: previous !== undefined,
+            },
+          });
+        } catch (err) {
+          log.error('recording the announce press failed (the mails themselves stand)', err);
+        }
+        return { assembly, sent, failed, wasResend: previous !== undefined } as const;
+      });
+
+      if ('refused' in outcome) {
+        return void res.status(409).json(outcome.refused);
+      }
+      res.json({
+        status: 'ok',
+        pressedBy: decidedBy,
+        sent: outcome.sent,
+        failed: outcome.failed,
+        platformAnnounced: outcome.assembly.platformAnnounced,
+        withoutAddress: outcome.assembly.withoutAddress,
+        resend: outcome.wasResend,
+      });
+    } catch (error) {
+      serverError(res, 'sharing_announce_failed', 'sending the fallback announcement', error);
     }
   },
 );
