@@ -122,7 +122,7 @@ const google = (id: string): [RegExp, string][] => [
 const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
   { name: 'IMAP', required: [CREDS.user, [/^Host$/, 'mail.example.com']] },
   {
-    name: 'OAuth2',
+    name: 'Via IMAP',
     required: [
       CREDS.user,
       [/^Tenant ID/, '11111111-1111-1111-1111-111111111111'],
@@ -131,7 +131,7 @@ const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
     ],
   },
   {
-    name: 'Microsoft Graph',
+    name: 'Via the Graph API',
     required: [
       CREDS.user,
       [/^Tenant ID/, '11111111-1111-1111-1111-111111111111'],
@@ -398,8 +398,8 @@ describe('the source step asks in the descriptor order', () => {
     expect(at('Root folder path')).toBeGreaterThan(at('Refresh token'));
   });
 
-  it('Microsoft Graph: mailbox, then the registration it signs in with', () => {
-    const labels = orderFor(/^Microsoft Graph/);
+  it('Microsoft 365 via Graph: mailbox, then the registration it signs in with', () => {
+    const labels = orderFor(/^Via the Graph API/);
     const at = (needle: string) => labels.findIndex((l) => l.startsWith(needle));
 
     expect(at('Source Username')).toBeLessThan(at('Tenant ID'));

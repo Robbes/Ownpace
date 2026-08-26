@@ -368,8 +368,11 @@ export function wizardTypeForConnectionKind(kind: string): string {
  */
 const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   imap: 'IMAP',
-  oauth2: 'Microsoft 365 (OAuth2)',
-  graph: 'Microsoft 365 (Microsoft Graph)',
+  // The method in the brackets, not the mechanism (0107 T1): "(OAuth2)" said
+  // how it authenticates, not how it connects — the distinction a person
+  // picking between the two actually needs.
+  oauth2: 'Microsoft 365 (IMAP)',
+  graph: 'Microsoft 365 (Graph API)',
   'google-drive': 'Google Drive',
   gmail: 'Gmail',
   'google-calendar': 'Google Calendar',

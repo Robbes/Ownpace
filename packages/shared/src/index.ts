@@ -31,6 +31,7 @@ export * from './config.ts';
 export * from './target-domains.ts';
 export * from './provider-setup.ts';
 export * from './credential-fields.ts';
+export * from './front-door.ts';
 export * from './cron-schedule.ts';
 export * from './throttling.ts';
 export * from './rate-budget.ts';

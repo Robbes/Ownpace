@@ -438,7 +438,7 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     renderWizard();
     expect(screen.queryByText(/app registration in your own tenant/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Microsoft Graph/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Via the Graph API/ }));
     // The explainer replaces the retired collects-only-username confession.
     expect(screen.getByText(/app registration in your own tenant/)).toBeInTheDocument();
     expect(screen.queryByText(/collects only a username and password/)).not.toBeInTheDocument();
@@ -480,7 +480,7 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     createMock.mockResolvedValue({ id: 'mapping-graph' } as never);
     renderWizard();
 
-    fireEvent.click(screen.getByRole('button', { name: /Microsoft Graph/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Via the Graph API/ }));
     fireEvent.change(screen.getByPlaceholderText('contoso.onmicrosoft.com'), {
       target: { value: 'acme.onmicrosoft.com' },
     });
