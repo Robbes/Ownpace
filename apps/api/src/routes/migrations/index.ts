@@ -30,6 +30,7 @@ import {
 // this same router so they sit under /api/migrations/:mappingId/... alongside
 // discovery and start, which is where the appliance's equivalents live too.
 import operatingRoutes from './operating-routes.ts';
+import googleOauthRoutes from './google-oauth-routes.ts';
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
@@ -423,6 +424,7 @@ export class DuplicateMappingError extends Error {
 }
 
 router.use('/', operatingRoutes);
+router.use('/', googleOauthRoutes);
 
 // Global pool - created once and reused
 let _dbPool: ReturnType<typeof getDbPool> | null = null;

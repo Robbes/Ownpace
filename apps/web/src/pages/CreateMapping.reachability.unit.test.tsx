@@ -37,7 +37,7 @@ import CreateMapping from './CreateMapping.tsx';
 import { connectionsApi, mappingApi } from '../services/mapping-service.ts';
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { create: vi.fn(), testConnection: vi.fn() },
+  mappingApi: { create: vi.fn(), testConnection: vi.fn(), googleAuthorize: vi.fn() },
   connectionsApi: { list: vi.fn().mockResolvedValue([]), test: vi.fn(), add: vi.fn(), rotate: vi.fn() },
 }));
 
@@ -199,6 +199,60 @@ describe('a disabled Next never names a field that is not on screen', () => {
         `the blocked-reason line names "${label}", which this step does not render`,
       ).not.toBeNull();
     }
+  });
+});
+
+/**
+ * The consent you can click (workplan 0089 T1): the button exists exactly
+ * where a Google OAuth client is being typed, waits for that client, and
+ * the popup's answer lands in the SAME field a pasted token uses — guarded
+ * by origin, because a message event is the one input anybody can send.
+ */
+describe('the consent you can click (0089 T1)', () => {
+  it('offers Connect with Google on a Google source, disabled until its client is entered', async () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    const connect = await screen.findByRole('button', { name: /Connect with Google/ });
+    expect(connect).toBeDisabled();
+    fill(/^Client ID/, 'gmail.apps.googleusercontent.com');
+    fill(/^Source client secret/, 'shh-secret');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Connect with Google/ })).toBeEnabled(),
+    );
+  });
+
+  it('never offers it on a source with no Google client — IMAP has nothing to consent', () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
+    expect(screen.queryByRole('button', { name: /Connect with Google/ })).toBeNull();
+  });
+
+  it('a consent message from THIS origin fills the refresh-token field — the field a paste uses', async () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        origin: window.location.origin,
+        data: { type: 'ownpace-google-consent', refreshToken: '1//minted-by-consent' },
+      }),
+    );
+    await waitFor(() =>
+      expect((fieldFor(/^Refresh token/) as HTMLInputElement).value).toBe('1//minted-by-consent'),
+    );
+  });
+
+  it('a message from ANOTHER origin is ignored — the origin is the gate', async () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        origin: 'https://evil.example',
+        data: { type: 'ownpace-google-consent', refreshToken: '1//forged' },
+      }),
+    );
+    expect((fieldFor(/^Refresh token/) as HTMLInputElement).value).toBe('');
   });
 });
 

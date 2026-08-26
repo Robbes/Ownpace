@@ -203,6 +203,17 @@ const SOURCE_CARDS = [
   { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint' },
 ] as const;
 
+/** The sources whose credentials can be minted by the clickable consent
+ *  (0089 T1) — exactly the four that authenticate with a Google OAuth
+ *  client, spelled out rather than derived: `isGoogleSource` includes
+ *  Dropbox for credential-SHAPE reasons, which is not this question. */
+const GOOGLE_CONSENT_SOURCES: ReadonlyArray<string> = [
+  'gmail',
+  'google-calendar',
+  'google-contacts',
+  'google-drive',
+];
+
 const TARGET_CARDS = [
   { id: 'jmap', name: 'JMAP', hintKey: 'wizard.proto.jmap.hint' },
   { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
@@ -813,6 +824,45 @@ const CreateMapping: React.FC = () => {
 
   const updateField = (field: keyof FormData, value: string | number | boolean | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  /**
+   * The clickable consent's landing (workplan 0089 T1). The popup's result
+   * page posts the refresh token back to THIS window; through the /api
+   * proxy both share an origin, and only same-origin messages of the flow's
+   * own shape are trusted. The token lands in the SAME field a pasted one
+   * does — storage, probing and create see no difference (ADR-0037).
+   */
+  const [googleConsent, setGoogleConsent] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; refreshToken?: string } | null;
+      if (event.origin !== window.location.origin) return;
+      if (!data || data.type !== 'ownpace-google-consent') return;
+      if (typeof data.refreshToken !== 'string' || data.refreshToken.length === 0) return;
+      setFormData((prev) => ({ ...prev, sourceRefreshToken: data.refreshToken as string }));
+      setGoogleConsent('received');
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  const startGoogleConsent = async () => {
+    setGoogleConsent(null);
+    try {
+      const { url } = await mappingApi.googleAuthorize({
+        sourceType: formData.sourceType as
+          | 'gmail'
+          | 'google-calendar'
+          | 'google-contacts'
+          | 'google-drive',
+        clientId: formData.sourceClientId,
+        clientSecret: formData.sourceClientSecret,
+      });
+      window.open(url, 'ownpace-google-consent', 'popup,width=520,height=640');
+    } catch (error) {
+      setGoogleConsent(serverMessage(error));
+    }
   };
 
   const toggleDomain = (domain: Domain) => {
@@ -1641,6 +1691,39 @@ const CreateMapping: React.FC = () => {
             />
 
             {renderSideFields('source')}
+            {/* The consent you can click (workplan 0089 T1): the round-trip
+                the manual sent people to the OAuth Playground for, run by the
+                wizard against the customer's OWN client. The fields above
+                stay — an operator holding a token can still paste it, and
+                the appliance's file-configured path is untouched. */}
+            {GOOGLE_CONSENT_SOURCES.includes(formData.sourceType) &&
+              !formData.sourceConnectionId && (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={startGoogleConsent}
+                    disabled={!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim()}
+                    className="btn btn-secondary"
+                    title={
+                      !formData.sourceClientId.trim() || !formData.sourceClientSecret.trim()
+                        ? t('wizard.google.connect.needsClient')
+                        : undefined
+                    }
+                  >
+                    {t('wizard.google.connect')}
+                  </button>
+                  <p className="mt-1 text-sm text-gray-500">{t('wizard.google.connect.hint')}</p>
+                  {googleConsent && (
+                    <p
+                      className={`mt-1 text-sm ${
+                        googleConsent === 'received' ? 'text-green-700' : 'text-amber-800'
+                      }`}
+                    >
+                      {googleConsent === 'received' ? t('wizard.google.received') : googleConsent}
+                    </p>
+                  )}
+                </div>
+              )}
             {renderProbe('source')}
           </div>
         );

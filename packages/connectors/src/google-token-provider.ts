@@ -226,15 +226,25 @@ export class GoogleTokenProvider implements TokenProvider {
 
 /**
  * `invalid_grant` is the failure an operator will actually hit, and Google's
- * body says nothing about why. Naming the three real causes turns a dead end
- * into an action (rule 9).
+ * body says nothing about why. Naming the real causes turns a dead end into
+ * an action (rule 9). The seven-day cause goes FIRST (workplan 0089 T2): for
+ * a recently-configured personal account it is the most likely one, it is
+ * the only one with a one-click fix, and it was the cause the list did not
+ * name — an External consent screen left in Testing has its refresh tokens
+ * expired by Google after seven days, weeks after anyone was thinking about
+ * consent screens. (And never suggest "enable IMAP": always-on since March
+ * 2025, toggle removed — that advice sends someone hunting a setting that
+ * no longer exists.)
  */
 function hintFor(body: string): string {
   if (!body.includes('invalid_grant')) return '';
   return (
-    ' — "invalid_grant" from Google means the refresh token is no longer usable: it was revoked ' +
-    '(including by a password change), it expired after six months unused, or it was issued to a ' +
-    'different client id than the one configured here. Re-consent to get a new one.'
+    ' — "invalid_grant" from Google means the refresh token is no longer usable. Most likely for ' +
+    'a recently set-up personal account: the OAuth consent screen is External with publishing ' +
+    'status "Testing", and Google expires such refresh tokens after seven days — set the ' +
+    'publishing status to Production (one click) and re-consent. Otherwise: the token was ' +
+    'revoked (including by a password change), it expired after six months unused, or it was ' +
+    'issued to a different client id than the one configured here. Re-consent to get a new one.'
   );
 }
 
