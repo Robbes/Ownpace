@@ -21,6 +21,8 @@ import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
 import {
   connectableTypes,
   credentialFieldsFor,
+  partitionFrontDoor,
+  providerDisplayName,
   wizardTypeForConnectionKind,
   type CredentialField,
 } from '@openmig/shared';
@@ -418,11 +420,35 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
               setValues({});
             }}
           >
-            {connectableTypes(role).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
+            {/* The SAME grouping the wizard renders (0107 T1) — one shared
+                partition, so the two doors can never disagree — with the
+                provider's display name instead of the raw id. */}
+            {(() => {
+              const grouped = partitionFrontDoor(connectableTypes(role), (id) => id);
+              const asOption = (id: string) => (
+                <option key={id} value={id}>
+                  {providerDisplayName(id)}
+                </option>
+              );
+              const providerIds = [
+                ...grouped.families.flatMap((f) => f.members),
+                ...grouped.providers,
+              ];
+              return (
+                <>
+                  {providerIds.length > 0 && (
+                    <optgroup label={t('wizard.group.provider')}>
+                      {providerIds.map(asOption)}
+                    </optgroup>
+                  )}
+                  {grouped.protocols.length > 0 && (
+                    <optgroup label={t('wizard.group.protocol')}>
+                      {grouped.protocols.map(asOption)}
+                    </optgroup>
+                  )}
+                </>
+              );
+            })()}
           </select>
         </label>
 

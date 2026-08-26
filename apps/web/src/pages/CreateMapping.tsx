@@ -27,6 +27,7 @@ import {
   targetDomainRefusal,
   describeCronScheduleProblem,
   credentialFieldsFor,
+  partitionFrontDoor,
   type CredentialField,
 } from '@openmig/shared';
 // The SAME cron library — same pinned version — the managed tick evaluates
@@ -177,6 +178,37 @@ const dataTypes: {
   { id: 'contact', nameKey: 'domain.contact', icon: Users, hintKey: 'wizard.domain.contact.hint' },
   { id: 'file', nameKey: 'domain.file', icon: Folder, hintKey: 'wizard.domain.file.hint' },
 ];
+
+/**
+ * The two choosers' cards, grouped through the SHARED front-door placement
+ * (workplan 0107 T1): "Your provider" first — the level people arrive
+ * thinking in — then "Any server, by protocol", the honest fallback lane and
+ * the self-hoster's first language. Every id stays (contract vocabulary);
+ * only the two Microsoft 365 entries are RENAMED, because "OAuth2" was an
+ * auth mechanism wearing a card and said neither "Microsoft" nor "365" —
+ * under the family heading each card now names its connection method, and
+ * the hint says which to pick.
+ */
+const SOURCE_CARDS = [
+  { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
+  { id: 'oauth2', nameKey: 'wizard.m365.viaImap', hintKey: 'wizard.proto.oauth2.hint' },
+  { id: 'graph', nameKey: 'wizard.m365.viaGraph', hintKey: 'wizard.proto.graph.hint' },
+  { id: 'google-drive', name: 'Google Drive', hintKey: 'wizard.proto.googleDrive.hint' },
+  { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint' },
+  { id: 'google-calendar', name: 'Google Calendar', hintKey: 'wizard.proto.googleCalendar.hint' },
+  { id: 'google-contacts', name: 'Google Contacts', hintKey: 'wizard.proto.googleContacts.hint' },
+  { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint' },
+  { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint' },
+] as const;
+
+const TARGET_CARDS = [
+  { id: 'jmap', name: 'JMAP', hintKey: 'wizard.proto.jmap.hint' },
+  { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
+  { id: 'caldav', name: 'CalDAV', hintKey: 'wizard.proto.caldav.hint' },
+  { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint' },
+  { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint' },
+  { id: 'soverin', name: 'Soverin', hintKey: 'wizard.proto.soverin.hint' },
+] as const;
 
 const isValidPort = (raw: string): boolean => {
   if (!/^\d+$/.test(raw)) return false;
@@ -1361,6 +1393,142 @@ const CreateMapping: React.FC = () => {
     );
   };
 
+  /** One chooser card — the body every group renders identically. */
+  const chooserCard = (
+    card: { id: string; name?: string; nameKey?: StringKey; hintKey: StringKey },
+    selected: boolean,
+    onPick: () => void,
+  ) => (
+    <button
+      key={card.id}
+      onClick={onPick}
+      className={`p-4 border-2 rounded-lg text-left transition-colors ${
+        selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+      }`}
+    >
+      <p className="font-medium text-gray-900">{card.nameKey ? t(card.nameKey) : card.name}</p>
+      <p className="text-sm text-gray-500 mt-1">{t(card.hintKey)}</p>
+    </button>
+  );
+
+  const renderSourceCard = (type: (typeof SOURCE_CARDS)[number]) =>
+    chooserCard(type, formData.sourceType === type.id, () => {
+      // A verdict about the OLD provider must not survive the
+      // switch (0073) — it is a statement about a credential
+      // this screen no longer asks for.
+      forgetProbe('source');
+      // A Google credential reads exactly one API, so choosing
+      // it also chooses that domain — the same constraint the
+      // server refuses by name (sourceDomainRefusal). Setting it
+      // here spares the data-types step a dead end; switching
+      // AWAY leaves the selection alone, which the matrices then
+      // re-police. Drive pins the file domain and a file-capable
+      // target; Gmail pins email and a mail-capable one.
+      // `void`: the chain below is an expression chosen for its
+      // effect, and it is left as one rather than rewritten —
+      // reshaping a live nested ternary is the edit 0070 T6
+      // records going wrong.
+      void (type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
+        ? setFormData((prev) => ({
+            ...prev,
+            ...clearedSourceFields(prev, type.id),
+            sourceType: type.id,
+            domains: ['file'],
+            targetType:
+              prev.targetType === 'jmap' || prev.targetType === 'webdav'
+                ? prev.targetType
+                : 'webdav',
+          }))
+        : type.id === 'gmail'
+          ? setFormData((prev) => ({
+              ...prev,
+              ...clearedSourceFields(prev, type.id),
+              sourceType: type.id,
+              domains: ['email'],
+              targetType:
+                prev.targetType === 'jmap' || prev.targetType === 'imap'
+                  ? prev.targetType
+                  : 'jmap',
+            }))
+          : type.id === 'google-calendar'
+            ? setFormData((prev) => ({
+                ...prev,
+                ...clearedSourceFields(prev, type.id),
+                sourceType: type.id,
+                domains: ['calendar'],
+                // The one calendar-capable target (JMAP calendar
+                // is parked by owner decision, 0031 T1).
+                targetType: 'caldav',
+              }))
+            : type.id === 'google-contacts'
+              ? setFormData((prev) => ({
+                  ...prev,
+                  ...clearedSourceFields(prev, type.id),
+                  sourceType: type.id,
+                  domains: ['contact'],
+                  targetType:
+                    prev.targetType === 'jmap' || prev.targetType === 'carddav'
+                      ? prev.targetType
+                      : 'carddav',
+                }))
+              : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id })));
+    });
+
+  const renderTargetCard = (type: (typeof TARGET_CARDS)[number]) =>
+    chooserCard(type, formData.targetType === type.id, () => {
+      forgetProbe('target');
+      updateField('targetType', type.id);
+    });
+
+  /**
+   * Both choosers render through the ONE shared partition (0107 T1):
+   * "Your provider" first — the level people arrive thinking in, families
+   * as headings so Microsoft 365's two methods and Google's four products
+   * read as one account each — then "Any server, by protocol", the honest
+   * fallback lane. The wizard can never group differently from the
+   * connections add-form, because neither owns the algorithm.
+   */
+  function renderGroupedChooser<C extends { readonly id: string }>(
+    cards: ReadonlyArray<C>,
+    gridClass: string,
+    renderCard: (card: C) => React.ReactElement,
+  ) {
+    const grouped = partitionFrontDoor(cards, (c) => c.id);
+    const grid = `grid grid-cols-1 gap-4 ${gridClass}`;
+    return (
+      <div className="space-y-5">
+        {(grouped.families.length > 0 || grouped.providers.length > 0) && (
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">
+              {t('wizard.group.provider')}
+            </h4>
+            <div className="space-y-3">
+              {grouped.families.map((family) => (
+                <div key={family.id}>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">
+                    {family.label}
+                  </p>
+                  <div className={grid}>{family.members.map(renderCard)}</div>
+                </div>
+              ))}
+              {grouped.providers.length > 0 && (
+                <div className={grid}>{grouped.providers.map(renderCard)}</div>
+              )}
+            </div>
+          </div>
+        )}
+        {grouped.protocols.length > 0 && (
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">
+              {t('wizard.group.protocol')}
+            </h4>
+            <div className={grid}>{grouped.protocols.map(renderCard)}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const renderStep = () => {
     switch (steps[currentStep].id) {
       case 'source':
@@ -1368,106 +1536,7 @@ const CreateMapping: React.FC = () => {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectSource')}</h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {(
-                  [
-                    { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
-                    { id: 'oauth2', name: 'OAuth2', hintKey: 'wizard.proto.oauth2.hint' },
-                    { id: 'graph', name: 'Microsoft Graph', hintKey: 'wizard.proto.graph.hint' },
-                    {
-                      id: 'google-drive',
-                      name: 'Google Drive',
-                      hintKey: 'wizard.proto.googleDrive.hint',
-                    },
-                    { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint' },
-                    {
-                      id: 'google-calendar',
-                      name: 'Google Calendar',
-                      hintKey: 'wizard.proto.googleCalendar.hint',
-                    },
-                    {
-                      id: 'google-contacts',
-                      name: 'Google Contacts',
-                      hintKey: 'wizard.proto.googleContacts.hint',
-                    },
-                    { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint' },
-                    { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint' },
-                  ] as const
-                ).map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => {
-                      // A verdict about the OLD provider must not survive the
-                      // switch (0073) — it is a statement about a credential
-                      // this screen no longer asks for.
-                      forgetProbe('source');
-                      // A Google credential reads exactly one API, so choosing
-                      // it also chooses that domain — the same constraint the
-                      // server refuses by name (sourceDomainRefusal). Setting it
-                      // here spares the data-types step a dead end; switching
-                      // AWAY leaves the selection alone, which the matrices then
-                      // re-police. Drive pins the file domain and a file-capable
-                      // target; Gmail pins email and a mail-capable one.
-                      // `void`: the chain below is an expression chosen for its
-                      // effect, and it is left as one rather than rewritten —
-                      // reshaping a live nested ternary is the edit 0070 T6
-                      // records going wrong.
-                      void (type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
-                        ? setFormData((prev) => ({
-                            ...prev,
-                            ...clearedSourceFields(prev, type.id),
-                            sourceType: type.id,
-                            domains: ['file'],
-                            targetType:
-                              prev.targetType === 'jmap' || prev.targetType === 'webdav'
-                                ? prev.targetType
-                                : 'webdav',
-                          }))
-                        : type.id === 'gmail'
-                          ? setFormData((prev) => ({
-                              ...prev,
-                              ...clearedSourceFields(prev, type.id),
-                              sourceType: type.id,
-                              domains: ['email'],
-                              targetType:
-                                prev.targetType === 'jmap' || prev.targetType === 'imap'
-                                  ? prev.targetType
-                                  : 'jmap',
-                            }))
-                          : type.id === 'google-calendar'
-                            ? setFormData((prev) => ({
-                                ...prev,
-                                ...clearedSourceFields(prev, type.id),
-                                sourceType: type.id,
-                                domains: ['calendar'],
-                                // The one calendar-capable target (JMAP calendar
-                                // is parked by owner decision, 0031 T1).
-                                targetType: 'caldav',
-                              }))
-                            : type.id === 'google-contacts'
-                              ? setFormData((prev) => ({
-                                  ...prev,
-                                  ...clearedSourceFields(prev, type.id),
-                                  sourceType: type.id,
-                                  domains: ['contact'],
-                                  targetType:
-                                    prev.targetType === 'jmap' || prev.targetType === 'carddav'
-                                      ? prev.targetType
-                                      : 'carddav',
-                                }))
-                              : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id })));
-                    }}
-                    className={`p-4 border-2 rounded-lg text-left transition-colors ${
-                      formData.sourceType === type.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <p className="font-medium text-gray-900">{type.name}</p>
-                    <p className="text-sm text-gray-500 mt-1">{t(type.hintKey)}</p>
-                  </button>
-                ))}
-              </div>
+              {renderGroupedChooser(SOURCE_CARDS, 'sm:grid-cols-2', renderSourceCard)}
               {/* 0037 T6, answered 2026-08-10: oauth2/graph use the
                   per-customer Entra app registration (ADR-0006's row-14
                   model) — say what these fields ARE and where the rest of
@@ -1561,34 +1630,7 @@ const CreateMapping: React.FC = () => {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectTarget')}</h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {(
-                  [
-                    { id: 'jmap', name: 'JMAP', hintKey: 'wizard.proto.jmap.hint' },
-                    { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
-                    { id: 'caldav', name: 'CalDAV', hintKey: 'wizard.proto.caldav.hint' },
-                    { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint' },
-                    { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint' },
-                    { id: 'soverin', name: 'Soverin', hintKey: 'wizard.proto.soverin.hint' },
-                  ] as const
-                ).map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => {
-                      forgetProbe('target');
-                      updateField('targetType', type.id);
-                    }}
-                    className={`p-4 border-2 rounded-lg text-left transition-colors ${
-                      formData.targetType === type.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <p className="font-medium text-gray-900">{type.name}</p>
-                    <p className="text-sm text-gray-500 mt-1">{t(type.hintKey)}</p>
-                  </button>
-                ))}
-              </div>
+              {renderGroupedChooser(TARGET_CARDS, 'sm:grid-cols-3', renderTargetCard)}
               {/* ADR-0011's consequence, on the step where the destination is
                   chosen (owner decision 2026-08-10 — it previously rendered on
                   the SOURCE step): whatever server the owner points this at is
