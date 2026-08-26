@@ -1081,6 +1081,17 @@ services:
       NEXTCLOUD_ADMIN_USER: admin
       NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:-admin_managed_pw}
       NEXTCLOUD_TRUSTED_DOMAINS: "localhost nextcloud"
+      # ARMED ON PURPOSE (0103 T2 / ADR-0043). Without a mail server Nextcloud
+      # cannot send anything, and the gate's "a migration sent no mail" would
+      # be true by inability — the same silence-by-blindness the whole 0103
+      # plan exists to end. Pointed at the catcher, the fan-out path is real:
+      # if any layer regresses toward mailing (the writer's neutralising, a
+      # Nextcloud behaviour change, a fixture edit), the message lands in
+      # Mailpit and the smoke goes red instead of nobody ever knowing.
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      MAIL_FROM_ADDRESS: calendar
+      MAIL_DOMAIN: ownpace.invalid
     ports:
       - "${NEXTCLOUD_PORT:-8083}:80"
     # The one probe here that is not an inference: `setup-nextcloud-users.sh`
