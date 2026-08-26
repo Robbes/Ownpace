@@ -215,6 +215,41 @@ export class InProcessByteBudget implements ByteBudget {
 }
 
 /**
+ * Gmail's IMAP download ceiling, in bytes per day — the number workplan 0090
+ * is named after, verified from Google's own bandwidth-limits page (T1,
+ * 2026-08-26): "Downloaden via IMAP: 2500 MB" per day, per account. Read as
+ * decimal megabytes deliberately: Google writes "MB", and 2 500 000 000 is
+ * the SMALLER reading, so being wrong about their arithmetic errs toward
+ * stopping early rather than toward a locked mailbox.
+ */
+export const GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY = 2_500_000_000;
+
+/**
+ * Whether an IMAP endpoint gets a download meter, and with which ceiling —
+ * the ONE place both editions decide this (hard rule 5).
+ *
+ * Keyed by the ENDPOINT, never by a connection kind: the ceiling belongs to
+ * `imap.gmail.com`, so a plain `imap` connection pointed at Gmail is metered
+ * exactly like the `gmail` kind, and a self-hosted Dovecot at any other host
+ * gets NO invented cap — a ceiling for a server that has none would be this
+ * plan's own way of making migrations mysteriously slow. A configured
+ * per-mapping value (`throttleConfig.downloadBytesPerDay`, migration 0017's
+ * surface) always wins, for any host — including setting headroom under
+ * Gmail's, which the fixed-window note on `ByteBudget` recommends.
+ */
+export function imapDownloadPlan(
+  host: string | undefined,
+  configuredBytesPerDay?: number,
+): { readonly provider: string; readonly bytesPerDay: number } | undefined {
+  if (!host) return undefined;
+  const h = host.trim().toLowerCase();
+  const gmail = h === 'imap.gmail.com';
+  const ceiling = configuredBytesPerDay ?? (gmail ? GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY : undefined);
+  if (!(typeof ceiling === 'number' && ceiling > 0)) return undefined;
+  return { provider: gmail ? 'gmail-imap' : `imap:${h}`, bytesPerDay: ceiling };
+}
+
+/**
  * The named "counting is somebody else's job" meter — for tests, and for
  * sources whose server has no ceiling (a self-hosted Dovecot). It counts
  * NOTHING: the state always reads as an untouched, infinite budget. A cap

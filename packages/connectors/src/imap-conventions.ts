@@ -25,7 +25,22 @@
  * @see docs/workplans/0032-imapflow-migration.md — T3b
  */
 
-import type { SyncCursor, TokenProvider, MailKeyword, SpecialUse } from '@openmig/shared';
+import type { ByteBudget, SyncCursor, TokenProvider, MailKeyword, SpecialUse } from '@openmig/shared';
+
+/**
+ * The daily download meter an IMAP source spends against (workplan 0090 T3).
+ *
+ * The budget is keyed by (tenant, provider) — a provider-endpoint limit is
+ * shared by every mapping a tenant runs against it — so the connector carries
+ * the two key halves alongside the budget rather than inventing its own.
+ * Optional everywhere: a server with no ceiling gets no meter, and a meter
+ * invented for it would only make migrations mysteriously slow.
+ */
+export interface ImapByteMeter {
+  readonly budget: ByteBudget;
+  readonly tenantId: string;
+  readonly provider: string;
+}
 
 /**
  * Configuration for IMAP connection.
@@ -56,6 +71,8 @@ export interface ImapSourceConfig {
  */
 export interface ImapSourceConfigWithTokenProvider extends ImapSourceConfig {
   tokenProvider?: TokenProvider;
+  /** Spent on every fetched body — absent means the endpoint has no ceiling. */
+  byteMeter?: ImapByteMeter;
 }
 
 /**

@@ -1050,7 +1050,10 @@ export function parseThrottleConfig(obj: Record<string, unknown>): Partial<Throt
   if (obj.jitterMs !== undefined) {
     config.jitterMs = reqInt(obj, 'jitterMs', 'throttleConfig.jitterMs');
   }
-  
+  if (obj.downloadBytesPerDay !== undefined) {
+    config.downloadBytesPerDay = reqInt(obj, 'downloadBytesPerDay', 'throttleConfig.downloadBytesPerDay');
+  }
+
   return config;
 }
 

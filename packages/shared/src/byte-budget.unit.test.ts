@@ -10,7 +10,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { InProcessByteBudget, UNLIMITED_BYTE_BUDGET } from './rate-budget.ts';
+import {
+  GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY,
+  InProcessByteBudget,
+  UNLIMITED_BYTE_BUDGET,
+  imapDownloadPlan,
+} from './rate-budget.ts';
 
 const TENANT = '5aab0000-e29b-41d4-a716-446655442001';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -77,6 +82,44 @@ describe('InProcessByteBudget', () => {
     await budget.state(TENANT, 'gmail-imap');
     await budget.state(TENANT, 'gmail-imap');
     expect((await budget.state(TENANT, 'gmail-imap')).spentBytes).toBe(250);
+  });
+});
+
+/**
+ * Which endpoints get a download meter (workplan 0090 T3) — the one decision
+ * both editions share. Keyed by HOST, never by connection kind, and no host
+ * ever gets an invented ceiling.
+ */
+describe('imapDownloadPlan', () => {
+  it("gives Gmail's endpoint the verified ceiling, whatever kind pointed at it", () => {
+    const plan = imapDownloadPlan('imap.gmail.com', undefined);
+    expect(plan).toEqual({ provider: 'gmail-imap', bytesPerDay: GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY });
+    // Case and whitespace are transport noise, not a different server.
+    expect(imapDownloadPlan(' IMAP.Gmail.Com ', undefined)).toEqual(plan);
+  });
+
+  it('invents NO cap for any other server — an invented ceiling is how migrations go mysteriously slow', () => {
+    expect(imapDownloadPlan('mail.soverin.net', undefined)).toBeUndefined();
+    expect(imapDownloadPlan('imap.example.nl', undefined)).toBeUndefined();
+    expect(imapDownloadPlan(undefined, undefined)).toBeUndefined();
+  });
+
+  it('lets a configured per-mapping value win, for any host — headroom under Gmail included', () => {
+    expect(imapDownloadPlan('imap.gmail.com', 2_000_000_000)).toEqual({
+      provider: 'gmail-imap',
+      bytesPerDay: 2_000_000_000,
+    });
+    expect(imapDownloadPlan('mail.soverin.net', 5_000_000_000)).toEqual({
+      provider: 'imap:mail.soverin.net',
+      bytesPerDay: 5_000_000_000,
+    });
+  });
+
+  it('reads a nonsense configured value as no meter, never as a zero ceiling', () => {
+    // A bytesPerDay of 0 would refuse every byte on the first fetch — a
+    // misconfiguration must not read as "stop immediately".
+    expect(imapDownloadPlan('mail.soverin.net', 0)).toBeUndefined();
+    expect(imapDownloadPlan('mail.soverin.net', Number.NaN)).toBeUndefined();
   });
 });
 
