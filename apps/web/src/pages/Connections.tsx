@@ -30,7 +30,7 @@ import {
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
 import { useT, useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
-import { probeText, schedulingText } from '../i18n/probe-text.ts';
+import { probeText, qualificationText, schedulingText } from '../i18n/probe-text.ts';
 import {
   inUseMigrations,
   invalidCredentialFields,
@@ -312,6 +312,10 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
                measured by the probe, said in the reader's language. */
             <span className="block mt-1">{schedulingText(t, result.scheduling)}</span>
           )}
+          {result.qualification && (
+            /* What this account CAN CARRY (0106 T0) — per domain, measured. */
+            <span className="block mt-1">{qualificationText(t, result.qualification)}</span>
+          )}
         </p>
       )}
     </li>
@@ -470,6 +474,9 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           )}
           {result.scheduling && (
             <span className="block mt-1">{schedulingText(t, result.scheduling)}</span>
+          )}
+          {result.qualification && (
+            <span className="block mt-1">{qualificationText(t, result.qualification)}</span>
           )}
         </p>
       )}

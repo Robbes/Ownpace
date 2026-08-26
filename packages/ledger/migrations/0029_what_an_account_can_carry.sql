@@ -1,0 +1,23 @@
+-- What an account can CARRY, measured and remembered (workplan 0106 T0).
+--
+-- One nullable jsonb column on `connection`: the per-domain qualification the
+-- last connection test measured — {mail, calendar, contact, file}, each
+-- yes|no|unknown with the sentence that justifies it, plus the folded-in
+-- scheduling verdict (0105 T0). Three states, deliberately: `yes` and `no`
+-- both require an ANSWER (a listing that succeeded; a session document that
+-- enumerated its capabilities and left one out); a refusal, a timeout, or a
+-- question the config cannot even ask (mail on a DAV-only connection) is
+-- `unknown` — unmeasured, which is never the same as safe (the run-#6 rule).
+--
+-- NULL means never qualified: an older row, or a kind qualification does not
+-- cover yet. Absence of measurement, never "no".
+--
+-- NOT a key in `config`, deliberately. `config` is what the person TYPED —
+-- their intent, re-sent by forms, copied into overrides. This is what the
+-- provider ANSWERED. Blurring the two is how a stale measurement gets
+-- re-saved as if somebody chose it.
+--
+-- Additive and nullable: nothing existing changes shape, no backfill, no
+-- default. Every re-test overwrites it with what is true NOW.
+
+ALTER TABLE connection ADD COLUMN qualification jsonb;

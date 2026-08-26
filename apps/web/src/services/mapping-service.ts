@@ -393,6 +393,19 @@ export interface TestConnectionResult {
    * words for yet.
    */
   scheduling?: { capability: 'auto-schedule' | 'none' | 'unknown'; sentence: string };
+  /**
+   * The account's per-domain qualification (0106 T0): what the last test
+   * MEASURED this account can carry. Three states — yes and no both required
+   * an answer; unknown is unmeasured, which a screen must never render as
+   * either. `detail` is the English evidence line per domain.
+   */
+  qualification?: {
+    domains: Record<
+      'mail' | 'calendar' | 'contact' | 'file',
+      { answer: 'yes' | 'no' | 'unknown'; detail: string }
+    >;
+    scheduling?: { capability: 'auto-schedule' | 'none' | 'unknown'; sentence: string };
+  };
 }
 
 export const mappingApi = {

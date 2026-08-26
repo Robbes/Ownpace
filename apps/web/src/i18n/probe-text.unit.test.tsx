@@ -15,7 +15,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { ProbeOutcome } from '@openmig/shared';
-import { probeText, schedulingText } from './probe-text.ts';
+import { probeText, qualificationText, schedulingText } from './probe-text.ts';
 import { STRINGS, type StringKey } from './strings.ts';
 
 /** A `t` bound to one locale, with the same interpolation the app uses. */
@@ -161,5 +161,39 @@ describe('schedulingText — the verdict a DAV target test carries (0105 T0)', (
 
   it('no verdict means nothing at all — not an empty line', () => {
     expect(schedulingText(en, undefined)).toBeNull();
+  });
+});
+
+describe('qualificationText — what the account can carry (0106 T0)', () => {
+  const q = (
+    mail: 'yes' | 'no' | 'unknown',
+    calendar: 'yes' | 'no' | 'unknown',
+    contact: 'yes' | 'no' | 'unknown',
+    file: 'yes' | 'no' | 'unknown',
+  ) => ({
+    domains: {
+      mail: { answer: mail, detail: 'd' },
+      calendar: { answer: calendar, detail: 'd' },
+      contact: { answer: contact, detail: 'd' },
+      file: { answer: file, detail: 'd' },
+    },
+  });
+
+  it('renders the three marks in the reader\'s language, domains in a fixed order', () => {
+    expect(qualificationText(en, q('unknown', 'yes', 'yes', 'no'))).toBe(
+      "Can carry: Email ? · Calendar ✓ · Contacts ✓ · Files ✗ — '?' is unmeasured — not safe to assume either way",
+    );
+    expect(qualificationText(nl, q('yes', 'yes', 'yes', 'yes'))).toBe(
+      'Kan dragen: E-mail ✓ · Agenda ✓ · Contacten ✓ · Bestanden ✓',
+    );
+  });
+
+  it('the unmeasured hint appears exactly when a ? is on the line', () => {
+    expect(qualificationText(en, q('yes', 'yes', 'no', 'yes'))).not.toContain('unmeasured');
+    expect(qualificationText(nl, q('yes', 'unknown', 'yes', 'yes'))).toContain('niet gemeten');
+  });
+
+  it('no qualification renders nothing at all', () => {
+    expect(qualificationText(en, undefined)).toBeNull();
   });
 });

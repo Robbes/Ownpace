@@ -25,13 +25,22 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { eq, and, inArray, or, sql } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
+import { PgLedger } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import {
   probeSourceConnection,
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
+import {
+  isGoogleGrantKind,
+  isQualifiableKind,
+  qualifyAccount,
+  qualifyGoogleGrant,
+  type AccountQualification,
+} from '@openmig/orchestration/account-qualification';
 import { z } from 'zod';
-import { credentialFieldsFor, wizardTypeForConnectionKind } from '@openmig/shared';
+import { credentialFieldsFor, log, wizardTypeForConnectionKind } from '@openmig/shared';
+import type { TenantId } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 // The SHAPE builders stay the create route's, deliberately: what a connection
@@ -58,6 +67,64 @@ function pool() {
 /** Target kinds `probeTargetConnection` knows how to reach. */
 const TARGET_KINDS = ['jmap', 'imap', 'caldav', 'carddav', 'webdav'] as const;
 type TargetKind = (typeof TARGET_KINDS)[number];
+
+/**
+ * Qualify the account behind a connection and REMEMBER the answer
+ * (workplan 0106 T0): what the last test measured, per domain, stored on the
+ * row and recorded to the audit log. Runs beside the headline probe, never
+ * instead of it, and NEVER fails a test — a qualification that could not be
+ * taken is reported to the log and the test result stands (the probe's own
+ * verdict is the thing the person asked for).
+ */
+async function qualifyAndRemember(
+  tenantId: string,
+  connectionId: string,
+  kind: string,
+  config: Record<string, unknown>,
+  creds: Record<string, string>,
+  actor: string,
+): Promise<AccountQualification | undefined> {
+  if (!isQualifiableKind(kind) && !isGoogleGrantKind(kind)) return undefined;
+  try {
+    // Probe-qualified for the Basic-auth families; grant-qualified for the
+    // Google kinds (0106 T1a) — the token response's scope field says what
+    // the grant ACTUALLY carries, never the wizard kind it was typed under.
+    const qualification =
+      (await qualifyAccount(kind, config, creds)) ?? (await qualifyGoogleGrant(kind, creds));
+    if (!qualification) return undefined;
+    await withTenantDb(tenantId, pool(), async (db) => {
+      await db
+        .update(schema.connection)
+        .set({ qualification, updatedAt: new Date() })
+        .where(
+          and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, tenantId)),
+        );
+      try {
+        await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+          actor,
+          action: 'connection.qualified',
+          entity: 'connection',
+          detail: {
+            connectionId,
+            mail: qualification.domains.mail.answer,
+            calendar: qualification.domains.calendar.answer,
+            contact: qualification.domains.contact.answer,
+            file: qualification.domains.file.answer,
+            ...(qualification.scheduling
+              ? { scheduling: qualification.scheduling.capability }
+              : {}),
+          },
+        });
+      } catch (err) {
+        log.error('recording the qualification failed (the row itself is updated)', err);
+      }
+    });
+    return qualification;
+  } catch (err) {
+    log.error('[qualify] the account could not be qualified; the test result stands', err);
+    return undefined;
+  }
+}
 
 router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -276,7 +343,22 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         .returning({ id: schema.connection.id }),
     );
 
-    res.status(201).json({ id: inserted[0]!.id, ...probe });
+    // Qualify the account behind the fresh row (0106 T0) — what the other
+    // protocol faces answered, remembered from day one.
+    const qualification = await qualifyAndRemember(
+      tenantId,
+      inserted[0]!.id,
+      kind,
+      config,
+      creds as Record<string, string>,
+      req.userId ?? 'unknown',
+    );
+
+    res.status(201).json({
+      id: inserted[0]!.id,
+      ...probe,
+      ...(qualification ? { qualification } : {}),
+    });
   } catch (error) {
     serverFault(res, 'add_failed', 'adding this connection', error);
   }
@@ -335,7 +417,19 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
         .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId))),
     );
 
-    res.json(result);
+    // And what the account CAN CARRY (0106 T0) — re-measured on every test,
+    // whatever the headline probe said: a caldav 401 beside a passing imap
+    // face is exactly the per-protocol scoping the record exists to show.
+    const qualification = await qualifyAndRemember(
+      tenantId,
+      id,
+      row.kind,
+      config,
+      creds,
+      req.userId ?? 'unknown',
+    );
+
+    res.json({ ...result, ...(qualification ? { qualification } : {}) });
   } catch (error) {
     serverFault(res, 'test_failed', 'testing this connection', error);
   }
@@ -444,7 +538,19 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
         .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId))),
     );
 
-    res.json({ ...probe, rotated: true });
+    // A rotated credential may carry different protocol scopes than the one
+    // it replaces (an app-password minted for IMAP only, say) — re-qualify
+    // with what is now stored (0106 T0).
+    const qualification = await qualifyAndRemember(
+      tenantId,
+      id,
+      row.kind,
+      (row.config ?? {}) as Record<string, unknown>,
+      creds as Record<string, string>,
+      req.userId ?? 'unknown',
+    );
+
+    res.json({ ...probe, rotated: true, ...(qualification ? { qualification } : {}) });
   } catch (error) {
     serverFault(res, 'rotate_failed', 'replacing these credentials', error);
   }

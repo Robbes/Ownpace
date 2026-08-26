@@ -1158,6 +1158,27 @@ paths:
                     properties:
                       capability: { type: string, enum: [auto-schedule, none, unknown] }
                       sentence: { type: string }
+                  qualification:
+                    type: object
+                    description: |
+                      Basic-auth account kinds only (workplan 0106 T0): what
+                      the account CAN CARRY, per domain, measured at this
+                      test and remembered on the connection. Three states —
+                      `yes` and `no` both required an answer; `unknown` is
+                      unmeasured, which is never the same as either.
+                    properties:
+                      domains:
+                        type: object
+                        properties:
+                          mail: { $ref: '#/components/schemas/QualifiedDomain' }
+                          calendar: { $ref: '#/components/schemas/QualifiedDomain' }
+                          contact: { $ref: '#/components/schemas/QualifiedDomain' }
+                          file: { $ref: '#/components/schemas/QualifiedDomain' }
+                      scheduling:
+                        type: object
+                        properties:
+                          capability: { type: string, enum: [auto-schedule, none, unknown] }
+                          sentence: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: No such connection for this tenant. }
   /api/setup/{side}/{provider}:
@@ -2506,6 +2527,12 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
+    QualifiedDomain:
+      type: object
+      description: One domain's measured answer (workplan 0106 T0).
+      properties:
+        answer: { type: string, enum: ['yes', 'no', unknown] }
+        detail: { type: string, description: The English evidence line. }
     SetupChecklist:
       type: object
       properties:
