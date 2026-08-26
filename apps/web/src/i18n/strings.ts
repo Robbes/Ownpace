@@ -287,6 +287,10 @@ const en = {
   'wizard.targetDavUrl': 'DAV base URL (optional)',
   'wizard.targetDavUrl.hint':
     "Only needed when the server's DAV root is not at the host root. When filled in, this full URL is used and host and port are ignored.",
+  'wizard.soverinMailHost': 'Mail server (optional)',
+  'wizard.soverinMailHost.hint':
+    'The account’s IMAP host, as your provider’s settings page names it. Only needed when this account will also receive email — calendars and contacts need no mail server. Test measures it; nothing is assumed from the provider’s name.',
+  'wizard.soverinMailPort': 'Mail port',
   'wizard.useSsl': 'Use SSL/TLS',
   'wizard.migrationName': 'Migration Name',
   'wizard.migrationNameHint': 'A friendly name to identify this migration',
@@ -1344,6 +1348,10 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.targetDavUrl': 'DAV-basis-URL (optioneel)',
   'wizard.targetDavUrl.hint':
     'Alleen nodig wanneer de DAV-root van de server niet op de hostroot staat. Indien ingevuld wordt deze volledige URL gebruikt en worden host en poort genegeerd.',
+  'wizard.soverinMailHost': 'Mailserver (optioneel)',
+  'wizard.soverinMailHost.hint':
+    'De IMAP-host van het account, zoals de instellingenpagina van uw aanbieder die noemt. Alleen nodig wanneer dit account ook e-mail gaat ontvangen — agenda’s en contacten hebben geen mailserver nodig. Testen meet dit; er wordt niets aangenomen op basis van de naam van de aanbieder.',
+  'wizard.soverinMailPort': 'Mailpoort',
   'wizard.useSsl': 'SSL/TLS gebruiken',
   'wizard.migrationName': 'Naam van de migratie',
   'wizard.migrationNameHint': 'Een herkenbare naam voor deze migratie',

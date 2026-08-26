@@ -26,12 +26,12 @@ describe('TARGET_TYPE_DOMAINS mirrors the engines', () => {
     expect(TARGET_TYPE_DOMAINS.webdav).toEqual(['file']);
   });
 
-  it('soverin — the account-shaped kind — carries what its builders drive TODAY (0106 T4a)', () => {
-    // calendar + contact ride the existing DAV builders. Mail is deliberately
-    // absent until the mail target builder speaks this kind (T4b), and files
-    // until a qualification measures a file face — this table promises only
-    // what the engines deliver.
-    expect(TARGET_TYPE_DOMAINS.soverin).toEqual(['calendar', 'contact']);
+  it('soverin — the account-shaped kind — carries what its builders drive TODAY (0106 T4a+T4b)', () => {
+    // email rides the imap-dav writer through the account's stored mailHost
+    // (T4b), calendar + contact ride the existing DAV builders. Files stay
+    // out until a qualification measures a file face — this table promises
+    // only what the engines deliver.
+    expect(TARGET_TYPE_DOMAINS.soverin).toEqual(['email', 'calendar', 'contact']);
   });
 });
 
@@ -42,15 +42,15 @@ describe('targetDomainRefusal', () => {
     expect(targetDomainRefusal('caldav', ['calendar'])).toBeNull();
     expect(targetDomainRefusal('carddav', ['contact'])).toBeNull();
     expect(targetDomainRefusal('webdav', ['file'])).toBeNull();
-    expect(targetDomainRefusal('soverin', ['calendar', 'contact'])).toBeNull();
+    expect(targetDomainRefusal('soverin', ['email', 'calendar', 'contact'])).toBeNull();
     expect(targetDomainRefusal('jmap', [])).toBeNull();
   });
 
-  it('soverin + email refuses in the account kind’s own name — mail waits for T4b', () => {
-    const msg = targetDomainRefusal('soverin', ['email', 'calendar']);
+  it('soverin + file refuses in the account kind’s own name — files wait for a measured face', () => {
+    const msg = targetDomainRefusal('soverin', ['file', 'calendar']);
     expect(msg).toContain('Soverin');
-    expect(msg).toContain("'email'");
-    expect(msg).toContain("carries 'calendar', 'contact' only");
+    expect(msg).toContain("'file'");
+    expect(msg).toContain("carries 'email', 'calendar', 'contact' only");
   });
 
   it('names BOTH sides for carddav + email — the workplan example', () => {

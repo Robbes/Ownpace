@@ -236,6 +236,11 @@ export interface CreateMappingInput {
     username: string;
     password: string;
     useSsl?: boolean;
+    /** DAV targets (0105 T1): full DAV base URL; wins over host+port when set. */
+    url?: string;
+    /** soverin only (0106 T4b): the account's mail face — typed, never guessed. */
+    mailHost?: string;
+    mailPort?: number;
   };
   syncConfig: {
     domains: Array<'email' | 'calendar' | 'contact' | 'file'>;

@@ -143,12 +143,18 @@ export async function qualifyAccount(
     return qualifyJmap(config, creds);
   }
 
-  // The DAV family (caldav/carddav/webdav/nextcloud): one endpoint
+  // The DAV family (caldav/carddav/webdav/nextcloud/soverin): one endpoint
   // resolution, three faces asked — the SAME resolution the writers use, so
   // Soverin's per-protocol app-password scoping (if any) shows up here as
   // exactly the unknown-with-a-401 it is.
   const endpoint = davEndpointFromCreds('target', config, creds);
-  const [calendar, contact, file] = await Promise.all([
+  // The soverin ACCOUNT kind may also NAME its mail server (0106 T4b:
+  // `mailHost`, typed by the person, never guessed) — when it does, the
+  // mail face is measured with the same credential the DAV faces use; when
+  // it does not, the unmeasured sentence carries the remedy.
+  const mailHost =
+    kind === 'soverin' && typeof config.mailHost === 'string' ? config.mailHost.trim() : '';
+  const [calendar, contact, file, mailMeasured] = await Promise.all([
     askListable(
       () => new CalDAVSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password }),
       'calendar',
@@ -161,6 +167,23 @@ export async function qualifyAccount(
       () => new WebdavFileSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password }),
       'folder',
     ),
+    mailHost
+      ? askListable(
+          () =>
+            deps.imapListable
+              ? deps.imapListable({ host: mailHost, port: config.mailPort ?? 993 }, creds)
+              : buildImapSourceFrom(
+                  {
+                    host: mailHost,
+                    port: Number(config.mailPort ?? 993),
+                    tls: config.useSsl !== false,
+                    user: String(config.user ?? creds.username ?? ''),
+                  },
+                  { authType: 'LOGIN', password: creds.password },
+                ),
+          'folder',
+        )
+      : Promise.resolve(undefined),
   ]);
   // The scheduling verdict rides the calendar face it belongs to (0105 T0) —
   // measured only when that face answered, because a verdict about a
@@ -169,9 +192,19 @@ export async function qualifyAccount(
     calendar.answer === 'yes'
       ? await measureTargetScheduling(endpoint.url, endpoint.username, endpoint.password)
       : undefined;
+  const mail: QualifiedDomain =
+    mailMeasured ??
+    (kind === 'soverin'
+      ? {
+          answer: 'unknown',
+          detail:
+            'This account stores no mail server address, so mail was not measured — add the ' +
+            'mail host (mailHost) to the connection to measure this face.',
+        }
+      : { answer: 'unknown', detail: NOT_ASKABLE_MAIL });
   return {
     domains: {
-      mail: { answer: 'unknown', detail: NOT_ASKABLE_MAIL },
+      mail,
       calendar,
       contact,
       file,
