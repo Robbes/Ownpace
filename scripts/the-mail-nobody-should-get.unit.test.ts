@@ -110,6 +110,22 @@ describe('the mail nobody should get — the gate stays armed and asserting', ()
     ).toMatch(/"\$method" = "DELETE"[^\n]*Schedule-Reply: F/);
   });
 
+  it('measures the target instead of trusting it (0103 T3)', () => {
+    const smoke = strip('smoke-managed.sh');
+    expect(
+      smoke,
+      'the smoke no longer asks the target whether it auto-schedules. One\n' +
+        'OPTIONS request, API-only, no side effects — without it, whether the\n' +
+        'neutralising is load-bearing on this target is a guess again.',
+    ).toMatch(/OPTIONS[\s\S]{0,400}calendar-auto-schedule/);
+    expect(
+      smoke,
+      'the measurement lost its unmeasured state. A target that answers no\n' +
+        'DAV header is UNKNOWN — reporting it as anything else is the run-#6\n' +
+        'shape: a check that could not run counted as one that passed.',
+    ).toMatch(/UNKNOWN[^\n]*unmeasured/);
+  });
+
   it('the apply half can never spend the canary (E2E #88)', () => {
     const smoke = strip('smoke-managed.sh');
     expect(
