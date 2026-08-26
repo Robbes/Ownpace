@@ -39,6 +39,7 @@ import {
   renderEvent,
   type NotificationEvent,
   type NotificationLocale,
+  type NotificationMessage,
 } from '@openmig/shared';
 import { smtpTransport } from '@openmig/connectors';
 import { log } from '@openmig/shared';
@@ -55,6 +56,11 @@ let channel: ReturnType<typeof notifierFromEnv> | null = null;
 function envChannel(): ReturnType<typeof notifierFromEnv> {
   if (!channel) channel = notifierFromEnv(process.env, (message) => log.info(message));
   return channel;
+}
+
+/** Whether the mail channel is configured at all — for routes that refuse a press up front. */
+export function channelIsOn(): boolean {
+  return envChannel().config.enabled;
 }
 
 /** TEST SEAM ONLY. Pass `null` to re-read the environment. */
@@ -75,6 +81,19 @@ export async function tell(
   locale: NotificationLocale,
   event: NotificationEvent,
 ): Promise<TellOutcome> {
+  return tellMessage(to, locale, renderEvent(event, locale));
+}
+
+/**
+ * The same envelope-per-person channel for a message already rendered — the
+ * sharing queue's fallback digest (0104 T3) sends Template 6 through here so
+ * "one transport, many envelopes" stays one implementation.
+ */
+export async function tellMessage(
+  to: string,
+  locale: NotificationLocale,
+  message: NotificationMessage,
+): Promise<TellOutcome> {
   const { config } = envChannel();
   if (!config.enabled) {
     // Once per process, from `notifierFromEnv`'s own announcement — not per
@@ -89,7 +108,7 @@ export async function tell(
       to: [to],
       locale,
     });
-    await notifier.notify(renderEvent(event, locale));
+    await notifier.notify(message);
     return 'sent';
   } catch (error) {
     // Loudly, because nobody is watching this log and the operator's screen is

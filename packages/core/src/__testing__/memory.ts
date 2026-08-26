@@ -495,10 +495,17 @@ export class MemoryLedger implements Ledger {
 
   latestAuditEventAt(
     tenantId: LedgerRecord['tenantId'],
-    filter: { readonly actor: string; readonly action: string },
+    filter: { readonly actor?: string; readonly action: string; readonly mappingId?: string },
   ): Promise<string | undefined> {
     const mine = this.auditEvents
-      .filter((e) => e.tenantId === tenantId && e.actor === filter.actor && e.action === filter.action)
+      .filter(
+        (e) =>
+          e.tenantId === tenantId &&
+          (filter.actor === undefined || e.actor === filter.actor) &&
+          e.action === filter.action &&
+          (filter.mappingId === undefined ||
+            (e.detail as { mappingId?: string } | undefined)?.mappingId === filter.mappingId),
+      )
       .map((e) => e.at)
       .sort();
     return Promise.resolve(mine[mine.length - 1]);

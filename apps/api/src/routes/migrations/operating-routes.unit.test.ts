@@ -66,13 +66,15 @@ describe('route registration', () => {
         'POST /:mappingId/finish',
         'POST /:mappingId/moves/:hash/apply',
         'POST /:mappingId/moves/:hash/keep',
-        // The sharing checklist (ADR-0032, workplan 0052) — same four
+        // The sharing checklist (ADR-0032, workplan 0052) — same five
         // verbs on both editions: read the queue, rescan the inventory,
-        // settle one row (apply / done-by-hand / skip), and the one-go
-        // press (0104 T1) that applies every open clean row at the chosen
-        // moment.
+        // settle one row (apply / done-by-hand / skip), the one-go press
+        // (0104 T1) that applies every open clean row at the chosen moment,
+        // and the fallback announcement (0104 T3) for the rows no platform
+        // could announce.
         'GET /:mappingId/sharing',
         'POST /:mappingId/sharing/:grantId/decision',
+        'POST /:mappingId/sharing/announce',
         'POST /:mappingId/sharing/apply-all',
         'POST /:mappingId/sharing/rescan',
         'POST /:mappingId/verify/start',

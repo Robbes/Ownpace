@@ -1137,7 +1137,13 @@ export interface Ledger {
    */
   latestAuditEventAt(
     tenantId: TenantId,
-    filter: { readonly actor: string; readonly action: string },
+    filter: {
+      /** Omit to match ANY actor — "was this ever pressed", whoever pressed. */
+      readonly actor?: string;
+      readonly action: string;
+      /** Narrow to one mapping via the audit detail; omit for tenant-wide. */
+      readonly mappingId?: string;
+    },
   ): Promise<string | undefined>;
   /**
    * Upsert the sharing queue's rows from a fresh inventory scan (ADR-0032,

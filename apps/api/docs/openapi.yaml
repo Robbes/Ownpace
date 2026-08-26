@@ -1645,6 +1645,52 @@ paths:
                         scannedAt: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown mapping. }
+  /api/migrations/{mappingId}/sharing/announce:
+    post:
+      tags: [Migrations]
+      summary: Mail the fallback announcement for by-hand shares
+      description: |
+        The announcement the platform cannot make (workplan 0104 T3). One
+        press mails a Template-6 digest to each grantee of a `done_manual`
+        row — the shares somebody carried over by hand, where no target API
+        ever notified anybody. The note is REQUIRED: the "where" comes from
+        the person who did the carrying. Rows the one-go press applied need
+        nothing here (the platform already spoke); rows without an address
+        (links) are counted, never silently dropped. A prior press makes the
+        next one an explicit resend (`confirmResend: true`), never a silent
+        duplicate. Per grantee: their items only.
+      parameters:
+        - { name: mappingId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string, maxLength: 1000, description: Where things live now, in the presser's own words — carried in the mail body. }
+                locale: { type: string, enum: [en, nl] }
+                confirmResend: { type: boolean, description: Required true when an announcement was already sent for this migration. }
+      responses:
+        '200':
+          description: Who was told, who could not be.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  pressedBy: { type: string }
+                  sent: { type: array, items: { type: string } }
+                  failed: { type: array, items: { type: string } }
+                  platformAnnounced: { type: integer }
+                  withoutAddress: { type: integer }
+                  resend: { type: boolean }
+        '400': { description: The note is missing — the announcement must say where. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Unknown mapping. }
+        '409': { description: Not cut over, no mail channel, or already announced without confirmResend. }
   /api/migrations/{mappingId}/sharing/apply-all:
     post:
       tags: [Migrations]

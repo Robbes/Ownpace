@@ -336,6 +336,52 @@ IT-team
 
 ---
 
+## Template 6: To People Your Organisation Shares Files With (after cutover)
+
+The one template addressed to OUTSIDERS — people who are not your users but
+hold shares your users gave them. Most of them never need it: the sharing
+queue's one-go press makes the NEW platform send its own share notification,
+with a working link, at the moment you press (workplan 0104). This template
+covers the remainder the platform cannot announce: shares somebody carried
+over BY HAND (`done_manual` rows). The product sends it from the sharing
+queue (one press, at or after cutover, note required); each person receives
+only their own items.
+
+### English
+
+**Subject:** Files shared with you have moved
+
+The files or folders below were shared with you. They have moved to a
+different platform, and your access has moved with them.
+
+[Your note — REQUIRED at the press: say where things live now, in one or two
+sentences. Example: "Our documents now live on Team Cloud
+(https://cloud.example.com); sign in with the account we set up for you."]
+
+What is shared with you:
+  - [Item] ([role])
+
+You receive this message once, because the location changed. If a reference
+in it does not work, reply to the sender you know.
+
+### Dutch
+
+**Onderwerp:** Met u gedeelde bestanden zijn verhuisd
+
+De onderstaande bestanden of mappen waren met u gedeeld. Ze zijn naar een
+ander platform verhuisd, en uw toegang is meeverhuisd.
+
+[Uw notitie — VERPLICHT bij verzending: zeg in een of twee zinnen waar alles
+nu staat.]
+
+Wat er met u gedeeld is:
+  - [Item] ([rol])
+
+U ontvangt dit bericht eenmalig, omdat de locatie is veranderd. Werkt een
+verwijzing niet, antwoord dan aan de afzender die u kent.
+
+---
+
 ## Usage Guidelines
 
 ### When to Send Each Template
@@ -347,6 +393,7 @@ IT-team
 | Complete | Immediately after success | All affected users |
 | Rollback | Immediately after rollback | All affected users |
 | Support | 1-2 days after completion | All affected users |
+| Shared-with outsiders | At the sharing queue's press, after cutover | Grantees of by-hand shares only |
 
 ### Customization Notes
 
