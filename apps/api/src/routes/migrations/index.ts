@@ -240,7 +240,10 @@ export function targetConnectionConfig(
   if (body.targetType === 'imap') {
     return { ...base, type: 'imap-dav', user: cfg.username, tls: cfg.useSsl };
   }
-  return base;
+  // The three DAV types. `url`, when given, is the full DAV base the
+  // endpoint resolver prefers over host+port (0105 T1) — the door for a
+  // provider whose DAV root lives behind a path.
+  return { ...base, ...(cfg.url ? { url: cfg.url } : {}) };
 }
 
 /**
@@ -480,6 +483,13 @@ export const CreateMappingBase = z.object({
     username: z.string(),
     password: z.string(),
     useSsl: z.boolean().default(true),
+    /**
+     * DAV targets only (0105 T1): the full base URL, for a provider whose
+     * DAV root is not at the host root. When present it wins over host+port
+     * (`davUrl`'s precedence); host and port stay demanded so nothing about
+     * the existing doors changes shape.
+     */
+    url: z.string().optional(),
   }),
   syncConfig: z.object({
     domains: z.array(z.enum(['email', 'calendar', 'contact', 'file'])).default(['email']),
