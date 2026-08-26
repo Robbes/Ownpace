@@ -26,6 +26,7 @@ import {
   consentResultPage,
   consentUrl,
   exchangeCode,
+  rawIpCallbackRefusal,
   type GoogleConsentSourceType,
 } from './google-consent.ts';
 
@@ -71,6 +72,14 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
   const { sourceType, clientId, clientSecret } = parsed.data;
   const scope = GOOGLE_SOURCE_SCOPES[sourceType as GoogleConsentSourceType];
   const redirectUri = callbackUri(req);
+  // Refused HERE, with the two ways out named, rather than at Google's
+  // screen with a bare invalid_request (0089 T6): an appliance reached at a
+  // raw IP cannot be a redirect target, and nothing about starting the flow
+  // would have said so.
+  const ipRefusal = rawIpCallbackRefusal(redirectUri);
+  if (ipRefusal) {
+    return void res.status(400).json({ error: 'raw_ip_callback', reason: ipRefusal });
+  }
   const state = flows.begin({ clientId, clientSecret, scope, redirectUri });
   res.json({
     url: consentUrl({ clientId, scope, redirectUri, state }),
