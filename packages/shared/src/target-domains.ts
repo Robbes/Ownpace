@@ -29,7 +29,7 @@
 import type { DiscoveryDomain } from './discovery.ts';
 
 /** The wizard's target vocabulary (mirrors CreateMappingSchema.targetType). */
-export type WizardTargetType = 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
+export type WizardTargetType = 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
 
 export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<DiscoveryDomain>> = {
   jmap: ['email', 'contact', 'file'],
@@ -37,6 +37,16 @@ export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<Discove
   caldav: ['calendar'],
   carddav: ['contact'],
   webdav: ['file'],
+  // The first provider-named ACCOUNT kind (0106 T4a): one connection row,
+  // one credential, several protocol faces — the `nextcloud` model given a
+  // wizard door. Ground truth stays the engines: calendar and contact ride
+  // the existing DAV builders (the per-domain factories already route any
+  // non-jmap kind to carddav/webdav endpoints). Mail is NOT here yet — the
+  // mail target builder does not speak this kind (T4b), and promising a
+  // domain the builders cannot drive is exactly what this table exists to
+  // prevent. Files stay out until a Soverin account MEASURES a file face
+  // (the qualification's job, never this table's guess).
+  soverin: ['calendar', 'contact'],
 };
 
 const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
@@ -45,6 +55,7 @@ const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
   caldav: 'CalDAV',
   carddav: 'CardDAV',
   webdav: 'WebDAV',
+  soverin: 'Soverin',
 };
 
 /** The selected domains the given target protocol cannot receive. */

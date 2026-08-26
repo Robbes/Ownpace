@@ -240,9 +240,10 @@ export function targetConnectionConfig(
   if (body.targetType === 'imap') {
     return { ...base, type: 'imap-dav', user: cfg.username, tls: cfg.useSsl };
   }
-  // The three DAV types. `url`, when given, is the full DAV base the
-  // endpoint resolver prefers over host+port (0105 T1) — the door for a
-  // provider whose DAV root lives behind a path.
+  // The DAV-shaped types — the protocol trio and the `soverin` account kind
+  // (0106 T4a). `url`, when given, is the full DAV base the endpoint
+  // resolver prefers over host+port (0105 T1) — the door for a provider
+  // whose DAV root lives behind a path.
   return { ...base, ...(cfg.url ? { url: cfg.url } : {}) };
 }
 
@@ -446,7 +447,7 @@ export const CreateMappingBase = z.object({
    */
   sourceConnectionId: z.string().uuid().optional(),
   targetConnectionId: z.string().uuid().optional(),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
     // 'oauth2'/'graph' (the per-customer Entra app registration — ADR-0006,
@@ -1224,7 +1225,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
               .values({
                 tenantId,
                 role: 'target',
-                // targetType values (jmap/imap/caldav/carddav/webdav) are all valid connection kinds.
+                // targetType values (jmap/imap/caldav/carddav/webdav/soverin) are all valid connection kinds.
                 kind: body.targetType,
                 displayName: `${body.name} (target)`,
                 config: targetConnectionConfig(body),

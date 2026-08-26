@@ -50,7 +50,7 @@ type Domain = 'email' | 'calendar' | 'contact' | 'file';
 interface FormData {
   name: string;
   sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox' | 'box';
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
    *  cleared field into NaN, which disabled Next with no clue — the honest
@@ -1550,6 +1550,7 @@ const CreateMapping: React.FC = () => {
                     { id: 'caldav', name: 'CalDAV', hintKey: 'wizard.proto.caldav.hint' },
                     { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint' },
                     { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint' },
+                    { id: 'soverin', name: 'Soverin', hintKey: 'wizard.proto.soverin.hint' },
                   ] as const
                 ).map((type) => (
                   <button

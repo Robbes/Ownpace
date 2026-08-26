@@ -236,6 +236,61 @@ describe('the scheduling verdict: measured at test time, never assumed (0105 T0)
     }
   });
 
+  it('a soverin target’s headline is its CALENDAR face, verdict riding it (0106 T4a)', async () => {
+    // The account kind answers like caldav at the headline: the most
+    // informative single face, and the one the scheduling verdict belongs
+    // to — the qualification beside it carries the rest of the account.
+    const ACCOUNT_MULTISTATUS = `<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/dav/calendars/probe/personal/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:current-user-principal><d:href>/dav/principals/probe/</d:href></d:current-user-principal>
+        <cal:calendar-home-set><d:href>/dav/calendars/probe/</d:href></cal:calendar-home-set>
+        <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+        <d:displayname>personal</d:displayname>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>`;
+    const fetchMock = vi.fn(async (_url: string, init?: { method?: string; body?: string }) =>
+      init?.method === 'OPTIONS'
+        ? new Response('', {
+            status: 200,
+            headers: { DAV: '1, 2, calendar-access, calendar-auto-schedule' },
+          })
+        : new Response(ACCOUNT_MULTISTATUS, {
+            status: 207,
+            headers: { 'content-type': 'application/xml; charset=utf-8' },
+          }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const result = await probeTargetConnection(
+        'soverin',
+        { url: 'https://dav.example.net/dav/' },
+        { username: 'probe', password: 'pw' },
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.scheduling?.capability).toBe('auto-schedule');
+        expect(result.detail).toMatch(/^Connected\. \d+ collections? visible\./);
+      }
+      // The face that was asked is the calendar one — a PROPFIND that speaks
+      // calendar-home-set (or walks /calendars/), never the file listing.
+      const askedCalendar = fetchMock.mock.calls.some(
+        (c) =>
+          String((c[1] as { body?: string } | undefined)?.body ?? '').includes('calendar') ||
+          String(c[0]).includes('/calendars'),
+      );
+      expect(askedCalendar).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('a carddav target has no scheduling to measure: no verdict, and no OPTIONS ever sent', async () => {
     const fetchMock = davAnsweringFetch('1, 2, calendar-access, calendar-auto-schedule');
     vi.stubGlobal('fetch', fetchMock);

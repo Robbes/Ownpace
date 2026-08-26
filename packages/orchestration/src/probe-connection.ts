@@ -199,7 +199,7 @@ export async function probeSourceConnection(
  * JMAP client here starts with.
  */
 export async function probeTargetConnection(
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav',
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin',
   config: Record<string, unknown>,
   creds: Record<string, string>,
 ): Promise<ProbeResult> {
@@ -247,10 +247,13 @@ export async function probeTargetConnection(
         outcome: { code: 'connected', count: folders.length, unit: 'folder' },
       };
     }
-    // The three DAV targets: same URL resolution as the real target builders.
+    // The DAV-shaped targets: same URL resolution as the real target builders.
     const endpoint = davEndpointFromCreds('target', config, creds);
     const listable: Listable =
-      targetType === 'caldav'
+      // A `soverin` account's headline face is its calendar (0106 T4a): the
+      // most informative single answer, and the one the scheduling verdict
+      // belongs to. The qualification beside it carries the other faces.
+      targetType === 'caldav' || targetType === 'soverin'
         ? new CalDAVSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password })
         : targetType === 'carddav'
           ? new CarddavSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password })

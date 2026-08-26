@@ -74,15 +74,22 @@ describe('unknown types', () => {
 describe('what each side can offer', () => {
   it('lists the types a connection form may present', () => {
     expect(connectableTypes('source')).toContain('box');
-    expect(connectableTypes('target')).toEqual(['jmap', 'imap', 'caldav', 'carddav', 'webdav']);
+    expect(connectableTypes('target')).toEqual([
+      'jmap',
+      'imap',
+      'caldav',
+      'carddav',
+      'webdav',
+      'soverin',
+    ]);
   });
 });
 
 describe('the DAV targets ask for an optional base URL (0105 T1)', () => {
-  it('caldav, carddav and webdav offer url, and it gates nothing', () => {
+  it('caldav, carddav, webdav and soverin offer url, and it gates nothing', () => {
     // The escape hatch for a provider whose DAV root lives behind a path —
     // host+port can only ever say https://host:port/.
-    for (const type of ['caldav', 'carddav', 'webdav']) {
+    for (const type of ['caldav', 'carddav', 'webdav', 'soverin']) {
       const url = credentialFieldsFor('target', type).find((f) => f.key === 'url');
       expect(url, `${type} has no url field`).toBeDefined();
       expect(url?.required, `${type}'s url must stay optional — host+port keep working`).not.toBe(

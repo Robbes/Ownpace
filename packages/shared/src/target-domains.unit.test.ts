@@ -25,6 +25,14 @@ describe('TARGET_TYPE_DOMAINS mirrors the engines', () => {
     expect(TARGET_TYPE_DOMAINS.carddav).toEqual(['contact']);
     expect(TARGET_TYPE_DOMAINS.webdav).toEqual(['file']);
   });
+
+  it('soverin — the account-shaped kind — carries what its builders drive TODAY (0106 T4a)', () => {
+    // calendar + contact ride the existing DAV builders. Mail is deliberately
+    // absent until the mail target builder speaks this kind (T4b), and files
+    // until a qualification measures a file face — this table promises only
+    // what the engines deliver.
+    expect(TARGET_TYPE_DOMAINS.soverin).toEqual(['calendar', 'contact']);
+  });
 });
 
 describe('targetDomainRefusal', () => {
@@ -34,7 +42,15 @@ describe('targetDomainRefusal', () => {
     expect(targetDomainRefusal('caldav', ['calendar'])).toBeNull();
     expect(targetDomainRefusal('carddav', ['contact'])).toBeNull();
     expect(targetDomainRefusal('webdav', ['file'])).toBeNull();
+    expect(targetDomainRefusal('soverin', ['calendar', 'contact'])).toBeNull();
     expect(targetDomainRefusal('jmap', [])).toBeNull();
+  });
+
+  it('soverin + email refuses in the account kind’s own name — mail waits for T4b', () => {
+    const msg = targetDomainRefusal('soverin', ['email', 'calendar']);
+    expect(msg).toContain('Soverin');
+    expect(msg).toContain("'email'");
+    expect(msg).toContain("carries 'calendar', 'contact' only");
   });
 
   it('names BOTH sides for carddav + email — the workplan example', () => {

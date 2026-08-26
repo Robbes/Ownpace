@@ -46,6 +46,9 @@ Not (yet) migrated:
   empty migration" is the lie that refusal prevents (workplan 0027; manual runbook for the
   definition + members).
 - ⛔ **Category/label colours and non-flag keywords** — only the four mapped flags travel.
+- ⛔ **Mail through the `soverin` account kind** — the kind exists and carries
+  calendar+contact (see Calendars); its mail face waits for the mail target builder to
+  speak it (workplan 0106 T4b). Until then a Soverin mailbox is an ordinary `imap` target.
 
 ## Calendars
 
@@ -53,6 +56,11 @@ Not (yet) migrated:
 |---|---|---|---|
 | **Source** | ✅ (`caldav`) | ⏳ Graph (`graph-calendar`) — WIRED in workplan 0054 (before it, the config parsed but could not build: the connector had no call site); **workplan 0059 fixed a delta loop that re-requested page one forever on any calendar with more than one page, and the `/$delta` path Graph does not serve**; appliance mapping files; shared mailbox via `source.mailbox` | ⏳ CalDAV with OAuth (`google-calendar`, workplan 0045) — Stage 6 |
 | **Target** | ✅ CalDAV only | — | 🚫 never a target |
+
+Also a target: **Soverin** (`soverin`, workplan 0106 T4a) — the first provider-named
+**account** kind: one connection row, one app-password, carrying calendar *and* contact
+mappings through the same CalDAV/CardDAV writers the protocol kinds use. What the account
+actually answers per face is measured and stored (the 0106 qualification), never assumed.
 
 What migrates: events as **iCal objects**, with recurring series and their exceptions
 preserved over CalDAV; incremental sync via RFC 6578 sync-tokens (ctag fallback); the
@@ -79,7 +87,8 @@ Not (yet) migrated:
 | **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`) — wired in workplan 0054, same story as calendars, **including the same page-one-forever delta loop and `/$delta` path, both fixed in workplan 0059**; appliance mapping files; shared via `source.mailbox` | ⏳ CardDAV with OAuth (`google-contacts`, workplan 0045) — Stage 6 |
 | **Target** | ✅ CardDAV | — | 🚫 never a target |
 
-Also a target: **JMAP** (workplan 0031 T2).
+Also a target: **JMAP** (workplan 0031 T2), and **Soverin** (`soverin`) — the account kind's
+contact face, riding the same CardDAV writer (see Calendars).
 
 What migrates: contacts as **vCards** (photos ride inside), with the same
 update/conflict/adoption behaviour as calendars, incremental sync, and `reported` deletion

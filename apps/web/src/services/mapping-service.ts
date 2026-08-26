@@ -180,7 +180,7 @@ export const CreateMappingResponseSchema = z.object({
     'dropbox',
     'box',
   ]),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin']),
   status: MappingLifecycleSchema,
   mode: z.string(),
   pattern: z.string().optional(),
@@ -205,7 +205,7 @@ export interface CreateMappingInput {
     | 'dropbox'
     | 'box'
     | 'google-contacts';
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav';
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
   /** Reuse a stored connection instead of creating one (workplan 0064). When
    *  set, its credentials are used and none need re-sending. */
   sourceConnectionId?: string;
