@@ -368,6 +368,11 @@ const en = {
   // 0037 T4: the coherence hint on an unselectable data type; the full
   // refusal sentence comes from shared and renders verbatim.
   'wizard.domain.notForTarget': 'Not available over the selected target protocol.',
+  // The account's own measured record on the domain step (0106 T3a). The
+  // full evidence sentence rides the hover title; unknown never locks.
+  'wizard.domain.measuredNo':
+    'This account answered it cannot carry this — test the connection again if that changed.',
+  'wizard.domain.unmeasured': 'Not yet measured for this account; a test answers it.',
   'wizard.cron.invalidLead': 'Not a valid schedule —',
   'wizard.cron.nextRuns': 'With this schedule, the next syncs would run:',
   // 0037 T5: leaving a dirty wizard is a question, not a silent discard.
@@ -1424,6 +1429,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.clientId': 'Client-ID (applicatie-ID)',
   'wizard.sourceClientSecret': 'Clientgeheim van de bron',
   'wizard.domain.notForTarget': 'Niet beschikbaar via het gekozen doelprotocol.',
+  'wizard.domain.measuredNo':
+    'Dit account antwoordde dat het dit niet kan dragen — test de verbinding opnieuw als dat veranderd is.',
+  'wizard.domain.unmeasured': 'Nog niet gemeten voor dit account; een test geeft het antwoord.',
   'wizard.cron.invalidLead': 'Geen geldig schema —',
   'wizard.cron.nextRuns': 'Met dit schema draaien de volgende synchronisaties op:',
   'wizard.leaveConfirm': 'Deze wizard verlaten? Alles wat u hier hebt ingevuld gaat verloren.',

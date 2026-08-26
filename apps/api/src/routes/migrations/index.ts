@@ -40,6 +40,7 @@ import {
   ConfigError,
   describeCronScheduleProblem,
   credentialFieldsFor,
+  measuredNoRefusal,
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
 
@@ -1203,12 +1204,13 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         id: string,
         role: 'source' | 'target',
         wantKind: string,
-      ): Promise<{ id: string }> => {
+      ): Promise<{ id: string; qualification: unknown }> => {
         const rows = await db
           .select({
             id: schema.connection.id,
             role: schema.connection.role,
             kind: schema.connection.kind,
+            qualification: schema.connection.qualification,
           })
           .from(schema.connection)
           .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
@@ -1235,7 +1237,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
               `'${wantKind}' ${role}. Pick a ${wantKind} connection, or enter new credentials.`,
           );
         }
-        return { id: found.id };
+        return { id: found.id, qualification: found.qualification };
       };
 
       const sourceConn = body.sourceConnectionId
@@ -1256,7 +1258,18 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
           );
 
       const targetConn = body.targetConnectionId
-        ? await reuseConnection(body.targetConnectionId, 'target', body.targetType)
+        ? await (async () => {
+            const reused = await reuseConnection(body.targetConnectionId!, 'target', body.targetType);
+            // What the account itself MEASURED constrains what a mapping may
+            // ask of it (0106 T3a) — the shared gate, so the wizard's marking
+            // and this refusal are one sentence. Only a well-formed measured
+            // 'no' refuses; unknown and absent records never do (the
+            // three-state rule): the static matrix above stays the ceiling,
+            // this reads the account's own record beneath it.
+            const refusal = measuredNoRefusal(reused.qualification, body.syncConfig.domains);
+            if (refusal) throw new ConfigError(refusal);
+            return reused;
+          })()
         : firstOrThrow(
             await db
               .insert(schema.connection)
