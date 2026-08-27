@@ -257,6 +257,45 @@ describe('a gmail source (workplan 0044) — the Drive credential shape, the mai
     expect(msg).toContain('google-workspace-setup.md');
   });
 
+  it('accepts an app password INSTEAD of the trio, for a personal account (0089 T7)', () => {
+    const appPasswordOnly = gmail({
+      sourceConfig: {
+        clientId: undefined,
+        clientSecret: undefined,
+        refreshToken: undefined,
+        appPassword: 'abcd efgh ijkl mnop',
+      },
+    });
+    expect(CreateMappingSchema.safeParse(appPasswordOnly).success).toBe(true);
+  });
+
+  it('does not accept a BLANK app password as a credential', () => {
+    // An empty field is not a choice. Accepting it would create a mapping that
+    // authenticates as the empty string and fails at Gmail — which reads as
+    // "Gmail rejected us" rather than "you left it blank".
+    const msg = refusalText(
+      gmail({
+        sourceConfig: {
+          clientId: undefined,
+          clientSecret: undefined,
+          refreshToken: undefined,
+          appPassword: '   ',
+        },
+      }),
+    );
+    expect(msg).toContain('clientId');
+  });
+
+  it('names the app password as an ALTERNATIVE, with what it costs (0089 T7)', () => {
+    const msg = refusalText(gmail({ sourceConfig: { refreshToken: undefined } }));
+    // Naming the shorter road without naming its price would be a
+    // recommendation dressed as a fact.
+    expect(msg).toContain('appPassword');
+    expect(msg).toContain('recommends against');
+    expect(msg).toContain('2-step verification');
+    expect(msg).toContain('does not exist on a Workspace account');
+  });
+
   it('refuses non-email domains — the credential reads mail only', () => {
     const msg = refusalText(gmail({ syncConfig: { domains: ['email', 'file'] } }));
     expect(msg).toContain("'file'");

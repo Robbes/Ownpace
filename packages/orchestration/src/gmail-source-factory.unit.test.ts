@@ -113,6 +113,96 @@ describe('the token provider is built for MAIL, with the credentials as found', 
   });
 });
 
+describe('the app password: opt-in, last resort, honestly labelled (0089 T7)', () => {
+  const APP_PASSWORD = { appPassword: 'abcd efgh ijkl mnop' };
+
+  /** Capture what the IMAP layer was actually built with. */
+  const built = (creds: Parameters<typeof buildGmailSourceFrom>[1]) => {
+    let seenProvider = false;
+    const source = buildGmailSourceFrom('user@gmail.com', creds, STORED_GMAIL_CREDENTIAL_NAMES, () => {
+      seenProvider = true;
+      return fakeProvider;
+    });
+    return { source, usedOauth: seenProvider };
+  };
+
+  it('builds a source from an app password alone — no OAuth client needed', () => {
+    const { source, usedOauth } = built(APP_PASSWORD);
+    expect(source).toBeInstanceOf(GmailFolderView);
+    // No token provider was asked for, because there is no token.
+    expect(usedOauth).toBe(false);
+  });
+
+  it('is NEVER preferred when the OAuth trio is also present', () => {
+    // "Never the default" as a property of the code rather than a promise made
+    // in a form. An account carrying both keeps the narrower credential, and
+    // no interface redesign can quietly reverse that.
+    expect(built({ ...CREDS, ...APP_PASSWORD }).usedOauth).toBe(true);
+  });
+
+  it('is not reached by a blank or whitespace value', () => {
+    // An empty field is not a choice. Falling through to the refusal is right:
+    // otherwise a cleared password would authenticate as the empty string and
+    // fail at Gmail, which reads as "Gmail rejected us" rather than "you left
+    // it blank".
+    for (const blank of ['', '   ']) {
+      expect(() => buildGmailSourceFrom('user@gmail.com', { appPassword: blank })).toThrow(
+        /GOOGLE_CLIENT_ID/,
+      );
+    }
+  });
+
+  it('names the alternative in the refusal WITH Google’s own discouragement', () => {
+    const failure = (() => {
+      try {
+        buildGmailSourceFrom('user@gmail.com', {}, STORED_GMAIL_CREDENTIAL_NAMES);
+      } catch (err) {
+        return err as Error;
+      }
+      throw new Error('expected a refusal');
+    })();
+
+    // Naming the shorter road without naming what it costs would be a
+    // recommendation dressed as a fact.
+    expect(failure.message).toMatch(/appPassword/);
+    expect(failure.message).toMatch(/recommends against/);
+    // 2SV is the prerequisite that would otherwise surface as an unexplained
+    // authentication failure hours later.
+    expect(failure.message).toMatch(/2-step verification/);
+    expect(failure.message).toMatch(/not available on a Workspace account/i);
+    // And it is honestly described as WIDER, not narrower.
+    expect(failure.message).toMatch(/grants the whole mailbox/);
+  });
+
+  it('never tells anyone to enable IMAP — always-on since March 2025', () => {
+    const failure = (() => {
+      try {
+        buildGmailSourceFrom('user@gmail.com', {}, STORED_GMAIL_CREDENTIAL_NAMES);
+      } catch (err) {
+        return err as Error;
+      }
+      throw new Error('expected a refusal');
+    })();
+    expect(failure.message).not.toMatch(/enable IMAP/i);
+  });
+
+  it('says nothing about app passwords where the vocabulary has no name for one', () => {
+    // The DAV and Drive factories share this naming type and have no
+    // app-password path — an absent name must not produce a dangling sentence.
+    const naming = { ...STORED_GMAIL_CREDENTIAL_NAMES };
+    delete (naming as { appPassword?: string }).appPassword;
+    const failure = (() => {
+      try {
+        buildGmailSourceFrom('user@gmail.com', {}, naming);
+      } catch (err) {
+        return err as Error;
+      }
+      throw new Error('expected a refusal');
+    })();
+    expect(failure.message).not.toMatch(/app password/i);
+  });
+});
+
 describe('the view-folder filter', () => {
   it('drops All Mail, Starred and Important by ATTRIBUTE, keeping real folders', () => {
     // The three views re-present other folders' messages. Copying them

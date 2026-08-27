@@ -150,6 +150,32 @@ sign in to yourself. Manually, using Google's own
 > against your own client works, as long as it asks for `access_type=offline` — without that
 > Google returns an access token only, which expires in an hour and cannot be renewed.
 
+### A personal Gmail account can skip all of this — and Google would rather you did not
+
+For **mail only**, and only on a **personal** Google account, there is a shorter road: an
+**app password**. Paste it into the wizard's *App password* field (or set
+`GOOGLE_MAIL_APP_PASSWORD` on an appliance) and leave the three OAuth fields empty. Everything
+else about the migration is identical: same folders, same messages, same duplicate-detection.
+
+**Google recommends against app passwords, and so do we.** That is not a formality:
+
+- an app password **opens the whole mailbox**, where a consented token opens the one thing it
+  was consented for. It is the wider credential, not the narrower one;
+- it needs **2-step verification** on the account before Google will create one at all. Without
+  2SV there is no app-password screen to find;
+- **it does not exist on a Workspace account** — administrators can withdraw it, and Google has
+  been removing it. If the account is in a Workspace, use the Internal consent path above: it
+  has no warnings, no verification review, and no seven-day expiry.
+
+The one real advantage, and the reason this path is offered at all: **withdrawing it is theirs
+alone.** One row in the account's own app-password list, deleted, and the access is gone —
+without touching Ownpace, without an administrator, and without deleting an OAuth client that
+other migrations may be using. For somebody lending their personal mailbox to a migration for a
+fortnight, that is worth something real.
+
+If it is used, the daily download ceiling is **exactly the same** — Google enforces it on the
+IMAP endpoint, not on the credential — so nothing about throughput changes either way.
+
 **Treat the refresh token as a password.** It grants read access to that Drive until it is
 revoked, and it does not expire on its own. It does die if:
 
@@ -288,6 +314,14 @@ GOOGLE_MAIL_REFRESH_TOKEN=…                     # the MAIL-consented token
 Managed — the same three, entered in the create-mapping wizard (a **Gmail** source: client ID
 on the source step; client secret and refresh token on the credentials step). Stored
 encrypted on the source connection as `clientId`, `clientSecret`, `refreshToken`.
+
+Or, for a **personal** account only, the app password instead of all three —
+`GOOGLE_MAIL_APP_PASSWORD` on an appliance, `appPassword` in the wizard. Read
+[the section above](#a-personal-gmail-account-can-skip-all-of-this--and-google-would-rather-you-did-not)
+before choosing it: Google recommends against it, it needs 2-step verification, it does not
+exist on a Workspace account, and it is the wider credential rather than the narrower one.
+**Configuring both changes nothing** — OAuth wins whenever it is complete, so an app password
+left behind from an earlier attempt cannot quietly take over.
 
 The mapping needs only the address, because everything else is fixed by Google:
 
