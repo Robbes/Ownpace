@@ -991,8 +991,28 @@ paths:
       description: |
         Returns the URL to send a browser to, plus the redirect URI Google must
         have registered — a wrong one fails at Google's screen, so the caller is
-        given the exact string to register. One source type, one scope: nothing
-        can widen a Gmail consent into Drive.
+        given the exact string to register.
+
+        **Two shapes, and the ask is exactly what was named.** `sourceType` is
+        one Google source and one scope: nothing can widen a Gmail consent into
+        Drive. `domains` is the ACCOUNT ask (workplan 0106 T3b) — one Google
+        connection wearing several faces, and the scope string is built from the
+        ticks and from nothing else. Neither shape has a default: an empty tick
+        set is refused rather than substituted, because a fallback would be a
+        way to ask for something nobody ticked.
+
+        A `google` account connection serves **calendar and contact**. Mail and
+        files need scopes Google classes as restricted — an annual third-party
+        security assessment for the whole application, including customers who
+        only wanted contacts — so a tick for either is **refused**, naming the
+        single-purpose `gmail` or `google-drive` source that still serves it. A
+        silent narrowing would be worse: somebody approves a screen showing two
+        faces, believing they ticked four.
+
+        The consent is asked **incrementally** (`include_granted_scopes`), which
+        is not optional once the ask is narrow: Google replaces a grant with
+        exactly what the latest consent named, so a person who consented to mail
+        and then to calendar would otherwise be left with calendar only.
 
         The client secret is held in process memory keyed by a signed,
         single-use, ten-minute `state` and is never in a URL. An appliance
@@ -1004,13 +1024,25 @@ paths:
           application/json:
             schema:
               type: object
-              required: [sourceType, clientId, clientSecret]
+              required: [clientId, clientSecret]
               properties:
-                sourceType:
-                  type: string
-                  enum: [gmail, google-calendar, google-contacts, google-drive]
                 clientId: { type: string }
                 clientSecret: { type: string, writeOnly: true }
+                sourceType:
+                  type: string
+                  description: The single-purpose ask. Mutually exclusive with `domains`.
+                  enum: [gmail, google-calendar, google-contacts, google-drive]
+                domains:
+                  type: array
+                  description: |
+                    The account ask: which faces of one Google account to
+                    consent to. Mutually exclusive with `sourceType`.
+                  items:
+                    type: string
+                    enum: [email, calendar, contact, file]
+              oneOf:
+                - required: [sourceType]
+                - required: [domains]
       responses:
         '200':
           description: Where to send the browser, and what Google must have registered.
@@ -1021,8 +1053,26 @@ paths:
                 properties:
                   url: { type: string }
                   redirectUri: { type: string }
-                  scope: { type: string }
-        '400': { description: The body was incomplete, or the callback would be a raw IP address. }
+                  scope:
+                    type: string
+                    description: |
+                      Space-joined, in a stable order — the same tick set always
+                      produces the same string, so a person can recognise it as
+                      the request they approved yesterday. Always identical to
+                      the URL's own `scope` parameter.
+                  domains:
+                    type: array
+                    description: |
+                      What was asked for, echoed back in the same order as
+                      `scope`. Present only for the account ask; for a
+                      `sourceType` ask the source already said it.
+                    items: { type: string }
+        '400':
+          description: |
+            `invalid_body` (neither shape), `no_domains_ticked` (an empty tick
+            set), `unknown_domain` (not one of the four), `not_on_this_account`
+            (a face this account kind does not serve, naming the source that
+            does), or `raw_ip_callback`.
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /api/migrations/google/callback:
