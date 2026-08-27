@@ -983,6 +983,77 @@ paths:
                   reason: { type: string }
         '400': { description: The three credential fields were not all present. }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/migrations/google/authorize:
+    post:
+      tags: [Migrations]
+      summary: Start a Google consent against the customer's own client
+      description: |
+        Returns the URL to send a browser to, plus the redirect URI Google must
+        have registered — a wrong one fails at Google's screen, so the caller is
+        given the exact string to register. One source type, one scope: nothing
+        can widen a Gmail consent into Drive.
+
+        The client secret is held in process memory keyed by a signed,
+        single-use, ten-minute `state` and is never in a URL. An appliance
+        reached at a raw IP is refused here rather than at Google's screen,
+        because a redirect URI cannot be an IP address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceType, clientId, clientSecret]
+              properties:
+                sourceType:
+                  type: string
+                  enum: [gmail, google-calendar, google-contacts, google-drive]
+                clientId: { type: string }
+                clientSecret: { type: string, writeOnly: true }
+      responses:
+        '200':
+          description: Where to send the browser, and what Google must have registered.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string }
+                  redirectUri: { type: string }
+                  scope: { type: string }
+        '400': { description: The body was incomplete, or the callback would be a raw IP address. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/migrations/google/callback:
+    get:
+      tags: [Migrations]
+      summary: Where Google returns the person's browser
+      description: |
+        Public by nature and trusted by nothing except the signed, single-use,
+        expiring `state`. Answers an HTML page, not JSON — it is a browser
+        destination, not a client endpoint, and no client should call it.
+
+        Absent, forged, expired and already-used states get one sentence
+        between them, because distinguishing them would teach a forger which
+        part failed.
+      security: []
+      parameters:
+        - { name: state, in: query, schema: { type: string } }
+        - { name: code, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: The result page — granted, or Google's own refusal.
+          content:
+            text/html:
+              schema: { type: string }
+        '400':
+          description: No state this server is waiting for, or no authorization code.
+          content:
+            text/html:
+              schema: { type: string }
+
   /api/connections:
     get:
       tags: [Connections]
@@ -1519,6 +1590,133 @@ paths:
             application/json:
               schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/links:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Grant links]
+      summary: Issue a grant link, and see it once
+      description: |
+        Mints a mapping-scoped bearer link so the person being migrated can
+        grant access to their own account without an Ownpace account, a
+        password or a session. The `url` in this response is the ONLY time it
+        exists: the table holds a hash, so nothing can show it again. A lost
+        link is re-issued, not recovered.
+
+        **You distribute it.** Ownpace sends no email and stores no address for
+        the recipient — the person who decides who gets access is the person
+        who already knows who they are.
+
+        `expiryDays` is your choice of 1, 7 or 30, defaulting to 7. Expiry
+        bounds when the flow may BEGIN; revocation stops everything, including
+        a consent already in flight.
+
+        Refuses before writing anything when the link could not succeed: no
+        source connection, a source that is not one of the four Google kinds,
+        a source with no client id or secret stored, or a deployment with no
+        `WEB_URL` to build the address from. Each refusal names what to
+        configure — the alternative is an error landing on the one person who
+        cannot fix it.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expiryDays: { type: integer, enum: [1, 7, 30], default: 7 }
+      responses:
+        '201':
+          description: The link, said once.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  url: { type: string }
+                  expiresAt: { type: string, format: date-time }
+                  expiryDays: { type: integer }
+                  distribution: { type: string }
+        '400': { description: '`expiryDays` was not one of the offered values.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            Well-formed and permitted, but this migration or deployment cannot
+            support a grant link yet. `error` is one of `no_source_connection`,
+            `source_not_google`, `client_not_configured` or `web_url_unset`;
+            `reason` names the remedy. Nothing was written.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  reason: { type: string }
+    get:
+      tags: [Grant links]
+      summary: The links that exist, and their state
+      description: |
+        State and dates, never a URL and never a secret — the table holds only
+        a hash, so this could not show one if it wanted to. `state` is one of
+        `live`, `used`, `revoked` or `expired`, and `expired` is reported only
+        for a link that was never used: one that expired UNUSED means somebody
+        was asked and never managed to answer, which is the case worth acting
+        on.
+      responses:
+        '200':
+          description: Every link for this migration, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  links:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        purpose: { type: string, enum: [grant, view] }
+                        state: { type: string, enum: [live, used, revoked, expired] }
+                        createdAt: { type: string, format: date-time }
+                        createdBy: { type: string }
+                        expiresAt: { type: string, format: date-time }
+                        usedAt: { type: string, format: date-time, nullable: true }
+                        revokedAt: { type: string, format: date-time, nullable: true }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/links/{linkId}:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - { name: linkId, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      tags: [Grant links]
+      summary: Revoke a link
+      description: |
+        The owner's kill switch, and idempotent: revoking an already-revoked
+        link answers 200 with `revoked: false`, because pressing twice means
+        the same thing both times and an error would suggest the door is
+        somehow still open.
+
+        Revocation is re-checked at the moment a grant would be stored, so it
+        also stops a consent that was already in flight.
+      responses:
+        '200':
+          description: Revoked now (`true`), or already revoked (`false`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /api/migrations/{mappingId}/deletions:

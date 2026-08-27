@@ -82,6 +82,22 @@ export const STATE_TABLE = {
     auto_resolved: { key: 'decisionStatus.auto_resolved', tone: 'green' },
     dismissed: { key: 'decisionStatus.dismissed', tone: 'muted' },
   },
+  /** Grant-link state (workplan 0108, derived by `linkState` rather than
+   *  stored, so one definition serves every surface).
+   *
+   *  `expired` is YELLOW and never `void`, which is the one deliberate
+   *  departure from how this table treats endings elsewhere. A link only
+   *  reads as expired when it was never used — somebody was asked and never
+   *  managed to answer — and greying that away hides the single row on the
+   *  screen that wants the owner to do something (re-issue). `used` is the
+   *  ending that actually finished, and `revoked` is the owner's own
+   *  decision, so those two are the quiet ones. */
+  link: {
+    live: { key: 'state.link.live', tone: 'green' },
+    used: { key: 'state.link.used', tone: 'emerald' },
+    revoked: { key: 'state.link.revoked', tone: 'muted' },
+    expired: { key: 'state.link.expired', tone: 'yellow' },
+  },
   /** Invoice status (the DB enum — Mollie's words, workplan 0039).
    *  Overdue is the one demanding action. */
   invoice: {

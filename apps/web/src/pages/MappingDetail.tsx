@@ -30,6 +30,7 @@ import { mappingApi } from '../services/mapping-service.ts';
 import { fetchStatus } from '../services/operating-service.ts';
 import { useT } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
+import GrantLinksPanel from '../components/GrantLinksPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import LiveProgress from '../components/LiveProgress.tsx';
 import StateChip from '../components/StateChip.tsx';
@@ -131,6 +132,12 @@ const MappingDetail: React.FC = () => {
           </li>
         ))}
       </ul>
+
+      {/* Grant links (0108 T3) — how the person being migrated gives access to
+          their own account. Above the run history because it is a thing to DO,
+          and often the first: until somebody grants, there is nothing to run.
+          Renders nothing on the appliance, whose API does not serve it yet. */}
+      <GrantLinksPanel mappingId={id} />
 
       {/* Run history (0026 T3 row 23) — what each pass did, errors verbatim.
           Below the links on purpose: the queues are decisions, this is the

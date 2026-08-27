@@ -31,6 +31,11 @@ import {
 // discovery and start, which is where the appliance's equivalents live too.
 import operatingRoutes from './operating-routes.ts';
 import googleOauthRoutes from './google-oauth-routes.ts';
+// The owner's grant-link surface (workplan 0108 T3): issue, list, revoke, all
+// under /api/migrations/:mappingId/links. The link HOLDER's routes are not
+// here and never will be — they authenticate a link, not a session, so they
+// live behind their own middleware rather than behind `authenticate`.
+import linkRoutes from './link-routes.ts';
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
@@ -425,6 +430,7 @@ export class DuplicateMappingError extends Error {
 
 router.use('/', operatingRoutes);
 router.use('/', googleOauthRoutes);
+router.use('/', linkRoutes);
 
 // Global pool - created once and reused
 let _dbPool: ReturnType<typeof getDbPool> | null = null;
