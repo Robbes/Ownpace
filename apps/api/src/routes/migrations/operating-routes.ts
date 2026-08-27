@@ -91,6 +91,7 @@ import { createNextcloudShare } from '@openmig/connectors';
 import type { ShareGrantRow } from '@openmig/shared';
 import { resolveMappingMailbox, tenantInventoryScans } from '../permissions.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
+import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { serverFault } from '../../server-fault.ts';
 
 const router = Router({ mergeParams: true });
@@ -872,8 +873,8 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
       return void res.json(already);
     }
 
-    await withTenantDb(s.tenantId, pool(), (db) =>
-      db
+    await withTenantDb(s.tenantId, pool(), async (db) => {
+      await db
         .update(schema.mailboxMapping)
         // `updatedAt` stamped here, not left to the database: there is no
         // trigger on this table (checked across every ledger migration), so a
@@ -888,8 +889,19 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
             eq(schema.mailboxMapping.id, s.mappingId),
             eq(schema.mailboxMapping.tenantId, s.tenantId),
           ),
-        ),
-    );
+        );
+      // Same transaction as the write above, so the change and its record
+      // commit together (workplan 0109 T1). `s.lifecycle` is the status
+      // `scope()` already read for this request, so the FROM costs no query.
+      await recordMappingStatusChange(db, s.tenantId, {
+        mappingId: s.mappingId,
+        from: s.lifecycle,
+        to: 'done',
+        actor: req.userId ?? 'unknown',
+        via: 'finish',
+        ...(unresolved > 0 ? { forced: true } : {}),
+      });
+    });
 
     log.warn(
       `[api] ${s.mappingId}: FINISHED by operator — no longer syncing` +

@@ -11,6 +11,7 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
+import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgMigrationStatusStore, PgLedger, RunStore } from '@openmig/ledger';
@@ -1714,7 +1715,24 @@ router.put(
       // related tables (mailbox, connection, scope_selection, collection_mapping)
 
       const [updated] = await withTenantDb(tenantId, pool, async (db) => {
-        return await db
+        // The status this mapping holds BEFORE the write, read inside the same
+        // transaction so nothing can move it in between. Only needed when the
+        // body actually carries a status — otherwise this is not a lifecycle
+        // transition and there is nothing to record.
+        const previousStatus = updateData.status
+          ? (
+              await db
+                .select({ status: schema.mailboxMapping.status })
+                .from(schema.mailboxMapping)
+                .where(
+                  and(
+                    eq(schema.mailboxMapping.id, mappingId),
+                    eq(schema.mailboxMapping.tenantId, tenantId),
+                  ),
+                )
+            )[0]?.status
+          : undefined;
+        const [row] = await db
           .update(schema.mailboxMapping)
           // Stamped LAST so it cannot be spread away by a field above, and
           // unconditionally: this route is how a mapping reaches `paused`,
@@ -1728,6 +1746,19 @@ router.put(
             )
           )
           .returning();
+        // Only when the row existed AND the status actually moved — the helper
+        // drops a from === to change, because a PATCH restating the status a
+        // mapping already has is a request, not a transition.
+        if (row && updateData.status && previousStatus) {
+          await recordMappingStatusChange(db, tenantId, {
+            mappingId,
+            from: previousStatus,
+            to: updateData.status,
+            actor: req.userId ?? 'unknown',
+            via: 'update',
+          });
+        }
+        return [row];
       });
 
       if (!updated) {
@@ -2184,12 +2215,22 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
 
     const activated = mapping.status !== 'active';
     if (activated) {
-      await withTenantDb(tenantId, getSharedPool(), (db) =>
-        db
+      await withTenantDb(tenantId, getSharedPool(), async (db) => {
+        await db
           .update(schema.mailboxMapping)
           .set({ status: 'active', updatedAt: new Date() })
-          .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId))),
-      );
+          .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
+        // Recorded in the SAME transaction (workplan 0109 T1): the change and
+        // the record of it commit together. `mapping.status` was read above,
+        // and `activated` already guarantees it differs from 'active'.
+        await recordMappingStatusChange(db, tenantId, {
+          mappingId,
+          from: mapping.status,
+          to: 'active',
+          actor: req.userId ?? 'unknown',
+          via: 'start',
+        });
+      });
     }
 
     // The mapping IS active whatever happens next, so a failure to enqueue
