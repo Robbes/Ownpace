@@ -7,7 +7,7 @@
  * drift guard between the page and the invoice, and it cannot be an import:
  * `site/` deliberately depends on nothing in the workspace, which is what lets
  * the public pages be split out later without a migration (workplan 0086 T7).
- * So the numbers are copied and the COPY IS GUARDED — `site/prices.unit.test.ts`
+ * So the numbers are copied and the COPY IS GUARDED — `site/site.unit.test.ts`
  * reads ADR-0014's own table and fails if this file disagrees with it.
  *
  * That direction is deliberate. ADR-0014 is where the decision was taken and

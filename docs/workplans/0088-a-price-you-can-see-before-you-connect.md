@@ -28,7 +28,7 @@ while scoping it changed the shape of the work.
 enqueues a read-only `run-discovery` job, per-domain counts land in `migration_discovery`,
 and `GET …/discovery` serves them. New mappings deliberately land **PAUSED (draft)** so
 the owner reviews those counts before anything starts
-(`apps/api/src/routes/migrations/index.ts:1329`, `:1770`, `:1942–1990`). So the free
+(`apps/api/src/routes/migrations/index.ts:1395`, `:1829`, `:2004–2054`). So the free
 "see what you have before you pay" step is mostly **positioning an existing flow**. What
 does not exist is the rung in front of it, for someone who has not connected anything and
 may never.
