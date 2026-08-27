@@ -65,6 +65,14 @@ export const PURGED_TABLES = [
   'cursor',
   'collection_mapping',
   'scope_selection',
+  // Before `verification` AND before `mailbox_mapping`: a run references both,
+  // and its foreign key to the mapping has no ON DELETE clause — so it
+  // RESTRICTS. Absent from this list, a tenant with a single verification run
+  // could not be erased at all: `purgeTenant` threw
+  // `verification_run_mapping_id_fkey` partway through, leaving a tenant
+  // marked `deleting` and half emptied. Found 2026-08-27 by seeding the
+  // fixture with the rows a real tenant actually has.
+  'verification_run',
   'verification',
   'cutover_event',
   'cutover_state',
@@ -91,6 +99,38 @@ export const PURGED_TABLES = [
   'audit_log',
   'rate_budget',
   'byte_budget',
+  // The support read log (workplan 0110 T1). It exists so a customer can be
+  // SHOWN what an operator looked at — that is the accountability standing
+  // where a consent row would have been. Once the customer is erased there is
+  // nobody left to show it to, and rows naming a tenant id that no longer
+  // exists are precisely what an erasure removes; `erasure_record` goes to the
+  // trouble of hashing the id for exactly this reason.
+  //
+  // Only the rows naming this tenant. A read of the tenant LIST carries a NULL
+  // `tenant_id` and stays: it is not about any one customer, and deleting it
+  // would erase the record of an operator having surveyed everybody.
+  'support_read',
+  // The request that created this tenant, and the SECOND thing that made an
+  // erasure impossible.
+  //
+  // Migration 0007 gave `access_request.tenant_id` an ON DELETE **RESTRICT**
+  // foreign key, deliberately, and said so in as many words: *"delete the
+  // requests before you delete a tenant. Nothing in the product deletes
+  // tenants — non-destructive by default (ADR-0024) — so this is for operators
+  // clearing up by hand, and for tests."*
+  //
+  // That was true when 0007 was written and stopped being true when offboarding
+  // shipped: `apps/worker/src/jobs/managed-purge-closed.ts` deletes tenants on
+  // a schedule now. The service is invite-only, so EVERY managed customer has a
+  // granted request pointing at their tenant — the erasure of any real customer
+  // would have failed on this constraint. This line is 0007's own instruction,
+  // finally carried out by the code that needs it.
+  //
+  // Purged rather than detached (the treatment `invoice` gets): an invoice is
+  // kept for tax retention and can say who it billed without a tenant, while a
+  // request kept after erasure is somebody's name, email and organisation held
+  // for no reason anybody could give them.
+  'access_request',
 ] as const;
 
 /**
