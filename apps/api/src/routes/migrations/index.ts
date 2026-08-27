@@ -1716,7 +1716,11 @@ router.put(
       const [updated] = await withTenantDb(tenantId, pool, async (db) => {
         return await db
           .update(schema.mailboxMapping)
-          .set(updateData)
+          // Stamped LAST so it cannot be spread away by a field above, and
+          // unconditionally: this route is how a mapping reaches `paused`,
+          // `cutover` and `done`, so three of the four lifecycle transitions
+          // ran through here leaving no timestamp at all (workplan 0109 T1).
+          .set({ ...updateData, updatedAt: new Date() })
           .where(
             and(
               eq(schema.mailboxMapping.id, mappingId),

@@ -875,7 +875,14 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
     await withTenantDb(s.tenantId, pool(), (db) =>
       db
         .update(schema.mailboxMapping)
-        .set({ status: 'done' })
+        // `updatedAt` stamped here, not left to the database: there is no
+        // trigger on this table (checked across every ledger migration), so a
+        // writer that omits it leaves the column reading whenever somebody
+        // last touched the row for an unrelated reason. This is the transition
+        // that ENDS a migration, and until 2026-08-27 it was the one that left
+        // no record of when — "when did this finish" was unanswerable from any
+        // table (workplan 0109 T1's finding).
+        .set({ status: 'done', updatedAt: new Date() })
         .where(
           and(
             eq(schema.mailboxMapping.id, s.mappingId),
@@ -1436,6 +1443,7 @@ router.patch(
           .set({
             ...(typeof allow === 'boolean' ? { allowApplyDeletions: allow } : {}),
             ...(typeof auto === 'boolean' ? { autoApplyRelocations: auto } : {}),
+            updatedAt: new Date(),
           })
           .where(eq(schema.mailboxMapping.id, s.mappingId))
           .returning({
