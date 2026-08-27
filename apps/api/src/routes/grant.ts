@@ -19,6 +19,15 @@
  * client id, anything about other mappings, or anything about the
  * organisation beyond its name.
  *
+ * ## The other direction of the same warning
+ *
+ * `routes/invitations.ts` carries the long version: an invitation is an offer
+ * to JOIN, authorised by a verified email claim and carrying no token at all,
+ * while this is a bearer credential for somebody who will never have an
+ * account. They are opposite mechanisms that both look like "a stranger
+ * arrives with something in a URL", and unifying them would give one of the
+ * two the wrong half of the other's machinery.
+ *
  * ## The owner's secret never leaves the server
  *
  * `POST /api/grant/:link/google/authorize` reads the client id and secret out

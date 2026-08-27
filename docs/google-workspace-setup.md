@@ -111,9 +111,34 @@ Copy the **client ID** and **client secret**.
 
 ## 4. The refresh token
 
-The one value that cannot be read out of a console. **The wizard's Connect with Google
+The one value that cannot be read out of a console, and there are **three ways to get it** —
+the third one exists because the first two both assume you can sign in as the account being
+migrated, and often you cannot.
+
+> ### Migrating somebody else's account? Send them a link instead.
+>
+> If the account belongs to a colleague, a family member or a client, the honest way to get
+> this token is **not** to ask them for their password, and not to sit beside them while they
+> sign in. Open the migration, press **Create grant link**, and send them the link yourself.
+>
+> They open it, see who is asking and exactly what will be read, sign in to Google on Google's
+> own page, and press one button. The token goes straight into the migration. **You never see
+> it, and neither does anyone else** — it is stored encrypted against that one migration, and
+> not against the connection, so it gives nothing away about any other account.
+>
+> You choose how long the link works — a day, a week, or a month — and you can revoke it at
+> any moment. A link works once: after somebody grants with it, it is spent. If it goes
+> astray, revoke it and make another; issuing one takes a moment.
+>
+> **We never send the link.** You do, however you normally reach that person. Ownpace never
+> learns their address, which means Ownpace cannot leak it. See
+> [grant links](./grant-links.md) for the whole of it, including what to say when somebody
+> tells you their link does not work.
+
+**The wizard's Connect with Google
 button does this step for you** — enter the client ID and secret from step 3, press it,
-consent in the popup, and the token lands in the field. Manually, using Google's own
+consent in the popup, and the token lands in the field. That one is for an account you can
+sign in to yourself. Manually, using Google's own
 [OAuth Playground](https://developers.google.com/oauthplayground/):
 
 1. Gear icon → **Use your own OAuth credentials** → paste the client ID and secret.
