@@ -2121,6 +2121,28 @@ report_markdown "permissions report" \
 report_json "billing usage" "/api/billing/usage" '.period'
 report_json "invoices" "/api/billing/invoices" '.invoices | length'
 
+# The operator's support surface (workplan 0110 T4), asked with an ORDINARY
+# token — and this is the one report whose expected answer is nothing.
+#
+# These views bypass row security on purpose: an operator has no tenant, so a
+# view honouring the tenant policy would be useless to them. That means there
+# is NO SECOND NET. Everything rests on one `EXISTS` against `platform_operator`
+# inside each view, and the property that matters is the failure direction: a
+# signed-in person who is not an operator must see zero organisations, on a real
+# stack, with the views owned by the real migrating role.
+#
+# `support-views.unit.test.ts` proves that against PGlite, and pins the
+# precondition it rests on — that the view's owner is a superuser. A gate cannot
+# assume the deployment matches the fixture. Here the deployment IS the subject.
+#
+# Pinned to `0` rather than "any answer": a count that grew would be every
+# customer's metadata served to somebody with an account, which is the whole
+# thing this surface exists to not do. `$TOK_R` is a demo tenant's token and
+# nothing in the seed makes it an operator, so 0 is the true answer — and if the
+# seed ever grants one, this line goes red rather than quiet.
+report_json "support surface refuses a non-operator" \
+  "/api/support/tenants" '.tenants | length' 0
+
 # ---------- balance ----------
 #
 # WHY THIS EXISTS. This gate runs nightly against a LONG-LIVED stack, and every
