@@ -330,6 +330,30 @@ describe('the log that has to earn standing access', () => {
     ).rejects.toThrow();
   });
 
+  it('a NON-operator writes nothing to the log, and is told nothing', async () => {
+    // The middleware in front of the support routes asks only for a valid
+    // token. The views already return zero rows to a non-operator; without a
+    // guard here they could still write into the log, polluting the one record
+    // standing in for the consent that was dropped. No error — there is no
+    // failure, only an absence.
+    await withSubject(driver, NOT_OPERATOR, (db) =>
+      recordSupportRead(db, {
+        operatorUserId: NOT_OPERATOR,
+        tenantId: TENANT_A,
+        view: 'tenant',
+      }),
+    );
+    const conn = await driver.acquire();
+    try {
+      const r = await conn.query('SELECT count(*)::int AS n FROM support_read WHERE operator_user_id = $1', [
+        NOT_OPERATOR,
+      ]);
+      expect((r.rows[0] as { n: number }).n).toBe(0);
+    } finally {
+      await conn.release();
+    }
+  });
+
   it('refuses to record a read attributed to nobody', async () => {
     // The decayed-GUC case migration 0004 exists for. A row attributing a read
     // to no subject makes the log look complete while an unattributable read
