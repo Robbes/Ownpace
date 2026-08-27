@@ -200,7 +200,32 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
       perMapping: true,
     },
   ],
-  gmail: googleFields(),
+  /**
+   * Gmail alone gains the app-password field (workplan 0089 T7).
+   *
+   * NOT on the other three, and that is a fact rather than a preference: an app
+   * password is an IMAP credential, and Calendar, Contacts and Drive are not
+   * reached over IMAP. Offering it there would be offering something that
+   * cannot work.
+   *
+   * **Last in the list, and optional**, so the OAuth fields are what a reader
+   * meets first — the ordering carries "never the default" the same way the
+   * factory's branch ordering does. Everything a person needs in order to
+   * decide against it travels in the hint: Google's own recommendation, the
+   * 2-step-verification prerequisite, that it is personal accounts only, and
+   * where it is withdrawn.
+   */
+  gmail: [
+    ...googleFields(),
+    {
+      key: 'appPassword',
+      labelKey: 'wizard.gmailAppPassword',
+      hintKey: 'wizard.gmailAppPassword.hint',
+      secret: true,
+      autoComplete: 'off',
+      placeholder: 'xxxx xxxx xxxx xxxx',
+    },
+  ],
   'google-calendar': googleFields(),
   'google-contacts': googleFields(),
   graph: o365Fields(),
