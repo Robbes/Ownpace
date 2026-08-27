@@ -971,6 +971,20 @@ export const migrationStatus = pgTable(
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastError: text('last_error'),
     /**
+     * What KIND of failure `last_error` was — one of six (workplan 0110 T3,
+     * migration 0033). Beside the prose, never instead of it: `last_error`
+     * stays verbatim because it is the precise answer, and this is the
+     * ACTIONABLE one, for the customer first.
+     *
+     * Safe where `last_error` is not. This carries no address, no folder name
+     * and no subject, which is what lets 0110's metadata-only operator views
+     * say why a migration stopped at all.
+     *
+     * NULL = nothing has failed. `'unknown'` = something failed and we could
+     * not classify it. A screen must not conflate those.
+     */
+    lastErrorCategory: text('last_error_category'),
+    /**
      * Where the last completed pass spent its wall time (see PassMetrics).
      * Counts and durations only — never folder names or addresses.
      */

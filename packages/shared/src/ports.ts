@@ -1,4 +1,5 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
+import type { FailureCategory } from './failure-category.ts';
 import type { TenantId, MappingId } from './ids.ts';
 import type { BudgetPause, DownloadMeter } from './rate-budget.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
@@ -1966,6 +1967,16 @@ export interface MigrationStatus {
   readonly updatedAt: string;
   readonly completedAt?: string;
   readonly lastError?: string;
+  /**
+   * What KIND of failure `lastError` was — one of six (workplan 0110 T3).
+   * Beside the prose, never instead of it. Absent when nothing has failed;
+   * `'unknown'` when something failed and could not be classified, which is a
+   * different thing a screen must not conflate.
+   *
+   * Safe where `lastError` is not: it carries no address, no folder name and
+   * no subject.
+   */
+  readonly lastErrorCategory?: FailureCategory;
   /** Where the last completed pass spent its wall time. Absent until one has. */
   readonly lastPassMetrics?: PassMetrics;
 }

@@ -34,6 +34,7 @@
  * queue that cannot say where something went is not one anybody can act on.
  */
 
+import type { FailureCategory } from './failure-category.ts';
 import {
   DELETION_CONFIRMATIONS,
   MAX_ITEM_ATTEMPTS,
@@ -199,6 +200,12 @@ export interface DomainStatusReport {
   readonly lastSyncedAt?: string;
   readonly lastError?: string;
   /**
+   * What KIND of failure `lastError` was (workplan 0110 T3). Beside the prose,
+   * never instead of it: the prose is precise and the category is the one a
+   * customer can act on. Absent when nothing has failed.
+   */
+  readonly lastErrorCategory?: FailureCategory;
+  /**
    * Where the last completed pass spent its time. Absent until a pass
    * completes; never invented as zeros, because zero durations read as
    * "instant" rather than "unknown".
@@ -237,6 +244,7 @@ export function buildDomainStatusReports(
       itemsNeedingDecision: mine.filter((f) => f.needsDecision).length,
       ...(s.completedAt ? { lastSyncedAt: s.completedAt } : {}),
       ...(s.lastError ? { lastError: s.lastError } : {}),
+      ...(s.lastErrorCategory ? { lastErrorCategory: s.lastErrorCategory } : {}),
       ...(s.lastPassMetrics ? { lastPass: s.lastPassMetrics } : {}),
     };
   });

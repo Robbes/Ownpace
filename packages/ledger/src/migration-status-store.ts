@@ -1,5 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import {
+  classifyFailure,
+  isFailureCategory,
   type MigrationStatusStore,
   type MigrationStatus,
   type TenantId,
@@ -113,6 +115,9 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // unaffected -- they live in the failure queue and are counted in
         // itemsFailed, not here.
         lastError: null,
+        // Cleared with the prose it describes. A category that outlived its
+        // failure would read as a current problem on a screen showing none.
+        lastErrorCategory: null,
         // Only when the caller measured a pass. Writing nulls over a previous
         // pass's numbers would blank the dashboard on any path that completes
         // without measuring.
@@ -138,6 +143,13 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       .set({
         state: 'failed',
         lastError: error,
+        // Classified HERE, at the moment of failure (workplan 0110 T3): this
+        // is where the connector's message is freshest and has travelled
+        // nowhere. Stored rather than derived on read, so that editing the
+        // matcher later cannot silently change the answer a customer was
+        // already given. The prose is kept verbatim beside it — the category
+        // is the actionable twin, not a replacement.
+        lastErrorCategory: classifyFailure(error),
         updatedAt: sql`now()`,
       })
       .where(
@@ -206,6 +218,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         schemaPg.migrationStatus.updatedAt,
         schemaPg.migrationStatus.completedAt,
         schemaPg.migrationStatus.lastError,
+        schemaPg.migrationStatus.lastErrorCategory,
         schemaPg.migrationStatus.lastPassMetrics,
       )
       .orderBy(schemaPg.migrationStatus.domain);
@@ -237,6 +250,13 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         ? row.status.completedAt.toISOString()
         : row.status.completedAt ?? undefined,
       lastError: row.status.lastError ?? undefined,
+      // Read back through the guard rather than cast: the column is `text`
+      // with no CHECK (the six are product vocabulary, revisable without a
+      // lock), so a value written by an older or newer build must not become
+      // a category the UI has no sentence for.
+      ...(isFailureCategory(row.status.lastErrorCategory)
+        ? { lastErrorCategory: row.status.lastErrorCategory }
+        : {}),
     }));
   }
 }

@@ -13,10 +13,18 @@
  *
  * `lastError` renders VERBATIM (the prose boundary): it is the line the
  * operator acts on, and a paraphrase is a different claim.
+ *
+ * Since 0110 T3 a CATEGORY renders above it, and the two are not in tension —
+ * they answer different people. The prose stays exactly as the provider said
+ * it, because precision is what an engineer needs and a paraphrase would be a
+ * different claim. The category's sentence is what the CUSTOMER can act on,
+ * which the owner's reframing of 2026-08-27 made the point: *"most of it must
+ * be self-service."* Nobody self-serves from `invalid_grant`. Both, in that
+ * order — the way out first, the evidence under it.
  */
 
 import React from 'react';
-import type { DomainStatusReport } from '@openmig/shared';
+import type { DomainStatusReport, FailureCategory } from '@openmig/shared';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
@@ -39,7 +47,19 @@ export interface LiveProgressRow {
   readonly itemsRetrying: number;
   readonly lastSyncedAt?: string;
   readonly lastError?: string;
+  readonly lastErrorCategory?: FailureCategory;
 }
+
+/** The remedy sentence for each category (workplan 0110 T3). Exhaustive by
+ *  type, so a seventh category cannot reach a screen with nothing to say. */
+const FAILURE_KEY: Record<FailureCategory, StringKey> = {
+  auth_expired: 'failure.authExpired',
+  rate_limited: 'failure.rateLimited',
+  quota_exceeded: 'failure.quotaExceeded',
+  target_refused: 'failure.targetRefused',
+  network: 'failure.network',
+  unknown: 'failure.unknown',
+};
 
 const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domains }) => {
   const t = useT();
@@ -76,9 +96,18 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
                 {t('confirm.progress.lastSynced')} {relativeToNow(d.lastSyncedAt)}
               </span>
             )}
+            {d.lastErrorCategory && (
+              // The way OUT, first: a sentence the person whose migration
+              // stopped can act on without contacting anybody (0110 T3).
+              <span className="basis-full text-xs text-red-900">
+                {t(FAILURE_KEY[d.lastErrorCategory])}
+              </span>
+            )}
             {d.lastError && (
               // Verbatim (the prose boundary): this is the line the operator
-              // acts on, and a paraphrase is a different claim.
+              // acts on, and a paraphrase is a different claim. It stays,
+              // under the sentence above rather than instead of it — the
+              // category is coarse and actionable, this is precise.
               <span className="basis-full font-mono text-xs text-red-800">{d.lastError}</span>
             )}
           </li>
