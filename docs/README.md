@@ -28,7 +28,11 @@ managed edition up on a new machine — the executable half is
 `o365-application-access.md` (the admin-consent + Application Access Policy steps
 that let the source read a mailbox other than the signed-in user's) and
 `shared-mailboxes.md` (SAD §14.1 Pattern S: how a shared mailbox becomes an
-ordinary mapping, and why a distribution list cannot be one), `dns-management.md`,
+ordinary mapping, and why a distribution list cannot be one),
+`grant-links.md` (how the person being migrated connects their own account —
+issuing, sending, revoking, and what to say when somebody's link does not
+work; **not** the same thing as an invitation, and that difference is stated
+there), `dns-management.md`,
 `rls-guide.md`, `rollback-mechanisms.md`, `target-providers.md`,
 `desec-provider-assessment.md`, `i18n-prose-boundary.md` (what the bilingual
 UI may and may not translate, per prose class — read it before adding

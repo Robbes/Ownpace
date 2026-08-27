@@ -34,6 +34,31 @@
  * exist, gets the same `404` either way. That is deliberate: distinguishing
  * them would answer "does an invitation exist for this address at this
  * organisation" to anybody who asked.
+ *
+ * ## AN INVITATION IS NOT A GRANT LINK, AND MUST NEVER BECOME ONE
+ *
+ * `routes/grant.ts` looks superficially like this file — a stranger arrives
+ * with something in a URL and gets access to one row. It is the opposite
+ * mechanism, and the two must not be unified.
+ *
+ *   invitation   an offer to JOIN an organisation. The person ends up with an
+ *                account, a session and a role. It carries **no token and no
+ *                magic link**: identity belongs to the issuer (ADR-0042), and
+ *                what authorises is a VERIFIED EMAIL CLAIM matched by RLS. It
+ *                is not a bearer credential and possessing the URL grants
+ *                nothing.
+ *
+ *   grant link   a way for somebody who will NEVER have an account to connect
+ *                their own mailbox once (ADR-0035). It **is** a bearer
+ *                credential — the secret is the URL — which is why it is
+ *                hashed at rest, single-use, expiring, revocable, listable,
+ *                and why it authorises exactly one mapping and no identity.
+ *
+ * The distinction is worth a paragraph because the cheap mistake runs in one
+ * direction: adding a token to an invitation "so people do not have to sign
+ * in" would turn an offer of membership into a bearer credential for a seat,
+ * with none of the machinery a bearer credential needs. If that ever looks
+ * attractive, it is a decision for an ADR, not a convenience.
  */
 
 import { Router } from 'express';
