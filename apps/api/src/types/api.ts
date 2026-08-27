@@ -32,6 +32,24 @@ export interface AuthenticatedRequest extends Request {
   requestedTenantId?: string;
 }
 
+/**
+ * What a verified MIGRATOR LINK attaches (workplan 0108 T2, ADR-0035).
+ *
+ * A separate interface rather than more optional fields on
+ * `AuthenticatedRequest`, deliberately: a link holder is **not a user**. They
+ * have no `userId`, no role and no session, and a shape that could carry one
+ * invites a route to read a field the link never fills. The one thing this
+ * says is which mapping the bearer may act on.
+ */
+export interface MappingLinkRequest extends Request {
+  mappingLink?: {
+    readonly linkId: string;
+    readonly mappingId: string;
+    readonly tenantId: string;
+    readonly purpose: 'grant' | 'view';
+  };
+}
+
 // JwtPayload lives in ../middleware/auth.ts, next to the code that verifies it.
 // It was declared here too, with `tenantId` and `role` REQUIRED, which stopped
 // being true at ADR-0042 — and a duplicate that contradicts the real one is

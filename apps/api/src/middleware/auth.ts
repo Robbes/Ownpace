@@ -11,7 +11,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { jwtVerify, createRemoteJWKSet, decodeJwt } from 'jose';
-import type { AuthenticatedRequest } from '../types/api.ts';
+import type { AuthenticatedRequest, MappingLinkRequest } from '../types/api.ts';
 import { Pool } from 'pg';
 import { eq, and } from 'drizzle-orm';
 import {
@@ -19,6 +19,9 @@ import {
   withSubject as ledgerWithSubject,
   withSubjectAndTenant as ledgerWithSubjectAndTenant,
   tenant as tenantTable,
+  verifyMappingLink,
+  MAPPING_LINK_REFUSAL,
+  type LedgerDriver,
   type PgDatabase,
 } from '@openmig/ledger';
 import { platformOperator, tenantMember } from '@openmig/managed/schema-managed';
@@ -1011,8 +1014,82 @@ export async function authenticateSubject(
 }
 
 /**
+ * Authenticate a MIGRATOR'S LINK, which grants nothing (workplan 0108 T2).
+ *
+ * `authenticateSubject` above is the precedent: a second, narrower middleware
+ * for a caller whose identity is real but whose usual question is wrong. This
+ * is one narrower still, because the caller is not a user at all.
+ *
+ * ADR-0035: *"owners sign in; migrated people get links, not accounts"* — no
+ * `tenant_member` row, no password, no session, no seat, in any deployment. So
+ * this reads no Authorization header, verifies no token, and attaches neither
+ * `userId` nor a role. It attaches ONE fact: which mapping this bearer may act
+ * on, and on whose behalf.
+ *
+ * **The secret comes from a path parameter, and only from a named one.** Never
+ * a query string (they land in access logs, `Referer` headers and browser
+ * history), and never a general `?token=` convention that a future route could
+ * inherit by accident. A link is a credential for exactly the routes built to
+ * take one.
+ *
+ * **It authorises nothing on its own.** The verification read is bounded by
+ * migration 0031's `link_sees_itself` to the single row whose id was
+ * presented; everything the route then does runs under the tenant the verified
+ * row named, so the ordinary policies apply to every write.
+ *
+ * One sentence answers every failure — unknown, forged, expired, revoked,
+ * already used. Distinguishing them would tell a forger which half of a guess
+ * was right, and the person holding a real link needs only the remedy, which
+ * is the same in all five cases.
+ */
+export function authenticateMappingLink(
+  purpose: 'grant' | 'view',
+  // The same union the store takes, so a test can hand it the real PGlite
+  // driver the ledger's own tests use. An auth middleware asserted against a
+  // mock of the thing that authenticates is asserted against nothing.
+  pool: Pool | LedgerDriver,
+): (req: Request, res: Response, next: NextFunction) => Promise<void> {
+  return async (req, res, next) => {
+    // 401, not 403: this is "we do not accept this credential", which is
+    // exactly what the status means. There is nothing to log in to, so no
+    // WWW-Authenticate challenge is offered.
+    const refuse = () =>
+      void res.status(401).json({ error: 'link_unusable', message: MAPPING_LINK_REFUSAL });
+
+    const token = req.params.link;
+    if (typeof token !== 'string' || token.length === 0) return refuse();
+
+    let verdict;
+    try {
+      verdict = await verifyMappingLink(pool, token, { purpose });
+    } catch (error) {
+      // A database that cannot answer is OUR fault, not the holder's, and must
+      // not be reported as a bad link — that would send somebody chasing a
+      // fresh link for an outage (hard rule 9).
+      log.error('[mapping-link] verification failed', error);
+      return void res.status(503).json({
+        error: 'link_check_unavailable',
+        message:
+          'We could not check this link just now. Nothing is wrong with it as far as we know — ' +
+          'please try again in a moment.',
+      });
+    }
+
+    if (!verdict.ok) return refuse();
+
+    (req as MappingLinkRequest).mappingLink = {
+      linkId: verdict.link.id,
+      mappingId: verdict.link.mappingId,
+      tenantId: verdict.link.tenantId,
+      purpose: verdict.link.purpose,
+    };
+    next();
+  };
+}
+
+/**
  * Optional authentication middleware
- * 
+ *
  * Attaches user context if token is present, but doesn't require it.
  * Useful for endpoints that work both with and without authentication.
  */
