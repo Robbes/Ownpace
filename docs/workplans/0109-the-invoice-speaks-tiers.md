@@ -128,8 +128,22 @@ source-level guard (`mapping-updated-at.unit.test.ts`) fails on a sixth writer t
 source-level because the bug is an OMISSION, and an omission has no behaviour to assert against:
 a route that forgets returns exactly what a route that remembers returns. The guard also asserts
 the absence of a trigger, so that if one ever arrives the guard is deleted rather than kept as
-folklore. **The other finding — `audit_log` not covering status transitions — still stands**, as
-does the whole of T1: a timestamp says *when* something changed, never *what* it changed from.
+folklore. **The other finding — `audit_log` not covering status transitions — is FIXED too
+(2026-08-27)**, because a timestamp says *when* something changed and can never say what it
+changed FROM or who did it, and those are the two questions actually asked when a migration is
+found in a state nobody expected. All three lifecycle routes — start, the update route, and
+finish — now write a `mapping.status` audit event carrying `from`, `to`, `via` and the actor,
+**in the same transaction as the status write** (`withTenantDb` opens a real one,
+`packages/ledger/src/db.ts:91`). Atomic on purpose: it removes the question this would otherwise
+have to answer badly — whether a failed audit write should abort somebody's migration, or be
+swallowed. A committed status with no record of it is not a reachable state. A `from === to`
+change records nothing, because a PATCH restating a status is a request rather than a
+transition, and a log full of non-events is one nobody reads. Proved at the ROUTE against PGlite
+by reading `audit_log` directly after each press — not at the helper, which would stay green
+whether or not a single route called it, which is precisely the way this has gone wrong before.
+
+**T1 itself still stands**: both findings are repairs to the mapping-grain lifecycle, and T1 is
+about there being a per-PATH one at all.
 
 What this task must decide — and the plan deliberately does not decide it here — is **where the
 per-path lifecycle lives**: columns on `scope_selection`, or a `path_lifecycle` table beside it.
