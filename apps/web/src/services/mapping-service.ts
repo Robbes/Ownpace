@@ -184,6 +184,8 @@ export const CreateMappingResponseSchema = z.object({
     'gmail',
     'google-calendar',
     'google-contacts',
+    // One Google ACCOUNT, several faces (workplan 0106 T3b).
+    'google',
     'dropbox',
     'box',
   ]),
@@ -211,7 +213,8 @@ export interface CreateMappingInput {
     | 'google-calendar'
     | 'dropbox'
     | 'box'
-    | 'google-contacts';
+    | 'google-contacts'
+    | 'google';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
   /** Reuse a stored connection instead of creating one (workplan 0064). When
    *  set, its credentials are used and none need re-sending. */
@@ -429,11 +432,29 @@ export const mappingApi = {
    * stored; the refresh token comes back to the wizard window and lands in
    * the same field a pasted one does.
    */
-  googleAuthorize: async (p: {
-    sourceType: 'gmail' | 'google-calendar' | 'google-contacts' | 'google-drive';
-    clientId: string;
-    clientSecret: string;
-  }): Promise<{ url: string; redirectUri: string; scope: string }> => {
+  googleAuthorize: async (
+    p:
+      | {
+          sourceType: 'gmail' | 'google-calendar' | 'google-contacts' | 'google-drive';
+          clientId: string;
+          clientSecret: string;
+        }
+      // The ACCOUNT ask (workplan 0106 T3b): the ticked faces rather than one
+      // source type. A union rather than an optional field, so a caller cannot
+      // send both and leave the server to pick — the server's schema is a
+      // `oneOf` for the same reason.
+      | {
+          domains: ReadonlyArray<'email' | 'calendar' | 'contact' | 'file'>;
+          clientId: string;
+          clientSecret: string;
+        },
+  ): Promise<{
+    url: string;
+    redirectUri: string;
+    scope: string;
+    /** Echoed for the account ask only, in the same order as `scope`. */
+    domains?: ReadonlyArray<string>;
+  }> => {
     const response = await apiClient.post('/migrations/google/authorize', p);
     return response.data as { url: string; redirectUri: string; scope: string };
   },

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import {
   SOURCE_TYPE_DOMAINS,
+  PROVIDER_ACCOUNT_DOMAINS,
   TARGET_TYPE_DOMAINS,
   sourceDomainRefusal,
   targetDomainRefusal,
@@ -52,7 +53,7 @@ type Domain = 'email' | 'calendar' | 'contact' | 'file';
 
 interface FormData {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox' | 'box';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
@@ -154,6 +155,9 @@ function sourceKindOf(sourceType: string): string {
   if (sourceType === 'google-calendar') return 'google_calendar';
   if (sourceType === 'google-contacts') return 'google_contacts';
   if (sourceType === 'gmail') return 'gmail';
+  // The account kind's wizard word and connection kind are the same word,
+  // so this is an identity — spelled out because the ones around it are not.
+  if (sourceType === 'google') return 'google';
   if (sourceType === 'dropbox') return 'dropbox';
   if (sourceType === 'box') return 'box';
   return sourceType === 'imap' ? 'imap' : 'o365';
@@ -195,6 +199,10 @@ const SOURCE_CARDS = [
   { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
   { id: 'oauth2', nameKey: 'wizard.m365.viaImap', hintKey: 'wizard.proto.oauth2.hint' },
   { id: 'graph', nameKey: 'wizard.m365.viaGraph', hintKey: 'wizard.proto.graph.hint' },
+  // The ACCOUNT (workplan 0106 T3b), first among the Google cards because
+  // `FRONT_DOOR_FAMILIES` puts it first — "the usual choice first". The four
+  // product cards stay beside it and are the only way to mail and files.
+  { id: 'google', name: 'Google account', hintKey: 'wizard.proto.google.hint' },
   { id: 'google-drive', name: 'Google Drive', hintKey: 'wizard.proto.googleDrive.hint' },
   { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint' },
   { id: 'google-calendar', name: 'Google Calendar', hintKey: 'wizard.proto.googleCalendar.hint' },
@@ -212,6 +220,12 @@ const GOOGLE_CONSENT_SOURCES: ReadonlyArray<string> = [
   'google-calendar',
   'google-contacts',
   'google-drive',
+  // The ACCOUNT (0106 T3b). Same button, different ask: the four above each
+  // consent to one fixed scope, and this one consents to exactly the faces
+  // ticked on the next step — which is why the button below is disabled
+  // until something is ticked, rather than sending an empty consent the
+  // server would refuse.
+  'google',
 ];
 
 const TARGET_CARDS = [
@@ -850,15 +864,29 @@ const CreateMapping: React.FC = () => {
   const startGoogleConsent = async () => {
     setGoogleConsent(null);
     try {
-      const { url } = await mappingApi.googleAuthorize({
-        sourceType: formData.sourceType as
-          | 'gmail'
-          | 'google-calendar'
-          | 'google-contacts'
-          | 'google-drive',
-        clientId: formData.sourceClientId,
-        clientSecret: formData.sourceClientSecret,
-      });
+      // The ACCOUNT asks for exactly the faces ticked (workplan 0106 T3b);
+      // the four single-purpose sources ask for their own one scope. The
+      // domain set is sent rather than a source type, so the consent screen
+      // and the ticks cannot disagree — and the server refuses an empty set
+      // rather than substituting a default, which is why the button is
+      // disabled until something is ticked.
+      const { url } = await mappingApi.googleAuthorize(
+        isGoogleAccountSource
+          ? {
+              domains: formData.domains,
+              clientId: formData.sourceClientId,
+              clientSecret: formData.sourceClientSecret,
+            }
+          : {
+              sourceType: formData.sourceType as
+                | 'gmail'
+                | 'google-calendar'
+                | 'google-contacts'
+                | 'google-drive',
+              clientId: formData.sourceClientId,
+              clientSecret: formData.sourceClientSecret,
+            },
+      );
       window.open(url, 'ownpace-google-consent', 'popup,width=520,height=640');
     } catch (error) {
       setGoogleConsent(serverMessage(error));
@@ -914,7 +942,12 @@ const CreateMapping: React.FC = () => {
   // Google credential shape as Drive and Gmail, one pinned domain each.
   const isGoogleDavSource =
     formData.sourceType === 'google-calendar' || formData.sourceType === 'google-contacts';
-  const isGoogleSource = isDriveSource || isGmailSource || isGoogleDavSource || isDropboxSource;
+  // One Google ACCOUNT (workplan 0106 T3b): the same credential trio as the
+  // four above — one OAuth client, one refresh token — and the only one whose
+  // consent asks for a SET of scopes, decided by the domains ticked.
+  const isGoogleAccountSource = formData.sourceType === 'google';
+  const isGoogleSource =
+    isDriveSource || isGmailSource || isGoogleDavSource || isGoogleAccountSource || isDropboxSource;
   // Box (workplan 0056) is deliberately NOT in the refresh-token group: it
   // uses the Client Credentials Grant (Box rotates refresh tokens, so none is
   // stored) — client id + secret plus the numeric subject user id.
@@ -1519,6 +1552,26 @@ const CreateMapping: React.FC = () => {
                   ? prev.targetType
                   : 'jmap',
             }))
+          : type.id === 'google'
+            ? setFormData((prev) => ({
+                ...prev,
+                ...clearedSourceFields(prev, type.id),
+                sourceType: type.id,
+                // Pinned to the faces this account kind serves, the same way
+                // every other card pins its own (workplan 0106 T3b).
+                //
+                // Both ticked rather than none, and it is a judgement call
+                // worth naming: none would be the strictest least-privilege
+                // default, but it would also leave the consent button on this
+                // step disabled with nothing on this step to tick — the ticks
+                // live on the migration step. Somebody who chose the ACCOUNT
+                // card chose it BECAUSE it carries several faces, and
+                // narrowing is one untick away on step 3, after which the
+                // consent asks for less. The empty case stays guarded: untick
+                // both and the button refuses with a sentence rather than
+                // sending a consent for nothing.
+                domains: [...PROVIDER_ACCOUNT_DOMAINS.google],
+              }))
           : type.id === 'google-calendar'
             ? setFormData((prev) => ({
                 ...prev,
@@ -1702,12 +1755,23 @@ const CreateMapping: React.FC = () => {
                   <button
                     type="button"
                     onClick={startGoogleConsent}
-                    disabled={!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim()}
+                    disabled={
+                      !formData.sourceClientId.trim() ||
+                      !formData.sourceClientSecret.trim() ||
+                      // The account consent asks for the ticked faces and
+                      // nothing else, so with nothing ticked there is nothing
+                      // to ask for. The server refuses that with a sentence;
+                      // the button refuses it before the round trip, which is
+                      // the same answer given sooner.
+                      (isGoogleAccountSource && formData.domains.length === 0)
+                    }
                     className="btn btn-secondary"
                     title={
                       !formData.sourceClientId.trim() || !formData.sourceClientSecret.trim()
                         ? t('wizard.google.connect.needsClient')
-                        : undefined
+                        : isGoogleAccountSource && formData.domains.length === 0
+                          ? t('wizard.google.connect.needsDomains')
+                          : undefined
                     }
                   >
                     {t('wizard.google.connect')}
