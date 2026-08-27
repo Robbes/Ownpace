@@ -57,8 +57,7 @@ import {
 } from './box-source-factory.ts';
 import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory.ts';
 import {
-  GOOGLE_CALENDAR_CONNECTION_KIND,
-  GOOGLE_CONTACTS_CONNECTION_KIND,
+  googleDavServes,
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
   buildGoogleCalendarDavSourceFrom,
   buildGoogleContactsDavSourceFrom,
@@ -541,8 +540,12 @@ export async function buildDomainDepsFromMapping(
           // Google client + refresh token mint Bearer tokens, and the fixed
           // principal URL is derived from the config's `user`, so it must not
           // ride the credential resolver (no password exists to resolve).
+          // `googleDavServes` and not a kind comparison (workplan 0106 T3b):
+          // the ACCOUNT kind `google` serves whichever faces
+          // PROVIDER_ACCOUNT_DOMAINS names, so a face arriving there needs no
+          // edit here. The single-purpose kinds keep answering for themselves.
           source:
-            src.kind === GOOGLE_CALENDAR_CONNECTION_KIND
+            googleDavServes(src.kind, 'calendar')
               ? buildGoogleCalendarDavSourceFrom(
                   String((src.config as { user?: unknown }).user ?? ''),
                   src.creds,
@@ -563,7 +566,7 @@ export async function buildDomainDepsFromMapping(
           ...common,
           // Google Contacts (workplan 0045): CardDAV with OAuth, same argument.
           source:
-            src.kind === GOOGLE_CONTACTS_CONNECTION_KIND
+            googleDavServes(src.kind, 'contact')
               ? buildGoogleContactsDavSourceFrom(
                   String((src.config as { user?: unknown }).user ?? ''),
                   src.creds,
