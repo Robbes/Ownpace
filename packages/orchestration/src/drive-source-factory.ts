@@ -58,6 +58,17 @@ export interface GoogleCredentialsAsFound {
   readonly serviceAccountKey?: string | undefined;
   /** The impersonated account, for factories that take no user parameter. */
   readonly subject?: string | undefined;
+  /**
+   * A Google **app password** — the one Google path that skips OAuth entirely
+   * (workplan 0089 T7). Personal accounts only, and only for MAIL: it is an
+   * IMAP credential, so no other Google product can be reached with it.
+   *
+   * Its own key rather than `password`, for the reason `serviceAccountKey` has
+   * its own: **the credential's shape IS the choice.** There is no mode flag to
+   * disagree with what is stored, and nothing can confuse it with
+   * `clientSecret`.
+   */
+  readonly appPassword?: string | undefined;
 }
 
 /**
@@ -73,6 +84,8 @@ export interface GoogleCredentialNaming {
   readonly refreshToken: string;
   /** The DWD alternative's name (ADR-0033); optional for older callers. */
   readonly serviceAccountKey?: string;
+  /** The app-password alternative's name (0089 T7); mail factories only. */
+  readonly appPassword?: string;
   /** Where these are configured, completing the sentence "set them in …". */
   readonly where: string;
   /** The same place in Dutch. Optional: unset falls back to the English. */

@@ -59,6 +59,7 @@ export const ENV_GMAIL_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   // visible in the config instead of discovered in an error.
   refreshToken: 'GOOGLE_MAIL_REFRESH_TOKEN',
   serviceAccountKey: ENV_GOOGLE_DWD_KEY_NAME,
+  appPassword: 'GOOGLE_MAIL_APP_PASSWORD',
   where: "the appliance's environment",
   whereNl: CREDENTIAL_STORE_NL.appliance,
 };
@@ -69,6 +70,7 @@ export const STORED_GMAIL_CREDENTIAL_NAMES: GoogleCredentialNaming = {
   clientSecret: 'clientSecret',
   refreshToken: 'refreshToken',
   serviceAccountKey: STORED_GOOGLE_DWD_KEY_NAME,
+  appPassword: 'appPassword',
   where: "the source connection's stored credentials",
   whereNl: CREDENTIAL_STORE_NL.managed,
 };
@@ -164,8 +166,15 @@ export function buildGmailSourceFrom(
   // authenticates as, so the two identities cannot diverge.
   const dwd = dwdTokenProviderIfConfigured(creds, user, GMAIL_SCOPE, 'Gmail source');
 
+  /**
+   * Is the OAuth trio complete? Asked separately from `missing` below because
+   * the app-password path is reached only when it is NOT — see there.
+   */
+  const hasOauthTrio = Boolean(creds.clientId && creds.clientSecret && creds.refreshToken);
+  const appPassword = creds.appPassword?.trim();
+
   const missing: string[] = [];
-  if (!dwd) {
+  if (!dwd && !appPassword) {
     if (!creds.clientId) missing.push(naming.clientId);
     if (!creds.clientSecret) missing.push(naming.clientSecret);
     if (!creds.refreshToken) missing.push(naming.refreshToken);
@@ -178,17 +187,39 @@ export function buildGmailSourceFrom(
       // how this factory has always said it — kept, because the English is
       // pinned by tests and because rewording five correct sentences to fit
       // one template is a worse trade than authoring five Dutch ones.
+      // The alternative is NAMED but not recommended (workplan 0089 T7). An
+      // operator who has nothing configured is entitled to know the shorter
+      // road exists — and entitled to know, in the same breath, that Google
+      // discourages it, that it needs 2-step verification (the prerequisite
+      // that would otherwise surface as an unexplained authentication failure
+      // hours later), and that it is for personal accounts only. Saying the
+      // first without the rest would be a recommendation dressed as a fact.
       en:
         `Gmail source is missing ${missing.join(', ')} in ${naming.where}. All three are ` +
         'required: the OAuth client (id + secret) and a refresh token consented with the ' +
         `${GMAIL_SCOPE} scope — a Drive-consented token will not mint mail tokens. ` +
-        'docs/google-workspace-setup.md walks through obtaining each.',
+        'docs/google-workspace-setup.md walks through obtaining each.' +
+        (naming.appPassword
+          ? ` A PERSONAL Google account may instead store ${naming.appPassword} — an app ` +
+            'password, which Google itself recommends against and which requires 2-step ' +
+            'verification on the account before one can be created at all. It is not ' +
+            'available on a Workspace account, and it is not the better credential: an app ' +
+            'password grants the whole mailbox, where a consented token grants one scope.'
+          : ''),
       nl:
         `Gmail-bron: ${missing.join(', ')} ontbreekt in ${naming.whereNl ?? naming.where}. ` +
         'Alle drie zijn vereist: de OAuth-client (id + secret) en een refresh-token met ' +
         `toestemming voor de scope ${GMAIL_SCOPE} — een token dat voor Drive is toegestaan ` +
         'levert geen mailtokens op. docs/google-workspace-setup.md legt stap voor stap uit ' +
-        'hoe u ze verkrijgt.',
+        'hoe u ze verkrijgt.' +
+        (naming.appPassword
+          ? ` Een PERSOONLIJK Google-account kan in plaats daarvan ${naming.appPassword} ` +
+            'opslaan — een app-wachtwoord, dat Google zelf afraadt en waarvoor ' +
+            'verificatie in twee stappen op het account nodig is voordat er überhaupt een ' +
+            'aangemaakt kan worden. Het bestaat niet op een Workspace-account, en het is ' +
+            'niet de betere keuze: een app-wachtwoord geeft toegang tot de hele mailbox, ' +
+            'terwijl een token met toestemming één scope geeft.'
+          : ''),
     });
   }
   if (!user) {
@@ -198,6 +229,41 @@ export function buildGmailSourceFrom(
         'without one.',
       'XOAUTH2 verifieert een token VOOR een adres, en Google weigert de handshake zonder ' +
         'adres.',
+    );
+  }
+
+  // Gmail's IMAP endpoint is fixed; asking the operator to type it would only
+  // invite typos (the same argument the O365 path records). Shared by both
+  // auth shapes, so neither can drift onto a different host — and the download
+  // meter rides with it either way.
+  const endpoint = { host: 'imap.gmail.com', port: 993, tls: true, user };
+
+  /**
+   * The app password is the LAST resort, structurally (workplan 0089 T7).
+   *
+   * Reached only when domain-wide delegation is not configured AND the OAuth
+   * trio is incomplete. So an account that has both keeps using OAuth, and
+   * "never the default" is a property of the code rather than a promise made
+   * in a user interface — the only place a promise like that survives a
+   * redesign.
+   *
+   * What an operator is choosing, stated where the choice is made:
+   *
+   *  - it is **not narrower, it is wider**. XOAUTH2 carries one scope
+   *    (`GMAIL_SCOPE`); an app password is a mailbox credential and grants
+   *    whatever IMAP grants. The advantage it has is elsewhere — see below.
+   *  - it is **revoked without us**: one row in the account's own app-password
+   *    list, no Ownpace involvement, no OAuth client to delete. For somebody
+   *    lending their personal mailbox to a migration, that is a real thing to
+   *    prefer, and it is the honest reason this path exists.
+   *  - the **byte ceiling is identical** — 2 500 MB/day, verified equal across
+   *    app passwords and XOAUTH2 (workplan 0090 T1). The meter is passed here
+   *    exactly as it is on the OAuth path, because the endpoint is the same and
+   *    so is the lockout that follows exceeding it.
+   */
+  if (!dwd && !hasOauthTrio && appPassword) {
+    return new GmailFolderView(
+      buildImapSourceFrom(endpoint, { authType: 'LOGIN', password: appPassword }, undefined, byteMeter),
     );
   }
 
@@ -214,9 +280,7 @@ export function buildGmailSourceFrom(
 
   return new GmailFolderView(
     buildImapSourceFrom(
-      // Gmail's IMAP endpoint is fixed; asking the operator to type it would
-      // only invite typos (the same argument the O365 path records).
-      { host: 'imap.gmail.com', port: 993, tls: true, user },
+      endpoint,
       { authType: 'XOAUTH2', tokenProvider },
       undefined,
       // The Gmail download meter (workplan 0090 T3) — this endpoint is the

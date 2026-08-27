@@ -379,6 +379,20 @@ export function sourceCredentialRecord(
         ...(body.sourceConfig.refreshToken ? { refreshToken: body.sourceConfig.refreshToken } : {}),
       };
     }
+    // Gmail's third shape (workplan 0089 T7): a personal account's app password
+    // in place of the trio. Stored ALONE — copying absent OAuth fields in as
+    // `undefined` would put empty strings on the connection, and a blank
+    // clientId reads later as "configured, and wrong" rather than "not set".
+    if (body.sourceType === 'gmail' && body.sourceConfig.appPassword?.trim()) {
+      return {
+        appPassword: body.sourceConfig.appPassword.trim(),
+        // The trio rides along when ALSO given, for the reason the DWD branch
+        // keeps it: switching back to OAuth later must not lose what was typed.
+        ...(body.sourceConfig.clientId ? { clientId: body.sourceConfig.clientId } : {}),
+        ...(body.sourceConfig.clientSecret ? { clientSecret: body.sourceConfig.clientSecret } : {}),
+        ...(body.sourceConfig.refreshToken ? { refreshToken: body.sourceConfig.refreshToken } : {}),
+      };
+    }
     return {
       clientId: body.sourceConfig.clientId!,
       clientSecret: body.sourceConfig.clientSecret!,
@@ -485,6 +499,10 @@ export const CreateMappingBase = z.object({
     /** The four Google sources (ADR-0033): a service-account key FILE selects
      *  domain-wide delegation instead of a per-user refresh token. */
     serviceAccountKey: z.string().optional(),
+    /** Gmail only (workplan 0089 T7): a personal account's app password, used
+     *  in place of the OAuth trio. Optional and never preferred — the factory
+     *  reaches it only when no better credential is configured. */
+    appPassword: z.string().optional(),
     /** Google Drive or Box: root the migration somewhere other than the account root. */
     rootFolderId: z.string().optional(),
     /** Dropbox only (workplan 0055): root the migration at a folder path. */
@@ -767,11 +785,16 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     // accepts), and a Drive-consented token answers invalid_scope. Refused
     // here so the mistake surfaces in front of whoever pasted the token, not
     // as a mid-pass auth failure.
-    const missing = body.sourceConfig.serviceAccountKey
-      ? []
-      : (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
-          (k) => !body.sourceConfig[k],
-        );
+    // A third accepted shape since workplan 0089 T7: a PERSONAL account's app
+    // password, in place of the trio. Listed here as an alternative rather than
+    // preferred anywhere — the factory reaches it only when nothing better is
+    // configured, so accepting it costs no precedence.
+    const missing =
+      body.sourceConfig.serviceAccountKey || body.sourceConfig.appPassword?.trim()
+        ? []
+        : (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
+            (k) => !body.sourceConfig[k],
+          );
     if (missing.length > 0) {
       ctx.addIssue({
         code: 'custom',
@@ -779,7 +802,10 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         message:
           "A 'gmail' source authenticates with your own Google Cloud OAuth client and a " +
           `refresh token consented with the https://mail.google.com/ scope: sourceConfig is ` +
-          `missing ${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
+          `missing ${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md. ` +
+          'A PERSONAL Google account may send appPassword instead of all three — Google ' +
+          'recommends against it, it needs 2-step verification on the account, and it does ' +
+          'not exist on a Workspace account.',
       });
     }
     const sourceRefusal = sourceDomainRefusal('gmail', body.syncConfig.domains);

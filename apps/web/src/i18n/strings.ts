@@ -225,6 +225,9 @@ const en = {
   'wizard.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
   'wizard.proto.googleCalendar.hint': 'Calendars from a Google account (OAuth over CalDAV)',
   'wizard.proto.googleContacts.hint': 'Contacts from a Google account (OAuth over CardDAV)',
+  'wizard.gmailAppPassword': 'App password (personal Gmail only, optional)',
+  'wizard.gmailAppPassword.hint':
+    'An alternative to the three OAuth fields above, for a PERSONAL Google account. Google recommends against it, and so do we: an app password opens the whole mailbox, where a consented token opens one thing. It needs 2-step verification on the account before Google will create one, it does not exist on a Workspace account, and it is withdrawn in one row of the account\u2019s own app-password list \u2014 without touching Ownpace, which is the one real advantage it has. Leave this empty to use OAuth.',
   'wizard.refreshToken': 'Refresh token',
   'wizard.refreshToken.hint':
     'The delegated token for the account being migrated. Treat it as a password.',
@@ -1335,6 +1338,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
   'wizard.proto.googleCalendar.hint': "Agenda's uit een Google-account (OAuth via CalDAV)",
   'wizard.proto.googleContacts.hint': 'Contacten uit een Google-account (OAuth via CardDAV)',
+  'wizard.gmailAppPassword': 'App-wachtwoord (alleen persoonlijke Gmail, optioneel)',
+  'wizard.gmailAppPassword.hint':
+    'Een alternatief voor de drie OAuth-velden hierboven, voor een PERSOONLIJK Google-account. Google raadt het af, en wij ook: een app-wachtwoord opent de hele mailbox, terwijl een token met toestemming \u00e9\u00e9n ding opent. Er is verificatie in twee stappen op het account nodig voordat Google er \u00e9\u00e9n aanmaakt, het bestaat niet op een Workspace-account, en het wordt ingetrokken met \u00e9\u00e9n regel in de eigen app-wachtwoordenlijst van het account \u2014 zonder Ownpace, wat het enige echte voordeel is. Laat dit leeg om OAuth te gebruiken.',
   'wizard.refreshToken': 'Refresh-token',
   'wizard.refreshToken.hint':
     'Het gedelegeerde token voor het account dat wordt gemigreerd. Behandel het als een wachtwoord.',
