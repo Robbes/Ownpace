@@ -217,6 +217,18 @@ export function consentUrl(p: {
     // re-measure reads what the grant actually carries. Over-ASKING is the
     // thing least privilege forbids, and `domainsToScopes` is what prevents
     // it.
+    //
+    // THIS REACHES THE GRANT-LINK FLOW TOO (0108 T4), which builds its URL
+    // through this same function, and that is deliberate rather than
+    // inherited. A migrator who has already consented to the owner's client
+    // for one domain will, on a second link for another domain, hand back a
+    // token carrying both — where without this the second link would strip
+    // the first, stopping a migration that was running, silently, for a
+    // reason nobody could see from either screen. The widening is bounded to
+    // scopes that PERSON already granted to that SAME client, so it grants no
+    // access that did not already exist; what it changes is that one stored
+    // credential can now exercise it. That trade is worth making in the
+    // direction of not breaking a live migration.
     include_granted_scopes: 'true',
     state: p.state,
   });
