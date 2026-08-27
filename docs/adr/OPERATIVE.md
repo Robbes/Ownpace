@@ -84,7 +84,7 @@ live in [README.md](./README.md), the register.
   and files are **separate paths** — that is the customer-facing unit and it must be said
   plainly wherever a price appears, because it is the number every tier is counted in. In the
   schema it is one **`scope_selection` row**: `(mapping_id, domain)`, one per domain, created
-  with the mapping (`apps/api/src/routes/migrations/index.ts:1122`).
+  with the mapping (`apps/api/src/routes/migrations/index.ts:1421`).
 - **A tier has TWO axes, and you are on the higher of them.** How many paths run at the same
   time — Tiny 1 · Small 4 · Medium 20 · Large 50 · XL 200 — and how much data you have moved:
   Tiny 250 GB · Small 750 GB · Medium 2 TB · Large 7.5 TB · XL 15 TB. One path and 400 GB is

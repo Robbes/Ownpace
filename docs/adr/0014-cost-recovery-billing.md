@@ -18,7 +18,7 @@
   and files are **separate paths** — that is the customer-facing unit and it must be said
   plainly wherever a price appears, because it is the number every tier is counted in. In the
   schema it is one **`scope_selection` row**: `(mapping_id, domain)`, one per domain, created
-  with the mapping (`apps/api/src/routes/migrations/index.ts:1122`).
+  with the mapping (`apps/api/src/routes/migrations/index.ts:1421`).
 - **A tier has TWO axes, and you are on the higher of them.** How many paths run at the same
   time — Tiny 1 · Small 4 · Medium 20 · Large 50 · XL 200 — and how much data you have moved:
   Tiny 250 GB · Small 750 GB · Medium 2 TB · Large 7.5 TB · XL 15 TB. One path and 400 GB is
@@ -317,7 +317,7 @@ the code agrees with the owner.
 
 **Cutover is terminal.** `cutover_event` runs its own machine — `PREPARING → READY_FOR_CUTOVER
 → APPROVED → CUTOVER_IN_PROGRESS → GRACE_PERIOD → COMPLETED` — and operations are refused once
-a mapping reaches `cutover` or `done` (`apps/api/src/routes/migrations/index.ts:2009`). Once MX
+a mapping reaches `cutover` or `done` (`apps/api/src/routes/migrations/index.ts:2086`). Once MX
 moves, the old provider stops receiving and the old→new path has nothing left to carry. It is
 finished, not quiet.
 
@@ -361,7 +361,7 @@ to this ADR**, which until now counted an account pair.
 
 **The machinery already agrees with the owner, at one grain and not the other.** Creating a
 migration writes "one `scope_selection` row per domain"
-(`apps/api/src/routes/migrations/index.ts:1122`), and `migration_status` is keyed
+(`apps/api/src/routes/migrations/index.ts:1421`), and `migration_status` is keyed
 `(mapping_id, domain)` with its own `completed_at`. Discovery reports per domain. So *progress*
 is already per path in the owner's sense. What is **not** per domain is the billing lifecycle:
 `mailbox_mapping.status` and `cutover_state` are per **mapping**, and
@@ -654,7 +654,7 @@ pricing page rather than on an invoice.
 
 The reason `ready` has to exist as its own state is exactly the billing rule: today `paused`
 means *both* "never started" (new mappings land paused so the owner can review discovery counts
-first — `apps/api/src/routes/migrations/index.ts:1329`) *and* would mean "was running, stopped".
+first — `apps/api/src/routes/migrations/index.ts:1395`) *and* would mean "was running, stopped".
 Those two must be told apart, because one is free and one is not. **A billing key cannot be
 built on a status that conflates the free case with the charged one.**
 
