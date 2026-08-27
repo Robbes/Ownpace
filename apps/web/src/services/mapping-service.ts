@@ -2,7 +2,7 @@
 import apiClient from './api.ts';
 import { z } from 'zod';
 import type { ProbeOutcome } from '@openmig/shared';
-import { MAPPING_LIFECYCLES } from '@openmig/shared';
+import { FAILURE_CATEGORIES, MAPPING_LIFECYCLES } from '@openmig/shared';
 import type { DiscoveryRecord, MappingLifecycle } from '@openmig/shared';
 
 // Schema definitions
@@ -122,6 +122,13 @@ export const MappingDomainStatusSchema = z.object({
   itemsNeedingDecision: z.number(),
   lastSyncedAt: z.string().optional(),
   lastError: z.string().optional(),
+  /**
+   * The failure's category (workplan 0110 T3). Parsed as the closed set the
+   * UI has sentences for — an older or newer server sending something else
+   * drops the field rather than reaching a screen with nothing to say, and
+   * the verbatim `lastError` still renders either way.
+   */
+  lastErrorCategory: z.enum(FAILURE_CATEGORIES).optional().catch(undefined),
   /** PassMetrics — counts and durations only, never names or addresses. */
   lastPass: z.record(z.string(), z.number()).optional(),
 });

@@ -680,6 +680,24 @@ const en = {
   'confirm.note.done': 'Finished. This migration no longer syncs.',
   'confirm.introStarted':
     'Migrations here have started. Live progress is shown per migration; the pre-start scan is kept as a snapshot.',
+  // The six failure categories (workplan 0110 T3). Each is a SENTENCE with a
+  // remedy, not a label: the owner's reframing made the customer the primary
+  // reader, and nobody can act on the words "auth expired". The raw provider
+  // message still renders verbatim beside these — this is the actionable
+  // half, not a replacement for the precise one.
+  'failure.authExpired':
+    'The connection to this account has expired. Reconnect it on the Connections page and this will carry on from where it stopped \u2014 nothing is lost.',
+  'failure.rateLimited':
+    'The provider asked us to slow down. Nothing is wrong: this pauses and resumes on its own.',
+  'failure.quotaExceeded':
+    'This account has reached what its provider allows for one day. It resumes tomorrow on its own \u2014 no action needed.',
+  'failure.targetRefused':
+    'The destination refused to accept this. Common causes are a full mailbox, a read-only folder or missing permission on the target account.',
+  'failure.network':
+    'We could not reach the server. This is usually brief, and it retries by itself.',
+  // The one whose text must carry the way OUT of self-service.
+  'failure.unknown':
+    'We could not classify this one. The provider\u2019s own message is below \u2014 if it does not help, send it to us and we will look.',
   'confirm.progress.heading': 'Live progress',
   'confirm.progress.synced': 'synced',
   'confirm.progress.failed': 'failed',
@@ -1194,6 +1212,18 @@ const nl: Record<keyof typeof en, string> = {
   'common.requestFailed': 'Het verzoek is niet voltooid.',
   'asof.updated': 'Bijgewerkt',
   'asof.refresh': 'Vernieuwen',
+  'failure.authExpired':
+    'De verbinding met dit account is verlopen. Herstel de verbinding op de pagina Verbindingen; daarna gaat dit verder waar het gestopt is \u2014 er gaat niets verloren.',
+  'failure.rateLimited':
+    'De provider vroeg ons om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
+  'failure.quotaExceeded':
+    'Dit account heeft bereikt wat de provider per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
+  'failure.targetRefused':
+    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: een volle mailbox, een alleen-lezen map, of ontbrekende rechten op het doelaccount.',
+  'failure.network':
+    'We konden de server niet bereiken. Dit duurt meestal kort en wordt vanzelf opnieuw geprobeerd.',
+  'failure.unknown':
+    'We konden dit niet classificeren. De melding van de provider zelf staat hieronder \u2014 helpt die niet, stuur hem ons dan en we kijken mee.',
   'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
   'verify.checkedAt': 'Geverifieerd',
   'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',
