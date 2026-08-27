@@ -66,7 +66,20 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   { prefix: '/api/scope-manifest', files: ['src/routes/scope-manifest.ts'] },
   { prefix: '/api/setup', files: ['src/routes/setup.ts'] },
   { prefix: '/api/connections', files: ['src/routes/connections.ts'] },
-  { prefix: '/api/migrations', files: ['src/routes/migrations/index.ts', 'src/routes/migrations/operating-routes.ts'] },
+  // Four files, not one: `migrations/index.ts` mounts three SUB-routers on
+  // itself, and each is a separate file the extractor has to be pointed at.
+  // `everySubRouterIsListed` below reads those mounts out of the code so a
+  // fourth cannot arrive unlisted — which is how `google-oauth-routes.ts`
+  // served two operations nothing checked.
+  {
+    prefix: '/api/migrations',
+    files: [
+      'src/routes/migrations/index.ts',
+      'src/routes/migrations/operating-routes.ts',
+      'src/routes/migrations/google-oauth-routes.ts',
+      'src/routes/migrations/link-routes.ts',
+    ],
+  },
   { prefix: '/api/decisions', files: ['src/routes/decisions.ts'] },
   { prefix: '/api/shared-addresses', files: ['src/routes/shared-addresses.ts'] },
   { prefix: '/api/permissions', files: ['src/routes/permissions.ts'] },
@@ -218,6 +231,49 @@ describe('the spec and the routers agree', () => {
     expect(forgotten, 'mounted in index.ts but absent from MOUNTS — its routes are unchecked').toEqual(
       [],
     );
+  });
+
+  it('lists every SUB-router a listed router mounts on itself', () => {
+    // The same hole, one level down, and it had already swallowed something.
+    // `everyRouterMountIsListed` reads `app.use('/prefix', …)` out of the API's
+    // own index.ts — but `/api/migrations` is not one router, it is a router
+    // that mounts three more on itself with `router.use('/', …)`. Those files
+    // are reachable only through the `files` array above, and
+    // `google-oauth-routes.ts` was never added to it: `POST /google/authorize`
+    // and `GET /google/callback` — one of them the beginning of an OAuth
+    // consent — existed, served, and were checked by nothing.
+    //
+    // A router file is read for its OWN routes only, so listing the parent is
+    // not enough and never was. This resolves the imports the parent actually
+    // mounts, which makes the next sub-router's arrival a red test.
+    //
+    // Covered ANYWHERE in MOUNTS counts: `members.ts` is mounted inside the
+    // tenants router but carries its own prefix entry, because its paths are
+    // nested rather than shared. What is being asserted is that the file is
+    // read by something, not that it is read under its parent.
+    const everyListedFile = new Set(MOUNTS.flatMap((m) => m.files));
+    for (const { prefix, files } of MOUNTS) {
+      const parent = files[0]!;
+      if (!parent.endsWith('/index.ts')) continue;
+      const src = read(parent);
+      const dir = parent.slice(0, parent.lastIndexOf('/'));
+      const mountedNames = [...src.matchAll(/router\.use\(\s*'[^']*'\s*,\s*(\w+)\s*\)/gm)].map(
+        (m) => m[1]!,
+      );
+      for (const name of mountedNames) {
+        const imported = src.match(
+          new RegExp(`import\\s+${name}\\s+from\\s+'\\.\\/([^']+)'`),
+        );
+        // A sub-router imported from elsewhere is out of this check's reach;
+        // say so rather than pass quietly.
+        expect(imported, `${parent} mounts ${name} but does not import it from ./`).toBeTruthy();
+        const file = `${dir}/${imported![1]!}`;
+        expect(
+          [...everyListedFile],
+          `${file} is mounted under ${prefix} but is not in MOUNTS — its routes are unchecked`,
+        ).toContain(file);
+      }
+    }
   });
 });
 

@@ -84,18 +84,25 @@ export function getDbPool(): Pool {
 /**
  * Execute a function within a tenant-scoped transaction.
  * This is the critical security gate - all tenant-specific queries must go through this.
- * 
+ *
+ * The source is a `Pool` in every deployment and a `LedgerDriver` in a test —
+ * the parameter was typed `Pool` while `ledgerWithTenant` had always accepted
+ * both, so the narrower type was describing the call sites rather than the
+ * function. Widening it lets a route be exercised against PGlite with its RLS
+ * actually in force, which is the only wiring that proves a tenant-scoped
+ * route is tenant-scoped.
+ *
  * @param tenantId - The tenant ID to scope the query to
- * @param pool - The database pool (from getDbPool())
+ * @param source - The database pool (from getDbPool()), or a ledger driver
  * @param fn - The function to execute with a tenant-scoped db handle
  * @returns The result of the function
  */
 export function withTenantDb<T>(
   tenantId: string,
-  pool: Pool,
+  source: Pool | LedgerDriver,
   fn: (db: PgDatabase) => Promise<T>
 ): Promise<T> {
-  return ledgerWithTenant(pool, tenantId, fn);
+  return ledgerWithTenant(source, tenantId, fn);
 }
 
 /**
