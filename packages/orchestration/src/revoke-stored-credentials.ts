@@ -36,6 +36,16 @@
  * Both columns are read now, `secret_ref` first. The legacy one is still there
  * and a deployment old enough to have used it should not be silently skipped
  * on the one operation that cannot be repeated after the rows are gone.
+ *
+ * ## And since 2026-08-27, both TABLES
+ *
+ * Migration 0032 gave `mailbox_mapping` a credential of its own — the refresh
+ * token a migrated person granted through their own link (ADR-0035). Reading
+ * only `connection` would have made exactly the mistake above one more time,
+ * against the one token that matters most: it reaches a private individual's
+ * own mailbox, granted as a favour, rather than an account the customer
+ * administers. Erasure would have deleted it from our database and left it
+ * live at Google, with the receipt saying there had been nothing to revoke.
  */
 
 import { SecretStore } from '@openmig/core/secret-store';
@@ -77,8 +87,29 @@ export async function revokeStoredCredentials(
   revoker: TokenRevoker,
 ): Promise<RevocationOutcome[]> {
   const { rows } = await db.query<CredentialRow>(
+    // TWO tables, not one (workplan 0108 T4). Since migration 0032 a credential
+    // can live on `mailbox_mapping.source_secret_ref` as well — the refresh
+    // token a migrated person granted through their own link, which belongs to
+    // one mapping and was deliberately NOT written onto the shared connection.
+    //
+    // Reading only `connection` would have repeated this file's own founding
+    // mistake in a worse place: that one recorded `no_credential` for a
+    // credential it could not see, and this one would have said nothing at all
+    // about a token that a real person granted us access with. It is the single
+    // most important token in the product to revoke, because it reaches
+    // somebody's own mailbox rather than an account the customer administers.
+    //
+    // The mapping's kind comes from its SOURCE connection, since that is what
+    // decides how a token is revoked; a mapping whose source connection has
+    // vanished is skipped by the join rather than guessed at.
     `SELECT kind, secret_ref, encrypted_credentials AS legacy_credentials
-       FROM connection WHERE tenant_id = $1`,
+       FROM connection WHERE tenant_id = $1
+     UNION ALL
+     SELECT c.kind, m.source_secret_ref AS secret_ref, NULL AS legacy_credentials
+       FROM mailbox_mapping m
+       JOIN mailbox b ON b.id = m.source_mailbox_id
+       JOIN connection c ON c.id = b.connection_id
+      WHERE m.tenant_id = $1 AND m.source_secret_ref IS NOT NULL`,
     [tenantId],
   );
 

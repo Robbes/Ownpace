@@ -1089,6 +1089,9 @@ export function authenticateMappingLink(
       mappingId: verdict.link.mappingId,
       tenantId: verdict.link.tenantId,
       purpose: verdict.link.purpose,
+      // A property of the link, not of the bearer — see `MappingLinkRequest`.
+      // The grant page states its own validity before the button.
+      expiresAt: verdict.link.expiresAt,
     };
     next();
   };

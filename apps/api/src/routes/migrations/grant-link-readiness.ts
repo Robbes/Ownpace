@@ -128,3 +128,48 @@ export function grantLinkRefusal(r: GrantLinkReadiness): GrantLinkRefusal | null
   }
   return null;
 }
+
+/**
+ * The same question from the other side: may this migration RUN yet?
+ * (Workplan 0108 T4's named open edge.)
+ *
+ * A mapping whose migrator has not granted anything has a source it cannot
+ * open. Starting it would enqueue a pass that fails at the first request, with
+ * an authentication error in a run report — blamed on the provider, days after
+ * the owner forgot they were waiting on somebody.
+ *
+ * ## Why this is DERIVED and not a new `status` value
+ *
+ * The plan left the question open: *"if it turns out to need a status value of
+ * its own, that is a finding for the build."* It does not, and the finding is
+ * that adding one would be the more expensive wrong answer.
+ * `mailbox_mapping.status` has exactly four values and they are load-bearing
+ * three times over — a database CHECK, `MAPPING_LIFECYCLES` in the shared
+ * contract that both editions serve, and ADR-0014's billing states, where a
+ * fifth value would need a rule about whether it holds a capacity slot. And a
+ * stored state can go stale: it would have to be set when a link is issued and
+ * cleared when a grant lands, so any path that stored a credential without
+ * clearing it would leave a mapping permanently unable to start.
+ *
+ * Waiting-for-a-grant is not a state somebody puts a mapping into. It is the
+ * observation *"the credentials this source needs are not here yet"*, and that
+ * is true or false from the rows themselves, at the moment it is asked.
+ *
+ * A service-account key is a legitimate alternative to a granted refresh token
+ * (both appear in the Google credential fields), so it satisfies this too:
+ * what is refused is having NO way in, never a particular way in.
+ */
+export function awaitingGrantRefusal(r: {
+  readonly sourceKind: string | null;
+  readonly hasRefreshToken: boolean;
+  readonly hasServiceAccountKey: boolean;
+}): string | null {
+  if (!r.sourceKind || !GOOGLE_CONSENT_KIND_TO_SOURCE[r.sourceKind]) return null;
+  if (r.hasRefreshToken || r.hasServiceAccountKey) return null;
+  return (
+    'This migration cannot start yet: nobody has connected its Google account. Create a ' +
+    'grant link and send it to the person being migrated — they sign in themselves, and ' +
+    'their password never reaches you or us. (You can also paste a refresh token on the ' +
+    'source connection if the account is one you administer.)'
+  );
+}

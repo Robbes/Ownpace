@@ -76,8 +76,38 @@ import {
 import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory.ts';
 
 /**
+ * The mapping's OWN credentials merged over the connection's, key by key
+ * (workplan 0108 T4, migration 0032).
+ *
+ * One function because there are two credential paths — `buildDepsFromMapping`
+ * for mail and `loadDomainConnections` for calendar, contacts and files — and
+ * a migrator's grant that worked for their mail but not their calendar would
+ * be a bug found by a customer rather than by us.
+ *
+ * **Which half wins, and why.** The client id and secret belong to the account
+ * OWNER and are configured once on a connection that several mappings may
+ * share. The refresh token belongs to the person being migrated and is true of
+ * one mapping only. So the mapping's keys win where it has them, and the
+ * connection's stand everywhere else — which means an owner rotating their
+ * client secret does not invalidate anybody's grant, and a migrator re-granting
+ * does not touch anybody else's mapping.
+ *
+ * Target credentials are never merged: nothing grants a target through a link,
+ * and a function that silently accepted `'target'` would be a place for that to
+ * start happening by accident.
+ */
+function mergeMappingCredentials(
+  role: 'source' | 'target',
+  connectionCreds: Record<string, string>,
+  mappingSecretRef: string | null | undefined,
+): Record<string, string> {
+  if (role !== 'source' || !mappingSecretRef) return connectionCreds;
+  return { ...connectionCreds, ...SecretStore.decryptCredentials(mappingSecretRef) };
+}
+
+/**
  * Build dependencies from database-stored connections with encrypted credentials.
- * 
+ *
  * This is the job-oriented version that:
  * 1. Loads the source and target connections from the database (with RLS)
  * 2. Decrypts credentials using the secret store
@@ -179,10 +209,22 @@ export async function buildDepsFromMapping(
       const configObj = sourceConnection.config as Record<string, unknown>;
       if (configObj.credentials && typeof configObj.credentials === 'object') {
         sourceCredentials = configObj.credentials as Record<string, string>;
+      } else if (mapping.sourceSecretRef) {
+        // A mapping whose only credentials are its migrator's: the connection
+        // carries the owner's client and nothing else, or nothing at all.
+        sourceCredentials = {};
       } else {
         throw new Error('Source connection has no credentials');
       }
     }
+    // The migrator's own grant wins, key by key (workplan 0108 T4). Same
+    // function the per-domain path uses, so a grant cannot work for somebody's
+    // mail and not their calendar.
+    sourceCredentials = mergeMappingCredentials(
+      'source',
+      sourceCredentials,
+      mapping.sourceSecretRef,
+    );
     
     // Decrypt target credentials
     let targetCredentials: Record<string, string>;
@@ -356,6 +398,7 @@ async function loadDomainConnections(
         targetFolderPrefix: mailboxMapping.targetFolderPrefix,
         sourceConfigOverride: mailboxMapping.sourceConfigOverride,
         targetConfigOverride: mailboxMapping.targetConfigOverride,
+        sourceSecretRef: mailboxMapping.sourceSecretRef,
       })
       .from(mailboxMapping)
       .where(and(eq(mailboxMapping.tenantId, tenantId), eq(mailboxMapping.id, mappingId)));
@@ -418,10 +461,18 @@ async function loadDomainConnections(
         creds = SecretStore.decryptCredentials(conn.secretRef);
       } else if (config.credentials && typeof config.credentials === 'object') {
         creds = config.credentials as Record<string, string>;
+      } else if (role === 'source' && mapping.sourceSecretRef) {
+        // A mapping whose ONLY credentials are its migrator's — the connection
+        // was created for the link flow and never carried a secret of its own.
+        creds = {};
       } else {
         throw new Error(`${role} connection has no credentials`);
       }
-      return { config, creds, kind: conn.kind };
+      return {
+        config,
+        creds: mergeMappingCredentials(role, creds, mapping.sourceSecretRef),
+        kind: conn.kind,
+      };
     };
     return {
       source: await load('source'),

@@ -1719,6 +1719,98 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/grant/{link}:
+    parameters:
+      - name: link
+        in: path
+        required: true
+        description: The whole credential — `<id>.<secret>`, one path segment.
+        schema: { type: string }
+    get:
+      tags: [Grant links]
+      summary: What the person holding this link needs to decide
+      description: |
+        Answers to a LINK, not to a session — there is no bearer token here and
+        the caller has no Ownpace account, by design (ADR-0035: owners sign in,
+        migrated people get links).
+
+        Says who is asking (the organisation's name), what will be read in
+        plain words, the exact scope Google will record, and when the link
+        stops working. It says nothing else: not the mapping id, not the tenant
+        id, not the owner's email, not the client id, nothing about any other
+        migration.
+
+        Changes nothing, deliberately. Chat applications fetch URLs to draw
+        previews, and a link is spent at the GRANT rather than at the open, so
+        a preview cannot burn it.
+      security: []
+      responses:
+        '200':
+          description: Enough to decide with.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organisation: { type: string }
+                  reads: { type: string }
+                  scope: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        '401':
+          description: |
+            One sentence for every way a link can fail — unknown, forged,
+            expired, revoked, already used, wrong purpose, malformed. The
+            difference is deliberately not reported: the reader cannot act on
+            it, and naming it would tell a forger which part failed.
+        '409':
+          description: |
+            The link is good but the migration cannot be connected — it no
+            longer exists, its source is not a Google account, or its Google
+            application is not configured. The sentence is written to be
+            forwarded to whoever sent the link.
+        '503':
+          description: The link could not be checked just now. Ours, not the caller's.
+
+  /api/grant/{link}/google/authorize:
+    parameters:
+      - name: link
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Grant links]
+      summary: Start the Google sign-in for this link
+      description: |
+        The client id and secret are read from the mapping's own source
+        connection and decrypted server-side. Unlike the owner's
+        `/api/migrations/google/authorize`, they are NOT accepted from the
+        request body: the link holder is not the person who configured them and
+        must never hold them.
+
+        Answers a URL for the browser to follow rather than redirecting, so a
+        refusal can be shown as words instead of as a Google error page.
+
+        The consent ends at the same callback the owner's flow uses. Which
+        ending runs is decided by the server's own pending state, never by
+        anything in the redirect — and in this one the refresh token is stored
+        against the mapping and shown to nobody.
+      security: []
+      responses:
+        '200':
+          description: Where to send the browser.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string }
+        '401': { description: The link was refused — see GET above. }
+        '409':
+          description: |
+            The migration cannot be connected, or this deployment's callback
+            address is a raw IP, which Google will not accept as a redirect URI.
+        '503': { description: The link could not be checked just now. }
+
   /api/migrations/{mappingId}/deletions:
     parameters:
       - $ref: '#/components/parameters/MappingId'

@@ -63,6 +63,13 @@ const NOT_ASKED: Record<string, string> = {
   '/api/billing/webhooks':
     'a payment provider\'s signed callback. Forging one proves the signature ' +
     'check can be fooled, which is worse than no coverage.',
+  '/api/grant':
+    'the migrator\'s consent flow. Reaching it needs a link issued against a ' +
+    'source connection carrying a real Google client id and secret, written ' +
+    'from a script — hard rule 3 says no — and the flow it starts ends at ' +
+    'Google\'s own consent screen, which no gate can press. Covered by ' +
+    'routes/grant.unit.test.ts, which runs the whole flow against a real ' +
+    'database with only Google\'s token endpoint replaced.',
 };
 
 describe('every route family is either asked for or accounted for', () => {

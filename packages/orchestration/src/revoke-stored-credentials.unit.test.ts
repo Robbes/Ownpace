@@ -97,6 +97,39 @@ describe('which column the credentials are read from', () => {
     await revokeStoredCredentials(pool, 't', revoker);
     expect(revoker.seen).toEqual([{ refresh_token: 'decrypted:sr' }]);
   });
+
+  it('asks the MAPPING table too, or a migrator’s grant is erased and never withdrawn', async () => {
+    // Migration 0032 put a credential on `mailbox_mapping` — the refresh token
+    // a person granted through their own link. It is the single most important
+    // token in the product to revoke, because it reaches a private
+    // individual's own mailbox rather than an account the customer
+    // administers. Reading only `connection` would delete it from our database
+    // and leave it live at Google, with the erasure receipt reporting nothing
+    // to revoke: this file's founding mistake, in a worse place.
+    const { pool, sql } = poolOf([]);
+    await revokeStoredCredentials(pool, 't', recording());
+    expect(sql[0]).toMatch(/mailbox_mapping/);
+    expect(sql[0]).toMatch(/source_secret_ref/);
+    // Via its source connection, because the KIND is what decides how a token
+    // is withdrawn — a mapping alone cannot say.
+    expect(sql[0]).toMatch(/JOIN\s+connection/i);
+  });
+
+  it('revokes a mapping-held token under its source connection’s kind', async () => {
+    // The union's second leg answers rows of the same shape; nothing
+    // downstream has to know which table a credential came from.
+    const { pool } = poolOf([
+      { kind: 'gmail', secret_ref: 'the-connection', legacy_credentials: null },
+      { kind: 'gmail', secret_ref: 'the-migrators-grant', legacy_credentials: null },
+    ]);
+    const revoker = recording();
+    const out = await revokeStoredCredentials(pool, 't', revoker);
+    expect(out).toHaveLength(2);
+    expect(revoker.seen).toEqual([
+      { refresh_token: 'decrypted:the-connection' },
+      { refresh_token: 'decrypted:the-migrators-grant' },
+    ]);
+  });
 });
 
 describe('what it says when it genuinely cannot revoke', () => {

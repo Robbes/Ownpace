@@ -36,6 +36,7 @@ import googleOauthRoutes from './google-oauth-routes.ts';
 // here and never will be — they authenticate a link, not a session, so they
 // live behind their own middleware rather than behind `authenticate`.
 import linkRoutes from './link-routes.ts';
+import { awaitingGrantRefusal } from './grant-link-readiness.ts';
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
@@ -2003,6 +2004,53 @@ async function loadMapping(
   return rows[0] ?? null;
 }
 
+/**
+ * Is this mapping still waiting for somebody to connect its Google account?
+ *
+ * Composes the credentials the way a sync pass will (migration 0032: the
+ * mapping's own over the connection's, key by key) and asks the decision in
+ * `grant-link-readiness.ts` — deliberately the SAME composition, because a
+ * guard that reasons about different credentials from the ones the run will
+ * use is a guard that eventually disagrees with reality.
+ *
+ * A source whose credentials cannot be decrypted reads as "nothing there",
+ * which lands the owner on the refusal rather than on a run that dies at the
+ * first request. That is the honest direction: an unreadable secret and an
+ * absent one both mean the pass has no way in.
+ */
+async function awaitingGrant(
+  tenantId: string,
+  mappingId: string,
+  mappingSecretRef: string | null,
+): Promise<string | null> {
+  const rows = await withTenantDb(tenantId, getSharedPool(), (db) =>
+    db
+      .select({ kind: schema.connection.kind, secretRef: schema.connection.secretRef })
+      .from(schema.mailboxMapping)
+      .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
+      .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+      .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId))),
+  );
+  const source = rows[0];
+  if (!source) return null;
+
+  const read = (ref: string | null): Record<string, unknown> => {
+    if (!ref) return {};
+    try {
+      return SecretStore.decryptCredentials(ref);
+    } catch {
+      return {};
+    }
+  };
+  const creds = { ...read(source.secretRef), ...read(mappingSecretRef) };
+  const has = (key: string) => typeof creds[key] === 'string' && creds[key].trim().length > 0;
+  return awaitingGrantRefusal({
+    sourceKind: source.kind,
+    hasRefreshToken: has('refreshToken'),
+    hasServiceAccountKey: has('serviceAccountKey'),
+  });
+}
+
 const DiscoverSchema = z.object({
   domains: z.array(z.enum(['email', 'calendar', 'contact', 'file'])).optional(),
 });
@@ -2092,6 +2140,18 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     if (mapping.status === 'cutover' || mapping.status === 'done') {
       return void res.status(409).json({ error: 'Conflict', message: `Cannot start a mapping in '${mapping.status}' state` });
     }
+
+    // Waiting on somebody's grant is not runnable (workplan 0108 T4). Starting
+    // it would enqueue a pass that fails at the first request, and the failure
+    // would arrive as a provider authentication error in a run report — read
+    // as Google's fault, days after the owner forgot they were waiting on a
+    // colleague. Derived from the rows rather than stored as a fifth status:
+    // see `awaitingGrantRefusal` for why that is the cheaper honest answer.
+    const waiting = await awaitingGrant(tenantId, mappingId, mapping.sourceSecretRef);
+    if (waiting) {
+      return void res.status(409).json({ error: 'awaiting_grant', message: waiting, reason: waiting });
+    }
+
     const activated = mapping.status !== 'active';
     if (activated) {
       await withTenantDb(tenantId, getSharedPool(), (db) =>

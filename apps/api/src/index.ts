@@ -23,6 +23,7 @@ import type { AuthenticatedRequest, JwtPayload } from './types/api.ts';
 // verification_run/apply_receipt rows by the jobs themselves.
 import tenantRoutes from './routes/tenants/index.ts';
 import mappingRoutes from './routes/migrations/index.ts';
+import grantRoutes from './routes/grant.ts';
 import decisionRoutes from './routes/decisions.ts';
 import sharedAddressRoutes from './routes/shared-addresses.ts';
 import permissionRoutes from './routes/permissions.ts';
@@ -188,6 +189,16 @@ app.use('/api/scope-manifest', scopeManifestRoutes);
 app.use('/api/setup', setupRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/migrations', mappingRoutes);
+/**
+ * The migrator's own surface (workplan 0108 T4, ADR-0035).
+ *
+ * Its own prefix rather than a corner of `/api/migrations`, because everything
+ * under it authenticates a LINK and not a session — no bearer header, no
+ * subject, no tenant claim, no role. Keeping the boundary visible in the URL
+ * is the point: a route added here is a route somebody with no account can
+ * reach, and that should be a decision rather than an inheritance.
+ */
+app.use('/api/grant', grantRoutes);
 // The §11.1 drift decision queue (workplan 0028 T1).
 app.use('/api/decisions', decisionRoutes);
 app.use('/api/shared-addresses', sharedAddressRoutes);

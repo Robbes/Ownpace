@@ -159,18 +159,25 @@ describe('what it answers', () => {
 });
 
 describe('what it attaches — a mapping, never a user', () => {
-  it('names exactly the mapping, tenant, link and purpose', async () => {
+  it('names exactly the mapping, tenant, link, purpose and expiry', async () => {
     const mw = authenticateMappingLink('grant', driver);
     const x = exchange({ link: liveToken });
     await mw(x.req, x.res, x.next);
 
     const attached = (x.req as MappingLinkRequest).mappingLink;
+    // Exhaustive on purpose: this assertion is what makes the field list a
+    // decision rather than a habit, and it is why widening it in 0108 T4 had
+    // to be argued for. `expiresAt` earns its place by being a property of the
+    // LINK — the grant page states its own validity before the button — and
+    // says nothing about who is holding it.
     expect(attached).toEqual({
       linkId: liveToken.split('.')[0],
       mappingId: MAPPING,
       tenantId: TENANT,
       purpose: 'grant',
+      expiresAt: expect.any(Date),
     });
+    expect(attached!.expiresAt.getTime()).toBeGreaterThan(Date.now());
   });
 
   it('attaches no identity at all — a link holder is not a user', async () => {

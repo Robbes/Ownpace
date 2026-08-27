@@ -180,6 +180,24 @@ export const mailboxMapping = pgTable(
     sourceConfigOverride: jsonb('source_config_override'),
     targetConfigOverride: jsonb('target_config_override'),
     /**
+     * Credentials belonging to THIS mapping alone (migration 0032, ADR-0035
+     * decision 4) — in practice the refresh token the migrated person granted
+     * through their own link.
+     *
+     * `source_config_override`'s sibling and the same merge rule, because the
+     * question is the same one: a shared connection cannot answer something
+     * that is true of one mapping only. Here the split is by OWNER rather than
+     * by scope — the client id and secret are the account owner's, configured
+     * once on the connection; the refresh token is the migrated person's, and
+     * writing it onto the connection would hand every other mapping on that
+     * connection the reach of one person's account.
+     *
+     * `text`, not `jsonb`, like `connection.secret_ref`: the same
+     * `EncryptedSecret` JSON, deliberately opaque to SQL so nothing can query
+     * inside a credential.
+     */
+    sourceSecretRef: text('source_secret_ref'),
+    /**
      * The mapping's throttle choice (migration 0017) — same shape and same
      * shared parser as the appliance's `throttleConfig`. NULL = no throttling.
      */

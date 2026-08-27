@@ -18,20 +18,25 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/auth.ts';
+import { authenticate, getDbPool } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
+import { log } from '@openmig/shared';
 import {
-  ConsentFlowStore,
   GOOGLE_SOURCE_SCOPES,
   consentResultPage,
   consentUrl,
   exchangeCode,
+  grantResultPage,
   rawIpCallbackRefusal,
   type GoogleConsentSourceType,
 } from './google-consent.ts';
+// The SHARED store: this file holds the owner's beginning and the one ending,
+// and `grant-routes.ts` holds the migrator's beginning. All three must see the
+// same in-flight states — see `consent-flows.ts`.
+import { consentFlows as flows } from './consent-flows.ts';
+import { storeGrantedToken } from './grant-ending.ts';
 
 const router = Router();
-const flows = new ConsentFlowStore();
 
 const AuthorizeSchema = z.object({
   sourceType: z.enum(['gmail', 'google-calendar', 'google-contacts', 'google-drive']),
@@ -88,6 +93,16 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
   });
 });
 
+/**
+ * ONE callback address for two flows, because Google is told one redirect URI
+ * and a second would have to be registered by every customer (workplan 0108
+ * T4). Which flow this is comes off the PENDING STATE — the server's own record
+ * — never off the query string, which is the browser's to write.
+ *
+ * The branch decides who may see the refresh token, and that is the only
+ * difference between the two endings: the owner's goes to the owner's wizard,
+ * the migrator's goes into the database and stops there.
+ */
 router.get('/google/callback', async (req: Request, res: Response) => {
   const page = (status: number, html: string) =>
     void res.status(status).setHeader('Content-Type', 'text/html; charset=utf-8').send(html);
@@ -97,7 +112,9 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   if (!pending) {
     // Absent, forged, expired or ALREADY USED — one honest sentence for all
     // four, because distinguishing them would teach a forger which part of
-    // the state failed.
+    // the state failed. No pending state means no link either, so this one
+    // cannot be worded for the migrator; it is deliberately about the state
+    // rather than about anybody's link.
     return page(
       400,
       consentResultPage({
@@ -110,25 +127,21 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       }),
     );
   }
+  // From here the flow is known, so every remaining answer is rendered in the
+  // voice of whoever is actually looking at it.
+  const link = pending.link;
+  const refuse = (status: number, reason: string) =>
+    page(status, link ? grantResultPage({ ok: false, reason }) : consentResultPage({ outcome: { ok: false, reason } }));
+
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
-    return page(
+    return refuse(
       200,
-      consentResultPage({
-        outcome: {
-          ok: false,
-          reason: `Google reported: ${req.query.error}. Nothing was granted and nothing was stored.`,
-        },
-      }),
+      `Google reported: ${req.query.error}. Nothing was granted and nothing was stored.`,
     );
   }
   const code = typeof req.query.code === 'string' ? req.query.code : '';
   if (!code) {
-    return page(
-      400,
-      consentResultPage({
-        outcome: { ok: false, reason: 'Google sent no authorization code back.' },
-      }),
-    );
+    return refuse(400, 'Google sent no authorization code back.');
   }
   const outcome = await exchangeCode({
     code,
@@ -137,7 +150,31 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     redirectUri: pending.redirectUri,
     askedScope: pending.scope,
   });
-  page(outcome.ok ? 200 : 400, consentResultPage({ webOrigin: webOrigin(), outcome }));
+
+  if (!link) {
+    // The owner's ending, exactly as it shipped in 0089 T1.
+    return page(outcome.ok ? 200 : 400, consentResultPage({ webOrigin: webOrigin(), outcome }));
+  }
+
+  if (!outcome.ok) return refuse(400, outcome.reason);
+
+  // The migrator's ending. Note what is NOT passed on from here: `outcome`
+  // carries the refresh token, and only `storeGrantedToken` receives it. The
+  // page below is rendered from a boolean.
+  let stored;
+  try {
+    stored = await storeGrantedToken(getDbPool(), link, outcome.refreshToken);
+  } catch (error) {
+    log.error('[api] storing a granted credential failed:', error);
+    return refuse(
+      500,
+      'Your permission was given, but something on our side went wrong storing it, so it ' +
+        'was not kept. Nothing is connected yet. Please tell the person who sent you the ' +
+        'link — this one is ours to fix, not yours.',
+    );
+  }
+  if (!stored.ok) return refuse(409, stored.reason);
+  page(200, grantResultPage({ ok: true }));
 });
 
 export default router;
