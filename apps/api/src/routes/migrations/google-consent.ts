@@ -32,6 +32,10 @@
  */
 
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import {
+  domainsToScopes,
+  type GoogleGrantDomain,
+} from '@openmig/orchestration/account-qualification';
 
 export const GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 export const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -42,18 +46,37 @@ export type GoogleConsentSourceType =
   | 'google-contacts'
   | 'google-drive';
 
+/** Which of the four faces each Google source type is. */
+export const GOOGLE_SOURCE_DOMAIN: Readonly<
+  Record<GoogleConsentSourceType, GoogleGrantDomain>
+> = {
+  gmail: 'mail',
+  'google-calendar': 'calendar',
+  'google-contacts': 'contact',
+  'google-drive': 'file',
+};
+
 /**
  * One product, one scope — least privilege is structural here because the
  * SOURCE TYPE is the choice: nothing can widen a gmail consent into Drive.
- * The values are the product's own factory scopes (the same vocabulary the
- * 0106 qualification reads back out of a token response), Drive read-only
- * because every source in this product is read-only.
+ *
+ * DERIVED, not written out (workplan 0106 T1b). Until 2026-08-27 these four
+ * values were a literal table here and a second literal table in
+ * `account-qualification.ts`, which reads the same four scopes back out of a
+ * token response. Two copies of a scope list is the drift nobody notices:
+ * they disagree only in the case where the product asks for one scope and
+ * then judges the resulting grant against another, and the symptom is a
+ * connection that consents successfully and qualifies as `no`.
+ *
+ * `domainsToScopes` is now the single authority, and it can only ever return
+ * the narrow scope of each domain — see its own doc comment for why the ask
+ * and the broader accepted scopes are separate fields rather than one list.
  */
 export const GOOGLE_SOURCE_SCOPES: Readonly<Record<GoogleConsentSourceType, string>> = {
-  gmail: 'https://mail.google.com/',
-  'google-calendar': 'https://www.googleapis.com/auth/calendar',
-  'google-contacts': 'https://www.googleapis.com/auth/carddav',
-  'google-drive': 'https://www.googleapis.com/auth/drive.readonly',
+  gmail: domainsToScopes(['mail'])[0]!,
+  'google-calendar': domainsToScopes(['calendar'])[0]!,
+  'google-contacts': domainsToScopes(['contact'])[0]!,
+  'google-drive': domainsToScopes(['file'])[0]!,
 };
 
 interface PendingConsent {
@@ -181,6 +204,20 @@ export function consentUrl(p: {
     // repeat consent may come back without a refresh token at all.
     access_type: 'offline',
     prompt: 'consent',
+    // INCREMENTAL CONSENT, and it is not optional once the ask is narrow
+    // (workplan 0106 T1b). Google replaces a grant with exactly what the
+    // latest consent asked for. So a person who has consented to mail and
+    // then consents to calendar would, without this, be left with calendar
+    // ONLY — their working mail connection silently losing its scope at the
+    // moment they added a second domain. Asking narrowly is only safe
+    // alongside asking additively; the two belong in one change.
+    //
+    // The resulting token may therefore carry MORE than this request named.
+    // That is over-RECEIVING, which is fine and is reported: the 0106 T1a
+    // re-measure reads what the grant actually carries. Over-ASKING is the
+    // thing least privilege forbids, and `domainsToScopes` is what prevents
+    // it.
+    include_granted_scopes: 'true',
     state: p.state,
   });
   return `${GOOGLE_AUTH_ENDPOINT}?${q.toString()}`;

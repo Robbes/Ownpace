@@ -318,25 +318,90 @@ export function isGoogleGrantKind(kind: string): boolean {
   return (GOOGLE_GRANT_KINDS as ReadonlyArray<string>).includes(kind);
 }
 
+/** The four faces an account can carry here. */
+export type GoogleGrantDomain = 'mail' | 'calendar' | 'contact' | 'file';
+
 /**
- * The product's own scope needs, domain by domain — what a grant must carry
- * for each face to actually work here. These are the scopes the factories
- * mint tokens with (GMAIL_SCOPE, GOOGLE_CALDAV_SCOPE, GOOGLE_CARDDAV_SCOPE,
- * DRIVE_READONLY_SCOPE); drive also accepts the broader read-write scope a
- * person may have granted elsewhere.
+ * The product's own scope needs, domain by domain — one table read in BOTH
+ * directions (workplan 0106 T1a reads a grant; T1b asks for one).
+ *
+ * The two fields are not decoration, they are the least-privilege invariant
+ * made structural. The owner's ask was *"grant access to what they want and
+ * not more/all"*, and the failure mode is not a wrong scope — it is a
+ * BROADER one arriving quietly, because a broader scope makes every feature
+ * work and nothing goes red.
+ *
+ *  - `asked` is the ONLY scope a consent request may name for this domain.
+ *    It is the scope the factory actually mints tokens with (GMAIL_SCOPE,
+ *    GOOGLE_CALDAV_SCOPE, GOOGLE_CARDDAV_SCOPE, DRIVE_READONLY_SCOPE).
+ *  - `alsoAccepted` is broader scopes that SATISFY the domain when a person
+ *    already granted them elsewhere. Read-only, never asked for.
+ *
+ * Kept apart rather than as one ordered list where the ask is element zero:
+ * an ordered list makes the invariant positional, so a reorder — or an
+ * innocent-looking "add the broader scope, it covers more" — silently widens
+ * every consent screen the product shows. Here, widening the ask means
+ * editing a field named `asked`, in a diff somebody reads.
+ *
+ * Over-RECEIVING is a different thing and is fine: if Google enumerates the
+ * broader Drive scope because the person granted it long ago, the domain is
+ * satisfied and reported. Over-ASKING is what least privilege forbids.
  */
 const GOOGLE_DOMAIN_SCOPES: Record<
-  'mail' | 'calendar' | 'contact' | 'file',
-  ReadonlyArray<string>
+  GoogleGrantDomain,
+  { readonly asked: string; readonly alsoAccepted: ReadonlyArray<string> }
 > = {
-  mail: ['https://mail.google.com/'],
-  calendar: ['https://www.googleapis.com/auth/calendar'],
-  contact: ['https://www.googleapis.com/auth/carddav'],
-  file: [
-    'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/drive',
-  ],
+  mail: { asked: 'https://mail.google.com/', alsoAccepted: [] },
+  calendar: { asked: 'https://www.googleapis.com/auth/calendar', alsoAccepted: [] },
+  contact: { asked: 'https://www.googleapis.com/auth/carddav', alsoAccepted: [] },
+  file: {
+    asked: 'https://www.googleapis.com/auth/drive.readonly',
+    alsoAccepted: ['https://www.googleapis.com/auth/drive'],
+  },
 };
+
+/**
+ * The one scope each domain may ASK for, exposed so the invariant can be
+ * asserted against the table rather than only against this module's output —
+ * a widened ask is then red at the table, before a consent screen is built
+ * from it. Read-only: the ask is decided in `GOOGLE_DOMAIN_SCOPES` above.
+ */
+export const GOOGLE_SCOPES_ASKED_BY_DOMAIN: Readonly<Record<GoogleGrantDomain, string>> =
+  Object.freeze({
+    mail: GOOGLE_DOMAIN_SCOPES.mail.asked,
+    calendar: GOOGLE_DOMAIN_SCOPES.calendar.asked,
+    contact: GOOGLE_DOMAIN_SCOPES.contact.asked,
+    file: GOOGLE_DOMAIN_SCOPES.file.asked,
+  });
+
+/** Every scope that satisfies a domain: the one we ask for, then the broader
+ *  ones we accept if they happen to be there. Ask-first, so the message that
+ *  names `[0]` names the scope a person can actually go and grant. */
+function scopesSatisfying(domain: GoogleGrantDomain): ReadonlyArray<string> {
+  const { asked, alsoAccepted } = GOOGLE_DOMAIN_SCOPES[domain];
+  return [asked, ...alsoAccepted];
+}
+
+/**
+ * The scopes a consent screen may ask for, given exactly the domains ticked
+ * (workplan 0106 T1b). The stepout URL is built from this and nothing else.
+ *
+ * Deduplicated and in a stable order so the same tick set always produces the
+ * same consent screen — a scope string that varies run to run is one a person
+ * cannot recognise as the same request they approved yesterday.
+ *
+ * An empty tick set returns an empty array rather than a default. There is no
+ * sensible scope for "no domains", and a fallback here would be a way to ask
+ * for something nobody ticked — which is the one thing this function exists
+ * to prevent. Callers refuse; they do not substitute.
+ */
+export function domainsToScopes(
+  domains: Iterable<GoogleGrantDomain>,
+): ReadonlyArray<string> {
+  const order: ReadonlyArray<GoogleGrantDomain> = ['mail', 'calendar', 'contact', 'file'];
+  const ticked = new Set(domains);
+  return order.filter((d) => ticked.has(d)).map((d) => GOOGLE_DOMAIN_SCOPES[d].asked);
+}
 
 const DWD_UNMEASURED =
   "Unmeasured — a service-account key's scopes live in the Workspace admin " +
@@ -402,16 +467,15 @@ export async function qualifyGoogleGrant(
     );
   }
 
-  const domainFromGrant = (domain: 'mail' | 'calendar' | 'contact' | 'file'): QualifiedDomain => {
-    const accepted = GOOGLE_DOMAIN_SCOPES[domain];
-    const carried = accepted.find((scope) => granted.has(scope));
+  const domainFromGrant = (domain: GoogleGrantDomain): QualifiedDomain => {
+    const carried = scopesSatisfying(domain).find((scope) => granted.has(scope));
     return carried
       ? { answer: 'yes', detail: `The grant carries ${carried}.` }
       : {
           answer: 'no',
           detail:
-            `The grant does not carry ${accepted[0]} — asking is granting: ` +
-            're-consent with that scope to add this domain.',
+            `The grant does not carry ${GOOGLE_DOMAIN_SCOPES[domain].asked} — asking is ` +
+            'granting: re-consent with that scope to add this domain.',
         };
   };
   return {
