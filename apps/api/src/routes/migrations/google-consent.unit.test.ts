@@ -8,9 +8,11 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { GOOGLE_SCOPES_ASKED_BY_DOMAIN } from '@openmig/orchestration/account-qualification';
 import {
   CONSENT_STATE_TTL_MS,
   ConsentFlowStore,
+  GOOGLE_SOURCE_DOMAIN,
   GOOGLE_SOURCE_SCOPES,
   consentResultPage,
   consentUrl,
@@ -76,6 +78,57 @@ describe('the consent URL: what must never be forgotten', () => {
       state: 's.x',
     });
     expect(url).not.toContain('secret');
+  });
+
+  it('asks ADDITIVELY, which a narrow ask cannot do without (0106 T1b)', () => {
+    // Google replaces a grant with exactly what the newest consent asked for.
+    // Without this parameter, somebody who has consented to mail and then
+    // consents to calendar ends up holding calendar ONLY — a working mail
+    // connection silently losing its scope at the moment a second domain was
+    // added. Asking narrowly is only safe alongside asking additively, so
+    // this belongs with `domainsToScopes`, not after it.
+    const url = new URL(
+      consentUrl({
+        clientId: 'cid',
+        scope: PENDING.scope,
+        redirectUri: PENDING.redirectUri,
+        state: 's.x',
+      }),
+    );
+    expect(url.searchParams.get('include_granted_scopes')).toBe('true');
+  });
+});
+
+describe('one scope table, not two (0106 T1b)', () => {
+  it('every source type asks for ITS OWN domain, not a neighbour\'s', () => {
+    // The collapse this replaced had four scope strings written out here and
+    // four more written out in `account-qualification.ts`, which reads the
+    // same scopes back out of a token response. Two copies disagree in
+    // exactly one way — the product asks for one scope and then judges the
+    // resulting grant against another — and the symptom is a connection that
+    // consents successfully and then qualifies as `no`.
+    //
+    // So this asserts the mapping domain by domain, against the same
+    // authority the qualification reads. A wrong wire here (gmail → the
+    // calendar scope) is red, where a second literal table would just be
+    // quietly different.
+    for (const [source, domain] of Object.entries(GOOGLE_SOURCE_DOMAIN)) {
+      expect(GOOGLE_SOURCE_SCOPES[source as keyof typeof GOOGLE_SOURCE_SCOPES]).toBe(
+        GOOGLE_SCOPES_ASKED_BY_DOMAIN[domain],
+      );
+    }
+  });
+
+  it('asks Drive READ-ONLY, the whole reason the two fields are separate', () => {
+    expect(GOOGLE_SOURCE_SCOPES['google-drive']).toBe(
+      'https://www.googleapis.com/auth/drive.readonly',
+    );
+  });
+
+  it('covers every source type — a fifth one cannot arrive unmapped', () => {
+    expect(Object.keys(GOOGLE_SOURCE_DOMAIN).sort()).toEqual(
+      Object.keys(GOOGLE_SOURCE_SCOPES).sort(),
+    );
   });
 });
 
