@@ -2,18 +2,23 @@
 
 ## Status — 2026-08-27 (update this block at the end of every session)
 
-**This is a design for review, not a build.** The owner asked for the smallest thing that lets
-him help a customer who is stuck, and answered the three questions that decide its shape on
-2026-08-27. Nothing below exists in code until this is merged and a task is started.
+**The owner answered the three review asks on 2026-08-27, and one answer REVERSED an earlier
+one.** Support access is now **on by default and disclosed** (ask 1 = b), not off until the
+customer enables it. His reason, verbatim: *"i want to be able to offer support, also when
+someone doesn't know how it all works. people expect me to be able to see what they see in case
+I'm contacted."* The plan below is rewritten to match; §4 changed the most, because removing
+consent removes the thing that was carrying the accountability, and something has to take its
+place. The two decisions of 2026-08-27 that still stand unchanged are **metadata only** and
+**read-only**.
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 The owner's switch: `tenant_support_access` | 📋 Awaiting review | Off by default. The customer turns it on, and can turn it off. |
-| T2 The read model: metadata-only views, in the managed chain | 📋 Awaiting review | The column list IS the privacy boundary — enforced by the database, not remembered by a route. |
-| T3 A failure has a CATEGORY, not only prose | 📋 Awaiting review (**blocking for usefulness**) | `last_error` is the most useful field and the one that cannot be shown. |
-| T4 The operator's screens: tenants, one tenant, one migration | 📋 Awaiting review | Three levels, no fourth. |
-| T5 Invoices and status, for the tenant in front of you | 📋 Awaiting review | Totals and states; and 0109 T0 means "no invoice" is now a real answer. |
-| T6 The words, and the guard | 📋 Awaiting review | What the owner sees when it is on; and the appliance never gains any of it. |
+| T1 Standing access, and the log that has to earn it | 📋 Ready to build (owner: on-by-default, 2026-08-27) | No consent table. Access is standing and disclosed — so **every operator read is recorded**, because with consent gone the log is the only accountability left. |
+| T2 The read model: metadata-only views, in the managed chain | 📋 Ready to build | The column list IS the privacy boundary — enforced by the database, not remembered by a route. Unchanged by the ask-1 reversal: metadata-only still stands. |
+| T3 A failure has a CATEGORY, not only prose | 📋 Ready to build — **first task** (owner accepted the six, 2026-08-27) | Reframed by the owner: the category is for the CUSTOMER first, so they can self-serve; the operator view is the secondary reader. |
+| T4 The operator's screens: tenants, one tenant, one migration | 📋 Ready to build | Three levels, no fourth. |
+| T5 Invoices and status, for the tenant in front of you | 📋 Ready to build (owner: platform-wide status only, 2026-08-27) | Totals and states; and 0109 T0 means "no invoice" is now a real answer. The customer's OWN configured checks stay out (ask 3 = a). |
+| T6 The words, and the guard | 📋 Ready to build | Now a DISCLOSURE rather than a switch's label — it must be true before the first customer arrives, not after. And the appliance never gains any of it. |
 
 ## Why this exists
 
@@ -33,9 +38,11 @@ Three answers, and each one narrows the build in a way worth restating:
 - **Metadata only.** Names, states, counts, dates, error *categories*, invoice totals. **Never
   a mailbox address, a folder name, a subject line or an item.** Enough to answer "is it stuck
   and why", without being able to read anybody's mail.
-- **The owner switches it on.** Support access is **off until the customer enables it** for
-  their organisation, and they can switch it off again. Not a standing promise about staff
-  access — a per-customer choice, visible in their own app.
+- **On by default, and disclosed** (revised 2026-08-27; the earlier answer was the opposite).
+  The owner's reason: *"people expect me to be able to see what they see in case I'm
+  contacted."* That is true, and a first support conversation that opens with "please turn this
+  on" spends trust at the moment there is least of it. **What this costs is the consent record,
+  and something has to replace it** — see §4.
 - **Read-only.** View connections, migrations, state, invoices, status. Nothing that changes a
   customer's data or configuration, and no credentials, ever.
 
@@ -81,12 +88,14 @@ wants a folder name has to change a migration to get one, in a diff somebody rev
 ```sql
 WHERE EXISTS (SELECT 1 FROM public.platform_operator
                WHERE user_id = current_setting('app.current_user', true))
-  AND EXISTS (SELECT 1 FROM public.tenant_support_access
-               WHERE tenant_id = <the row's tenant> AND revoked_at IS NULL)
 ```
 
-Not an operator → zero rows. Customer has not switched it on, or switched it off → zero rows.
-There is no third case and no partial answer.
+Not an operator → zero rows. There is no second case.
+
+**This is the whole authorisation now**, where the first draft had a second `EXISTS` against a
+consent table. That is what "on by default" means in SQL, and it is worth seeing plainly rather
+than buried: the only thing between an Ownpace login and every customer's migration metadata is
+one row in `platform_operator`. Which is why §4 is no longer about a switch.
 
 **Read-only by construction.** `GRANT SELECT` and nothing else. The views are not updatable and
 nothing asks them to be.
@@ -120,37 +129,78 @@ classification exists. What is needed is a category — `auth_expired`, `rate_li
 `quota_exceeded`, `target_refused`, `network`, `unknown` — derived from the message at the point
 the failure is recorded, stored beside the prose rather than instead of it.
 
+**The owner accepted those six on 2026-08-27, and reframed who they are FOR:** *"it's good to
+have customers be able to understand what is going on. and, most of it must be self-service.
+I'm to be contacted in rare / edge cases."*
+
+That inverts the reader, and it changes the task rather than merely approving it. The category
+is **the customer's** first; the operator view is the second reader, not the first. Three things
+follow:
+
+- **It ships on the customer's own migration screen**, not only behind the operator's login.
+  A category that only staff can see cannot reduce the number of people who need staff.
+- **Each category carries a remedy the customer can act on**, not just a label. `auth_expired`
+  is useless as a word and useful as *"the connection to Google has expired — reconnect it
+  here"*. The label is the index; the sentence is the product.
+- **The measure of success is fewer support contacts, not better ones.** Which also means the
+  six are worth revisiting against real incidents: a category nobody self-serves from is a
+  category that failed, and `unknown` staying large means the classification is not earning its
+  place.
+
+This is why T3 is the first task built rather than the third. It is the only one of the six that
+helps whether or not an operator ever logs in.
+
 Two things that make this cheaper than it sounds: `google-token-provider.ts`'s `hintFor` already
 classifies Google's `invalid_grant` into named causes (0089 T2), and 0090's budget pause already
 distinguishes "we stopped on purpose" from "the provider refused". The work is naming the
 categories and applying them at one seam, not inventing detection.
 
 And one honest limit worth writing into the plan rather than discovering later: **`unknown` will
-be common at first**, and an operator looking at `unknown` is back to asking the customer to read
-their screen. That is acceptable — the category improves with every real incident — but the
-screen must say *"we could not classify this"* rather than showing a blank, or it will read as
-"nothing is wrong".
+be common at first.** For an operator that means going back to asking the customer to read their
+screen; for the customer — now the primary reader — it means a screen that explains nothing,
+which is worse, because they came to it expecting an answer. So `unknown` must say *"we could
+not classify this — here is what we know, and here is how to reach us"*, never a blank and never
+a bare label. It is the one category whose text has to carry the way OUT of self-service.
 
-### 4. The owner's switch
+### 4. What replaces consent
 
-A `tenant_support_access` row in the **managed** chain: `tenant_id`, `granted_by`, `granted_at`,
-`revoked_at`, an optional note. Absent or revoked means no access — the default is off because
-the absence of a row is the absence of consent, which is the only default that cannot be got
-wrong by a migration that half-ran.
+There is no `tenant_support_access` table. Access is standing, and the customer is told.
 
-On the customer's side it is one switch and one sentence, on their own settings page, with the
-current state visible. Turning it off takes effect on the next query, because the views join the
-table rather than caching a decision.
+**The consequence, stated rather than glossed: consent was doing work, and dropping it leaves a
+hole.** Under the first draft, a customer could point at a row and say when they allowed this.
+Under this one they cannot, so the accountability has to come from the other end — not *"did
+they allow it"* but ***"what was actually looked at, by whom, when"***. That is a weaker promise
+in one way and a stronger one in another: a consent row says an operator MIGHT have looked; a
+read log says whether they DID.
 
-**Not a time box, in this version.** A time-boxed grant is better and it is more machinery — an
-expiry, a renewal path, a reminder before it lapses, and a decision about what happens to an
-operator mid-incident. The switch is honest without it, and 0108's expiry picker is the shape to
-copy if this later wants one.
+So T1 is now: **every operator read is recorded.** One row per view served — operator, tenant,
+which of the three screens, when. Not a sample, not the interesting ones. The audit machinery
+this needs already exists (`recordAuditEvent`, and the `mapping.status` events landed today are
+the same shape), so the cost is the discipline, not the code.
+
+Three things follow, and none is optional under an on-by-default posture:
+
+- **The disclosure has to be true before the first customer**, not written after the first
+  incident. §6's sentence goes in the privacy policy and the DPA, in both languages, and it is
+  the thing a customer can hold us to.
+- **The read log is a customer-facing surface eventually, not only ours.** "Ownpace support
+  viewed your migration state on 3 September" is the sentence that makes standing access
+  honest rather than merely legal. Not in this plan's first cut — named here so it is a
+  decision somebody makes rather than a thing nobody got to.
+- **An opt-out stays possible** for a customer who asks. It is a row in the same shape the
+  consent table would have had, read as a refusal rather than a permission. Nothing is built
+  for it until somebody asks; it is named so the design does not preclude it.
+
+**Still not a time box.** With standing access there is nothing to expire. The time-boxed
+grant-link shape (0108) becomes interesting only if the opt-out above ever ships, where a
+customer could re-admit support for a week rather than permanently.
 
 ### 5. Three levels of screen, and no fourth
 
-- **Tenants** — the organisations that have switched support on. Name, when they joined, how
-  many migrations, whether anything is failing.
+- **Tenants** — every organisation, since access no longer waits on a switch. Name, when they
+  joined, how many migrations, whether anything is failing. This list is also the argument for
+  T1's read log: a screen that shows every customer at once is one where "I only looked at the
+  one who emailed me" needs evidence rather than assurance.
 - **One tenant** — its connections (kind, display name, status, when tested — never a
   credential), its migrations (name, lifecycle, per-domain state), its invoices (period, total,
   status), and the platform status the customer sees.
@@ -190,17 +240,30 @@ describe their own screen, from the people they are paying to know.
 - **Anything in the appliance.** It has an owner, not customers, and no operators (ADR-0036).
 - **Impersonation.** Signing in *as* a customer would answer every question this plan struggles
   with, and it is exactly the thing the metadata boundary exists to refuse.
-- **A time-boxed or break-glass grant.** Named in §4 as the upgrade path if the simple switch
-  proves too coarse.
+- **A time-boxed or break-glass grant.** With standing access there is nothing to expire; §4
+  names the one case that would revive it.
 - **Item-level anything.** No message list, no folder tree, no subject lines — see §5.
 
-## Asks of the owner (the review)
+## The owner's answers (2026-08-27)
 
-1. **Is the switch's default off acceptable commercially?** It means every support conversation
-   starts with "please turn this on", including the first one, when trust is lowest. The
-   alternative was always-on-and-disclosed, which is what most of the industry does.
-2. **Which failure categories matter to you?** T3's list should be the ones that change what
-   *you* would do next, not a taxonomy. My proposal: `auth_expired`, `rate_limited`,
-   `quota_exceeded`, `target_refused`, `network`, `unknown`.
-3. **Does the operator need to see the customer's own status page**, or is the platform-wide one
-   enough? The former means reading their configured checks; the latter is free.
+1. **Off-by-default: no — (b), on and disclosed.** *"i want to be able to offer support, also
+   when someone doesn't know how it all works. people expect me to be able to see what they see
+   in case I'm contacted."* Recorded in §4, which is rewritten around what has to replace the
+   consent record rather than around a switch.
+2. **The six categories: accepted**, with the reframing above — the customer is the primary
+   reader, most of this must be self-service, and the owner is for rare and edge cases. T3
+   becomes the first task built.
+3. **The customer's own status page: no — (a), platform-wide is enough.** Their configured
+   checks stay out of the operator view; T5 shows the platform status only.
+
+**One thing his answer 1 asks for that this plan still does not give**, named so it is a
+decision rather than an omission: *"see what they see"* is not quite what metadata-only
+delivers. The customer sees `last_error` in full; an operator will not. T3's categories close
+most of that gap and are the reason it is built first — but if literal parity is wanted, that is
+a change to the **metadata-only** decision, which still stands, and is worth making
+deliberately rather than by drift.
+
+## Still open
+
+- **Should the read log become customer-visible** (§4), and when?
+- **Does an opt-out ship** before somebody asks for one? Currently: no.
