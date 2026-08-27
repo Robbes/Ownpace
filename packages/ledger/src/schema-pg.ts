@@ -81,6 +81,16 @@ export const connection = pgTable(
         // 0019; client id + secret only (Client Credentials Grant — Box
         // rotates refresh tokens, so none is stored), subject on the config.
         'box',
+        // One Google ACCOUNT rather than one Google API (workplan 0106 T3b,
+        // the owner's decision of 2026-08-27). Several faces from one row, on
+        // the `soverin` precedent: which faces it serves lives in
+        // PROVIDER_ACCOUNT_DOMAINS, not in a fork here. Allowed by the CHECK
+        // since 0034.
+        //
+        // The four single-purpose Google kinds above STAY and cohabit — mail
+        // and files wait on Google's restricted-scope assessment, so a person
+        // migrating a mailbox still uses `gmail` today.
+        'google',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),

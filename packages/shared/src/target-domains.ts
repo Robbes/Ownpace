@@ -26,6 +26,7 @@
  * with a `contact` domain would aim a CardDAV client at an IMAP host.
  */
 
+import { PROVIDER_ACCOUNT_DOMAINS } from './provider-accounts.ts';
 import type { DiscoveryDomain } from './discovery.ts';
 
 /** The wizard's target vocabulary (mirrors CreateMappingSchema.targetType). */
@@ -115,7 +116,12 @@ export type WizardSourceType =
   | 'google-calendar'
   | 'google-contacts'
   | 'dropbox'
-  | 'box';
+  | 'box'
+  // One Google ACCOUNT rather than one Google API (workplan 0106 T3b): several
+  // faces from one row, one credential, one consent. The four single-domain
+  // kinds above stay valid and cohabit — the owner's decision of 2026-08-27 —
+  // because mail and files wait on Google's restricted-scope assessment.
+  | 'google';
 
 /** Domains a wizard source can serve, where the source constrains it at all. */
 export const SOURCE_TYPE_DOMAINS: Partial<
@@ -127,6 +133,12 @@ export const SOURCE_TYPE_DOMAINS: Partial<
   'google-contacts': ['contact'],
   dropbox: ['file'],
   box: ['file'],
+  // NOT written out here: read from PROVIDER_ACCOUNT_DOMAINS, so a provider
+  // gaining a face is one row edit rather than two that can disagree. Two
+  // copies of a capability list is the drift 0106 T1b just removed from the
+  // Google SCOPE tables, and there is no reason to reintroduce it one file
+  // away.
+  google: PROVIDER_ACCOUNT_DOMAINS.google,
 };
 
 /**
@@ -147,6 +159,15 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
   'google-contacts': {
     name: 'Google Contacts',
     reads: 'contacts only (the https://www.googleapis.com/auth/carddav scope)',
+  },
+  google: {
+    name: 'Google',
+    // Honest about WHY it is not all four: the missing faces are a scope
+    // Google prices differently, not a face this product cannot drive.
+    reads:
+      'the object types you granted — calendars and contacts today; mail and ' +
+      'files need a Google security assessment we have not bought yet, and ' +
+      'the single-purpose Gmail and Google Drive sources still serve those',
   },
   dropbox: { name: 'Dropbox', reads: 'the Dropbox API only' },
   box: { name: 'Box', reads: 'the Box API only' },
