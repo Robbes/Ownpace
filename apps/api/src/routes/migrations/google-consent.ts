@@ -62,6 +62,22 @@ interface PendingConsent {
   readonly scope: string;
   readonly redirectUri: string;
   readonly createdAt: number;
+  /**
+   * Present when the consent was begun by a LINK holder rather than by the
+   * owner in the wizard (workplan 0108 T4). It is what the callback branches
+   * on, and the branch decides who may see the token: in the owner's flow the
+   * answer is the owner, and in this one it is **nobody**.
+   *
+   * Carried on the pending state rather than passed back through the redirect,
+   * because everything in a redirect is the browser's to change. The state id
+   * is signed and single-use; what it points at here is the server's own
+   * record of which mapping this consent was started for.
+   */
+  readonly link?: {
+    readonly linkId: string;
+    readonly mappingId: string;
+    readonly tenantId: string;
+  };
 }
 
 export const CONSENT_STATE_TTL_MS = 10 * 60_000;
@@ -315,5 +331,41 @@ export function consentResultPage(p: {
     '<p>No web address is configured for this API, so the token could not be handed back ' +
     'automatically. Copy the refresh token below into the wizard’s Refresh token field:</p>' +
     `<p><code>${esc(p.outcome.refreshToken)}</code></p></main>`
+  );
+}
+
+/**
+ * The page a LINK holder's consent ends on (workplan 0108 T4).
+ *
+ * A separate function from `consentResultPage`, and the difference is the
+ * entire point of the task: **this one has no parameter that could hold a
+ * token.** The owner's ending hands the refresh token to the wizard window,
+ * because in that flow the owner is the person whose credential it is. In the
+ * link flow the credential belongs to the person in front of this page and the
+ * token is stored server-side — so the page cannot show it, cannot postMessage
+ * it, and cannot be edited later to do either without someone first widening
+ * this signature and explaining why.
+ *
+ * There is nothing to close and nothing to paste. Somebody has done a favour
+ * for a colleague; the page says it landed and lets them go.
+ */
+export function grantResultPage(
+  outcome: { readonly ok: true } | { readonly ok: false; readonly reason: string },
+): string {
+  if (!outcome.ok) {
+    return (
+      `<main style="${PAGE_STYLE}"><h1>That did not complete</h1>` +
+      `<p>${esc(outcome.reason)}</p>` +
+      '<p>Nothing was stored. If you were sent a link, ask the person who sent it for a ' +
+      'fresh one — issuing another takes them a moment.</p></main>'
+    );
+  }
+  return (
+    `<main style="${PAGE_STYLE}"><h1>Thank you — that is done</h1>` +
+    '<p>Your account is now connected, and the migration can read from it. You do not have ' +
+    'to do anything else, and this link will not work again.</p>' +
+    '<p>Access is <strong>read-only</strong>: nothing is ever deleted or changed at your ' +
+    'end. You can withdraw it at any time from your Google account’s security settings, ' +
+    'under the third-party apps that have access.</p></main>'
   );
 }

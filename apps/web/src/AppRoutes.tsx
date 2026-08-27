@@ -24,6 +24,7 @@ import ConfirmMapping from './pages/ConfirmMapping.tsx';
 import Tenants from './pages/Tenants.tsx';
 import Login from './pages/Login.tsx';
 import RequestAccess from './pages/RequestAccess.tsx';
+import Grant from './pages/Grant.tsx';
 import AuthCallback from './pages/AuthCallback.tsx';
 import AccessRequests from './pages/AccessRequests.tsx';
 import Invitations from './pages/Invitations.tsx';
@@ -119,6 +120,20 @@ const AppRoutes: React.FC = () => {
         element={
           <ManagedOnly>
             <RequestAccess />
+          </ManagedOnly>
+        }
+      />
+      {/* Public by design, and outside the chrome (workplan 0108 T4, ADR-0035).
+          The person here is being MIGRATED, not signed up: they will never have
+          an Ownpace account, so authenticating them is not something that could
+          be arranged — the link in the path is the whole credential, verified
+          server-side. `:link` is one segment carrying `<id>.<secret>`; a dot is
+          an ordinary path character, so it needs no escaping in the pattern. */}
+      <Route
+        path="/grant/:link"
+        element={
+          <ManagedOnly>
+            <Grant />
           </ManagedOnly>
         }
       />

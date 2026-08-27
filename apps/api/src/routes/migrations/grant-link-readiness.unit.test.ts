@@ -18,6 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   GOOGLE_CONSENT_KIND_TO_SOURCE,
+  awaitingGrantRefusal,
   grantLinkRefusal,
   type GrantLinkReadiness,
 } from './grant-link-readiness.ts';
@@ -118,6 +119,40 @@ describe('the Google kinds a link may be issued for', () => {
     // membership rather than a string shape.
     for (const kind of ['google_photos', 'imap', 'o365', 'jmap', 'dropbox']) {
       expect(grantLinkRefusal({ ...READY, sourceKind: kind })?.code).toBe('source_not_google');
+    }
+  });
+});
+
+describe('a migration waiting on somebody’s grant may not start', () => {
+  const google = { sourceKind: 'gmail', hasRefreshToken: false, hasServiceAccountKey: false };
+
+  it('refuses a Google source with no way in at all', () => {
+    const refusal = awaitingGrantRefusal(google);
+    // The refusal is where an owner learns the feature exists at the moment
+    // they need it, so it names the remedy rather than the deficiency.
+    expect(refusal).toMatch(/grant link/);
+    expect(refusal).toMatch(/their password never reaches you or us/);
+  });
+
+  it('lets it start once the grant has landed', () => {
+    expect(awaitingGrantRefusal({ ...google, hasRefreshToken: true })).toBeNull();
+  });
+
+  it('accepts a service-account key as the other legitimate way in', () => {
+    // What is refused is having NO way in, never a particular way in. An
+    // account the customer administers can be connected without a person.
+    expect(awaitingGrantRefusal({ ...google, hasServiceAccountKey: true })).toBeNull();
+  });
+
+  it('says nothing about sources that do not consent through Google', () => {
+    for (const kind of ['imap', 'o365', 'jmap', 'nextcloud', null]) {
+      expect(awaitingGrantRefusal({ ...google, sourceKind: kind })).toBeNull();
+    }
+  });
+
+  it('applies to every Google kind, not only Gmail', () => {
+    for (const kind of Object.keys(GOOGLE_CONSENT_KIND_TO_SOURCE)) {
+      expect(awaitingGrantRefusal({ ...google, sourceKind: kind })).toBeTruthy();
     }
   });
 });

@@ -84,6 +84,9 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   { prefix: '/api/shared-addresses', files: ['src/routes/shared-addresses.ts'] },
   { prefix: '/api/permissions', files: ['src/routes/permissions.ts'] },
   { prefix: '/api/billing', files: ['src/routes/billing/index.ts'] },
+  // The migrator's surface (workplan 0108 T4). Its own prefix because nothing
+  // under it authenticates a session — the link in the path is the credential.
+  { prefix: '/api/grant', files: ['src/routes/grant.ts'] },
 ];
 
 const METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;

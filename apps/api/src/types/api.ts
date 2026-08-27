@@ -47,6 +47,18 @@ export interface MappingLinkRequest extends Request {
     readonly mappingId: string;
     readonly tenantId: string;
     readonly purpose: 'grant' | 'view';
+    /**
+     * When the link stops working. A property of the CREDENTIAL, not of a
+     * person, which is why it may sit here without breaking the rule above:
+     * it says nothing about who the bearer is.
+     *
+     * Carried because workplan 0108 requires the grant page to state its own
+     * validity in plain words *before* the button — "an expiry should never
+     * land as a surprise mid-intention" — and the middleware has just verified
+     * the row that knows it. Re-reading it in the route would be a second
+     * query for a fact one line above already proved.
+     */
+    readonly expiresAt: Date;
   };
 }
 
