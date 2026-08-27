@@ -263,10 +263,19 @@ router.post('/invoices/generate', authenticate, requireBillingWrite, (req: Authe
   // the real one against tiers.
   //
   // What it did, so the next reader need not dig: it read metered usage for a
-  // period and called `generateInvoiceForPeriod`. Both still exist and are
-  // still tested — what is refused is MINTING A BILL, which is the one
-  // operation that turns a retired model into a number somebody could be asked
-  // to pay. Every other billing route is untouched.
+  // period and called `generateInvoiceForPeriod`. That service still exists and
+  // is now unreachable from the API — and, stated plainly because the opposite
+  // would be more comfortable, it is no longer covered by a test: its only
+  // coverage was through this route. Re-pinning its arithmetic was considered
+  // and rejected, because the doc comment in `no-bill-we-do-not-sell.ts` names
+  // three faults in exactly that arithmetic; a test asserting the old total
+  // would be asserting a number this same change calls wrong. 0109 T5 replaces
+  // the service, and `no-bill-we-do-not-sell.unit.test.ts` goes red the moment
+  // it does.
+  //
+  // What is refused is MINTING A BILL, which is the one operation that turns a
+  // retired model into a number somebody could be asked to pay. Every other
+  // billing route is untouched.
   //
   // 409 rather than 501: the request is well-formed and this caller is
   // entitled to make it; the deployment cannot honour it. No tenant scoping

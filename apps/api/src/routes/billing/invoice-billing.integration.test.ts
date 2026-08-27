@@ -1,11 +1,27 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * Integration tests for workplan 0011 T5 — invoice generation + Mollie webhook.
+ * Integration tests for workplan 0011 T5 — invoice generation + Mollie webhook,
+ * amended by 0109 T0 (2026-08-27) when generation was retired.
  *
- * Proves: usage -> invoice reconciles to the cent; regeneration is idempotent;
- * the Mollie webhook drives the invoice to `paid` and double delivery is a no-op;
- * everything is RLS-scoped (tenant B cannot touch tenant A's invoice).
+ * Proves: `POST /invoices/generate` refuses and writes NOTHING, even for a
+ * tenant whose usage would have been billed and even over an invoice already
+ * on the books; the Mollie webhook still drives an invoice to `paid` and double
+ * delivery is a no-op.
+ *
+ * Tenant isolation is no longer proved HERE — the cross-tenant case was a
+ * generate call, and there is nothing left to isolate once the route writes
+ * nothing. `billing.integration.test.ts` still proves it where it now lives:
+ * on the invoice READS, which RLS actually governs.
+ *
+ * WHAT WENT, AND WHY IT IS NOT MOURNED. Until 0109 T0 this file proved that
+ * usage reconciled to the cent under the metered model. That proof left with
+ * the route, deliberately: `no-bill-we-do-not-sell.ts` documents three faults
+ * in exactly that arithmetic — every byte priced twice, items that moved
+ * nothing billed, a per-driver breakdown the ADR-0014 amendment forbids — so a
+ * test asserting the old total "reconciles" would have been pinning a number
+ * this same change calls wrong. The refusal is a decision at the DOOR, not a
+ * broken calculator, and that is what is proved below.
  *
  * UUID Family: 5f2b0000-e29b-41d4-a716-44665544xxxx
  *
@@ -105,10 +121,22 @@ describe('T5 — invoice generation + Mollie webhook', () => {
     await superuserPool.query(`DELETE FROM usage_metric WHERE tenant_id IN ($1,$2)`, [TENANT_A, TENANT_B]);
   });
 
-  describe('POST /api/billing/invoices/generate', () => {
-    it('reconciles to the cent: baseFee + metered usage + 21% VAT', async () => {
-      // 2 compute hours * 5 cents = 10 cents usage. baseFee = 999 → subtotal 1009.
-      // (No item-ledger rows, so derived storage/egress are 0.)
+  describe('POST /api/billing/invoices/generate — retired (0109 T0)', () => {
+    // The count that matters. A refusal that returns 409 and still writes a
+    // draft would pass every status-code assertion in the unit file and be
+    // exactly the bug this repository has now been bitten by three times: a
+    // decision computed correctly and dropped on the floor by the route. So
+    // these read the table, not the response.
+    const invoiceCount = async (tenantId: string): Promise<number> => {
+      const { rows } = await superuserPool.query(
+        `SELECT COUNT(*)::int AS n FROM invoice WHERE tenant_id = $1`,
+        [tenantId],
+      );
+      return rows[0].n;
+    };
+
+    it('refuses the owner, with usage on the books that WOULD have been billed', async () => {
+      // 2 compute hours: under the retired model this minted a 1221-cent draft.
       await seedUsage(TENANT_A, 'compute', 'sync', 2);
 
       const res = await request
@@ -116,55 +144,40 @@ describe('T5 — invoice generation + Mollie webhook', () => {
         .set('Authorization', `Bearer ${token(TENANT_A)}`)
         .send({ period: PERIOD });
 
-      expect(res.status).toBe(201);
-      const inv = res.body.invoice;
-      expect(inv.subtotal).toBe(1009); // 999 base + 10 compute
-      expect(inv.taxAmount).toBe(Math.round(1009 * 0.21)); // 212
-      expect(inv.total).toBe(1009 + Math.round(1009 * 0.21)); // 1221
-      expect(inv.status).toBe('draft');
-      expect(inv.costByDriver).toEqual({ base: 999, storage: 0, egress: 0, compute: 10 });
+      expect(res.status).toBe(409);
+      // The literal wire string, on purpose: the unit tests compare against the
+      // imported constant, so renaming its VALUE would go unnoticed there while
+      // silently breaking every client branching on it.
+      expect(res.body.error).toBe('billing_model_retired');
+      expect(await invoiceCount(TENANT_A)).toBe(0);
     });
 
-    it('is idempotent: regenerating does not create a duplicate invoice', async () => {
+    it('leaves nothing behind however many times it is called', async () => {
       await seedUsage(TENANT_A, 'compute', 'sync', 1);
 
-      await request.post('/api/billing/invoices/generate').set('Authorization', `Bearer ${token(TENANT_A)}`).send({ period: PERIOD });
-      await request.post('/api/billing/invoices/generate').set('Authorization', `Bearer ${token(TENANT_A)}`).send({ period: PERIOD });
+      for (let i = 0; i < 3; i++) {
+        const res = await request
+          .post('/api/billing/invoices/generate')
+          .set('Authorization', `Bearer ${token(TENANT_A)}`)
+          .send({ period: PERIOD });
+        expect(res.status, `call ${i + 1}`).toBe(409);
+      }
 
-      const { rows } = await superuserPool.query(
-        `SELECT COUNT(*)::int AS n FROM invoice WHERE tenant_id = $1 AND period_start = $2`,
-        [TENANT_A, PERIOD_START],
-      );
-      expect(rows[0].n).toBe(1);
+      expect(await invoiceCount(TENANT_A)).toBe(0);
     });
 
-    it('does not let tenant B generate against tenant A data', async () => {
-      await seedUsage(TENANT_A, 'compute', 'sync', 500);
-
-      // Tenant B generates for the same period: sees none of A's usage.
-      const resB = await request
-        .post('/api/billing/invoices/generate')
-        .set('Authorization', `Bearer ${token(TENANT_B)}`)
-        .send({ period: PERIOD });
-
-      expect(resB.status).toBe(201);
-      expect(resB.body.invoice.subtotal).toBe(999); // baseFee only — no A usage leaked
-    });
-
-    it('never overwrites a paid invoice on regenerate (finding #1)', async () => {
-      // Generate a draft (base fee only), then mark it paid with sentinel amounts
-      // (as the webhook would), then seed usage and regenerate. The paid invoice's
-      // stored amounts + status must be untouched (the setWhere guard), and the
-      // call reports it locked.
-      await request.post('/api/billing/invoices/generate').set('Authorization', `Bearer ${token(TENANT_A)}`).send({ period: PERIOD });
-
+    it('never touches an invoice already on the books (finding #1, kept)', async () => {
+      // The original test proved a PAID invoice survived a regenerate, because
+      // an earlier build had overwritten one. The refusal makes that stronger —
+      // nothing runs at all — but the guard is worth keeping through the change
+      // rather than deleted along with the behaviour it was written against.
+      const invoiceId = randomUUID();
       await superuserPool.query(
-        `UPDATE invoice SET status = 'paid', subtotal = '9999', tax_amount = '2100', total = '12099'
-         WHERE tenant_id = $1 AND period_start = $2`,
-        [TENANT_A, PERIOD_START],
+        `INSERT INTO invoice (id, tenant_id, period_start, period_end, status, subtotal, tax_rate, tax_amount, total, currency, metadata)
+         VALUES ($1,$2,$3,$4,'paid','9999','0.21','2100','12099','EUR','{}')`,
+        [invoiceId, TENANT_A, PERIOD_START, PERIOD_END],
       );
-
-      // Usage that WOULD change the computed amounts if the invoice were rewritten.
+      // Usage that would have changed the amounts if anything were rewritten.
       await seedUsage(TENANT_A, 'compute', 'sync', 250);
 
       const res = await request
@@ -172,17 +185,19 @@ describe('T5 — invoice generation + Mollie webhook', () => {
         .set('Authorization', `Bearer ${token(TENANT_A)}`)
         .send({ period: PERIOD });
 
-      expect(res.status).toBe(201);
-      expect(res.body.invoice.status).toBe('paid');
-      expect(res.body.invoice.locked).toBe(true);
+      expect(res.status).toBe(409);
 
-      // The stored (paid) row is byte-for-byte unchanged.
       const { rows } = await superuserPool.query(
-        `SELECT status, subtotal, tax_amount, total FROM invoice WHERE tenant_id = $1 AND period_start = $2`,
-        [TENANT_A, PERIOD_START],
+        `SELECT status, subtotal, tax_amount, total FROM invoice WHERE tenant_id = $1`,
+        [TENANT_A],
       );
       expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({ status: 'paid', subtotal: '9999', tax_amount: '2100', total: '12099' });
+      expect(rows[0]).toMatchObject({
+        status: 'paid',
+        subtotal: '9999',
+        tax_amount: '2100',
+        total: '12099',
+      });
     });
   });
 
