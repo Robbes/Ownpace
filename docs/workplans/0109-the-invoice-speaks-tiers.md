@@ -15,7 +15,7 @@ per mapping, so nothing above it can be right until that moves.
 | Task | Status | Evidence |
 |---|---|---|
 | T0 What the invoice route does until tiers exist (owner decision) | ✅ **Decided (a) refuse, and built, 2026-08-27** | `POST /api/billing/invoices/generate` answers **409 `billing_model_retired`** for every well-formed request, in one sentence that names what it *would* have billed — a retired model, every byte counted twice, items that moved nothing — and says plainly that nothing is wrong with the account and a figure comes from a person until the tiers ship. **409 rather than 501**: the request is well-formed and the caller entitled to make it; the deployment cannot honour it. The refusal is FIRST in the handler and touches no database, so a refused call leaves not even a draft — a test asserts that by making `getDbPool` throw. **The old body is deleted rather than left unreachable behind the refusal**: dead code under a `return` is code nobody maintains and everybody assumes still works, and git has it. Nothing else in billing changes — usage, listing, payment methods and the webhook all behave normally, because what is refused is *minting a bill*, the one operation that turns a wrong model into a number somebody could be asked to pay. **The guard cannot outlive its reason**: one test re-reads `packages/managed/src/pricing.ts` and fails the moment it mentions tiers, so removing this refusal becomes something CI insists on when T4/T5 land rather than something they must remember. Proofs by breaking: the route billing again → 3 red; the reason reduced to "disabled" → 1; tier code appearing in `pricing.ts` → 1 (the trip-wire firing as designed). |
-| T1 A lifecycle per PATH, not per mapping | 📋 Planned (**blocking**) | The unit ADR-0014 bills is `(mapping, domain)`; the only lifecycle is per mapping. Nothing above this can be right until it is. |
+| T1 A lifecycle per PATH, not per mapping | 📋 Ready to build — **owner decided the fork 2026-08-27: a sibling table** (**blocking** for T2–T7) | The unit ADR-0014 bills is `(mapping, domain)`; the only lifecycle is per mapping. Nothing above this can be right until it is. |
 | T2 The peak, recorded rather than recomputed | 📋 Planned (needs T1) | "Six at the same time on 12 August" has to come from somewhere. |
 | T3 The first-copy byte meter, append-only | 📋 Planned (needs T1) | Never the same query as 0090's byte budget, and never a live-row SUM. |
 | T4 The tier calculator, and its drift guard | 📋 Planned (needs T1–T3) | The third copy of the numbers. It gets the same guard the first two have. |
@@ -145,10 +145,25 @@ whether or not a single route called it, which is precisely the way this has gon
 **T1 itself still stands**: both findings are repairs to the mapping-grain lifecycle, and T1 is
 about there being a per-PATH one at all.
 
-What this task must decide — and the plan deliberately does not decide it here — is **where the
-per-path lifecycle lives**: columns on `scope_selection`, or a `path_lifecycle` table beside it.
-The first is smaller; the second keeps a billing concern out of a table the sync job reads on
-every pass. Whichever is chosen, T7 applies.
+**DECIDED by the owner, 2026-08-27: a sibling table.** The fork was columns on `scope_selection`
+versus a `path_lifecycle` table beside it, and ADR-0014 itself left both open ("belong on the
+`scope_selection` row or on a sibling table at that grain"). The sibling wins on two grounds:
+`scope_selection` is read by the sync job on **every pass** to decide scope, so billing columns
+there put a billing concern in a hot read path and make every future billing migration touch the
+table the engine depends on; and T2 wants the month's PEAK, which means history, which a separate
+table can carry append-only without disturbing the sync path.
+
+What that costs, so it is not discovered later: a join for "which paths are active", a second row
+to keep aligned with `scope_selection`, and the possibility of a path with no lifecycle row —
+which is handled by reading **absent as `ready`**, the correct default anyway, since `ready` is
+free and is ADR-0014's own column default.
+
+Keyed `(tenant_id, mapping_id, domain)` to match the path identity `scope_selection` already
+carries, and carrying ADR-0014's four states plus `ready`, with `first_activated_at` and
+`ended_at`. T7 applies to it: the leakage guard's table list must grow with the table, before it
+exists rather than after. And the three structural blockers above still have to go first —
+`cutover_state`'s per-mapping unique index most of all, since one cutover machine cannot serve
+four paths that end one at a time.
 
 ## T2 — the peak, recorded rather than recomputed
 
