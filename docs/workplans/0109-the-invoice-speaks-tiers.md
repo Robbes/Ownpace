@@ -117,6 +117,20 @@ sites fires on one. And the `→ done` transition
 a path that just released a slot leaves no timestamp anywhere saying when. "Has this ever run"
 and "when did it end" are both unanswerable from any table today.
 
+**The `updatedAt` half is FIXED (2026-08-27), and it was worse than this paragraph said.**
+Reading every writer rather than the one this finding named: of five writers of
+`mailbox_mapping`, only start and the grant ending stamped the column. The **PATCH route** —
+which is how a mapping reaches `paused`, `cutover` **and** `done`, three of the four lifecycle
+transitions — never did, nor did the apply-flags update. Two writers stamping and three ignoring
+is worse than none stamping, because the column looks maintained. There is no database trigger
+to fall back on either; every ledger migration was checked. All three now stamp it, and a
+source-level guard (`mapping-updated-at.unit.test.ts`) fails on a sixth writer that forgets —
+source-level because the bug is an OMISSION, and an omission has no behaviour to assert against:
+a route that forgets returns exactly what a route that remembers returns. The guard also asserts
+the absence of a trigger, so that if one ever arrives the guard is deleted rather than kept as
+folklore. **The other finding — `audit_log` not covering status transitions — still stands**, as
+does the whole of T1: a timestamp says *when* something changed, never *what* it changed from.
+
 What this task must decide — and the plan deliberately does not decide it here — is **where the
 per-path lifecycle lives**: columns on `scope_selection`, or a `path_lifecycle` table beside it.
 The first is smaller; the second keeps a billing concern out of a table the sync job reads on
