@@ -69,8 +69,28 @@ export async function recordSupportRead(
         'entry makes the log look complete while hiding exactly what it exists to show',
     );
   }
+  // Written only when the caller IS an operator, decided by the SAME predicate
+  // the views use rather than by an application check.
+  //
+  // Found while building the routes that call this: the middleware in front of
+  // them is `authenticateSubject`, which asks only for a valid token, and the
+  // views themselves return zero rows to a non-operator. So without this, any
+  // signed-in person could hit a support route, see nothing — correctly — and
+  // still write a row into the log. That is pollution of the one record
+  // standing in for the consent the owner dropped, by exactly the people it is
+  // not about.
+  //
+  // `INSERT … SELECT … WHERE EXISTS` rather than a check in TypeScript, for the
+  // reason `access-requests.ts` gives about its own routes: an application
+  // check that is then trusted invites somebody to "simplify" the real one
+  // away later. A non-operator writes nothing and is told nothing — no error,
+  // because there is no failure here, only an absence.
   await db.execute(
     sql`INSERT INTO support_read (operator_user_id, tenant_id, view_name)
-        VALUES (${read.operatorUserId}, ${read.tenantId}, ${read.view})`,
+        SELECT ${read.operatorUserId}, ${read.tenantId}::uuid, ${read.view}
+        WHERE EXISTS (
+          SELECT 1 FROM public.platform_operator
+           WHERE user_id = current_setting('app.current_user', true)
+        )`,
   );
 }
