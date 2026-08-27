@@ -29,6 +29,9 @@ import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
 import type { StringKey } from '../i18n/index.tsx';
+// One map, shared with the operator's support screen (0110 T4) so the person
+// who phones and the person they phone read the same sentence.
+import { FAILURE_KEY } from '../i18n/failure-key.ts';
 
 export const DOMAIN_KEY: Record<DomainStatusReport['domain'], StringKey> = {
   email: 'domain.email',
@@ -49,17 +52,6 @@ export interface LiveProgressRow {
   readonly lastError?: string;
   readonly lastErrorCategory?: FailureCategory;
 }
-
-/** The remedy sentence for each category (workplan 0110 T3). Exhaustive by
- *  type, so a seventh category cannot reach a screen with nothing to say. */
-const FAILURE_KEY: Record<FailureCategory, StringKey> = {
-  auth_expired: 'failure.authExpired',
-  rate_limited: 'failure.rateLimited',
-  quota_exceeded: 'failure.quotaExceeded',
-  target_refused: 'failure.targetRefused',
-  network: 'failure.network',
-  unknown: 'failure.unknown',
-};
 
 const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domains }) => {
   const t = useT();

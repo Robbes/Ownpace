@@ -136,6 +136,7 @@ const en = {
   // `access.*` keys further down are the PUBLIC page somebody asks on (T3);
   // these are the screen where somebody answers, hence a separate prefix.
   'nav.accessRequests': 'Access requests',
+  'nav.support': 'Support',
   // ---- Answering an invitation (workplan 0099). ----
   'invite.title': 'You have been invited',
   'invite.subtitle': 'Joining is your choice. Nothing happens until you make it.',
@@ -698,6 +699,54 @@ const en = {
   // The one whose text must carry the way OUT of self-service.
   'failure.unknown':
     'We could not classify this one. The provider\u2019s own message is below \u2014 if it does not help, send it to us and we will look.',
+  // ---------------------------------------------------------------------
+  // The operator's support surface (workplan 0110 T4)
+  //
+  // Addressed to the OPERATOR, not to a customer. `support.recorded` is the
+  // one that matters: the owner chose standing, disclosed support access over
+  // a consent switch, so the log is what a customer can point at — and a
+  // record nobody is told about is surveillance with paperwork. The
+  // customer-facing half of this disclosure is 0110 T6.
+  // ---------------------------------------------------------------------
+  'support.heading': 'Support',
+  'support.recorded':
+    'Every screen you open here is written to the support read log against your name, with the '
+    + 'organisation and the time. Customers can be shown that record.',
+  'support.metadataOnly':
+    'Names, states, counts and timings only. No message, event, contact or file is shown here, '
+    + 'and none can be \u2014 the database serves this surface a fixed list of columns.',
+  'support.noOrganisations': 'No organisations to show.',
+  'support.notFound': 'Nothing here to show.',
+  'support.back': 'All organisations',
+  'support.backToOrganisation': 'Back to the organisation',
+  'support.joinedOn': 'Joined',
+  'support.connections': 'Connections',
+  'support.migrations': 'Migrations',
+  'support.invoices': 'Invoices',
+  'support.domains': 'Per domain',
+  'support.noConnections': 'No connections.',
+  'support.noMigrations': 'No migrations.',
+  'support.noInvoices': 'No invoices.',
+  'support.noDomains': 'Nothing has run yet.',
+  'support.noFourthLevel':
+    'There is no screen below this one. A list of items would be a list of subject lines, and '
+    + 'that is where support stops.',
+  'support.col.organisation': 'Organisation',
+  'support.col.status': 'Status',
+  'support.col.joined': 'Joined',
+  'support.col.migrations': 'Migrations',
+  'support.col.failing': 'Failing',
+  'support.col.name': 'Name',
+  'support.col.role': 'Role',
+  'support.col.kind': 'Kind',
+  'support.col.lifecycle': 'Lifecycle',
+  'support.col.mode': 'Mode',
+  'support.col.updated': 'Updated',
+  'support.col.period': 'Period',
+  'support.col.total': 'Total',
+  'support.col.domain': 'Domain',
+  'support.col.state': 'State',
+  'support.col.whatToDo': 'What to do',
   'confirm.progress.heading': 'Live progress',
   'confirm.progress.synced': 'synced',
   'confirm.progress.failed': 'failed',
@@ -1224,6 +1273,48 @@ const nl: Record<keyof typeof en, string> = {
     'We konden de server niet bereiken. Dit duurt meestal kort en wordt vanzelf opnieuw geprobeerd.',
   'failure.unknown':
     'We konden dit niet classificeren. De melding van de provider zelf staat hieronder \u2014 helpt die niet, stuur hem ons dan en we kijken mee.',
+  // De supportschermen van de beheerder (werkplan 0110 T4). Gericht aan de
+  // BEHEERDER, niet aan een klant.
+  'support.heading': 'Support',
+  'support.recorded':
+    'Elk scherm dat u hier opent, wordt op uw naam vastgelegd in het supportleeslogboek, met de '
+    + 'organisatie en het tijdstip. Klanten kunnen dat logboek te zien krijgen.',
+  'support.metadataOnly':
+    'Alleen namen, statussen, aantallen en tijden. Geen bericht, afspraak, contact of bestand '
+    + 'wordt hier getoond, en dat kan ook niet \u2014 de database levert dit scherm een vaste '
+    + 'lijst kolommen.',
+  'support.noOrganisations': 'Geen organisaties om te tonen.',
+  'support.notFound': 'Hier is niets te tonen.',
+  'support.back': 'Alle organisaties',
+  'support.backToOrganisation': 'Terug naar de organisatie',
+  'support.joinedOn': 'Klant sinds',
+  'support.connections': 'Verbindingen',
+  'support.migrations': 'Migraties',
+  'support.invoices': 'Facturen',
+  'support.domains': 'Per soort',
+  'support.noConnections': 'Geen verbindingen.',
+  'support.noMigrations': 'Geen migraties.',
+  'support.noInvoices': 'Geen facturen.',
+  'support.noDomains': 'Er is nog niets gedraaid.',
+  'support.noFourthLevel':
+    'Er is geen scherm onder dit scherm. Een lijst met items is een lijst met onderwerpregels, '
+    + 'en daar houdt support op.',
+  'support.col.organisation': 'Organisatie',
+  'support.col.status': 'Status',
+  'support.col.joined': 'Klant sinds',
+  'support.col.migrations': 'Migraties',
+  'support.col.failing': 'Mislukt',
+  'support.col.name': 'Naam',
+  'support.col.role': 'Rol',
+  'support.col.kind': 'Soort',
+  'support.col.lifecycle': 'Fase',
+  'support.col.mode': 'Modus',
+  'support.col.updated': 'Bijgewerkt',
+  'support.col.period': 'Periode',
+  'support.col.total': 'Totaal',
+  'support.col.domain': 'Soort',
+  'support.col.state': 'Status',
+  'support.col.whatToDo': 'Wat te doen',
   'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
   'verify.checkedAt': 'Geverifieerd',
   'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',
@@ -1303,6 +1394,7 @@ const nl: Record<keyof typeof en, string> = {
     'Uw account hoort nog niet bij een organisatie. Heeft u toegang aangevraagd, dan mailen wij u zodra het klaarstaat.',
   // ---- The access QUEUE (workplan 0093 T7) — see the English block. ----
   'nav.accessRequests': 'Toegangsverzoeken',
+  'nav.support': 'Support',
   // ---- Een uitnodiging beantwoorden (workplan 0099) — zie het Engelse blok. ----
   'invite.title': 'U bent uitgenodigd',
   'invite.subtitle': 'Meedoen is uw keuze. Er gebeurt niets tot u die maakt.',
