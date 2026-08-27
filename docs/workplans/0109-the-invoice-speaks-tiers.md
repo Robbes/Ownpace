@@ -2,14 +2,19 @@
 
 ## Status — 2026-08-27 (update this block at the end of every session)
 
-**This is a plan for review, not a build.** Written after 0088's calculator shipped, when the
-gap between what the site publishes and what the code would charge stopped being theoretical.
-Nothing below is built until this is merged and a task is started — and T0 is a decision
-before it is a task.
+**T0 is decided and built; T1–T7 are still a plan for review.** Written after 0088's
+calculator shipped, when the gap between what the site publishes and what the code would
+charge stopped being theoretical.
+
+The owner chose **(a) refuse** on 2026-08-27, and it shipped the same day: the invoice route
+now answers 409 rather than minting a bill for a model we no longer sell. That closes the
+only thing that was actually reachable by a customer. Everything below T0 remains unbuilt
+and **T1 is still the blocking one** — the billing unit is per PATH and the only lifecycle is
+per mapping, so nothing above it can be right until that moves.
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 What the invoice route does until tiers exist (owner decision) | 📋 **Awaiting a decision** | The button issues a bill for a model we no longer sell. Refuse, fix, or leave — and say which. |
+| T0 What the invoice route does until tiers exist (owner decision) | ✅ **Decided (a) refuse, and built, 2026-08-27** | `POST /api/billing/invoices/generate` answers **409 `billing_model_retired`** for every well-formed request, in one sentence that names what it *would* have billed — a retired model, every byte counted twice, items that moved nothing — and says plainly that nothing is wrong with the account and a figure comes from a person until the tiers ship. **409 rather than 501**: the request is well-formed and the caller entitled to make it; the deployment cannot honour it. The refusal is FIRST in the handler and touches no database, so a refused call leaves not even a draft — a test asserts that by making `getDbPool` throw. **The old body is deleted rather than left unreachable behind the refusal**: dead code under a `return` is code nobody maintains and everybody assumes still works, and git has it. Nothing else in billing changes — usage, listing, payment methods and the webhook all behave normally, because what is refused is *minting a bill*, the one operation that turns a wrong model into a number somebody could be asked to pay. **The guard cannot outlive its reason**: one test re-reads `packages/managed/src/pricing.ts` and fails the moment it mentions tiers, so removing this refusal becomes something CI insists on when T4/T5 land rather than something they must remember. Proofs by breaking: the route billing again → 3 red; the reason reduced to "disabled" → 1; tier code appearing in `pricing.ts` → 1 (the trip-wire firing as designed). |
 | T1 A lifecycle per PATH, not per mapping | 📋 Planned (**blocking**) | The unit ADR-0014 bills is `(mapping, domain)`; the only lifecycle is per mapping. Nothing above this can be right until it is. |
 | T2 The peak, recorded rather than recomputed | 📋 Planned (needs T1) | "Six at the same time on 12 August" has to come from somewhere. |
 | T3 The first-copy byte meter, append-only | 📋 Planned (needs T1) | Never the same query as 0090's byte budget, and never a live-row SUM. |

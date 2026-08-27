@@ -15,12 +15,12 @@ import { z } from 'zod';
 import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { calculateCost } from '../../services/billing-service.ts';
-import { generateInvoiceForPeriod } from '../../services/invoice-generation.ts';
 import { getMollieService } from '../../services/mollie/index.ts';
 import { eq, and, desc } from 'drizzle-orm';
 import { getUsageMetricsForPeriod, resolveTenantPricing } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
 import { log } from '@openmig/shared';
+import { NO_TIER_BILLING_CODE, NO_TIER_BILLING_REASON } from './no-bill-we-do-not-sell.ts';
 import { serverFault } from '../../server-fault.ts';
 
 const router = Router();
@@ -255,33 +255,36 @@ router.post('/estimate', authenticate, requireBillingRead, async (req: Authentic
  * paid/void invoice is returned unchanged. Intended to be called by a
  * managed-mode scheduled job at period close (self-host never loads billing).
  */
-router.post('/invoices/generate', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId;
-    if (!tenantId) {
-      res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
-      return;
-    }
-
-    const parsed = z.object({ period: z.string().regex(/^\d{4}-\d{2}$/).optional() }).safeParse(req.body ?? {});
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Bad Request', message: 'period must be YYYY-MM' });
-      return;
-    }
-
-    const ym = parsed.data.period ?? new Date().toISOString().slice(0, 7);
-    const [year, month] = ym.split('-').map(Number) as [number, number];
-    const periodStart = `${ym}-01`;
-    const periodEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
-
-    const invoice = await withTenantDb(tenantId, getSharedPool(), async (db) =>
-      generateInvoiceForPeriod(db, tenantId, periodStart, periodEnd),
-    );
-
-    res.status(201).json({ invoice });
-  } catch (error) {
-    serverFault(res, 'invoice_create_failed', 'generating this invoice', error);
+router.post('/invoices/generate', authenticate, requireBillingWrite, (req: AuthenticatedRequest, res: Response) => {
+  // REFUSED, and the body that used to be here is GONE rather than left
+  // unreachable behind the refusal (workplan 0109 T0, the owner's decision of
+  // 2026-08-27). Dead code under a `return` is code nobody maintains and
+  // everybody assumes still works; git has the old body, and 0109 T5 writes
+  // the real one against tiers.
+  //
+  // What it did, so the next reader need not dig: it read metered usage for a
+  // period and called `generateInvoiceForPeriod`. That service still exists and
+  // is now unreachable from the API — and, stated plainly because the opposite
+  // would be more comfortable, it is no longer covered by a test: its only
+  // coverage was through this route. Re-pinning its arithmetic was considered
+  // and rejected, because the doc comment in `no-bill-we-do-not-sell.ts` names
+  // three faults in exactly that arithmetic; a test asserting the old total
+  // would be asserting a number this same change calls wrong. 0109 T5 replaces
+  // the service, and `no-bill-we-do-not-sell.unit.test.ts` goes red the moment
+  // it does.
+  //
+  // What is refused is MINTING A BILL, which is the one operation that turns a
+  // retired model into a number somebody could be asked to pay. Every other
+  // billing route is untouched.
+  //
+  // 409 rather than 501: the request is well-formed and this caller is
+  // entitled to make it; the deployment cannot honour it. No tenant scoping
+  // and no database work happens first, so a refused call leaves nothing
+  // behind — not even a draft.
+  if (!req.tenantId) {
+    return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
   }
+  res.status(409).json({ error: NO_TIER_BILLING_CODE, reason: NO_TIER_BILLING_REASON });
 });
 
 /**

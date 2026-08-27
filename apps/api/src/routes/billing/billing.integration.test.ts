@@ -367,13 +367,22 @@ describe('Billing Route Isolation', () => {
       expect(response.status).toBe(403);
     });
 
-    it('an admin passes the guard (invoice generation)', async () => {
+    it('an admin passes the guard, and meets the refusal behind it (0109 T0)', async () => {
+      // The GUARD is what this test is about: an admin gets past it, where a
+      // viewer and a member above do not. What waits on the other side changed
+      // on 2026-08-27 — the route no longer mints a draft for a model that is
+      // not sold, it refuses — so passage now reads as 409 rather than 201.
+      //
+      // The ordering is the part worth pinning: the refusal names this
+      // deployment's billing model, and it is only ever shown to somebody
+      // already entitled to ask. A refusal evaluated BEFORE the role guard
+      // would answer that question for a viewer.
       const response = await request
         .post('/api/billing/invoices/generate')
         .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
         .send({ period: '2026-06' });
-      expect(response.status).toBe(201);
-      expect(response.body.invoice).toBeDefined();
+      expect(response.status).toBe(409);
+      expect(response.body.error).toBe('billing_model_retired');
     });
 
     it('reads are owner/admin too: viewers and members get 403 on every billing read (owner decision 2026-08-10)', async () => {

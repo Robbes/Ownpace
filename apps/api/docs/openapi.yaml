@@ -2618,11 +2618,23 @@ paths:
   /api/billing/invoices/generate:
     post:
       tags: [Billing]
-      summary: Generate or refresh a period's invoice
+      summary: Refuses — the pricing model this billed was retired
       description: |
-        Owner/admin. An invoice already paid or void is left untouched rather
-        than regenerated — a settled document does not move because usage was
-        recounted.
+        **This route currently refuses, deliberately, and mints nothing.**
+
+        ADR-0014 was amended on 2026-08-20 from metered resources to five tiers
+        on two axes. The invoice code still meters bytes and hours from the
+        retired model — and would count every byte twice, once as storage and
+        once as egress, and charge for items that moved nothing. Issuing that
+        would be a bill for something Ownpace does not sell.
+
+        Refusing is cheaper than fixing arithmetic on code the tier work
+        replaces, and it cannot mislead. The guard is removed when the invoice
+        can say a tier and its evidence.
+
+        Nothing else in billing is affected: usage, invoice listing, the
+        payment-method routes and the webhook all behave normally. The refusal
+        touches no database, so a refused call leaves not even a draft.
       requestBody:
         required: false
         content:
@@ -2632,14 +2644,20 @@ paths:
               properties:
                 period: { type: string, pattern: '^\d{4}-\d{2}$', examples: ['2026-08'] }
       responses:
-        '201':
-          description: The generated invoice.
-          content:
-            application/json:
-              schema: { type: object }
-        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: |
+            Always, for any well-formed request. `error` is
+            `billing_model_retired`; `reason` is one sentence naming what would
+            have been billed and what to do instead.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string, enum: [billing_model_retired] }
+                  reason: { type: string }
 
   /api/billing/invoices/{invoiceId}:
     parameters:
