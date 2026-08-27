@@ -15,6 +15,7 @@ export * from './schema-pg.ts';
 export * from './cutover-store.ts';
 export * from './verification-queries.ts';
 export * from './migration-status-store.ts';
+export * from './path-lifecycle-store.ts';
 export * from './discovery-store.ts';
 export * from './decision-store.ts';
 export * from './policy-preset-store.ts';

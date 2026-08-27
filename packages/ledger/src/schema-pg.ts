@@ -277,6 +277,60 @@ export const scopeSelection = pgTable(
   (t) => [uniqueIndex('uk_scope_mapping_domain').on(t.mappingId, t.domain)],
 );
 
+/**
+ * The lifecycle of one PATH — `(mapping, domain)` — which is the unit ADR-0014
+ * bills and the grain at which paths must be able to end one at a time
+ * (workplan 0109 T1, migration 0035).
+ *
+ * A SIBLING of `scope_selection` rather than columns on it: the owner's
+ * decision of 2026-08-27, because the sync job reads that row on every pass to
+ * decide scope, and T2 wants the month's peak, which means history a separate
+ * table can carry append-only without disturbing it.
+ *
+ * **ABSENT MEANS `ready`.** A path with no row here is configured and has never
+ * run — free, holding no slot, which is ADR-0014's own column default. It is
+ * also the safe direction: an absent row can never over-bill, only under-claim.
+ *
+ * In the LEDGER chain deliberately (0109 T7): the lifecycle is the PRODUCT's
+ * and billing is a reader of it. An appliance owner has the same need to cut
+ * over mail while calendar keeps running, and putting this in the managed chain
+ * would make that a paid feature by accident.
+ */
+export const pathLifecycle = pgTable(
+  'path_lifecycle',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    mappingId: uuid('mapping_id')
+      .notNull()
+      .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
+    domain: text('domain', { enum: ['email', 'calendar', 'contact', 'file'] }).notNull(),
+    /**
+     * ADR-0014's four plus `ready`, which `mailbox_mapping.status` never had.
+     * `paused` STILL HOLDS A SLOT — it is reserved capacity, and the pricing
+     * page says so; only `cutover`/`done` release one.
+     */
+    state: text('state', { enum: ['ready', 'active', 'paused', 'cutover', 'done'] })
+      .notNull()
+      .default('ready'),
+    /** When this path FIRST took a slot. Never overwritten by a later one:
+     *  "has this ever run" is a different question from "is it running". */
+    firstActivatedAt: timestamp('first_activated_at', { withTimezone: true }),
+    /** When it released one. NULL while it still holds a slot. */
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // The same key `scope_selection` is unique on, because it is the same
+    // identity: one lifecycle per path.
+    uniqueIndex('uk_path_lifecycle_mapping_domain').on(t.mappingId, t.domain),
+    index('ix_path_lifecycle_tenant_state').on(t.tenantId, t.state),
+  ],
+);
+
 export const collectionMapping = pgTable(
   'collection_mapping',
   {
