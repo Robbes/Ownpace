@@ -205,6 +205,42 @@ export const mailboxMapping = pgTable(
   ],
 );
 
+/**
+ * A migrator's bearer link to one mapping — migration 0031, workplan 0108 T1,
+ * ADR-0035's *"owners sign in; migrated people get links, not accounts"*.
+ *
+ * Declared here WITH the migration rather than after it: `rate_budget` shipped
+ * invisible to the ORM and the gap took an integration test to notice, and a
+ * table nothing typed can see is one nothing can join, assert on, or notice
+ * the loss of.
+ *
+ * `secretHash` is a hash and never the secret. `usedAt` is spent at the grant,
+ * not at the open. `expiresAt` is the owner's choice at issue time; `revokedAt`
+ * is their kill switch. See the migration for why each of those is the way it
+ * is, and for the two policies that do different jobs.
+ */
+export const mappingLink = pgTable(
+  'mapping_link',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    mappingId: uuid('mapping_id')
+      .notNull()
+      .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
+    /** `'grant'` supplies a credential; `'view'` reserves ADR-0035's second lifetime. */
+    purpose: text('purpose', { enum: ['grant', 'view'] }).notNull(),
+    secretHash: text('secret_hash').notNull(),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [index('mapping_link_mapping_idx').on(t.mappingId, t.createdAt)],
+);
+
 // ========================= Scope & collection mapping =========================
 
 export const scopeSelection = pgTable(

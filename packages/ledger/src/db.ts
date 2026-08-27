@@ -300,6 +300,59 @@ export async function withSubject<T>(
 }
 
 /**
+ * The context a MIGRATOR'S LINK reads in (workplan 0108 T1, ADR-0035).
+ *
+ * The one question that cannot be asked inside `withTenant` OR `withSubject`:
+ * *which mapping is this link for?* A link holder has no session, no subject
+ * and no tenant — the row is what would tell us which tenant to assume, so
+ * reading it cannot require already knowing. This sets `app.current_link`,
+ * which migration 0031's `link_sees_itself` matches for exactly the row whose
+ * id was presented.
+ *
+ * **It authorises nothing, and the narrowness is the point.** Knowing an id is
+ * not knowing the secret; the hash comparison in the API is what
+ * authenticates a bearer. What this bounds is BLAST RADIUS — one row, no
+ * other, so a mistake in a WHERE clause cannot become a walk of other
+ * tenants' links. Everything the link then goes on to do runs under
+ * `withTenant` with the tenant the verified row named, so the ordinary
+ * policies apply to every write.
+ *
+ * Keep it that way: if a second table ever needs link scope, give it its own
+ * policy rather than widening what this sets — and give that table NULL-safe
+ * tenant policies first, for the reason `withSubject` records above.
+ */
+export async function withMappingLink<T>(
+  source: LedgerDriver | Pool,
+  linkId: string,
+  fn: (db: PgDatabase) => Promise<T>
+): Promise<T> {
+  const driver = isLedgerDriver(source) ? source : pgDriver(source);
+  const conn = await driver.acquire();
+  let releaseError: Error | undefined;
+
+  try {
+    await conn.query('BEGIN');
+    if (driver.role) {
+      await conn.query(`SET LOCAL ROLE "${assertRoleName(driver.role)}"`);
+    }
+    await conn.query("SELECT set_config('app.current_link', $1, true)", [linkId]);
+    const result = await fn(conn.db);
+    await conn.query('COMMIT');
+    return result;
+  } catch (error) {
+    try {
+      await conn.query('ROLLBACK');
+    } catch (rollbackError) {
+      log.error('Rollback failed after error:', rollbackError);
+      releaseError = rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError));
+    }
+    throw error;
+  } finally {
+    conn.release(releaseError);
+  }
+}
+
+/**
  * Create a Postgres database handle for the ledger.
  * Returns an object with the db and a close method.
  *

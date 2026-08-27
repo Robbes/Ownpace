@@ -78,6 +78,8 @@ export const PURGED_TABLES = [
   'apply_receipt',
   'setup_step',
   'backup_target',
+  // Before `mailbox_mapping`: a link references the mapping it opens.
+  'mapping_link',
   'mailbox_mapping',
   'mailbox',
   'connection',

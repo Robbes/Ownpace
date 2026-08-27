@@ -27,6 +27,7 @@ export * from './migrate.ts';
 export * from './retention.ts';
 export * from './direct-url.ts';
 export * from './pg-rate-budget.ts';
+export * from './mapping-link-store.ts';
 // Offboarding moved to @openmig/managed (ADR-0036). Closing an account, the
 // purge window and the erasure receipt are things a SERVICE does for a
 // customer; `purgeTenant` is executed only by apps/worker. The appliance's
