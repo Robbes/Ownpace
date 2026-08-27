@@ -48,6 +48,7 @@
 import { PROVIDER_ACCOUNT_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 import {
   domainsToScopes,
+  GOOGLE_SCOPES_ASKED_BY_DOMAIN,
   type GoogleGrantDomain,
 } from '@openmig/orchestration/account-qualification';
 
@@ -158,4 +159,28 @@ export function googleAccountConsent(
   const ordered = ORDER.filter((d) => domains.includes(d));
   const scopes = domainsToScopes(ordered.map((d) => GRANT_DOMAIN[d]));
   return { scope: scopes.join(' '), domains: ordered };
+}
+
+
+/**
+ * The scopes a `google` account source's refresh token must carry, as a
+ * sentence for a refusal (workplan 0106 T3b).
+ *
+ * The create door needs this because *"which consent is this"* is the mistake
+ * waiting to happen with several Google sources sharing one OAuth client — and
+ * for an ACCOUNT the answer is a set rather than one scope. Built from the same
+ * function `POST /google/authorize` uses, so the string the door demands and
+ * the string the consent asked for are the same string.
+ *
+ * When the ticks are not ones this account kind serves, the refusal about THAT
+ * is `sourceDomainRefusal`'s to make; this one falls back to naming every scope
+ * the kind can carry, which is the useful thing to say beside a missing
+ * credential.
+ */
+export function googleAccountScopeSentence(ticked: ReadonlyArray<string>): string {
+  const consent = googleAccountConsent(ticked);
+  if (!isRefusal(consent)) return consent.scope;
+  return PROVIDER_ACCOUNT_DOMAINS.google
+    .map((d) => GOOGLE_SCOPES_ASKED_BY_DOMAIN[GRANT_DOMAIN[d]])
+    .join(' ');
 }

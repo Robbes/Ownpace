@@ -39,6 +39,10 @@ export const FRONT_DOOR_GROUPS: Readonly<Record<string, FrontDoorGroup>> = {
   // Providers — a named place people migrate from or to.
   oauth2: 'provider',
   graph: 'provider',
+  // The Google ACCOUNT (workplan 0106 T3b) — a provider like the four
+  // products below it, and the family's first member because it is the usual
+  // choice now: one credential, one consent, the faces you tick.
+  google: 'provider',
   gmail: 'provider',
   'google-calendar': 'provider',
   'google-contacts': 'provider',
@@ -62,7 +66,11 @@ export interface FrontDoorFamily {
 
 export const FRONT_DOOR_FAMILIES: ReadonlyArray<FrontDoorFamily> = [
   { id: 'microsoft365', members: ['oauth2', 'graph'] },
-  { id: 'google', members: ['gmail', 'google-calendar', 'google-contacts', 'google-drive'] },
+  // The account first — "the usual choice first", the same rule that puts
+  // oauth2 before graph. The four single-purpose products stay beside it and
+  // are the only way to mail and files until Google's restricted-scope
+  // assessment is bought.
+  { id: 'google', members: ['google', 'gmail', 'google-calendar', 'google-contacts', 'google-drive'] },
 ];
 
 /** Brand names — rendered verbatim in every language, like the type names. */
@@ -112,6 +120,12 @@ export const FRONT_DOOR_ICONS: Readonly<Record<string, FrontDoorIcon>> = {
   graph: M365_MARK,
   // The Google products keep the G and wear their product's own color —
   // the four colors are what makes them tell apart at a glance.
+  //
+  // The ACCOUNT wears the FAMILY's mark (workplan 0106 T3b), the one Google
+  // blue, because it is not a product: it is the account the four products
+  // all live in, and giving it a fifth colour would put it beside them as a
+  // sixth thing to choose between rather than above them as the usual door.
+  google: GOOGLE_MARK,
   gmail: { kind: 'mark', initial: 'G', background: '#ea4335' },
   'google-calendar': { kind: 'mark', initial: 'G', background: '#4285f4' },
   'google-contacts': { kind: 'mark', initial: 'G', background: '#1a73e8' },
