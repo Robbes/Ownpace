@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -204,6 +204,26 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
     // The receipt WE produce as somebody's processor. The appliance's operator
     // is the customer; a receipt we generate proves nothing to them.
     'erasure_record',
+    // ---- Added BEFORE they can leak, not after (workplan 0110 T6) ----
+    //
+    // These five exist only in `packages/managed/migrations/0009`; none has a
+    // drizzle declaration, so today these entries catch nothing. That is the
+    // point, and it is the same argument 0109 T7 makes: the moment somebody
+    // declares one in `schema-pg.ts` — which is the natural place to reach for,
+    // since that is where every other table lives — the appliance's type
+    // surface would gain it and shared code could name it, typechecking clean
+    // on both editions. The guard has to be waiting.
+    //
+    // Why each is managed-only rather than merely managed-first: an appliance
+    // has an OWNER, not customers, and no operators at all (ADR-0036). There
+    // is nobody for a support read to be recorded against, and nobody whose
+    // migrations another party would be looking at.
+    'support_read',
+    'support_tenants',
+    'support_tenant_connections',
+    'support_tenant_migrations',
+    'support_tenant_invoices',
+    'support_migration_domains',
   ] as const;
 
   /**
@@ -239,6 +259,30 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
       'the appliance reaches a schema module that declares a managed-only table, ' +
         'so shared code can name it and typecheck clean on both editions:\n' +
         found.map((f) => `  - ${f}`).join('\n'),
+    ).toEqual([]);
+  });
+
+  it('every managed-only name really is declared ONLY in the managed chain', () => {
+    // The complement to the check above, and the reason an entry that catches
+    // nothing today is still worth having. A name on this list must not appear
+    // in the LEDGER chain's migrations either: the guard reads TypeScript, so a
+    // table that arrived in the shared chain's SQL would be invisible to it
+    // while every appliance created the table on boot.
+    const ledgerDir = join(ROOT, 'packages/ledger/migrations');
+    const ledgerSql = readdirSync(ledgerDir)
+      .filter((f) => f.endsWith('.sql'))
+      .map((f) => readFileSync(join(ledgerDir, f), 'utf-8'))
+      .join('\n');
+
+    const leaked = MANAGED_ONLY_TABLES.filter((t) =>
+      new RegExp(`(CREATE\\s+TABLE[^;]*|CREATE\\s+(OR\\s+REPLACE\\s+)?VIEW\\s+)(public\\.)?${t}\\b`, 'i').test(
+        ledgerSql,
+      ),
+    );
+    expect(
+      leaked,
+      'a managed-only table or view is created by the SHARED migration chain, so ' +
+        'every appliance builds it on boot — move it to packages/managed/migrations',
     ).toEqual([]);
   });
 
