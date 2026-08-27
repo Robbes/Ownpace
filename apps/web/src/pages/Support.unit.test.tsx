@@ -54,6 +54,7 @@ const TENANT = {
   joined_at: '2026-07-01T09:00:00.000Z',
   migration_count: '3',
   failing_domain_count: '1',
+  pending_decision_count: '2',
 };
 
 const mount = (ui: React.ReactNode, path = '/support', route = '/support') => {
@@ -260,5 +261,74 @@ describe('both languages carry every sentence these screens ask for', () => {
     expect(keys.length).toBeGreaterThan(15);
     const missing = keys.filter((k) => !(k in STRINGS.nl));
     expect(missing).toEqual([]);
+  });
+});
+
+
+describe('failing and waiting are two different conversations (workplan 0110 T5)', () => {
+  it('counts what is waiting on the customer, beside what is failing', async () => {
+    // A migration stopped on a decision is not broken; it is waiting for
+    // somebody who probably does not know it. One "needs attention" number
+    // would collapse the two calls an operator has to make into one.
+    listMock.mockResolvedValue([TENANT]);
+    mount(<SupportTenants />);
+    await screen.findByText('Alpha BV');
+    expect(screen.getByText(STRINGS.en['support.col.failing'])).toBeInTheDocument();
+    expect(screen.getByText(STRINGS.en['support.col.waiting'])).toBeInTheDocument();
+    // The failing count and the waiting count are the fixture's two different
+    // numbers, so a cell reading the wrong column is visible here.
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('says on the organisation screen that something is waiting', async () => {
+    tenantMock.mockResolvedValue({
+      tenant: TENANT,
+      connections: [],
+      migrations: [],
+      invoices: [],
+    });
+    mount(
+      <SupportTenantDetail />,
+      `/support/tenants/${TENANT.tenant_id}`,
+      '/support/tenants/:tenantId',
+    );
+    expect(await screen.findByText(STRINGS.en['support.waiting.some'])).toBeInTheDocument();
+  });
+
+  it('says the opposite when nothing is', async () => {
+    tenantMock.mockResolvedValue({
+      tenant: { ...TENANT, pending_decision_count: '0' },
+      connections: [],
+      migrations: [],
+      invoices: [],
+    });
+    mount(
+      <SupportTenantDetail />,
+      `/support/tenants/${TENANT.tenant_id}`,
+      '/support/tenants/:tenantId',
+    );
+    expect(await screen.findByText(STRINGS.en['support.waiting.none'])).toBeInTheDocument();
+  });
+
+  it('never shows the decisions themselves — only how many', async () => {
+    // `decision.summary` is prose a detector wrote about a specific mailbox
+    // and `decision.detail` is a jsonb bag that has carried addresses since
+    // 0028 T1. The view does not select either, so there is nothing here to
+    // render — asserted at the screen because that is where it would show.
+    tenantMock.mockResolvedValue({
+      tenant: TENANT,
+      connections: [],
+      migrations: [],
+      invoices: [],
+    });
+    const { container } = mount(
+      <SupportTenantDetail />,
+      `/support/tenants/${TENANT.tenant_id}`,
+      '/support/tenants/:tenantId',
+    );
+    await screen.findByText(STRINGS.en['support.waiting.some']);
+    expect(container.textContent).not.toContain('summary');
+    expect(container.textContent).not.toContain('@');
   });
 });

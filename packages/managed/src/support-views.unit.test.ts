@@ -121,6 +121,25 @@ beforeAll(async () => {
        VALUES ($1,$2,$3,'active','Alpha migration')`,
       [MAPPING_A, TENANT_A, BOX_A],
     );
+    // Two pending decisions and one resolved (workplan 0110 T5). The
+    // tenant-level one carries NO mapping — `decision.mapping_id` is nullable
+    // by design since 0028 T1, a newly discovered mailbox belonging to no
+    // migration yet — which is exactly why the two counts must not agree.
+    await q(
+      `INSERT INTO decision (id, tenant_id, mapping_id, category, summary, subject_key, status)
+       VALUES (gen_random_uuid(), $1, $2, 'quota', 'a summary about someone@example.invalid', 'k1', 'pending')`,
+      [TENANT_A, MAPPING_A],
+    );
+    await q(
+      `INSERT INTO decision (id, tenant_id, mapping_id, category, summary, subject_key, status)
+       VALUES (gen_random_uuid(), $1, NULL, 'new_mailbox', 'a mailbox nobody has placed yet', 'k2', 'pending')`,
+      [TENANT_A],
+    );
+    await q(
+      `INSERT INTO decision (id, tenant_id, mapping_id, category, summary, subject_key, status)
+       VALUES (gen_random_uuid(), $1, $2, 'other', 'already decided', 'k3', 'resolved')`,
+      [TENANT_A, MAPPING_A],
+    );
     await q(
       `INSERT INTO migration_status (id, tenant_id, mapping_id, domain, state, last_error, last_error_category)
        VALUES (gen_random_uuid(),$1,$2,'email','failed',$3,'auth_expired')`,
@@ -181,6 +200,38 @@ describe('an operator sees metadata, and only metadata', () => {
     expect(rows.map((r) => r.tenant_name)).toEqual(['Alpha', 'Beta']);
     expect(Number(rows[0]?.migration_count)).toBe(1);
     expect(Number(rows[0]?.failing_domain_count)).toBe(1);
+  });
+
+  it('counts what is WAITING on the customer, at both grains (0110 T5)', async () => {
+    // Failing and waiting are opposite conversations: a migration stopped on
+    // a decision is not broken, it is waiting for somebody who probably does
+    // not know it. Counted at two grains because decisions have two, and the
+    // two are NOT meant to add up — the difference is the decisions that
+    // belong to the tenant and to no migration.
+    const [tenantRow, mappingRow] = await asSubject(OPERATOR, async (q) => {
+      const t = await q(
+        "SELECT pending_decision_count FROM public.support_tenants WHERE tenant_name = 'Alpha'",
+      );
+      const m = await q('SELECT pending_decision_count FROM public.support_tenant_migrations');
+      return [t.rows[0], m.rows[0]] as Array<{ pending_decision_count: string }>;
+    });
+    // Two pending for the organisation: the mapping's and the placeless one.
+    expect(Number(tenantRow?.pending_decision_count)).toBe(2);
+    // One for the migration — and the resolved one is counted by neither,
+    // because an operator counting resolved decisions would be reading how
+    // many judgements a customer has made rather than what is outstanding.
+    expect(Number(mappingRow?.pending_decision_count)).toBe(1);
+  });
+
+  it('CANNOT reach the decisions themselves — only how many', async () => {
+    // `summary` is prose a detector wrote about a specific mailbox and the
+    // fixture's carries an address on purpose. A count says whether to
+    // mention it; the customer's own screen says what it is.
+    for (const view of ['support_tenants', 'support_tenant_migrations']) {
+      await expect(
+        asSubject(OPERATOR, (q) => q(`SELECT summary FROM public.${view}`)),
+      ).rejects.toThrow();
+    }
   });
 
   it('CANNOT reach last_error, however it asks', async () => {

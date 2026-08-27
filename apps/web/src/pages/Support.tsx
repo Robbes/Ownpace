@@ -46,7 +46,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
-import { LifeBuoy, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { LifeBuoy, ArrowLeft, AlertTriangle, Clock } from 'lucide-react';
 import { isFailureCategory } from '@openmig/shared';
 import {
   listSupportTenants,
@@ -150,11 +150,13 @@ export const SupportTenants: React.FC = () => {
                 <th className="px-3 py-2">{t('support.col.joined')}</th>
                 <th className="px-3 py-2">{t('support.col.migrations')}</th>
                 <th className="px-3 py-2">{t('support.col.failing')}</th>
+                <th className="px-3 py-2">{t('support.col.waiting')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {tenants.map((tenant) => {
                 const failing = asCount(tenant.failing_domain_count);
+                const waiting = asCount(tenant.pending_decision_count);
                 return (
                   <tr key={tenant.tenant_id}>
                     <td className="px-3 py-2">
@@ -173,6 +175,21 @@ export const SupportTenants: React.FC = () => {
                         <span className="inline-flex items-center gap-1 rounded bg-red-50 px-2 py-0.5 text-red-700">
                           <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                           {failing}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">0</span>
+                      )}
+                    </td>
+                    {/* Failing and waiting are opposite support conversations
+                        (workplan 0110 T5), which is why they are two columns
+                        and not one "needs attention" number: a migration
+                        stopped on a decision is not broken, it is waiting for
+                        somebody who probably does not know it. */}
+                    <td className="px-3 py-2">
+                      {waiting > 0 ? (
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-amber-800">
+                          <Clock className="h-4 w-4" aria-hidden="true" />
+                          {waiting}
                         </span>
                       ) : (
                         <span className="text-gray-400">0</span>
@@ -233,6 +250,14 @@ export const SupportTenantDetail: React.FC = () => {
       <Disclosure />
       <p className="mb-4 text-sm text-gray-600">
         {t('support.joinedOn')} {dateTime(tenant.joined_at)} · {tenant.tenant_status}
+      </p>
+      {/* Said as a sentence rather than left as a number in a table: the
+          operator's next action differs, and "there are two things waiting for
+          you on your decisions screen" is the first sentence of that call. */}
+      <p className="mb-4 text-sm text-gray-600">
+        {asCount(tenant.pending_decision_count) > 0
+          ? t('support.waiting.some')
+          : t('support.waiting.none')}
       </p>
 
       <Section
@@ -379,6 +404,11 @@ export const SupportMigrationDetail: React.FC = () => {
       <p className="mb-4 text-sm text-gray-600">
         {migration.lifecycle}
         {migration.schedule ? ` · ${migration.schedule}` : ''}
+      </p>
+      <p className="mb-4 text-sm text-gray-600">
+        {asCount((migration.pending_decision_count ?? 0) as number | string) > 0
+          ? t('support.waiting.some')
+          : t('support.waiting.none')}
       </p>
 
       <Section title={t('support.domains')} empty={t('support.noDomains')} rows={domains.length}>
