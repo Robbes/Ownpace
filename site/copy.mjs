@@ -35,10 +35,11 @@ export const COPY = {
       home: 'Home',
       how: 'How it works',
       pricing: 'Pricing',
+      calculator: 'Estimate',
       privacy: 'Privacy',
       terms: 'Terms',
     },
-    files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', privacy: 'privacy.html', terms: 'terms.html' },
+    files: { home: 'index.html', how: 'how-it-works.html', pricing: 'pricing.html', calculator: 'estimate.html', privacy: 'privacy.html', terms: 'terms.html' },
     skip: 'Skip to content',
     footerTag: 'move your own data, at your own pace.',
     footerOss: 'Open source under the Apache License 2.0. Run it yourself, or let us run it.',
@@ -105,6 +106,68 @@ export const COPY = {
     draftBanner:
       'This is a draft. Passages marked like «THIS» are not filled in yet.',
     translationNote: null,
+    /**
+     * The pre-preflight calculator (workplan 0088 T3). A CALCULATOR, not a
+     * plan selector: the visitor never chooses a tier, the page derives it
+     * and says so. Rung 1 of the ladder — self-declared, a band at ±50%,
+     * costing nothing — and every sentence that keeps it honest lives here.
+     */
+    calc: {
+      title: 'What would yours cost?',
+      lede:
+        'Answer five questions and this page derives the tier — you never pick one. Everything is indicative: these are our assumptions until the free preflight measures your real accounts, and you can change every number below.',
+      whoLegend: 'Who is moving?',
+      who: { individual: 'Just me', family: 'My household (4 people)', sme: 'My business (10 seats)' },
+      fromLegend: 'Moving away from?',
+      from: { google: 'Google', microsoft: 'Microsoft', dropbox: 'Dropbox', apple: 'Apple', other: 'Somewhere else' },
+      whatLegend: 'What is moving?',
+      what: { mail: 'Mail', contacts: 'Contacts', calendar: 'Calendar', files: 'Files', photos: 'Photos' },
+      howMuchLegend: 'How much is it?',
+      howMuchHint:
+        'Your current provider already shows these numbers on its storage page — check there, or keep our assumptions. Every field is editable; correcting us beats distrusting us.',
+      itemsAssumed: '{0} items assumed',
+      gbLabel: 'GB',
+      untilLegend: 'Until when?',
+      until: { m1: '1 month', m3: '3 months', m6: '6 months', ready: 'When I am ready' },
+      untilHint:
+        'Duration is a choice, not a prediction: the migration keeps your copy in step until you cut over, and the recurring part of the price is yours to end.',
+      pathsNone: 'Tick what is moving and the count appears here.',
+      pathsOne: '{0} — that is one migration.',
+      pathsMany: '{0}, for {1} — that is {2} migrations at the same time.',
+      forWho: { individual: 'one person', family: 'four people', sme: 'ten seats' },
+      axisPaths: 'Migrations at the same time',
+      axisData: 'Data to move',
+      axisDecides: 'this one decides',
+      bandLine: 'roughly {0}–{1} GB — a ±50% band, because these are self-declared numbers, not measured ones',
+      tierLine: 'That lands on {0}.',
+      tierDerived:
+        'Derived from your answers, never picked — and it keeps deriving: finish migrations and the tier falls by itself.',
+      tierSetup: '{0} one-off setup',
+      tierMonthly: '{0} a month',
+      tierFirstMonth: '{0} for the first month, setup included',
+      tierThree: '{0} for a three-month move in total',
+      stepUpRule: 'Step up later and you pay only the difference in setup.',
+      beyondLine:
+        'Past the published scale. Here we look at your actual case before quoting — talk to us.',
+      billDown:
+        'Finishing migrations lowers your bill by itself, automatically. The data axis never falls, so the size of what you moved sets a floor under the tier — or a top-up buys another whole band of room and you stay where you are.',
+      topUpLine:
+        'On {0}: {1} once buys another {2} of data room at the same monthly. Moving up to {3} instead costs {4} now and {5} more a month.',
+      topUpBreakEven:
+        'The top-up costs {0} more up front and saves {1} a month — it pays for itself in about {2} days.',
+      topUpCheaper: 'The top-up is the cheaper choice from the first euro.',
+      gmailCeiling:
+        'Google caps Gmail IMAP downloads at 2.5 GB per account per day, so {0} GB of mail needs at least {1} days. That minimum comes from Google’s published ceiling, not from a bandwidth guess — and it is exactly why Ownpace syncs continuously and cuts over when you are ready.',
+      gmailLonger: 'Note: that is longer than the {0} you picked — the mail sets the pace here.',
+      cannotKnow:
+        'One thing this page cannot know: whether your target accepts your data. The preflight verifies exactly that, and it is free.',
+      assumptionsTitle: 'Where these numbers come from',
+      assumptionsVersion:
+        'Assumptions v{0}, {1} — judgement, not yet measured. They will be replaced by medians from real preflights, and this line will say so. Until then: argue with them above, every field is yours.',
+      noscript:
+        'This estimator runs one small script, on this page and nowhere else on the site. Without it, nothing is lost: the five tiers are published in full on the pricing page.',
+      seeAllTiers: 'All five tiers, in full',
+    },
   },
 
   nl: {
@@ -115,10 +178,11 @@ export const COPY = {
       home: 'Home',
       how: 'Hoe het werkt',
       pricing: 'Prijzen',
+      calculator: 'Schatting',
       privacy: 'Privacy',
       terms: 'Voorwaarden',
     },
-    files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', privacy: 'privacy.html', terms: 'voorwaarden.html' },
+    files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html' },
     skip: 'Naar de inhoud',
     footerTag: 'verhuis uw eigen gegevens, in uw eigen tempo.',
     footerOss:
@@ -181,5 +245,61 @@ export const COPY = {
       'Dit is een concept. Stukken die er zo «UITZIEN» zijn nog niet ingevuld.',
     translationNote:
       'Deze vertaling is er voor uw gemak. Bij verschillen is de Engelse versie de tekst die geldt.',
+    calc: {
+      title: 'Wat zou het bij u kosten?',
+      lede:
+        'Beantwoord vijf vragen en deze pagina leidt het pakket af — u kiest er nooit zelf een. Alles is indicatief: dit zijn onze aannames totdat de gratis voorcontrole uw echte accounts meet, en elk getal hieronder kunt u aanpassen.',
+      whoLegend: 'Wie verhuist er?',
+      who: { individual: 'Alleen ik', family: 'Mijn huishouden (4 personen)', sme: 'Mijn bedrijf (10 werkplekken)' },
+      fromLegend: 'Weg bij?',
+      from: { google: 'Google', microsoft: 'Microsoft', dropbox: 'Dropbox', apple: 'Apple', other: 'Ergens anders' },
+      whatLegend: 'Wat verhuist er?',
+      what: { mail: 'E-mail', contacts: 'Contacten', calendar: 'Agenda', files: 'Bestanden', photos: 'Foto’s' },
+      howMuchLegend: 'Hoeveel is het?',
+      howMuchHint:
+        'Uw huidige aanbieder toont deze getallen al op zijn opslagpagina — kijk daar, of houd onze aannames aan. Elk veld is aanpasbaar; ons verbeteren is beter dan ons wantrouwen.',
+      itemsAssumed: '{0} items aangenomen',
+      gbLabel: 'GB',
+      untilLegend: 'Tot wanneer?',
+      until: { m1: '1 maand', m3: '3 maanden', m6: '6 maanden', ready: 'Wanneer ik er klaar voor ben' },
+      untilHint:
+        'De duur is een keuze, geen voorspelling: de verhuizing houdt uw kopie bij tot u overstapt, en het terugkerende deel van de prijs beëindigt u zelf.',
+      pathsNone: 'Vink aan wat er verhuist en de telling verschijnt hier.',
+      pathsOne: '{0} — dat is één verhuizing.',
+      pathsMany: '{0}, voor {1} — dat zijn {2} verhuizingen tegelijk.',
+      forWho: { individual: 'één persoon', family: 'vier personen', sme: 'tien werkplekken' },
+      axisPaths: 'Verhuizingen tegelijk',
+      axisData: 'Te verhuizen gegevens',
+      axisDecides: 'deze bepaalt',
+      bandLine: 'ruwweg {0}–{1} GB — een band van ±50%, want dit zijn zelf opgegeven getallen, geen gemeten',
+      tierLine: 'Dat komt uit op {0}.',
+      tierDerived:
+        'Afgeleid uit uw antwoorden, nooit gekozen — en het blijft afleiden: rond verhuizingen af en het pakket zakt vanzelf.',
+      tierSetup: '{0} eenmalige inrichting',
+      tierMonthly: '{0} per maand',
+      tierFirstMonth: '{0} voor de eerste maand, inrichting inbegrepen',
+      tierThree: '{0} voor een verhuizing van drie maanden in totaal',
+      stepUpRule: 'Later een pakket omhoog? Dan betaalt u alleen het verschil in inrichting.',
+      beyondLine:
+        'Voorbij de gepubliceerde schaal. Hier kijken we eerst naar uw werkelijke situatie — neem contact op.',
+      billDown:
+        'Verhuizingen afronden verlaagt uw rekening vanzelf, automatisch. De gegevens-as zakt nooit, dus de omvang van wat u verhuisde legt een bodem onder het pakket — óf een bijkoop geeft u een hele extra band aan ruimte en u blijft waar u zit.',
+      topUpLine:
+        'Op {0}: {1} eenmalig koopt nog eens {2} aan gegevensruimte, tegen hetzelfde maandbedrag. In plaats daarvan omhoog naar {3} kost nu {4} en {5} per maand extra.',
+      topUpBreakEven:
+        'De bijkoop kost vooraf {0} meer en bespaart {1} per maand — dat is in ongeveer {2} dagen terugverdiend.',
+      topUpCheaper: 'De bijkoop is vanaf de eerste euro de goedkopere keuze.',
+      gmailCeiling:
+        'Google begrenst Gmail-IMAP-downloads op 2,5 GB per account per dag, dus {0} GB e-mail heeft minstens {1} dagen nodig. Dat minimum volgt uit Googles gepubliceerde plafond, niet uit een bandbreedtegok — en het is precies waarom Ownpace doorlopend synchroniseert en pas overstapt wanneer u er klaar voor bent.',
+      gmailLonger: 'Let op: dat is langer dan de {0} die u koos — de e-mail bepaalt hier het tempo.',
+      cannotKnow:
+        'Eén ding kan deze pagina niet weten: of uw doel uw gegevens accepteert. De voorcontrole verifieert precies dat, en die is gratis.',
+      assumptionsTitle: 'Waar deze getallen vandaan komen',
+      assumptionsVersion:
+        'Aannames v{0}, {1} — inschatting, nog niet gemeten. Ze worden vervangen door medianen uit echte voorcontroles, en deze regel zal dat dan zeggen. Tot die tijd: wees het er gerust mee oneens, elk veld is van u.',
+      noscript:
+        'Deze rekenhulp draait één klein script, op deze pagina en nergens anders op de site. Zonder dat script mist u niets: de vijf pakketten staan volledig op de prijzenpagina.',
+      seeAllTiers: 'Alle vijf de pakketten, volledig',
+    },
   },
 };
