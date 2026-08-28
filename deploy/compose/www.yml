@@ -40,6 +40,33 @@
 # if something looks old, and the host in a "Request access" href if you are
 # not certain which environment this dist was built for.
 
+# ITS OWN COMPOSE PROJECT, AND THE SITE DISAPPEARED WITHOUT ONE.
+#
+# Compose derives the project name from the containing DIRECTORY when a file
+# does not declare one. This file, `dev.yml` and `dev.ci.yml` all live in
+# `deploy/compose/`, so all three were the project `compose` — and E2E's
+# cleanup step runs, on every run:
+#
+#     docker compose -f deploy/compose/dev.yml -f deploy/compose/dev.ci.yml \
+#       down --remove-orphans
+#
+# `ownpace-www` is in that project and is declared in neither of those files,
+# which is precisely Compose's definition of an orphan. So every E2E run
+# DELETED the public site. Not stopped, not unhealthy — removed, which is why
+# `docker inspect ownpace-www` answered "no such object" and there was no exit
+# code, no restart count and no log to find. `restart: unless-stopped` cannot
+# help: a container that no longer exists has nothing to restart.
+#
+# `managed.yml` was never hit by this only because it declares `name:`. That is
+# the whole difference, so this file now declares one too. Found 2026-08-28,
+# after the site had been going missing "often" for long enough to be believed
+# a crash.
+#
+# scripts/a-site-a-teardown-removed.unit.test.ts keeps it: anything with a
+# `restart:` policy is meant to stay up, and must own its project rather than
+# share a default one with a stack somebody tears down.
+name: ownpace-www
+
 services:
   www:
     image: nginx:1.27-alpine
