@@ -194,37 +194,58 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
   // in shared code compiled on both editions and typechecked clean. The rule
   // was real; only the code half of it was enforced.
 
-  /** Tables that only exist because there is a customer on the other side. */
-  const MANAGED_ONLY_TABLES = [
-    'invoice',
-    'payment_method',
-    'usage_metric',
-    // Accounts. The appliance is single-user and its HTTP surface has no login.
-    'tenant_member',
-    // The receipt WE produce as somebody's processor. The appliance's operator
-    // is the customer; a receipt we generate proves nothing to them.
-    'erasure_record',
-    // ---- Added BEFORE they can leak, not after (workplan 0110 T6) ----
-    //
-    // These five exist only in `packages/managed/migrations/0009`; none has a
-    // drizzle declaration, so today these entries catch nothing. That is the
-    // point, and it is the same argument 0109 T7 makes: the moment somebody
-    // declares one in `schema-pg.ts` — which is the natural place to reach for,
-    // since that is where every other table lives — the appliance's type
-    // surface would gain it and shared code could name it, typechecking clean
-    // on both editions. The guard has to be waiting.
-    //
-    // Why each is managed-only rather than merely managed-first: an appliance
-    // has an OWNER, not customers, and no operators at all (ADR-0036). There
-    // is nobody for a support read to be recorded against, and nobody whose
-    // migrations another party would be looking at.
-    'support_read',
-    'support_tenants',
-    'support_tenant_connections',
-    'support_tenant_migrations',
-    'support_tenant_invoices',
-    'support_migration_domains',
-  ] as const;
+  /**
+   * Tables and views that only exist because there is a customer on the other
+   * side — DERIVED from the managed chain's own SQL, not listed here.
+   *
+   * ## Why it stopped being a list
+   *
+   * It was eleven names, hand-kept, and it had fallen four behind: the managed
+   * chain creates `access_request`, `platform_operator`, `tenant_pricing` and
+   * `tenant_closure`, and none of them was on it. Two of those are named in
+   * the comment below this one as tables that MOVED into the managed chain —
+   * so the file knew about them and the list still did not.
+   *
+   * That is the exact failure this guard exists to prevent, happening to the
+   * guard. A hand-kept list of what must not leak is a list that goes stale
+   * quietly: nothing turns red when a managed table is added, because adding
+   * it to the chain is not adding it here.
+   *
+   * The managed chain IS the definition. A table created in
+   * `packages/managed/migrations` exists on no appliance, by construction — a
+   * self-host database never runs that chain (ADR-0036) — so every object it
+   * creates is managed-only without anybody deciding so. Derived, the list
+   * cannot fall behind: the next managed table is on it the moment its
+   * migration is written, and the guard is waiting before anybody reaches for
+   * `schema-pg.ts`.
+   *
+   * This is the same move `MOUNTS` (0096), the gate's route families (0100)
+   * and the front door's lanes (0107) each made after the same lesson.
+   *
+   * ## What each of them is, since the derivation no longer says
+   *
+   * Billing (`invoice`, `payment_method`, `usage_metric`, `tenant_pricing`):
+   * there is nobody to bill. Accounts (`tenant_member`, `access_request`,
+   * `platform_operator`): the appliance is single-user and its HTTP surface
+   * has no login, so it has an owner rather than members, nobody to let in and
+   * no operators at all. Lifecycle (`erasure_record`, `tenant_closure`): the
+   * receipt WE produce as somebody's processor, which proves nothing to an
+   * operator who IS the customer. Support (`support_read` and the five
+   * `support_*` views, 0110): nobody for a read to be recorded against, and
+   * nobody whose migrations another party would be looking at.
+   */
+  const MANAGED_ONLY_TABLES: ReadonlyArray<string> = (() => {
+    const dir = join(ROOT, 'packages/managed/migrations');
+    const sql = readdirSync(dir)
+      .filter((f) => f.endsWith('.sql'))
+      .map((f) => readFileSync(join(dir, f), 'utf-8'))
+      .join('\n');
+    const names = [
+      ...[...sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?public\.([a-z_]+)/gi)],
+      ...[...sql.matchAll(/CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+public\.([a-z_]+)/gi)],
+    ].map((m) => m[1]!);
+    return [...new Set(names)].sort();
+  })();
 
   /**
    * Managed-only COLUMNS on tables the appliance legitimately owns.
@@ -242,6 +263,46 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
    * written down.
    */
   const MANAGED_ONLY_COLUMNS: Readonly<Record<string, string>> = {};
+
+  it('derived a real list, and one that cannot quietly shrink', () => {
+    // Two ways a derivation fails silently, and both make every check below
+    // vacuous: a regex that matches nothing, and a regex that stops matching
+    // one shape (`CREATE TABLE IF NOT EXISTS`, `CREATE OR REPLACE VIEW`) after
+    // somebody reformats a migration.
+    expect(
+      MANAGED_ONLY_TABLES.length,
+      'no managed-chain objects derived — the guard below is asserting nothing',
+    ).toBeGreaterThan(12);
+
+    // The names the list carried by hand until 2026-08-27. Not the source of
+    // truth any more, but a floor: the derivation must still find every one of
+    // them, or it has lost a shape it used to cover.
+    for (const known of [
+      'invoice',
+      'payment_method',
+      'usage_metric',
+      'tenant_member',
+      'erasure_record',
+      'support_read',
+      'support_tenants',
+      'support_tenant_connections',
+      'support_tenant_migrations',
+      'support_tenant_invoices',
+      'support_migration_domains',
+    ]) {
+      expect(MANAGED_ONLY_TABLES, `the derivation lost '${known}'`).toContain(known);
+    }
+
+    // ...and the four it had fallen behind on, which is why it is derived now.
+    for (const missed of [
+      'access_request',
+      'platform_operator',
+      'tenant_pricing',
+      'tenant_closure',
+    ]) {
+      expect(MANAGED_ONLY_TABLES, `the derivation missed '${missed}'`).toContain(missed);
+    }
+  });
 
   it('declares no managed-only table anywhere in its reachable graph', () => {
     const found: string[] = [];
