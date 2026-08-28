@@ -15,7 +15,7 @@ per mapping, so nothing above it can be right until that moves.
 | Task | Status | Evidence |
 |---|---|---|
 | T0 What the invoice route does until tiers exist (owner decision) | ✅ **Decided (a) refuse, and built, 2026-08-27** | `POST /api/billing/invoices/generate` answers **409 `billing_model_retired`** for every well-formed request, in one sentence that names what it *would* have billed — a retired model, every byte counted twice, items that moved nothing — and says plainly that nothing is wrong with the account and a figure comes from a person until the tiers ship. **409 rather than 501**: the request is well-formed and the caller entitled to make it; the deployment cannot honour it. The refusal is FIRST in the handler and touches no database, so a refused call leaves not even a draft — a test asserts that by making `getDbPool` throw. **The old body is deleted rather than left unreachable behind the refusal**: dead code under a `return` is code nobody maintains and everybody assumes still works, and git has it. Nothing else in billing changes — usage, listing, payment methods and the webhook all behave normally, because what is refused is *minting a bill*, the one operation that turns a wrong model into a number somebody could be asked to pay. **The guard cannot outlive its reason**: one test re-reads `packages/managed/src/pricing.ts` and fails the moment it mentions tiers, so removing this refusal becomes something CI insists on when T4/T5 land rather than something they must remember. Proofs by breaking: the route billing again → 3 red; the reason reduced to "disabled" → 1; tier code appearing in `pricing.ts` → 1 (the trip-wire firing as designed). |
-| T1 A lifecycle per PATH, not per mapping | 📋 Ready to build — **owner decided the fork 2026-08-27: a sibling table** (**blocking** for T2–T7) | The unit ADR-0014 bills is `(mapping, domain)`; the only lifecycle is per mapping. Nothing above this can be right until it is. |
+| T1 A lifecycle per PATH, not per mapping | 🟡 **T1a done 2026-08-27** — the table, its store and its semantics; **T1b (the behaviour change) remains** and still blocks T2–T7 | The unit ADR-0014 bills is `(mapping, domain)`; the only lifecycle is per mapping. Nothing above this can be right until it is. |
 | T2 The peak, recorded rather than recomputed | 📋 Planned (needs T1) | "Six at the same time on 12 August" has to come from somewhere. |
 | T3 The first-copy byte meter, append-only | 📋 Planned (needs T1) | Never the same query as 0090's byte budget, and never a live-row SUM. |
 | T4 The tier calculator, and its drift guard | 📋 Planned (needs T1–T3) | The third copy of the numbers. It gets the same guard the first two have. |
@@ -160,10 +160,35 @@ free and is ADR-0014's own column default.
 
 Keyed `(tenant_id, mapping_id, domain)` to match the path identity `scope_selection` already
 carries, and carrying ADR-0014's four states plus `ready`, with `first_activated_at` and
-`ended_at`. T7 applies to it: the leakage guard's table list must grow with the table, before it
-exists rather than after. And the three structural blockers above still have to go first —
-`cutover_state`'s per-mapping unique index most of all, since one cutover machine cannot serve
-four paths that end one at a time.
+`ended_at`.
+
+**T1a — BUILT 2026-08-27 (migration 0035, `PgPathLifecycleStore`).** The table, the store and the
+semantics, with nothing wired: the routes still read and set `mailbox_mapping.status`, so this
+changes no behaviour and T1b is a wiring diff rather than a wiring-plus-semantics one.
+
+**T7's answer, and it is a decision rather than an omission:** `path_lifecycle` is deliberately
+NOT on the managed-leakage guard's table list, because **the lifecycle is the PRODUCT's and
+billing is a reader of it.** An appliance owner has exactly the same need to cut over mail while
+calendar keeps running, and putting the per-path lifecycle in the managed chain would make that a
+paid feature by accident — an edition difference hard rule 5 forbids. The tables T7 is actually
+about are T2's peak and T3's byte meter, which are managed-only when they arrive.
+
+Three rules an invoice is reconstructed from, each pinned and each proved by breaking it:
+**absent means `ready`** (free, slot-less, and the only direction that cannot over-bill);
+**`paused` STILL HOLDS A SLOT** (ADR-0014's counter-intuitive rule — a calculator that
+"helpfully" freed it would undercharge silently); and **`first_activated_at` is stamped once**,
+surviving a pause and a resume, because a path that resumed has not started again. A deselected
+domain is not a path at all and never appears.
+
+One flaw the break tests found in this task's own code: `slotsHeld` had `('active','paused')`
+written out in SQL, so breaking `holdsASlot` left the COUNT still counting the old set — the
+function and the query could disagree about `paused`, and only one of them is read at invoice
+time. The query now derives from the function, and a test pins that they agree.
+
+**T1b, still to come, and it is the behaviour change:** the three structural blockers above have
+to go — `cutover_state`'s per-mapping unique index most of all, since one cutover machine cannot
+serve four paths that end one at a time — and the start/finish/PATCH routes have to move the path
+rather than the mapping.
 
 ## T2 — the peak, recorded rather than recomputed
 
