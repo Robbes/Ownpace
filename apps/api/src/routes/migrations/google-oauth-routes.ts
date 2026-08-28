@@ -35,14 +35,44 @@ import {
 // same in-flight states — see `consent-flows.ts`.
 import { consentFlows as flows } from './consent-flows.ts';
 import { storeGrantedToken } from './grant-ending.ts';
+// The account-kind ask (workplan 0106 T3b): several faces from ONE Google
+// account, and the scope string built from the ticks and nothing else.
+import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
 
 const router = Router();
 
-const AuthorizeSchema = z.object({
-  sourceType: z.enum(['gmail', 'google-calendar', 'google-contacts', 'google-drive']),
-  clientId: z.string().min(1),
-  clientSecret: z.string().min(1),
-});
+/**
+ * Two shapes, and the older one is untouched (workplan 0106 T3b).
+ *
+ * `sourceType` is the single-purpose ask this route has always served: one
+ * Google source, one scope. `domains` is the ACCOUNT ask — one Google
+ * connection wearing several faces — and it carries the ticks rather than a
+ * kind, because the tick set IS the ask.
+ *
+ * A union rather than a replacement, deliberately. The single-purpose sources
+ * cohabit with the account kind (0106 T3b's own word), `gmail` and
+ * `google-drive` are the only way to reach the restricted scopes at all, and
+ * every wizard and client already sending `sourceType` keeps working
+ * unchanged.
+ */
+const AuthorizeSchema = z.intersection(
+  z.object({
+    clientId: z.string().min(1),
+    clientSecret: z.string().min(1),
+  }),
+  z.union([
+    z.object({
+      sourceType: z.enum(['gmail', 'google-calendar', 'google-contacts', 'google-drive']),
+    }),
+    z.object({
+      // Not `.min(1)`: an empty array is a real thing a wizard can send, and
+      // `googleAccountConsent` answers it with a sentence about ticking
+      // something. A zod message here would be a second, worse wording of the
+      // same refusal.
+      domains: z.array(z.string()),
+    }),
+  ]),
+);
 
 /** The address Google must redirect to — configured, or derived from the
  *  request for a dev setup. Google matches it against the client's
@@ -74,8 +104,25 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
         'Google client, and which source you are connecting decides the one scope asked for.',
     });
   }
-  const { sourceType, clientId, clientSecret } = parsed.data;
-  const scope = GOOGLE_SOURCE_SCOPES[sourceType as GoogleConsentSourceType];
+  const { clientId, clientSecret } = parsed.data;
+
+  // The account ask, when the caller sent ticks. Refusals are the decision
+  // function's own words, verbatim: it is the one place that knows why mail
+  // and files are not on this account, and a paraphrase here would be a
+  // second claim to keep true.
+  let scope: string;
+  let asked: ReadonlyArray<string> | undefined;
+  if ('domains' in parsed.data) {
+    const consent = googleAccountConsent(parsed.data.domains);
+    if (isRefusal(consent)) {
+      return void res.status(400).json({ error: consent.error, reason: consent.reason });
+    }
+    scope = consent.scope;
+    asked = consent.domains;
+  } else {
+    scope = GOOGLE_SOURCE_SCOPES[parsed.data.sourceType as GoogleConsentSourceType];
+  }
+
   const redirectUri = callbackUri(req);
   // Refused HERE, with the two ways out named, rather than at Google's
   // screen with a bare invalid_request (0089 T6): an appliance reached at a
@@ -90,6 +137,10 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
     url: consentUrl({ clientId, scope, redirectUri, state }),
     redirectUri,
     scope,
+    // Echoed only for the account ask, so a wizard can show what it asked
+    // for beside what Google will show. Absent for the single-purpose ask,
+    // where the source type already said it.
+    ...(asked ? { domains: asked } : {}),
   });
 });
 
