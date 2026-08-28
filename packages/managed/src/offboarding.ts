@@ -64,8 +64,8 @@ export const PURGED_TABLES = [
   'sync_checkpoint',
   'cursor',
   'collection_mapping',
-  'scope_selection',
-  // The path lifecycle beside it (workplan 0109 T1a). Both its foreign keys
+  // The path lifecycle, beside the scope selection it is the sibling of
+  // (workplan 0109 T1a). Both its foreign keys
   // CASCADE, so an erasure would remove these rows either way — and that is
   // precisely why the name belongs here. The comment above this list says it:
   // relying on the cascade is how `invoice` and `audit_log` came to be
@@ -74,6 +74,7 @@ export const PURGED_TABLES = [
   // says how many there were. Left to the cascade, the receipt would under-report
   // what the erasure actually removed, which is the one thing a receipt is for.
   'path_lifecycle',
+  'scope_selection',
   'verification',
   'cutover_event',
   'cutover_state',
