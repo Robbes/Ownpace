@@ -762,6 +762,22 @@ const en = {
   'support.col.domain': 'Domain',
   'support.col.state': 'State',
   'support.col.whatToDo': 'What to do',
+  // What an erasure kept, and could not be read until there was a screen.
+  'support.retained.link': 'Invoices kept after an erasure',
+  'support.retained.heading': 'Invoices kept after an erasure',
+  'support.retained.why':
+    'When an organisation is erased its invoices are kept on purpose — tax retention ' +
+    'outlives the customer relationship — and detached from the organisation. They ' +
+    'belong to no tenant, so no organisation page can show them. This is where they ' +
+    'are. The reference is a one-way hash of the erased id, shown so that invoices ' +
+    'from the same erasure can be seen to belong together; it does not lead back to ' +
+    'anybody.',
+  'support.retained.none': 'No invoices have been kept — nothing has been erased yet.',
+  'support.retained.noName': 'not recorded',
+  'support.retained.notPurged': 'not yet erased',
+  'support.retained.col.billedTo': 'Billed to',
+  'support.retained.col.erased': 'Erased',
+  'support.retained.col.erasure': 'Erasure',
   'confirm.progress.heading': 'Live progress',
   'confirm.progress.synced': 'synced',
   'confirm.progress.failed': 'failed',
@@ -1335,6 +1351,22 @@ const nl: Record<keyof typeof en, string> = {
   'support.col.domain': 'Soort',
   'support.col.state': 'Status',
   'support.col.whatToDo': 'Wat te doen',
+  // Wat na een wissing bewaard is gebleven.
+  'support.retained.link': 'Facturen bewaard na een wissing',
+  'support.retained.heading': 'Facturen bewaard na een wissing',
+  'support.retained.why':
+    'Wanneer een organisatie wordt gewist, blijven de facturen bewust bewaard — de ' +
+    'fiscale bewaarplicht duurt langer dan de klantrelatie — en worden ze losgekoppeld ' +
+    'van de organisatie. Ze horen bij geen enkele klant meer, dus geen enkele ' +
+    'organisatiepagina kan ze tonen. Hier staan ze. De referentie is een eenrichtings- ' +
+    'hash van het gewiste id, getoond zodat facturen uit dezelfde wissing bij elkaar ' +
+    'te zien zijn; hij leidt niet terug naar iemand.',
+  'support.retained.none': 'Er zijn geen facturen bewaard — er is nog niets gewist.',
+  'support.retained.noName': 'niet vastgelegd',
+  'support.retained.notPurged': 'nog niet gewist',
+  'support.retained.col.billedTo': 'Gefactureerd aan',
+  'support.retained.col.erased': 'Gewist',
+  'support.retained.col.erasure': 'Wissing',
   'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
   'verify.checkedAt': 'Geverifieerd',
   'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',

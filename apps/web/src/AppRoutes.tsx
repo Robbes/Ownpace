@@ -31,6 +31,7 @@ import {
   SupportTenants,
   SupportTenantDetail,
   SupportMigrationDetail,
+  SupportRetainedInvoices,
 } from './pages/Support.tsx';
 import Invitations from './pages/Invitations.tsx';
 import Decisions from './pages/Decisions.tsx';
@@ -354,6 +355,18 @@ const AppRoutes: React.FC = () => {
           element={
             <ManagedOnly>
               <SupportMigrationDetail />
+            </ManagedOnly>
+          }
+        />
+        {/* Not under `support/tenants/`, because it is not about a tenant: the
+            organisations it concerns have been erased and only a hash of their
+            id survives. Same non-gating as the screens above — the view's own
+            predicate is the rule, and a typed URL shows an empty table. */}
+        <Route
+          path="support/retained-invoices"
+          element={
+            <ManagedOnly>
+              <SupportRetainedInvoices />
             </ManagedOnly>
           }
         />

@@ -52,8 +52,10 @@ import {
   listSupportTenants,
   getSupportTenant,
   getSupportMigration,
+  listRetainedInvoices,
   type SupportTenant,
   type SupportMigrationDomain,
+  type SupportRetainedInvoice,
 } from '../services/support.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
@@ -132,6 +134,15 @@ export const SupportTenants: React.FC = () => {
       <Heading title={t('support.heading')} />
       <Disclosure />
       <p className="mb-4 text-sm text-gray-600">{t('support.metadataOnly')}</p>
+
+      {/* Reachable from here because it is reachable from nowhere else: the
+          organisations it concerns have been erased, so no tenant row leads to
+          it. A screen nobody can navigate to is the gap this closed. */}
+      <p className="mb-4 text-sm">
+        <Link to="/support/retained-invoices" className="text-blue-700 hover:underline">
+          {t('support.retained.link')}
+        </Link>
+      </p>
 
       {query.isLoading && <p className="text-sm text-gray-500">{t('common.loading')}</p>}
       {query.isError && <p className="text-sm text-red-700">{t('common.requestFailed')}</p>}
@@ -440,6 +451,95 @@ export const SupportMigrationDetail: React.FC = () => {
           know where the boundary is will go looking for a page that should not
           exist, and asking somebody for a screenshot of their inbox instead. */}
       <p className="text-sm text-gray-500">{t('support.noFourthLevel')}</p>
+    </div>
+  );
+};
+
+/* --------------------------------------------- not a level: what an erasure kept */
+
+/**
+ * The invoices an erasure kept, which no tenant page can reach.
+ *
+ * A purge detaches invoices — `tenant_id` to NULL, `billed_to_name` stamped —
+ * because tax retention outlives the customer relationship. Every other screen
+ * here filters by tenant, and the tenant is gone, so before this the rows kept
+ * for an administrative obligation were readable only from a database prompt.
+ *
+ * Grouped by `tenant_ref`, the sha256 the erasure record holds so that it
+ * cannot be turned back into a list of former customers. The hash is shown
+ * TRUNCATED and only as a grouping handle: it is here so two invoices from the
+ * same erasure can be seen to belong together, not so anybody can look one up.
+ */
+export const SupportRetainedInvoices: React.FC = () => {
+  const t = useT();
+  const { dateTime } = useFormatters();
+  const query = useQuery({
+    queryKey: ['support', 'retained-invoices'],
+    queryFn: listRetainedInvoices,
+    ...ONCE,
+  });
+
+  const invoices: SupportRetainedInvoice[] = query.data ?? [];
+
+  return (
+    <div>
+      <Heading
+        title={t('support.retained.heading')}
+        back={{ to: '/support', label: t('support.back') }}
+      />
+      <Disclosure />
+      <p className="mb-4 text-sm text-gray-600">{t('support.retained.why')}</p>
+
+      {query.isLoading && <p className="text-sm text-gray-500">{t('common.loading')}</p>}
+      {query.isError && <p className="text-sm text-red-700">{t('common.requestFailed')}</p>}
+
+      {!query.isLoading && !query.isError && (
+        <Section
+          title={t('support.retained.heading')}
+          empty={t('support.retained.none')}
+          rows={invoices.length}
+        >
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-3 py-2">{t('support.retained.col.billedTo')}</th>
+                <th className="px-3 py-2">{t('support.col.period')}</th>
+                <th className="px-3 py-2">{t('support.col.status')}</th>
+                <th className="px-3 py-2">{t('support.col.total')}</th>
+                <th className="px-3 py-2">{t('support.retained.col.erased')}</th>
+                <th className="px-3 py-2">{t('support.retained.col.erasure')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {invoices.map((i) => (
+                <tr key={i.invoice_id}>
+                  <td className="px-3 py-2 text-gray-900">
+                    {/* The purge stamps this. A row without one is an invoice
+                        issued before `billed_to_name` existed, and saying so
+                        beats rendering an empty cell that reads as a bug. */}
+                    {i.billed_to_name ?? (
+                      <span className="text-gray-400">{t('support.retained.noName')}</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-gray-600">
+                    {dateTime(i.period_start)} – {dateTime(i.period_end)}
+                  </td>
+                  <td className="px-3 py-2 text-gray-600">{i.status}</td>
+                  <td className="px-3 py-2 text-gray-600">
+                    {i.total} {i.currency}
+                  </td>
+                  <td className="px-3 py-2 text-gray-600">
+                    {i.purged_at ? dateTime(i.purged_at) : t('support.retained.notPurged')}
+                  </td>
+                  <td className="px-3 py-2">
+                    <code className="text-xs text-gray-400">{i.tenant_ref.slice(0, 12)}</code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
     </div>
   );
 };
