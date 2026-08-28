@@ -20,7 +20,7 @@
  *
  * | Connection kind | What we actually hold | Can we revoke it? |
  * | --- | --- | --- |
- * | `gmail`, `google_drive`, `google_calendar`, `google_contacts` | the customer's refresh token | **Yes.** Google publishes a revocation endpoint, and revoking the refresh token invalidates the access tokens derived from it. |
+ * | `gmail`, `google_drive`, `google_calendar`, `google_contacts`, `google` | the customer's refresh token | **Yes.** Google publishes a revocation endpoint, and revoking the refresh token invalidates the access tokens derived from it. For the ACCOUNT kind (`google`) one revocation withdraws every face the grant covered. |
  * | `o365` | our client secret (application flow), or the customer's delegated refresh token | **No.** Microsoft identity platform has no OAuth revocation endpoint. Sessions are revoked by the user withdrawing consent, or by an admin through Graph with a directory permission this deployment deliberately does not hold. |
  * | `dropbox` | the customer's refresh token | **No.** Dropbox's token-revoke call disables the *access* token presented with it; the app link that mints refresh tokens is removed by the customer in their own account. |
  * | `box` | our client id and secret (client-credentials grant) | **Nothing of theirs to revoke.** CCG mints short-lived tokens from OUR secret; there is no long-lived customer credential in play, and deleting our copy is the whole story. |
@@ -95,6 +95,18 @@ export const REVOCATION_CAPABILITIES: Readonly<Record<string, RevocationCapabili
   google_drive: { revocable: true, reason: 'Google revocation endpoint; revokes the refresh token and its access tokens' },
   google_calendar: { revocable: true, reason: 'Google revocation endpoint; revokes the refresh token and its access tokens' },
   google_contacts: { revocable: true, reason: 'Google revocation endpoint; revokes the refresh token and its access tokens' },
+  // The Google ACCOUNT kind (workplan 0106 T3b) holds the same thing the four
+  // above do — one customer refresh token — so the same endpoint kills it. It
+  // matters MORE here, not less: an account grant covers several scopes at
+  // once, so one revocation withdraws every face the customer consented to.
+  //
+  // Without this row it fell to `revocationCapability`'s default and the
+  // erasure receipt told the customer we could not revoke it and they would
+  // have to remove it themselves — while we could, and their token stayed live
+  // at Google. The fail-safe worked exactly as its comment says (unknown is
+  // never silently fine); nothing had prompted the decision, which is what the
+  // guard below now does.
+  google: { revocable: true, reason: 'Google revocation endpoint; revokes the refresh token and its access tokens' },
 
   o365: {
     revocable: false,

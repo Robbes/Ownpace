@@ -12,6 +12,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { HttpTokenRevoker, GOOGLE_REVOKE_ENDPOINT } from './token-revoker.ts';
+import { REVOCATION_CAPABILITIES } from '@openmig/shared';
 import type { TokenFetch } from './google-token-provider.ts';
 
 /** Records what was sent, so the assertions can be about the request. */
@@ -146,4 +147,41 @@ describe('HttpTokenRevoker — everything else', () => {
       expect(calls).toHaveLength(0);
     },
   );
+});
+
+
+describe('the capability table and this file agree', () => {
+  it('implements a revocation for every kind the table calls revocable', async () => {
+    // The gap this closes, found by breaking the other half: a kind can be
+    // marked `revocable: true` in `token-revocation.ts` and be missing from
+    // this file's dispatch, and the outcome is `failed` — "marked revocable but
+    // no revocation is implemented". That sentence is honest about which file
+    // is wrong, and it is still a live credential nobody revoked.
+    //
+    // Two lists, one fact. Asserted through `revoke` rather than by reading
+    // `GOOGLE_KINDS`, because what matters is the OUTCOME a purge would record.
+    const revocable = Object.entries(REVOCATION_CAPABILITIES)
+      .filter(([, cap]) => cap.revocable)
+      .map(([kind]) => kind);
+
+    // Vacuity guard: an empty list would make the loop assert nothing.
+    expect(revocable.length, 'no revocable kinds found in the capability table')
+      .toBeGreaterThan(4);
+
+    const { fetchImpl } = recordingFetch({ ok: true, status: 200 });
+    const revoker = new HttpTokenRevoker({ fetchImpl });
+
+    const unimplemented: string[] = [];
+    for (const kind of revocable) {
+      const outcome = await revoker.revoke({ kind, credentials: GOOGLE_CREDS });
+      if (outcome.status === 'failed' && /no revocation is implemented/i.test(outcome.reason ?? '')) {
+        unimplemented.push(kind);
+      }
+    }
+    expect(
+      unimplemented,
+      'marked revocable in token-revocation.ts but not dispatched here, so an ' +
+        'erasure records `failed` and the credential stays live at the provider',
+    ).toEqual([]);
+  });
 });
