@@ -2956,6 +2956,43 @@ paths:
         '404':
           description: No such migration — or none this caller may see.
 
+  /api/support/retained-invoices:
+    get:
+      tags: [Support]
+      summary: The invoices an erasure kept
+      description: |
+        When a tenant is erased its invoices are deliberately kept — tax
+        retention outlives the customer relationship — and detached, so
+        `tenant_id` becomes NULL and `billed_to_name` is stamped from the
+        organisation that is about to stop existing. Every other invoice view
+        filters by tenant, so before this operation those kept rows could not
+        be read by anything in the product.
+
+        The grain is the ERASURE, not the organisation, because there is no
+        organisation left: rows are keyed by `tenant_ref`, the sha256 of an id
+        nobody kept. So this answers "what are we obliged to keep, and what
+        does each one say about itself" and cannot be walked back to a person
+        — which is the question the erasure closed.
+
+        Authorisation is the database's, as everywhere on this surface: a
+        non-operator gets `200` with an empty list. Every serving is recorded
+        in the support read log with no organisation named, because there is
+        none to name.
+      responses:
+        '200':
+          description: |
+            Invoices retained across an erasure. Empty for anybody who is not a
+            platform operator, and empty on a platform that has erased nobody.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoices:
+                    type: array
+                    items: { $ref: '#/components/schemas/SupportRetainedInvoice' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3083,6 +3120,27 @@ components:
       type: object
       properties:
         invoice_id: { type: string, format: uuid }
+        period_start: { type: string, format: date }
+        period_end: { type: string, format: date }
+        status: { type: string }
+        total: { type: string }
+        currency: { type: string }
+        paid_at: { type: string, format: date-time, nullable: true }
+    SupportRetainedInvoice:
+      type: object
+      description: |
+        One invoice kept across an erasure. `tenant_ref` is a sha256 of the
+        tenant id and never the id itself, so rows can be grouped by which
+        erasure kept them without reconstructing a list of former customers.
+        `billed_to_name` is what the invoice says about who it was for,
+        captured at issue time rather than read from a tenant that no longer
+        exists.
+      properties:
+        tenant_ref: { type: string }
+        erasure_requested_at: { type: string, format: date-time }
+        purged_at: { type: string, format: date-time, nullable: true }
+        invoice_id: { type: string, format: uuid }
+        billed_to_name: { type: string, nullable: true }
         period_start: { type: string, format: date }
         period_end: { type: string, format: date }
         status: { type: string }

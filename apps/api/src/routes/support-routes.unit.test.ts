@@ -1,7 +1,8 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * The three support routes, against a REAL database (workplan 0110 T4).
+ * The four support routes, against a REAL database (workplan 0110 T4, plus
+ * the retained-invoice screen).
  *
  * ## Why the route and not the view
  *
@@ -35,7 +36,7 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import { runManagedMigrations } from '@openmig/managed';
+import { runManagedMigrations, tenantRef } from '@openmig/managed';
 import { FAILURE_CATEGORIES } from '@openmig/shared';
 
 const TENANT_A = '5f5c0000-e29b-41d4-a716-446655442201';
@@ -43,6 +44,17 @@ const TENANT_B = '5f5c0000-e29b-41d4-a716-446655442202';
 const CONN_A = '5f5c0000-e29b-41d4-a716-446655442211';
 const BOX_A = '5f5c0000-e29b-41d4-a716-446655442221';
 const MAPPING_A = '5f5c0000-e29b-41d4-a716-446655442231';
+/**
+ * A tenant that has been ERASED: hashed into `erasure_record.tenant_ref` and
+ * deliberately never inserted into `tenant`, because that is the state under
+ * test. Its invoice survives, detached.
+ */
+const ERASED_TENANT = '5f5c0000-e29b-41d4-a716-446655442203';
+/** A tenant CLOSED but not yet purged — its erasure record retains nothing. */
+const CLOSING_TENANT = '5f5c0000-e29b-41d4-a716-446655442204';
+const RETAINED_INVOICE = '5f5c0000-e29b-41d4-a716-446655442241';
+/** What the detached invoice says about who it was for, stamped at purge. */
+const BILLED_TO = 'Gamma BV';
 /** A well-formed id that is not in the database — the "no such thing" case. */
 const ABSENT = '5f5c0000-e29b-41d4-a716-446655442299';
 
@@ -152,6 +164,33 @@ beforeAll(async () => {
        VALUES (gen_random_uuid(), $1, NULL, 'new_mailbox', 'a mailbox nobody has placed', 'k2', 'pending')`,
       [TENANT_A],
     );
+    // An ERASED tenant, in the state `purgeTenant` actually leaves behind: the
+    // tenant row gone, its invoice detached (`tenant_id` NULL) and stamped
+    // with the name it was billed to, and an `erasure_record` naming the
+    // invoice by id under a HASH of the tenant id. Seeded as the end state
+    // rather than by calling `purgeTenant`, so this file keeps testing the
+    // routes; `offboarding.unit.test.ts` is what proves the purge produces it.
+    await q(
+      `INSERT INTO invoice
+         (id, tenant_id, billed_to_name, period_start, period_end, status, total, currency)
+       VALUES ($1, NULL, $2, DATE '2026-05-01', DATE '2026-05-31', 'paid', 99.00, 'EUR')`,
+      [RETAINED_INVOICE, BILLED_TO],
+    );
+    await q(
+      `INSERT INTO erasure_record
+         (tenant_ref, requested_at, window_days, purged_at, retained_invoice_ids)
+       VALUES ($1, TIMESTAMPTZ '2026-06-01T00:00:00Z', 30,
+               TIMESTAMPTZ '2026-07-01T00:00:00Z', ARRAY[$2::uuid])`,
+      [tenantRef(ERASED_TENANT), RETAINED_INVOICE],
+    );
+    // Closed but NOT yet purged: the record exists, the array is empty. Its
+    // tenant would still be live and its invoices still on its own page, which
+    // is why this must contribute nothing here.
+    await q(
+      `INSERT INTO erasure_record (tenant_ref, requested_at, window_days)
+       VALUES ($1, TIMESTAMPTZ '2026-08-01T00:00:00Z', 7)`,
+      [tenantRef(CLOSING_TENANT)],
+    );
     await q(
       `INSERT INTO platform_operator (user_id, email, note)
        VALUES ($1, 'operator@ownpace.eu', 'workplan 0110 T4 fixture')`,
@@ -160,7 +199,17 @@ beforeAll(async () => {
   } finally {
     await conn.release();
   }
-});
+},
+  // 30s, not vitest's default 10s for hooks. This builds BOTH migration chains
+  // in an in-memory Postgres before a single test runs, which is most of a
+  // second per migration and grew past the default when the managed chain
+  // reached eleven. It passed alone and failed only in a full `--project unit`
+  // run, where the machine is doing dozens of other files at once — the worst
+  // way to find out, and the reason the number is stated here rather than left
+  // to luck. The root config's own note records the same class of trap: inline
+  // `projects` entries do not inherit root timeouts.
+  30_000,
+);
 
 afterAll(async () => {
   await driver.end?.();
@@ -293,7 +342,13 @@ describe('a read of nothing is not recorded as a read of somebody', () => {
     // operator. Skipping the call on zero rows would erase the difference,
     // which is the one thing this log exists to keep.
     caller = OPERATOR;
-    await rows('DELETE FROM invoice');
+    // `WHERE tenant_id IS NOT NULL`, because what this empties is the platform
+    // of CUSTOMERS. A detached invoice belongs to no tenant — it is what an
+    // erasure deliberately left behind — so deleting it here would be
+    // incidental rather than intended, and would silently break the retained
+    // invoice fixture below while the restore block put back only what it
+    // meant to remove.
+    await rows('DELETE FROM invoice WHERE tenant_id IS NOT NULL');
     await rows('DELETE FROM decision');
     await rows('DELETE FROM migration_status');
     await rows('DELETE FROM mailbox_mapping');
@@ -452,5 +507,79 @@ describe('what is waiting on the customer, counted (workplan 0110 T5)', () => {
     expect(bodies).not.toContain(DECISION_PROSE);
     expect(bodies).not.toContain('finance@example.invalid');
     expect(bodies).not.toContain('a mailbox nobody has placed');
+  });
+});
+
+
+
+describe('the invoices an erasure kept', () => {
+  it('serves a detached invoice that no tenant page could reach', async () => {
+    // The whole point. This invoice has `tenant_id` NULL and the organisation
+    // it billed no longer exists, so every other route on this surface —
+    // each of which filters `WHERE tenant_id = $1` — is structurally unable to
+    // return it. Before this route the rows kept for tax retention were kept
+    // and unreadable.
+    caller = OPERATOR;
+    const res = await get('/api/support/retained-invoices');
+    expect(res.status).toBe(200);
+    expect(res.body.invoices).toHaveLength(1);
+    const [only] = res.body.invoices as Array<Record<string, unknown>>;
+    expect(only?.invoice_id).toBe(RETAINED_INVOICE);
+    expect(only?.billed_to_name).toBe(BILLED_TO);
+    expect(only?.status).toBe('paid');
+  });
+
+  it('identifies the erasure by hash, and carries no tenant id at all', async () => {
+    // `erasure_record` holds a sha256 precisely so it cannot be read back into
+    // a list of former customers. A response that leaked the id — or that a
+    // later change made "helpful" by joining one in — would undo that, so the
+    // assertion is against the whole body rather than one field.
+    caller = OPERATOR;
+    const res = await get('/api/support/retained-invoices');
+    expect(res.body.invoices[0].tenant_ref).toBe(tenantRef(ERASED_TENANT));
+    expect(res.text).not.toContain(ERASED_TENANT);
+  });
+
+  it('records the read with no organisation named', async () => {
+    caller = OPERATOR;
+    await get('/api/support/retained-invoices');
+    expect(await logRows()).toEqual([
+      { operator_user_id: OPERATOR, tenant_id: null, view_name: 'retained_invoices' },
+    ]);
+  });
+
+  it('tells a non-operator nothing, and writes nothing about them', async () => {
+    caller = NOT_OPERATOR;
+    const res = await get('/api/support/retained-invoices');
+    expect(res.status).toBe(200);
+    expect(res.body.invoices).toEqual([]);
+    expect(await logRows()).toEqual([]);
+  });
+
+  it('refuses a request with no subject', async () => {
+    caller = undefined;
+    expect((await get('/api/support/retained-invoices')).status).toBe(401);
+    expect(await logRows()).toEqual([]);
+  });
+
+  it('does not double-count with the live tenant surface, in either direction', async () => {
+    // The two surfaces partition the invoices rather than overlapping, and it
+    // falls out of WHEN `retained_invoice_ids` is written — at purge, after
+    // the detach — rather than out of a predicate somebody has to remember.
+    // A closed-but-unpurged tenant is seeded with an empty array for exactly
+    // this: it must contribute nothing here while its invoices are still on
+    // its own page.
+    caller = OPERATOR;
+    const retained = (await get('/api/support/retained-invoices')).body.invoices as Array<
+      Record<string, unknown>
+    >;
+    const live = (await get(`/api/support/tenants/${TENANT_A}`)).body.invoices as Array<
+      Record<string, unknown>
+    >;
+
+    expect(retained.map((i) => i.invoice_id)).toEqual([RETAINED_INVOICE]);
+    expect(live.map((i) => i.invoice_id)).not.toContain(RETAINED_INVOICE);
+    const liveIds = new Set(live.map((i) => i.invoice_id));
+    expect(retained.some((i) => liveIds.has(i.invoice_id))).toBe(false);
   });
 });

@@ -37,8 +37,17 @@
 import { sql } from 'drizzle-orm';
 import type { PgDatabase } from '@openmig/ledger';
 
-/** The three screens 0110 T4 serves. A fourth is a design change. */
-export const SUPPORT_VIEWS = ['tenants', 'tenant', 'migration'] as const;
+/**
+ * The screens the support surface serves.
+ *
+ * Three at 0110 T4; `retained_invoices` is the fourth, added with the owner's
+ * decision of 2026-08-28 because an erasure keeps invoices for tax retention
+ * and nothing could then read them. It was a design change and was made as
+ * one — managed migration 0011 widens `support_read_view_name_check` to match,
+ * and this list and that CHECK must be changed together or a read the product
+ * offers becomes a constraint violation at the moment it is logged.
+ */
+export const SUPPORT_VIEWS = ['tenants', 'tenant', 'migration', 'retained_invoices'] as const;
 export type SupportView = (typeof SUPPORT_VIEWS)[number];
 
 /**

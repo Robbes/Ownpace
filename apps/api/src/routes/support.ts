@@ -1,8 +1,14 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * The three screens an operator gets, and the record of every one served
+ * The screens an operator gets, and the record of every one served
  * (workplan 0110 T4, over T1's log and T2's views).
+ *
+ * Three of them drill into a customer — every organisation, then one, then one
+ * of its migrations. The fourth, `/retained-invoices`, is not about a customer
+ * at all: it serves what an erasure deliberately KEPT, for tenants that no
+ * longer exist. That is a different grain rather than a fourth level of
+ * drill-down, and the "no fourth level" rule below is untouched by it.
  *
  * ## The middleware does not authorise anybody
  *
@@ -256,6 +262,67 @@ router.get(
       res.json(found);
     } catch (error) {
       serverFault(res, 'support_migration_failed', 'reading one migration', error);
+    }
+  },
+);
+
+/**
+ * The invoices an erasure kept — the one screen that is not about a customer.
+ *
+ * Every other route here hangs off a tenant. This one cannot: the tenants it
+ * concerns have been deleted, and what remains is `erasure_record.tenant_ref`,
+ * a sha256 of an id nobody kept. So the grain is the erasure, not the
+ * organisation, and the most it will say about who an invoice was for is
+ * `billed_to_name`, stamped at issue time by the purge itself.
+ *
+ * That asymmetry is deliberate rather than a limitation to be fixed later. An
+ * operator can answer "what are we obliged to keep, and what does each one
+ * say", which is the administrative question this exists for. They cannot walk
+ * it back to a person, which is the question the erasure closed.
+ *
+ * Recorded with a NULL tenant, like the tenant LIST and for a stronger version
+ * of the same reason: there is no tenant to name, and no tenant left to name
+ * it about.
+ */
+router.get(
+  '/retained-invoices',
+  authenticateSubject,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.userId;
+      if (!userId) {
+        return void res
+          .status(401)
+          .json({ error: 'Unauthorized', message: 'No subject on this request' });
+      }
+      const invoices = await withSubject(pool(), userId, async (db) => {
+        const result = await db.execute(
+          sql`SELECT tenant_ref, erasure_requested_at, purged_at, invoice_id,
+                     billed_to_name, period_start, period_end, status, total,
+                     currency, paid_at
+                FROM public.support_retained_invoices
+               ORDER BY purged_at DESC NULLS LAST, period_start DESC`,
+        );
+        const rows = result.rows as Row[];
+        // Logged even when empty, for the reason `/tenants` gives: an operator
+        // on a platform that has erased nobody and a non-operator who may see
+        // nothing produce the same empty list, and only the log row tells them
+        // apart.
+        await recordSupportRead(db, {
+          operatorUserId: userId,
+          tenantId: null,
+          view: 'retained_invoices',
+        });
+        return rows;
+      });
+      res.json({ invoices });
+    } catch (error) {
+      serverFault(
+        res,
+        'support_retained_invoices_failed',
+        'reading the invoices kept after erasure',
+        error,
+      );
     }
   },
 );

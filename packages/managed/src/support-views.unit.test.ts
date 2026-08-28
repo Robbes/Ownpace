@@ -83,13 +83,23 @@ const count = async (subject: string, view: string): Promise<number> =>
     return (r.rows[0] as { n: number }).n;
   });
 
-/** Every view this migration added, read from the catalog rather than listed. */
+/**
+ * Every support view, DECLARED — and then compared against the catalog below.
+ *
+ * The comment here used to claim this was "read from the catalog rather than
+ * listed", which it never was. Saying so mattered: the catalog is what the
+ * assertion reads, and this list is the expectation it is held against, so a
+ * view arriving without a line here fails rather than being silently swept in
+ * and never checked for the predicate. That is the point of the list, and it
+ * only works while the two really are different sources.
+ */
 const SUPPORT_VIEWS = [
   'support_tenants',
   'support_tenant_connections',
   'support_tenant_migrations',
   'support_tenant_invoices',
   'support_migration_domains',
+  'support_retained_invoices',
 ] as const;
 
 beforeAll(async () => {
