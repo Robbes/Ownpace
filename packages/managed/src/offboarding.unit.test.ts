@@ -132,6 +132,22 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
      VALUES ($1, $2, 'creditcard')`,
     [tenantId, `mandate-${suffix}`],
   );
+  // The GRANTED request that created this tenant. Every managed customer has
+  // one — the service is invite-only, so the queue is the only front door —
+  // and migration 0007 gave the row an ON DELETE RESTRICT foreign key to
+  // `tenant` on purpose. Absent from this fixture, the purge deleted a tenant
+  // nothing pointed at, which is not the shape any real tenant has.
+  await conn.query(
+    `INSERT INTO access_request
+       (email, name, organisation, state, tenant_id, decided_by, decided_at)
+     VALUES ($1, $2, $3, 'granted', $4, 'operator@ownpace.eu', now())`,
+    [`asker-${suffix}@example.test`, `Asker ${suffix}`, `Org ${suffix}`, tenantId],
+  );
+  // A verification RUN, whose parent `verification` the purge already names.
+  await conn.query(
+    `INSERT INTO verification_run (tenant_id, mapping_id, state) VALUES ($1, $2, 'running')`,
+    [tenantId, map],
+  );
 }
 
 beforeAll(async () => {
@@ -358,6 +374,107 @@ describe('purging a tenant', () => {
     expect(rows[0]?.purged_counts?.item).toBe(1);
     expect(rows[0]?.retained_invoice_ids).toHaveLength(1);
     expect(result.retainedInvoiceIds).toHaveLength(1);
+  });
+
+  it('erases a tenant that has the rows a REAL tenant has', async () => {
+    // The regression this file could not have caught, because its fixture did
+    // not build a realistic tenant. Two tables with RESTRICTING foreign keys
+    // were on no list:
+    //
+    //   verification_run -> mailbox_mapping   (no ON DELETE clause at all)
+    //   access_request   -> tenant            (ON DELETE RESTRICT, on purpose)
+    //
+    // Either one makes `purgeTenant` throw partway through, leaving a tenant
+    // marked `deleting`, half emptied, and needing a person. And the service is
+    // invite-only, so every managed customer has a granted access request —
+    // this was not an edge case, it was the ordinary one.
+    //
+    // Both rows are in `seed` now, so every purge test above exercises this.
+    // This one states it, so the reason survives the next fixture edit.
+    await closeTenant(db, LEAVING, 0, 'owner@acme.example', NOW);
+    await expect(purgeTenant(db, LEAVING, NOW)).resolves.toBeTruthy();
+
+    expect(await count('access_request', `WHERE tenant_id = '${LEAVING}'`)).toBe(0);
+    expect(await count('verification_run', `WHERE tenant_id = '${LEAVING}'`)).toBe(0);
+    expect(await count('tenant', `WHERE id = '${LEAVING}'`)).toBe(0);
+    // The other tenant's are untouched, so the delete is scoped and not a
+    // table sweep that happened to look right.
+    expect(await count('access_request', `WHERE tenant_id = '${STAYING}'`)).toBe(1);
+    expect(await count('verification_run', `WHERE tenant_id = '${STAYING}'`)).toBe(1);
+  });
+
+  it('keeps a support read of the LIST, which is about nobody in particular', async () => {
+    // `support_read` is purged for this tenant (workplan 0110 T1), but a read
+    // of the tenant LIST carries a NULL tenant_id: it records an operator
+    // having surveyed everybody, which erasing one customer must not erase.
+    await conn.query(
+      `INSERT INTO support_read (operator_user_id, tenant_id, view_name)
+       VALUES ('op-1', $1, 'tenant'), ('op-1', NULL, 'tenants')`,
+      [LEAVING],
+    );
+    await closeTenant(db, LEAVING, 0, 'owner@acme.example', NOW);
+    await purgeTenant(db, LEAVING, NOW);
+
+    expect(await count('support_read', `WHERE tenant_id = '${LEAVING}'`)).toBe(0);
+    expect(await count('support_read', 'WHERE tenant_id IS NULL')).toBe(1);
+  });
+
+  it('every tenant-scoped table has a DECIDED fate — purged, or retained with a reason', async () => {
+    // The guard `offboarding.ts` claimed to have and did not.
+    //
+    // Its comment above PURGED_TABLES says the list is written out rather than
+    // derived "so that adding a table to the schema without deciding its fate
+    // fails a test rather than silently inheriting a decision". Every test in
+    // this file iterated PURGED_TABLES — so a table on NEITHER list was
+    // invisible to all of them, which is the one case the sentence promised to
+    // catch.
+    //
+    // `support_read` (workplan 0110 T1) is what found it: a table carrying a
+    // tenant id, added and shipped, and an erasure would have left its rows
+    // behind naming a customer who no longer exists.
+    //
+    // Asked of the DATABASE rather than of the migrations: the catalog is what
+    // the purge actually runs against, and a regex over SQL would miss a column
+    // added by a later ALTER.
+    const { rows } = await conn.query<{ table_name: string }>(`
+      SELECT c.table_name
+        FROM information_schema.columns c
+        JOIN information_schema.tables t
+          ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+       WHERE c.table_schema = 'public'
+         AND c.column_name = 'tenant_id'
+         AND t.table_type = 'BASE TABLE'
+       ORDER BY c.table_name
+    `);
+    const tenantScoped = rows.map((r) => r.table_name);
+
+    // Vacuity guard: an empty catalog query would make this pass forever.
+    expect(tenantScoped.length, 'no tenant-scoped tables found — the query is wrong').
+      toBeGreaterThan(20);
+
+    const decided = new Set<string>([...PURGED_TABLES, ...Object.keys(RETAINED_TABLES)]);
+    const undecided = tenantScoped.filter((t) => !decided.has(t));
+    expect(
+      undecided,
+      'these tables carry a tenant_id and are on NEITHER list, so an erasure ' +
+        'leaves their rows behind naming a customer who no longer exists — add ' +
+        'each to PURGED_TABLES, or to RETAINED_TABLES with the reason',
+    ).toEqual([]);
+  });
+
+  it('names no table that does not exist', async () => {
+    // The other direction, and it goes stale the same way: a purge list naming
+    // a table that was renamed or dropped would throw at erasure time, on the
+    // one path nobody exercises until a customer leaves.
+    const { rows } = await conn.query<{ table_name: string }>(
+      `SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
+    );
+    const real = new Set(rows.map((r) => r.table_name));
+    const phantom = [...PURGED_TABLES, ...Object.keys(RETAINED_TABLES)].filter(
+      (t) => !real.has(t),
+    );
+    expect(phantom, 'named for erasure but no such table exists').toEqual([]);
   });
 
   it('states what it deliberately does not delete', () => {
