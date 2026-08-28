@@ -49,7 +49,20 @@ import type { TokenFetch } from './google-token-provider.ts';
  */
 export const GOOGLE_REVOKE_ENDPOINT = 'https://oauth2.googleapis.com/revoke';
 
-const GOOGLE_KINDS = new Set(['gmail', 'google_drive', 'google_calendar', 'google_contacts']);
+// The four single-purpose Google sources and the ACCOUNT kind (0106 T3b). All
+// five store a customer refresh token and all five die at the same endpoint;
+// `google` is listed last because it arrived last, not because it differs.
+//
+// This set and `REVOCATION_CAPABILITIES` must agree: a kind marked revocable
+// and absent here answers `failed` with "no revocation is implemented", which
+// is honest but wrong. `token-revoker.unit.test.ts` pins the agreement.
+const GOOGLE_KINDS = new Set([
+  'gmail',
+  'google_drive',
+  'google_calendar',
+  'google_contacts',
+  'google',
+]);
 
 export interface HttpTokenRevokerOptions {
   readonly fetchImpl?: TokenFetch;

@@ -103,12 +103,19 @@ const GRANTS: readonly StandingGrant[] = [
   },
   {
     id: 'google',
-    // One Google account authorization covers every Google connector.
+    // One Google account authorization covers every Google connector — which
+    // is exactly why the ACCOUNT kind belongs here beside the four
+    // single-purpose ones (workplan 0106 T3b). Without it, a customer erased
+    // with a `google` connection was the only one told nothing: revoking their
+    // refresh token stops it working, and the app stays listed on their
+    // account until they remove it there. Revocable and standing-granted are
+    // not alternatives — `gmail` is both, and for the same reason.
     impliedBy: [
       'gmail',
       'google_drive',
       'google_calendar',
       'google_contacts',
+      'google',
       'google-drive',
       'google-calendar',
       'google-contacts',

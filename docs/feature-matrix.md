@@ -63,6 +63,20 @@ contact mappings through the same writers the protocol kinds use (mail via the s
 `mailHost`, see Email). What the account actually answers per face is measured and stored
 (the 0106 qualification), never assumed.
 
+Also a source: **Google** (`google`, workplan 0106 T3b) — the same account shape on the
+grant side. One connection row, one OAuth grant, several faces: **calendars and contacts
+today**. Mail and files are absent for a reason that is Google's rather than ours — it
+prices `calendar` and `carddav` as *sensitive* scopes (brand verification, free) and
+Gmail's `https://mail.google.com/` and `drive.readonly` as *restricted*, needing an annual
+third-party security assessment. Asking for all four in one consent would push the managed
+client into that tier for every customer, including one who only wanted their contacts. So
+`gmail`, `google-calendar`, `google-contacts` and `google-drive` **stay and cohabit**: a
+person migrating a mailbox uses `gmail` today, and when the assessment is bought those
+faces join `google` rather than the kinds being replaced. The constraint binds the managed
+client alone — an appliance registers its own OAuth client and does its own verification
+(ADR-0041). Which faces any account kind serves lives in one table
+(`PROVIDER_ACCOUNT_DOMAINS`), so a provider gaining one is a row edit rather than a branch.
+
 What migrates: events as **iCal objects**, with recurring series and their exceptions
 preserved over CalDAV; incremental sync via RFC 6578 sync-tokens (ctag fallback); the
 shadow-sync **update path** rewrites an event the source changed — unless the target's copy
