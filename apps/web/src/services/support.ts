@@ -34,6 +34,13 @@ export interface SupportTenant {
   readonly joined_at: string;
   readonly migration_count: number | string;
   readonly failing_domain_count: number | string;
+  /**
+   * Pending decisions across the whole organisation, INCLUDING the ones that
+   * belong to no migration yet (workplan 0110 T5). Deliberately does not add
+   * up with the per-migration counts — a newly discovered mailbox belongs to
+   * no migration, and that difference is the interesting part.
+   */
+  readonly pending_decision_count: number | string;
 }
 
 export interface SupportConnection {
@@ -56,6 +63,8 @@ export interface SupportMigration {
   readonly schedule: string | null;
   readonly created_at: string;
   readonly updated_at: string;
+  /** THIS migration's pending decisions — a count, never the decisions. */
+  readonly pending_decision_count?: number | string;
 }
 
 export interface SupportInvoice {

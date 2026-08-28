@@ -55,6 +55,8 @@ const SECRET_REF = 'encrypted-blob-that-must-never-be-served';
 const ERROR_PROSE = 'IMAP LOGIN failed for someone@example.invalid in folder Salaris 2025';
 /** In `tenant.settings`, which the view does not select and a table read would. */
 const TENANT_NOTE = 'internal-tenant-note-that-must-never-be-served';
+/** A decision's `summary` — prose about one mailbox, counted and never served. */
+const DECISION_PROSE = 'quota exceeded for finance@example.invalid';
 
 let driver: LedgerDriver;
 /** Set per test — the subject `authenticateSubject` pretends to have verified. */
@@ -135,6 +137,19 @@ beforeAll(async () => {
     await q(
       `INSERT INTO invoice (id, tenant_id, period_start, period_end, status, total, currency)
        VALUES (gen_random_uuid(), $1, DATE '2026-07-01', DATE '2026-07-31', 'sent', 42.50, 'EUR')`,
+      [TENANT_A],
+    );
+    // One pending decision on the mapping, one on the tenant alone
+    // (workplan 0110 T5). The second carries the address the count exists to
+    // avoid serving.
+    await q(
+      `INSERT INTO decision (id, tenant_id, mapping_id, category, summary, subject_key, status)
+       VALUES (gen_random_uuid(), $1, $2, 'quota', $3, 'k1', 'pending')`,
+      [TENANT_A, MAPPING_A, DECISION_PROSE],
+    );
+    await q(
+      `INSERT INTO decision (id, tenant_id, mapping_id, category, summary, subject_key, status)
+       VALUES (gen_random_uuid(), $1, NULL, 'new_mailbox', 'a mailbox nobody has placed', 'k2', 'pending')`,
       [TENANT_A],
     );
     await q(
@@ -279,6 +294,7 @@ describe('a read of nothing is not recorded as a read of somebody', () => {
     // which is the one thing this log exists to keep.
     caller = OPERATOR;
     await rows('DELETE FROM invoice');
+    await rows('DELETE FROM decision');
     await rows('DELETE FROM migration_status');
     await rows('DELETE FROM mailbox_mapping');
     await rows('DELETE FROM mailbox');
@@ -330,6 +346,16 @@ describe('a read of nothing is not recorded as a read of somebody', () => {
          VALUES (gen_random_uuid(), $1, DATE '2026-07-01', DATE '2026-07-31', 'sent', 42.50, 'EUR')`,
         [TENANT_A],
       );
+      await rows(
+        `INSERT INTO decision (id, tenant_id, mapping_id, category, summary, subject_key, status)
+         VALUES (gen_random_uuid(), $1, $2, 'quota', $3, 'k1', 'pending')`,
+        [TENANT_A, MAPPING_A, DECISION_PROSE],
+      );
+      await rows(
+        `INSERT INTO decision (id, tenant_id, mapping_id, category, summary, subject_key, status)
+         VALUES (gen_random_uuid(), $1, NULL, 'new_mailbox', 'a mailbox nobody has placed', 'k2', 'pending')`,
+        [TENANT_A],
+      );
     }
   });
 });
@@ -351,6 +377,7 @@ describe('what the response body may never contain', () => {
     expect(bodies).not.toContain('Salaris 2025');
     expect(bodies).not.toContain('someone@example.invalid');
     expect(bodies).not.toContain(TENANT_NOTE);
+    expect(bodies).not.toContain(DECISION_PROSE);
     // ...and the check is not vacuous: what SHOULD be there, is.
     expect(bodies).toContain('Alpha migration');
     expect(bodies).toContain('auth_expired');
@@ -388,5 +415,42 @@ describe('the spec describes what these routes actually serve', () => {
     const documented =
       spec.components.schemas.SupportMigrationDomain.properties.last_error_category.enum;
     expect([...documented].sort()).toEqual([...FAILURE_CATEGORIES].sort());
+  });
+});
+
+
+describe('what is waiting on the customer, counted (workplan 0110 T5)', () => {
+  it('serves the two counts, and they deliberately do not agree', async () => {
+    // `decision.mapping_id` is nullable by design, so an organisation can be
+    // waiting on something no migration owns. Two counts that added up would
+    // mean one of them was wrong.
+    caller = OPERATOR;
+    const list = await get('/api/support/tenants');
+    const alpha = (list.body.tenants as Array<Record<string, unknown>>).find(
+      (t) => t.tenant_id === TENANT_A,
+    );
+    expect(Number(alpha?.pending_decision_count)).toBe(2);
+
+    const one = await get(`/api/support/tenants/${TENANT_A}`);
+    expect(Number(one.body.tenant.pending_decision_count)).toBe(2);
+    expect(Number(one.body.migrations[0].pending_decision_count)).toBe(1);
+
+    const migration = await get(`/api/support/migrations/${MAPPING_A}`);
+    expect(Number(migration.body.migration.pending_decision_count)).toBe(1);
+  });
+
+  it('serves the count and never the decision', async () => {
+    // The one thing a count must not become. `summary` is prose a detector
+    // wrote about a specific mailbox; the view does not select it, so a route
+    // that reached for the table instead would fail here.
+    caller = OPERATOR;
+    const bodies = [
+      (await get('/api/support/tenants')).text,
+      (await get(`/api/support/tenants/${TENANT_A}`)).text,
+      (await get(`/api/support/migrations/${MAPPING_A}`)).text,
+    ].join('\n');
+    expect(bodies).not.toContain(DECISION_PROSE);
+    expect(bodies).not.toContain('finance@example.invalid');
+    expect(bodies).not.toContain('a mailbox nobody has placed');
   });
 });

@@ -102,7 +102,7 @@ router.get('/tenants', authenticateSubject, async (req: AuthenticatedRequest, re
     const tenants = await withSubject(pool(), userId, async (db) => {
       const result = await db.execute(
         sql`SELECT tenant_id, tenant_name, tenant_status, joined_at,
-                   migration_count, failing_domain_count
+                   migration_count, failing_domain_count, pending_decision_count
               FROM public.support_tenants
              ORDER BY tenant_name`,
       );
@@ -150,7 +150,7 @@ router.get(
       const found = await withSubject(pool(), userId, async (db) => {
         const head = await db.execute(
           sql`SELECT tenant_id, tenant_name, tenant_status, joined_at,
-                     migration_count, failing_domain_count
+                     migration_count, failing_domain_count, pending_decision_count
                 FROM public.support_tenants WHERE tenant_id = ${tenantId}::uuid`,
         );
         const tenantRows = head.rows as Row[];
@@ -162,7 +162,8 @@ router.get(
                WHERE tenant_id = ${tenantId}::uuid ORDER BY created_at`,
         );
         const migrations = await db.execute(
-          sql`SELECT mapping_id, name, lifecycle, mode, pattern, schedule, created_at, updated_at
+          sql`SELECT mapping_id, name, lifecycle, mode, pattern, schedule,
+                     created_at, updated_at, pending_decision_count
                 FROM public.support_tenant_migrations
                WHERE tenant_id = ${tenantId}::uuid ORDER BY created_at`,
         );
@@ -223,7 +224,7 @@ router.get(
       const found = await withSubject(pool(), userId, async (db) => {
         const head = await db.execute(
           sql`SELECT tenant_id, mapping_id, name, lifecycle, mode, pattern, schedule,
-                     created_at, updated_at
+                     created_at, updated_at, pending_decision_count
                 FROM public.support_tenant_migrations WHERE mapping_id = ${mappingId}::uuid`,
         );
         const migrationRows = head.rows as Row[];

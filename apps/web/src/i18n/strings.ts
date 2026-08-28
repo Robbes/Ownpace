@@ -738,6 +738,10 @@ const en = {
   'support.noMigrations': 'No migrations.',
   'support.noInvoices': 'No invoices.',
   'support.noDomains': 'Nothing has run yet.',
+  'support.waiting.none': 'Nothing is waiting on them.',
+  'support.waiting.some':
+    'Decisions are waiting on this customer. Their own decisions screen says which \u2014 this '
+    + 'one only counts them.',
   'support.noFourthLevel':
     'There is no screen below this one. A list of items would be a list of subject lines, and '
     + 'that is where support stops.',
@@ -746,6 +750,7 @@ const en = {
   'support.col.joined': 'Joined',
   'support.col.migrations': 'Migrations',
   'support.col.failing': 'Failing',
+  'support.col.waiting': 'Waiting on them',
   'support.col.name': 'Name',
   'support.col.role': 'Role',
   'support.col.kind': 'Kind',
@@ -1306,6 +1311,10 @@ const nl: Record<keyof typeof en, string> = {
   'support.noMigrations': 'Geen migraties.',
   'support.noInvoices': 'Geen facturen.',
   'support.noDomains': 'Er is nog niets gedraaid.',
+  'support.waiting.none': 'Er wacht niets op hen.',
+  'support.waiting.some':
+    'Er wachten beslissingen op deze klant. Hun eigen beslissingenscherm zegt welke \u2014 dit '
+    + 'scherm telt ze alleen.',
   'support.noFourthLevel':
     'Er is geen scherm onder dit scherm. Een lijst met items is een lijst met onderwerpregels, '
     + 'en daar houdt support op.',
@@ -1314,6 +1323,7 @@ const nl: Record<keyof typeof en, string> = {
   'support.col.joined': 'Klant sinds',
   'support.col.migrations': 'Migraties',
   'support.col.failing': 'Mislukt',
+  'support.col.waiting': 'Wacht op hen',
   'support.col.name': 'Naam',
   'support.col.role': 'Rol',
   'support.col.kind': 'Soort',

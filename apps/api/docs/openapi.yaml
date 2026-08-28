@@ -3038,6 +3038,15 @@ components:
         failing_domain_count:
           type: integer
           description: Domains currently in `failed`. How an operator knows who to call back.
+        pending_decision_count:
+          type: integer
+          description: |
+            Pending decisions across the whole organisation, INCLUDING the ones
+            that belong to no migration yet — `decision.mapping_id` is nullable
+            by design, because a newly discovered mailbox belongs to no
+            migration. Deliberately does not add up with the per-migration
+            counts; the difference is the interesting part. A COUNT and never
+            the decisions: their summary and detail carry addresses.
     SupportConnection:
       type: object
       description: |
@@ -3054,6 +3063,13 @@ components:
     SupportMigration:
       type: object
       properties:
+        pending_decision_count:
+          type: integer
+          description: |
+            THIS migration's pending decisions. Failing and waiting are
+            opposite support conversations: a migration stopped on a decision
+            is not broken, it is waiting for somebody who probably does not
+            know it.
         tenant_id: { type: string, format: uuid }
         mapping_id: { type: string, format: uuid }
         name: { type: string }
