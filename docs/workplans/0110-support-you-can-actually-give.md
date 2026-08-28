@@ -16,8 +16,8 @@ place. The two decisions of 2026-08-27 that still stand unchanged are **metadata
 | T1 Standing access, and the log that has to earn it | ✅ **Done 2026-08-27** | `support_read` (managed 0009): one row per view served — who, whose, which screen, when. Append-only by GRANT (no UPDATE, no DELETE), an operator may read only their OWN reads (a log somebody can browse tells them what colleagues are investigating), the screen vocabulary is a CHECK because a fourth screen is a design change, and a read attributed to nobody is REFUSED — the decayed-GUC case, where a row with no subject makes the log look complete while hiding the thing it exists to show. Written through the same handle the view is read with, so a log cannot fail independently of what it logs. |
 | T2 The read model: metadata-only views, in the managed chain | ✅ **Done 2026-08-27** | Five views in managed 0009. **The bypass is measured, not assumed:** as `app_user` with no tenant, a DIRECT read of `tenant` returns 0 rows and a read through the view returns them all — a view runs with its OWNER's privileges and the owner is the migrating superuser, so `FORCE ROW LEVEL SECURITY` does not reach through it. That precondition is now a TEST, because on a database where migrations run as a non-superuser owner every operator screen would go quietly empty (fail-closed, but broken). Since there is no second net, the `EXISTS` against `platform_operator` is written out in every view rather than factored into a helper somebody could forget to call — and a catalog test fails on ANY `support_%` view lacking it, so a sixth cannot arrive quietly. Proved by breaking: removing one view's predicate turns 3 tests red. The column list is the boundary — `last_error`, `secret_ref`, `encrypted_credentials` and `config` are unreachable BY ERROR, and there is no view over `item`, `mailbox` or `collection_mapping` at all. |
 | T3 A failure has a CATEGORY, not only prose | ✅ **Done 2026-08-27** | Six categories classified at `markFailed`, stored beside the prose in migration 0033, and rendered on the CUSTOMER's own progress strip as a remedy sentence in both languages — the owner's reframing, so the primary reader is the person whose migration stopped. `last_error` still renders verbatim beneath it: precision for whoever needs it, the way out for whoever does not. Ordering is load-bearing and tested — quota beats rate beats auth, because *"wait until tomorrow"*, *"wait a minute"* and *"reconnect"* are different instructions and telling somebody to reconnect a working credential sends them to do damage. `unknown` is a real answer with its own sentence carrying the way OUT of self-service, and NULL (nothing failed) is deliberately distinguishable from `unknown` (failed, unclassified). Proved at three levels and by breaking each: the classifier against real provider messages (20), the STORE against PGlite (4 — dropping the classify call leaves all 20 classifier tests green, which is the whole reason that file exists), and the SCREEN (6 — rendering the label instead of the sentence turns 3 red). |
-| T4 The operator's screens: tenants, one tenant, one migration | 📋 Ready to build | Three levels, no fourth. |
-| T5 Invoices and status, for the tenant in front of you | 📋 Ready to build (owner: platform-wide status only, 2026-08-27) | Totals and states; and 0109 T0 means "no invoice" is now a real answer. The customer's OWN configured checks stay out (ask 3 = a). |
+| T4 The operator's screens: tenants, one tenant, one migration | ✅ **Done 2026-08-27** | Three routes under `/api/support` and three screens under `/support`, both halves proved by breaking them. **Nothing in either half authorises anybody**: the routes use `authenticateSubject` (an operator has no tenant to resolve), the views decide, and a non-operator gets `200` with an empty list and a `404` for ids that exist — the nav hides the screens from them, which is cosmetic. **Every read is recorded in the same transaction as the read**, so a log cannot fail independently of what it logs; a `404` records nothing, because it is not a read of anybody's data, while an EMPTY LIST still records — an empty list with a log row is an operator on a platform with no customers, without one it is somebody who was never an operator, and that difference is the whole log. Route tests (17) hold fixtures carrying a `secret_ref`, a config host, a `settings` note, an address and `last_error` prose with a folder name in it, and assert none reaches a response body — so a route pointed at the TABLE instead of the view fails rather than passing on a body nobody read. The managed gate now asks `/api/support/tenants` with an ordinary token and pins the answer to ZERO, because the unit test's precondition (the view's owner is the migrating superuser) is a property of the deployment, not a law. Screen tests (11); the six remedy sentences moved to `i18n/failure-key.ts` so the operator and the customer cannot be shown different advice — the owner's *"see what they see"* in one map rather than two. No refetching is armed anywhere: every fetch writes a log row, and the log's value is that a row in it means somebody looked. **Deferred to T5, from §5's own list:** the platform status on level 2, and decision-queue counts on level 3. |
+| T5 Invoices and status, for the tenant in front of you | 🟡 **invoices done 2026-08-27**; status and queue counts remain | Invoices ship with T4 — period, status, total and currency on level 2, over `support_tenant_invoices`; and 0109 T0 means "no invoice" is now a real answer, which the screen renders as a sentence rather than an empty table. **Remaining:** the platform-wide status the customer sees, on level 2, and the decision-queue counts on level 3 — both named in §5 and both needing a source this surface does not have yet. The customer's OWN configured checks stay out (ask 3 = a). |
 | T6 The words, and the guard | 🟡 **the GUARD half done 2026-08-27**; the disclosure words remain | The leakage guard now names `support_read` and all five views — added BEFORE any of them has a drizzle declaration, so it catches nothing today and everything the moment somebody reaches for `schema-pg.ts`, which is the natural place. A second half reads the SHARED chain's SQL too, because the guard reads TypeScript and a table created by the ledger chain would be invisible to it while every appliance built it on boot. Both proved by breaking. **Remaining: the disclosure** — the sentence a customer is owed under standing access, in the privacy policy and the DPA, in both languages. |
 
 ## Why this exists
@@ -213,11 +213,29 @@ the thing being migrated.
 
 ### 6. What the customer sees
 
-Support access being on must be **visible to the customer, not only to us**: a line on their
-settings page saying it is on, who can see (Ownpace support), what that means in the same
-metadata vocabulary used here, and the switch to turn it off. If the privacy policy gains a
-sentence, it gains the one that is true — *"when you turn support access on, Ownpace staff can
-see the state of your migrations, never their contents"* — and it says it in both languages.
+**This section was written before ask 1 was reversed and said the wrong thing until 2026-08-27.**
+It described a settings line "and the switch to turn it off" — a switch the owner's answer
+removed. Left uncorrected it would have sent whoever built T6 to construct the exact control §4
+decided against, which is how a plan quietly re-litigates a decision by not being edited.
+
+Support access being on must be **visible to the customer, not only to us**. Under standing
+access there is nothing for them to toggle, so what they are owed is different in kind and
+larger in obligation:
+
+- **That it is on**, said plainly on their settings page, in the same metadata vocabulary used
+  here — Ownpace support can see the state of your migrations, never their contents.
+- **What was actually looked at.** This is what replaces the switch. `support_read` exists so
+  that "we only looked at the account that emailed us" is evidence rather than assurance, and a
+  record the customer cannot be shown is a record kept for our benefit. The operator screens say
+  so at the top of every page (T4), addressed to the operator; the customer-facing half is the
+  half still to build.
+- **The privacy policy and the DPA**, in both languages, saying the sentence that is now true:
+  *"Ownpace staff can see the state of your migrations — names, states, counts, dates and error
+  categories — and never their contents."* Not *"when you turn support access on"*: nobody turns
+  it on.
+
+The words themselves are deliberately the owner's to write, which is why T6's guard half shipped
+without them.
 
 ## Where the cost is
 

@@ -15,7 +15,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag, Plug, BookOpen, DoorOpen } from 'lucide-react';
+  Flag, Plug, BookOpen, DoorOpen, LifeBuoy } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { isSelfHost } from '../services/edition.ts';
 import { useLocale } from '../i18n/index.tsx';
@@ -99,6 +99,13 @@ const Layout: React.FC = () => {
     ...(selfHost || !operator
       ? []
       : [{ name: t('nav.accessRequests'), href: '/access-requests', icon: DoorOpen }]),
+    // The support surface (workplan 0110 T4), on the same terms as the access
+    // queue above: operator-only in the NAV, and cosmetically so — the screens
+    // behind it answer an empty list and a "nothing here" to anybody else,
+    // because that is what the views return them.
+    ...(selfHost || !operator
+      ? []
+      : [{ name: t('nav.support'), href: '/support', icon: LifeBuoy }]),
     // Billing reads are owner/admin (owner decision 2026-08-10), so for a
     // lesser role the entry would only lead to a "not for your role"
     // sentence — hidden like the appliance hides what it cannot serve. The

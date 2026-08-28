@@ -27,6 +27,11 @@ import RequestAccess from './pages/RequestAccess.tsx';
 import Grant from './pages/Grant.tsx';
 import AuthCallback from './pages/AuthCallback.tsx';
 import AccessRequests from './pages/AccessRequests.tsx';
+import {
+  SupportTenants,
+  SupportTenantDetail,
+  SupportMigrationDetail,
+} from './pages/Support.tsx';
 import Invitations from './pages/Invitations.tsx';
 import Decisions from './pages/Decisions.tsx';
 import Deletions from './pages/Deletions.tsx';
@@ -318,6 +323,37 @@ const AppRoutes: React.FC = () => {
           element={
             <ManagedOnly>
               <AccessRequests />
+            </ManagedOnly>
+          }
+        />
+        {/* The operator's support surface (workplan 0110 T4). Managed only —
+            the appliance has one owner, who is the person these screens would
+            be about — and, like the access queue, deliberately NOT gated on
+            being an operator here: the nav hides it from everybody else, and a
+            typed URL reaches it and shows nothing, because to the database
+            that is what the rows are. Gating it here would be a second, weaker
+            copy of a rule the database already enforces. */}
+        <Route
+          path="support"
+          element={
+            <ManagedOnly>
+              <SupportTenants />
+            </ManagedOnly>
+          }
+        />
+        <Route
+          path="support/tenants/:tenantId"
+          element={
+            <ManagedOnly>
+              <SupportTenantDetail />
+            </ManagedOnly>
+          }
+        />
+        <Route
+          path="support/migrations/:mappingId"
+          element={
+            <ManagedOnly>
+              <SupportMigrationDetail />
             </ManagedOnly>
           }
         />
