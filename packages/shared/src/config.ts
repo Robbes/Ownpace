@@ -231,6 +231,27 @@ export interface GoogleContactsSource {
 }
 
 /**
+ * One Google ACCOUNT, several faces (workplan 0106 T3b).
+ *
+ * The same single field as the two above, and deliberately: a Google account
+ * serves its faces from ONE address, and which faces this migration uses is
+ * the mapping's ticked domains crossed with `PROVIDER_ACCOUNT_DOMAINS.google`
+ * — never something stored here. A list of domains in the config would be a
+ * second copy of the ticks, free to disagree with them.
+ *
+ * The per-domain builders resolve from the connection's KIND rather than from
+ * this `type`, which is why one shape serves calendar and contact without a
+ * branch. `type` is here because the config is echoed by the detail route and
+ * parsed by the same reader an appliance's mapping file goes through — a
+ * source config with no type reads as a row nobody can identify.
+ */
+export interface GoogleAccountSource {
+  readonly type: 'google';
+  /** The Google account whose calendars and contacts are read. */
+  readonly user: string;
+}
+
+/**
  * Microsoft OneDrive/SharePoint file source (workplan 0054) — the Graph drive
  * connector, wired at last. Same Entra registration and flow rules as the
  * other Graph sources; `mailbox` unset reads the signed-in user's drive
@@ -396,7 +417,7 @@ export interface DomainsConfig {
   files?: DomainConfig;
 }
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | DropboxSource | BoxSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | GoogleAccountSource | DropboxSource | BoxSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -818,7 +839,13 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       user: reqString(obj, 'user', 'source.user'),
     };
   }
-  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-mail", "google-drive", "gmail", "google-calendar", or "google-contacts")`);
+  if (type === 'google') {
+    return {
+      type: 'google',
+      user: reqString(obj, 'user', 'source.user'),
+    };
+  }
+  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-mail", "google-drive", "gmail", "google-calendar", "google-contacts", or "google")`);
 }
 
 /**

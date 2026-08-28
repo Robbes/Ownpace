@@ -228,6 +228,12 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
   ],
   'google-calendar': googleFields(),
   'google-contacts': googleFields(),
+  // The ACCOUNT kind (workplan 0106 T3b) — the SAME three fields, because it
+  // is the same credential: one OAuth client and one refresh token, consented
+  // for however many faces were ticked. What differs is the consent's scope
+  // set, which is the authorize route's business and not a field anybody
+  // types.
+  google: googleFields(),
   graph: o365Fields(),
   oauth2: o365Fields(),
   imap: [
@@ -402,6 +408,9 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   gmail: 'Gmail',
   'google-calendar': 'Google Calendar',
   'google-contacts': 'Google Contacts',
+  // Just the company: this door is the ACCOUNT, and naming it for one of its
+  // products is what the three above already do.
+  google: 'Google account',
   dropbox: 'Dropbox',
   box: 'Box',
   jmap: 'JMAP',

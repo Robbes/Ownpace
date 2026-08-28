@@ -21,7 +21,12 @@
  * is that proof.
  */
 
-import { CREDENTIAL_STORE_NL, CredentialRefusalError, missingAccountAddress } from '@openmig/shared';
+import {
+  CREDENTIAL_STORE_NL,
+  CredentialRefusalError,
+  missingAccountAddress,
+  PROVIDER_ACCOUNT_DOMAINS,
+} from '@openmig/shared';
 import type { CalendarSource, ContactSource, TokenProvider } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, GoogleTokenProvider } from '@openmig/connectors';
 import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory.ts';
@@ -90,6 +95,39 @@ export const STORED_GOOGLE_DAV_CREDENTIAL_NAMES: GoogleCredentialNaming = {
 /** The managed `connection.kind`s (migration 0015). */
 export const GOOGLE_CALENDAR_CONNECTION_KIND = 'google_calendar';
 export const GOOGLE_CONTACTS_CONNECTION_KIND = 'google_contacts';
+
+/**
+ * The ACCOUNT kind (migration 0034, workplan 0106 T3b): one Google row wearing
+ * several faces, on the `soverin` precedent T4a set.
+ *
+ * It cohabits with the two single-purpose kinds above rather than replacing
+ * them — a mapping created before today keeps its `google_calendar` row and
+ * keeps behaving exactly as it did.
+ */
+export const GOOGLE_ACCOUNT_CONNECTION_KIND = 'google';
+
+/**
+ * Does this source connection serve that DAV face with the Google builders?
+ *
+ * **Read off the table, never off a fork.** The single-purpose kinds each
+ * answer for their own domain; the account kind answers for whichever faces
+ * `PROVIDER_ACCOUNT_DOMAINS.google` currently names. So Google gaining mail or
+ * files when the restricted-scope assessment is bought is a row edit there,
+ * and this function follows it — which is the whole point of T3b being
+ * provider-shaped rather than Google-shaped.
+ *
+ * Kind stays PROTOCOL RESOLUTION and capability stays read off the account's
+ * measured record (the #597 guard, kept). This says which BUILDER speaks for a
+ * row, not what that row can carry.
+ */
+export function googleDavServes(kind: string, domain: 'calendar' | 'contact'): boolean {
+  if (kind === GOOGLE_ACCOUNT_CONNECTION_KIND) {
+    return PROVIDER_ACCOUNT_DOMAINS.google.includes(domain);
+  }
+  return domain === 'calendar'
+    ? kind === GOOGLE_CALENDAR_CONNECTION_KIND
+    : kind === GOOGLE_CONTACTS_CONNECTION_KIND;
+}
 
 /** Test seam, same shape as the Gmail factory's. */
 export type GoogleDavTokenProviderFactory = (

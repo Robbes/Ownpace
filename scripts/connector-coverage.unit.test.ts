@@ -96,6 +96,10 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   'google-calendar': { uncoverable: 'same Google account, same reason as gmail.' },
   'google-contacts': { uncoverable: 'same Google account, same reason as gmail.' },
   'google-drive': { uncoverable: 'same Google account, same reason as gmail.' },
+  // The ACCOUNT kind (workplan 0106 T3b). Same wall, and one step higher: it
+  // needs not only a Google account but a consent screen approved for SEVERAL
+  // scopes at once — the thing no CI job can press.
+  google: { uncoverable: 'same Google account, same reason as gmail — and its consent is multi-scope.' },
   dropbox: { uncoverable: 'needs a Dropbox app and a real account. Same class as gmail.' },
   box: { uncoverable: 'needs a Box app and a real account. Same class as gmail.' },
 };

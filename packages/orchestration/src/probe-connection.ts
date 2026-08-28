@@ -54,6 +54,7 @@ import {
   buildGoogleDriveSourceFrom,
 } from './drive-source-factory.ts';
 import {
+  GOOGLE_ACCOUNT_CONNECTION_KIND,
   GOOGLE_CALENDAR_CONNECTION_KIND,
   GOOGLE_CONTACTS_CONNECTION_KIND,
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
@@ -163,6 +164,12 @@ export async function probeSourceConnection(
       // Box (workplan 0056): same route again — the builder holds the CCG
       // branching, so test-connection proves exactly what a pass builds.
       return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder');
+    // The ACCOUNT kind answers with its CALENDAR face (workplan 0106 T3b),
+    // the same choice T4a made for `soverin` and for the same reason: it is
+    // the face the scheduling verdict belongs to, and a headline probe has to
+    // pick one. The other faces are not guessed from it — the qualification
+    // measures each separately and the badges report all of them.
+    case GOOGLE_ACCOUNT_CONNECTION_KIND:
     case GOOGLE_CALENDAR_CONNECTION_KIND:
       return probeListable(
         () => buildGoogleCalendarDavSourceFrom(user, creds, STORED_GOOGLE_DAV_CREDENTIAL_NAMES),

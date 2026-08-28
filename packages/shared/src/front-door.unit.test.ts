@@ -82,7 +82,17 @@ describe('partitionFrontDoor — the one algorithm both doors render', () => {
     const p = ids(connectableTypes('source'));
     expect(p.families.map((f) => f.id)).toEqual(['microsoft365', 'google']);
     expect(p.families[0]?.members).toEqual(['oauth2', 'graph']);
-    expect(p.families[1]?.members).toEqual(['gmail', 'google-calendar', 'google-contacts', 'google-drive']);
+    // The ACCOUNT first (workplan 0106 T3b) — "the usual choice first", the
+    // same rule that puts oauth2 before graph. The four single-purpose
+    // products stay beside it: they are the only way to mail and files until
+    // Google's restricted-scope assessment is bought.
+    expect(p.families[1]?.members).toEqual([
+      'google',
+      'gmail',
+      'google-calendar',
+      'google-contacts',
+      'google-drive',
+    ]);
     expect(p.providers).toEqual(['box', 'dropbox']);
     expect(p.protocols).toEqual(['imap']);
   });

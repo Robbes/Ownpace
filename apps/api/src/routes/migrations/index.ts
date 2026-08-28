@@ -31,6 +31,9 @@ import {
 // this same router so they sit under /api/migrations/:mappingId/... alongside
 // discovery and start, which is where the appliance's equivalents live too.
 import operatingRoutes from './operating-routes.ts';
+// The account kind's scope set, from the same table the consent screen uses
+// (workplan 0106 T3b) — so the door demands what the consent asked for.
+import { googleAccountScopeSentence } from './google-account-consent.ts';
 import googleOauthRoutes from './google-oauth-routes.ts';
 // The owner's grant-link surface (workplan 0108 T3): issue, list, revoke, all
 // under /api/migrations/:mappingId/links. The link HOLDER's routes are not
@@ -63,8 +66,8 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 
 /** Map the web source type to a connection.kind (protocol-based). */
 export function sourceKindFor(
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'dropbox' | 'box',
-): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'dropbox' | 'box' {
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box',
+): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'google' | 'dropbox' | 'box' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
   // added, and the literal build-deps-from-mapping branches on
   // (GOOGLE_DRIVE_CONNECTION_KIND) — underscore, unlike the wizard's hyphen,
@@ -81,6 +84,10 @@ export function sourceKindFor(
   // 'box' joined the CHECK in migration 0019 (workplan 0056).
   if (sourceType === 'box') return 'box';
   if (sourceType === 'google-contacts') return 'google_contacts';
+  // The ACCOUNT kind (workplan 0106 T3b, migration 0034). No underscore to
+  // translate: the wizard word and the connection kind are the same word,
+  // which is why `wizardTypeForConnectionKind` needs no case for it either.
+  if (sourceType === 'google') return 'google';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
@@ -139,6 +146,18 @@ export function sourceConnectionConfig(
   }
   if (body.sourceType === 'google-contacts') {
     return { type: 'google-contacts', user: cfg.username };
+  }
+  if (body.sourceType === 'google') {
+    // The ACCOUNT (workplan 0106 T3b): the same one field, and deliberately
+    // the same one field — a Google account row serves several faces from ONE
+    // address, and which faces it serves is the mapping's ticked domains
+    // crossed with PROVIDER_ACCOUNT_DOMAINS, never something stored here.
+    //
+    // The per-domain seams build from the connection's KIND and this `user`;
+    // nothing reads `type` on the DAV path. It is stored anyway because the
+    // GET detail route echoes this object and a config with no type reads as
+    // a row nobody can identify.
+    return { type: 'google', user: cfg.username };
   }
   if (body.sourceType === 'graph') {
     // Graph REST transport: the tenant + mailbox are the address — there is
@@ -309,6 +328,7 @@ export function sourceConfigOverride(
     case 'gmail':
     case 'google-calendar':
     case 'google-contacts':
+    case 'google':
       return keep({ user: cfg.username });
     case 'graph':
       // The tenant is the app registration's, which the connection holds.
@@ -362,6 +382,7 @@ export function sourceCredentialRecord(
     body.sourceType === 'gmail' ||
     body.sourceType === 'google-calendar' ||
     body.sourceType === 'google-contacts' ||
+    body.sourceType === 'google' ||
     // Dropbox rides the same trio keys; the factory's naming maps them to
     // Dropbox's own words (App key / App secret).
     body.sourceType === 'dropbox'
@@ -471,7 +492,7 @@ function getSharedPool() {
  *  nothing, and neither side errors at runtime. */
 export const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
-  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'dropbox', 'box']),
+  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'google', 'dropbox', 'box']),
   /**
    * Reuse a connection that already exists instead of creating another
    * (workplan 0064). When set, the credentials and provider config come from
@@ -706,17 +727,25 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     }
   } else if (
     body.sourceType === 'google-calendar' ||
-    body.sourceType === 'google-contacts'
+    body.sourceType === 'google-contacts' ||
+    body.sourceType === 'google'
   ) {
     // The Drive/Gmail credential shape again (workplan 0045): a Google OAuth
     // client and a refresh token — consented per product. The scope each
     // token must carry is in the refusal, because "which consent is this"
     // is the mistake waiting to happen with four Google sources sharing one
     // OAuth client.
+    // The ACCOUNT asks for the scopes of the faces it was TICKED for, so its
+    // refusal names them all rather than one — the same string
+    // `POST /google/authorize` builds, from the same table, because "which
+    // consent is this" is the mistake waiting to happen with several Google
+    // sources sharing one OAuth client.
     const scope =
-      body.sourceType === 'google-calendar'
-        ? 'https://www.googleapis.com/auth/calendar'
-        : 'https://www.googleapis.com/auth/carddav';
+      body.sourceType === 'google'
+        ? googleAccountScopeSentence(body.syncConfig.domains)
+        : body.sourceType === 'google-calendar'
+          ? 'https://www.googleapis.com/auth/calendar'
+          : 'https://www.googleapis.com/auth/carddav';
     // A service-account key selects domain-wide delegation (ADR-0033); the
     // subject is the username these sources already require.
     const missing = body.sourceConfig.serviceAccountKey

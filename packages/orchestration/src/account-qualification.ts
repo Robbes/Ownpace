@@ -312,6 +312,16 @@ export const GOOGLE_GRANT_KINDS = [
   'google_calendar',
   'google_contacts',
   'google_drive',
+  // The ACCOUNT kind (workplan 0106 T3b). It qualifies exactly like the four
+  // above and by the same mechanism — the stored refresh token is exchanged
+  // and the token response's `scope` field enumerates the grant — which is
+  // what makes an account row honest about carrying several faces: each face
+  // is a MEASURED yes or a measured no, never an inference from the kind.
+  //
+  // It matters most here. A single-purpose row's grant is one scope and the
+  // answer is nearly rhetorical; an account row's grant is the place where
+  // "you ticked two and Google gave one" becomes visible at all.
+  'google',
 ] as const;
 
 export function isGoogleGrantKind(kind: string): boolean {
