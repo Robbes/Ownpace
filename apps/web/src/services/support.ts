@@ -120,6 +120,42 @@ export async function getSupportTenant(tenantId: string): Promise<SupportTenantD
   return response.data;
 }
 
+/**
+ * An invoice that outlived the customer it billed.
+ *
+ * `tenant_ref` is a sha256 of the tenant id and never the id: `erasure_record`
+ * holds a hash precisely so it cannot be read back into a list of former
+ * customers, and this screen inherits that. `billed_to_name` is the only thing
+ * here that says who an invoice was for, captured when the purge ran rather
+ * than read from a tenant that no longer exists.
+ */
+export interface SupportRetainedInvoice {
+  readonly tenant_ref: string;
+  readonly erasure_requested_at: string;
+  readonly purged_at: string | null;
+  readonly invoice_id: string;
+  readonly billed_to_name: string | null;
+  readonly period_start: string;
+  readonly period_end: string;
+  readonly status: string;
+  readonly total: string;
+  readonly currency: string;
+  readonly paid_at: string | null;
+}
+
+/**
+ * The invoices an erasure kept. Not a level — a different grain.
+ *
+ * Every other call here hangs off a tenant. This one cannot: the tenants it
+ * concerns are deleted, so it is keyed on the erasure instead.
+ */
+export async function listRetainedInvoices(): Promise<SupportRetainedInvoice[]> {
+  const response = await apiClient.get<{ invoices: SupportRetainedInvoice[] }>(
+    '/support/retained-invoices',
+  );
+  return response.data.invoices;
+}
+
 /** Level 3. There is deliberately no level 4 — see the route's own comment. */
 export async function getSupportMigration(mappingId: string): Promise<SupportMigrationDetail> {
   const response = await apiClient.get<SupportMigrationDetail>(
