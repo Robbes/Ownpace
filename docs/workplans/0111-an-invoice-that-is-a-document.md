@@ -72,7 +72,7 @@ way worth being explicit about below.
   billable period  ──── push ───▶  assigns the NUMBER
   (who, where, what,               applies the VAT treatment
    which tier, amount)             renders the PDF
-                                   files it for 7 years
+                                   files it (7 yr NL / 10 yr OSS)
   mirror  ◀──── pull ────────────  number, issue date, PDF, status
     │
     ├── shows it on the billing page
@@ -117,6 +117,13 @@ location — typically billing address plus IP country, or the bank/card country
 self-declared dropdown is not enough, and a customer who declares one country while
 everything else says another is a case the code has to have an answer for rather than
 silently trusting the form.
+
+**Retention is seven years, except where it is ten.** The Dutch general obligation
+(`fiscale bewaarplicht`) is seven years. **OSS records are ten**, counted from 31 December of
+the transaction year, and the obligation survives deregistration — so the moment consumers
+elsewhere in the EU are billed through OSS, the retention promise this product makes changes
+length. Verified 2026-08-28; it was written as seven throughout the first draft of this plan,
+which was wrong.
 
 **The threshold is a cliff with a date on it.** Crossing €10,000 changes the treatment
 mid-year. Whatever T3 does must be able to say *which rule was applied to this invoice and
@@ -163,7 +170,8 @@ deliberately rather than discovered.**
 after erasing a tenant, under the GDPR art. 17(3)(b) carve-out, for tax retention. That
 justification assumed **Ownpace is the record**.
 
-If the bookkeeping system is the record, it holds the invoice for seven years and Ownpace's
+If the bookkeeping system is the record, it holds the invoice for the full retention period
+and Ownpace's
 copy is a convenience mirror. Then keeping detached invoices in Ownpace after erasure is
 **no longer required by the retention obligation** — and personal data kept without a
 current justification is exactly what an erasure is supposed to remove. The cleaner posture
