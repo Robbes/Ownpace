@@ -28,13 +28,14 @@ import CreateMapping from './CreateMapping.tsx';
 import { mappingApi } from '../services/mapping-service.ts';
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { create: vi.fn() },
+  mappingApi: { create: vi.fn(), googleAuthorize: vi.fn() },
   // The wizard offers reusable connections (workplan 0064); an empty list is
   // the "nothing to reuse yet" case these walks exercise.
   connectionsApi: { list: vi.fn().mockResolvedValue([]) },
 }));
 
 const createMock = vi.mocked(mappingApi.create);
+const authorizeMock = vi.mocked(mappingApi.googleAuthorize);
 
 // The wizard now REMEMBERS its non-secret half across mounts (workplan 0069),
 // which is the feature — and which means every test in this file has to start
@@ -644,7 +645,12 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
     // Step 1 — Source: the fifth card. Choosing it pins email and a
     // mail-capable target, and the setup note warns about the ONE mistake
     // waiting to happen: a Drive-consented token does not mint mail tokens.
-    fireEvent.click(screen.getByRole('button', { name: /Gmail/ }));
+    // Anchored (workplan 0106 T3b): the Google ACCOUNT card's hint names Gmail
+    // — deliberately, because "why is Gmail a separate card" is the first
+    // question that card raises — so a bare /Gmail/ now matches two buttons.
+    // The accessible name starts with the card's own title, so anchoring picks
+    // the right one without weakening what is asserted.
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     expect(screen.getByText(/mail\.google\.com/)).toBeInTheDocument();
     // No host/port — Gmail's endpoint is fixed; the OAuth client ID gates.
     expect(screen.queryByPlaceholderText('imap.example.com')).not.toBeInTheDocument();
@@ -704,7 +710,7 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
 
   it('domains beyond email are not offerable for a Gmail source', () => {
     renderWizard();
-    fireEvent.click(screen.getByRole('button', { name: /Gmail/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
       target: { value: 'cid' },
     });
@@ -721,5 +727,132 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
     // it: the mail-scoped credential cannot read a Drive.
     const fileCard = screen.getByRole('button', { name: /File/ });
     expect(fileCard).toBeDisabled();
+  });
+});
+
+
+describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authorizeMock.mockResolvedValue({
+      url: 'https://accounts.google.com/o/oauth2/v2/auth?scope=x',
+      redirectUri: 'https://app.example.test/api/migrations/google/callback',
+      scope: 'x',
+    } as never);
+  });
+
+  const pickAccount = () =>
+    fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+
+  it('pins the faces the account serves — not email, which needs a scope we have not bought', async () => {
+    createMock.mockResolvedValue({ id: 'map-google' } as never);
+    renderWizard();
+    pickAccount();
+
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid.apps.googleusercontent.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@example.invalid' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'client-secret' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('1//…'), {
+      target: { value: '1//granted' },
+    });
+    fireEvent.click(nextButton());
+
+    // A target that carries both faces, so the domain step polices nothing
+    // away and what is posted is what the account was ticked for.
+    fireEvent.click(screen.getByRole('button', { name: /Soverin/ }));
+    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+      target: { value: 'dav.soverin.example' },
+    });
+    satisfyTargetStep();
+    fireEvent.click(nextButton());
+
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+      target: { value: 'Acme Google' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.click(nextButton());
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    const posted = createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
+    expect(posted.sourceType).toBe('google');
+    const domains = (posted.syncConfig as { domains: string[] }).domains;
+    expect(domains).toEqual(['calendar', 'contact']);
+    // The two Google prices differently, and the refusal for them lives on
+    // the server. The wizard must not even offer them here.
+    expect(domains).not.toContain('email');
+    expect(domains).not.toContain('file');
+  });
+
+  it('consents for exactly the faces ticked — a domain SET, never a source type', async () => {
+    // The whole of T3b in one assertion. `domainsToScopes` has refused to
+    // substitute anything for an empty tick set since T1b and said callers
+    // must refuse rather than default; this is the caller reaching it, and a
+    // `sourceType` here would silently ask for one fixed scope instead.
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      renderWizard();
+      pickAccount();
+      fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+        target: { value: 'cid.apps.googleusercontent.com' },
+      });
+      fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+        target: { value: 'client-secret' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /Connect with Google/i }));
+      await waitFor(() => expect(authorizeMock).toHaveBeenCalled());
+      const sent = authorizeMock.mock.calls[0]![0] as Record<string, unknown>;
+      expect(sent.domains).toEqual(['calendar', 'contact']);
+      expect(sent).not.toHaveProperty('sourceType');
+      expect(sent.clientId).toBe('cid.apps.googleusercontent.com');
+      // The secret goes in the BODY and never into a URL — the popup is
+      // opened with the server's answer, which carries no secret.
+      expect(String(open.mock.calls[0]?.[0] ?? '')).not.toContain('client-secret');
+    } finally {
+      open.mockRestore();
+    }
+  });
+
+  it('refuses to consent for nothing, and says what to do instead', async () => {
+    renderWizard();
+    pickAccount();
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid.apps.googleusercontent.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'client-secret' },
+    });
+    // Untick both on the migration step, then come back: an empty tick set is
+    // reachable, and the server refuses it with a sentence. The button says
+    // the same thing sooner, rather than spending a round trip to be told.
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@example.invalid' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: '1//granted' } });
+    fireEvent.click(nextButton());
+    fireEvent.click(screen.getByRole('button', { name: /Soverin/ }));
+    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+      target: { value: 'dav.soverin.example' },
+    });
+    satisfyTargetStep();
+    fireEvent.click(nextButton());
+    fireEvent.click(screen.getByRole('button', { name: /Calendar/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Contacts/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Back/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Back/ }));
+
+    const connect = screen.getByRole('button', { name: /Connect with Google/i });
+    expect(connect).toBeDisabled();
+    expect(connect).toHaveAttribute(
+      'title',
+      expect.stringContaining('Tick what to migrate first'),
+    );
+    expect(authorizeMock).not.toHaveBeenCalled();
   });
 });

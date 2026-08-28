@@ -192,6 +192,9 @@ const en = {
   'wizard.google.connect.hint':
     'Opens Google’s consent screen against your own OAuth client and fills the refresh token ' +
     'in for you. Pasting a token you already have keeps working.',
+  'wizard.google.connect.needsDomains':
+    'Tick what to migrate first \u2014 this consent asks Google for exactly what is ticked, '
+    + 'and nothing more.',
   'wizard.google.connect.needsClient':
     'Enter the Client ID and client secret first — the consent runs against your own Google client.',
   'wizard.google.received': 'Consent received — the refresh token has been filled in below.',
@@ -203,6 +206,13 @@ const en = {
   'wizard.m365.viaGraph': 'Via the Graph API',
   'wizard.proto.oauth2.hint': 'IMAP with XOAUTH2, Graph fallback behind it (app registration)',
   'wizard.proto.graph.hint': 'Graph API only (app registration)',
+  // The ACCOUNT card (workplan 0106 T3b). It names the two faces AND why the
+  // other two are not here, because "why is Gmail a separate card" is the
+  // first question this card raises.
+  'wizard.proto.google.hint':
+    'One Google account, one sign-in \u2014 calendars and contacts, whichever you tick. '
+    + 'Gmail and Drive stay separate cards for now: they need a Google security review '
+    + 'we have not bought yet.',
   'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
   'wizard.proto.dropbox.hint': 'Files from a Dropbox (read-only OAuth app)',
   'wizard.proto.box.hint': 'Files from a Box account (read-only platform app)',
@@ -1354,6 +1364,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.google.connect.hint':
     'Opent het toestemmingsscherm van Google met uw eigen OAuth-client en vult het ' +
     'vernieuwingstoken voor u in. Een token plakken dat u al heeft, blijft gewoon werken.',
+  'wizard.google.connect.needsDomains':
+    'Vink eerst aan wat u wilt migreren \u2014 deze toestemming vraagt Google precies om wat '
+    + 'is aangevinkt, en niets meer.',
   'wizard.google.connect.needsClient':
     'Vul eerst de Client-ID en het clientgeheim in — de toestemming loopt via uw eigen Google-client.',
   'wizard.google.received': 'Toestemming ontvangen — het vernieuwingstoken is hieronder ingevuld.',
@@ -1363,6 +1376,10 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.m365.viaGraph': 'Via de Graph-API',
   'wizard.proto.oauth2.hint': 'IMAP met XOAUTH2, met Graph-terugval erachter (appregistratie)',
   'wizard.proto.graph.hint': 'Alleen de Graph-API (appregistratie)',
+  'wizard.proto.google.hint':
+    '\u00c9\u00e9n Google-account, \u00e9\u00e9n aanmelding \u2014 agenda\u2019s en contacten, '
+    + 'wat u aanvinkt. Gmail en Drive blijven voorlopig aparte kaarten: die vragen een '
+    + 'beveiligingsbeoordeling van Google die wij nog niet hebben aangeschaft.',
   'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
   'wizard.proto.dropbox.hint': 'Bestanden uit een Dropbox (alleen-lezen OAuth-app)',
   'wizard.proto.box.hint': 'Bestanden uit een Box-account (alleen-lezen platform-app)',
