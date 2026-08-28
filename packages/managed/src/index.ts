@@ -33,3 +33,4 @@ export * from './usage-metering.ts';
 export * from './offboarding.ts';
 export * from './migrate-managed.ts';
 export * as managedSchema from './schema-managed.ts';
+export * from './support-read-log.ts';
