@@ -36,6 +36,7 @@ import accessRequestRoutes from './routes/access-requests.ts';
 import meRoutes from './routes/me.ts';
 import invitationRoutes from './routes/invitations.ts';
 import readyRoutes from './routes/ready.ts';
+import supportRoutes from './routes/support.ts';
 import { assertProductionAuthConfig, selectAuthMode } from './middleware/auth.ts';
 import { assertProductionUrlConfig } from './config-guards.ts';
 import { serverFault } from './server-fault.ts';
@@ -207,6 +208,18 @@ app.use('/api/billing', billingRoutes);
 // Mount at /webhooks so the route resolves to /api/billing/webhooks/mollie —
 // the exact URL advertised to Mollie in createPayment's webhookUrl.
 app.use('/api/billing/webhooks', billingWebhookRoutes);
+
+/**
+ * The operator's support surface (workplan 0110 T4).
+ *
+ * Its own prefix rather than a corner of `/api/tenants`, because everything
+ * under it reads ACROSS tenants: the routes authenticate a subject and never
+ * resolve one organisation, and what decides whether they see anything is a
+ * predicate in the database, not this mount. Keeping that visible in the URL
+ * is the point — a route added here is a route that can look at every
+ * customer, and that should be a decision rather than an inheritance.
+ */
+app.use('/api/support', supportRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {

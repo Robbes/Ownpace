@@ -93,6 +93,11 @@ tags:
     description: Usage, cost, invoices and payment methods. Owner/admin only, reads included.
   - name: Webhooks
     description: Called by the payment provider, not by clients.
+  - name: Support
+    description: |
+      What a platform operator may see of a customer, to answer them when they
+      ask. Metadata only, read-only, and every read is recorded — the views
+      behind these operations decide who is an operator, not the API.
 
 paths:
   /health:
@@ -2834,6 +2839,123 @@ paths:
             application/json:
               schema: { type: object }
 
+  /api/support/tenants:
+    get:
+      tags: [Support]
+      summary: Every organisation, as an operator sees them
+      description: |
+        Name, when they joined, how many migrations, and how many domains are
+        currently failing. Nothing else — no settings, no addresses, no counts
+        of what is inside anybody's mailbox.
+
+        Authorisation is NOT performed here. The operation authenticates a
+        subject and reads a view whose own predicate is "this subject is a
+        platform operator"; to anybody else the view is empty, so a
+        non-operator gets `200` with an empty list rather than a `403`. That is
+        deliberate: the check lives in one place, in the database, and cannot
+        be simplified away in application code.
+
+        Every serving is recorded in the support read log — one row for the
+        list, with no organisation named, because looking at the list is one
+        decision rather than one per customer. A non-operator's request records
+        nothing, by the same predicate.
+      responses:
+        '200':
+          description: |
+            The organisations this caller may see. Empty for anybody who is not
+            a platform operator.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenants:
+                    type: array
+                    items: { $ref: '#/components/schemas/SupportTenant' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/support/tenants/{tenantId}:
+    parameters:
+      - name: tenantId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Support]
+      summary: One organisation — its connections, migrations and invoices
+      description: |
+        Connection `kind`, display name and status; never `config` (hosts and
+        paths somebody typed) and never `secret_ref`. Migrations by name and
+        lifecycle. Invoices by period, status and total.
+
+        An organisation that does not exist and one this caller may not see are
+        the same answer — `404` either way — so that a signed-in non-operator
+        cannot use this to discover which ids are real.
+
+        Recorded in the support read log only once the organisation was
+        actually found and served: a `404` is not a read of anybody's data, and
+        logging one would put customers in the record whom the operator never
+        saw.
+      responses:
+        '200':
+          description: The organisation and its three lists.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenant: { $ref: '#/components/schemas/SupportTenant' }
+                  connections:
+                    type: array
+                    items: { $ref: '#/components/schemas/SupportConnection' }
+                  migrations:
+                    type: array
+                    items: { $ref: '#/components/schemas/SupportMigration' }
+                  invoices:
+                    type: array
+                    items: { $ref: '#/components/schemas/SupportInvoice' }
+        '400':
+          description: The id in the path is not a uuid.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such organisation — or none this caller may see.
+
+  /api/support/migrations/{mappingId}:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Support]
+      summary: One migration, per domain
+      description: |
+        State, timings and the failure CATEGORY for each domain — never the
+        failure text itself, which can carry a folder name or an address. The
+        category is the actionable half (workplan 0110 T3) and the customer
+        sees the same one.
+
+        There is deliberately no level below this. A screen that lists items is
+        a screen that shows subject lines, and the metadata boundary stops
+        before the thing being migrated.
+
+        The organisation recorded in the read log is the migration's own, read
+        back from the view rather than taken from the request.
+      responses:
+        '200':
+          description: The migration and one row per domain.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  migration: { $ref: '#/components/schemas/SupportMigration' }
+                  domains:
+                    type: array
+                    items: { $ref: '#/components/schemas/SupportMigrationDomain' }
+        '400':
+          description: The id in the path is not a uuid.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such migration — or none this caller may see.
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2902,6 +3024,78 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
+    SupportTenant:
+      type: object
+      description: |
+        One organisation as an operator sees it (workplan 0110 T4). The column
+        list IS the privacy boundary and it lives in the view, not here.
+      properties:
+        tenant_id: { type: string, format: uuid }
+        tenant_name: { type: string }
+        tenant_status: { type: string }
+        joined_at: { type: string, format: date-time }
+        migration_count: { type: integer }
+        failing_domain_count:
+          type: integer
+          description: Domains currently in `failed`. How an operator knows who to call back.
+    SupportConnection:
+      type: object
+      description: |
+        A connection without its `config` or its `secret_ref` — what kind of
+        door it is and whether it works, never what was typed into it.
+      properties:
+        connection_id: { type: string, format: uuid }
+        role: { type: string, enum: [source, target] }
+        kind: { type: string }
+        display_name: { type: string }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SupportMigration:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        mapping_id: { type: string, format: uuid }
+        name: { type: string }
+        lifecycle: { type: string }
+        mode: { type: string }
+        pattern: { type: string }
+        schedule: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SupportInvoice:
+      type: object
+      properties:
+        invoice_id: { type: string, format: uuid }
+        period_start: { type: string, format: date }
+        period_end: { type: string, format: date }
+        status: { type: string }
+        total: { type: string }
+        currency: { type: string }
+        paid_at: { type: string, format: date-time, nullable: true }
+    SupportMigrationDomain:
+      type: object
+      description: |
+        One domain of one migration. `last_error_category` and NOT
+        `last_error`: the category is actionable and carries no address, no
+        folder name and no subject (workplan 0110 T3).
+      properties:
+        domain: { type: string, enum: [email, calendar, contact, file] }
+        state: { type: string }
+        started_at: { type: string, format: date-time, nullable: true }
+        updated_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+        last_error_category:
+          type: string
+          nullable: true
+          # The six of `FAILURE_CATEGORIES` in @openmig/shared, asserted
+          # against it in `support-routes.unit.test.ts` so this list cannot
+          # drift from the values the column actually holds.
+          enum: [auth_expired, rate_limited, quota_exceeded, target_refused, network, unknown]
+        last_pass_metrics:
+          type: object
+          nullable: true
+          description: Counts and durations only — never folder names or addresses.
     QualifiedDomain:
       type: object
       description: One domain's measured answer (workplan 0106 T0).
