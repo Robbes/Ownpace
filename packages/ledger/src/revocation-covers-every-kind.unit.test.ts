@@ -39,7 +39,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { revocationCapability } from '@openmig/shared';
+import {
+  revocationCapability,
+  identifiersWithStandingGrants,
+  identifiersWithRetirableCredentials,
+} from '@openmig/shared';
 import { connection } from './schema-pg.ts';
 
 /** The fallback's reason quotes the kind back; a real decision never does. */
@@ -77,6 +81,58 @@ describe('revocation covers every connection kind', () => {
     expect(google.length).toBeGreaterThan(4);
     for (const kind of google) {
       expect(revocationCapability(kind).revocable, `${kind} should be revocable`).toBe(true);
+    }
+  });
+});
+
+/**
+ * The other half of the same sentence.
+ *
+ * `token-revocation.ts` says this module and `standing-grants.ts` "are two
+ * halves of one honest sentence — we revoked what we could, we deleted our copy
+ * of the rest, and here is what only you can remove". A kind missing from the
+ * second half is a customer told nothing about access that outlives their
+ * erasure.
+ *
+ * `standing-grants.unit.test.ts` calls its check "the coverage lock" and says
+ * *"a kind added to the schema without an entry here is a credential nobody is
+ * ever told about — silent, and indistinguishable from 'nothing to do'."* That
+ * is the right sentence about the wrong list: the array it locks against is
+ * COPIED INTO THE TEST, so a kind added to the schema does not fail it. The
+ * `google` account kind was the proof — the only kind in the whole enum with
+ * neither a standing grant nor a credential retirement, and nothing red.
+ *
+ * The lock belongs where the schema can be read. That is here.
+ */
+describe('every connection kind has an erasure answer', () => {
+  it('leaves no kind with nothing to tell the customer', () => {
+    const grants = new Set(identifiersWithStandingGrants());
+    const credentials = new Set(identifiersWithRetirableCredentials());
+
+    // Vacuity guard on both halves: an empty table would make the filter pass.
+    expect(grants.size, 'no standing grants declared').toBeGreaterThan(2);
+    expect(credentials.size, 'no credential retirements declared').toBeGreaterThan(4);
+
+    const silent = connection.kind.enumValues.filter(
+      (kind) => !grants.has(kind) && !credentials.has(kind),
+    );
+    expect(
+      silent,
+      'these kinds leave the customer nothing at erasure — no console to visit and ' +
+        'no credential to retire. Every other kind has one or the other, so a new ' +
+        'kind having neither is an omission rather than a decision: add it to ' +
+        'GRANTS or CREDENTIALS in standing-grants.ts',
+    ).toEqual([]);
+  });
+
+  it('gives the Google account kind the same console as the four beside it', () => {
+    // One Google account authorization covers every Google connector, so the
+    // account kind and the single-purpose ones must point at one page. Being
+    // revocable does not excuse it: revoking the token stops it working, and
+    // the app stays listed until the customer removes it there.
+    const grants = new Set(identifiersWithStandingGrants());
+    for (const kind of ['gmail', 'google_calendar', 'google_contacts', 'google_drive', 'google']) {
+      expect(grants.has(kind), `${kind} has no standing-grant entry`).toBe(true);
     }
   });
 });
