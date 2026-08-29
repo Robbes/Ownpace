@@ -17,7 +17,12 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, TrendingUp, DollarSign, FileText, AlertCircle, Loader2 } from 'lucide-react';
-import { billingApi, type Invoice, type BillingPartyInput } from '../services/billing-service.ts';
+import {
+  billingApi,
+  type Invoice,
+  type BillingPartyInput,
+  type BillingPartyRead,
+} from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
@@ -74,12 +79,18 @@ const labelClass = 'block text-sm text-gray-600 mb-1';
 const InvoiceDetailsCard: React.FC = () => {
   const t = useT();
   const { locale } = useLocale();
+  const { dateTime } = useFormatters();
   const queryClient = useQueryClient();
 
-  const { data: party, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['billing-party'],
     queryFn: () => billingApi.getBillingParty(),
   });
+  const party = data?.party ?? null;
+  // The VIES answer FOR THE NUMBER AS STORED (0111 T2) — the server joins on
+  // what billing_party currently says, so a changed number honestly reads
+  // "not checked" until somebody checks it.
+  const consultation = data?.vatConsultation ?? null;
 
   const [form, setForm] = React.useState<BillingPartyInput>({
     kind: 'consumer',
@@ -110,11 +121,35 @@ const InvoiceDetailsCard: React.FC = () => {
     });
   }, [party]);
 
+  // Ask VIES about the stored number and keep the answer (0111 T2). Refusals
+  // and outages arrive as sentences (`reason`) and render verbatim below the
+  // field — an unreachable VIES is a state, not a crash.
+  const checkMutation = useMutation({
+    mutationFn: () => billingApi.checkVat(),
+    onSuccess: (fresh) => {
+      const prev = queryClient.getQueryData<BillingPartyRead>(['billing-party']);
+      if (prev) queryClient.setQueryData(['billing-party'], { ...prev, vatConsultation: fresh });
+    },
+  });
+
   const mutation = useMutation({
     mutationFn: (input: BillingPartyInput) => billingApi.putBillingParty(input),
     onSuccess: (stored) => {
-      queryClient.setQueryData(['billing-party'], stored);
+      // A consultation only ever speaks for the number it checked: keep it
+      // across a save that did not touch the number, drop it otherwise.
+      const prev = queryClient.getQueryData<BillingPartyRead>(['billing-party']);
+      const sameNumber =
+        prev?.party?.kind === stored.kind && prev?.party?.vatNumber === stored.vatNumber;
+      const kept = sameNumber ? (prev?.vatConsultation ?? null) : null;
+      queryClient.setQueryData(['billing-party'], { party: stored, vatConsultation: kept });
       setSaved(true);
+      // A business number just saved and never checked gets checked NOW,
+      // unasked: an unchecked number is a task somebody would have to
+      // remember, and the failure mode of forgetting is a wrong invoice.
+      // If VIES is down, the status line says so and the button remains.
+      if (stored.kind === 'business' && stored.vatNumber && !kept) {
+        checkMutation.mutate();
+      }
     },
   });
 
@@ -278,6 +313,62 @@ const InvoiceDetailsCard: React.FC = () => {
                   onChange={(e) => set('vatNumber', e.target.value)}
                   maxLength={32}
                 />
+                {/* The check status describes the STORED number (the server
+                    joins on it), so it renders only when one exists — a draft
+                    in the field above has no status until it is saved. */}
+                {party?.kind === 'business' && party.vatNumber && (
+                  <div className="mt-2 text-sm space-y-1">
+                    {checkMutation.isPending ? (
+                      <p className="flex items-center gap-1 text-gray-500">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {t('billing.party.vat.checking')}
+                      </p>
+                    ) : consultation ? (
+                      consultation.valid ? (
+                        <div className="space-y-1">
+                          <p className="text-green-700">
+                            {t('billing.party.vat.valid', { date: dateTime(consultation.checkedAt) })}
+                          </p>
+                          {consultation.traderName && (
+                            <p className="text-gray-600">
+                              {t('billing.party.vat.registeredTo', { name: consultation.traderName })}
+                            </p>
+                          )}
+                          <p className="text-gray-600">
+                            {consultation.consultationNumber
+                              ? t('billing.party.vat.consultationNumber', {
+                                  number: consultation.consultationNumber,
+                                })
+                              : t('billing.party.vat.unqualified')}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-red-800">
+                          {t('billing.party.vat.invalid', { date: dateTime(consultation.checkedAt) })}
+                        </p>
+                      )
+                    ) : (
+                      <p className="text-gray-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                        {t('billing.party.vat.notChecked')}
+                      </p>
+                    )}
+                    {checkMutation.isError && (
+                      <p className="text-red-800">
+                        <span className="font-medium">{t('billing.party.vat.checkFailed')}</span>{' '}
+                        {serverMessage(checkMutation.error)}
+                      </p>
+                    )}
+                    {!checkMutation.isPending && (
+                      <button
+                        type="button"
+                        onClick={() => checkMutation.mutate()}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
+                        {t('billing.party.vat.checkNow')}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

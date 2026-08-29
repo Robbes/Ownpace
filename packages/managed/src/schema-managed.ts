@@ -174,6 +174,46 @@ export const billingParty = pgTable('billing_party', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * One VIES consultation: what was asked, what VIES answered (workplan 0111
+ * T2, migration 0013).
+ *
+ * APPEND-ONLY EVIDENCE beside `billingParty`'s mutable statement — `app_user`
+ * holds SELECT and INSERT and nothing else, because a consultation that can
+ * be edited afterwards proves nothing. A row is always an ANSWER (valid or
+ * invalid); an unreachable VIES stores nothing and the caller is told to try
+ * later. `consultationNumber` NULL marks an unqualified check — VIES issues
+ * the number only when the deployment supplies its own VAT number
+ * (`VIES_REQUESTER_MEMBER_STATE` / `VIES_REQUESTER_VAT_NUMBER`).
+ *
+ * `countryCode` here is the member state AS VIES SPEAKS IT (EL not GR, XI
+ * exists, GB does not) — what was actually sent, so the row replays against
+ * VIES's own re-verification page. Which row speaks for the currently stored
+ * number is a read-side question: the latest one matching what
+ * `billing_party` says now. Purged on erasure (see the migration header —
+ * T4 must carry the consultation number onto the Moneybird document, where
+ * evidence belongs once the invoice is the record).
+ */
+export const vatConsultation = pgTable(
+  'vat_consultation',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+    countryCode: text('country_code').notNull(),
+    vatNumber: text('vat_number').notNull(),
+    valid: boolean('valid').notNull(),
+    /** VIES's own stamp, verbatim — their statement, never reformatted. */
+    requestDate: text('request_date'),
+    consultationNumber: text('consultation_number'),
+    traderName: text('trader_name'),
+    traderAddress: text('trader_address'),
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('ix_vat_consultation_lookup').on(t.tenantId, t.countryCode, t.vatNumber, t.checkedAt),
+  ],
+);
+
 // ========================= Accounts =========================
 
 export const tenantMember = pgTable(

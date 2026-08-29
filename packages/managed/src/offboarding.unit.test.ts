@@ -135,6 +135,14 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
      VALUES ($1, 'consumer', $2, 'Dorpsstraat 1', '1234 AB', 'Ons Dorp', 'NL')`,
     [tenantId, `Piet ${suffix}`],
   );
+  // A VIES consultation (0111 T2). Seeded even though the buyer above is a
+  // consumer — the log outlives kind switches by design, and an unseeded
+  // purged table makes its "was deleted" assertion vacuous.
+  await conn.query(
+    `INSERT INTO vat_consultation (tenant_id, country_code, vat_number, valid, consultation_number)
+     VALUES ($1, 'NL', '123456789B01', true, $2)`,
+    [tenantId, `WAPI-${suffix}`],
+  );
   await conn.query(
     `INSERT INTO payment_method (tenant_id, mollie_id, type)
      VALUES ($1, $2, 'creditcard')`,

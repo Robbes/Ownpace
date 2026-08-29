@@ -107,6 +107,14 @@ export const PURGED_TABLES = [
   // is the only part of this row an invoice is allowed to keep needing; the
   // legal document itself lives in the bookkeeping system (ADR-0044).
   'billing_party',
+  // The VIES consultation log (0111 T2). Purged with the buyer it is about,
+  // consistent with T10's "purge the mirror, keep the pointer": the
+  // consultation that justified a retained invoice's treatment belongs ON the
+  // invoice document in the bookkeeping system (T4 carries the consultation
+  // number there), not in a log outliving the customer here. The request path
+  // could not delete these rows if it wanted to — INSERT and SELECT only —
+  // so this list is the one deleter.
+  'vat_consultation',
   'payment_method',
   'usage_metric',
   'tenant_member',

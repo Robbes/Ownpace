@@ -107,10 +107,33 @@ export const BillingPartySchema = z.object({
   updatedAt: z.string().nullish(),
 });
 
+/** One VIES answer (0111 T2). `consultationNumber` null = the check was
+ *  unqualified — it proves less, and the screen says so rather than hiding
+ *  the difference. */
+export const VatConsultationSchema = z.object({
+  id: z.string(),
+  countryCode: z.string(),
+  vatNumber: z.string(),
+  valid: z.boolean(),
+  requestDate: z.string().nullish(),
+  consultationNumber: z.string().nullish(),
+  traderName: z.string().nullish(),
+  traderAddress: z.string().nullish(),
+  checkedAt: z.string(),
+});
+
 export type UsageResponse = z.infer<typeof UsageResponseSchema>;
 export type Invoice = z.infer<typeof InvoiceSchema>;
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 export type BillingParty = z.infer<typeof BillingPartySchema>;
+export type VatConsultation = z.infer<typeof VatConsultationSchema>;
+
+/** What GET /billing/party serves: the statement, and the consultation that
+ *  speaks for it — null when the currently stored number was never checked. */
+export interface BillingPartyRead {
+  party: BillingParty | null;
+  vatConsultation: VatConsultation | null;
+}
 
 /** What PUT /billing/party accepts. `kind` may be omitted — the server
  *  defaults it to `consumer`, which is T1's whole point — but the form always
@@ -158,17 +181,29 @@ export const billingApi = {
     return PayResponseSchema.parse(response.data);
   },
 
-  /** Who invoices are addressed to; null while nobody has said (0111 T1). */
-  getBillingParty: async (): Promise<BillingParty | null> => {
+  /** Who invoices are addressed to (null while nobody has said, 0111 T1),
+   *  with the VIES consultation for the number as currently stored (T2). */
+  getBillingParty: async (): Promise<BillingPartyRead> => {
     const response = await apiClient.get('/billing/party');
     const party: unknown = response.data.party;
-    return party == null ? null : BillingPartySchema.parse(party);
+    const consultation: unknown = response.data.vatConsultation;
+    return {
+      party: party == null ? null : BillingPartySchema.parse(party),
+      vatConsultation: consultation == null ? null : VatConsultationSchema.parse(consultation),
+    };
   },
 
   /** Upsert — the server converges repeated sends onto one row. Owner/admin. */
   putBillingParty: async (input: BillingPartyInput): Promise<BillingParty> => {
     const response = await apiClient.put('/billing/party', input);
     return BillingPartySchema.parse(response.data.party);
+  },
+
+  /** Ask VIES and store the answer (0111 T2). 200 either way — invalid is an
+   *  answer; 409/503 carry a `reason` sentence the card renders verbatim. */
+  checkVat: async (): Promise<VatConsultation> => {
+    const response = await apiClient.post('/billing/party/check-vat');
+    return VatConsultationSchema.parse(response.data.consultation);
   },
 
   // List payment methods

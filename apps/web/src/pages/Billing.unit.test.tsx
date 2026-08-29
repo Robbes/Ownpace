@@ -27,6 +27,7 @@ vi.mock('../services/billing-service', () => ({
     createPayment: vi.fn(),
     getBillingParty: vi.fn(),
     putBillingParty: vi.fn(),
+    checkVat: vi.fn(),
   },
 }));
 
@@ -41,6 +42,35 @@ const methodsMock = vi.mocked(billingApi.getPaymentMethods);
 const payMock = vi.mocked(billingApi.createPayment);
 const partyMock = vi.mocked(billingApi.getBillingParty);
 const putPartyMock = vi.mocked(billingApi.putBillingParty);
+const checkVatMock = vi.mocked(billingApi.checkVat);
+
+/** A qualified VIES yes, as the service returns it (0111 T2). */
+const consultationFixture = {
+  id: 'vc-0001',
+  countryCode: 'DE',
+  vatNumber: '123456789',
+  valid: true,
+  requestDate: '2026-08-29+02:00',
+  consultationNumber: 'WAPIAAAAXYZ1234',
+  traderName: 'ACME GmbH',
+  traderAddress: null,
+  checkedAt: '2026-08-29T10:00:00.000Z',
+};
+
+/** The stored business buyer the consultation fixtures speak for. */
+const businessPartyFixture = {
+  tenantId: 't1',
+  kind: 'business' as const,
+  name: 'Acme BV',
+  addressLine1: 'Fabrieksweg 2',
+  addressLine2: null,
+  postalCode: '5678 CD',
+  city: 'Elders',
+  countryCode: 'DE',
+  vatNumber: 'DE123456789',
+  createdAt: '2026-08-29T00:00:00.000Z',
+  updatedAt: null,
+};
 
 /** A seeded usage fixture whose lines sum non-trivially: 999 + 500 + 2000 +
  *  100 = 3599; VAT 756; total 4355. The OLD screen rendered "Base Fee
@@ -101,12 +131,13 @@ beforeEach(() => {
   payMock.mockReset();
   partyMock.mockReset();
   putPartyMock.mockReset();
+  checkVatMock.mockReset();
   authState.user = { name: 'Robbe', email: 'r@acme.test', role: 'admin' };
   usageMock.mockResolvedValue(usageFixture);
   invoicesMock.mockResolvedValue({ invoices: [] });
   methodsMock.mockResolvedValue({ paymentMethods: [] });
   // The honest default: nobody has provided buyer details yet (0111 T1).
-  partyMock.mockResolvedValue(null);
+  partyMock.mockResolvedValue({ party: null, vatConsultation: null });
 });
 
 describe('Billing — failed reads say so (hard rule 9)', () => {
@@ -199,19 +230,7 @@ describe('the buyer, as data (0111 T1)', () => {
   });
 
   it('a stored buyer seeds the form, business kind included, and the ask is gone', async () => {
-    partyMock.mockResolvedValue({
-      tenantId: 't1',
-      kind: 'business',
-      name: 'Acme BV',
-      addressLine1: 'Fabrieksweg 2',
-      addressLine2: null,
-      postalCode: '5678 CD',
-      city: 'Elders',
-      countryCode: 'DE',
-      vatNumber: 'DE123456789',
-      createdAt: '2026-08-29T00:00:00.000Z',
-      updatedAt: null,
-    });
+    partyMock.mockResolvedValue({ party: businessPartyFixture, vatConsultation: null });
 
     renderBilling();
 
@@ -228,6 +247,81 @@ describe('the buyer, as data (0111 T1)', () => {
 
     expect(await screen.findByText('Could not load the invoice details.')).toBeInTheDocument();
     expect(screen.getByText('billing_party unreachable')).toBeInTheDocument();
+  });
+});
+
+describe('a VAT number that was actually checked (0111 T2)', () => {
+  it('an unchecked stored number is an amber ask with the check as its remedy', async () => {
+    partyMock.mockResolvedValue({ party: businessPartyFixture, vatConsultation: null });
+    checkVatMock.mockResolvedValue(consultationFixture);
+
+    renderBilling();
+
+    expect(
+      await screen.findByText('This VAT number has not been checked against VIES.'),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Check with VIES'));
+
+    await waitFor(() => expect(checkVatMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/VIES confirmed this number on/)).toBeInTheDocument();
+    expect(screen.getByText('Consultation number: WAPIAAAAXYZ1234')).toBeInTheDocument();
+    expect(screen.getByText('Registered to: ACME GmbH')).toBeInTheDocument();
+  });
+
+  it('an invalid answer renders red — a no is an answer, not an error', async () => {
+    partyMock.mockResolvedValue({
+      party: businessPartyFixture,
+      vatConsultation: { ...consultationFixture, valid: false, consultationNumber: null },
+    });
+
+    renderBilling();
+
+    expect(await screen.findByText(/VIES says this number is not valid/)).toBeInTheDocument();
+    expect(screen.queryByText(/VIES confirmed/)).not.toBeInTheDocument();
+  });
+
+  it('an unqualified check says what it is missing instead of hiding the difference', async () => {
+    partyMock.mockResolvedValue({
+      party: businessPartyFixture,
+      vatConsultation: { ...consultationFixture, consultationNumber: null, traderName: null },
+    });
+
+    renderBilling();
+
+    expect(await screen.findByText(/No consultation number — the check ran without/)).toBeInTheDocument();
+  });
+
+  it('saving a business number that was never checked triggers the check unasked', async () => {
+    putPartyMock.mockResolvedValue(businessPartyFixture);
+    checkVatMock.mockResolvedValue(consultationFixture);
+
+    renderBilling();
+    await screen.findByLabelText('Name on the invoice');
+
+    fireEvent.click(screen.getByLabelText('Business'));
+    fireEvent.change(screen.getByLabelText('Name on the invoice'), { target: { value: 'Acme BV' } });
+    fireEvent.change(screen.getByLabelText('Address'), { target: { value: 'Fabrieksweg 2' } });
+    fireEvent.change(screen.getByLabelText('Postal code'), { target: { value: '5678 CD' } });
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Elders' } });
+    fireEvent.change(screen.getByLabelText('VAT number (optional)'), {
+      target: { value: 'DE123456789' },
+    });
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(checkVatMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Consultation number: WAPIAAAAXYZ1234')).toBeInTheDocument();
+  });
+
+  it('a failed check renders VIES’s own sentence and keeps the button', async () => {
+    partyMock.mockResolvedValue({ party: businessPartyFixture, vatConsultation: null });
+    checkVatMock.mockRejectedValue(new Error('VIES reported MS_UNAVAILABLE — ask again later.'));
+
+    renderBilling();
+    fireEvent.click(await screen.findByText('Check with VIES'));
+
+    expect(await screen.findByText(/MS_UNAVAILABLE/)).toBeInTheDocument();
+    expect(screen.getByText('The check did not run.')).toBeInTheDocument();
+    expect(screen.getByText('Check with VIES')).toBeInTheDocument();
   });
 });
 

@@ -134,6 +134,16 @@ const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }>
       'to disappear afterwards. See packages/managed/migrations/0002 and 0005, ' +
       'access-request-under-rls.unit.test.ts and operator-under-rls.unit.test.ts.',
   },
+  vat_consultation: {
+    privileges: ['INSERT', 'SELECT'],
+    why:
+      'The VIES consultation log (workplan 0111 T2, managed migration 0013) is EVIDENCE: the ' +
+      'consultation number is what makes a VAT check a defence, and evidence that can be edited ' +
+      'or deleted afterwards proves nothing. So the request path appends and reads — re-checking ' +
+      'a number is legitimate and simply adds a row — while UPDATE and DELETE are REVOKED (the ' +
+      'baseline default-grants them, so a narrower GRANT alone would change nothing). The one ' +
+      'deleter is the erasure purge, through the owner connection (PURGED_TABLES).',
+  },
   platform_operator: {
     privileges: ['SELECT'],
     why:

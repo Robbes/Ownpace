@@ -2665,9 +2665,14 @@ paths:
         `party` is **null until the customer provides it** — a real state the
         billing page shows as an ask, never an error. Nothing can be invoiced
         correctly against a tenant without one (workplan 0111 T1).
+
+        `vatConsultation` is the latest VIES answer **for the number as
+        currently stored** (0111 T2): the log is append-only, so a number
+        changed since its last check reads null — nothing has checked the
+        number the next invoice would rely on. Always null for a consumer.
       responses:
         '200':
-          description: The buyer's details, or null.
+          description: The buyer's details, or null, with the consultation that speaks for them.
           content:
             application/json:
               schema:
@@ -2676,6 +2681,10 @@ paths:
                   party:
                     oneOf:
                       - { $ref: '#/components/schemas/BillingParty' }
+                      - { type: 'null' }
+                  vatConsultation:
+                    oneOf:
+                      - { $ref: '#/components/schemas/VatConsultation' }
                       - { type: 'null' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -2727,6 +2736,63 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/billing/party/check-vat:
+    post:
+      tags: [Billing]
+      summary: Ask VIES about the stored VAT number, and keep the answer
+      description: |
+        Owner/admin. Consults VIES about the business party's stored VAT
+        number and **appends the answer to the consultation log** (workplan
+        0111 T2) — an unvalidated number is not a defence; the consultation
+        number this stores is.
+
+        A 200 is an answer either way: `consultation.valid: false` is VIES
+        saying no, stored exactly like a yes, because both are evidence.
+        Re-checking is legitimate and appends.
+
+        The check is **qualified** — it comes back with a consultation
+        number — when the deployment identifies itself via
+        `VIES_REQUESTER_MEMBER_STATE` + `VIES_REQUESTER_VAT_NUMBER` (set
+        together, or not at all: half a pair answers 500 rather than
+        silently downgrading). Without them the check still answers, with
+        `consultationNumber: null` marking it unqualified.
+      responses:
+        '200':
+          description: VIES answered; the stored consultation.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  consultation: { $ref: '#/components/schemas/VatConsultation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: |
+            Nothing to ask, permanently: `error` is `nothing_to_check` (no
+            business party with a VAT number stored — save the details
+            first) or `vat_not_checkable` (VIES can never answer this one —
+            a GB number, a malformed one; retrying changes nothing).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string, enum: [nothing_to_check, vat_not_checkable] }
+                  reason: { type: string }
+        '503':
+          description: |
+            VIES could not answer **now** (its member-state backends are
+            famously intermittent). Nothing was stored — "we could not ask"
+            is not an answer — so ask again later.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string, enum: [vies_unavailable] }
+                  reason: { type: string }
 
   /api/billing/invoices:
     get:
@@ -3701,6 +3767,29 @@ components:
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required: [tenantId, kind, name, addressLine1, postalCode, city, countryCode]
+
+    VatConsultation:
+      type: object
+      description: |
+        One VIES consultation, append-only (workplan 0111 T2). A row is
+        always an ANSWER — valid or invalid — never a failed attempt.
+        `countryCode` is the member state as VIES speaks it (EL not GR; XI
+        exists, GB does not) and `vatNumber` is what was actually asked,
+        prefix stripped. `consultationNumber` null marks an unqualified
+        check, which proves less and says so.
+      properties:
+        id: { type: string, format: uuid }
+        countryCode: { type: string, examples: [NL] }
+        vatNumber: { type: string, examples: ['123456789B01'] }
+        valid: { type: boolean }
+        requestDate:
+          type: [string, 'null']
+          description: VIES's own stamp, verbatim — never reformatted.
+        consultationNumber: { type: [string, 'null'] }
+        traderName: { type: [string, 'null'] }
+        traderAddress: { type: [string, 'null'] }
+        checkedAt: { type: string, format: date-time }
+      required: [id, countryCode, vatNumber, valid, checkedAt]
 
     CreateMappingRequest:
       type: object
