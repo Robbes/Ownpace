@@ -17,7 +17,13 @@ import type { AuthenticatedRequest } from '../../types/api.ts';
 import { calculateCost } from '../../services/billing-service.ts';
 import { getMollieService } from '../../services/mollie/index.ts';
 import { eq, and, desc } from 'drizzle-orm';
-import { getUsageMetricsForPeriod, resolveTenantPricing } from '@openmig/managed';
+import {
+  getUsageMetricsForPeriod,
+  resolveTenantPricing,
+  parseVatForVies,
+  checkVat,
+  type ViesRequester,
+} from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
 import { log } from '@openmig/shared';
 import { NO_TIER_BILLING_CODE, NO_TIER_BILLING_REASON } from './no-bill-we-do-not-sell.ts';
@@ -95,6 +101,49 @@ const BillingPartySchema = z
       });
     }
   });
+
+/**
+ * The consultation as the page sees it — everything the row holds except the
+ * tenant id the caller already is.
+ */
+const vatConsultationColumns = {
+  id: schema.vatConsultation.id,
+  countryCode: schema.vatConsultation.countryCode,
+  vatNumber: schema.vatConsultation.vatNumber,
+  valid: schema.vatConsultation.valid,
+  requestDate: schema.vatConsultation.requestDate,
+  consultationNumber: schema.vatConsultation.consultationNumber,
+  traderName: schema.vatConsultation.traderName,
+  traderAddress: schema.vatConsultation.traderAddress,
+  checkedAt: schema.vatConsultation.checkedAt,
+} as const;
+
+/**
+ * The deployment's own identity for QUALIFIED VIES checks — the ones that
+ * come back with a consultation number. An instance fact (the operating
+ * entity is still an accountant conversation), so it rides the environment:
+ * `VIES_REQUESTER_MEMBER_STATE` + `VIES_REQUESTER_VAT_NUMBER`, both or
+ * neither. Half a pair REFUSES rather than silently downgrading every check
+ * to an unqualified one — a typo that quietly cost the deployment its
+ * consultation numbers would be invisible until an auditor asked for them.
+ */
+class ViesRequesterConfigError extends Error {}
+function viesRequesterFromEnv(): ViesRequester | null {
+  const ms = process.env.VIES_REQUESTER_MEMBER_STATE?.trim();
+  const vat = process.env.VIES_REQUESTER_VAT_NUMBER?.trim();
+  if (!ms && !vat) return null;
+  if (!ms || !vat) {
+    throw new ViesRequesterConfigError(
+      'VIES_REQUESTER_MEMBER_STATE and VIES_REQUESTER_VAT_NUMBER must be set together — ' +
+        'half a requester would silently downgrade every check to an unqualified one.',
+    );
+  }
+  const parsed = parseVatForVies(ms, vat);
+  if (!parsed.ok) {
+    throw new ViesRequesterConfigError(`The VIES requester is misconfigured: ${parsed.reason}`);
+  }
+  return { memberStateCode: parsed.memberState, vatNumber: parsed.number };
+}
 
 /** One response shape for GET and PUT, so the page cannot see two dialects. */
 const billingPartyColumns = {
@@ -308,6 +357,12 @@ router.post('/estimate', authenticate, requireBillingRead, async (req: Authentic
  * Who invoices are addressed to. `party: null` means "not yet provided" —
  * a real state the page shows as such (no row is how the database says it,
  * migration 0012), never an error.
+ *
+ * `vatConsultation` (0111 T2) is the latest VIES answer FOR THE NUMBER AS
+ * CURRENTLY STORED — the log is append-only, so which row speaks is decided
+ * here, by matching what `billing_party` says now. A number changed since
+ * its last check therefore reads `null`, which is correct: nothing has
+ * checked the number the next invoice would rely on.
  */
 router.get('/party', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -316,14 +371,35 @@ router.get('/party', authenticate, requireBillingRead, async (req: Authenticated
       return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
     }
 
-    const rows = await withTenantDb(tenantId, getSharedPool(), async (db) =>
-      db
+    const { party, vatConsultation } = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      const rows = await db
         .select(billingPartyColumns)
         .from(schema.billingParty)
-        .where(eq(schema.billingParty.tenantId, tenantId)),
-    );
+        .where(eq(schema.billingParty.tenantId, tenantId));
+      const stored = rows[0] ?? null;
 
-    res.json({ party: rows[0] ?? null });
+      if (!stored || stored.kind !== 'business' || !stored.vatNumber) {
+        return { party: stored, vatConsultation: null };
+      }
+      const parsed = parseVatForVies(stored.countryCode, stored.vatNumber);
+      if (!parsed.ok) return { party: stored, vatConsultation: null };
+
+      const consultations = await db
+        .select(vatConsultationColumns)
+        .from(schema.vatConsultation)
+        .where(
+          and(
+            eq(schema.vatConsultation.tenantId, tenantId),
+            eq(schema.vatConsultation.countryCode, parsed.memberState),
+            eq(schema.vatConsultation.vatNumber, parsed.number),
+          ),
+        )
+        .orderBy(desc(schema.vatConsultation.checkedAt))
+        .limit(1);
+      return { party: stored, vatConsultation: consultations[0] ?? null };
+    });
+
+    res.json({ party, vatConsultation });
   } catch (error) {
     serverFault(res, 'billing_party_read_failed', 'reading your invoice details', error);
   }
@@ -381,6 +457,97 @@ router.put('/party', authenticate, requireBillingWrite, async (req: Authenticate
       });
     } else {
       serverFault(res, 'billing_party_write_failed', 'saving your invoice details', error);
+    }
+  }
+});
+
+/**
+ * POST /api/billing/party/check-vat
+ *
+ * Consult VIES about the stored VAT number, and keep the answer (workplan
+ * 0111 T2). An unvalidated number is not a defence; the consultation number
+ * this stores is.
+ *
+ * Three refusals, each with its own name, because they need different
+ * remedies:
+ *
+ *   409 `nothing_to_check`   — no business party with a VAT number stored.
+ *                              Save the details first.
+ *   409 `vat_not_checkable`  — VIES can NEVER answer this one (a GB number,
+ *                              a malformed one). Retrying changes nothing.
+ *   503 `vies_unavailable`   — VIES could not answer NOW (its member-state
+ *                              backends are famously intermittent). Nothing
+ *                              is stored: "we could not ask" is not an
+ *                              answer, and the log holds only answers.
+ *
+ * A 200 is an answer either way — `consultation.valid: false` is VIES saying
+ * no, stored exactly like a yes, because both are evidence. Every 200
+ * APPENDS: re-checking is legitimate (numbers get deregistered) and history
+ * is the point of a log.
+ */
+router.post('/party/check-vat', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    }
+    // Read the config BEFORE asking anything: a misconfigured requester must
+    // fail loudly here, not silently strip every check of its consultation
+    // number.
+    const requester = viesRequesterFromEnv();
+
+    const rows = await withTenantDb(tenantId, getSharedPool(), async (db) =>
+      db
+        .select(billingPartyColumns)
+        .from(schema.billingParty)
+        .where(eq(schema.billingParty.tenantId, tenantId)),
+    );
+    const party = rows[0];
+    if (!party || party.kind !== 'business' || !party.vatNumber) {
+      return res.status(409).json({
+        error: 'nothing_to_check',
+        reason:
+          'Only a business with a stored VAT number can be checked against VIES — save the invoice details first.',
+      });
+    }
+
+    const parsed = parseVatForVies(party.countryCode, party.vatNumber);
+    if (!parsed.ok) {
+      return res.status(409).json({ error: 'vat_not_checkable', reason: parsed.reason });
+    }
+
+    const outcome = await checkVat({ memberState: parsed.memberState, number: parsed.number }, requester);
+    if (outcome.kind === 'not_checkable') {
+      return res.status(409).json({ error: 'vat_not_checkable', reason: outcome.reason });
+    }
+    if (outcome.kind === 'unavailable') {
+      return res.status(503).json({ error: 'vies_unavailable', reason: outcome.reason });
+    }
+
+    const [consultation] = await withTenantDb(tenantId, getSharedPool(), async (db) =>
+      db
+        .insert(schema.vatConsultation)
+        .values({
+          tenantId,
+          countryCode: parsed.memberState,
+          vatNumber: parsed.number,
+          valid: outcome.valid,
+          requestDate: outcome.requestDate,
+          consultationNumber: outcome.consultationNumber,
+          traderName: outcome.traderName,
+          traderAddress: outcome.traderAddress,
+        })
+        .returning(vatConsultationColumns),
+    );
+
+    res.json({ consultation });
+  } catch (error) {
+    if (error instanceof ViesRequesterConfigError) {
+      // Configuration, not VIES: retrying cannot help, and the sentence names
+      // the two variables to fix.
+      res.status(500).json({ error: 'vies_requester_misconfigured', message: error.message });
+    } else {
+      serverFault(res, 'vat_check_failed', 'checking this VAT number', error);
     }
   }
 });

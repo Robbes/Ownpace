@@ -776,6 +776,15 @@ services:
       TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-}
       MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
       MOLLIE_WEBHOOK_SECRET: ${MOLLIE_WEBHOOK_SECRET:-}
+      # The deployment's own identity for QUALIFIED VIES checks (workplan
+      # 0111 T2) — the ones that come back with a consultation number, which
+      # is the seller's actual defence for reverse charging. Both or neither:
+      # half a pair makes the check route refuse by name rather than silently
+      # downgrade every check to an unqualified one. Unset until the
+      # operating entity (an accountant conversation) has a number to put
+      # here; unqualified checks still work and say what they are.
+      VIES_REQUESTER_MEMBER_STATE: ${VIES_REQUESTER_MEMBER_STATE:-}
+      VIES_REQUESTER_VAT_NUMBER: ${VIES_REQUESTER_VAT_NUMBER:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3123}
       WEB_URL: ${WEB_URL:-http://localhost:3123}
       API_URL: ${API_URL:-http://localhost:3001}
