@@ -69,7 +69,12 @@ beforeAll(async () => {
   } finally {
     await conn.release();
   }
-});
+  // 120s, not vitest's default 10s: this fixture initialises a PGlite cluster
+  // and runs the full migration chain, which under a loaded CI runner has
+  // exceeded 10s while passing 8/8 in isolation — the load-class flake #652
+  // documented. The offboarding and support fixtures carry the same allowance
+  // for the same reason.
+}, 120_000);
 
 afterAll(async () => {
   await driver.end?.();
