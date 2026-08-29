@@ -597,7 +597,7 @@ function landing(locale) {
     <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
     <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
   </div>
-  <p class="fineprint">${c.heroFine(money(firstMonth(TIERS[0])))}</p>
+  <p class="fineprint">${c.heroFine(money(firstMonth(TIERS[0])))} ${esc(c.vatIncluded)}</p>
 </section>
 
 <h2>${c.diffTitle}</h2>
@@ -829,6 +829,7 @@ function calculatorPage(locale) {
     <li id="tier-three"></li>
   </ul>
   <p class="fine">${esc(c.stepUpRule)}</p>
+  <p class="fine">${esc(COPY[locale].vatIncluded)}</p>
 </div>
 <p id="beyond-line" hidden>${esc(c.beyondLine)} <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
 
@@ -896,7 +897,12 @@ function build() {
           const beyond = c
             .beyond(BEYOND.paths, size(BEYOND.dataGb), BEYOND.what)
             .replace('{MAILTO}', `mailto:${SUPPORT_EMAIL}`);
-          body = body.replace('<p>[[TIERS]]</p>', tierCards(locale) + `<p class="fineprint">${beyond}</p>`);
+          body = body.replace(
+            '<p>[[TIERS]]</p>',
+            tierCards(locale) +
+              `<p class="fineprint">${esc(c.vatIncluded)}</p>` +
+              `<p class="fineprint">${beyond}</p>`,
+          );
         }
         if ((key === 'privacy' || key === 'terms') && c.translationNote) {
           body = `<blockquote><p>${c.translationNote}</p></blockquote>\n` + body;
