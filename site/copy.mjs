@@ -95,6 +95,11 @@ export const COPY = {
       `Most people want <strong>${name}</strong> — ${first} for the first month, then ${monthly} a month, for ${paths} migrations at once and ${data}.`,
     tierFirstMonth: 'first month',
     tierThen: 'a month after that',
+    // Toward consumers a displayed price IS the final price (workplan 0111
+    // T8): this says so out loud, with no rate in the copy — which country's
+    // VAT sits inside it is the seller's problem, decided per invoice by the
+    // treatment machinery, and a number here would drift the day OSS lands.
+    vatIncluded: 'All prices include VAT.',
     tierPaths: (n) => `<strong>${n}</strong> migration${n === 1 ? '' : 's'} at the same time`,
     tierData: (s) => `<strong>${s}</strong> of data moved`,
     tierSetup: (m) => `${m} of that first month is one-off setup`,
@@ -233,6 +238,7 @@ export const COPY = {
       `De meeste mensen willen <strong>${name}</strong> — ${first} voor de eerste maand, daarna ${monthly} per maand, voor ${paths} verhuizingen tegelijk en ${data}.`,
     tierFirstMonth: 'eerste maand',
     tierThen: 'per maand daarna',
+    vatIncluded: 'Alle prijzen zijn inclusief btw.',
     tierPaths: (n) => `<strong>${n}</strong> verhuizing${n === 1 ? '' : 'en'} tegelijk`,
     tierData: (s) => `<strong>${s}</strong> aan verhuisde gegevens`,
     tierSetup: (m) => `${m} van die eerste maand is eenmalige inrichting`,

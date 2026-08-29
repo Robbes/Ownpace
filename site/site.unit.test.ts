@@ -98,6 +98,52 @@ describe('the published prices agree with the decision that set them', () => {
       expect(total(t, 3)).toBe(t.setup + t.monthly * 3);
     }
   });
+
+  it('says out loud that prices include VAT, wherever a price is shown (0111 T8)', async () => {
+    // Toward a consumer a displayed price IS the final price; the pages now
+    // say so instead of leaving it implicit. Deliberately no rate in the
+    // copy — which country's VAT sits inside the price is decided per
+    // invoice by the treatment machinery, and a number here would drift the
+    // day OSS activates or a rate changes.
+    const { rendered } = (await import('./build.mjs')) as unknown as {
+      rendered: Array<{ file: string; html: string }>;
+    };
+    const { COPY } = (await import('./copy.mjs')) as unknown as {
+      COPY: Record<string, { vatIncluded: string }>;
+    };
+
+    // The three surfaces that show prices today, named so a regression fails
+    // with a file, not a count.
+    const MUST_LABEL = [
+      'index.html',
+      'pricing.html',
+      'estimate.html',
+      'nl/index.html',
+      'nl/prijzen.html',
+      'nl/schatting.html',
+    ];
+    for (const file of MUST_LABEL) {
+      const page = rendered.find((p) => p.file === file);
+      expect(page, `${file}: page missing from the build`).toBeDefined();
+      const locale = file.startsWith('nl/') ? 'nl' : 'en';
+      expect(
+        page!.html,
+        `${file}: shows prices without saying they include VAT`,
+      ).toContain(COPY[locale]!.vatIncluded);
+    }
+
+    // And the structural rule, so a FUTURE page with a tier table cannot
+    // ship unlabeled: anything rendering the tier cards or the calculator's
+    // tier card carries the sentence in its own language.
+    for (const page of rendered) {
+      if (!/class="tiers"|id="tier-card"/.test(page.html)) continue;
+      const locale = page.file.startsWith('nl/') ? 'nl' : 'en';
+      expect(
+        page.html,
+        `${page.file}: renders tier prices without the VAT-included label`,
+      ).toContain(COPY[locale]!.vatIncluded);
+    }
+  });
 });
 
 describe('both locales are complete', () => {
