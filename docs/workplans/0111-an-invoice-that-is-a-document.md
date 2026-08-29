@@ -1,10 +1,14 @@
 # Workplan 0111 — an invoice that is a document
 
-## Status — 2026-08-28 (update this block at the end of every session)
+## Status — 2026-08-29 (update this block at the end of every session)
 
-**Drafted for review. Nothing built.** Revised the same day after the owner answered a second
-round: **T0 is decided (Moneybird)**, the market is **consumer-primary, not B2B-primary**, and
-one claim in the first draft was wrong and has been corrected — see §"Who is the controller".
+**Drafted for review; three more owner decisions landed 2026-08-29.** T9 (billing shape),
+the erasure-mirror question and the OSS timing are now decided — rows and §"What this
+changes about erasure" updated; ADR-0044 records T0's operative rules. Still open: the
+seller-entity facts (the operating entity is an accountant conversation) and the
+sign-off (open decisions 4–5). Earlier: revised 2026-08-28 after the owner's second round —
+**T0 decided (Moneybird)**, the market **consumer-primary, not B2B-primary**, and one claim
+in the first draft corrected — see §"Who is the controller".
 
 **The one-line summary of the finding:** the `invoice` table has amounts and no identity.
 There is no invoice number, no seller, no buyer, no address, no VAT number and no line
@@ -31,8 +35,8 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T6 Delivery: the email and the download | 📋 Planned (needs T5) | `GET /sales_invoices/{id}/download_pdf`. Serves **their** PDF, never one we render. Two documents for one sale is the failure this task exists to prevent. |
 | T7 Credit notes | 📋 Planned (needs T5) | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. An issued invoice is immutable; `invoice.status` is mutable today and nothing stops an `UPDATE`. Close that at the database. |
 | T8 The price page stops promising 21% | 📋 Planned (needs T3) | 0088's calculator computes one VAT-inclusive figure. For consumers this is not cosmetic: **consumers must be shown a price including VAT**, so the field is legally required and currently wrong for anyone outside NL. |
-| T9 Billing frequency, decided rather than defaulted | 📋 **New — decide before T4** | At €9.99/month, payment fees are **3.2–4.3%** because fixed per-transaction costs dominate. One annual charge is **~0.3%**. See §"Billing frequency is the biggest number in this plan". |
-| T10 Retention, revisited now that we are not the record | 📋 Planned (needs T4) | **This partly undoes 0110's retained-invoice work, and that is the honest outcome.** See §"What this changes about erasure". |
+| T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. |
+| T10 Retention, revisited now that we are not the record | ✅ **Decided 2026-08-29: purge the mirror on erasure, keep the pointer** — build remains (needs T4) | On erasure the mirror rows go; `erasure_record` keeps only the Moneybird invoice numbers, and the operator's answer becomes "these numbers, held in Moneybird". Retires most of #652's screen — the honest outcome §"What this changes about erasure" predicted. |
 
 ## Why this exists
 
@@ -61,6 +65,15 @@ An invoice can be perfectly right about usage and still not be an invoice.
 5. **Credit notes are in scope now**, not later.
 6. **Mollie stays** for payment. It is already built (0086 T6) and at these amounts is the
    cheapest option available — see §"Billing frequency".
+
+Three more, 2026-08-29:
+
+7. **Billing shape: monthly and annual, annual discounted** (T9 — the reasoning is in that
+   row: a standing exit posture, not a one-shot move).
+8. **On erasure the invoice mirror is purged; only the Moneybird numbers remain** (T10).
+9. **OSS waits for the threshold**: Dutch 21% to every EU consumer until a quarter's
+   forecast crosses €10k cross-border; T3 is built so the switch is a config change and a
+   date.
 
 ## Three vocabularies, and why they keep colliding
 
@@ -301,9 +314,10 @@ justification is exactly what an erasure is supposed to remove. The cleaner post
 purge the mirror on erasure, and let the operator's answer to *"what were we obliged to
 keep"* be a link into Moneybird.
 
-Both are defensible. The choice is the owner's, and it is listed in §"Still open". What
-should **not** happen is the two coexisting by accident, with Ownpace holding erased
-customers' billing details because a screen was built before the record moved.
+**Decided 2026-08-29: purge the mirror, keep the pointer.** On erasure the mirror rows go
+and `erasure_record` retains only the Moneybird invoice numbers — a number identifies a
+document without identifying a person, so the erasure stays an erasure and the
+administrative answer stays answerable. T10 reshapes #652's screen accordingly.
 
 ## Where the cost is
 
@@ -329,12 +343,10 @@ customers' billing details because a screen was built before the record moved.
 
 ## Still open — owner decisions this plan cannot make
 
-1. **Billing frequency** (T9): monthly, annual, or a one-off for a finite migration. Decide
-   before T4.
-2. **After erasure: purge the invoice mirror, or keep it?** See §"What this changes about
-   erasure". A merged screen rides on this.
-3. **Is OSS already registered, or under the €10,000 threshold today?** Decides which code
-   path T3 ships first.
+1. ~~Billing frequency~~ **Decided 2026-08-29** — T9 row.
+2. ~~Erasure mirror~~ **Decided 2026-08-29: purge, keep pointer** — T10 row.
+3. ~~OSS~~ **Decided 2026-08-29: under the threshold, register when a quarter's forecast
+   crosses** — T3 ships the under-threshold path first, switch-ready.
 4. **The four seller facts** — `«LEGAL_ENTITY»`, `«REGISTERED_ADDRESS»`, `«COMPANY_NUMBER»`,
    `«VAT_NUMBER»`. Already tracked by 0086 T5; nothing here can be tested end to end without
    them.
