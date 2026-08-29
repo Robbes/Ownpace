@@ -57,6 +57,61 @@ const EstimateCostSchema = z.object({
 });
 
 /**
+ * The buyer, as the customer states them (workplan 0111 T1).
+ *
+ * Consumer-shaped first: `kind` DEFAULTS to consumer, so the minimal honest
+ * body — a person, an address, a country — needs no flag, and business is the
+ * variant that says so. The vat-number-only-on-business rule is enforced here
+ * AND by `billing_party_vat_number_check` in the database; this copy exists to
+ * answer with a 400 and a sentence instead of a constraint violation.
+ *
+ * What is deliberately NOT validated: whether the VAT number is real (VIES is
+ * 0111 T2) and whether the country matches where the customer actually is
+ * (evidence is 0111 T3). This route stores a statement, not a verdict.
+ */
+const BillingPartySchema = z
+  .object({
+    kind: z.enum(['consumer', 'business']).default('consumer'),
+    name: z.string().trim().min(1).max(200),
+    addressLine1: z.string().trim().min(1).max(200),
+    addressLine2: z.string().trim().max(200).optional(),
+    postalCode: z.string().trim().min(1).max(16),
+    city: z.string().trim().min(1).max(100),
+    // Uppercased before the shape check, so "nl" is accepted as the NL the
+    // customer meant rather than refused on a case nobody chose deliberately.
+    countryCode: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^[A-Z]{2}$/, 'countryCode must be a two-letter ISO 3166-1 code'),
+    vatNumber: z.string().trim().max(32).optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.kind !== 'business' && body.vatNumber) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['vatNumber'],
+        message: 'a VAT number belongs to a business — set kind to business, or leave it out',
+      });
+    }
+  });
+
+/** One response shape for GET and PUT, so the page cannot see two dialects. */
+const billingPartyColumns = {
+  tenantId: schema.billingParty.tenantId,
+  kind: schema.billingParty.kind,
+  name: schema.billingParty.name,
+  addressLine1: schema.billingParty.addressLine1,
+  addressLine2: schema.billingParty.addressLine2,
+  postalCode: schema.billingParty.postalCode,
+  city: schema.billingParty.city,
+  countryCode: schema.billingParty.countryCode,
+  vatNumber: schema.billingParty.vatNumber,
+  createdAt: schema.billingParty.createdAt,
+  updatedAt: schema.billingParty.updatedAt,
+} as const;
+
+/**
  * GET /api/billing/usage
  * 
  * Get current usage metrics for the tenant
@@ -243,6 +298,89 @@ router.post('/estimate', authenticate, requireBillingRead, async (req: Authentic
       });
     } else {
       serverFault(res, 'estimate_failed', 'estimating the cost', error);
+    }
+  }
+});
+
+/**
+ * GET /api/billing/party
+ *
+ * Who invoices are addressed to. `party: null` means "not yet provided" —
+ * a real state the page shows as such (no row is how the database says it,
+ * migration 0012), never an error.
+ */
+router.get('/party', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    }
+
+    const rows = await withTenantDb(tenantId, getSharedPool(), async (db) =>
+      db
+        .select(billingPartyColumns)
+        .from(schema.billingParty)
+        .where(eq(schema.billingParty.tenantId, tenantId)),
+    );
+
+    res.json({ party: rows[0] ?? null });
+  } catch (error) {
+    serverFault(res, 'billing_party_read_failed', 'reading your invoice details', error);
+  }
+});
+
+/**
+ * PUT /api/billing/party
+ *
+ * Create or replace the buyer's details — an UPSERT keyed on the tenant, so
+ * sending the same body twice converges on the same row (hard rule 1) and
+ * there is no separate create-vs-edit path to drift. The whole statement is
+ * replaced each time: these fields are one fact about one buyer, and a partial
+ * PATCH would let a kind switch strand a stale VAT number, which is exactly
+ * the contradiction the database refuses.
+ */
+router.put('/party', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
+    }
+    const body = BillingPartySchema.parse(req.body);
+
+    // Normalised at the seam: optional strings that arrived empty are stored
+    // as NULL, and a consumer's vat_number is NULL whatever was sent (the
+    // schema already refused a non-empty one).
+    const row = {
+      kind: body.kind,
+      name: body.name,
+      addressLine1: body.addressLine1,
+      addressLine2: body.addressLine2 || null,
+      postalCode: body.postalCode,
+      city: body.city,
+      countryCode: body.countryCode,
+      vatNumber: body.kind === 'business' && body.vatNumber ? body.vatNumber : null,
+    };
+
+    const [party] = await withTenantDb(tenantId, getSharedPool(), async (db) =>
+      db
+        .insert(schema.billingParty)
+        .values({ tenantId, ...row })
+        .onConflictDoUpdate({
+          target: schema.billingParty.tenantId,
+          set: { ...row, updatedAt: new Date() },
+        })
+        .returning(billingPartyColumns),
+    );
+
+    res.json({ party });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: 'Validation error',
+        details: error.issues,
+      });
+    } else {
+      serverFault(res, 'billing_party_write_failed', 'saving your invoice details', error);
     }
   }
 });

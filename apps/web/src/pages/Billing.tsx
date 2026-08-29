@@ -15,12 +15,12 @@
  * sentence goes through the dictionary.
  */
 import React from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, TrendingUp, DollarSign, FileText, AlertCircle, Loader2 } from 'lucide-react';
-import { billingApi, type Invoice } from '../services/billing-service.ts';
+import { billingApi, type Invoice, type BillingPartyInput } from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import StateChip from '../components/StateChip.tsx';
 
 /** A failed read said as such (hard rule 9 / 0033 T2) — before this, a failed
@@ -40,6 +40,270 @@ const ReadFailed: React.FC<{ heading: string; error: unknown; footnote: string }
     </div>
   </div>
 );
+
+/**
+ * The countries the picker offers: the EU-27 plus the EEA (IS, LI, NO),
+ * Switzerland and the UK — where the people this product bills actually are
+ * (NL-first launch, EU consumers primary). The API accepts any ISO 3166-1
+ * alpha-2 code, so widening this is a UI decision, not a schema change. The
+ * NAMES come from Intl.DisplayNames in the viewer's own language; only the
+ * codes are stated here, because the codes are the stable fact.
+ */
+const BILLABLE_COUNTRIES = [
+  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU',
+  'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES',
+  'SE', 'IS', 'LI', 'NO', 'CH', 'GB',
+] as const;
+
+const inputClass =
+  'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+const labelClass = 'block text-sm text-gray-600 mb-1';
+
+/**
+ * Who invoices are addressed to (workplan 0111 T1) — the buyer, as data.
+ *
+ * CONSUMER-SHAPED FIRST: the form opens as a private person, and "business" is
+ * the variant you choose, which then — and only then — offers a VAT number
+ * field. That mirrors the server exactly (`kind` defaults to consumer; a
+ * consumer with a VAT number is refused by the database itself), so the form
+ * cannot submit a shape the API would have to talk the customer out of.
+ *
+ * No row yet is a real state, said as one: the amber sentence, not an error —
+ * and the form below it IS the remedy, so the ask and the answer share a card.
+ */
+const InvoiceDetailsCard: React.FC = () => {
+  const t = useT();
+  const { locale } = useLocale();
+  const queryClient = useQueryClient();
+
+  const { data: party, isLoading, error } = useQuery({
+    queryKey: ['billing-party'],
+    queryFn: () => billingApi.getBillingParty(),
+  });
+
+  const [form, setForm] = React.useState<BillingPartyInput>({
+    kind: 'consumer',
+    name: '',
+    addressLine1: '',
+    addressLine2: '',
+    postalCode: '',
+    city: '',
+    countryCode: 'NL',
+    vatNumber: '',
+  });
+  const [saved, setSaved] = React.useState(false);
+
+  // Seed the form from the stored row. Re-runs after a save (the mutation
+  // writes the server's answer into the query), which re-syncs the form to
+  // what was actually stored — trimming included.
+  React.useEffect(() => {
+    if (!party) return;
+    setForm({
+      kind: party.kind,
+      name: party.name,
+      addressLine1: party.addressLine1,
+      addressLine2: party.addressLine2 ?? '',
+      postalCode: party.postalCode,
+      city: party.city,
+      countryCode: party.countryCode,
+      vatNumber: party.vatNumber ?? '',
+    });
+  }, [party]);
+
+  const mutation = useMutation({
+    mutationFn: (input: BillingPartyInput) => billingApi.putBillingParty(input),
+    onSuccess: (stored) => {
+      queryClient.setQueryData(['billing-party'], stored);
+      setSaved(true);
+    },
+  });
+
+  const set = (field: keyof BillingPartyInput, value: string) => {
+    setSaved(false);
+    setForm((f) => ({ ...f, [field]: value }));
+  };
+
+  const countries = React.useMemo(() => {
+    // Intl.DisplayNames is everywhere this app runs, but a missing region name
+    // must degrade to the code, never to a blank option on a tax form.
+    let names: Intl.DisplayNames | null = null;
+    try {
+      names = new Intl.DisplayNames([locale], { type: 'region' });
+    } catch {
+      names = null;
+    }
+    return BILLABLE_COUNTRIES.map((code) => ({ code, label: names?.of(code) ?? code })).sort(
+      (a, b) => a.label.localeCompare(b.label, locale),
+    );
+  }, [locale]);
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    mutation.mutate({
+      kind: form.kind,
+      name: form.name.trim(),
+      addressLine1: form.addressLine1.trim(),
+      addressLine2: form.addressLine2?.trim() || undefined,
+      postalCode: form.postalCode.trim(),
+      city: form.city.trim(),
+      countryCode: form.countryCode,
+      vatNumber:
+        form.kind === 'business' && form.vatNumber?.trim() ? form.vatNumber.trim() : undefined,
+    });
+  };
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-900">{t('billing.party.title')}</h2>
+        <p className="text-sm text-gray-500 mt-1">{t('billing.party.intro')}</p>
+      </div>
+      <div className="p-6">
+        {error != null ? (
+          <ReadFailed
+            heading={t('billing.party.loadFailed')}
+            error={error}
+            footnote={t('billing.loadFailedNotEmpty')}
+          />
+        ) : isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          </div>
+        ) : (
+          <form onSubmit={onSubmit} className="space-y-4">
+            {party == null && (
+              <p className="text-sm text-gray-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                {t('billing.party.missing')}
+              </p>
+            )}
+
+            <div className="flex gap-6">
+              {(['consumer', 'business'] as const).map((kind) => (
+                <label key={kind} className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="radio"
+                    name="billing-party-kind"
+                    checked={form.kind === kind}
+                    onChange={() => set('kind', kind)}
+                  />
+                  {kind === 'consumer'
+                    ? t('billing.party.kindConsumer')
+                    : t('billing.party.kindBusiness')}
+                </label>
+              ))}
+            </div>
+
+            <div>
+              <label className={labelClass} htmlFor="party-name">{t('billing.party.name')}</label>
+              <input
+                id="party-name"
+                className={inputClass}
+                value={form.name}
+                onChange={(e) => set('name', e.target.value)}
+                required
+                maxLength={200}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass} htmlFor="party-address1">{t('billing.party.addressLine1')}</label>
+              <input
+                id="party-address1"
+                className={inputClass}
+                value={form.addressLine1}
+                onChange={(e) => set('addressLine1', e.target.value)}
+                required
+                maxLength={200}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass} htmlFor="party-address2">{t('billing.party.addressLine2')}</label>
+              <input
+                id="party-address2"
+                className={inputClass}
+                value={form.addressLine2 ?? ''}
+                onChange={(e) => set('addressLine2', e.target.value)}
+                maxLength={200}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className={labelClass} htmlFor="party-postal">{t('billing.party.postalCode')}</label>
+                <input
+                  id="party-postal"
+                  className={inputClass}
+                  value={form.postalCode}
+                  onChange={(e) => set('postalCode', e.target.value)}
+                  required
+                  maxLength={16}
+                />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="party-city">{t('billing.party.city')}</label>
+                <input
+                  id="party-city"
+                  className={inputClass}
+                  value={form.city}
+                  onChange={(e) => set('city', e.target.value)}
+                  required
+                  maxLength={100}
+                />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="party-country">{t('billing.party.country')}</label>
+                <select
+                  id="party-country"
+                  className={inputClass}
+                  value={form.countryCode}
+                  onChange={(e) => set('countryCode', e.target.value)}
+                >
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {form.kind === 'business' && (
+              <div>
+                <label className={labelClass} htmlFor="party-vat">{t('billing.party.vatNumber')}</label>
+                <input
+                  id="party-vat"
+                  className={inputClass}
+                  value={form.vatNumber ?? ''}
+                  onChange={(e) => set('vatNumber', e.target.value)}
+                  maxLength={32}
+                />
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <button
+                type="submit"
+                disabled={mutation.isPending}
+                className="inline-flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+              >
+                {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {t('billing.party.save')}
+              </button>
+              {saved && <span className="text-sm text-green-700">{t('billing.party.saved')}</span>}
+              {mutation.isError && (
+                <span className="text-sm text-red-800">
+                  <span className="font-medium">{t('billing.party.saveFailed')}</span>{' '}
+                  {serverMessage(mutation.error)}
+                </span>
+              )}
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const Billing: React.FC = () => {
   const t = useT();
@@ -239,6 +503,9 @@ const Billing: React.FC = () => {
           <p className="text-gray-500">{t('billing.noUsage')}</p>
         )}
       </div>
+
+      {/* Who invoices are addressed to — above the invoices it will be on. */}
+      <InvoiceDetailsCard />
 
       {/* Invoices */}
       <div className="bg-white rounded-lg border border-gray-200">

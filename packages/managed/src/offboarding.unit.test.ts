@@ -127,6 +127,14 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
      VALUES ($1, $2, $3, 'owner', 'active')`,
     [tenantId, `sub-${suffix}`, `owner-${suffix}@example.test`],
   );
+  // The buyer (workplan 0111 T1) — a consumer, deliberately, since that is the
+  // default shape. The NAME differs from the tenant's display name on purpose:
+  // the detach test below has to be able to tell which one was stamped.
+  await conn.query(
+    `INSERT INTO billing_party (tenant_id, kind, name, address_line1, postal_code, city, country_code)
+     VALUES ($1, 'consumer', $2, 'Dorpsstraat 1', '1234 AB', 'Ons Dorp', 'NL')`,
+    [tenantId, `Piet ${suffix}`],
+  );
   await conn.query(
     `INSERT INTO payment_method (tenant_id, mollie_id, type)
      VALUES ($1, $2, 'creditcard')`,
@@ -349,16 +357,36 @@ describe('purging a tenant', () => {
     await closeTenant(db, LEAVING, 0, 'owner@acme.example', NOW);
     await purgeTenant(db, LEAVING, NOW);
 
+    // The BUYER's name (billing_party, 0111 T1), not the tenant's display
+    // label 'acme leaving': the label is what somebody typed for a workspace;
+    // the buyer is who the invoice was for.
     const { rows } = await conn.query<{ tenant_id: string | null; billed_to_name: string; total: string }>(
-      `SELECT tenant_id, billed_to_name, total FROM invoice WHERE billed_to_name = 'acme leaving'`,
+      `SELECT tenant_id, billed_to_name, total FROM invoice WHERE billed_to_name = 'Piet leaving'`,
     );
     expect(rows).toHaveLength(1);
     // Detached — no link back to a tenant that no longer exists.
     expect(rows[0]?.tenant_id).toBeNull();
     // And still able to say who it was for, which is the whole point of
     // capturing the name rather than only dropping the foreign key.
-    expect(rows[0]?.billed_to_name).toBe('acme leaving');
+    expect(rows[0]?.billed_to_name).toBe('Piet leaving');
     expect(rows[0]?.total).toBe('121');
+  });
+
+  it('falls back to the tenant name when no buyer details were ever provided', async () => {
+    // billing_party is optional until T4 refuses to invoice without it, so the
+    // detach has to survive its absence — an approximate name on a retained
+    // invoice beats an invoice that says nobody. Removed as the OWNER: the
+    // request path holds no DELETE on billing_party, and this is exactly the
+    // out-of-band state (a tenant that never filled the form in) being staged.
+    await conn.query(`DELETE FROM billing_party WHERE tenant_id = $1`, [LEAVING]);
+    await closeTenant(db, LEAVING, 0, 'owner@acme.example', NOW);
+    await purgeTenant(db, LEAVING, NOW);
+
+    const { rows } = await conn.query<{ billed_to_name: string | null }>(
+      `SELECT billed_to_name FROM invoice WHERE tenant_id IS NULL`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.billed_to_name).toBe('acme leaving');
   });
 
   it('writes a receipt naming what it removed and what it kept', async () => {

@@ -133,6 +133,47 @@ export const paymentMethod = pgTable(
 );
 
 
+// ========================= The buyer =========================
+
+/**
+ * Who invoices are addressed to (workplan 0111 T1, migration 0012).
+ *
+ * Consumer-shaped first, per the owner's 2026-08-28 decision that consumers —
+ * families rationalising themselves onto EU services — are the primary market:
+ * `kind` defaults to `'consumer'`, and the business case is the VARIANT. The
+ * database enforces the half of that a route could get wrong (a consumer row
+ * cannot carry a VAT number; `billing_party_vat_number_check`).
+ *
+ * One row per tenant, keyed like `tenant_pricing`: NO ROW means "not yet
+ * provided", the billing page says so, and nothing may be invoiced against it.
+ * Deliberately NOT validation: whether `vatNumber` is real is a VIES
+ * consultation (0111 T2), and `countryCode` is the customer's statement, not
+ * the place-of-supply decision (0111 T3).
+ *
+ * Purged on erasure (`PURGED_TABLES`): for a consumer this is a person's name
+ * and home address. What an invoice must keep saying about its buyer is
+ * stamped onto the invoice at detach time, and the legal document lives in the
+ * bookkeeping system (ADR-0044).
+ */
+export const billingParty = pgTable('billing_party', {
+  tenantId: uuid('tenant_id')
+    .primaryKey()
+    .references(() => tenant.id, { onDelete: 'cascade' }),
+  kind: text('kind', { enum: ['consumer', 'business'] }).notNull().default('consumer'),
+  /** A person's full name or a legal entity's registered name — never the
+   *  tenant's display label, which nobody chose as the name on a tax document. */
+  name: text('name').notNull(),
+  addressLine1: text('address_line1').notNull(),
+  addressLine2: text('address_line2'),
+  postalCode: text('postal_code').notNull(),
+  city: text('city').notNull(),
+  /** ISO 3166-1 alpha-2, uppercase (CHECK-pinned in the migration). */
+  countryCode: text('country_code').notNull(),
+  vatNumber: text('vat_number'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ========================= Accounts =========================
 
 export const tenantMember = pgTable(

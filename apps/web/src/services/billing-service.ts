@@ -91,9 +91,40 @@ export const PayResponseSchema = z.object({
   status: z.string(),
 });
 
+/** GET/PUT /billing/party (workplan 0111 T1). `party` is null until the
+ *  customer provides it — a state the page renders as an ask, not an error. */
+export const BillingPartySchema = z.object({
+  tenantId: z.string(),
+  kind: z.enum(['consumer', 'business']),
+  name: z.string(),
+  addressLine1: z.string(),
+  addressLine2: z.string().nullish(),
+  postalCode: z.string(),
+  city: z.string(),
+  countryCode: z.string(),
+  vatNumber: z.string().nullish(),
+  createdAt: z.string(),
+  updatedAt: z.string().nullish(),
+});
+
 export type UsageResponse = z.infer<typeof UsageResponseSchema>;
 export type Invoice = z.infer<typeof InvoiceSchema>;
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
+export type BillingParty = z.infer<typeof BillingPartySchema>;
+
+/** What PUT /billing/party accepts. `kind` may be omitted — the server
+ *  defaults it to `consumer`, which is T1's whole point — but the form always
+ *  says it, because a form has to show the choice it is making. */
+export interface BillingPartyInput {
+  kind: 'consumer' | 'business';
+  name: string;
+  addressLine1: string;
+  addressLine2?: string;
+  postalCode: string;
+  city: string;
+  countryCode: string;
+  vatNumber?: string;
+}
 
 export const billingApi = {
   // Get current usage
@@ -125,6 +156,19 @@ export const billingApi = {
   createPayment: async (invoiceId: string) => {
     const response = await apiClient.post(`/billing/invoices/${invoiceId}/pay`);
     return PayResponseSchema.parse(response.data);
+  },
+
+  /** Who invoices are addressed to; null while nobody has said (0111 T1). */
+  getBillingParty: async (): Promise<BillingParty | null> => {
+    const response = await apiClient.get('/billing/party');
+    const party: unknown = response.data.party;
+    return party == null ? null : BillingPartySchema.parse(party);
+  },
+
+  /** Upsert — the server converges repeated sends onto one row. Owner/admin. */
+  putBillingParty: async (input: BillingPartyInput): Promise<BillingParty> => {
+    const response = await apiClient.put('/billing/party', input);
+    return BillingPartySchema.parse(response.data.party);
   },
 
   // List payment methods

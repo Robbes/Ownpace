@@ -101,6 +101,12 @@ export const PURGED_TABLES = [
   'mailbox_mapping',
   'mailbox',
   'connection',
+  // The buyer's identity (workplan 0111 T1): for a consumer, a person's name
+  // and home address — exactly what an erasure erases. Deleted AFTER the
+  // invoice detach above has stamped the buyer's name onto the invoices, which
+  // is the only part of this row an invoice is allowed to keep needing; the
+  // legal document itself lives in the bookkeeping system (ADR-0044).
+  'billing_party',
   'payment_method',
   'usage_metric',
   'tenant_member',
@@ -339,9 +345,19 @@ export async function purgeTenant(
   // Detach the invoices BEFORE deleting the tenant, and stamp what they were
   // for. After the tenant row is gone there is nothing left to read the name
   // from, and an invoice that cannot say who it billed is not a record.
+  //
+  // The BUYER's name over the tenant's display name (workplan 0111 T1): since
+  // billing_party exists, the tenant name is a workspace label somebody typed
+  // ("Jansen thuis"), while billing_party.name is who invoices are addressed
+  // to. The label stays as the fallback for tenants that never provided
+  // details — an approximate name beats an invoice that says nobody. Runs
+  // before the PURGED_TABLES loop, so billing_party still exists to read.
   const invoices = await db.execute(sql`
     UPDATE invoice
-       SET billed_to_name = COALESCE(billed_to_name, (SELECT name FROM tenant WHERE id = ${tenantId}::uuid)),
+       SET billed_to_name = COALESCE(
+             billed_to_name,
+             (SELECT name FROM billing_party WHERE tenant_id = ${tenantId}::uuid),
+             (SELECT name FROM tenant WHERE id = ${tenantId}::uuid)),
            tenant_id = NULL
      WHERE tenant_id = ${tenantId}::uuid
     RETURNING id
