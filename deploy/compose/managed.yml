@@ -785,6 +785,13 @@ services:
       # here; unqualified checks still work and say what they are.
       VIES_REQUESTER_MEMBER_STATE: ${VIES_REQUESTER_MEMBER_STATE:-}
       VIES_REQUESTER_VAT_NUMBER: ${VIES_REQUESTER_VAT_NUMBER:-}
+      # The VAT-treatment decision's two switches (workplan 0111 T3). The
+      # seller's member state defaults to NL until the operating-entity
+      # question is settled; the OSS flag stays false until the owner's
+      # €10k-threshold decision flips — flipping it changes what EU consumers
+      # outside the seller country are told their invoices will carry.
+      OWNPACE_SELLER_COUNTRY: ${OWNPACE_SELLER_COUNTRY:-NL}
+      VAT_OSS_ACTIVE: ${VAT_OSS_ACTIVE:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3123}
       WEB_URL: ${WEB_URL:-http://localhost:3123}
       API_URL: ${API_URL:-http://localhost:3001}

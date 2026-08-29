@@ -122,17 +122,27 @@ export const VatConsultationSchema = z.object({
   checkedAt: z.string(),
 });
 
+/** The server's VAT decision for this buyer (0111 T3) — a treatment, never a
+ *  rate; what a rate is belongs to the bookkeeping system's own tables. */
+export const VatTreatmentSchema = z.object({
+  treatment: z.enum(['domestic_standard', 'reverse_charge', 'destination_oss', 'outside_eu']),
+  rationale: z.string(),
+});
+
 export type UsageResponse = z.infer<typeof UsageResponseSchema>;
 export type Invoice = z.infer<typeof InvoiceSchema>;
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 export type BillingParty = z.infer<typeof BillingPartySchema>;
 export type VatConsultation = z.infer<typeof VatConsultationSchema>;
+export type VatTreatment = z.infer<typeof VatTreatmentSchema>;
 
-/** What GET /billing/party serves: the statement, and the consultation that
- *  speaks for it — null when the currently stored number was never checked. */
+/** What GET /billing/party serves: the statement, the consultation that
+ *  speaks for it (null when the stored number was never checked), and the
+ *  treatment the two decide (null while no party is stored). */
 export interface BillingPartyRead {
   party: BillingParty | null;
   vatConsultation: VatConsultation | null;
+  vatTreatment: VatTreatment | null;
 }
 
 /** What PUT /billing/party accepts. `kind` may be omitted — the server
@@ -187,9 +197,11 @@ export const billingApi = {
     const response = await apiClient.get('/billing/party');
     const party: unknown = response.data.party;
     const consultation: unknown = response.data.vatConsultation;
+    const treatment: unknown = response.data.vatTreatment;
     return {
       party: party == null ? null : BillingPartySchema.parse(party),
       vatConsultation: consultation == null ? null : VatConsultationSchema.parse(consultation),
+      vatTreatment: treatment == null ? null : VatTreatmentSchema.parse(treatment),
     };
   },
 

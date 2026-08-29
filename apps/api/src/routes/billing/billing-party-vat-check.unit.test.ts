@@ -119,6 +119,8 @@ beforeEach(async () => {
   checkVatMock.mockReset();
   delete process.env.VIES_REQUESTER_MEMBER_STATE;
   delete process.env.VIES_REQUESTER_VAT_NUMBER;
+  delete process.env.OWNPACE_SELLER_COUNTRY;
+  delete process.env.VAT_OSS_ACTIVE;
   await owner('DELETE FROM vat_consultation');
   await owner('DELETE FROM billing_party');
 });
@@ -298,6 +300,51 @@ describe('GET /api/billing/party speaks for the number as currently stored', () 
     const res = await request(app).get('/api/billing/party');
     expect(res.body.party).toBeNull();
     expect(res.body.vatConsultation).toBeNull();
+  });
+});
+
+describe('the treatment the GET serves (0111 T3)', () => {
+  it('no party means no treatment — null, not a guess about nobody', async () => {
+    const res = await request(app).get('/api/billing/party');
+    expect(res.body.vatTreatment).toBeNull();
+  });
+
+  it('a domestic buyer reads domestic_standard, valid consultation or not', async () => {
+    await seedBusinessParty('NL123456789B01', 'NL');
+    checkVatMock.mockResolvedValue(CHECKED_VALID);
+    await request(app).post('/api/billing/party/check-vat');
+
+    const res = await request(app).get('/api/billing/party');
+    expect(res.body.vatTreatment.treatment).toBe('domestic_standard');
+  });
+
+  it('an EU business flips to reverse_charge exactly when the consultation lands', async () => {
+    await seedBusinessParty('DE123456789', 'DE');
+
+    // Before any check: the conservative default, charged like a consumer.
+    const before = await request(app).get('/api/billing/party');
+    expect(before.body.vatTreatment.treatment).toBe('domestic_standard');
+    expect(before.body.vatTreatment.rationale).toMatch(/without a valid/i);
+
+    checkVatMock.mockResolvedValue(CHECKED_VALID);
+    await request(app).post('/api/billing/party/check-vat');
+    const after = await request(app).get('/api/billing/party');
+    expect(after.body.vatTreatment.treatment).toBe('reverse_charge');
+  });
+
+  it('an EU consumer across the border follows the OSS switch', async () => {
+    await owner(
+      `INSERT INTO billing_party (tenant_id, kind, name, address_line1, postal_code, city, country_code)
+       VALUES ($1, 'consumer', 'Uwe', 'Hauptstraße 1', '10115', 'Berlin', 'DE')`,
+      [TENANT_A],
+    );
+
+    const under = await request(app).get('/api/billing/party');
+    expect(under.body.vatTreatment.treatment).toBe('domestic_standard');
+
+    process.env.VAT_OSS_ACTIVE = 'true';
+    const over = await request(app).get('/api/billing/party');
+    expect(over.body.vatTreatment.treatment).toBe('destination_oss');
   });
 });
 

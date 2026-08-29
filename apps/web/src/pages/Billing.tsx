@@ -91,6 +91,20 @@ const InvoiceDetailsCard: React.FC = () => {
   // what billing_party currently says, so a changed number honestly reads
   // "not checked" until somebody checks it.
   const consultation = data?.vatConsultation ?? null;
+  // What an invoice for THIS buyer would carry (0111 T3): the server's
+  // decision, rendered in the customer's own words below — never a number,
+  // because the rate belongs to the bookkeeping system.
+  const treatment = data?.vatTreatment?.treatment ?? null;
+  const treatmentText =
+    treatment === 'domestic_standard'
+      ? t('billing.party.vat.treatment.domestic')
+      : treatment === 'reverse_charge'
+        ? t('billing.party.vat.treatment.reverseCharge')
+        : treatment === 'destination_oss'
+          ? t('billing.party.vat.treatment.oss')
+          : treatment === 'outside_eu'
+            ? t('billing.party.vat.treatment.outsideEu')
+            : null;
 
   const [form, setForm] = React.useState<BillingPartyInput>({
     kind: 'consumer',
@@ -370,6 +384,17 @@ const InvoiceDetailsCard: React.FC = () => {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* The treatment describes the STORED buyer, like the VIES status
+                above — a draft in the form has no treatment until saved. */}
+            {party != null && treatmentText != null && (
+              <p className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <span className="font-medium text-gray-700">
+                  {t('billing.party.vat.treatmentLabel')}
+                </span>{' '}
+                {treatmentText}
+              </p>
             )}
 
             <div className="flex items-center gap-3">

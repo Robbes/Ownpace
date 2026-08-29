@@ -701,6 +701,14 @@ const en = {
   'billing.party.vat.unqualified':
     'No consultation number — the check ran without the seller’s own VAT number configured.',
   'billing.party.vat.checkFailed': 'The check did not run.',
+  'billing.party.vat.treatmentLabel': 'VAT on your invoices:',
+  'billing.party.vat.treatment.domestic': 'Invoices will include VAT at the standard rate.',
+  'billing.party.vat.treatment.reverseCharge':
+    'Reverse charge — invoices carry no VAT; your business accounts for it in its own country.',
+  'billing.party.vat.treatment.oss':
+    'Invoices will include your own country’s VAT rate (One Stop Shop).',
+  'billing.party.vat.treatment.outsideEu':
+    'Your address is outside the EU VAT area; how invoices are taxed is settled before the first invoice.',
   'confirm.nextSteps': 'Next, in cutover order:',
   'confirm.title': 'Review & confirm your migration',
   'confirm.intro': 'Nothing has been copied yet. Review what will migrate, then start it.',
@@ -2004,6 +2012,14 @@ const nl: Record<keyof typeof en, string> = {
   'billing.party.vat.unqualified':
     'Geen consultatienummer — de controle liep zonder geconfigureerd btw-nummer van de verkoper.',
   'billing.party.vat.checkFailed': 'De controle is niet uitgevoerd.',
+  'billing.party.vat.treatmentLabel': 'Btw op uw facturen:',
+  'billing.party.vat.treatment.domestic': 'Facturen bevatten btw tegen het standaardtarief.',
+  'billing.party.vat.treatment.reverseCharge':
+    'Btw verlegd — facturen bevatten geen btw; uw bedrijf draagt de btw in eigen land af.',
+  'billing.party.vat.treatment.oss':
+    'Facturen bevatten het btw-tarief van uw eigen land (One Stop Shop).',
+  'billing.party.vat.treatment.outsideEu':
+    'Uw adres ligt buiten het btw-gebied van de EU; hoe facturen worden belast wordt vóór de eerste factuur bepaald.',
   'confirm.nextSteps': 'Hierna, in cutover-volgorde:',
   'confirm.title': 'Controleer en bevestig uw migratie',
   'confirm.intro': 'Er is nog niets gekopieerd. Controleer wat er migreert en start het daarna.',
