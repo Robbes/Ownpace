@@ -25,6 +25,8 @@ vi.mock('../services/billing-service', () => ({
     listInvoices: vi.fn(),
     getPaymentMethods: vi.fn(),
     createPayment: vi.fn(),
+    getBillingParty: vi.fn(),
+    putBillingParty: vi.fn(),
   },
 }));
 
@@ -37,6 +39,8 @@ const usageMock = vi.mocked(billingApi.getCurrentUsage);
 const invoicesMock = vi.mocked(billingApi.listInvoices);
 const methodsMock = vi.mocked(billingApi.getPaymentMethods);
 const payMock = vi.mocked(billingApi.createPayment);
+const partyMock = vi.mocked(billingApi.getBillingParty);
+const putPartyMock = vi.mocked(billingApi.putBillingParty);
 
 /** A seeded usage fixture whose lines sum non-trivially: 999 + 500 + 2000 +
  *  100 = 3599; VAT 756; total 4355. The OLD screen rendered "Base Fee
@@ -95,10 +99,14 @@ beforeEach(() => {
   invoicesMock.mockReset();
   methodsMock.mockReset();
   payMock.mockReset();
+  partyMock.mockReset();
+  putPartyMock.mockReset();
   authState.user = { name: 'Robbe', email: 'r@acme.test', role: 'admin' };
   usageMock.mockResolvedValue(usageFixture);
   invoicesMock.mockResolvedValue({ invoices: [] });
   methodsMock.mockResolvedValue({ paymentMethods: [] });
+  // The honest default: nobody has provided buyer details yet (0111 T1).
+  partyMock.mockResolvedValue(null);
 });
 
 describe('Billing — failed reads say so (hard rule 9)', () => {
@@ -130,6 +138,96 @@ describe('Billing — failed reads say so (hard rule 9)', () => {
 
     expect(await screen.findByText('Could not load the payment methods.')).toBeInTheDocument();
     expect(screen.queryByText('No payment methods stored.')).not.toBeInTheDocument();
+  });
+});
+
+describe('the buyer, as data (0111 T1)', () => {
+  it('opens consumer-shaped: an amber ask, the private-person default, no VAT field', async () => {
+    renderBilling();
+
+    // No row yet is an ASK with the form as its remedy — never an error.
+    expect(
+      await screen.findByText('Not provided yet. Invoices cannot be issued until this is filled in.'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Private person')).toBeChecked();
+    // Business is the VARIANT: until it is chosen there is no VAT field to
+    // mis-fill, mirroring the database's own consumer-cannot-carry-VAT check.
+    expect(screen.queryByLabelText('VAT number (optional)')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Business'));
+    expect(screen.getByLabelText('VAT number (optional)')).toBeInTheDocument();
+  });
+
+  it('saves through the PUT — trimmed, consumer by default — and says Saved', async () => {
+    putPartyMock.mockResolvedValue({
+      tenantId: 't1',
+      kind: 'consumer',
+      name: 'Piet Jansen',
+      addressLine1: 'Dorpsstraat 1',
+      addressLine2: null,
+      postalCode: '1234 AB',
+      city: 'Ons Dorp',
+      countryCode: 'NL',
+      vatNumber: null,
+      createdAt: '2026-08-29T00:00:00.000Z',
+      updatedAt: null,
+    });
+
+    renderBilling();
+    await screen.findByLabelText('Name on the invoice');
+
+    fireEvent.change(screen.getByLabelText('Name on the invoice'), {
+      target: { value: '  Piet Jansen ' },
+    });
+    fireEvent.change(screen.getByLabelText('Address'), { target: { value: 'Dorpsstraat 1' } });
+    fireEvent.change(screen.getByLabelText('Postal code'), { target: { value: '1234 AB' } });
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Ons Dorp' } });
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() =>
+      expect(putPartyMock).toHaveBeenCalledWith({
+        kind: 'consumer',
+        name: 'Piet Jansen',
+        addressLine1: 'Dorpsstraat 1',
+        addressLine2: undefined,
+        postalCode: '1234 AB',
+        city: 'Ons Dorp',
+        countryCode: 'NL',
+        vatNumber: undefined,
+      }),
+    );
+    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+  });
+
+  it('a stored buyer seeds the form, business kind included, and the ask is gone', async () => {
+    partyMock.mockResolvedValue({
+      tenantId: 't1',
+      kind: 'business',
+      name: 'Acme BV',
+      addressLine1: 'Fabrieksweg 2',
+      addressLine2: null,
+      postalCode: '5678 CD',
+      city: 'Elders',
+      countryCode: 'DE',
+      vatNumber: 'DE123456789',
+      createdAt: '2026-08-29T00:00:00.000Z',
+      updatedAt: null,
+    });
+
+    renderBilling();
+
+    expect(await screen.findByDisplayValue('Acme BV')).toBeInTheDocument();
+    expect(screen.getByLabelText('Business')).toBeChecked();
+    expect(screen.getByLabelText('VAT number (optional)')).toHaveValue('DE123456789');
+    expect(screen.queryByText(/Not provided yet/)).not.toBeInTheDocument();
+  });
+
+  it('a failed party read renders the failure, not a blank form (hard rule 9)', async () => {
+    partyMock.mockRejectedValue(new Error('billing_party unreachable'));
+
+    renderBilling();
+
+    expect(await screen.findByText('Could not load the invoice details.')).toBeInTheDocument();
+    expect(screen.getByText('billing_party unreachable')).toBeInTheDocument();
   });
 });
 

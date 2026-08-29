@@ -2,7 +2,10 @@
 
 ## Status — 2026-08-29 (update this block at the end of every session)
 
-**Drafted for review; three more owner decisions landed 2026-08-29.** T9 (billing shape),
+**T1 is built (2026-08-29): the buyer exists as data.** Managed migration 0012 creates
+`billing_party` — consumer-shaped first, exactly as the row below demanded — with the
+routes, the billing-page card and the erasure treatment that go with it. T2 (VIES) is
+now unblocked. Earlier the same day: three more owner decisions landed. T9 (billing shape),
 the erasure-mirror question and the OSS timing are now decided — rows and §"What this
 changes about erasure" updated; ADR-0044 records T0's operative rules. Still open: the
 seller-entity facts (the operating entity is an accountant conversation) and the
@@ -27,7 +30,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | Task | Status | Evidence |
 |---|---|---|
 | T0 Pick the bookkeeping system | ✅ **Decided 2026-08-28: Moneybird** | Dutch, EU-hosted. **API on every tier including Compact**, ICP-aangifte on every tier, Peppol sending on every tier. Its OpenAPI spec (`github.com/moneybird/openapi`, read 2026-08-28) covers everything T4–T7 need. Runner-up e-Boekhouden (€7.95/mo) on cost alone. ADR: [ADR-0044](../adr/0044-the-books-are-not-ours.md) (2026-08-29) — the operative rules the build must uphold; the comparative analysis is a business record per ADR-0009. Still needs the accountant's read. |
-| T1 The buyer, as data | 📋 Planned | `tenant` has no address, no country and no VAT number. Nothing below can be right until it does. Now **consumer-shaped first**: a natural person with a billing address and country, with the business case as the variant rather than the default. |
+| T1 The buyer, as data | ✅ **Built 2026-08-29** | Managed migration 0012: `billing_party`, one row per tenant, **`kind` defaults to `consumer` and the business case is the variant** — the database itself refuses a consumer carrying a VAT number (`billing_party_vat_number_check`), and a business without one stays legal. `GET/PUT /api/billing/party` (owner/admin; the PUT is an upsert a retry converges on), the billing page's "Invoice details" card in both languages, and erasure updated: the purge stamps the **buyer's** name onto detached invoices, then purges the row (`PURGED_TABLES` — a consumer's row is a person's name and home address). Deliberately absent, per the plan: VAT-number validation (T2) and the country *decision* (T3 — what is stored is the customer's statement). |
 | T2 A VAT number that was actually checked | 📋 Planned (needs T1) | VIES validation with the consultation number stored. Applies to the B2B minority; an unvalidated VAT number is not a defence, the consultation number is. |
 | T3 VAT treatment: decided, recorded, never a constant | 📋 Planned (needs T1–T2) | `pricing.ts` hard-codes `VAT_RATE = 0.21`. With consumers primary this is **a stated correctness bug**. Replaced by reading Moneybird's `GET /tax_rates` and picking a `tax_rate_id` — never a percentage in our code. |
 | T4 The Moneybird adapter | 📋 Planned (needs T0–T3) | `POST /sales_invoices` + `GET /sales_invoices/synchronization`. Idempotency is **already solved by the API**: `reference` is ours to set and `GET /sales_invoices/find_by_reference/{reference}` looks it up, so a retry cannot double-invoice (hard rule 1). |

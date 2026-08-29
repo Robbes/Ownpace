@@ -2657,6 +2657,77 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /api/billing/party:
+    get:
+      tags: [Billing]
+      summary: Who invoices are addressed to
+      description: |
+        `party` is **null until the customer provides it** — a real state the
+        billing page shows as an ask, never an error. Nothing can be invoiced
+        correctly against a tenant without one (workplan 0111 T1).
+      responses:
+        '200':
+          description: The buyer's details, or null.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  party:
+                    oneOf:
+                      - { $ref: '#/components/schemas/BillingParty' }
+                      - { type: 'null' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      tags: [Billing]
+      summary: Provide or replace the buyer's details
+      description: |
+        Owner/admin. An **upsert keyed on the tenant**: sending the same body
+        twice converges on the same row, and the whole statement is replaced
+        each time — no separate create-vs-edit path, and a kind switch cannot
+        strand a stale VAT number.
+
+        **Consumer-shaped first**: `kind` defaults to `consumer`, and only a
+        `business` may carry `vatNumber` (enforced by the database as well as
+        by validation). The VAT number is stored as stated — whether it is
+        real is a later VIES consultation, and the country is the customer's
+        statement, not the place-of-supply decision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, addressLine1, postalCode, city, countryCode]
+              properties:
+                kind: { type: string, enum: [consumer, business], default: consumer }
+                name: { type: string, maxLength: 200 }
+                addressLine1: { type: string, maxLength: 200 }
+                addressLine2: { type: string, maxLength: 200 }
+                postalCode: { type: string, maxLength: 16 }
+                city: { type: string, maxLength: 100 }
+                countryCode:
+                  type: string
+                  description: ISO 3166-1 alpha-2; lowercase input is uppercased.
+                  examples: [NL]
+                vatNumber:
+                  type: string
+                  maxLength: 32
+                  description: Business kind only — refused on a consumer.
+      responses:
+        '200':
+          description: The stored details, as they now stand.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  party: { $ref: '#/components/schemas/BillingParty' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /api/billing/invoices:
     get:
       tags: [Billing]
@@ -3606,6 +3677,30 @@ components:
         tax: { type: integer }
         total: { type: integer }
       required: [baseFee, subtotal, taxRate, tax, total]
+
+    BillingParty:
+      type: object
+      description: |
+        Who invoices are addressed to (workplan 0111 T1). Consumer-shaped
+        first: `kind` defaults to `consumer` and only a `business` may carry a
+        `vatNumber` — the database enforces that, not just validation. The VAT
+        number is as stated, not verified; the country is the customer's
+        statement, not the place-of-supply decision.
+      properties:
+        tenantId: { type: string, format: uuid }
+        kind: { type: string, enum: [consumer, business] }
+        name:
+          type: string
+          description: A person's full name or a legal entity's registered name — never the workspace label.
+        addressLine1: { type: string }
+        addressLine2: { type: [string, 'null'] }
+        postalCode: { type: string }
+        city: { type: string }
+        countryCode: { type: string, description: 'ISO 3166-1 alpha-2, uppercase.', examples: [NL] }
+        vatNumber: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [tenantId, kind, name, addressLine1, postalCode, city, countryCode]
 
     CreateMappingRequest:
       type: object
