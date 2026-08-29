@@ -2,14 +2,16 @@
 
 ## Status — 2026-08-29 (update this block at the end of every session)
 
-**T1 and T2 are built (2026-08-29): the buyer exists as data, and their VAT number can be
-actually checked.** Managed migration 0012 creates `billing_party` — consumer-shaped
-first, exactly as the row demanded — with the routes, the billing-page card and the
-erasure treatment that go with it; migration 0013 adds the append-only `vat_consultation`
-log, the VIES client and the check surface, with the consultation number stored when the
-deployment identifies itself (`VIES_REQUESTER_*`, waiting on the entity decision). T3
-(the VAT treatment) is now unblocked. Earlier the same day: three more owner decisions
-landed. T9 (billing shape),
+**T1–T3 are built (2026-08-29): the buyer exists as data, their VAT number can be
+actually checked, and the treatment is a decision, not a constant.** Managed migration
+0012 creates `billing_party` (consumer-shaped first); migration 0013 adds the
+append-only `vat_consultation` log with the VIES client and check surface
+(`VIES_REQUESTER_*` waiting on the entity decision); `vat-treatment.ts` +
+`moneybird-tax-rates.ts` decide what an invoice carries and resolve it to the books'
+own `tax_rate_id` — the legacy constant is contained by a repo-scan guard and survives
+only for the usage estimate until T4/T8 rewire it. T4 (the adapter) is next and needs
+the Moneybird trial + the foreign-VAT gating test. Earlier the same day: three more
+owner decisions landed. T9 (billing shape),
 the erasure-mirror question and the OSS timing are now decided — rows and §"What this
 changes about erasure" updated; ADR-0044 records T0's operative rules. Still open: the
 seller-entity facts (the operating entity is an accountant conversation) and the
@@ -36,7 +38,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T0 Pick the bookkeeping system | ✅ **Decided 2026-08-28: Moneybird** | Dutch, EU-hosted. **API on every tier including Compact**, ICP-aangifte on every tier, Peppol sending on every tier. Its OpenAPI spec (`github.com/moneybird/openapi`, read 2026-08-28) covers everything T4–T7 need. Runner-up e-Boekhouden (€7.95/mo) on cost alone. ADR: [ADR-0044](../adr/0044-the-books-are-not-ours.md) (2026-08-29) — the operative rules the build must uphold; the comparative analysis is a business record per ADR-0009. Still needs the accountant's read. |
 | T1 The buyer, as data | ✅ **Built 2026-08-29** | Managed migration 0012: `billing_party`, one row per tenant, **`kind` defaults to `consumer` and the business case is the variant** — the database itself refuses a consumer carrying a VAT number (`billing_party_vat_number_check`), and a business without one stays legal. `GET/PUT /api/billing/party` (owner/admin; the PUT is an upsert a retry converges on), the billing page's "Invoice details" card in both languages, and erasure updated: the purge stamps the **buyer's** name onto detached invoices, then purges the row (`PURGED_TABLES` — a consumer's row is a person's name and home address). Deliberately absent, per the plan: VAT-number validation (T2) and the country *decision* (T3 — what is stored is the customer's statement). |
 | T2 A VAT number that was actually checked | ✅ **Built 2026-08-29** | Managed migration 0013: `vat_consultation`, an **append-only** evidence log — `app_user` holds INSERT and SELECT only (UPDATE/DELETE revoked; evidence that can be edited proves nothing). `POST /api/billing/party/check-vat` consults VIES's REST API and stores the answer; **a row is always an answer** — an unreachable VIES (MS_UNAVAILABLE and friends, tested against a fault that carries `valid:false` beside its error code) answers 503 and stores nothing. The check is **qualified** — consultation number issued — once `VIES_REQUESTER_MEMBER_STATE`/`VIES_REQUESTER_VAT_NUMBER` carry the seller's own number (blocked on the entity decision; until then checks run unqualified and the screen says so). VIES geography handled: EL not GR, XI exists, GB refused as never-checkable. The GET join speaks only for the number as currently stored; the billing card shows the verdict, auto-checks a newly saved business number, and renders VIES's own refusal sentences. Still open here: whether the consultation should also ride onto the Moneybird document — noted for T4. |
-| T3 VAT treatment: decided, recorded, never a constant | 📋 Planned (needs T1–T2) | `pricing.ts` hard-codes `VAT_RATE = 0.21`. With consumers primary this is **a stated correctness bug**. Replaced by reading Moneybird's `GET /tax_rates` and picking a `tax_rate_id` — never a percentage in our code. |
+| T3 VAT treatment: decided, recorded, never a constant | ✅ **Built 2026-08-29** | `vat-treatment.ts`: the decision as a pure, total function — domestic buyers domestic; EU B2B **reverse charge only with a valid VIES consultation** (without one, charged like a consumer *on purpose*: over-charging is the buyer's money and a credit note fixes it, under-charging is the seller's liability); EU consumers at the seller rate until `VAT_OSS_ACTIVE` flips (owner's threshold decision); non-EU an export — GB stays outside even with an XI number (services, not goods). `moneybird-tax-rates.ts`: treatment → the administration's own `tax_rate_id`, **operator-configured and validated against the real list** (a deleted/archived/purchase rate refuses by name) — no percentage is ever consulted for selection. `GET /api/billing/party` serves the decision; the billing card says it in both languages. The legacy constant survives ONLY for the usage-screen estimate, pinned by `scripts/a-rate-that-must-not-spread.unit.test.ts` (a new caller fails CI). Remaining for T4/T8: point the resolver at the real administration and rewire the estimate/price page. |
 | T4 The Moneybird adapter | 📋 Planned (needs T0–T3) | `POST /sales_invoices` + `GET /sales_invoices/synchronization`. Idempotency is **already solved by the API**: `reference` is ours to set and `GET /sales_invoices/find_by_reference/{reference}` looks it up, so a retry cannot double-invoice (hard rule 1). |
 | T5 The mirror, and the number that is not ours | 📋 Planned (needs T4) | `invoice` becomes a MIRROR carrying the legal number. Moneybird owns `invoice_sequence_id`; the schema must make it impossible to drift into numbering a document we do not own. |
 | T6 Delivery: the email and the download | 📋 Planned (needs T5) | `GET /sales_invoices/{id}/download_pdf`. Serves **their** PDF, never one we render. Two documents for one sale is the failure this task exists to prevent. |

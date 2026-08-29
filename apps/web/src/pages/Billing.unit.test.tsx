@@ -137,7 +137,7 @@ beforeEach(() => {
   invoicesMock.mockResolvedValue({ invoices: [] });
   methodsMock.mockResolvedValue({ paymentMethods: [] });
   // The honest default: nobody has provided buyer details yet (0111 T1).
-  partyMock.mockResolvedValue({ party: null, vatConsultation: null });
+  partyMock.mockResolvedValue({ party: null, vatConsultation: null, vatTreatment: null });
 });
 
 describe('Billing — failed reads say so (hard rule 9)', () => {
@@ -230,7 +230,7 @@ describe('the buyer, as data (0111 T1)', () => {
   });
 
   it('a stored buyer seeds the form, business kind included, and the ask is gone', async () => {
-    partyMock.mockResolvedValue({ party: businessPartyFixture, vatConsultation: null });
+    partyMock.mockResolvedValue({ party: businessPartyFixture, vatConsultation: null, vatTreatment: null });
 
     renderBilling();
 
@@ -252,7 +252,7 @@ describe('the buyer, as data (0111 T1)', () => {
 
 describe('a VAT number that was actually checked (0111 T2)', () => {
   it('an unchecked stored number is an amber ask with the check as its remedy', async () => {
-    partyMock.mockResolvedValue({ party: businessPartyFixture, vatConsultation: null });
+    partyMock.mockResolvedValue({ party: businessPartyFixture, vatConsultation: null, vatTreatment: null });
     checkVatMock.mockResolvedValue(consultationFixture);
 
     renderBilling();
@@ -272,6 +272,7 @@ describe('a VAT number that was actually checked (0111 T2)', () => {
     partyMock.mockResolvedValue({
       party: businessPartyFixture,
       vatConsultation: { ...consultationFixture, valid: false, consultationNumber: null },
+      vatTreatment: null,
     });
 
     renderBilling();
@@ -284,6 +285,7 @@ describe('a VAT number that was actually checked (0111 T2)', () => {
     partyMock.mockResolvedValue({
       party: businessPartyFixture,
       vatConsultation: { ...consultationFixture, consultationNumber: null, traderName: null },
+      vatTreatment: null,
     });
 
     renderBilling();
@@ -312,8 +314,28 @@ describe('a VAT number that was actually checked (0111 T2)', () => {
     expect(await screen.findByText('Consultation number: WAPIAAAAXYZ1234')).toBeInTheDocument();
   });
 
+  it('the served treatment renders in the customer’s words — never a number (0111 T3)', async () => {
+    partyMock.mockResolvedValue({
+      party: businessPartyFixture,
+      vatConsultation: consultationFixture,
+      vatTreatment: {
+        treatment: 'reverse_charge',
+        rationale: 'EU business in DE with a VIES-validated VAT number: reverse charge.',
+      },
+    });
+
+    renderBilling();
+
+    expect(
+      await screen.findByText(
+        'Reverse charge — invoices carry no VAT; your business accounts for it in its own country.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('VAT on your invoices:')).toBeInTheDocument();
+  });
+
   it('a failed check renders VIES’s own sentence and keeps the button', async () => {
-    partyMock.mockResolvedValue({ party: businessPartyFixture, vatConsultation: null });
+    partyMock.mockResolvedValue({ party: businessPartyFixture, vatConsultation: null, vatTreatment: null });
     checkVatMock.mockRejectedValue(new Error('VIES reported MS_UNAVAILABLE — ask again later.'));
 
     renderBilling();

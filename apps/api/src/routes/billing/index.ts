@@ -22,6 +22,7 @@ import {
   resolveTenantPricing,
   parseVatForVies,
   checkVat,
+  decideVatTreatment,
   type ViesRequester,
 } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
@@ -363,6 +364,13 @@ router.post('/estimate', authenticate, requireBillingRead, async (req: Authentic
  * here, by matching what `billing_party` says now. A number changed since
  * its last check therefore reads `null`, which is correct: nothing has
  * checked the number the next invoice would rely on.
+ *
+ * `vatTreatment` (0111 T3) is the decision those two feed: what an invoice
+ * for THIS buyer would carry — a treatment, never a rate (ADR-0044; the
+ * number belongs to the bookkeeping system). Computed fresh on every read
+ * from the seller's configured country (`OWNPACE_SELLER_COUNTRY`, NL until
+ * the entity decision) and the OSS switch (`VAT_OSS_ACTIVE`, false until the
+ * owner's threshold decision flips).
  */
 router.get('/party', authenticate, requireBillingRead, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -399,7 +407,16 @@ router.get('/party', authenticate, requireBillingRead, async (req: Authenticated
       return { party: stored, vatConsultation: consultations[0] ?? null };
     });
 
-    res.json({ party, vatConsultation });
+    const vatTreatment = party
+      ? decideVatTreatment({
+          sellerCountry: process.env.OWNPACE_SELLER_COUNTRY?.trim() || 'NL',
+          ossActive: process.env.VAT_OSS_ACTIVE?.trim().toLowerCase() === 'true',
+          buyer: { kind: party.kind, countryCode: party.countryCode },
+          consultation: vatConsultation ? { valid: vatConsultation.valid } : null,
+        })
+      : null;
+
+    res.json({ party, vatConsultation, vatTreatment });
   } catch (error) {
     serverFault(res, 'billing_party_read_failed', 'reading your invoice details', error);
   }

@@ -102,6 +102,8 @@ describe('GET /api/billing/party', () => {
     const res = await request(app).get('/api/billing/party');
     expect(res.status).toBe(200);
     expect(res.body.party).toBeNull();
+    // And no treatment either (0111 T3): a decision about nobody is a guess.
+    expect(res.body.vatTreatment).toBeNull();
   });
 });
 
@@ -117,6 +119,8 @@ describe('PUT /api/billing/party', () => {
     const get = await request(app).get('/api/billing/party');
     expect(get.body.party.name).toBe('Piet Jansen');
     expect(get.body.party.countryCode).toBe('NL');
+    // A Dutch consumer's invoices carry Dutch VAT (0111 T3).
+    expect(get.body.vatTreatment.treatment).toBe('domestic_standard');
   });
 
   it('uppercases the country rather than refusing a case nobody chose', async () => {

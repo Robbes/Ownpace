@@ -2670,9 +2670,15 @@ paths:
         currently stored** (0111 T2): the log is append-only, so a number
         changed since its last check reads null — nothing has checked the
         number the next invoice would rely on. Always null for a consumer.
+
+        `vatTreatment` (0111 T3) is what an invoice for this buyer would
+        carry — a **treatment, never a rate** (the number belongs to the
+        bookkeeping system). Null while no party is stored. An EU business
+        without a valid VIES consultation reads `domestic_standard` on
+        purpose: the conservative error, corrected by validating the number.
       responses:
         '200':
-          description: The buyer's details, or null, with the consultation that speaks for them.
+          description: The buyer's details, or null, with the consultation and treatment that speak for them.
           content:
             application/json:
               schema:
@@ -2685,6 +2691,10 @@ paths:
                   vatConsultation:
                     oneOf:
                       - { $ref: '#/components/schemas/VatConsultation' }
+                      - { type: 'null' }
+                  vatTreatment:
+                    oneOf:
+                      - { $ref: '#/components/schemas/VatTreatment' }
                       - { type: 'null' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -3790,6 +3800,20 @@ components:
         traderAddress: { type: [string, 'null'] }
         checkedAt: { type: string, format: date-time }
       required: [id, countryCode, vatNumber, valid, checkedAt]
+
+    VatTreatment:
+      type: object
+      description: |
+        The VAT decision for one buyer (workplan 0111 T3): a treatment, never
+        a percentage — what a rate IS belongs to the bookkeeping system's own
+        tax tables. `rationale` is one English sentence saying why; the page
+        renders its own localized wording per treatment.
+      properties:
+        treatment:
+          type: string
+          enum: [domestic_standard, reverse_charge, destination_oss, outside_eu]
+        rationale: { type: string }
+      required: [treatment, rationale]
 
     CreateMappingRequest:
       type: object

@@ -56,7 +56,20 @@ export const DEFAULT_PRICING: PricingConfig = {
   computePricePerHour: 5, // €0.05/hour
 };
 
-/** VAT, one rate, said once — see the header for why it is not per tenant. */
+/**
+ * LEGACY, CONTAINED, AND FORBIDDEN TO SPREAD (ADR-0044; workplan 0111 T3).
+ *
+ * One rate for everybody was defensible while every customer was Dutch and
+ * is a stated correctness bug now that EU consumers are the primary market.
+ * The real decision lives in `vat-treatment.ts` (a TREATMENT per buyer,
+ * never a number) and the number itself belongs to the bookkeeping system
+ * (`moneybird-tax-rates.ts` — a `tax_rate_id`, selected by the operator).
+ *
+ * This constant survives only for the usage screen's indicative estimate,
+ * until that surface is rewired against a real Moneybird administration
+ * (0111 T4/T8). `scripts/a-rate-that-must-not-spread.unit.test.ts` pins its
+ * exact import sites: a new file naming it fails CI with this paragraph.
+ */
 export const VAT_RATE = 0.21;
 
 /** The env var that carries each price, for messages and for documentation. */
