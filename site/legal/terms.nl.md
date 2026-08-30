@@ -21,7 +21,7 @@
 
 ## 1. Met wie u een overeenkomst sluit
 
-«LEGAL_ENTITY», «REGISTERED_ADDRESS», ingeschreven onder «COMPANY_NUMBER», btw «VAT_NUMBER».
+Archico B.V., «REGISTERED_ADDRESS», ingeschreven onder KvK-nummer 73922706, btw «VAT_NUMBER».
 Contact: **support@ownpace.eu**.
 
 Door een account aan te maken of de dienst te gebruiken aanvaardt u deze voorwaarden. Aanvaardt
@@ -199,7 +199,7 @@ dan zegt u op voordat ze ingaan. Doorgaan met de dienst daarna geldt als aanvaar
 ## 13. Recht en geschillen
 
 Op deze voorwaarden is **Nederlands recht** van toepassing, en geschillen worden voorgelegd aan
-de bevoegde rechter in «COURT_DISTRICT». Bent u consument, dan ontneemt dit u niet de bescherming
+de bevoegde rechter in Overijssel. Bent u consument, dan ontneemt dit u niet de bescherming
 van het dwingende recht van uw land van verblijf, en evenmin uw recht om te procederen voor de
 rechter van uw eigen land.
 
@@ -222,7 +222,7 @@ overdragen aan een rechtsopvolger van de onderneming, en laten u dat dan weten.
 
 Dit formulier alleen invullen en terugzenden als u de overeenkomst wilt herroepen.
 
-- Aan: «LEGAL_ENTITY», «REGISTERED_ADDRESS», e-mail: support@ownpace.eu
+- Aan: Archico B.V., «REGISTERED_ADDRESS», e-mail: support@ownpace.eu
 - Ik/wij deel/delen u hierbij mede dat ik/wij de overeenkomst betreffende de levering van de
   volgende dienst herroep/herroepen: de beheerde Ownpace-dienst, voor het account op dit
   e-mailadres: …

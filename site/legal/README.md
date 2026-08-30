@@ -33,11 +33,11 @@ until a customer reads it.
 
 | Placeholder | What it needs | Notes |
 |---|---|---|
-| `«LEGAL_ENTITY»` | The trading entity's registered name | Decides who the contract is with |
-| `«REGISTERED_ADDRESS»` | Registered address | Also goes on invoices |
-| `«COMPANY_NUMBER»` | KvK number | |
-| `«VAT_NUMBER»` | VAT registration | `pricing.ts` already knows `VAT_RATE = 0.21` |
-| `«COURT_DISTRICT»` | Competent court for disputes | Terms §13 — follows the entity's registered seat |
+| `«LEGAL_ENTITY»` | The trading entity's registered name | **Filled 2026-08-30: Archico B.V.** — the owner's existing BV (spelling verified against public KvK-registry mirrors; a "Ownpace" handelsnaam registration is a lawyer/owner question, flagged in the terms briefing) |
+| `«REGISTERED_ADDRESS»` | Registered address | Also goes on invoices. The registry address is public data, but the owner decides the form it takes in print (registry address or postbus) — so it stays a token until supplied |
+| `«COMPANY_NUMBER»` | KvK number | **Filled 2026-08-30: 73922706** (Archico B.V.) |
+| `«VAT_NUMBER»` | VAT registration | Archico B.V.'s btw-id — owner/accountant; also qualifies VIES checks (0111 T2). `pricing.ts` already knows `VAT_RATE = 0.21` |
+| `«COURT_DISTRICT»` | Competent court for disputes | **Filled 2026-08-30: Overijssel** — derived from the seat (Wijhe); the lawyer confirms the forum wording (terms briefing q. 9) |
 | `«HOSTING_PROVIDER»`, `«HOSTING_REGION»` | Who runs the servers, and where | Must be EU — the claim in privacy §8 is the product's whole premise. **Owner, 2026-08-20: self-hosted today, landing on OVH (EU).** Do not write "OVH" into the policy until it is actually true there — a privacy policy naming a host the service is not on is the kind of inaccuracy that is worse than a placeholder, because a placeholder is visibly unfinished and a wrong name is not. |
 | `«EMAIL_PROVIDER»`, `«EMAIL_REGION»` | Who sends summary and account mail | Must be EU |
 | `«LOG_RETENTION»` | How long operational logs are kept | Pick a number and honour it |

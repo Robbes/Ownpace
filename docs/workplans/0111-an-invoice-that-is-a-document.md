@@ -7,13 +7,18 @@
 column grants, shaped around the three writers the code actually has (one of which can
 rewrite a *sent* invoice's amounts today). And the consumer-terms draft for the lawyer is
 open as PR #661 — open decision 5's artefact, so the sign-off conversation starts from a
-document instead of a blank page.
+document instead of a blank page. **Later the same day: the entity is decided** — the
+owner's existing **Archico B.V., KvK 73922706** runs Ownpace; open decision 4 halves
+(name/KvK/court filled in the legal drafts and #661's successors; the btw-id and the
+printed address remain), and `VIES_REQUESTER_MEMBER_STATE` is now certainly `NL`. Also
+merged the same day: privacy v1.1 (#663, the household-controller branch) and the DPA +
+sub-processor drafts (#664) — the lawyer package is complete.
 
 **T1–T3 are built (2026-08-29): the buyer exists as data, their VAT number can be
 actually checked, and the treatment is a decision, not a constant.** Managed migration
 0012 creates `billing_party` (consumer-shaped first); migration 0013 adds the
 append-only `vat_consultation` log with the VIES client and check surface
-(`VIES_REQUESTER_*` waiting on the entity decision); `vat-treatment.ts` +
+(`VIES_REQUESTER_*` now waiting only on Archico B.V.'s btw-id); `vat-treatment.ts` +
 `moneybird-tax-rates.ts` decide what an invoice carries and resolve it to the books'
 own `tax_rate_id` — the legacy constant is contained by a repo-scan guard and survives
 only for the usage estimate until T4/T8 rewire it. T4 (the adapter) is next and needs
@@ -21,7 +26,7 @@ the Moneybird trial + the foreign-VAT gating test. Earlier the same day: three m
 owner decisions landed. T9 (billing shape),
 the erasure-mirror question and the OSS timing are now decided — rows and §"What this
 changes about erasure" updated; ADR-0044 records T0's operative rules. Still open: the
-seller-entity facts (the operating entity is an accountant conversation) and the
+btw-id and printed address (the entity itself is decided — Archico B.V.) and the
 sign-off (open decisions 4–5). Earlier: revised 2026-08-28 after the owner's second round —
 **T0 decided (Moneybird)**, the market **consumer-primary, not B2B-primary**, and one claim
 in the first draft corrected — see §"Who is the controller".
@@ -44,7 +49,7 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 |---|---|---|
 | T0 Pick the bookkeeping system | ✅ **Decided 2026-08-28: Moneybird** | Dutch, EU-hosted. **API on every tier including Compact**, ICP-aangifte on every tier, Peppol sending on every tier. Its OpenAPI spec (`github.com/moneybird/openapi`, read 2026-08-28) covers everything T4–T7 need. Runner-up e-Boekhouden (€7.95/mo) on cost alone. ADR: [ADR-0044](../adr/0044-the-books-are-not-ours.md) (2026-08-29) — the operative rules the build must uphold; the comparative analysis is a business record per ADR-0009. Still needs the accountant's read. |
 | T1 The buyer, as data | ✅ **Built 2026-08-29** | Managed migration 0012: `billing_party`, one row per tenant, **`kind` defaults to `consumer` and the business case is the variant** — the database itself refuses a consumer carrying a VAT number (`billing_party_vat_number_check`), and a business without one stays legal. `GET/PUT /api/billing/party` (owner/admin; the PUT is an upsert a retry converges on), the billing page's "Invoice details" card in both languages, and erasure updated: the purge stamps the **buyer's** name onto detached invoices, then purges the row (`PURGED_TABLES` — a consumer's row is a person's name and home address). Deliberately absent, per the plan: VAT-number validation (T2) and the country *decision* (T3 — what is stored is the customer's statement). |
-| T2 A VAT number that was actually checked | ✅ **Built 2026-08-29** | Managed migration 0013: `vat_consultation`, an **append-only** evidence log — `app_user` holds INSERT and SELECT only (UPDATE/DELETE revoked; evidence that can be edited proves nothing). `POST /api/billing/party/check-vat` consults VIES's REST API and stores the answer; **a row is always an answer** — an unreachable VIES (MS_UNAVAILABLE and friends, tested against a fault that carries `valid:false` beside its error code) answers 503 and stores nothing. The check is **qualified** — consultation number issued — once `VIES_REQUESTER_MEMBER_STATE`/`VIES_REQUESTER_VAT_NUMBER` carry the seller's own number (blocked on the entity decision; until then checks run unqualified and the screen says so). VIES geography handled: EL not GR, XI exists, GB refused as never-checkable. The GET join speaks only for the number as currently stored; the billing card shows the verdict, auto-checks a newly saved business number, and renders VIES's own refusal sentences. Still open here: whether the consultation should also ride onto the Moneybird document — noted for T4. |
+| T2 A VAT number that was actually checked | ✅ **Built 2026-08-29** | Managed migration 0013: `vat_consultation`, an **append-only** evidence log — `app_user` holds INSERT and SELECT only (UPDATE/DELETE revoked; evidence that can be edited proves nothing). `POST /api/billing/party/check-vat` consults VIES's REST API and stores the answer; **a row is always an answer** — an unreachable VIES (MS_UNAVAILABLE and friends, tested against a fault that carries `valid:false` beside its error code) answers 503 and stores nothing. The check is **qualified** — consultation number issued — once `VIES_REQUESTER_MEMBER_STATE`/`VIES_REQUESTER_VAT_NUMBER` carry the seller's own number (entity decided 2026-08-30 — Archico B.V., so `MEMBER_STATE=NL`; blocked now only on its btw-id; until then checks run unqualified and the screen says so). VIES geography handled: EL not GR, XI exists, GB refused as never-checkable. The GET join speaks only for the number as currently stored; the billing card shows the verdict, auto-checks a newly saved business number, and renders VIES's own refusal sentences. Still open here: whether the consultation should also ride onto the Moneybird document — noted for T4. |
 | T3 VAT treatment: decided, recorded, never a constant | ✅ **Built 2026-08-29** | `vat-treatment.ts`: the decision as a pure, total function — domestic buyers domestic; EU B2B **reverse charge only with a valid VIES consultation** (without one, charged like a consumer *on purpose*: over-charging is the buyer's money and a credit note fixes it, under-charging is the seller's liability); EU consumers at the seller rate until `VAT_OSS_ACTIVE` flips (owner's threshold decision); non-EU an export — GB stays outside even with an XI number (services, not goods). `moneybird-tax-rates.ts`: treatment → the administration's own `tax_rate_id`, **operator-configured and validated against the real list** (a deleted/archived/purchase rate refuses by name) — no percentage is ever consulted for selection. `GET /api/billing/party` serves the decision; the billing card says it in both languages. The legacy constant survives ONLY for the usage-screen estimate, pinned by `scripts/a-rate-that-must-not-spread.unit.test.ts` (a new caller fails CI). Remaining for T4/T8: point the resolver at the real administration and rewire the estimate/price page. |
 | T4 The Moneybird adapter | ✅ **Core seam built 2026-08-29** — wiring + live proof gated on the trial | `moneybird-sales-invoices.ts`: `ensureContact` (found by OUR `customer_id` key, matched exactly against the fuzzy search), `ensureSalesInvoiceByReference` (look-then-create; an existing invoice is returned **as it stands, never patched** — the correction instrument is T7's credit note), and `sendSalesInvoice` (the moment Moneybird assigns the legal number). The sharpest pin: **an uncertain lookup never falls through to create** — a 500 on `find_by_reference` is `unavailable` with zero POSTs, because "could not look" read as "not found" is how a flaky afternoon double-invoices a customer. Lines carry `tax_rate_id` and nothing else (a test asserts the wire body never contains "percentage"). Injectable fetch throughout; config is parameters, no env reads. **Still gated on the owner**: the trial administration + tax-rate ids, the German-19% gating test (business repo), stamping the T2 consultation number onto the document, and the route/worker wiring against 0109's tiers. |
 | T5 The mirror, and the number that is not ours | 📋 Planned (needs T4) — **immutability designed 2026-08-30** | `invoice` becomes a MIRROR carrying the legal number. Moneybird owns `invoice_sequence_id`; the schema must make it impossible to drift into numbering a document we do not own. T5's migration also installs the refusal — trigger + grants per §"The refusal, designed" — so no shipped schema has the mirror freely writable. |
@@ -443,9 +448,12 @@ administrative answer stays answerable. T10 reshapes #652's screen accordingly.
 2. ~~Erasure mirror~~ **Decided 2026-08-29: purge, keep pointer** — T10 row.
 3. ~~OSS~~ **Decided 2026-08-29: under the threshold, register when a quarter's forecast
    crosses** — T3 ships the under-threshold path first, switch-ready.
-4. **The four seller facts** — `«LEGAL_ENTITY»`, `«REGISTERED_ADDRESS»`, `«COMPANY_NUMBER»`,
-   `«VAT_NUMBER»`. Already tracked by 0086 T5; nothing here can be tested end to end without
-   them.
+4. **The four seller facts — half-decided 2026-08-30: the entity is Archico B.V.,
+   KvK 73922706** (the owner's existing BV; seat Wijhe → competent court Overijssel).
+   `«LEGAL_ENTITY»`, `«COMPANY_NUMBER»` and `«COURT_DISTRICT»` are filled in the legal
+   drafts. Still open, still 0086 T5's to track: `«REGISTERED_ADDRESS»` (the printed form
+   is the owner's call) and `«VAT_NUMBER»` — the btw-id, which also qualifies T2's VIES
+   checks. End-to-end tests still wait on that last fact.
 5. **Who signs this off?** The accountant on the VAT and the retention; a lawyer on the
    controller question and the consumer terms. Both cheaper before T1 than after the first
    invoice.

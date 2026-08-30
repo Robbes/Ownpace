@@ -46,9 +46,13 @@
   8. §8 — the promise never to bill past twelve months without express
      reconfirmation now says a prepaid term counts as that confirmation for
      the period it covers. Sound?
-  9. «COURT_DISTRICT» (§13) follows the entity's registered seat and fills in
-     with the entity facts, together with «LEGAL_ENTITY» and friends in §1
-     and §15.
+  9. Entity facts filled 2026-08-30 from the owner's decision: the trader is
+     **Archico B.V.** (KvK 73922706, seat Wijhe), and §13 names the competent
+     court in **Overijssel** (derived from the seat — confirm the forum
+     wording). Still tokens: «REGISTERED_ADDRESS» (the owner decides the
+     printed form) and «VAT_NUMBER» (the btw-id, from the accountant).
+     QUESTION: does "Ownpace" need registering as a handelsnaam of
+     Archico B.V. before these terms publish under that brand?
   10. The privacy policy is incorporated by reference (§4); its own revision
       (roles per ADR-0035: processor for migrated content, controller for
       account data) is a separate pass, not in this draft.
@@ -70,7 +74,7 @@
 
 ## 1. Who you are contracting with
 
-«LEGAL_ENTITY», «REGISTERED_ADDRESS», registered under «COMPANY_NUMBER», VAT «VAT_NUMBER».
+Archico B.V., «REGISTERED_ADDRESS», registered under KvK number 73922706, VAT «VAT_NUMBER».
 Contact: **support@ownpace.eu**.
 
 By creating an account or using the service you accept these terms. If you are accepting on
@@ -243,7 +247,7 @@ them, cancel before they take effect. Continuing to use the service after that i
 ## 13. Law and disputes
 
 These terms are governed by **Dutch law**, and disputes go to the competent court in
-«COURT_DISTRICT». If you are a consumer, this does not deprive you of the protection of the
+Overijssel. If you are a consumer, this does not deprive you of the protection of the
 mandatory law of your country of residence, nor of your right to bring proceedings before the
 courts of your own country.
 
@@ -265,7 +269,7 @@ of the business, and will tell you if we do.
 
 Complete and return this form only if you wish to withdraw from the contract.
 
-- To: «LEGAL_ENTITY», «REGISTERED_ADDRESS», email: support@ownpace.eu
+- To: Archico B.V., «REGISTERED_ADDRESS», email: support@ownpace.eu
 - I/we hereby give notice that I/we withdraw from my/our contract for the provision of the
   following service: the Ownpace managed service, for the account on this email address: …
 - Ordered on: …

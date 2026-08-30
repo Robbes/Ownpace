@@ -43,8 +43,10 @@
      honoured before publication. Flag if the AP expects anything beyond a
      stated period.
   10. Read this together with the terms (v1.1): same audience-first shape,
-      one lawyer pass over both is the ask. The entity tokens («LEGAL_ENTITY»
-      and friends) fill from the entity decision, not from this review.
+      one lawyer pass over both is the ask. Entity facts filled 2026-08-30:
+      Archico B.V., KvK 73922706 (owner's decision); still tokens:
+      «REGISTERED_ADDRESS» (owner decides the printed form) and
+      «VAT_NUMBER» (the btw-id, from the accountant).
 -->
 
 # Privacy policy
@@ -62,7 +64,7 @@
 
 ## 1. Who we are
 
-«LEGAL_ENTITY», «REGISTERED_ADDRESS», «COMPANY_NUMBER», «VAT_NUMBER».
+Archico B.V., «REGISTERED_ADDRESS», KvK 73922706, VAT «VAT_NUMBER».
 
 **Contact for anything in this policy, including your rights under the GDPR:
 support@ownpace.eu.** A person reads that address. We aim to answer within five working days

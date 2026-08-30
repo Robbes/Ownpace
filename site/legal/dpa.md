@@ -36,7 +36,7 @@
 **Last updated:** 2026-08-30
 
 This data-processing agreement ("DPA") forms part of the agreement between
-«LEGAL_ENTITY», «REGISTERED_ADDRESS» ("Ownpace", the **processor**) and the business customer
+Archico B.V., «REGISTERED_ADDRESS» ("Ownpace", the **processor**) and the business customer
 accepting the [terms of service](./terms.md) (the **controller**), for the processing of
 personal data described in Annex A. It applies to business customers only: for a private
 individual's migration, the [privacy policy](./privacy.md) §3 states the roles and carries
