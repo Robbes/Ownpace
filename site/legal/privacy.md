@@ -154,6 +154,17 @@ Anything you send us at support@ownpace.eu, and server logs recording that reque
 timestamps, IP addresses, error codes. Logs are written so that **credentials, folder names and
 message subjects do not appear in them.**
 
+To run and support the service, a small number of named operators on our side can view
+**service metadata** about your account: your workspace's name and status, each migration's
+state and failure category, invoice summaries, and how many items are waiting on a decision
+from you. **They cannot browse your content.** Message bodies and subjects, folder and file
+names, calendar entries, credentials and stored error text are not shown on any support
+screen — the screens are built without access to them, which you can verify in the source
+code rather than take on trust. **Every such view is itself recorded** — who looked, at
+whose account, at which screen, and when — in a log that cannot be edited or deleted, so
+"we do not look at your data" is checkable rather than asserted. Our data-processing
+agreement (§5 there) makes the same commitment to organisations.
+
 ## 5. Why we hold it, in GDPR terms
 
 | What | Purpose | Lawful basis |
@@ -162,6 +173,7 @@ message subjects do not appear in them.**
 | Account, invoices, usage figures | Providing and billing for the service | Contract; legal obligation for invoice retention (Art. 6(1)(c)) |
 | Operational logs | Keeping the service secure and working | Legitimate interests (Art. 6(1)(f)) |
 | Support correspondence | Answering you | Contract / legitimate interests |
+| Support read-log (which operator viewed which account metadata, when) | Accountability for our own access to your account | Legitimate interests (Art. 6(1)(f)) — yours as much as ours |
 
 **We do not use your data for advertising, we do not profile you, and we do not sell or rent
 anything to anybody.** There is no analytics tracker on the application.
