@@ -41,8 +41,8 @@ until a customer reads it.
 | `«HOSTING_PROVIDER»`, `«HOSTING_REGION»` | Who runs the servers, and where | Must be EU — the claim in privacy §8 is the product's whole premise. **Owner, 2026-08-20: self-hosted today, landing on OVH (EU).** Do not write "OVH" into the policy until it is actually true there — a privacy policy naming a host the service is not on is the kind of inaccuracy that is worse than a placeholder, because a placeholder is visibly unfinished and a wrong name is not. |
 | `«EMAIL_PROVIDER»`, `«EMAIL_REGION»` | Who sends summary and account mail | Must be EU |
 | `«LOG_RETENTION»` | How long operational logs are kept | Pick a number and honour it |
-| `«DPA_URL»` | The data-processing agreement | **No longer used** since 2026-08-30 — privacy §3 and terms §4 both say "available on request" until the DPA is published (0086 T5 — **not optional** once a business customer's mail is involved); row kept so the token's history stays findable |
-| `«SUBPROCESSORS_URL»` | The sub-processor list | Referenced by the DPA |
+| `«DPA_URL»` | The data-processing agreement | **No longer used** since 2026-08-30 — privacy §3 and terms §4 both say "available on request" until the DPA is published; draft exists: [`dpa.md`](./dpa.md) (0086 T5 — **not optional** once a business customer's mail is involved); row kept so the token's history stays findable |
+| `«SUBPROCESSORS_URL»` | The sub-processor list | Referenced by the DPA. Draft exists: [`subprocessors.md`](./subprocessors.md) — the token fills with its published URL (0086 T5) |
 | `«PRICING_URL»` | The published price list | **No longer used** since 2026-08-30 — terms links [the pricing page](../../site/pages/en/pricing.md) directly; row kept so the token's history stays findable |
 | `«PRIVACY_HISTORY_URL»` | Previous versions of the privacy policy | Privacy §13 promises they stay available |
 
@@ -86,9 +86,11 @@ commit.
 
 ## What is deliberately not here yet
 
-- **The DPA and the sub-processor list** (0086 T5). The privacy policy links to both; the links
-  are placeholders until they exist. A business customer cannot lawfully be onboarded without
-  the DPA.
+- **The DPA and the sub-processor list, as published pages** (0086 T5). Drafts now exist —
+  [`dpa.md`](./dpa.md) and [`subprocessors.md`](./subprocessors.md), written 2026-08-30 for
+  legal review — but they are not rendered by the site build, not linked from any published
+  document, and not yet offered to anyone; until publication both legal documents say
+  "available on request". A business customer cannot lawfully be onboarded without the DPA.
 - **A cookie statement.** The application sets no analytics or advertising cookies, so there is
   nothing to disclose beyond the session cookie the sign-in needs — but that sentence belongs
   on the front door once the front door exists and its actual cookie behaviour is known,
