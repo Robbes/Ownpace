@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
+import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgMigrationStatusStore, PgLedger, RunStore } from '@openmig/ledger';
@@ -1486,6 +1487,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         );
       }
 
+      // A mapping created directly as 'active' never passes the start route,
+      // so its paths take their slots here — same transaction as the mapping
+      // and its scope (workplan 0109 T1b). The default draft ('paused') gets
+      // no rows: absent means `ready`, and a draft has not moved anything.
+      if (mapping.status === 'active') {
+        await movePathsWithMapping(db, tenantId, mapping.id, 'active');
+      }
+
       return mapping;
     });
 
@@ -1786,6 +1795,12 @@ router.put(
             actor: req.userId ?? 'unknown',
             via: 'update',
           });
+          // The paths move with the mapping, in the same transaction
+          // (workplan 0109 T1b). Gated like the audit row: a PATCH restating
+          // the status a mapping already has is a request, not a transition.
+          if (previousStatus !== updateData.status) {
+            await movePathsWithMapping(db, tenantId, mappingId, updateData.status);
+          }
         }
         return [row];
       });
@@ -2259,6 +2274,10 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
           actor: req.userId ?? 'unknown',
           via: 'start',
         });
+        // Every included path takes its slot in the same transaction
+        // (workplan 0109 T1b): `activate` stamps `first_activated_at` once,
+        // so a resume through this route keeps the original date.
+        await movePathsWithMapping(db, tenantId, mappingId, 'active');
       });
     }
 
