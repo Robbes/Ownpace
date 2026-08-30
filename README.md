@@ -99,7 +99,8 @@ Everything lives in [`docs/`](./docs/). Start with the source of truth: [`docs/a
 - **Decision Records**: [`docs/adr/`](./docs/adr/)
 
 ## Status
-Active development, pre-release. License: Apache-2.0 (see `LICENSE`).
+Active development, pre-release. License: Apache-2.0 (see `LICENSE`). "Ownpace" is a
+trademark of Archico B.V. — the code is free, the name is not; see [`TRADEMARK.md`](./TRADEMARK.md).
 
 The **migration core** is done and property-tested for idempotency: O365 → JMAP/IMAP-DAV mail,
 plus calendar/contacts/files domains (worker `runAllDomains` orchestration) and the cutover
