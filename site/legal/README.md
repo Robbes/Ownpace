@@ -41,7 +41,7 @@ until a customer reads it.
 | `«HOSTING_PROVIDER»`, `«HOSTING_REGION»` | Who runs the servers, and where | Must be EU — the claim in privacy §8 is the product's whole premise. **Owner, 2026-08-20: self-hosted today, landing on OVH (EU).** Do not write "OVH" into the policy until it is actually true there — a privacy policy naming a host the service is not on is the kind of inaccuracy that is worse than a placeholder, because a placeholder is visibly unfinished and a wrong name is not. |
 | `«EMAIL_PROVIDER»`, `«EMAIL_REGION»` | Who sends summary and account mail | Must be EU |
 | `«LOG_RETENTION»` | How long operational logs are kept | Pick a number and honour it |
-| `«DPA_URL»` | The data-processing agreement | 0086 T5 — **not optional** once a business customer's mail is involved |
+| `«DPA_URL»` | The data-processing agreement | **No longer used** since 2026-08-30 — privacy §3 and terms §4 both say "available on request" until the DPA is published (0086 T5 — **not optional** once a business customer's mail is involved); row kept so the token's history stays findable |
 | `«SUBPROCESSORS_URL»` | The sub-processor list | Referenced by the DPA |
 | `«PRICING_URL»` | The published price list | **No longer used** since 2026-08-30 — terms links [the pricing page](../../site/pages/en/pricing.md) directly; row kept so the token's history stays findable |
 | `«PRIVACY_HISTORY_URL»` | Previous versions of the privacy policy | Privacy §13 promises they stay available |
@@ -64,8 +64,12 @@ commit.
 
 - **Self-host sends us nothing.** No telemetry, no usage counts, no error reports. The privacy
   policy opens with it because it is the strongest thing there is to say and it is checkable.
-- **We are a processor for migration content, a controller for the account.** ADR-0035 and §17;
-  it decides the whole shape of the DPA.
+- **We are controller for the account; for migration content it depends on the customer**
+  (privacy §3): processor for an organisation (ADR-0035 §17), and — draft position, lawyer to
+  confirm — controller for a household migration, because Art. 2(2)(c) leaves the migrating
+  parent outside the GDPR while recital 18 keeps the provider inside it (workplan 0111 §"Who
+  is the controller"). It decides the whole shape of the DPA, which stays a business
+  instrument; the privacy policy carries the household half itself.
 - **The ledger holds metadata, not bodies** — natural keys, hashes, sizes, folder names,
   timestamps. Saying "technical data" instead would be vaguer and no more honest.
 - **Nothing is deleted at the source, ever**, and deletion at the target is opt-in and per-item
@@ -78,7 +82,7 @@ commit.
   Google's policy.
 - **The billing promises are ADR-0014's**: tier derived not chosen, finishing lowers the bill,
   setup charged once on the highest tier, no billing from inattention, nothing past twelve
-  months without re-confirmation. If ADR-0014 changes, terms §6 and §7 change with it.
+  months without re-confirmation. If ADR-0014 changes, terms §6 and §8 change with it.
 
 ## What is deliberately not here yet
 
