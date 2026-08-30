@@ -42,7 +42,7 @@ until a customer reads it.
 | `«EMAIL_PROVIDER»`, `«EMAIL_REGION»` | Who sends summary and account mail | Must be EU |
 | `«LOG_RETENTION»` | How long operational logs are kept | Pick a number and honour it |
 | `«DPA_URL»` | The data-processing agreement | 0086 T5 — **not optional** once a business customer's mail is involved |
-| `«SUBPROCESSORS_URL»` | The sub-processor list | Referenced by the DPA |
+| `«SUBPROCESSORS_URL»` | The sub-processor list | Referenced by the DPA. Draft exists: [`subprocessors.md`](./subprocessors.md) — the token fills with its published URL (0086 T5) |
 | `«PRICING_URL»` | The published price list | **No longer used** since 2026-08-30 — terms links [the pricing page](../../site/pages/en/pricing.md) directly; row kept so the token's history stays findable |
 | `«PRIVACY_HISTORY_URL»` | Previous versions of the privacy policy | Privacy §13 promises they stay available |
 
@@ -82,9 +82,11 @@ commit.
 
 ## What is deliberately not here yet
 
-- **The DPA and the sub-processor list** (0086 T5). The privacy policy links to both; the links
-  are placeholders until they exist. A business customer cannot lawfully be onboarded without
-  the DPA.
+- **The DPA and the sub-processor list, as published pages** (0086 T5). Drafts now exist —
+  [`dpa.md`](./dpa.md) and [`subprocessors.md`](./subprocessors.md), written 2026-08-30 for
+  legal review — but they are not rendered by the site build, not linked from any published
+  document, and not yet offered to anyone; until publication both legal documents say
+  "available on request". A business customer cannot lawfully be onboarded without the DPA.
 - **A cookie statement.** The application sets no analytics or advertising cookies, so there is
   nothing to disclose beyond the session cookie the sign-in needs — but that sentence belongs
   on the front door once the front door exists and its actual cookie behaviour is known,
