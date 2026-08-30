@@ -238,7 +238,13 @@ describe('T5 — invoice generation + Mollie webhook', () => {
       expect(await statusOf(invoiceId)).toBe('paid');
     });
 
-    it('voids the invoice on a failed payment', async () => {
+    it('a failed payment leaves the invoice SENT — the document is not the payment', async () => {
+      // This asserted `void` until managed migration 0014: a failed payment
+      // used to void the invoice, which both misstated what happened (the
+      // obligation is still owed; the customer can pay again) and, under
+      // 0014's status machine where void is FINAL, would have stranded every
+      // expired payment's invoice unpayable forever. Deliberate semantic
+      // change, not a loosened guard: the invoice stays `sent` and payable.
       const paymentId = 'tr_failtest';
       const invoiceId = await seedSentInvoice(TENANT_A, paymentId);
       mollieWebhookResult = {
@@ -249,7 +255,7 @@ describe('T5 — invoice generation + Mollie webhook', () => {
 
       const res = await request.post('/api/billing/webhooks/mollie').send({ id: paymentId });
       expect(res.status).toBe(200);
-      expect(await statusOf(invoiceId)).toBe('void');
+      expect(await statusOf(invoiceId)).toBe('sent');
     });
 
     it('acknowledges but does nothing when correlation metadata is missing', async () => {

@@ -14,15 +14,17 @@
  * and usage routes.
  *
  * Idempotent: keyed by the unique (tenant_id, period_start) invoice constraint.
- * Re-running refreshes a `draft`/`sent` invoice's amounts but NEVER overwrites an
- * invoice that has already been `paid` or `void` (that state comes from the
- * payment webhook and must not be clobbered).
+ * Re-running refreshes a DRAFT invoice's amounts and touches nothing past
+ * draft: an issued invoice (`sent` and onward) is a document, and documents
+ * are corrected by credit note, never regenerated (ADR-0044; managed
+ * migration 0014 enforces this at the database, so the `setWhere` below is
+ * the app agreeing with the rule, not the only thing holding it).
  *
  * Managed-only: this module lives in apps/api and is never imported by the
  * self-host edition (hard rule 5 — self-host loads no billing code).
  */
 
-import { and, eq, notInArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { PgDatabase } from '@openmig/ledger';
 import { getUsageMetricsForPeriod, resolveTenantPricing, VAT_RATE } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
@@ -98,7 +100,11 @@ export async function generateInvoiceForPeriod(
     compute: cost.compute,
   };
 
-  // If a paid/void invoice already exists for this period, leave it untouched.
+  // If an ISSUED invoice already exists for this period — sent, paid, void,
+  // anything past draft — leave it untouched: regeneration is a draft-phase
+  // act (migration 0014's freeze would refuse the rewrite anyway; skipping
+  // here avoids a pointless round-trip and answers with the row as it
+  // stands).
   const existing = await db
     .select({ id: schema.invoice.id, status: schema.invoice.status })
     .from(schema.invoice)
@@ -109,7 +115,7 @@ export async function generateInvoiceForPeriod(
       ),
     );
 
-  const locked = existing.some((i) => i.status === 'paid' || i.status === 'void');
+  const locked = existing.some((i) => i.status !== 'draft');
   if (locked && existing[0]) {
     return {
       id: existing[0].id,
@@ -126,11 +132,11 @@ export async function generateInvoiceForPeriod(
   const metadata = { costByDriver, generatedAt: new Date().toISOString() };
 
   // Upsert the draft invoice — one per (tenant, period) via the unique index.
-  // The `setWhere` guard makes the "never overwrite a paid/void invoice" rule
-  // ATOMIC: if a payment webhook flips the invoice to paid/void between the
-  // SELECT above and this statement, the ON CONFLICT UPDATE is skipped by the
-  // database (not just by the earlier read), so a paid invoice's amounts can
-  // never be rewritten.
+  // The `setWhere` guard makes the "only drafts regenerate" rule ATOMIC: if
+  // the customer starts paying (draft → sent) between the SELECT above and
+  // this statement, the ON CONFLICT UPDATE is skipped by the database, not
+  // just by the earlier read. Migration 0014's trigger is the backstop the
+  // day this drifts — an issued invoice's amounts refuse at the database.
   const [invoice] = await db
     .insert(schema.invoice)
     .values({
@@ -155,13 +161,14 @@ export async function generateInvoiceForPeriod(
         metadata,
         updatedAt: new Date(),
       },
-      setWhere: notInArray(schema.invoice.status, ['paid', 'void']),
+      setWhere: eq(schema.invoice.status, 'draft'),
     })
     .returning({ id: schema.invoice.id, status: schema.invoice.status });
 
   if (!invoice) {
-    // The row became paid/void after the SELECT above, so `setWhere` skipped the
-    // update. Re-read and return it untouched (the payment state wins).
+    // The row was issued after the SELECT above (a concurrent pay click can
+    // send it mid-generation), so `setWhere` skipped the update. Re-read and
+    // return it untouched — the document wins.
     const [current] = await db
       .select({ id: schema.invoice.id, status: schema.invoice.status })
       .from(schema.invoice)

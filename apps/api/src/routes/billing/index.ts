@@ -767,6 +767,19 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       return;
     }
 
+    // Refuse BEFORE creating a Mollie payment: a paid document has nothing
+    // left to pay, and a void one is cancelled. The database's status
+    // machine (managed migration 0014) would refuse the → sent write anyway,
+    // but by then real money would already be moving — the order of these
+    // two lines is the point.
+    if (invoice.status === 'paid' || invoice.status === 'void') {
+      res.status(409).json({
+        error: 'Conflict',
+        message: `Invoice is ${invoice.status} and cannot be paid`,
+      });
+      return;
+    }
+
     // Get Mollie service
     const mollieService = getMollieService();
 
