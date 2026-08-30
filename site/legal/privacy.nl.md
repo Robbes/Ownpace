@@ -113,6 +113,18 @@ Alles wat u ons stuurt op support@ownpace.eu, en serverlogs die vastleggen dát 
 waren — tijdstippen, IP-adressen, foutcodes. Logs zijn zo geschreven dat **inloggegevens,
 mapnamen en onderwerpregels er niet in voorkomen**.
 
+Om de dienst te kunnen leveren en ondersteunen kan een klein aantal met naam bekende
+beheerders aan onze kant **dienstmetadata** over uw account inzien: de naam en status van uw
+omgeving, de toestand en foutcategorie van elke migratie, factuuroverzichten, en hoeveel
+items op een beslissing van u wachten. **Zij kunnen niet in uw inhoud bladeren.**
+Berichtteksten en onderwerpregels, map- en bestandsnamen, agenda-items, inloggegevens en
+opgeslagen foutteksten verschijnen op geen enkel supportscherm — de schermen zijn zonder
+toegang daartoe gebouwd, en dat is in de broncode na te lezen in plaats van aan te nemen.
+**Elke inzage wordt zelf vastgelegd** — wie keek, bij welk account, naar welk scherm en
+wanneer — in een log dat niet kan worden aangepast of gewist, zodat "wij kijken niet in uw
+gegevens" controleerbaar is in plaats van een belofte. Onze verwerkersovereenkomst (§5
+daar) doet organisaties dezelfde toezegging.
+
 ## 5. Waarom we het bewaren, in AVG-termen
 
 | Wat | Doel | Grondslag |
@@ -121,6 +133,7 @@ mapnamen en onderwerpregels er niet in voorkomen**.
 | Account, facturen, gebruikscijfers | De dienst leveren en factureren | Overeenkomst; wettelijke plicht voor het bewaren van facturen (art. 6 lid 1 sub c) |
 | Operationele logs | De dienst veilig en werkend houden | Gerechtvaardigd belang (art. 6 lid 1 sub f) |
 | Supportcorrespondentie | U antwoorden | Overeenkomst / gerechtvaardigd belang |
+| Support-inzagelog (welke beheerder welke accountmetadata bekeek, en wanneer) | Verantwoording van onze eigen toegang tot uw account | Gerechtvaardigd belang (art. 6 lid 1 sub f) — dat van u evenzeer als dat van ons |
 
 **We gebruiken uw gegevens niet voor advertenties, we stellen geen profielen op, en we
 verkopen of verhuren niets aan wie dan ook.** Er zit geen analysetracker in de applicatie.
