@@ -1,13 +1,15 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!-- Dutch translation of terms.md. Keep the SECTION NUMBERING identical, so the
-     two can be diffed against each other when either changes. §12 names the
-     English version as the authoritative text. -->
+     two can be diffed against each other when either changes. §13 names the
+     English version as the authoritative text. The briefing for the reviewing
+     lawyer (open questions, what changed in v1.1) is the comment at the top of
+     terms.md — it applies to both files. -->
 
 # Servicevoorwaarden
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 1.0 (concept — nog niet gepubliceerd; zie `site/legal/README.md`)
-**Laatst bijgewerkt:** 2026-08-20
+**Versie:** 1.1 (concept voor juridische toetsing — nog niet gepubliceerd; zie `site/legal/README.md`)
+**Laatst bijgewerkt:** 2026-08-30
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
 > License 2.0, en het zelf draaien valt onder die licentie en niets hiervan. Deze voorwaarden
@@ -50,13 +52,15 @@ ons weten op support@ownpace.eu als u denkt dat het gecompromitteerd is.
 
 U moet gerechtigd zijn tot de accounts die u koppelt. **Koppel geen account dat niet van u is of
 dat u niet gemachtigd bent te verhuizen.** Voor accounts van een organisatie betekent dat
-toestemming van die organisatie.
+toestemming van die organisatie. Voor het privéaccount van iemand anders — van een gezinslid,
+bijvoorbeeld — betekent het diens toestemming.
 
 ## 4. Uw gegevens, en wat wij ermee mogen
 
 Uw gegevens blijven van u. We verwerken ze uitsluitend om de verhuizingen uit te voeren die u
 instelt, zoals beschreven in de [privacyverklaring](./privacy.html), die deel uitmaakt van deze
-voorwaarden. Zakelijke klanten vallen daarnaast onder onze verwerkersovereenkomst op «DPA_URL».
+voorwaarden. Zakelijke klanten vallen daarnaast onder onze verwerkersovereenkomst — tot die
+hier gepubliceerd is, is die **op aanvraag beschikbaar** via support@ownpace.eu.
 
 **Wij lezen uw e-mail, bestanden, contacten of agenda's niet**, anders dan in de nauwe gevallen
 die de privacyverklaring noemt — uw eigen verzoek om bepaalde items, noodzaak voor beveiliging
@@ -76,8 +80,8 @@ reageren**.
 
 ## 6. Prijzen, en waarvoor u betaalt
 
-Prijzen staan volledig gepubliceerd op «PRICING_URL». Geen offertemuur en geen prijs die u pas
-hoort na een gesprek.
+Prijzen staan volledig gepubliceerd op [de prijzenpagina](./prijzen.html). Geen offertemuur en
+geen prijs die u pas hoort na een gesprek.
 
 - Uw pakket wordt **afgeleid uit wat u gebruikt** — hoeveel verhuizingen tegelijk lopen en
   hoeveel gegevens u hebt verhuisd — niet gekozen uit een menu.
@@ -85,33 +89,65 @@ hoort na een gesprek.
   hoeveelheid verhuisde gegevens legt daarbij een ondergrens.
 - De inrichtingskosten worden **één keer** gerekend, over het hoogste pakket dat u bereikt.
   Later omhoog kost alleen het verschil; weer omlaag betekent nooit opnieuw rekenen.
-- Prijzen zijn exclusief btw, die erbij komt waar die van toepassing is.
+- **Prijzen zijn inclusief btw.** Wat u ziet is wat u betaalt. Facturen aan zakelijke klanten
+  vermelden de btw-behandeling die op hen van toepassing is — Nederlandse btw, binnen de EU
+  verlegde btw op een gevalideerd btw-nummer, of levering buiten de EU.
 
 **Kostendekking, geen winst**: de dienst is geprijsd om te dekken wat het kost om te draaien.
 Dat is een uitspraak over hoe prijzen tot stand komen, geen belofte dat een bepaalde prijs nooit
 verandert.
 
-## 7. Facturatie, opzeggen, en niet betalen voor vergeten
+## 7. Uw herroepingsrecht
 
-Er wordt maandelijks achteraf gefactureerd, via de betaalwijze die u hebt vastgelegd, door onze
-betaaldienstverlener Mollie.
+Bent u **consument**, dan kunt u deze overeenkomst binnen **14 dagen** na het sluiten ervan
+herroepen, zonder opgave van redenen.
 
-**U kunt op elk moment opzeggen**, per het einde van de lopende maand. Geen minimumduur, geen
-opzegtermijn, geen opzegkosten. Al betaalde inrichtingskosten worden niet terugbetaald — het
-werk waarvoor ze betaald zijn, is gedaan.
+De dienst begint binnen die 14 dagen — daar is hij voor. Door uw eerste verhuizing aan te maken
+**verzoekt u er uitdrukkelijk om** dat wij beginnen vóór het einde van de herroepingstermijn,
+en erkent u wat dat betekent: herroept u daarna, dan betaalt u voor het deel van de dienst dat
+al is geleverd, **naar evenredigheid van de afgesproken prijs**, en niet meer. Al verricht
+inrichtingswerk telt mee als geleverd. Herroepen raakt uw gegevens bij uw bron of uw doel niet;
+de beloften van §2 blijven onverkort gelden.
+
+Herroepen doet u met een ondubbelzinnige verklaring aan **support@ownpace.eu**, binnen de 14
+dagen. U mag het modelformulier uit §15 gebruiken, maar dat hoeft niet. Wij bevestigen de
+ontvangst direct per e-mail. Hebt u al betaald, dan betalen we alles boven het evenredige
+bedrag binnen 14 dagen terug, via het betaalmiddel dat u gebruikte; is er nog niets betaald —
+er wordt achteraf gefactureerd — dan factureren we het evenredige bedrag en niets anders.
+
+Bent u zakelijke klant, dan geldt dit hoofdstuk niet voor u.
+
+## 8. Facturatie, verlenging, en niet betalen voor vergeten
+
+Er wordt **maandelijks achteraf** gefactureerd, via de betaalwijze die u hebt vastgelegd, door
+onze betaaldienstverlener Mollie. Bieden we een vooruitbetaalde termijn met korting aan — een
+jaar, bijvoorbeeld — en kiest u die, dan wordt die termijn bij aanvang gefactureerd; de korting
+is de prijs van de toezegging.
+
+**Een maandabonnement kunt u op elk moment opzeggen**, per het einde van de lopende maand. Geen
+minimumduur, geen opzegtermijn, geen opzegkosten. Al betaalde inrichtingskosten worden niet
+terugbetaald — het werk waarvoor ze betaald zijn, is gedaan.
+
+**Een vooruitbetaalde termijn loopt door tot zijn einde** als u tijdens die termijn opzegt; er
+wordt niet naar rato terugbetaald, want de korting was al de prijs van de toezegging. Na een
+eerste termijn loopt een abonnement **van maand tot maand** door, en zegt u op zoals elk
+maandabonnement: op elk moment, per het einde van de lopende maand — voor consumenten is dat de
+wet, en wij passen het op iedereen toe. Een vooruitbetaalde termijn verlengt nooit opnieuw als
+vooruitbetaalde termijn zonder dat u daar opnieuw voor kiest.
 
 Twee toezeggingen die ons beperken in plaats van u:
 
 - **We verdienen niet aan onoplettendheid.** Loopt er een verhuizing zonder dat er nog iets te
   doen valt, dan vragen we u met één klik of u hem wilt houden of afronden.
 - **We factureren niet langer dan twaalf maanden zonder uw uitdrukkelijke bevestiging.** Loopt
-  een verhuizing een jaar, dan moet u het opnieuw zeggen.
+  een verhuizing een jaar, dan moet u het opnieuw zeggen — een vooruitbetaalde termijn geldt
+  als die bevestiging voor de periode die hij dekt.
 
 Mislukt een betaling, dan laten we het u weten en proberen we het opnieuw voordat er iets wordt
 opgeschort. We verwijderen uw verhuisgegevens niet vanwege een mislukte betaling zonder u eerst
 te waarschuwen.
 
-## 8. Beschikbaarheid
+## 9. Beschikbaarheid
 
 We streven ernaar de dienst draaiend te houden en melden gepland onderhoud vooraf. **We bieden
 bij deze prijzen geen contractuele beschikbaarheidsgarantie**, en dat ronduit zeggen is beter dan
@@ -121,7 +157,12 @@ Een verhuizing is gebouwd om onderbreking te overleven: hij hervat in plaats van
 beginnen, en een tweede ronde komt samen in plaats van te dupliceren. Uitval kost u tijd, geen
 juistheid.
 
-## 9. Als wij het fout doen
+**Hoe snel een verhuizing loopt, is niet volledig aan ons om te beloven.** De aanbieders aan
+weerszijden bepalen het tempo — hun limieten en afremming zijn een plafond waar we onder werken,
+niet omheen — dus we beloven convergentie, geen opleverdatum. De duur is een keuze die u maakt
+wanneer u overstapt, geen voorspelling die wij verkopen.
+
+## 10. Als wij het fout doen
 
 Dan herstellen we het. Laat het ons weten op support@ownpace.eu.
 
@@ -139,7 +180,7 @@ alinea alleen voor zover die wet dat toelaat.
 dat dat kan — dat is wat overstappen op uw eigen moment betekent — en het is de beste bescherming
 tegen alles in dit hoofdstuk.
 
-## 10. Beëindigen
+## 11. Beëindigen
 
 **U** kunt uw account op elk moment sluiten. Bij sluiting verwijderen we uw toegangsgegevens en
 uw verhuisregister zoals beschreven in de privacyverklaring; facturen bewaren we zolang de
@@ -150,24 +191,43 @@ ernstige schending van §5. Stoppen we met de dienst, dan krijgt u **minstens 90
 bericht en een export van alles wat de dienst over uw verhuizingen bewaart** — en de software is
 Apache-2.0, dus u kunt hem zelf blijven draaien.
 
-## 11. Wijzigingen in deze voorwaarden
+## 12. Wijzigingen in deze voorwaarden
 
 Wezenlijke wijzigingen melden we per e-mail, minstens **30 dagen** vooraf. Aanvaardt u ze niet,
 dan zegt u op voordat ze ingaan. Doorgaan met de dienst daarna geldt als aanvaarding.
 
-## 12. Recht en geschillen
+## 13. Recht en geschillen
 
 Op deze voorwaarden is **Nederlands recht** van toepassing, en geschillen worden voorgelegd aan
 de bevoegde rechter in «COURT_DISTRICT». Bent u consument, dan ontneemt dit u niet de bescherming
-van het dwingende recht van uw land van verblijf, en kunt u ook het onlinegeschillenplatform van
-de Europese Commissie gebruiken.
+van het dwingende recht van uw land van verblijf, en evenmin uw recht om te procederen voor de
+rechter van uw eigen land.
+
+**Eerst een klacht, bij ons.** Vertel ons wat er misging via support@ownpace.eu — we reageren
+binnen 14 dagen. Bent u consument en komen we er samen niet uit, dan adviseert en bemiddelt het
+**netwerk van Europese Consumentencentra (ECC-Net)** kosteloos bij grensoverschrijdende
+geschillen.
 
 **Taal.** Deze Nederlandse tekst is een vertaling voor uw gemak. Bij verschillen tussen deze
 tekst en de Engelse versie geldt de **Engelse versie**, behalve waar dwingend consumentenrecht
 anders bepaalt.
 
-## 13. De rest
+## 14. De rest
 
 Is een bepaling niet afdwingbaar, dan blijft de rest gelden. Iets één keer niet afdwingen is geen
 afstand ervan. U kunt deze voorwaarden niet overdragen zonder onze toestemming; wij kunnen ze
 overdragen aan een rechtsopvolger van de onderneming, en laten u dat dan weten.
+
+## 15. Bijlage — modelformulier voor herroeping
+
+Dit formulier alleen invullen en terugzenden als u de overeenkomst wilt herroepen.
+
+- Aan: «LEGAL_ENTITY», «REGISTERED_ADDRESS», e-mail: support@ownpace.eu
+- Ik/wij deel/delen u hierbij mede dat ik/wij de overeenkomst betreffende de levering van de
+  volgende dienst herroep/herroepen: de beheerde Ownpace-dienst, voor het account op dit
+  e-mailadres: …
+- Besteld op: …
+- Naam consument(en): …
+- Adres consument(en): …
+- Handtekening van consument(en) (alleen wanneer dit formulier op papier wordt ingediend): …
+- Datum: …
