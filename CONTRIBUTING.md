@@ -45,7 +45,7 @@ cannot show it preserves both will be sent back regardless of how clean it is.
 ## Documentation lives in `docs/`
 All documentation goes under `docs/`. The **only** Markdown files allowed in the repo root are:
 
-`README.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `CODE_OF_CONDUCT.md`
+`README.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `CODE_OF_CONDUCT.md`, `TRADEMARK.md`
 
 (`LICENSE` has no extension.) Anything else — design, guides, runbooks, notes — belongs in `docs/`. A CI check may enforce this allowlist.
 
