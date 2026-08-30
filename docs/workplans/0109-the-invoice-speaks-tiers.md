@@ -31,7 +31,13 @@ proved byte-exact by sensitivity. Details in §T3. **Both billing axes now have 
 recorders; T4 (the calculator) is the next unbuilt piece and waits only on the owner's
 band prices for its final numbers.**
 
-**T0 is decided and built; T4–T6 remain a plan for review.** Written after 0088's
+**And T4 on top of all three, same evening**: the calculator — the third copy of the
+numbers, held to the ADR and to the site's own derivation by structurally-identical
+guards, and `currentTier` answering with the invoice's evidence. Details in §T4. **Only
+T5 (the invoice line + the mirror reshape, gated on the Moneybird trial) and T6
+(top-ups/step-ups/floor mechanics) remain.**
+
+**T0 is decided and built; T5–T6 remain a plan for review.** Written after 0088's
 calculator shipped, when the gap between what the site publishes and what the code would
 charge stopped being theoretical.
 
@@ -47,7 +53,7 @@ per mapping, so nothing above it can be right until that moves.
 | T1 A lifecycle per PATH, not per mapping | 🟡 T1a done 2026-08-27; **T1b (the wiring) BUILT 2026-08-30** — the four writers move the paths in-transaction, T2/T3 unblocked; **T1c (the cutover grain) extracted — needs an owner decision** (0104's one-announcement rule vs paths ending one at a time) | The unit ADR-0014 bills is `(mapping, domain)`. The billing ledger now moves with every press; only the machinery for paths ENDING one at a time still waits. |
 | T2 The peak, recorded rather than recomputed | ✅ **Built 2026-08-30** (managed migration 0015, `PgOccupancyPeakStore`, recorded inside the activation transaction) | "Six at the same time on 12 August" now comes from `occupancy_peak`: per-tenant per-month high-water, raise-only by trigger for every role, tie keeps its first date. Under-records only (concurrency, quiet months) — T4 trues up the live month before reading. |
 | T3 The first-copy byte meter, append-only | ✅ **Built 2026-08-30** (engine statistic + managed migration 0016 + worker flush) | `firstCopyBytes` computed in the one shared loop at the moment of each target CREATE; `bytes_moved` raised by the managed worker after each pass, raise-only by trigger. Never the same query as 0090's byte budget, and never a live-row SUM — proved byte-exact by sensitivity at the engine. |
-| T4 The tier calculator, and its drift guard | 📋 Planned (needs T1–T3) | The third copy of the numbers. It gets the same guard the first two have. |
+| T4 The tier calculator, and its drift guard | ✅ **Built 2026-08-30** (`tier-calculator.ts`, on T1–T3 the same evening) | The third copy of the numbers, held to the first two: the same structurally-identical ADR-table parse the site guard runs, PLUS an agreement grid driving this derivation and `site/calculator.mjs`'s over every boundary (195 points — tier and axis must match). `currentTier` derives from the month's peak (with T2's true-up, closing the quiet-month gap) and the meter's total, and answers with the EVIDENCE T5 quotes. Proved by breaking: a one-euro price drift and a wrong-axis derivation each turn red. |
 | T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. |
 | T6 Top-ups, step-ups and the floor | 📋 Planned (needs T4) | The mechanics ADR-0014 published and nothing implements. |
 | T7 Extend the leakage guard before, not after | ✅ **Obsolete as written — resolved by the guard itself, verified 2026-08-30** | The premise ("a fixed list of five") is stale: the guard's table list now DERIVES from the managed chain's own SQL, so `occupancy_peak` was appliance-forbidden the moment migration 0015 existed, with no list to edit. Verified green with the new table; T3's meter inherits the same coverage for free. |
@@ -318,6 +324,20 @@ this project has already caught twice arrives in the one place that costs money.
 decided. It cannot be imported (`site/` depends on nothing in the workspace, deliberately —
 0086 T7), so the managed one is a re-implementation whose agreement is proved by test rather
 than by sharing.
+
+**BUILT 2026-08-30.** `packages/managed/src/tier-calculator.ts`: `MANAGED_TIERS` (the third
+copy), `deriveTier` (semantically identical to the site's — higher axis wins, `decidedBy`
+names it, null past the table means "talk to us"), and `currentTier(db, tenantId)` — the
+live derivation T5 will call: T2's true-up first (`recordCurrentOccupancy`, so a standing
+fleet in a quiet month is counted the moment somebody asks), then the month's peak and the
+meter's lifetime total, answered WITH the evidence (`peakPaths`, `peakAt`, `gbMoved`).
+Three guards in `tier-calculator.unit.test.ts`, each proved by breaking: (1) ADR parity via
+the same structurally-identical Markdown parse `site/site.unit.test.ts` runs — a one-euro
+drift turns red; (2) an agreement grid driving both implementations over 13×15 boundary
+points — a wrong-axis derivation turns three tests red; (3) `currentTier` against PGlite,
+including the quiet-month arm and the past-the-table null. A PAST month's derivation is
+deliberately not built here: the true-up can only write the month it runs in, so
+period-close derivation belongs to T5's scheduled job, and the module says so.
 
 ## T5 — the invoice says the tier, and its evidence
 
