@@ -1,10 +1,57 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
+<!--
+  DRAFT FOR LEGAL REVIEW — v1.1, 2026-08-30. This comment never renders (the
+  site generator strips HTML comments); it is the briefing for the reviewing
+  lawyer, and the companion to the one at the top of terms.md (v1.1, merged
+  the same day). privacy.nl.md mirrors this file section for section.
+
+  What changed from v1.0, and the questions we want answered:
+
+  1. §3 — the core change: two roles became three. For an organisation we
+     stay processor; for a household migration we now say we are CONTROLLER
+     for the content too, on Art. 6(1)(b), because Art. 2(2)(c) leaves the
+     migrating parent outside the GDPR (no controllership to instruct with)
+     while recital 18 keeps us inside it — and in practice we determine the
+     means (service design, retention, sub-processors, security). The full
+     reasoning is workplan 0111 §"Who is the controller". QUESTION: confirm
+     the role and the basis, or correct them.
+  2. §3 — the correspondents paragraph: a mailbox contains people who never
+     contracted with anybody. QUESTION: does pointing them at this published
+     policy satisfy Art. 14 (via 14(5)(b) disproportionate effort), or is
+     more required of us as provider?
+  3. §7 — Mollie moved out of the sub-processor table: as a payment
+     institution it processes payment data as an independent controller, not
+     on our instructions. QUESTION: correct classification?
+  4. §3/§7 — the DPA is "available on request at support@ownpace.eu until
+     published" (same formula the terms use). A draft DPA and sub-processor
+     list exist in this repository for your review. QUESTION: acceptable
+     transitional state under Art. 28(9) (electronic form)?
+  5. §5 — the preflight row rests on contract/pre-contractual steps
+     (Art. 6(1)(b)) including for people who never become customers (counts
+     kept 30 days). QUESTION: right basis, or should that slice be 6(1)(f)?
+  6. §12 — "not directed at children under 16": our basis is contract, not
+     consent, so Art. 8 does not bite directly. QUESTION: is this section
+     saying the right thing, and is 16 the right line for NL?
+  7. §9 — invoices kept 7 years under the Art. 17(3)(b) carve-out. The
+     product's direction (workplan 0111 T10) is that the bookkeeping system
+     becomes the record and our copy is purged on erasure, keeping only the
+     invoice numbers. QUESTION: confirm this policy's wording survives that
+     unchanged.
+  8. §10 — the portability note is deliberately informal beside formal
+     Art. 20 compliance. Keep, trim, or formalise?
+  9. «LOG_RETENTION» stays a placeholder — a number will be picked and
+     honoured before publication. Flag if the AP expects anything beyond a
+     stated period.
+  10. Read this together with the terms (v1.1): same audience-first shape,
+      one lawyer pass over both is the ask. The entity tokens («LEGAL_ENTITY»
+      and friends) fill from the entity decision, not from this review.
+-->
 
 # Privacy policy
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`.
-**Version:** 1.0 (draft — not yet published; see `site/legal/README.md`)
-**Last updated:** 2026-08-20
+**Version:** 1.1 (draft for legal review — not yet published; see `site/legal/README.md`)
+**Last updated:** 2026-08-30
 
 > **If you run Ownpace yourself**, this policy does not apply to you and there is nothing for
 > us to state: the software runs on your infrastructure, your data never reaches us, and we
@@ -32,16 +79,30 @@ duplicate anything.
 to be written to the target you chose. We do not warehouse them, and we do not keep a copy
 after a migration ends.
 
-## 3. Two roles, and which one we are
+## 3. Our role, which depends on who you are
 
-For the **content of your migration** — your mail, files, contacts and calendar entries — you
-(or, for an organisation, your administrator) are the **controller** and we are the
-**processor**. We act on your instructions, which are the migrations you configure. Our
-data-processing agreement is at `«DPA_URL»` and forms part of the contract for business
-customers.
+For **your account with us** — sign-in, billing, support correspondence — we are the
+**controller**, whoever you are.
 
-For your **account with us** — sign-in, billing, support correspondence — we are the
-**controller**.
+For the **content of your migration** — your mail, files, contacts and calendar entries — it
+depends on who is migrating:
+
+- **If you are an organisation**, you are the **controller** and we are your **processor**. We
+  act on your documented instructions, which are the migrations you configure. Our
+  data-processing agreement forms part of your contract — **available on request** at
+  support@ownpace.eu until it is published here.
+- **If you are a private individual** moving your own or your family's accounts, the GDPR's
+  household exemption (Art. 2(2)(c)) means *you* carry no controller obligations for what you
+  move — and that exemption does not extend to us (recital 18). For your migration's content
+  we therefore act as **controller**, on the contract between us (Art. 6(1)(b)), and this
+  policy carries the commitments a business customer would get from a data-processing
+  agreement: we process the content only to run the migration you configured (§5), the
+  sub-processor list in §7 and the retention in §9 apply to you in full, and §2's promises
+  hold.
+
+A mailbox also contains **other people** — the correspondents who wrote to you. They never
+contracted with us. What we hold that concerns them is what §4 describes and nothing more, it
+is protected by the same §7–§9, and the rights in §10 are theirs too, no account required.
 
 ## 4. What we actually hold
 
@@ -95,7 +156,7 @@ message subjects do not appear in them.**
 
 | What | Purpose | Lawful basis |
 |---|---|---|
-| Credentials, ledger, preflight counts | Performing the migration you asked for | Contract (Art. 6(1)(b)); processed on your instructions as processor |
+| Credentials, ledger, preflight counts | Performing the migration you asked for | Contract, including steps you request before one (Art. 6(1)(b)) — on your instructions as processor for an organisation; as controller for a household migration (§3) |
 | Account, invoices, usage figures | Providing and billing for the service | Contract; legal obligation for invoice retention (Art. 6(1)(c)) |
 | Operational logs | Keeping the service secure and working | Legitimate interests (Art. 6(1)(f)) |
 | Support correspondence | Answering you | Contract / legitimate interests |
@@ -131,11 +192,16 @@ the app password you issued.
 | Sub-processor | What for | Where |
 |---|---|---|
 | «HOSTING_PROVIDER» | Running the service and its database | «HOSTING_REGION» (EU) |
-| Mollie B.V. | Card and direct-debit payments | Netherlands (EU) |
 | «EMAIL_PROVIDER» | Sending your progress summaries and account mail | «EMAIL_REGION» (EU) |
 
-The current list is maintained at `«SUBPROCESSORS_URL»`. Business customers are notified before
-a sub-processor is added, with the right to object as set out in the DPA.
+The current list is maintained at `«SUBPROCESSORS_URL»`. Business customers are notified
+before a sub-processor is added, with the right to object as set out in the DPA; everyone else
+gets the same change notice through §13.
+
+**Mollie B.V.** (Netherlands, EU) handles card and direct-debit payments. As a licensed
+payment institution it processes your payment data under its own responsibility and privacy
+policy — an independent controller, not our sub-processor. **We never see or store your card
+details.**
 
 **Your migration's source and target providers are not our sub-processors** — they are your
 own accounts, and your relationship with them is yours.
@@ -171,7 +237,8 @@ procedure that says what happens to everything if the service ever closes
 
 Access, rectification, erasure, restriction, portability, objection, and withdrawal of consent
 where consent is the basis. Write to **support@ownpace.eu**; we will not charge you and we will
-not make you explain why.
+not make you explain why. These rights hold against us wherever §3 makes us controller — and
+for the people in a migrated mailbox who never held an account, the same address answers.
 
 **Portability deserves a note.** This whole product exists because moving your own data between
 providers is harder than it should be. If you want your data out of Ownpace, you already have
@@ -194,7 +261,8 @@ will not threaten you for telling us.
 ## 12. Children
 
 The service is not directed at children under 16 and we do not knowingly create accounts for
-them.
+them. A family migration configured by a parent may of course move a child's account — that is
+the household case §3 describes, and the parent stays the one operating it.
 
 ## 13. Changes
 

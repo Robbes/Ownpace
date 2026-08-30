@@ -1,13 +1,15 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!-- Dutch translation of privacy.md. Keep the SECTION NUMBERING identical, so
      the two can be diffed against each other when either changes. The English
-     version is the authoritative text (see terms §12); the site says so. -->
+     version is the authoritative text (see terms §13); the site says so. The
+     briefing for the reviewing lawyer (open questions, what changed in v1.1)
+     is the comment at the top of privacy.md — it applies to both files. -->
 
 # Privacyverklaring
 
 **Geldt voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 1.0 (concept — nog niet gepubliceerd; zie `site/legal/README.md`)
-**Laatst bijgewerkt:** 2026-08-20
+**Versie:** 1.1 (concept voor juridische toetsing — nog niet gepubliceerd; zie `site/legal/README.md`)
+**Laatst bijgewerkt:** 2026-08-30
 
 > **Draait u Ownpace zelf**, dan geldt deze verklaring niet voor u en valt er voor ons niets
 > te verklaren: de software draait op uw eigen infrastructuur, uw gegevens bereiken ons nooit,
@@ -35,16 +37,32 @@ dupliceert.
 het doel te worden weggeschreven dat u hebt gekozen. We slaan ze niet op, en we bewaren geen
 kopie nadat een verhuizing eindigt.
 
-## 3. Twee rollen, en welke van de twee wij zijn
+## 3. Onze rol, die afhangt van wie u bent
 
-Voor de **inhoud van uw verhuizing** — uw e-mail, bestanden, contacten en agenda-items — bent
-u (of, bij een organisatie, uw beheerder) de **verwerkingsverantwoordelijke** en zijn wij
-**verwerker**. Wij handelen op uw instructie, en die instructies zijn de verhuizingen die u
-instelt. Onze verwerkersovereenkomst staat op `«DPA_URL»` en maakt voor zakelijke klanten deel
-uit van de overeenkomst.
+Voor **uw account bij ons** — inloggen, facturatie, contact met support — zijn wij de
+**verwerkingsverantwoordelijke**, wie u ook bent.
 
-Voor **uw account bij ons** — inloggen, facturatie, contact met support — zijn wij
-verwerkingsverantwoordelijke.
+Voor de **inhoud van uw verhuizing** — uw e-mail, bestanden, contacten en agenda-items — hangt
+het ervan af wie er verhuist:
+
+- **Bent u een organisatie**, dan bent u de **verwerkingsverantwoordelijke** en zijn wij uw
+  **verwerker**. Wij handelen op uw gedocumenteerde instructies, en die instructies zijn de
+  verhuizingen die u instelt. Onze verwerkersovereenkomst maakt deel uit van uw overeenkomst —
+  **op aanvraag beschikbaar** via support@ownpace.eu tot die hier gepubliceerd is.
+- **Bent u een particulier** die de eigen accounts of die van het gezin verhuist, dan betekent
+  de huishoudelijke uitzondering van de AVG (art. 2 lid 2 sub c) dat *u* geen
+  verantwoordelijkheidsplichten draagt voor wat u verhuist — en die uitzondering strekt zich
+  niet uit tot ons (overweging 18). Voor de inhoud van uw verhuizing treden wij daarom op als
+  **verwerkingsverantwoordelijke**, op grond van de overeenkomst tussen ons (art. 6 lid 1
+  sub b), en draagt deze verklaring de toezeggingen die een zakelijke klant uit een
+  verwerkersovereenkomst zou halen: we verwerken de inhoud uitsluitend om de verhuizing uit te
+  voeren die u instelde (§5), de subverwerkerslijst in §7 en de bewaartermijnen in §9 gelden
+  onverkort voor u, en de beloften van §2 blijven staan.
+
+Een mailbox bevat ook **andere mensen** — de correspondenten die u schreven. Zij hebben nooit
+met ons gecontracteerd. Wat wij bewaren dat hen raakt is wat §4 beschrijft en niets meer, het
+wordt beschermd door dezelfde §7–§9, en de rechten in §10 zijn ook de hunne, zonder dat daar
+een account voor nodig is.
 
 ## 4. Wat we werkelijk bewaren
 
@@ -99,7 +117,7 @@ mapnamen en onderwerpregels er niet in voorkomen**.
 
 | Wat | Doel | Grondslag |
 |---|---|---|
-| Toegangsgegevens, register, preflight-tellingen | De verhuizing uitvoeren die u hebt gevraagd | Overeenkomst (art. 6 lid 1 sub b); verwerkt op uw instructie als verwerker |
+| Toegangsgegevens, register, preflight-tellingen | De verhuizing uitvoeren die u hebt gevraagd | Overeenkomst, inclusief stappen die u vooraf vraagt (art. 6 lid 1 sub b) — op uw instructie als verwerker voor een organisatie; als verwerkingsverantwoordelijke bij een gezinsverhuizing (§3) |
 | Account, facturen, gebruikscijfers | De dienst leveren en factureren | Overeenkomst; wettelijke plicht voor het bewaren van facturen (art. 6 lid 1 sub c) |
 | Operationele logs | De dienst veilig en werkend houden | Gerechtvaardigd belang (art. 6 lid 1 sub f) |
 | Supportcorrespondentie | U antwoorden | Overeenkomst / gerechtvaardigd belang |
@@ -137,12 +155,16 @@ app-wachtwoord te verwijderen dat u hebt aangemaakt.
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|
 | «HOSTING_PROVIDER» | De dienst en de database draaien | «HOSTING_REGION» (EU) |
-| Mollie B.V. | Kaart- en incassobetalingen | Nederland (EU) |
 | «EMAIL_PROVIDER» | Uw voortgangsoverzichten en accountmail versturen | «EMAIL_REGION» (EU) |
 
 De actuele lijst staat op `«SUBPROCESSORS_URL»`. Zakelijke klanten worden geïnformeerd voordat
 een subverwerker wordt toegevoegd, met het recht van bezwaar zoals vastgelegd in de
-verwerkersovereenkomst.
+verwerkersovereenkomst; alle anderen krijgen dezelfde wijzigingsmelding via §13.
+
+**Mollie B.V.** (Nederland, EU) verzorgt kaart- en incassobetalingen. Als vergunninghoudende
+betaalinstelling verwerkt Mollie uw betaalgegevens onder eigen verantwoordelijkheid en eigen
+privacyverklaring — een zelfstandige verwerkingsverantwoordelijke, geen subverwerker van ons.
+**Wij zien of bewaren uw kaartgegevens nooit.**
 
 **De bron en het doel van uw verhuizing zijn geen subverwerkers van ons** — dat zijn uw eigen
 accounts, en uw relatie met die aanbieders is de uwe.
@@ -178,7 +200,9 @@ ooit stopt. We hebben de uitgang geschreven voordat we hem nodig hadden.
 
 Inzage, rectificatie, verwijdering, beperking, overdraagbaarheid, bezwaar, en het intrekken
 van toestemming waar toestemming de grondslag is. Schrijf naar **support@ownpace.eu**; we
-brengen er niets voor in rekening en vragen niet waarom.
+brengen er niets voor in rekening en vragen niet waarom. Deze rechten gelden jegens ons overal
+waar §3 ons verwerkingsverantwoordelijke maakt — en voor de mensen in een verhuisde mailbox
+die nooit een account hadden, antwoordt hetzelfde adres.
 
 **Overdraagbaarheid verdient een opmerking.** Dit product bestaat juist omdat uw eigen gegevens
 tussen aanbieders verplaatsen moeilijker is dan het zou moeten zijn. Wilt u uw gegevens uit
@@ -201,7 +225,9 @@ Geen enkel systeem is perfect. Vindt u een kwetsbaarheid, schrijf dan naar
 ## 12. Kinderen
 
 De dienst richt zich niet op kinderen onder de 16 en we maken niet bewust accounts voor hen
-aan.
+aan. Een gezinsverhuizing die een ouder instelt kan uiteraard het account van een kind
+verhuizen — dat is het huishoudelijke geval dat §3 beschrijft, en de ouder blijft degene die
+hem bedient.
 
 ## 13. Wijzigingen
 
