@@ -28,7 +28,7 @@ import {
   PgMigrationStatusStore,
   RunStore,
 } from '@openmig/ledger';
-import { recordComputeForRun, recordApiCallForRun, resolveTenantPricing } from '@openmig/managed';
+import { recordComputeForRun, recordApiCallForRun, resolveTenantPricing, PgBytesMovedStore } from '@openmig/managed';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { log } from '@openmig/shared';
 
@@ -264,13 +264,19 @@ export const runDeltaSync = schemaTask({
 
           // Build + run + release the deps' pool per domain. Literal domain
           // args pick the right overload; the finally never leaks the pool.
-          let result: { created: number; skipped: number };
+          let result: { created: number; skipped: number; firstCopyBytes?: number };
           if (domain === 'email') {
             // SECURITY: Build deps with tenant scoping (RLS enforced).
             const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
             try {
               const pass = await runShadowPass(deps);
-              result = { created: pass.created, skipped: pass.skipped };
+              result = {
+                created: pass.created,
+                skipped: pass.skipped,
+                ...(pass.firstCopyBytes !== undefined
+                  ? { firstCopyBytes: pass.firstCopyBytes }
+                  : {}),
+              };
             } finally {
               await deps.close();
             }
@@ -294,6 +300,18 @@ export const runDeltaSync = schemaTask({
           await withTenant(pool, tenantId, async (db) => {
             await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);
           });
+          // The data axis (0109 T3): this pass's first-copy bytes join the
+          // tenant's lifetime meter. Managed-side by construction — the
+          // engine's number is a neutral pass statistic; pricing it is this
+          // runner's affair (hard rule 5). Zero adds nothing, and a crash
+          // before this line under-counts, never double-counts: the ledger
+          // makes the retried pass re-create nothing.
+          const firstCopyBytes = result.firstCopyBytes ?? 0;
+          if (firstCopyBytes > 0) {
+            await withTenant(pool, tenantId, async (db) => {
+              await new PgBytesMovedStore(db).add(tenantId, firstCopyBytes);
+            });
+          }
           itemsProcessed += result.created + result.skipped;
           log.info(`${domain} sync completed: ${result.created} created, ${result.skipped} skipped`);
           await withTenant(pool, tenantId, async (db) => {

@@ -35,6 +35,7 @@ import {
   jsonb,
   boolean,
   integer,
+  bigint,
   date,
   primaryKey,
   uniqueIndex,
@@ -406,6 +407,26 @@ export const tenantClosure = pgTable(
  * month, NOT that nothing ran — the tier calculator (T4) trues up the current
  * month from live occupancy before reading.
  */
+/**
+ * Cumulative first-copy bytes per tenant (workplan 0109 T3, migration 0016;
+ * ADR-0014's data axis).
+ *
+ * Raised by the managed worker from each pass's `firstCopyBytes` (a neutral
+ * engine statistic — see `DomainSyncResult`); a BEFORE UPDATE trigger in the
+ * migration refuses any lowering, for every role, because the data axis sets
+ * the FLOOR the pricing page announces. Never the same query as 0090's
+ * `byte_budget` (daily, per-provider, protective) — different meter,
+ * different question. Absence means nothing has moved.
+ */
+export const bytesMoved = pgTable('bytes_moved', {
+  tenantId: uuid('tenant_id')
+    .primaryKey()
+    .references(() => tenant.id, { onDelete: 'cascade' }),
+  bytes: bigint('bytes', { mode: 'bigint' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const occupancyPeak = pgTable(
   'occupancy_peak',
   {

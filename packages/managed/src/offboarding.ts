@@ -121,6 +121,10 @@ export const PURGED_TABLES = [
   // date), the same "purge the mirror, keep the pointer" shape as the VIES
   // log above. The FK would cascade; named so the receipt counts it.
   'occupancy_peak',
+  // The cumulative first-copy meter (0109 T3) — same reasoning as the peak
+  // above: a count keyed to the tenant, quoted onto retained invoices, with
+  // no reason to outlive its subject.
+  'bytes_moved',
   'payment_method',
   'usage_metric',
   'tenant_member',

@@ -24,7 +24,14 @@ tie keeps its first date; details in §T2. And **T7 resolved itself**: the leaka
 guard's table list now derives from the managed chain's own SQL, so the new table was
 appliance-forbidden the moment its migration existed — verified green, no list edited.
 
-**T0 is decided and built; T3–T6 remain a plan for review.** Written after 0088's
+**And T3, once #668/#669 merged**: the engine reports `firstCopyBytes` per pass (one
+shared loop serves all four domains, so one accumulation point), the managed worker is
+its only writer into `bytes_moved` (migration 0016, raise-only), and the meter is
+proved byte-exact by sensitivity. Details in §T3. **Both billing axes now have their
+recorders; T4 (the calculator) is the next unbuilt piece and waits only on the owner's
+band prices for its final numbers.**
+
+**T0 is decided and built; T4–T6 remain a plan for review.** Written after 0088's
 calculator shipped, when the gap between what the site publishes and what the code would
 charge stopped being theoretical.
 
@@ -39,7 +46,7 @@ per mapping, so nothing above it can be right until that moves.
 | T0 What the invoice route does until tiers exist (owner decision) | ✅ **Decided (a) refuse, and built, 2026-08-27** | `POST /api/billing/invoices/generate` answers **409 `billing_model_retired`** for every well-formed request, in one sentence that names what it *would* have billed — a retired model, every byte counted twice, items that moved nothing — and says plainly that nothing is wrong with the account and a figure comes from a person until the tiers ship. **409 rather than 501**: the request is well-formed and the caller entitled to make it; the deployment cannot honour it. The refusal is FIRST in the handler and touches no database, so a refused call leaves not even a draft — a test asserts that by making `getDbPool` throw. **The old body is deleted rather than left unreachable behind the refusal**: dead code under a `return` is code nobody maintains and everybody assumes still works, and git has it. Nothing else in billing changes — usage, listing, payment methods and the webhook all behave normally, because what is refused is *minting a bill*, the one operation that turns a wrong model into a number somebody could be asked to pay. **The guard cannot outlive its reason**: one test re-reads `packages/managed/src/pricing.ts` and fails the moment it mentions tiers, so removing this refusal becomes something CI insists on when T4/T5 land rather than something they must remember. Proofs by breaking: the route billing again → 3 red; the reason reduced to "disabled" → 1; tier code appearing in `pricing.ts` → 1 (the trip-wire firing as designed). |
 | T1 A lifecycle per PATH, not per mapping | 🟡 T1a done 2026-08-27; **T1b (the wiring) BUILT 2026-08-30** — the four writers move the paths in-transaction, T2/T3 unblocked; **T1c (the cutover grain) extracted — needs an owner decision** (0104's one-announcement rule vs paths ending one at a time) | The unit ADR-0014 bills is `(mapping, domain)`. The billing ledger now moves with every press; only the machinery for paths ENDING one at a time still waits. |
 | T2 The peak, recorded rather than recomputed | ✅ **Built 2026-08-30** (managed migration 0015, `PgOccupancyPeakStore`, recorded inside the activation transaction) | "Six at the same time on 12 August" now comes from `occupancy_peak`: per-tenant per-month high-water, raise-only by trigger for every role, tie keeps its first date. Under-records only (concurrency, quiet months) — T4 trues up the live month before reading. |
-| T3 The first-copy byte meter, append-only | 📋 Planned (needs T1) | Never the same query as 0090's byte budget, and never a live-row SUM. |
+| T3 The first-copy byte meter, append-only | ✅ **Built 2026-08-30** (engine statistic + managed migration 0016 + worker flush) | `firstCopyBytes` computed in the one shared loop at the moment of each target CREATE; `bytes_moved` raised by the managed worker after each pass, raise-only by trigger. Never the same query as 0090's byte budget, and never a live-row SUM — proved byte-exact by sensitivity at the engine. |
 | T4 The tier calculator, and its drift guard | 📋 Planned (needs T1–T3) | The third copy of the numbers. It gets the same guard the first two have. |
 | T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. |
 | T6 Top-ups, step-ups and the floor | 📋 Planned (needs T4) | The mechanics ADR-0014 published and nothing implements. |
@@ -277,6 +284,28 @@ by path or period, it deliberately has no RLS, and it is wiped at erasure. It is
 
 Two quantities are needed and only one exists as an idea: bytes **moved** (monotonic) and the
 **allowance** the tier grants, which top-ups raise. Neither has a home.
+
+**BUILT 2026-08-30 — the moved half; the allowance stays T6's.** The write point turned
+out to exist already, in ONE place: every domain (mail included — `runShadowPass`
+delegates) runs through `runDomainSync`, whose `created` branch is exactly ADR-0014's
+"first successful copy" set — an item born `failed` that succeeds later still CREATES on
+the target and lands there; an `adopted` item moved no bytes (the target already held
+them — the lost-ledger recovery test pins that a reinstall re-charges nothing); a
+rewrite re-copies bytes already counted. So the engine now reports **`firstCopyBytes`**
+on every `DomainSyncResult` (and through `ReconcileResult` for mail) — a neutral pass
+statistic, computed from the same `sizeBytes` the ledger row records, proved byte-exact
+by sensitivity (100 extra body bytes surface as exactly 100). **The managed worker is
+the only writer**: `run-delta-sync` and `run-full-sync` add each pass's number to
+`bytes_moved` (managed migration 0016 — tenant-keyed, cumulative-ever, raise-only by
+BEFORE UPDATE trigger for every role, no `app_user` DELETE, purged with the tenant and
+counted on the receipt), which is hard rule 5 in one sentence: the appliance computes
+the same number and ignores it. A source-level guard turns red if either job's flush is
+deleted (the `mapping-updated-at` lesson — an omission has no behaviour to assert on,
+and trigger.dev jobs have no cheap route-press). Honest under-counts, documented on the
+migration: a worker crash between pass end and flush loses that pass's bytes and the
+converged retry never re-earns them; NULL sizes contribute 0; no back-fill of history.
+All three err in the customer's favour. **T4 reads `PgBytesMovedStore.total` — never a
+live-row SUM**, which also retires findings 1–2's double-count as an invoice input.
 
 ## T4 — the tier calculator, and the third copy of the numbers
 
