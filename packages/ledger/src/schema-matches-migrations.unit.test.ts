@@ -134,6 +134,20 @@ const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }>
       'to disappear afterwards. See packages/managed/migrations/0002 and 0005, ' +
       'access-request-under-rls.unit.test.ts and operator-under-rls.unit.test.ts.',
   },
+  invoice: {
+    privileges: ['DELETE', 'INSERT', 'SELECT'],
+    why:
+      'An issued invoice is immutable (ADR-0044; managed migration 0014, workplan 0111 §"The ' +
+      'refusal, designed"): table-level UPDATE is REVOKED and replaced by a COLUMN-LEVEL grant ' +
+      'on the lifecycle-and-draft-amounts surface (status, amounts, payment fields, metadata, ' +
+      'timestamps) — invisible to role_table_grants, because column grants live in ' +
+      'column_privileges, which is exactly why the check above went red the day the narrowing ' +
+      'landed. The exact column list is pinned in BOTH directions by ' +
+      'invoice-refusal-under-rls.unit.test.ts, and a BEFORE UPDATE trigger enforces the status ' +
+      'machine and freezes document columns past draft, for every role. DELETE stays for now: ' +
+      "whether the request path should lose it outright is T10's question, decided where the " +
+      'erasure purge (the one legitimate deleter, on the owner path) lands.',
+  },
   vat_consultation: {
     privileges: ['INSERT', 'SELECT'],
     why:

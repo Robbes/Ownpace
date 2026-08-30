@@ -25,15 +25,18 @@ import { serverFault } from '../../server-fault.ts';
 const router = Router();
 
 /** Map a Mollie payment status to the invoice status it drives. */
-function invoiceStatusFor(paymentStatus: MolliePayment['status']): 'paid' | 'void' | null {
+function invoiceStatusFor(paymentStatus: MolliePayment['status']): 'paid' | null {
   switch (paymentStatus) {
     case 'paid':
       return 'paid';
-    case 'failed':
-    case 'canceled':
-    case 'expired':
-      return 'void';
-    // open / pending / authorized: not terminal — leave the invoice as 'sent'.
+    // failed / canceled / expired: a failed PAYMENT is not a failed INVOICE.
+    // The document stays `sent` — still owed, still payable, and the pay
+    // route can mint a fresh Mollie payment for it. Voiding a document is a
+    // bookkeeping act (a deliberate cancellation, 0111 T7's territory), not
+    // a payment event; the earlier mapping to `void` also collided with
+    // migration 0014's status machine, where void is FINAL — it would have
+    // stranded every expired payment's invoice unpayable forever.
+    // open / pending / authorized: not terminal — nothing to record yet.
     default:
       return null;
   }
@@ -93,11 +96,14 @@ router.post('/mollie', async (req: Request, res: Response) => {
         return;
       }
 
+      // `nextStatus` can only be 'paid' now (see invoiceStatusFor), so this
+      // is always the sent → paid landing — a transition migration 0014's
+      // machine allows, touching only lifecycle columns.
       await db
         .update(schema.invoice)
         .set({
           status: nextStatus,
-          paidAt: nextStatus === 'paid' ? new Date(payment.paidAt ?? Date.now()) : null,
+          paidAt: new Date(payment.paidAt ?? Date.now()),
           updatedAt: new Date(),
         })
         .where(
