@@ -92,6 +92,7 @@ import type { ShareGrantRow } from '@openmig/shared';
 import { resolveMappingMailbox, tenantInventoryScans } from '../permissions.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
+import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { serverFault } from '../../server-fault.ts';
 
 const router = Router({ mergeParams: true });
@@ -901,6 +902,10 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
         via: 'finish',
         ...(unresolved > 0 ? { forced: true } : {}),
       });
+      // Every path that ever held a slot releases it in the same transaction
+      // (workplan 0109 T1b): `ended_at` is stamped, so "when did this path
+      // stop costing anything" is answerable from the billing ledger itself.
+      await movePathsWithMapping(db, s.tenantId, s.mappingId, 'done');
     });
 
     log.warn(

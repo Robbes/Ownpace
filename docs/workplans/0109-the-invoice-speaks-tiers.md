@@ -1,8 +1,24 @@
 # Workplan 0109 — the invoice speaks tiers
 
-## Status — 2026-08-27 (update this block at the end of every session)
+## Status — 2026-08-30 (update this block at the end of every session)
 
-**T0 is decided and built; T1–T7 are still a plan for review.** Written after 0088's
+**2026-08-30: T1b split in two, and the safe half built.** The **wiring** is in: all
+four lifecycle writers — create-as-active, start, the update route, finish — now move
+every included path's `path_lifecycle` row **in the same transaction** as the
+`mailbox_mapping.status` write. `active` creates rows (`first_activated_at` stamped
+once, surviving pause/resume); every other state moves only rows that exist, so no
+press can conjure a slot for a path that never ran. Proved at the routes against
+PGlite (`path-lifecycle-wiring.unit.test.ts`, 10 tests), each wired call site proved
+by breaking it (removing start/update/finish/create wiring or the `included` filter
+went 5/2/1/1/5 red). The **grain change** — per-path cutover machines,
+`uk_cutover_state_mapping`, the start refusal — is now **T1c, extracted rather than
+attempted**: it collides with 0104's owner-corrected rule that a cutover announces
+**once**, and four paths ending one at a time need an owner decision about when that
+one moment is (the first path's end? mail's? the last?). **T2 and T3 are unblocked by
+the wiring half alone**: activation transitions now exist per path for the peak to
+record, at the `(mapping, domain)` grain the byte meter needs.
+
+**T0 is decided and built; T2–T7 remain a plan for review.** Written after 0088's
 calculator shipped, when the gap between what the site publishes and what the code would
 charge stopped being theoretical.
 
@@ -15,7 +31,7 @@ per mapping, so nothing above it can be right until that moves.
 | Task | Status | Evidence |
 |---|---|---|
 | T0 What the invoice route does until tiers exist (owner decision) | ✅ **Decided (a) refuse, and built, 2026-08-27** | `POST /api/billing/invoices/generate` answers **409 `billing_model_retired`** for every well-formed request, in one sentence that names what it *would* have billed — a retired model, every byte counted twice, items that moved nothing — and says plainly that nothing is wrong with the account and a figure comes from a person until the tiers ship. **409 rather than 501**: the request is well-formed and the caller entitled to make it; the deployment cannot honour it. The refusal is FIRST in the handler and touches no database, so a refused call leaves not even a draft — a test asserts that by making `getDbPool` throw. **The old body is deleted rather than left unreachable behind the refusal**: dead code under a `return` is code nobody maintains and everybody assumes still works, and git has it. Nothing else in billing changes — usage, listing, payment methods and the webhook all behave normally, because what is refused is *minting a bill*, the one operation that turns a wrong model into a number somebody could be asked to pay. **The guard cannot outlive its reason**: one test re-reads `packages/managed/src/pricing.ts` and fails the moment it mentions tiers, so removing this refusal becomes something CI insists on when T4/T5 land rather than something they must remember. Proofs by breaking: the route billing again → 3 red; the reason reduced to "disabled" → 1; tier code appearing in `pricing.ts` → 1 (the trip-wire firing as designed). |
-| T1 A lifecycle per PATH, not per mapping | 🟡 **T1a done 2026-08-27** — the table, its store and its semantics; **T1b (the behaviour change) remains** and still blocks T2–T7 | The unit ADR-0014 bills is `(mapping, domain)`; the only lifecycle is per mapping. Nothing above this can be right until it is. |
+| T1 A lifecycle per PATH, not per mapping | 🟡 T1a done 2026-08-27; **T1b (the wiring) BUILT 2026-08-30** — the four writers move the paths in-transaction, T2/T3 unblocked; **T1c (the cutover grain) extracted — needs an owner decision** (0104's one-announcement rule vs paths ending one at a time) | The unit ADR-0014 bills is `(mapping, domain)`. The billing ledger now moves with every press; only the machinery for paths ENDING one at a time still waits. |
 | T2 The peak, recorded rather than recomputed | 📋 Planned (needs T1) | "Six at the same time on 12 August" has to come from somewhere. |
 | T3 The first-copy byte meter, append-only | 📋 Planned (needs T1) | Never the same query as 0090's byte budget, and never a live-row SUM. |
 | T4 The tier calculator, and its drift guard | 📋 Planned (needs T1–T3) | The third copy of the numbers. It gets the same guard the first two have. |
@@ -185,10 +201,30 @@ written out in SQL, so breaking `holdsASlot` left the COUNT still counting the o
 function and the query could disagree about `paused`, and only one of them is read at invoice
 time. The query now derives from the function, and a test pins that they agree.
 
-**T1b, still to come, and it is the behaviour change:** the three structural blockers above have
-to go — `cutover_state`'s per-mapping unique index most of all, since one cutover machine cannot
-serve four paths that end one at a time — and the start/finish/PATCH routes have to move the path
-rather than the mapping.
+**T1b — the wiring half, BUILT 2026-08-30.** `movePathsWithMapping`
+(`apps/api/src/routes/migrations/path-lifecycle-wiring.ts`) rides the same
+`withTenantDb` transaction as every `mailbox_mapping.status` write — the
+`recordMappingStatusChange` pattern, for the same reason: a committed status whose
+paths did not move is not a reachable state. Four call sites: creation (only when
+created directly as `active` — a draft has moved nothing), start, the update route
+(gated like the audit row: restating a status is a request, not a transition), and
+finish. Two deliberate asymmetries, both in the direction that cannot over-bill:
+`active` creates rows, every other state moves only rows that exist; and only
+`included` domains move at all. Proved at the routes (PGlite as `app_user`, reading
+`path_lifecycle` directly), with each call site and the `included` filter proved by
+breaking (5/2/1/1/5 tests red).
+
+**T1c — the grain change, extracted, and it needs the owner before it needs code:**
+the three structural blockers still stand for paths that END one at a time —
+`cutover_state`'s per-mapping unique index most of all, since one cutover machine
+cannot serve four paths ending separately — but making cutover per-path collides with
+0104's owner-corrected rule that a cutover announces **once**, in one moment, with no
+per-item noise toward third parties. Four paths ending at four times need a decision
+about when that moment is (the first path to cut over? the mail path, which carries
+the address people write to? the last?) — and MX switching, the grace period and
+rollback are the product's most safety-critical machinery, not a place to guess.
+Until T1c, every path of a mapping releases its slot together at cutover/finish,
+which can under-bill (a slot held shorter than the mapping ran) and never over-bills.
 
 ## T2 — the peak, recorded rather than recomputed
 
