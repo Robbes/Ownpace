@@ -201,6 +201,7 @@ export const runShadowPass: RunShadowPass = async (deps) => {
   return {
     scanned: result.scanned,
     created: result.created,
+    firstCopyBytes: result.firstCopyBytes,
     skipped: result.skipped,
     adopted: result.adopted,
     moved: result.moved,

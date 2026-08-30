@@ -563,6 +563,19 @@ export interface DomainSyncResult {
   /** Items the owner has accepted leaving behind. Skipped, never retried. */
   readonly leftBehind: number;
   /**
+   * Bytes of the items this pass copied onto the target for the FIRST time —
+   * the `created` set exactly: not `adopted` (the target already held those
+   * bytes, nothing moved), not `updated` (a rewrite of a copy already made),
+   * not `skipped`. An item whose source offered no size contributes 0.
+   *
+   * A neutral statistic about the pass, like the counters above — what a
+   * consumer does with it is its own affair (the managed edition's cumulative
+   * data meter reads it; the appliance ignores it). Because the ledger makes
+   * re-runs converge, a retried pass re-creates nothing, so summing this
+   * across passes never counts an item twice.
+   */
+  readonly firstCopyBytes: number;
+  /**
    * What failed and why, for the operator-facing queue.
    *
    * Carries the natural-key HASH, not the natural key: a file's natural key is
@@ -661,6 +674,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   let scanned = 0;
   let created = 0;
   let skipped = 0;
+  let firstCopyBytes = 0;
   // Items the target ALREADY had under our natural key, which we therefore did
   // not write. Counted apart from `skipped` (our own ledger already had them):
   // both mean "not created", but only one of them means the destination account
@@ -1229,6 +1243,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         if (rewriteOf) updated += 1;
         else if (result.created) {
           created += 1;
+          // The first successful copy of this item, whatever came before it —
+          // an item born `failed` that succeeds on a later pass lands here
+          // too, because the target write still CREATED. Counted at the same
+          // moment the row is written, from the same size the row records.
+          firstCopyBytes += sizeBytes ?? 0;
           // The "arrived" half of a path-keyed move. Only genuinely NEW items
           // qualify: an adopted or rewritten item was already accounted for
           // under this key, so it cannot be the destination of one.
@@ -1529,6 +1548,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     adopted,
     failed,
     updated,
+    firstCopyBytes,
     changedButAdopted,
     conflicted,
     needsDecision,

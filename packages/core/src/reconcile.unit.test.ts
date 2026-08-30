@@ -58,6 +58,72 @@ describe('runShadowPass (idempotent one-way shadow)', () => {
   });
 });
 
+describe('firstCopyBytes — the pass statistic ADR-0014\'s data axis reads (0109 T3)', () => {
+  // The engine weighs the NORMALISED message it writes (ensured rfc822), not
+  // the seed string — header normalisation adds a fixed overhead per message.
+  // So exactness is proved by SENSITIVITY (extra body bytes surface 1:1) and
+  // by DIFFERENCE (a delta pass weighs what a full pass gains), never by
+  // hardcoding the normaliser's overhead into this file.
+
+  async function freshPassBytes(extra?: { body: string }): Promise<number> {
+    const source = seededSource();
+    if (extra) {
+      source.add({ folderPath: 'INBOX', messageId: '<d@x>', rfc822: `Subject: D\r\n\r\n${extra.body}` });
+    }
+    const r = await runShadowPass(deps(source, new MemoryTarget(), new MemoryLedger()));
+    return r.firstCopyBytes ?? 0;
+  }
+
+  it('the first pass weighs what it created; the second weighs nothing', async () => {
+    const source = seededSource();
+    const target = new MemoryTarget();
+    const ledger = new MemoryLedger();
+
+    const r1 = await runShadowPass(deps(source, target, ledger));
+    expect(r1.firstCopyBytes).toBeGreaterThan(0);
+
+    // Idempotency is what makes summing this across passes safe: a re-run
+    // creates nothing, so it weighs nothing.
+    const r2 = await runShadowPass(deps(source, target, ledger));
+    expect(r2.firstCopyBytes).toBe(0);
+  });
+
+  it('extra body bytes surface one-for-one — the accumulation is byte-exact', async () => {
+    const small = await freshPassBytes({ body: 'x' });
+    const big = await freshPassBytes({ body: `x${'y'.repeat(100)}` });
+    expect(big - small).toBe(100);
+  });
+
+  it('a delta pass weighs exactly what a full pass would have gained', async () => {
+    const threeOnly = await freshPassBytes();
+    const withFourth = await freshPassBytes({ body: 'new' });
+
+    const source = seededSource();
+    const target = new MemoryTarget();
+    const ledger = new MemoryLedger();
+    await runShadowPass(deps(source, target, ledger));
+    source.add({ folderPath: 'INBOX', messageId: '<d@x>', rfc822: 'Subject: D\r\n\r\nnew' });
+    const r = await runShadowPass(deps(source, target, ledger));
+
+    expect(r.firstCopyBytes).toBe(withFourth - threeOnly);
+  });
+
+  it('adopted items weigh nothing — the target already held those bytes', async () => {
+    const source = seededSource();
+    const target = new MemoryTarget();
+    const ledger = new MemoryLedger();
+    await runShadowPass(deps(source, target, ledger));
+
+    // Lost-ledger recovery: everything is re-found on the target and adopted,
+    // and nothing moved — so the meter must see zero, or a reinstall would
+    // double-charge a family for bytes that never travelled again.
+    ledger.clear();
+    const r = await runShadowPass(deps(source, target, ledger));
+    expect(r.created).toBe(0);
+    expect(r.firstCopyBytes).toBe(0);
+  });
+});
+
 describe('runShadowPass with incremental cursors', () => {
   it('lists only changed items on steady-state passes and persists cursors per folder', async () => {
     const source = seededSource();

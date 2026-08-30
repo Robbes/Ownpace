@@ -150,6 +150,8 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
      VALUES ($1, date_trunc('month', now())::date, 3, now())`,
     [tenantId],
   );
+  // The lifetime meter (0109 T3) — same reasoning.
+  await conn.query(`INSERT INTO bytes_moved (tenant_id, bytes) VALUES ($1, 123456)`, [tenantId]);
   await conn.query(
     `INSERT INTO payment_method (tenant_id, mollie_id, type)
      VALUES ($1, $2, 'creditcard')`,

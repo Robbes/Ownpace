@@ -24,6 +24,7 @@ import { runShadowPass } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { withTenant, RunStore } from '@openmig/ledger';
+import { PgBytesMovedStore } from '@openmig/managed';
 import { log } from '@openmig/shared';
 
 // Job input schema
@@ -102,6 +103,15 @@ export const runFullSync = schemaTask({
         });
 
         log.info(`Full sync completed: ${result.scanned} scanned, ${result.created} created, ${result.skipped} skipped`);
+
+        // The data axis (0109 T3): same flush as run-delta-sync — the
+        // engine's neutral statistic, persisted only by this managed runner.
+        const firstCopyBytes = result.firstCopyBytes ?? 0;
+        if (firstCopyBytes > 0) {
+          await withTenant(pool, tenantId, async (db) => {
+            await new PgBytesMovedStore(db).add(tenantId, firstCopyBytes);
+          });
+        }
 
         await withTenant(pool, tenantId, async (db) => {
           const runs = new RunStore(db);

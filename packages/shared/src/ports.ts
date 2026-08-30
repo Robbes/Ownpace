@@ -1750,6 +1750,13 @@ export interface ReconcileDeps {
 export interface ReconcileResult {
   readonly scanned: number;
   readonly created: number;
+  /**
+   * Bytes of the messages this pass copied onto the target for the first
+   * time — the `created` set exactly (see `DomainSyncResult.firstCopyBytes`,
+   * whose value this passes through). Optional for compatibility with
+   * callers written before it existed; absent reads as 0.
+   */
+  readonly firstCopyBytes?: number;
   /** Not created because OUR LEDGER already had the message. */
   readonly skipped: number;
   /**
