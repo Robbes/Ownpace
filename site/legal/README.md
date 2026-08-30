@@ -37,17 +37,17 @@ until a customer reads it.
 | `«REGISTERED_ADDRESS»` | Registered address | Also goes on invoices |
 | `«COMPANY_NUMBER»` | KvK number | |
 | `«VAT_NUMBER»` | VAT registration | `pricing.ts` already knows `VAT_RATE = 0.21` |
-| `«COURT_DISTRICT»` | Competent court for disputes | Terms §12 |
+| `«COURT_DISTRICT»` | Competent court for disputes | Terms §13 — follows the entity's registered seat |
 | `«HOSTING_PROVIDER»`, `«HOSTING_REGION»` | Who runs the servers, and where | Must be EU — the claim in privacy §8 is the product's whole premise. **Owner, 2026-08-20: self-hosted today, landing on OVH (EU).** Do not write "OVH" into the policy until it is actually true there — a privacy policy naming a host the service is not on is the kind of inaccuracy that is worse than a placeholder, because a placeholder is visibly unfinished and a wrong name is not. |
 | `«EMAIL_PROVIDER»`, `«EMAIL_REGION»` | Who sends summary and account mail | Must be EU |
 | `«LOG_RETENTION»` | How long operational logs are kept | Pick a number and honour it |
 | `«DPA_URL»` | The data-processing agreement | 0086 T5 — **not optional** once a business customer's mail is involved |
 | `«SUBPROCESSORS_URL»` | The sub-processor list | Referenced by the DPA |
-| `«PRICING_URL»` | The published price list | [workplan 0088](../../docs/workplans/0088-a-price-you-can-see-before-you-connect.md) |
+| `«PRICING_URL»` | The published price list | **No longer used** since 2026-08-30 — terms links [the pricing page](../../site/pages/en/pricing.md) directly; row kept so the token's history stays findable |
 | `«PRIVACY_HISTORY_URL»` | Previous versions of the privacy policy | Privacy §13 promises they stay available |
 
 **The Dutch translations want a lawyer too, not just a reader.** `privacy.nl.md` and
-`terms.nl.md` are faithful to the English and structurally identical, and terms §12 names the
+`terms.nl.md` are faithful to the English and structurally identical, and terms §13 names the
 English as governing. Whether Dutch consumer law permits a translation to be purely "for
 convenience" is a question that cannot be answered from inside this repository, and it is the
 one thing about the bilingual publication that is not merely editorial.
