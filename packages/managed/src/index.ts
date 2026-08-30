@@ -38,3 +38,4 @@ export * from './vies.ts';
 export * from './vat-treatment.ts';
 export * from './moneybird-tax-rates.ts';
 export * from './moneybird-sales-invoices.ts';
+export * from './occupancy-peak.ts';

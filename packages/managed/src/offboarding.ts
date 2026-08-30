@@ -115,6 +115,12 @@ export const PURGED_TABLES = [
   // could not delete these rows if it wanted to — INSERT and SELECT only —
   // so this list is the one deleter.
   'vat_consultation',
+  // The month's peak occupancy (0109 T2). Carries no personal data — counts
+  // and dates keyed to the tenant — but the tier evidence for a RETAINED
+  // invoice belongs on the invoice document (T5 quotes the peak and its
+  // date), the same "purge the mirror, keep the pointer" shape as the VIES
+  // log above. The FK would cascade; named so the receipt counts it.
+  'occupancy_peak',
   'payment_method',
   'usage_metric',
   'tenant_member',

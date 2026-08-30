@@ -29,6 +29,7 @@ import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgPathLifecycleStore } from '@openmig/ledger';
 import type { PathDomain } from '@openmig/ledger';
+import { PgOccupancyPeakStore } from '@openmig/managed';
 import type { MappingId, TenantId } from '@openmig/shared';
 import type { MappingStatus } from './mapping-status-audit.ts';
 
@@ -64,6 +65,11 @@ export async function movePathsWithMapping(
     for (const { domain } of included) {
       await store.activate(tenantId as TenantId, mappingId as MappingId, domain as PathDomain);
     }
+    // The month's high-water mark rises with the slots just taken (0109 T2) —
+    // same transaction, so a committed activation cannot miss its peak. This
+    // file is the managed API's; the appliance never imports these routes,
+    // which is what lets a managed-chain table be written here (hard rule 5).
+    await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
     return;
   }
 
