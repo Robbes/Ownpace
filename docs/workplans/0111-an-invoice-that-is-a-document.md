@@ -1,6 +1,13 @@
 # Workplan 0111 — an invoice that is a document
 
-## Status — 2026-08-29 (update this block at the end of every session)
+## Status — 2026-08-30 (update this block at the end of every session)
+
+**2026-08-30:** two artefacts for the gated tail. T5/T7's immutability mechanism is now
+**designed** — §"The refusal, designed" below: a state-conditional trigger plus narrowed
+column grants, shaped around the three writers the code actually has (one of which can
+rewrite a *sent* invoice's amounts today). And the consumer-terms draft for the lawyer is
+open as PR #661 — open decision 5's artefact, so the sign-off conversation starts from a
+document instead of a blank page.
 
 **T1–T3 are built (2026-08-29): the buyer exists as data, their VAT number can be
 actually checked, and the treatment is a decision, not a constant.** Managed migration
@@ -40,9 +47,9 @@ alone** — see §"Who is the controller" and the cross-reference to 0086 T5.
 | T2 A VAT number that was actually checked | ✅ **Built 2026-08-29** | Managed migration 0013: `vat_consultation`, an **append-only** evidence log — `app_user` holds INSERT and SELECT only (UPDATE/DELETE revoked; evidence that can be edited proves nothing). `POST /api/billing/party/check-vat` consults VIES's REST API and stores the answer; **a row is always an answer** — an unreachable VIES (MS_UNAVAILABLE and friends, tested against a fault that carries `valid:false` beside its error code) answers 503 and stores nothing. The check is **qualified** — consultation number issued — once `VIES_REQUESTER_MEMBER_STATE`/`VIES_REQUESTER_VAT_NUMBER` carry the seller's own number (blocked on the entity decision; until then checks run unqualified and the screen says so). VIES geography handled: EL not GR, XI exists, GB refused as never-checkable. The GET join speaks only for the number as currently stored; the billing card shows the verdict, auto-checks a newly saved business number, and renders VIES's own refusal sentences. Still open here: whether the consultation should also ride onto the Moneybird document — noted for T4. |
 | T3 VAT treatment: decided, recorded, never a constant | ✅ **Built 2026-08-29** | `vat-treatment.ts`: the decision as a pure, total function — domestic buyers domestic; EU B2B **reverse charge only with a valid VIES consultation** (without one, charged like a consumer *on purpose*: over-charging is the buyer's money and a credit note fixes it, under-charging is the seller's liability); EU consumers at the seller rate until `VAT_OSS_ACTIVE` flips (owner's threshold decision); non-EU an export — GB stays outside even with an XI number (services, not goods). `moneybird-tax-rates.ts`: treatment → the administration's own `tax_rate_id`, **operator-configured and validated against the real list** (a deleted/archived/purchase rate refuses by name) — no percentage is ever consulted for selection. `GET /api/billing/party` serves the decision; the billing card says it in both languages. The legacy constant survives ONLY for the usage-screen estimate, pinned by `scripts/a-rate-that-must-not-spread.unit.test.ts` (a new caller fails CI). Remaining for T4/T8: point the resolver at the real administration and rewire the estimate/price page. |
 | T4 The Moneybird adapter | ✅ **Core seam built 2026-08-29** — wiring + live proof gated on the trial | `moneybird-sales-invoices.ts`: `ensureContact` (found by OUR `customer_id` key, matched exactly against the fuzzy search), `ensureSalesInvoiceByReference` (look-then-create; an existing invoice is returned **as it stands, never patched** — the correction instrument is T7's credit note), and `sendSalesInvoice` (the moment Moneybird assigns the legal number). The sharpest pin: **an uncertain lookup never falls through to create** — a 500 on `find_by_reference` is `unavailable` with zero POSTs, because "could not look" read as "not found" is how a flaky afternoon double-invoices a customer. Lines carry `tax_rate_id` and nothing else (a test asserts the wire body never contains "percentage"). Injectable fetch throughout; config is parameters, no env reads. **Still gated on the owner**: the trial administration + tax-rate ids, the German-19% gating test (business repo), stamping the T2 consultation number onto the document, and the route/worker wiring against 0109's tiers. |
-| T5 The mirror, and the number that is not ours | 📋 Planned (needs T4) | `invoice` becomes a MIRROR carrying the legal number. Moneybird owns `invoice_sequence_id`; the schema must make it impossible to drift into numbering a document we do not own. |
+| T5 The mirror, and the number that is not ours | 📋 Planned (needs T4) — **immutability designed 2026-08-30** | `invoice` becomes a MIRROR carrying the legal number. Moneybird owns `invoice_sequence_id`; the schema must make it impossible to drift into numbering a document we do not own. T5's migration also installs the refusal — trigger + grants per §"The refusal, designed" — so no shipped schema has the mirror freely writable. |
 | T6 Delivery: the email and the download | 📋 Planned (needs T5) | `GET /sales_invoices/{id}/download_pdf`. Serves **their** PDF, never one we render. Two documents for one sale is the failure this task exists to prevent. |
-| T7 Credit notes | 📋 Planned (needs T5) | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. An issued invoice is immutable; `invoice.status` is mutable today and nothing stops an `UPDATE`. Close that at the database. |
+| T7 Credit notes | 📋 Planned (needs T5) — **database refusal designed 2026-08-30** | `PATCH /sales_invoices/{id}/duplicate_creditinvoice`. An issued invoice is immutable; `invoice.status` is mutable today and nothing stops an `UPDATE`. Close that at the database — the how is written: §"The refusal, designed" (state-machine trigger, narrowed grants, the Mollie webhook path deliberately preserved). |
 | T8 The price page stops promising 21% | ✅ **First slice built 2026-08-29** — per-country display waits on OSS | The row's own premise corrected by the build: the site never computed VAT — it showed bare `€n` with **no statement at all**, and toward consumers a displayed price legally IS the final, VAT-inclusive price. The slice says it out loud ("All prices include VAT." / "Alle prijzen zijn inclusief btw.") on the landing, pricing and calculator pages, with a structural guard: any page rendering tier prices without the label goes red. Deliberately **no rate in the copy** — which country's VAT sits inside the price is T3's per-invoice decision, so nothing drifts when OSS activates or a rate changes. Remaining for full T8: per-country inclusive display once `VAT_OSS_ACTIVE` flips, and reconciling the retired server model's ex-VAT arithmetic in 0109's tier rebuild. |
 | T9 Billing frequency, decided rather than defaulted | ✅ **Decided 2026-08-29: monthly AND annual, annual discounted** | The owner's framing decides it: the service is not a one-shot move but *"an operational exit strategy waiting for the cutover"*, sometimes used serially to move a family one person at a time — so a subscription is honest, and the discounted annual is the fee-efficient path (one charge ≈0.3% vs ≈3.4% monthly, §below) offered rather than imposed. T4's invoice shape: recurring, both cadences. |
 | T10 Retention, revisited now that we are not the record | ✅ **Decided 2026-08-29: purge the mirror on erasure, keep the pointer** — build remains (needs T4) | On erasure the mirror rows go; `erasure_record` keeps only the Moneybird invoice numbers, and the operator's answer becomes "these numbers, held in Moneybird". Retires most of #652's screen — the honest outcome §"What this changes about erasure" predicted. |
@@ -306,6 +313,86 @@ edited. Moneybird owns that too, via `duplicate_creditinvoice`.
 What Ownpace must add is the **refusal**: no code path may update an invoice that has been
 issued. Today `invoice.status` is mutable and nothing stops an `UPDATE`. T7 should close that
 at the database, the way the rest of this repo does it, rather than by everyone remembering.
+How, exactly, is now designed — the next section.
+
+### The refusal, designed — immutability at the database (T5/T7, written 2026-08-30)
+
+Design only; it lands **with T5's migration**, because T5 already reshapes the table's
+meaning (mirror columns, the legal number) and there should never be a shipped schema where
+the mirror exists and is still freely writable. T7 then builds on a table that already
+refuses.
+
+**Issued means numbered.** The moment `sendSalesInvoice` (T4) gets Moneybird to assign the
+legal number, the row stops being working state and becomes the mirror of a document. In the
+mirror's state machine that moment is `draft → sent`. Everything below hangs off that line.
+
+**Who actually writes the row today** — the design is shaped around the writers the code
+has, not the ones it ought to have:
+
+| Writer | Columns it sets | Notes |
+|---|---|---|
+| Generation upsert (`invoice-generation.ts`) | `subtotal`, `tax_rate`, `tax_amount`, `total`, `metadata`, `updated_at` | Regenerating a period rewrites a draft's amounts — legitimate. But its `setWhere` skips only `paid`/`void`, so **a `sent` invoice's amounts can be rewritten today**. That is the exact hole, live. |
+| Pay route (`billing/index.ts`) | `status → sent`, `payment_id`, `metadata`, `updated_at` | The customer starts paying. |
+| Mollie webhook (`billing/webhooks.ts`) | `status`, `paid_at`, `updated_at` | Terminal states already no-op in code; that stays as the polite first line, not the rule. |
+| Erasure detach (`offboarding.ts`) | `billed_to_name`, `tenant_id → NULL` | Owner-path by construction — it must see across tenants and leave rows tenant-less, which no RLS-scoped `app_user` context can. T10's decision (purge, keep pointer) retires it. |
+
+**Two layers, because neither suffices alone.** Column-level grants are unconditional per
+role — they cannot say "amounts may change while draft, never after". A trigger can say
+that, but a trigger alone leaves the whole column surface formally writable and invisible in
+the catalog. So: grants close what *no* app path may ever touch, the trigger decides what
+the remaining columns may do *per state*.
+
+**Layer 1 — narrowed grants**, the T1/T2 style (catalog-visible, so a guard can pin it):
+
+    REVOKE UPDATE ON invoice FROM app_user;
+    GRANT UPDATE (status, subtotal, tax_rate, tax_amount, total,
+                  payment_method, payment_id, paid_at, sent_at,
+                  metadata, updated_at)
+      ON invoice TO app_user;
+
+Never app-writable after this: `id`, `tenant_id`, `billed_to_name`, `period_start`,
+`period_end`, `currency`, `due_date`, `created_at`. T5's new mirror columns (the Moneybird
+invoice id, the legal number, what the document said — including `due_date` if it moves to
+being read off the document) join the *granted* set instead, because the issue moment itself
+is an UPDATE: the `draft → sent` statement stamps them. Write-once is the trigger's job, not
+the grant's.
+
+**Layer 2 — one `BEFORE UPDATE` trigger** enforcing two things:
+
+1. *The status machine.* `draft → {sent, void}`; `sent → {paid, overdue, void}`;
+   `overdue → {paid, void}`; `paid → ∅`; `void → ∅`. Same-to-same passes (idempotent
+   re-deliveries and lifecycle-only touches must not throw). `paid → void` is deliberately
+   absent: undoing a paid document is T7's credit note, never a status flip.
+2. *The document freeze.* Once `OLD.status <> 'draft'`, any change to the document columns —
+   amounts, tax fields, `due_date`, the mirror columns — refuses, with an error message that
+   names the instrument: *issued invoices are corrected by credit note (T7), never edited.*
+   Carved out: the lifecycle columns (`status`, `payment_*`, `paid_at`, `sent_at`,
+   `metadata`, `updated_at`) and — until T10 lands — `billed_to_name`/`tenant_id` for the
+   erasure detach.
+
+The trigger fires for **every role**, owner included. A future repair that genuinely must
+edit an issued row does it by dropping the trigger inside its own migration — a visible,
+reviewable act — not through a quiet role exception.
+
+**What changes for the writers.** The webhook and pay route pass untouched: everything they
+set is granted, and their transitions are legal — the Mollie path keeps working by
+construction, not by exemption. The generation upsert tightens: its `setWhere` widens from
+"not paid/void" to `status = 'draft'`, aligning the app with the rule it already believed,
+and the trigger backstops the day it drifts. Re-pricing a sent-but-unpaid invoice becomes a
+credit note plus a new invoice — ADR-0044 working as intended, and a real behaviour change
+to say out loud. `DELETE` stays as-is here: the only legitimate deleter is T10's purge on
+the owner path, and whether `app_user` should lose DELETE outright is T10's edit, decided
+where its guard lands.
+
+**The guard sketch** (integration, the `withTenant`/owner split the suite already uses):
+as `app_user`, updating `total` on a `sent` invoice refuses citing credit notes; updating
+`period_start` on *any* invoice is a column-privilege refusal; `sent → draft` and
+`paid →` anything refuse; a regeneration-shaped update on a `draft` passes; a
+webhook-shaped `sent → paid` passes. As owner, a detach-shaped update passes (until T10).
+And a catalog pin: `information_schema.column_privileges` for `app_user` on `invoice`
+equals the granted list exactly, both directions — a new column added without deciding its
+class goes red, the `a-rate-that-must-not-spread` style. Each arm proved by breaking it
+once before merge.
 
 ### What this changes about erasure
 
