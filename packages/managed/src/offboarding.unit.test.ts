@@ -143,6 +143,13 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
      VALUES ($1, 'NL', '123456789B01', true, $2)`,
     [tenantId, `WAPI-${suffix}`],
   );
+  // A month's peak (0109 T2) — no personal data, but an unseeded purged
+  // table makes its "was deleted" assertion vacuous, same as the VIES log.
+  await conn.query(
+    `INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at)
+     VALUES ($1, date_trunc('month', now())::date, 3, now())`,
+    [tenantId],
+  );
   await conn.query(
     `INSERT INTO payment_method (tenant_id, mollie_id, type)
      VALUES ($1, $2, 'creditcard')`,

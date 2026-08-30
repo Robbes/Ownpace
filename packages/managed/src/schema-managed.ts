@@ -35,6 +35,8 @@ import {
   jsonb,
   boolean,
   integer,
+  date,
+  primaryKey,
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
@@ -387,4 +389,35 @@ export const tenantClosure = pgTable(
     closedBy: text('closed_by'),
   },
   (t) => [index('ix_tenant_closure_due').on(t.purgeAfter)],
+);
+
+// ========================= The month's peak occupancy =========================
+
+/**
+ * Per-tenant, per-calendar-month high-water mark of slot-holding paths
+ * (workplan 0109 T2, migration 0015; ADR-0014's path axis).
+ *
+ * Raised in the same transaction as a path activation
+ * (`PgOccupancyPeakStore.recordCurrentOccupancy`); a BEFORE UPDATE trigger in
+ * the migration refuses any lowering, for every role — a high-water mark that
+ * can fall proves nothing at invoice time. `peak_at` is the evidence date the
+ * invoice quotes ("6 paths at the same time on 12 August"); a tie later in
+ * the month keeps the first date. Absence means nothing raised the mark that
+ * month, NOT that nothing ran — the tier calculator (T4) trues up the current
+ * month from live occupancy before reading.
+ */
+export const occupancyPeak = pgTable(
+  'occupancy_peak',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    /** First day of the calendar month, UTC (CHECK-pinned in the migration). */
+    month: date('month').notNull(),
+    peakPaths: integer('peak_paths').notNull(),
+    peakAt: timestamp('peak_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ name: 'occupancy_peak_pkey', columns: [t.tenantId, t.month] })],
 );

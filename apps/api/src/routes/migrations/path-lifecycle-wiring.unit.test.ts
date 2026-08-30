@@ -31,6 +31,7 @@ import express from 'express';
 import request from 'supertest';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
+import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
 
 const TENANT = '5f660000-e29b-41d4-a716-446655441901';
@@ -94,6 +95,9 @@ async function pathRows(mappingId: string = MAPPING): Promise<PathRow[]> {
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
+  // The managed chain too: the activation path writes `occupancy_peak`
+  // (0109 T2), a managed-only table — these routes are the managed API's.
+  await runManagedMigrations({ driver, logger: () => {} });
 
   const conn = await driver.acquire();
   try {
@@ -143,8 +147,12 @@ afterAll(async () => {
 beforeEach(async () => {
   const conn = await driver.acquire();
   try {
+    // Mappings the creation tests made — removing them cascades their scope
+    // and lifecycle rows, so every test starts from the one fixture mapping.
+    await conn.query('DELETE FROM mailbox_mapping WHERE id <> $1', [MAPPING]);
     await conn.query(`UPDATE mailbox_mapping SET status = 'paused' WHERE id = $1`, [MAPPING]);
     await conn.query('DELETE FROM path_lifecycle');
+    await conn.query('DELETE FROM occupancy_peak');
   } finally {
     await conn.release();
   }
@@ -248,6 +256,77 @@ describe('ending releases the slot, with the date on the row', () => {
     const rows = await pathRows();
     expect(rows.map((r) => r.state)).toEqual(['done', 'done']);
     for (const r of rows) expect(r.ended_at).not.toBeNull();
+  });
+});
+
+describe('the month remembers its peak (0109 T2)', () => {
+  interface PeakRow {
+    month: string;
+    peak_paths: number;
+    peak_at: string | null;
+  }
+  async function peakRows(): Promise<PeakRow[]> {
+    const conn = await driver.acquire();
+    try {
+      const r = await conn.query(
+        `SELECT month, peak_paths, peak_at FROM occupancy_peak WHERE tenant_id = $1 ORDER BY month`,
+        [TENANT],
+      );
+      return r.rows as unknown as PeakRow[];
+    } finally {
+      await conn.release();
+    }
+  }
+
+  it('starting writes the current month high-water in the same press', async () => {
+    await request(app).post(`/api/migrations/${MAPPING}/start`).send({});
+    const rows = await peakRows();
+    expect(rows).toHaveLength(1);
+    // Two included paths took slots; the mark is 2, dated now, this month.
+    expect(rows[0]?.peak_paths).toBe(2);
+    expect(rows[0]?.peak_at).not.toBeNull();
+    // The driver hands `date` back as a JS Date; first-of-month in UTC.
+    expect(new Date(rows[0]?.month ?? 0).getUTCDate()).toBe(1);
+  });
+
+  it('a tie does not move the mark — pause, resume, same peak, same date', async () => {
+    await request(app).post(`/api/migrations/${MAPPING}/start`).send({});
+    const [set] = await peakRows();
+    // Guard the guard: an absent row would make the comparison below pass
+    // vacuously (undefined equals undefined), hiding a recorder that never ran.
+    expect(set?.peak_paths).toBe(2);
+    await request(app).put(`/api/migrations/${MAPPING}`).send({ status: 'paused' });
+    await request(app).post(`/api/migrations/${MAPPING}/start`).send({});
+    const [after] = await peakRows();
+    // paused held the slots, so the resume re-reached 2 — re-reaching a level
+    // is not setting it: the evidence date stays the moment it was SET.
+    expect(after).toEqual(set);
+  });
+
+  it('finishing releases slots but the month keeps its mark', async () => {
+    await request(app).post(`/api/migrations/${MAPPING}/start`).send({});
+    const [set] = await peakRows();
+    await request(app).post(`/api/migrations/${MAPPING}/finish`).send({});
+    expect(await peakRows()).toEqual([set]);
+  });
+
+  it('a second active mapping raises the mark', async () => {
+    await request(app).post(`/api/migrations/${MAPPING}/start`).send({});
+    const res = await request(app)
+      .post('/api/migrations')
+      .send({
+        name: 'the fourth and fifth path',
+        sourceType: 'imap',
+        targetType: 'jmap',
+        sourceConfig: { host: 'src2.example.invalid', port: 993, username: 'c@example.invalid', password: 'p' },
+        targetConfig: { host: 'dst2.example.invalid', port: 443, username: 'c@example.invalid', password: 'p' },
+        syncConfig: { domains: ['email', 'contact'] },
+        status: 'active',
+      });
+    expect(res.status).toBe(201);
+    const rows = await peakRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.peak_paths).toBe(4);
   });
 });
 

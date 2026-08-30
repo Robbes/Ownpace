@@ -18,7 +18,13 @@ one moment is (the first path's end? mail's? the last?). **T2 and T3 are unblock
 the wiring half alone**: activation transitions now exist per path for the peak to
 record, at the `(mapping, domain)` grain the byte meter needs.
 
-**T0 is decided and built; T2–T7 remain a plan for review.** Written after 0088's
+**Same evening: T2 built on top of the wiring** — `occupancy_peak` (managed migration
+0015) raised inside the activation transaction, raise-only by trigger for every role,
+tie keeps its first date; details in §T2. And **T7 resolved itself**: the leakage
+guard's table list now derives from the managed chain's own SQL, so the new table was
+appliance-forbidden the moment its migration existed — verified green, no list edited.
+
+**T0 is decided and built; T3–T6 remain a plan for review.** Written after 0088's
 calculator shipped, when the gap between what the site publishes and what the code would
 charge stopped being theoretical.
 
@@ -32,12 +38,12 @@ per mapping, so nothing above it can be right until that moves.
 |---|---|---|
 | T0 What the invoice route does until tiers exist (owner decision) | ✅ **Decided (a) refuse, and built, 2026-08-27** | `POST /api/billing/invoices/generate` answers **409 `billing_model_retired`** for every well-formed request, in one sentence that names what it *would* have billed — a retired model, every byte counted twice, items that moved nothing — and says plainly that nothing is wrong with the account and a figure comes from a person until the tiers ship. **409 rather than 501**: the request is well-formed and the caller entitled to make it; the deployment cannot honour it. The refusal is FIRST in the handler and touches no database, so a refused call leaves not even a draft — a test asserts that by making `getDbPool` throw. **The old body is deleted rather than left unreachable behind the refusal**: dead code under a `return` is code nobody maintains and everybody assumes still works, and git has it. Nothing else in billing changes — usage, listing, payment methods and the webhook all behave normally, because what is refused is *minting a bill*, the one operation that turns a wrong model into a number somebody could be asked to pay. **The guard cannot outlive its reason**: one test re-reads `packages/managed/src/pricing.ts` and fails the moment it mentions tiers, so removing this refusal becomes something CI insists on when T4/T5 land rather than something they must remember. Proofs by breaking: the route billing again → 3 red; the reason reduced to "disabled" → 1; tier code appearing in `pricing.ts` → 1 (the trip-wire firing as designed). |
 | T1 A lifecycle per PATH, not per mapping | 🟡 T1a done 2026-08-27; **T1b (the wiring) BUILT 2026-08-30** — the four writers move the paths in-transaction, T2/T3 unblocked; **T1c (the cutover grain) extracted — needs an owner decision** (0104's one-announcement rule vs paths ending one at a time) | The unit ADR-0014 bills is `(mapping, domain)`. The billing ledger now moves with every press; only the machinery for paths ENDING one at a time still waits. |
-| T2 The peak, recorded rather than recomputed | 📋 Planned (needs T1) | "Six at the same time on 12 August" has to come from somewhere. |
+| T2 The peak, recorded rather than recomputed | ✅ **Built 2026-08-30** (managed migration 0015, `PgOccupancyPeakStore`, recorded inside the activation transaction) | "Six at the same time on 12 August" now comes from `occupancy_peak`: per-tenant per-month high-water, raise-only by trigger for every role, tie keeps its first date. Under-records only (concurrency, quiet months) — T4 trues up the live month before reading. |
 | T3 The first-copy byte meter, append-only | 📋 Planned (needs T1) | Never the same query as 0090's byte budget, and never a live-row SUM. |
 | T4 The tier calculator, and its drift guard | 📋 Planned (needs T1–T3) | The third copy of the numbers. It gets the same guard the first two have. |
 | T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. |
 | T6 Top-ups, step-ups and the floor | 📋 Planned (needs T4) | The mechanics ADR-0014 published and nothing implements. |
-| T7 Extend the leakage guard before, not after | 📋 Planned (small, do it with T1) | A billing table in the appliance's own schema keeps the guard green today. |
+| T7 Extend the leakage guard before, not after | ✅ **Obsolete as written — resolved by the guard itself, verified 2026-08-30** | The premise ("a fixed list of five") is stale: the guard's table list now DERIVES from the managed chain's own SQL, so `occupancy_peak` was appliance-forbidden the moment migration 0015 existed, with no list to edit. Verified green with the new table; T3's meter inherits the same coverage for free. |
 
 ## Why this exists
 
@@ -237,6 +243,23 @@ Nothing like it exists. `usage_metric` is the closest shape
 (`packages/managed/src/schema-managed.ts:45-69`) and is the wrong one twice: its writers
 **replace** rather than accumulate (`usage-metering.ts:139-143`, `:186-189`), and its
 `metric_type` enum has no member for occupancy.
+
+**BUILT 2026-08-30.** Managed migration 0015 (`occupancy_peak`, keyed `(tenant, month)`
+with a first-of-month CHECK) + `PgOccupancyPeakStore`. The recorder runs inside
+`movePathsWithMapping`'s `active` branch — the SAME transaction as the activation, so a
+committed activation cannot miss its peak — counts via `slotsHeld` (one authority:
+`holdsASlot`, so `paused` counts), and raises strictly: a tie leaves the row alone, which
+is what keeps `peak_at` the date the mark was SET ("on 12 August" is evidence). A BEFORE
+UPDATE trigger refuses a lowering and any identity change **for every role** — 0014's
+defence-in-depth — and `app_user` has no DELETE; the erasure purge (owner connection)
+names the table in `PURGED_TABLES` so the receipt counts it. Two honest under-recordings,
+both in the cannot-over-bill direction and written on the migration: concurrent
+activations can each count before the other commits, and a month where nothing activates
+writes no row even while paths run — so **T4 must call `recordCurrentOccupancy` as a
+true-up for the month it is about to read**. Proved at the routes (peak rows read
+directly after each press; recorder removal turned 4 tests red) and at the schema
+(`occupancy-peak-under-rls.unit.test.ts`: trigger fires for the owner, RLS both
+directions, tie/raise/zero-slot arms, the reader).
 
 ## T3 — the first-copy byte meter, append-only
 
