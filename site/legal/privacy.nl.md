@@ -20,7 +20,7 @@
 
 ## 1. Wie wij zijn
 
-«LEGAL_ENTITY», «REGISTERED_ADDRESS», «COMPANY_NUMBER», «VAT_NUMBER».
+Archico B.V., «REGISTERED_ADDRESS», KvK 73922706, btw «VAT_NUMBER».
 
 **Contact over alles in deze verklaring, inclusief uw rechten onder de AVG:
 support@ownpace.eu.** Daar leest een mens mee. We streven naar antwoord binnen vijf werkdagen
