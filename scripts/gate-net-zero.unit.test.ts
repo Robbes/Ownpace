@@ -409,3 +409,43 @@ describe('and the two requests it decides twice', () => {
     expect(firstSweep, 'the stale sweep runs after the gate has knocked').toBeLessThan(knock);
   });
 });
+
+describe('and the reads it writes, which it deliberately does not take back', () => {
+  /**
+   * The three-levels block creates no rows a sweep should touch: it reads. The
+   * only thing it leaves behind is `support_read`, and that stays — the people
+   * block already settled this, and the reason is the same one the table
+   * exists for. A gate that erased its own audit trail would be demonstrating
+   * exactly the failure it is there to catch, and `support_read.tenant_id`
+   * carries no foreign key (migration 0009) precisely so those rows outlive
+   * the organisation they name.
+   *
+   * So the property here is the absence of a sweep, which is the one kind of
+   * cleanliness rule a net-zero file has to state out loud — otherwise the
+   * next person to read it "fixes" the imbalance.
+   */
+  const levelsBlock = (): string => {
+    const banner = '# ---------- HOW FAR AN OPERATOR CAN WALK';
+    const at = smoke.indexOf(banner);
+    expect(at, 'the three-levels block is gone').toBeGreaterThan(-1);
+    const revoked = smoke.indexOf('DELETE FROM platform_operator WHERE user_id', at);
+    const next = smoke.indexOf('# ---------- ', at + banner.length);
+    return smoke.slice(at, next > -1 && next < revoked ? next : revoked);
+  };
+
+  it('creates nothing, so there is nothing to take back', () => {
+    const block = levelsBlock();
+    expect(block).not.toMatch(/INSERT INTO /);
+    expect(block).not.toMatch(/POST "\$\{?API\}?\/api\/access-requests"/);
+    expect(block, 'a grant would leave an organisation behind').not.toMatch(/\/grant"/);
+  });
+
+  it('does not erase the audit rows it writes', () => {
+    const block = levelsBlock();
+    expect(block, 'the gate deleting its own reads is the defect support_read exists to catch')
+      .not.toMatch(/DELETE FROM support_read/);
+    expect(block, 'the decision is stated where somebody would otherwise "fix" it').toMatch(
+      /NOTHING SWEEPS THESE ROWS/,
+    );
+  });
+});
