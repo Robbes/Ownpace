@@ -444,7 +444,7 @@ idp_sweep_leftovers() {
   local swept=0 uid uname
   while IFS=$'\t' read -r uid uname; do
     [ -n "$uid" ] || continue
-    [[ "$uname" =~ ^smoke-(verify|apply|invitee)-[0-9]+@smoke\.local$ ]] ||
+    [[ "$uname" =~ ^smoke-(verify|apply|invitee|operator)-[0-9]+@smoke\.local$ ]] ||
       { echo "leaving ${uname} alone — @smoke.local, but not a name this gate creates" >&2; continue; }
     idp_api DELETE "/v2/users/${uid}" >/dev/null ||
       { echo "could not delete leftover ${uname} (${uid})" >&2; return 1; }
@@ -1078,10 +1078,70 @@ else
     echo "signing in through ${IDP_SMOKE_APP_NAME} (login v2), not the humans' client (login v1)"
   fi
 
+  # ---------- the policy the HUMANS' login is decided by ----------
+  #
+  # WHY THIS EXISTS, and it is the line above that makes it necessary. This gate
+  # signs in through a client pinned to login v2, deliberately, because
+  # `/v2/sessions` + CreateCallback finalises V2_ authorization requests only.
+  # A person gets login v1 — `/ui/login/login?authRequestID=<a bare number>` —
+  # and the two evaluate the login policy differently.
+  #
+  # On 2026-08-31 nobody could sign in to the OTA instance for six days. An
+  # older `setup-zitadel.sh` had minted a custom ORGANISATION login policy from
+  # a three-field body, leaving the five Duration fields at their proto3 default
+  # of zero. A `passwordCheckLifetime` of 0 means a password check is valid for
+  # no time at all: v1 verified the password, found the verification already
+  # stale, and rendered the password step again — 200, the same page, no error.
+  # A wrong password still said so, because that path returns first.
+  #
+  # THIS GATE WAS GREEN THROUGHOUT. Not by bad luck: it walks the door the bug
+  # was not on. Driving the v1 UI here would be the complete answer and is not
+  # what this block is; what it does is pin the POLICY that decides v1, which is
+  # deterministic, costs one call, and fails on the exact state that locked
+  # everybody out.
+  #
+  # `isDefault` matters as much as the number. A custom org policy shadows the
+  # instance one wholesale — its lifetimes AND the IdP list `configure_idp`
+  # writes — so a healthy instance policy proves nothing while something sits in
+  # front of it. That is not hypothetical; it is what happened.
+  login_policy="$(idp_api GET /management/v1/policies/login 2>/dev/null || true)"
+  if [ -z "$login_policy" ]; then
+    echo "the login policy people are decided by: could not read it from the provider"
+    fail=1
+  else
+    policy_default="$(jq -r '.policy.isDefault // false' <<<"$login_policy" 2>/dev/null || echo false)"
+    # protojson omits a Duration holding its default, so absent and zero are the
+    # same answer here and `// "0s"` collapses them onto it.
+    policy_life="$(jq -r '(.policy.passwordCheckLifetime // "0s")' <<<"$login_policy" 2>/dev/null || echo 0s)"
+    policy_secs="$(jq -rn --arg d "$policy_life" '($d | sub("s$";"") | tonumber? // 0)' 2>/dev/null || echo 0)"
+    if [ "$policy_default" != "true" ]; then
+      echo "the login policy people are decided by: the organisation carries one of its OWN"
+      echo "    It shadows the instance policy wholesale — the sign-in lifetimes, and the"
+      echo "    providers configure_idp put buttons on. Reset it:"
+      echo "      curl -sS -X DELETE ${STACK_ISSUER%/}/management/v1/policies/login -H \"Authorization: Bearer \$PAT\""
+      echo "    then re-run ./deploy/compose/setup-zitadel.sh, which no longer creates one."
+      fail=1
+    elif [ "${policy_secs%%.*}" -le 0 ] 2>/dev/null; then
+      echo "the login policy people are decided by: passwordCheckLifetime is ${policy_life}"
+      echo "    A password check valid for no time is a check that is never valid: the right"
+      echo "    password returns 200 to the same sign-in page, with no error, for everybody."
+      echo "    This gate signs in through login v2 and would not notice. A person would."
+      fail=1
+    else
+      echo "the login policy people are decided by: instance default, password check ${policy_life}"
+    fi
+  fi
+
   IDP_PW='Smoke-Person!42'
+  OP_EMAIL="smoke-operator-$$@smoke.local"
   read -r VERIFY_SUBJECT VERIFY_TOKEN <<<"$(sign_in_as "smoke-verify-$$@smoke.local" "$IDP_PW")" || true
   read -r APPLY_SUBJECT APPLY_TOKEN   <<<"$(sign_in_as "smoke-apply-$$@smoke.local" "$IDP_PW")" || true
   read -r INV_SUB INV_TOKEN           <<<"$(sign_in_as "$INV_EMAIL" "$IDP_PW")" || true
+  # THE FOURTH PERSON, and the only one who is nobody's member. Created here
+  # rather than beside the assertion that uses them, a thousand lines below, so
+  # they join the same capture loop and the same sweep as everyone else — the
+  # take-back this gate promises is by construction, not by remembering.
+  read -r OP_SUBJECT OP_TOKEN         <<<"$(sign_in_as "$OP_EMAIL" "$IDP_PW")" || true
 
   # THE ARRAY IS FILLED HERE, IN THE PARENT SHELL — never inside sign_in_as.
   # That function runs in a command substitution, and an append made there
@@ -1092,7 +1152,7 @@ else
   # swallowed in run #60. A person created but never handed back — sign_in_as
   # failing after its create — still leaks, and the sweep at the next run's
   # start is the backstop for exactly that window.
-  for subject_id in "${VERIFY_SUBJECT:-}" "${APPLY_SUBJECT:-}" "${INV_SUB:-}"; do
+  for subject_id in "${VERIFY_SUBJECT:-}" "${APPLY_SUBJECT:-}" "${INV_SUB:-}" "${OP_SUBJECT:-}"; do
     [ -n "$subject_id" ] || continue
     IDP_USERS+=("$subject_id")
   done
@@ -2142,6 +2202,83 @@ report_json "invoices" "/api/billing/invoices" '.invoices | length'
 # seed ever grants one, this line goes red rather than quiet.
 report_json "support surface refuses a non-operator" \
   "/api/support/tenants" '.tenants | length' 0
+
+# ---------- and it ANSWERS an operator, which nothing here had ever checked ----------
+#
+# The line above proves the door is CLOSED. Until 2026-08-31 that was the whole
+# of this gate's opinion about the operator: nothing appointed one, nothing
+# signed one in, and `platform_operator` appeared in this file only inside a
+# comment. A surface that is only ever tested for refusing is a surface nobody
+# has confirmed opens — and the operator is the one person who can grant an
+# access request, so "the queue answers nobody" is a deployment that cannot
+# take a customer.
+#
+# It cost the report of 2026-08-31: an operator who had just appointed himself
+# found six of eight nav entries signed him out, because every tenant-scoped
+# route answers him `403 No active membership for this tenant` and the web app
+# read that as a dead session. Unit and browser tests cover that now; this is
+# the half that runs against a real stack, with a real subject, through the
+# real views.
+#
+# APPOINTED HERE AND TAKEN BACK BELOW, in the same block. `platform_operator` is
+# written over the OWNER connection on purpose — `app_user` has SELECT and
+# nothing else (migration 0005) — so `q` is the only way in, and the row must
+# not outlive the run: a standing operator in a long-lived demo stack is a
+# standing reader of every tenant's metadata.
+if [ -n "${STACK_ISSUER:-}" ]; then
+  # A STALE ONE FIRST, for the window where a run died between the insert and
+  # the delete. Same backstop as idp_sweep_leftovers, same reason.
+  q "DELETE FROM platform_operator WHERE email LIKE 'smoke-operator-%@smoke.local'" >/dev/null 2>&1 || true
+
+  # Signed in a thousand lines above, with the other three, so the take-back
+  # covers them the same way. What happens here is the appointment, which is
+  # ours rather than the provider's, and must not outlive the run.
+  if [ -z "${OP_TOKEN:-}" ] || [ -z "${OP_SUBJECT:-}" ]; then
+    echo "the operator surface answers an operator: could not sign one in"
+    fail=1
+  else
+    q "INSERT INTO platform_operator (user_id, email, note)
+       VALUES ('${OP_SUBJECT}', '${OP_EMAIL}', 'managed gate, removed at the end of this run')
+       ON CONFLICT (user_id) DO NOTHING" >/dev/null
+
+    # NO TENANT, AND THAT IS THE POINT. An operator belongs to no organisation
+    # by design (0093 T6/T7), so `/api/me` must answer for them WITHOUT one —
+    # it runs on `authenticateSubject` for exactly this. A gate that only ever
+    # asked as a member could not tell that apart from a broken route.
+    r="$(http GET "$API/api/me" "$OP_TOKEN")"; code="${r%% *}"; body="${r#* }"
+    op_flag="$(jq -r '.operator // false' <<<"$body" 2>/dev/null || echo false)"
+    op_tenants="$(jq -r '.tenants | length' <<<"$body" 2>/dev/null || echo -1)"
+    if [ "$code" = "200" ] && [ "$op_flag" = "true" ] && [ "$op_tenants" = "0" ]; then
+      echo "an operator holds a session with no organisation: HTTP 200, operator=true, tenants=0"
+    else
+      echo "an operator holds a session with no organisation: HTTP ${code}, operator=${op_flag}, tenants=${op_tenants} — ${body:0:200}"
+      fail=1
+    fi
+
+    # AND THE QUEUE THEY CAME FOR OPENS. Pinned to "more than none" rather than
+    # to a count: the demo seed's tenant total is not this line's business, and
+    # a number here would go red on a seed change rather than on a defect.
+    r="$(http GET "$API/api/support/tenants" "$OP_TOKEN")"; code="${r%% *}"; body="${r#* }"
+    op_seen="$(jq -r '.tenants | length' <<<"$body" 2>/dev/null || echo -1)"
+    if [ "$code" = "200" ] && [ "${op_seen:-0}" -gt 0 ] 2>/dev/null; then
+      echo "support surface answers an operator: HTTP 200, .tenants | length -> ${op_seen}"
+    else
+      echo "support surface answers an operator: HTTP ${code}, .tenants | length -> ${op_seen} — ${body:0:200}"
+      echo "    The non-operator line above proves this door refuses. This one proves it OPENS,"
+      echo "    and without it a deployment whose operator can see nothing reports green."
+      fail=1
+    fi
+
+    q "DELETE FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" >/dev/null
+    left="$(q "SELECT count(*) FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" 2>/dev/null || echo '?')"
+    if [ "$left" = "0" ]; then
+      echo "the gate's operator was taken back: 0 rows left"
+    else
+      echo "the gate's operator was NOT taken back (count=${left}) — a standing reader of every tenant"
+      fail=1
+    fi
+  fi
+fi
 
 # ---------- balance ----------
 #
