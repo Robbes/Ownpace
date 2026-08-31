@@ -83,6 +83,7 @@ const Invitations: React.FC = () => {
         },
         me.tenantId ?? '',
         me.operator === true,
+        me.tenants.length,
       );
       const left = me.invitations ?? [];
       setWaiting(left);

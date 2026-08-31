@@ -41,7 +41,7 @@ const SCREEN_TITLE_KEY: Record<MappingScreen, StringKey> = {
 const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const location = useLocation();
-  const { user, logout, operator } = useAuthStore();
+  const { user, logout, operator, tenantCount } = useAuthStore();
   const { locale, setLocale, t } = useLocale();
 
   // Tenants and Billing are managed-edition concepts: the appliance is
@@ -49,8 +49,32 @@ const Layout: React.FC = () => {
   // broken, since neither has an endpoint to talk to there.
   const selfHost = isSelfHost();
 
+  /**
+   * WHETHER THIS PERSON IS IN AN ORGANISATION AT ALL — the axis the nav did not
+   * have, and the reason a platform operator could not use the product.
+   *
+   * An operator belongs to no organisation BY DESIGN (0093 T6/T7): `/api/me`
+   * runs on `authenticateSubject` precisely so the one person who lets the
+   * others in can hold a session without a tenant. The nav did not know that.
+   * It offered them Dashboard, Mappings, Connections, Setup, Decisions and
+   * Tenants — every one tenant-scoped — and each one's first request answered
+   *
+   *     403 { message: 'No active membership for this tenant' }
+   *
+   * which `api.ts` reads as a dead session and signs them out. Reported from
+   * the OTA instance on 2026-08-31: "I see the full menu, and if I click on any
+   * menu items, I switch back to login." Six dead ends and two working screens,
+   * with nothing to tell them apart.
+   *
+   * MANAGED ONLY. The appliance has no tenancy to belong to and its screens
+   * answer for the mappings it is configured with, so `selfHost` keeps its nav
+   * exactly as it was — hiding it there would break the edition that never had
+   * this problem.
+   */
+  const inOrganisation = selfHost || tenantCount > 0;
+
   const navigation = [
-    ...(selfHost
+    ...(selfHost || !inOrganisation
       ? []
       : [
           { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
@@ -65,7 +89,12 @@ const Layout: React.FC = () => {
     // The setup checklist is EDITION-NEUTRAL (workplan 0066): creating a Box
     // app and getting an admin to authorise it is the same work either way,
     // and the appliance answers the same routes over the same table.
-    { name: t('nav.setup'), href: '/setup', icon: ListChecks },
+    // Setup reads a checklist that belongs to an organisation, so in managed it
+    // travels with the group above; the appliance answers it without one.
+    ...(inOrganisation ? [{ name: t('nav.setup'), href: '/setup', icon: ListChecks }] : []),
+    // Docs calls no API at all, so it is the one entry that works for anybody
+    // signed in — and it stays, because a person with nowhere to go still
+    // deserves somewhere to read.
     { name: t('nav.docs'), href: '/docs', icon: BookOpen },
     // The §11.2 decision queues, and then the §20 gate and the end of the
     // migration — in the order the runbook's cutover sequence uses.
@@ -89,8 +118,10 @@ const Layout: React.FC = () => {
       : []),
     // The §11.1 drift decision queue (0028 T1): tenant-level in BOTH editions
     // — a new mailbox belongs to no mapping, so it cannot live under one.
-    { name: t('nav.decisions'), href: '/decisions', icon: ListTodo },
-    ...(selfHost ? [] : [{ name: t('nav.tenants'), href: '/tenants', icon: Building2 }]),
+    ...(inOrganisation ? [{ name: t('nav.decisions'), href: '/decisions', icon: ListTodo }] : []),
+    ...(selfHost || !inOrganisation
+      ? []
+      : [{ name: t('nav.tenants'), href: '/tenants', icon: Building2 }]),
     // The access queue (workplan 0093 T7). Managed only — the appliance has one
     // owner and nobody to let in — and shown only to a platform operator, who
     // is usually the single person running the deployment. Hiding it is

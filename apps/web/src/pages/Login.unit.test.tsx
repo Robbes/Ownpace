@@ -137,6 +137,65 @@ describe('Login', () => {
     expect(localStorage.getItem('auth_token')).toBe(token);
   });
 
+  /**
+   * THE SECOND DOOR INTO THE SAME TRAP.
+   *
+   * A platform operator belongs to no organisation by design (0093 T6/T7), and
+   * this path's refusal only covered a NON-operator with none —
+   * `tenants.length === 0 && operator !== true`. So an operator pasting a token
+   * fell through to `navigate('/dashboard')`, whose first request answers 403
+   * "No active membership for this tenant", which signs them out. The one
+   * person who can answer the access queue reached it by being thrown out of a
+   * screen that was never theirs. `AuthCallback` had chosen the right landing
+   * since 0093 T7; this door had not been told.
+   */
+  it('lands a platform operator on the queue, not a dashboard that 403s', async () => {
+    fetchMeMock.mockResolvedValue({
+      userId: 'op1',
+      email: 'operator@example.test',
+      role: 'member',
+      tenants: [],
+      operator: true,
+    });
+    const user = userEvent.setup();
+    // The token CARRIES a tenantId — `decodeTokenClaims` requires one, and a
+    // seed token always has it. What has changed is the answer from the
+    // server: this subject's membership is gone (or never was), and
+    // `/api/me` is what the page trusts. That is the reachable shape of "an
+    // operator with no organisation arrives through this door".
+    const token = makeToken({
+      sub: 'op1',
+      email: 'operator@example.test',
+      tenantId: 'tenant-gone',
+      role: 'member',
+    });
+
+    await renderLogin();
+    await user.type(screen.getByLabelText(/access token/i), token);
+    await user.click(screen.getByRole('button', { name: /use this token/i }));
+
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/access-requests'));
+    expect(navigateMock).not.toHaveBeenCalledWith('/dashboard');
+    // And the store learns they are in no organisation, which is what stops
+    // the nav offering them six screens that cannot open.
+    expect(useAuthStore.getState().tenantCount).toBe(0);
+    expect(useAuthStore.getState().operator).toBe(true);
+  });
+
+  it('still lands an ordinary member on the dashboard', async () => {
+    // The other half: the default fixture belongs to one organisation, so the
+    // landing above must not have become unconditional.
+    const user = userEvent.setup();
+    const token = makeToken({ sub: 'u1', email: 'owner-a@demo.test', tenantId: 'tenant-a', role: 'owner' });
+
+    await renderLogin();
+    await user.type(screen.getByLabelText(/access token/i), token);
+    await user.click(screen.getByRole('button', { name: /use this token/i }));
+
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/dashboard'));
+    expect(useAuthStore.getState().tenantCount).toBe(1);
+  });
+
   it('rejects an invalid token and does not sign in', async () => {
     const user = userEvent.setup();
 

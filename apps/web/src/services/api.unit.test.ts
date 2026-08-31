@@ -7,7 +7,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { onUnauthorized, serverMessage } from './api.ts';
+import apiClient, { onUnauthorized, serverMessage } from './api.ts';
+import type { AxiosAdapter } from 'axios';
 import { useAuthStore } from '../stores/auth-store.ts';
 
 describe('onUnauthorized (401 handler)', () => {
@@ -85,5 +86,113 @@ describe('serverMessage', () => {
 
   it('falls back to the transport message when there is no body', () => {
     expect(serverMessage(axiosErr(undefined))).toBe('Request failed with status code 409');
+  });
+});
+
+/**
+ * THE 403 THAT THREW AWAY A SESSION THAT WAS FINE.
+ *
+ * A dead membership is a dead session (release-readiness, 2026-08-10): a valid
+ * token whose subject has no active `tenant_member` row 403s on every route
+ * forever, and the UI used to stay "logged in" rendering a wall of red reads.
+ * So the interceptor reads that one sentence as "sign out".
+ *
+ * It was written before anybody belonged to no organisation ON PURPOSE. A
+ * platform operator does (0093 T6/T7) — `/api/me` runs on
+ * `authenticateSubject` precisely so the one person who lets the others in can
+ * hold a session without a tenant — and that sentence is what EVERY
+ * tenant-scoped route answers them. Reported from the OTA instance on
+ * 2026-08-31, by the operator who had just appointed himself:
+ *
+ *     "I see the full menu, and if I click on any menu items, I switch back
+ *      to login and eventually back to the message on me lacking being part
+ *      of an organisation."
+ *
+ * Two defects, one symptom. `Layout` no longer OFFERS those screens (its own
+ * test covers that); this is the other half — reaching one by typed URL must
+ * cost a sentence, not the session.
+ */
+describe('the membership 403, and who it is really about', () => {
+  /** An adapter that answers whatever the API would have. */
+  const answering = (status: number, data: unknown): AxiosAdapter =>
+    (config) =>
+      Promise.reject(
+        Object.assign(new Error('refused'), {
+          isAxiosError: true,
+          config,
+          response: { status, data, config, headers: {}, statusText: '' },
+        }),
+      );
+
+  const MEMBERSHIP_403 = { status: 403, body: { message: 'No active membership for this tenant' } };
+
+  let original: AxiosAdapter | undefined;
+
+  beforeEach(() => {
+    localStorage.clear();
+    useAuthStore.getState().logout();
+    original = apiClient.defaults.adapter as AxiosAdapter | undefined;
+    Object.defineProperty(globalThis, 'location', {
+      value: { href: '' },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  const signedInAs = (operator: boolean) =>
+    useAuthStore
+      .getState()
+      .login('jwt', { id: 'u1', email: 'u@x.io', name: 'U', role: 'member' }, '', operator, 0);
+
+  const ask = async (status: number, body: unknown) => {
+    apiClient.defaults.adapter = answering(status, body);
+    try {
+      await apiClient.get('/anything');
+    } catch {
+      /* the refusal is the point */
+    } finally {
+      apiClient.defaults.adapter = original;
+    }
+    return useAuthStore.getState();
+  };
+
+  it('signs out an ordinary member whose membership is gone', () => {
+    // The behaviour that must NOT be lost: this is what the rule is for.
+    signedInAs(false);
+    return ask(MEMBERSHIP_403.status, MEMBERSHIP_403.body).then((state) => {
+      expect(state.isAuthenticated).toBe(false);
+      expect(localStorage.getItem('auth_token')).toBeNull();
+    });
+  });
+
+  it('leaves a platform operator signed in — their session was never the problem', async () => {
+    signedInAs(true);
+    const state = await ask(MEMBERSHIP_403.status, MEMBERSHIP_403.body);
+    expect(
+      state.isAuthenticated,
+      'a platform operator was signed out by opening a tenant-scoped screen.\n\n' +
+        'They belong to no organisation BY DESIGN, so that 403 is what every\n' +
+        'such route answers them — it means "that screen is not yours", never\n' +
+        '"your session died". Signing them out makes the one person who can\n' +
+        'answer the access queue unable to stay anywhere in the product.',
+    ).toBe(true);
+    expect(localStorage.getItem('auth_token')).toBe('jwt');
+  });
+
+  it('still signs anybody out on a 401, operator or not', async () => {
+    // The revoked-operator case: `operator` here is a hint from the last
+    // /api/me and grants nothing, so what actually ends their session is the
+    // token being refused — which is a 401, and untouched by any of this.
+    signedInAs(true);
+    const state = await ask(401, { message: 'Unauthorized' });
+    expect(state.isAuthenticated).toBe(false);
+  });
+
+  it('leaves a role refusal to the screen that knows how to say it', async () => {
+    // A different 403 — a member opening Billing — never signed anybody out
+    // and still must not, for either kind of caller.
+    signedInAs(false);
+    const state = await ask(403, { message: 'Owner or admin only' });
+    expect(state.isAuthenticated).toBe(true);
   });
 });

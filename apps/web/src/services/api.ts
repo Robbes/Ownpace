@@ -97,9 +97,30 @@ apiClient.interceptors.response.use(
     // reads. Only the membership gate's own sentence triggers this; a
     // role-refusal 403 (e.g. a member opening Billing) passes through to the
     // screen that knows how to say it.
+    //
+    // EXCEPT FOR A PLATFORM OPERATOR, WHOSE SESSION IS FINE.
+    //
+    // That rule was written before there was anybody who belongs to no
+    // organisation on purpose. An operator does (0093 T6/T7) — `/api/me` runs
+    // on `authenticateSubject` so they can hold a session without a tenant —
+    // and this sentence is what EVERY tenant-scoped route answers them. So the
+    // one person who can let the others in got signed out by opening a screen,
+    // reported from the OTA instance on 2026-08-31 as "if I click on any menu
+    // items, I switch back to login".
+    //
+    // For them the 403 does not mean "your session died", it means "that
+    // screen is not yours" — so the error travels on to the screen, which says
+    // the server's own sentence, and the session survives. `Layout` no longer
+    // OFFERS those screens to somebody with no organisation, so reaching this
+    // now takes a typed URL; the session is not thrown away for it either way.
+    //
+    // A REVOKED OPERATOR IS STILL SIGNED OUT, by the 401 above: `operator` here
+    // is a hint from the last `/api/me` and grants nothing, and every route
+    // they can actually use is decided by `platform_operator` server-side.
     if (
       error.response?.status === 403 &&
-      error.response?.data?.message === 'No active membership for this tenant'
+      error.response?.data?.message === 'No active membership for this tenant' &&
+      !useAuthStore.getState().operator
     ) {
       onUnauthorized();
     }

@@ -54,6 +54,7 @@ const AuthCallback: React.FC = () => {
           },
           me.tenantId ?? '',
           me.operator === true,
+          me.tenants.length,
         );
 
         // Where to land, and the two cases that are not the dashboard.
