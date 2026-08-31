@@ -864,6 +864,11 @@ services:
         # to the paste box there.
         VITE_OIDC_ISSUER: ${VITE_OIDC_ISSUER:-}
         VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-}
+        # The support screen's way through to an account at the provider.
+        # setup-zitadel.sh writes it; empty means the screen shows the address
+        # without a link, which is right for a stack that has no console to
+        # point at.
+        VITE_IDP_CONSOLE_USER_URL: ${VITE_IDP_CONSOLE_USER_URL:-}
     container_name: ownpace-web
     restart: unless-stopped
     ports:

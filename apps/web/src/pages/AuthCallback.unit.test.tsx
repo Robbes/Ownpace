@@ -128,6 +128,29 @@ describe('AuthCallback', () => {
       expect(navigateMock).toHaveBeenCalledWith('/access-requests', { replace: true }),
     );
     expect(useAuthStore.getState().operator).toBe(true);
+    // AND THE STORE IS TOLD THEY ARE IN NONE. Landing them correctly is only
+    // half of it: `Layout` decides what to OFFER from this count, so a door
+    // that routes right but forgets to say "nowhere" still hands them six
+    // tenant-scoped entries, each of which 403s and signs them out. Dropping
+    // this argument from the call was a break that no test caught until it was
+    // written down here.
+    expect(useAuthStore.getState().tenantCount).toBe(0);
+  });
+
+  it('tells the store how many organisations there are, for an ordinary member', () => {
+    // The other half, so the assertion above is not satisfied by a constant.
+    completeSignInMock.mockResolvedValue('the-token');
+    fetchMeMock.mockResolvedValue({
+      userId: 'u-1',
+      email: 'a@b.test',
+      tenantId: 't1',
+      role: 'owner',
+      tenants: [{ tenantId: 't1', role: 'owner' }],
+    });
+
+    renderCallback();
+
+    return waitFor(() => expect(useAuthStore.getState().tenantCount).toBe(1));
   });
 
   it('SAYS SO when somebody belongs to nothing, rather than dashboarding them', async () => {

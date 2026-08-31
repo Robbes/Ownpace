@@ -703,6 +703,37 @@ first time they sign in, provided the identity provider asserts
 nothing. Neither can be undone by deleting the row: nobody has DELETE on that
 table, so a decision stays on the record.
 
+### 8c-bis. What an operator does here, and what they do at the provider
+
+An operator belongs to **no organisation**, by design. That is not a gap to
+fill: `/api/me` runs without a tenant precisely so the one person who lets the
+others in can hold a session. Signing in lands them on **Access requests**, and
+their nav offers that, **Support** and the setup guides — the tenant-scoped
+screens are hidden, because each one's first request would be refused.
+
+An **organisation** here is one customer — a team, a family, an SME — never one
+for the whole deployment. It is created by granting an access request, and its
+own owner runs it from **Team**.
+
+Two different jobs, in two different places:
+
+| You want to | Where | Why there |
+| --- | --- | --- |
+| See what a customer sees — connections, migrations, what is failing, this month's tier and the evidence for it | **Support**, in Ownpace | It is Ownpace's data. Every read is written to `support_read` against your name, and the screens say so |
+| Change who may act on an organisation, or their role | **Team**, and it belongs to that organisation's owner | Membership *is* authorization (0020 T1). An operator does not hold it, and the roles are theirs to set |
+| Reset a password, clear a lost second factor, disable an account | **The identity provider's console** | Ownpace stores no passwords and never calls the provider's user-management API — ADR-0042's second and third operative rules, and what keeps the issuer swappable |
+
+The Support screen's **People** list links each address straight to that account
+at the provider, so the third row is one click rather than a search. The link is
+`VITE_IDP_CONSOLE_USER_URL`, which `setup-zitadel.sh` writes; leave it empty and
+the addresses render as plain text rather than as links that go nowhere.
+
+**Multiple owners are allowed**, and are the sensible arrangement for anything
+that outlives one person. The database refuses to leave an organisation with
+none: the last owner can be neither demoted nor removed, and only an owner may
+promote somebody to owner. An **admin** can do everything an owner can except
+arm a deletion, close the account, and make another owner.
+
 ### 8d. The status page *(comes up with the stack)*
 
 `gatus` starts with everything else in the `app` phase (workplan 0094). It

@@ -54,6 +54,27 @@ const LOCK_IN = [
     pattern: /\/protocol\/openid-connect\//,
     why: "hard-codes Keycloak's endpoint paths",
   },
+  // THE ADMIN CONSOLE IS NOT AN OIDC CONCEPT, and no two providers spell it the
+  // same way. Added 2026-08-31, when the support screen gained a link out to
+  // the account at the provider (a password nobody can reset, a lost second
+  // factor — the provider's job, never ours). Composing `${issuer}/ui/console/
+  // users/${sub}` in the screen would have worked, and passed every test that
+  // existed, and been precisely the decay this file's own header describes.
+  // The link is a DEPLOYMENT variable instead — `VITE_IDP_CONSOLE_USER_URL`,
+  // written by `setup-zitadel.sh` beside the four that already make the issuer
+  // swappable — so these three shapes have no business in shipped source.
+  {
+    pattern: /\/ui\/console\//,
+    why: "hard-codes Zitadel's admin console path — use VITE_IDP_CONSOLE_USER_URL",
+  },
+  {
+    pattern: /\/admin\/master\/console\//,
+    why: "hard-codes Keycloak's admin console path — use VITE_IDP_CONSOLE_USER_URL",
+  },
+  {
+    pattern: /\/if\/admin\//,
+    why: "hard-codes Authentik's admin console path — use VITE_IDP_CONSOLE_USER_URL",
+  },
   {
     pattern: /\.well-known\/jwks\.json/,
     why:

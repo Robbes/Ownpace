@@ -235,6 +235,21 @@ router.get(
                 FROM public.support_tenant_usage
                WHERE tenant_id = ${tenantId}::uuid`,
         );
+        // WHO MAY ACT ON THIS ORGANISATION (migration 0018). Ordered so the
+        // people who can decide things come first — a support conversation
+        // almost always starts with "who is the owner" — and by address after
+        // that, so the list does not reshuffle between reads.
+        const members = await db.execute(
+          sql`SELECT user_id, email, role, status, invited_at, joined_at
+                FROM public.support_tenant_members
+               WHERE tenant_id = ${tenantId}::uuid
+               ORDER BY CASE role
+                          WHEN 'owner'  THEN 0
+                          WHEN 'admin'  THEN 1
+                          WHEN 'member' THEN 2
+                          ELSE 3
+                        END, email`,
+        );
 
         // Recorded only once the tenant was actually found and served: a 404 is
         // not a read of anybody's data, and logging one would put organisations
@@ -246,6 +261,7 @@ router.get(
           connections: connections.rows as Row[],
           migrations: migrations.rows as Row[],
           invoices: invoices.rows as Row[],
+          members: members.rows as Row[],
           usage: usageForScreen(usage.rows[0] as Row | undefined),
         };
       });

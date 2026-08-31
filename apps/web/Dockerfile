@@ -57,6 +57,10 @@ ARG VITE_OIDC_ISSUER=
 ENV VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER
 ARG VITE_OIDC_CLIENT_ID=
 ENV VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID
+# Where the support screen links one person's account at the provider. Empty is
+# the honest default — the screen then shows the address as plain text.
+ARG VITE_IDP_CONSOLE_USER_URL=
+ENV VITE_IDP_CONSOLE_USER_URL=$VITE_IDP_CONSOLE_USER_URL
 RUN pnpm --filter @openmig/web build
 
 FROM nginx:1.27-alpine AS runtime

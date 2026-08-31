@@ -55,9 +55,11 @@ import {
   listRetainedInvoices,
   type SupportTenant,
   type SupportTenantUsage,
+  type SupportTenantMember,
   type SupportMigrationDomain,
   type SupportRetainedInvoice,
 } from '../services/support.ts';
+import { idpConsoleUserUrl } from '../services/idp-console.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
 
@@ -297,6 +299,71 @@ const TenantUsage: React.FC<{ usage: SupportTenantUsage }> = ({ usage }) => {
   );
 };
 
+/**
+ * WHO MAY ACT ON THIS ORGANISATION, and the way through to their account.
+ *
+ * The account-level things — a password nobody can reset, a second factor lost
+ * with a phone, an account to disable — are the identity provider's job and
+ * never Ownpace's (ADR-0042). So this does not offer to change anything: it
+ * says who is there, and links to where the change is actually made.
+ *
+ * THE LINK IS CONFIGURATION, and absent is an ordinary answer. A deployment
+ * that has not set `VITE_IDP_CONSOLE_USER_URL` renders the address as plain
+ * text — no link and no broken one — which is the appliance, a stack
+ * mid-upgrade, and any provider whose console is not addressable per user.
+ *
+ * `rel="noreferrer"` with `target="_blank"`: this leaves the product for an
+ * administrative console, and the page it lands on has no business being
+ * handed a window handle or the address it came from.
+ */
+const People: React.FC<{ members: ReadonlyArray<SupportTenantMember> }> = ({ members }) => {
+  const t = useT();
+  const { dateTime } = useFormatters();
+  return (
+    <Section title={t('support.people')} empty={t('support.noPeople')} rows={members.length}>
+      <table className="min-w-full text-sm">
+        <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+          <tr>
+            <th className="px-3 py-2">{t('support.col.email')}</th>
+            <th className="px-3 py-2">{t('support.col.role')}</th>
+            <th className="px-3 py-2">{t('support.col.status')}</th>
+            <th className="px-3 py-2">{t('support.col.joined')}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {members.map((m) => {
+            const href = idpConsoleUserUrl(m.user_id);
+            return (
+              <tr key={m.user_id}>
+                <td className="px-3 py-2">
+                  {href ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-700 hover:underline"
+                      title={t('support.openAtProvider')}
+                    >
+                      {m.email}
+                    </a>
+                  ) : (
+                    m.email
+                  )}
+                </td>
+                <td className="px-3 py-2 text-gray-600">{m.role}</td>
+                <td className="px-3 py-2 text-gray-600">{m.status}</td>
+                <td className="px-3 py-2 text-gray-600">
+                  {m.joined_at ? dateTime(m.joined_at) : '—'}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </Section>
+  );
+};
+
 export const SupportTenantDetail: React.FC = () => {
   const t = useT();
   const { dateTime } = useFormatters();
@@ -331,7 +398,7 @@ export const SupportTenantDetail: React.FC = () => {
     );
   }
 
-  const { tenant, connections, migrations, invoices, usage } = query.data;
+  const { tenant, connections, migrations, invoices, usage, members } = query.data;
 
   return (
     <div>
@@ -375,6 +442,8 @@ export const SupportTenantDetail: React.FC = () => {
           </tbody>
         </table>
       </Section>
+
+      <People members={members} />
 
       <Section
         title={t('support.migrations')}

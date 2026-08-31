@@ -1546,11 +1546,34 @@ fi
 # ------------------------------------------------------------------- writing --
 
 say "writing the configuration into .env"
+# THE CONSOLE PATH IS COMPOSED HERE AND NOWHERE ELSE.
+#
+# The support screen links an operator through to a person's account at the
+# provider, because the account-level work — a password nobody can reset, a
+# second factor lost with a phone — is the provider's and never Ownpace's
+# (ADR-0042). The obvious way to build that link is `${issuer}` plus the path,
+# in the screen. It would work, and it is exactly the decay ADR-0042's third
+# rule exists to stop: an admin console is not an OIDC concept and no two
+# providers spell it the same way.
+#
+#     Zitadel    /ui/console/users/<sub>
+#     Keycloak   /admin/master/console/#/<realm>/users/<sub>/settings
+#     Authentik  /if/admin/#/identity/users/<sub>
+#
+# `no-issuer-lock-in.unit.test.ts` now refuses all three shapes in shipped
+# source. THIS file is where they belong — a deployment has to name what it
+# deploys, and that guard does not scan the compose file, this script, or the
+# docs, for exactly that reason. Switching provider stays what the owner made
+# the condition of accepting one: variables and a rebuild.
+#
+# `{sub}` is substituted by the web app. The route is Zitadel's own
+# `users/:id` (console routing, v4), the same one `users/me` sits beside.
 "$UPSERT" "$ENV_FILE" \
   "JWT_ISSUER=${ISSUER}" \
   "JWT_AUDIENCE=${PROJECT_ID}" \
   "VITE_OIDC_ISSUER=${ISSUER}" \
-  "VITE_OIDC_CLIENT_ID=${CLIENT_ID}"
+  "VITE_OIDC_CLIENT_ID=${CLIENT_ID}" \
+  "VITE_IDP_CONSOLE_USER_URL=${ISSUER}/ui/console/users/{sub}"
 
 cat <<EOF
 

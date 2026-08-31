@@ -130,12 +130,29 @@ export interface SupportTenantUsage {
   readonly paths_by_state: Readonly<Record<string, number>>;
 }
 
+/**
+ * Who may act on an organisation (migration 0018).
+ *
+ * `user_id` is the identity provider's SUBJECT, not an Ownpace id — it is what
+ * makes a link to the right account possible, and it is opaque to anybody who
+ * cannot already sign in to that provider.
+ */
+export interface SupportTenantMember {
+  readonly user_id: string;
+  readonly email: string;
+  readonly role: string;
+  readonly status: string;
+  readonly invited_at: string | null;
+  readonly joined_at: string | null;
+}
+
 export interface SupportTenantDetail {
   readonly tenant: SupportTenant;
   readonly connections: SupportConnection[];
   readonly migrations: SupportMigration[];
   readonly invoices: SupportInvoice[];
   /** Absent only from an API older than this screen — render nothing then. */
+  readonly members: ReadonlyArray<SupportTenantMember>;
   readonly usage?: SupportTenantUsage;
 }
 
