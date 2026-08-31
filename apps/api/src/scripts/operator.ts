@@ -33,6 +33,8 @@
  */
 
 import { Pool } from 'pg';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { log } from '@openmig/shared';
 
 const USAGE = `Usage:
@@ -42,6 +44,108 @@ const USAGE = `Usage:
 
 DATABASE_URL must be the OWNER connection — app_user cannot write this table,
 which is the point of it.`;
+
+/**
+ * A SUBJECT IS NOT A TOKEN, and this is what it costs when nothing says so.
+ *
+ * `add` took whatever strings it was handed and reported success. On
+ * 2026-08-31 the owner's appointment went to nobody twice, for two different
+ * reasons, and neither said a word:
+ *
+ *  1. `operator.sh` passed `--` before the arguments and pnpm FORWARDED it, so
+ *     everything shifted one place: `user_id` became the literal `--`, the
+ *     subject landed in `email`, the email in `note`. Fixed in the wrapper.
+ *  2. On the first attempt the value offered as the subject was the whole ID
+ *     TOKEN — an easy mistake, because the documented steps are "sign in, read
+ *     `userId` from /api/me, appoint it" and the token is what you are holding
+ *     at step two. It went into `email`, where a 900-character credential then
+ *     sat at rest.
+ *
+ * Both rows existed, `operator:list` showed them, and this script had said
+ * "may now read the access queue and grant requests" each time.
+ *
+ * Every signal downstream then told the truth about a world nobody wanted:
+ * `isPlatformOperator` matched nothing, `/api/me` answered `operator: false`,
+ * the nav correctly hid Access requests and Support, and an afternoon went into
+ * reading a menu that was right. A message asserting an outcome it has not
+ * checked is the failure this repository keeps finding, and the cheapest place
+ * to stop it is the moment of writing.
+ *
+ * IT CANNOT VALIDATE A SUBJECT IN GENERAL, and must not pretend to: there is no
+ * user table on this side, deliberately (ADR-0042), and a subject is whatever
+ * the issuer mints — digits here, a uuid elsewhere. What it CAN do is refuse
+ * the three things a subject is definitely not: a token, an argument
+ * separator, and something far too long to be an identifier.
+ *
+ * AND THE ANSWER IS INSIDE THE MISTAKE. A JWT carries the very subject that was
+ * meant, so the refusal decodes it and prints the command to run. Nothing is
+ * verified and nothing needs to be: the appointment is the owner's own act over
+ * the owner connection, and this only saves them a second trip to /api/me. A
+ * refusal that hands back the right command is worth ten that merely name the
+ * mistake.
+ *
+ * A TOKEN IN THAT COLUMN IS ALSO A CREDENTIAL AT REST, which is its own reason
+ * not to write one: `platform_operator` is a table of identifiers, and nothing
+ * about it is protected the way a secret would be.
+ */
+const MAX_SUBJECT = 200;
+
+export function subjectRefusal(subject: string): string | null {
+  const parts = subject.split('.');
+  if (parts.length === 3 && /^eyJ[A-Za-z0-9_-]+$/.test(parts[0]!)) {
+    let sub: string | undefined;
+    try {
+      const body = parts[1]!.replace(/-/g, '+').replace(/_/g, '/');
+      const json = JSON.parse(
+        Buffer.from(body + '='.repeat((4 - (body.length % 4)) % 4), 'base64').toString('utf8'),
+      ) as { sub?: unknown };
+      if (typeof json.sub === 'string' && json.sub) sub = json.sub;
+    } catch {
+      // Token-shaped, but the middle is not JSON. Still not a subject — the
+      // refusal stands, it just cannot offer the shortcut.
+    }
+    return (
+      'that is a TOKEN, not a subject.\n\n' +
+      'The subject is the `userId` in what `GET /api/me` answers; the token is\n' +
+      'what you send to ask it. Appointing the token writes a row that matches\n' +
+      'nobody — sign-in then reports `operator: false`, the access queue and the\n' +
+      'support screens stay hidden, and nothing says why.\n\n' +
+      (sub === undefined
+        ? 'Read the subject from /api/me and use that.'
+        : "That token's own subject is:\n\n" +
+          `    ${sub}\n\n` +
+          'So the command you meant is:\n\n' +
+          `    ./deploy/compose/operator.sh add ${sub} <email> [note]\n\n` +
+          'Read out of the token without verifying it, which is all this needs\n' +
+          "to do: the appointment is your act, over the owner connection.") +
+      '\n\nNOTHING WAS WRITTEN.'
+    );
+  }
+  // A BARE `--` IS A WRAPPER BUG WEARING A SUBJECT'S CLOTHES, and it is the one
+  // that actually happened. Catching it here is defence in depth: the wrapper
+  // no longer sends it, and if some future caller does, the appointment fails
+  // loudly instead of writing a row nobody will ever match.
+  if (subject === '--') {
+    return (
+      'that is an argument separator, not a subject.\n\n' +
+      'Something between you and this script passed `--` as the first argument,\n' +
+      'so every value after it shifted one place: the subject would have gone\n' +
+      'into the email column and the email into the note. pnpm forwards `--`\n' +
+      'rather than consuming it — `deploy/compose/operator.sh` no longer sends\n' +
+      'one, so an out-of-date copy of that script is the likely cause.' +
+      '\n\nNOTHING WAS WRITTEN.'
+    );
+  }
+  if (subject.length > MAX_SUBJECT) {
+    return (
+      `that is ${subject.length} characters, and a subject is not.\n\n` +
+      'Issuers mint short opaque identifiers — digits, or a uuid. Something this\n' +
+      'long is a token, a header, or a paste that went wrong. Read the subject\n' +
+      'from what `GET /api/me` answers.\n\nNOTHING WAS WRITTEN.'
+    );
+  }
+  return null;
+}
 
 function connectionString(): string {
   const url = process.env.DATABASE_URL ?? process.env.SEED_DATABASE_URL;
@@ -104,6 +208,9 @@ async function main(): Promise<void> {
       case 'add': {
         const [userId, email, ...noteParts] = rest;
         if (!userId || !email) throw new Error(`add needs a subject and an email.\n\n${USAGE}`);
+        // Before the write, not after: the whole point is that no row appears.
+        const refusal = subjectRefusal(userId);
+        if (refusal) throw new Error(refusal);
         const note = noteParts.join(' ') || null;
         await pool.query(
           `INSERT INTO platform_operator (user_id, email, note)
@@ -137,4 +244,21 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+/**
+ * RUN WHEN RUN, not when imported.
+ *
+ * This was a bare `await main()`, so importing the module executed it — which
+ * meant `subjectRefusal` below could not be tested without a database, and so
+ * it was not tested at all. A script whose only entry point is its side effect
+ * has no seam, and the bug this file now refuses shipped through exactly that
+ * gap: nothing here could be exercised, so nothing here was.
+ *
+ * `argv[1]` is the file node was told to run. Comparing it to this module's own
+ * path is the ordinary way, and it holds for `node src/scripts/operator.ts` and
+ * for the pnpm script that wraps it alike.
+ */
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+
+if (invokedDirectly) await main();
