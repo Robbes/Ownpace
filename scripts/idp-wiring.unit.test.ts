@@ -170,7 +170,7 @@ describe('letting a granted person in (workplan 0095 T0)', () => {
     // ADR-0042 forbids creating users through the provider's API — that is the
     // rule that keeps the issuer replaceable. So a granted person makes their
     // own account, or the grant email sends them to a door they cannot open.
-    expect(script).toContain('allowRegister:true');
+    expect(script).toMatch(/allowRegister:\s*true/);
   });
 
   it('VERIFIES the setting rather than trusting the call', () => {
@@ -179,16 +179,16 @@ describe('letting a granted person in (workplan 0095 T0)', () => {
     // call that changed nothing — a nothing that surfaces days later, in front
     // of a customer who cannot sign in. So it is read back.
     //
-    // `api` now reports what it was told and dies on a non-2xx, which is why
-    // the writes below say `api_try`: exactly one of the two verbs is EXPECTED
-    // to be refused, so "it did not error" still cannot mean "it took". The
-    // read-back is what decides, then as now.
+    // `api` now reports what it was told and dies on a non-2xx. The one call
+    // here that still says `api_try` is the reset, which an org with no policy
+    // of its own has nothing to do and refuses — so "it did not error" still
+    // cannot mean "it took". The read-back is what decides, then as now.
     const block = script.slice(script.indexOf('allowing people to register'));
     expect(block).toContain('read_allow_register');
     // The LAST read-back, not the first: the first is the "already allowed"
     // probe that skips the writes entirely. What this pins is that the one
     // deciding whether to `die` runs AFTER them.
-    const write = block.indexOf('api_try PUT /management/v1/policies/login');
+    const write = block.indexOf('api PUT /admin/v1/policies/login');
     const decides = block.lastIndexOf('read_allow_register)');
     expect(write).toBeGreaterThan(-1);
     expect(decides).toBeGreaterThan(write);

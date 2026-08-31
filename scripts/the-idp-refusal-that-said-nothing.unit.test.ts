@@ -319,12 +319,22 @@ describe('the script itself', () => {
     expect(CODE).not.toMatch(/local\s+out=\s*"\$\(curl/);
   });
 
-  it('keeps a non-fatal path for the one pair of calls that expects a refusal', () => {
-    // The login policy is written with PUT and POST because exactly one of them
-    // is right for the org's state — so one is EXPECTED to fail. `|| true` does
-    // not catch an `exit`, so a strict `api` alone would kill the script here.
-    expect(CODE).toContain('api_try PUT /management/v1/policies/login');
-    expect(CODE).toContain('api_try POST /management/v1/policies/login');
+  it('keeps a non-fatal path for the one call that expects a refusal', () => {
+    // The org's login policy is RESET, and an org that has none of its own has
+    // nothing to reset — the provider answers 4xx and is right to. `|| true`
+    // does not catch an `exit`, so a strict `api` alone would kill the script
+    // on the ordinary first-run path.
+    //
+    // This used to pin a PAIR — `api_try PUT` and `api_try POST` against
+    // `/management/v1/policies/login`, one of which was always refused. That
+    // pair is what locked every user out of the OTA instance: the POST is
+    // `AddCustomLoginPolicy`, which mints an org policy from the three fields
+    // it was handed and zeroes the thirteen it was not, `passwordCheckLifetime`
+    // among them. A password check valid for zero seconds is never valid, so
+    // the right password returned 200 to the same login page with no error on
+    // it. Neither verb may come back; `a-check-that-was-never-valid.unit.test.ts` is the
+    // guard that says so in general.
+    expect(CODE).toContain('api_try DELETE /management/v1/policies/login');
     // …and api_try must run `api` in a SUBSHELL, or its `die` takes the script.
     expect(CODE).toMatch(/api_try\(\)\s*\{\s*\(\s*api\s+"\$@"\s*\)/);
   });
@@ -332,8 +342,8 @@ describe('the script itself', () => {
   it('reads the setting back with the strict caller, and probes with the lenient one', () => {
     // The probe runs before anything is written and must survive an org with no
     // policy of its own; the read-back that DECIDES must not swallow a failure.
-    const block = CODE.slice(CODE.indexOf('probe_allow_register'));
-    expect(block).toMatch(/probe_allow_register\(\)[^\n]*\|\|\s*true/);
+    const block = CODE.slice(CODE.indexOf('probe_policy'));
+    expect(block).toMatch(/probe_policy\(\)[^\n]*\|\|\s*true/);
     expect(block).toMatch(/read_allow_register\(\)[^\n]*api GET/);
     expect(block).not.toMatch(/read_allow_register\(\)[^\n]*\|\|\s*true/);
   });

@@ -1226,9 +1226,71 @@ fi
 # the two settings below travel together: self-registration without verified
 # email would mean whoever types an address inherits what was granted to it.
 say "allowing people to register, with a verified email"
-# Two readers, deliberately. The PROBE runs before anything has been written and
-# must survive an organisation that has no login policy of its own; the DECIDER
-# runs after the writes, where a call that cannot be made is the answer.
+
+# THE ORGANISATION MUST NOT CARRY A LOGIN POLICY OF ITS OWN.
+#
+# This wrote the ORG's login policy, with both verbs, because exactly one of
+# them is right for an org that may or may not already have one:
+#
+#     PUT  /management/v1/policies/login   {allowRegister, allowUsernamePassword, allowExternalIdp}
+#     POST /management/v1/policies/login   (the same three)
+#
+# The POST is `AddCustomLoginPolicy`. It MINTS a custom org policy out of the
+# body it is handed, and a login policy has sixteen more fields than these
+# three. Every one of them arrived at its proto3 default, which for the five
+# `Duration` fields is ZERO. Read off the OTA instance, custom org policy
+# beside the instance default it shadowed:
+#
+#     password_check_lifetime          0    vs   864000000000000 ns (10 days)
+#     external_login_check_lifetime    0    vs    43200000000000
+#     second_factor_check_lifetime     0    vs    64800000000000
+#     multi_factor_check_lifetime      0    vs    43200000000000
+#     mfa_init_skip_lifetime           0    vs  2592000000000000
+#
+# A password check valid for zero seconds is a password check that is never
+# valid. Zitadel checks the password, records the moment it did, and then asks
+# whether that moment plus the lifetime is still in the future — which for a
+# lifetime of zero it never is, not even in the same millisecond. So the step
+# it computes next is the password step again:
+#
+#     POST /ui/login/password  ->  200, the same login page, no error at all
+#
+# Nobody could sign in to that instance. Every user, both browsers, correct
+# passwords — while a WRONG password still said so, because that path returns
+# before the lifetime is ever consulted. Six days of looking at a stack that
+# was healthy from every angle it could be asked from: the API answered, the
+# projections were current, and the policy read back `allowRegister: true`
+# exactly as this script had asked for it.
+#
+# THE PUT IS NO SAFER THAN THE POST. `UpdateCustomLoginPolicy` replaces the
+# policy from the body too, so the second run re-zeroed what the first minted,
+# and there was no run that could have healed it. This is the same lesson the
+# domain policy 400 lines above already carries in a comment — "PUT replaces
+# the policy and omitting them would reset them to false" — written next to one
+# caller and not applied to the other, which is the shape of #519 and #521.
+#
+# AND THE SHADOW POLICY BROKE THE PROVIDER BUTTONS TOO, silently, in the other
+# direction. `configure_idp` adds an IdP to the INSTANCE policy
+# (`/admin/v1/policies/login/idps`), which is where it belongs. A custom ORG
+# policy shadows the instance one wholesale, its IdP list included — so with
+# one in place, `allowExternalIdp: true` was being set on a policy carrying no
+# providers, and the button this script logs as "now offered on the sign-in
+# screen" could never appear on it.
+#
+# So the org gets no policy of its own, and these three settings go where the
+# IdPs already go. This instance serves ONE organisation — the domain-policy
+# block above says so, and nothing creates a second: granting an access request
+# creates an Ownpace tenant, never an org at the provider (ADR-0042's third
+# operative rule forbids us the user-management API that would) — so the
+# instance policy is the only one anybody resolves.
+
+# It follows what is actually configured, rather than being a knob of its own.
+# On for a deployment with providers, off for one without — and a deployment
+# that removes its last provider gets it turned back off on the next run, which
+# is what "converges on the described state" means (hard rule 1).
+WANT_EXTERNAL=false
+[ "${IDP_COUNT:-0}" -gt 0 ] && WANT_EXTERNAL=true
+
 # A BOOLEAN `false` IS AN ANSWER, AND `//` SWALLOWS IT.
 #
 # jq's `//` fires on `false` exactly as it fires on `null`, so
@@ -1262,6 +1324,11 @@ say "allowing people to register, with a verified email"
 # "unknown" here, it is how `false` arrives, every time, and a reader that
 # treats it as unknown can no more report a false than `// empty` could.
 #
+# THE SAME OMISSION IS WHY A ZERO LIFETIME IS INVISIBLE. A `Duration` holding
+# its default is omitted too, so the policy that locked everyone out answered
+# with no `passwordCheckLifetime` field at all rather than with a nought. Every
+# reader below therefore treats absent and zero as the one answer they are.
+#
 # So within a policy that exists, absent is false — and `// false` is exactly
 # right for that, collapsing null and false onto the one answer they share.
 # The empty string is kept for the case it genuinely means: no policy at all.
@@ -1270,38 +1337,132 @@ policy_flag() {   # <key> — reads the policy JSON on stdin
     if (has("policy") | not) then ""
     else ((.policy[$k] // false) | tostring) end' 2>/dev/null || true
 }
-probe_allow_register() { policy_flag allowRegister <<<"$( ( api GET /management/v1/policies/login ) 2>/dev/null || true)"; }
+
+# ASK WHAT A PERSON SIGNING IN RESOLVES, NEVER WHAT WAS WRITTEN.
+#
+# `/management/v1/policies/login` answers with the org's own policy if it has
+# one and the instance default if it has not — which is the question that
+# matters, and the one this block stopped asking. The instance policy being
+# right proves nothing at all while something shadows it: that is not a
+# hypothetical, it is what happened.
+#
+# Two readers, deliberately. The PROBE runs before anything has been written
+# and must survive an organisation that has no login policy of its own; the
+# DECIDERS run after the writes, where a call that cannot be made is the answer.
+probe_policy() { ( api GET /management/v1/policies/login ) 2>/dev/null || true; }
 read_allow_register() { policy_flag allowRegister <<<"$(api GET /management/v1/policies/login)"; }
 # AND WHETHER A PROVIDER BUTTON IS ALLOWED TO APPEAR AT ALL. Configuring an IdP
 # and adding it to the login policy still shows nobody anything while this is
 # false — a third way to have a stack that looks configured and offers nothing.
-probe_allow_external() { policy_flag allowExternalIdp <<<"$( ( api GET /management/v1/policies/login ) 2>/dev/null || true)"; }
 read_allow_external() { policy_flag allowExternalIdp <<<"$(api GET /management/v1/policies/login)"; }
+# `isDefault` is how the answer says WHICH policy it is: true when the org
+# inherits the instance's, false when it carries one of its own.
+read_inherits() { policy_flag isDefault <<<"$(api GET /management/v1/policies/login)"; }
+# NOT `policy_flag`, for this one: its `// false` is right for a bool and
+# nonsense for a duration — "answers false for passwordCheckLifetime" is not
+# a sentence a refusal should print. Absent still collapses onto the same
+# answer as zero; it just says so in a word somebody can read.
+read_password_life() { jq -r '.policy.passwordCheckLifetime // "unset"' <<<"$(api GET /management/v1/policies/login)" 2>/dev/null || true; }
 
-# It follows what is actually configured, rather than being a knob of its own.
-# On for a deployment with providers, off for one without — and a deployment
-# that removes its last provider gets it turned back off on the next run, which
-# is what "converges on the described state" means (hard rule 1).
-WANT_EXTERNAL=false
-[ "${IDP_COUNT:-0}" -gt 0 ] && WANT_EXTERNAL=true
+# A DURATION IS RIGHT ONLY IF IT IS POSITIVE. protojson writes one as a string
+# of seconds — "864000s" — and omits it when it is zero, so `// "0s"` is what
+# collapses the two ways of being nought, and `tonumber?` refuses to guess at
+# a shape it does not recognise (which then reads as zero, and writes).
+positive_password_life() {   # reads a login-policy JSON on stdin
+  jq -e '((.policy.passwordCheckLifetime // "0s") | sub("s$";"") | (tonumber? // 0)) > 0' \
+    >/dev/null 2>&1
+}
 
-if [ "$(probe_allow_register)" = "true" ] && [ "$(probe_allow_external)" = "$WANT_EXTERNAL" ]; then
+# WHAT "ALREADY RIGHT" MEANS, IN FULL. Four facts, not two: the pair this block
+# is named for, plus the pair the shadow policy got wrong without saying so —
+# that nothing shadows the instance policy, and that a password check lasts
+# longer than no time at all. A probe that checked only the first two would
+# look at the locked-out instance, find `allowRegister: true`, print "already
+# allowed" and leave every person on the sign-in page. Converging on the
+# described state (hard rule 1) means the description has to include the part
+# that broke.
+policy_is_right() {   # reads a login-policy JSON on stdin
+  local json; json="$(cat)"
+  jq -e --argjson x "$WANT_EXTERNAL" '
+    .policy as $p
+    | ($p != null)
+      and ($p.isDefault // false)
+      and ($p.allowRegister // false)
+      and ($p.allowUsernamePassword // false)
+      and (($p.allowExternalIdp // false) == $x)
+  ' >/dev/null 2>&1 <<<"$json" && positive_password_life <<<"$json"
+}
+
+if policy_is_right <<<"$(probe_policy)"; then
   say "already allowed"
 else
-  POLICY="$(jq -nc --argjson x "$WANT_EXTERNAL" '{allowRegister:true, allowUsernamePassword:true, allowExternalIdp:$x}')"
-  # An organisation may not have a login policy of its own yet, in which case it
-  # inherits the instance default and the PUT has nothing to update — so both
-  # verbs are attempted and NEITHER is trusted.
+  # RESET FIRST. On an instance an older version of this script has run
+  # against, the custom org policy is the thing that has to go — the settings
+  # below land on the instance policy, which nobody resolves while a shadow
+  # sits in front of it.
   #
-  # NEITHER VERB IS TRUSTED, even now that `api` reports what it was told.
-  # `api_try` is used precisely because one of these two is expected to be
-  # refused, so "it did not error" cannot mean "it took". For this setting a
-  # call that changed nothing means a granted person reaches a sign-in page
-  # they cannot pass — a failure that surfaces days later, in front of a
-  # customer. So the setting is READ BACK, and that is what decides.
-  api_try PUT /management/v1/policies/login "$POLICY"
-  api_try POST /management/v1/policies/login "$POLICY"
+  # `api_try`, because an org with no policy of its own has nothing to reset
+  # and the provider says so with a 4xx. A reset that did not take is not this
+  # call's to report either: the read-back below asks the only question that
+  # decides, which is what the org resolves NOW.
+  api_try DELETE /management/v1/policies/login
 
+  # ECHO WHAT IS THERE, OVERRIDE ONLY THE THREE. `UpdateLoginPolicy` replaces
+  # the policy from the body, so every field omitted here is a field reset to
+  # its zero — which is the whole bug this block exists to have fixed. The
+  # lifetimes especially are Zitadel's own defaults and are NOT restated in
+  # this repository: they are read off the instance and handed straight back,
+  # so there is no second copy of them here to drift from the first.
+  INSTANCE="$(api GET /admin/v1/policies/login)"
+  POLICY="$(jq -c --argjson x "$WANT_EXTERNAL" '.policy | {
+      allowRegister: true,
+      allowUsernamePassword: true,
+      allowExternalIdp: $x,
+      forceMfa: (.forceMfa // false),
+      forceMfaLocalOnly: (.forceMfaLocalOnly // false),
+      passwordlessType: (.passwordlessType // "PASSWORDLESS_TYPE_NOT_ALLOWED"),
+      hidePasswordReset: (.hidePasswordReset // false),
+      ignoreUnknownUsernames: (.ignoreUnknownUsernames // false),
+      allowDomainDiscovery: (.allowDomainDiscovery // false),
+      disableLoginWithEmail: (.disableLoginWithEmail // false),
+      disableLoginWithPhone: (.disableLoginWithPhone // false),
+      defaultRedirectUri: (.defaultRedirectUri // ""),
+      passwordCheckLifetime: .passwordCheckLifetime,
+      externalLoginCheckLifetime: .externalLoginCheckLifetime,
+      mfaInitSkipLifetime: .mfaInitSkipLifetime,
+      secondFactorCheckLifetime: .secondFactorCheckLifetime,
+      multiFactorCheckLifetime: .multiFactorCheckLifetime
+    }' <<<"$INSTANCE")"
+
+  # AND REFUSE TO SEND A ZERO. Echoing the instance back is only safe while the
+  # instance is sane; if one of its lifetimes is already nought or missing,
+  # writing it back is how this bug reproduces itself one level up, on the
+  # policy EVERY organisation inherits. There is no right number to substitute
+  # — Zitadel's defaults are Zitadel's — so this says what it found and stops
+  # rather than inventing one.
+  ZEROED="$(jq -r '[to_entries[] | select(.key | endswith("Lifetime"))
+                    | select(((.value // "0s") | sub("s$";"") | (tonumber? // 0)) <= 0)
+                    | .key] | join(", ")' <<<"$POLICY")"
+  [ -z "$ZEROED" ] || die "the instance login policy has no time on it: ${ZEROED}
+
+A check that is valid for zero seconds is a check that is never valid, and
+sign-in becomes a page that reloads itself with no error on it. Nothing was
+written — sending these back would put the same nought on the policy every
+organisation inherits.
+
+Read what is there with:
+
+    curl -sS -X GET ${ISSUER}/admin/v1/policies/login \\
+      -H \"Authorization: Bearer \$PAT\" | jq .policy
+
+Zitadel's own defaults are 864000s for the password check; set them in the
+console at ${ISSUER}/ui/console under Settings -> Login Behaviour, or re-run
+this against an instance whose defaults have not been overwritten."
+
+  api PUT /admin/v1/policies/login "$POLICY" >/dev/null
+
+  # READ BACK, AND SEPARATELY. Four settings that fail in four different ways,
+  # and a person reading the log deserves to know WHICH one did not take.
   [ "$(read_allow_register)" = "true" ] \
     || die "could not allow people to register.
 
@@ -1310,10 +1471,8 @@ forbids us from creating one at the provider — so without this a granted perso
 reaches a sign-in page they cannot get past.
 
 Set it by hand: the console at ${ISSUER}/ui/console, under
-Organisation -> Login Behaviour, tick 'Register allowed'."
+Settings -> Login Behaviour, tick 'Register allowed'."
 
-  # Read back separately, because the two settings fail differently and a person
-  # reading the log deserves to know WHICH one did not take.
   # READ ONCE, AND REPORT WHAT CAME BACK. The version of this that shipped in
   # #576 said "and it is not", which asserted a value it never showed — and
   # then sent the reader to a console switch without saying which way to move
@@ -1335,10 +1494,48 @@ touching. Read it directly with:
       -H \"Authorization: Bearer \$PAT\" | jq .policy.allowExternalIdp
 
 If it genuinely disagrees, the console at ${ISSUER}/ui/console under
-Organisation -> Login Behaviour holds it — and the value to leave it on is
+Settings -> Login Behaviour holds it — and the value to leave it on is
 ${WANT_EXTERNAL}, which with ${IDP_COUNT:-0} provider(s) configured means the
 box stays $([ "$WANT_EXTERNAL" = "true" ] && echo TICKED || echo UNTICKED)."
-  say "allowed (providers offered: ${WANT_EXTERNAL})"
+
+  # THE TWO THE SHADOW POLICY GOT WRONG WITHOUT SAYING SO. Both refusals below
+  # describe a stack where every other check above has just passed and nobody
+  # can sign in, so they say that outright rather than naming a setting.
+  GOT_INHERITS="$(read_inherits)"
+  [ "$GOT_INHERITS" = "true" ] \
+    || die "the organisation still carries a login policy of its own.
+
+It shadows the instance policy wholesale — the sign-in lifetimes, and the list
+of providers this script just put buttons on. Both settings above read back
+correctly and they were read off the shadow, so this is a stack that will look
+configured and let nobody in.
+
+Remove it, so the organisation inherits the instance policy:
+
+    curl -sS -X DELETE ${ISSUER}/management/v1/policies/login \\
+      -H \"Authorization: Bearer \$PAT\"
+
+or in the console at ${ISSUER}/ui/console, under Organisation -> Login
+Behaviour, 'Reset to default'. Then run this again."
+
+  GOT_LIFE="$(read_password_life)"
+  positive_password_life <<<"$(api GET /management/v1/policies/login)" \
+    || die "a password check on this instance is valid for no time at all.
+
+The policy people actually resolve answers ${GOT_LIFE:-(nothing at all)} for
+passwordCheckLifetime, and a check valid for zero seconds is a check that is
+never valid: the right password returns 200 to the same sign-in page, with no
+error on it, for everybody.
+
+Read the whole policy — the other four lifetimes fail the same way — with:
+
+    curl -sS -X GET ${ISSUER}/management/v1/policies/login \\
+      -H \"Authorization: Bearer \$PAT\" | jq .policy
+
+The console at ${ISSUER}/ui/console under Settings -> Login Behaviour holds
+them; Zitadel's own default for this one is 864000s (10 days)."
+
+  say "allowed (providers offered: ${WANT_EXTERNAL}, password check: ${GOT_LIFE})"
 fi
 
 # ACCESS TOKENS AS JWT, above, is what makes the API's JWKS path work at all.
