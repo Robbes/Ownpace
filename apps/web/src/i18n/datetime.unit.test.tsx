@@ -84,7 +84,7 @@ const Probe: React.FC = () => {
 
 describe('useFormatters', () => {
   it('binds to the active locale', () => {
-    window.localStorage.setItem('openmig.locale', 'nl');
+    window.localStorage.setItem('ownpace.locale', 'nl');
     render(
       <LocaleProvider>
         <Probe />

@@ -54,7 +54,7 @@ beforeAll(async () => {
     delete process.env[key];
   }
 
-  const configDir = tempDir('openmig-notify-cfg-');
+  const configDir = tempDir('ownpace-notify-cfg-');
   baseConfigDir = configDir;
   writeFileSync(
     join(configDir, 'mapping.json'),
@@ -81,7 +81,7 @@ beforeAll(async () => {
 
   handle = await start({
     persistence: 'pglite',
-    pgliteDataDir: tempDir('openmig-notify-db-'),
+    pgliteDataDir: tempDir('ownpace-notify-db-'),
     configDir,
     port: 0,
     host: '127.0.0.1',
@@ -131,12 +131,12 @@ describe('the appliance with SMTP and both digests configured', () => {
     process.env.NOTIFY_TO = 'owner@example.nl';
     process.env.NOTIFY_DIGEST = 'both';
 
-    const configDir = tempDir('openmig-digest-cfg-');
+    const configDir = tempDir('ownpace-digest-cfg-');
     writeFileSync(join(configDir, 'mapping.json'), readFileSync(join(baseConfigDir, 'mapping.json')));
 
     configured = await start({
       persistence: 'pglite',
-      pgliteDataDir: tempDir('openmig-digest-db-'),
+      pgliteDataDir: tempDir('ownpace-digest-db-'),
       configDir,
       port: 0,
       host: '127.0.0.1',

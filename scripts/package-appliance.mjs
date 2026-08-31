@@ -306,7 +306,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 function ensureWritable(label, dir, envVar) {
   try {
     mkdirSync(dir, { recursive: true });
-    const probe = join(dir, '.openmig-write-probe');
+    const probe = join(dir, '.ownpace-write-probe');
     writeFileSync(probe, '');
     rmSync(probe, { force: true });
   } catch (err) {

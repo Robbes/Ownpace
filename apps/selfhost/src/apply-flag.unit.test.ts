@@ -71,7 +71,7 @@ function mappingJson(mappingId: string, allow?: boolean): string {
 
 beforeAll(async () => {
   delete process.env.OPENMIG_TEST_NOPE;
-  const configDir = tempDir('openmig-applyflag-cfg-');
+  const configDir = tempDir('ownpace-applyflag-cfg-');
   writeFileSync(join(configDir, 'mapping-on.json'), mappingJson(MAPPING_ON, true));
   // The OFF mapping omits the field entirely: absent must read as off — a
   // capability that destroys data is opted INTO, never defaulted on.
@@ -79,7 +79,7 @@ beforeAll(async () => {
 
   handle = await start({
     persistence: 'pglite',
-    pgliteDataDir: tempDir('openmig-applyflag-db-'),
+    pgliteDataDir: tempDir('ownpace-applyflag-db-'),
     configDir,
     port: 0,
     host: '127.0.0.1',

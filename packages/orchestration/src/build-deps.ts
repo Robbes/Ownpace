@@ -155,7 +155,7 @@ function openLedger(options: LedgerOptions | undefined): {
   if (!databaseUrl) {
     throw new Error(
       'DATABASE_URL environment variable is required. ' +
-      'Example: postgres://user:password@localhost:5432/openmig'
+      'Example: postgres://user:password@localhost:5432/ownpace'
     );
   }
   // Fail rather than connect to whatever DATABASE_URL happens to name. On the

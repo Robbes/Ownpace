@@ -139,7 +139,7 @@ function ensureReleasedRef(): void {
 /** The released shared chain, written out so the real loader reads it. */
 function materialiseReleasedMigrations(): string {
   ensureReleasedRef();
-  const dir = join(tempDir('openmig-presplit-'), 'migrations');
+  const dir = join(tempDir('ownpace-presplit-'), 'migrations');
   mkdirSync(dir, { recursive: true });
   const names = git('ls-tree', '--name-only', RELEASED_REF, `${MIGRATIONS_PATH}/`)
     .split('\n')

@@ -80,7 +80,7 @@ beforeAll(async () => {
   // rather than a hang inside this suite.
   delete process.env.OPENMIG_TEST_NOPE;
 
-  const configDir = tempDir('openmig-verify-cfg-');
+  const configDir = tempDir('ownpace-verify-cfg-');
   writeFileSync(
     join(configDir, 'mapping.json'),
     JSON.stringify({
@@ -106,7 +106,7 @@ beforeAll(async () => {
 
   handle = await start({
     persistence: 'pglite',
-    pgliteDataDir: tempDir('openmig-verify-db-'),
+    pgliteDataDir: tempDir('ownpace-verify-db-'),
     configDir,
     port: 0,
     host: '127.0.0.1',

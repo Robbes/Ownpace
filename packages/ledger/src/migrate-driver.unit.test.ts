@@ -59,7 +59,7 @@ afterAll(() => {
 
 /** A migrations directory with one trivial file. */
 function migrationsDirWith(...files: string[]): string {
-  const dir = tempDir('openmig-migrations-');
+  const dir = tempDir('ownpace-migrations-');
   for (const f of files) writeFileSync(join(dir, f), 'SELECT 1;');
   return dir;
 }

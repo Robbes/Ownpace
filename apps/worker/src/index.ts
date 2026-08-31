@@ -97,7 +97,7 @@ async function main() {
   if (!databaseUrl) {
     throw new Error(
       'DATABASE_URL environment variable is required. ' +
-      'Example: postgres://user:password@localhost:5432/openmig'
+      'Example: postgres://user:password@localhost:5432/ownpace'
     );
   }
   const db = createPgDb(databaseUrl);

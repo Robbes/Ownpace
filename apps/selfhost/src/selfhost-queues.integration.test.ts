@@ -168,7 +168,7 @@ beforeAll(async () => {
   ledger = new PgLedger(db);
   decisions = new PgDecisionStore(db);
 
-  const configDir = tempDir('openmig-queues-cfg-');
+  const configDir = tempDir('ownpace-queues-cfg-');
   writeFileSync(
     join(configDir, 'mapping.json'),
     JSON.stringify({
