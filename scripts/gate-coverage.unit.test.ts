@@ -191,3 +191,81 @@ describe('offboarding is exercised where it can be undone', () => {
     expect(closing).toMatch(/erasure clock is still running/);
   });
 });
+
+describe('the decision the operator role exists for', () => {
+  /**
+   * Before this, the gate proved an operator could hold a session and READ the
+   * tenant list. Nothing pressed grant.
+   *
+   * That is not a small gap. Granting is the only path by which this product
+   * acquires a customer — three writes in one transaction, a tenant, an owner
+   * invitation and the request marked granted — and a stack that cannot do it
+   * cannot be sold to anybody. It was covered against PGlite and against
+   * Testcontainers, and never once against the real stack, through PgBouncer,
+   * with a subject a real issuer minted. Every one of those seams is exactly
+   * where this system's defects have actually lived.
+   */
+  const block = smoke.slice(
+    smoke.indexOf('THE QUEUE THEY CAME FOR'),
+    smoke.indexOf("DELETE FROM platform_operator WHERE user_id"),
+  );
+
+  it('found the block, so the rest of this file is not vacuous', () => {
+    expect(block.length).toBeGreaterThan(500);
+  });
+
+  it('reads the queue THROUGH the route, not out of the database', () => {
+    // The row being there proves the knock. Only the route proves the decision
+    // surface — `operator_may_read` answering a connection that has no tenant.
+    expect(block).toMatch(/http GET "\$API\/api\/access-requests" "\$OP_TOKEN"/);
+    expect(block, 'the queue is read but its answer is never used').toContain('req_id');
+  });
+
+  it('presses grant, and reads what it created out of the DATABASE', () => {
+    // A route that answered 201 and wrote nothing would satisfy every check
+    // that only reads the reply.
+    expect(block).toMatch(/access-requests\/\$\{req_id\}\/grant/);
+    expect(block).toContain('FROM tenant WHERE id');
+    expect(block).toContain('FROM tenant_member WHERE tenant_id');
+    expect(block).toContain("state = 'granted'");
+  });
+
+  it('expects an INVITATION, not a member', () => {
+    // The person has no subject until they sign in, so the owner row is a
+    // `pending:` placeholder that `claimInvitations` replaces on arrival.
+    // Asserting `active` here would demand somebody who has not been asked yet
+    // — and would have hidden the support deep-link defect of 2026-08-31,
+    // which was precisely that these rows are not accounts.
+    expect(block).toContain("status = 'invited'");
+    expect(block).toContain("user_id LIKE 'pending:%'");
+    expect(block, 'a granted owner is not active until they arrive').not.toContain("status = 'active'");
+  });
+
+  it('asserts the three writes TOGETHER, because they are one fact', () => {
+    // A tenant nobody asked for, or a request pointing at an organisation that
+    // does not exist, are both worse than a failure. One comparison, so a
+    // partial transaction cannot pass two lines out of three.
+    expect(block).toContain('1/1/1');
+  });
+
+  it('asks the duplicate knock both ways, which pull against each other', () => {
+    // The answer must be identical — a public endpoint that distinguishes a
+    // known address from a new one is an enumeration oracle — and the row
+    // count must not be. A check on either alone passes the bug.
+    expect(block).toMatch(/\[ "\$gk2" = "\$gk" \]/);
+    expect(block).toContain("state = 'open'");
+    expect(block).toMatch(/open_rows.*=.*"1"|"\$open_rows" = "1"/);
+  });
+
+  it('runs while the operator is appointed, and before the appointment is taken back', () => {
+    // `platform_operator` is inserted over the owner connection and removed in
+    // the same block. A grant attempted outside that window answers 404 —
+    // invisible and absent being the same answer — which would look like a
+    // broken route rather than a test in the wrong place.
+    const appointed = smoke.indexOf('INSERT INTO platform_operator');
+    const queue = smoke.indexOf('THE QUEUE THEY CAME FOR');
+    const revoked = smoke.indexOf("DELETE FROM platform_operator WHERE user_id");
+    expect(appointed).toBeLessThan(queue);
+    expect(queue).toBeLessThan(revoked);
+  });
+});

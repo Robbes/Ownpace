@@ -2296,6 +2296,127 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       fail=1
     fi
 
+
+    # ---------- THE QUEUE THEY CAME FOR, AND THE BUTTON THEY PRESS ----------
+    #
+    # Everything above proves an operator can hold a session and SEE things.
+    # Nothing proved they can do the one thing the role exists for: read the
+    # access queue and grant somebody an organisation. `platform_operator` is
+    # written for that decision and for nothing else, and until now this gate
+    # would have gone green on a deployment where granting was broken in every
+    # way that does not also break `/api/me`.
+    #
+    # It is not a small blind spot. Granting is the only path by which this
+    # product acquires a customer: three writes in one transaction — a tenant,
+    # an owner invitation, and the request marked granted — and a stack that
+    # cannot do it cannot be sold to anybody. Covered by unit tests against
+    # PGlite and by an integration test against Testcontainers; never once
+    # against the real stack, through PgBouncer, with a real issuer's subject.
+    #
+    # WHAT THIS ADDS TO THE DEMO STACK, AND TAKES BACK. A tenant, a
+    # `tenant_member` invitation and an `access_request` row. All three are
+    # removed at the end of the block, requests BEFORE tenants: `access_request`
+    # points at the tenant with ON DELETE RESTRICT (migration 0007) and carries
+    # CHECK ((state = 'granted') = (tenant_id IS NOT NULL)), so a tenant delete
+    # that tried to null it would violate the check and the delete would fail
+    # naming a constraint on another table. The order is not a style choice.
+    GRANT_EMAIL="smoke-grant-${SMOKE_MAIL_RUN}@smoke.local"
+    GRANT_ORG="Smoke Grant ${SMOKE_MAIL_RUN}"
+
+    # A STALE SET FIRST, for the window where a run died mid-block. Same
+    # backstop and same order as the take-back below.
+    q "DELETE FROM access_request WHERE email LIKE 'smoke-grant-%@smoke.local'" >/dev/null 2>&1 || true
+    q "DELETE FROM tenant WHERE name LIKE 'Smoke Grant %'" >/dev/null 2>&1 || true
+
+    # Knock, unauthenticated, exactly as the public form does.
+    gk="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "${API}/api/access-requests" \
+      -H 'Content-Type: application/json' \
+      -d "$(jq -nc --arg e "$GRANT_EMAIL" '{email:$e, locale:"en", organisation:"Smoke Grant BV"}')" \
+      || echo 000)"
+    [ "$gk" = "201" ] || { echo "the front door refused the gate's own knock: HTTP ${gk}"; fail=1; }
+
+    # AND AGAIN, WHICH MUST NOT BECOME A SECOND ROW. Migration 0020 forbids two
+    # OPEN requests per address with a partial unique index; the route answers
+    # the duplicate identically so a stranger cannot learn an address is known.
+    # Both halves matter and they pull opposite ways — the answer must be the
+    # same, the row count must not be. Proved against PGlite and Testcontainers;
+    # this is the first time a real Postgres behind PgBouncer has been asked.
+    gk2="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "${API}/api/access-requests" \
+      -H 'Content-Type: application/json' \
+      -d "$(jq -nc --arg e "$GRANT_EMAIL" '{email:$e, locale:"en"}')" || echo 000)"
+    open_rows="$(q "SELECT count(*) FROM access_request WHERE email = '${GRANT_EMAIL}' AND state = 'open'" 2>/dev/null || echo '?')"
+    if [ "$gk2" = "$gk" ] && [ "$open_rows" = "1" ]; then
+      echo "a second knock is answered the same (HTTP ${gk2}) and is not a second row (open=${open_rows})"
+    else
+      echo "the duplicate knock: HTTP ${gk2} (first was ${gk}), open rows for the address = ${open_rows}, expected 1"
+      echo "    Two open requests from one address become two organisations if both are granted,"
+      echo "    and /api/me then returns two tenants for somebody who asked once and pressed twice."
+      fail=1
+    fi
+
+    # THE QUEUE OPENS FOR THE OPERATOR. Read through the route rather than the
+    # database: the row being there proves the knock, and this proves the
+    # decision surface — `operator_may_read` on a connection with no tenant.
+    r="$(http GET "$API/api/access-requests" "$OP_TOKEN")"; code="${r%% *}"; body="${r#* }"
+    req_id="$(jq -r --arg e "$GRANT_EMAIL" '.requests[]? | select(.email == $e and .state == "open") | .id' <<<"$body" 2>/dev/null | head -1)"
+    if [ "$code" = "200" ] && [ -n "$req_id" ]; then
+      echo "the access queue answers an operator, and carries the knock: ${req_id}"
+    else
+      echo "the access queue: HTTP ${code}, no open request for ${GRANT_EMAIL} — ${body:0:200}"
+      echo "    This is the queue platform_operator exists for. A stack that cannot serve it"
+      echo "    cannot take a customer, however healthy everything else reports."
+      fail=1
+    fi
+
+    # AND THE BUTTON WORKS. One press, three writes, one transaction.
+    if [ -n "$req_id" ]; then
+      r="$(http POST "$API/api/access-requests/${req_id}/grant" "$OP_TOKEN" \
+        "$(jq -nc --arg n "$GRANT_ORG" '{organisationName:$n}')")"
+      code="${r%% *}"; body="${r#* }"
+      new_tenant="$(jq -r '.tenantId // empty' <<<"$body" 2>/dev/null || true)"
+      if [ "$code" = "201" ] && [ -n "$new_tenant" ]; then
+        echo "granting created an organisation: ${new_tenant}"
+      else
+        echo "granting: HTTP ${code} — ${body:0:240}"; fail=1
+      fi
+
+      # WHAT IT ACTUALLY WROTE, asked of the database rather than of the reply.
+      # A route that answered 201 and wrote nothing would pass every line above.
+      # The owner is an INVITATION, not a member: the person has no subject
+      # until they sign in, so `user_id` is a `pending:` placeholder and
+      # `claimInvitations` replaces it on first arrival. Asserting `active`
+      # here would demand a person who has not been asked yet.
+      if [ -n "$new_tenant" ]; then
+        made="$(q "SELECT
+            (SELECT count(*) FROM tenant WHERE id = '${new_tenant}' AND name = '${GRANT_ORG}')
+          ||'/'|| (SELECT count(*) FROM tenant_member WHERE tenant_id = '${new_tenant}'
+                     AND role = 'owner' AND status = 'invited' AND user_id LIKE 'pending:%')
+          ||'/'|| (SELECT count(*) FROM access_request WHERE id = '${req_id}'
+                     AND state = 'granted' AND tenant_id = '${new_tenant}')" 2>/dev/null || echo '?')"
+        if [ "$made" = "1/1/1" ]; then
+          echo "the three writes landed together: organisation/owner-invitation/settled-request = ${made}"
+        else
+          echo "the three writes: organisation/owner-invitation/settled-request = ${made}, expected 1/1/1"
+          echo "    They are one fact. A tenant nobody asked for, or a request pointing at an"
+          echo "    organisation that does not exist, are both worse than a failure."
+          fail=1
+        fi
+      fi
+    fi
+
+    # TAKE IT BACK. Requests first, then tenants — see the header above.
+    q "DELETE FROM access_request WHERE email LIKE 'smoke-grant-%@smoke.local'" >/dev/null 2>&1 || true
+    q "DELETE FROM tenant WHERE name LIKE 'Smoke Grant %'" >/dev/null 2>&1 || true
+    g_left="$(q "SELECT (SELECT count(*) FROM access_request WHERE email LIKE 'smoke-grant-%@smoke.local')
+              ||'/'|| (SELECT count(*) FROM tenant WHERE name LIKE 'Smoke Grant %')" 2>/dev/null || echo '?')"
+    if [ "$g_left" = "0/0" ]; then
+      echo "the gate's organisation was taken back: requests/tenants left = ${g_left}"
+    else
+      echo "the gate's organisation was NOT taken back: requests/tenants left = ${g_left}"
+      echo "    A tenant per nightly run accumulates in the stack this same script measures."
+      fail=1
+    fi
+
     q "DELETE FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" >/dev/null
     left="$(q "SELECT count(*) FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" 2>/dev/null || echo '?')"
     if [ "$left" = "0" ]; then
