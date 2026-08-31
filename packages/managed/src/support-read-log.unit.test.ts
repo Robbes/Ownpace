@@ -18,10 +18,13 @@
  * list to keep in step.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pgliteDriver, runMigrations } from '@openmig/ledger';
+import type { LedgerDriver, LedgerConnection } from '@openmig/ledger';
+import { runManagedMigrations } from './migrate-managed.ts';
 import { SUPPORT_VIEWS } from './support-read-log.ts';
 
 const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
@@ -84,5 +87,82 @@ describe('what the log may record', () => {
     for (const v of ['tenants', 'tenant', 'migration', 'retained_invoices', 'people', 'person']) {
       expect(SUPPORT_VIEWS as readonly string[]).toContain(v);
     }
+  });
+});
+
+/**
+ * The constraints, proved able to REFUSE.
+ *
+ * `query` and `result_count` are only meaningful for a search, and the whole
+ * reason they are columns rather than a jsonb blob is that 0009 built this log
+ * to be COUNTED. That property rests entirely on the CHECKs below actually
+ * biting — an unenforced constraint is a comment, and this table's comments
+ * already say what it means.
+ *
+ * Written after the columns were added and every route test passed: those cover
+ * the shapes the product writes, and none of them could tell an enforced
+ * constraint from a decorative one.
+ *
+ * UUID family 01960000-…, unused elsewhere in the repo.
+ */
+describe('what the database refuses to record', () => {
+  const TENANT = '01960000-e29b-41d4-a716-446655440001';
+  let driver: LedgerDriver;
+  let conn: LedgerConnection;
+
+  beforeAll(async () => {
+    driver = pgliteDriver({ role: 'app_user' });
+    await runMigrations({ driver, logger: () => {} });
+    await runManagedMigrations({ driver, logger: () => {} });
+    conn = await driver.acquire();
+    await conn.query(`INSERT INTO tenant (id, name) VALUES ($1,'X')`, [TENANT]);
+  }, 120_000);
+
+  afterAll(async () => {
+    conn?.release();
+    await driver?.end();
+  });
+
+  const write = (view: string, tenant: string | null, query: string | null, count: number | null) =>
+    conn.query(
+      `INSERT INTO support_read (operator_user_id, tenant_id, view_name, query, result_count)
+       VALUES ('op', $1::uuid, $2, $3, $4)`,
+      [tenant, view, query, count],
+    );
+
+  it('accepts the three shapes the product actually writes', async () => {
+    await expect(write('people', null, 'jan', 2)).resolves.toBeDefined();
+    await expect(write('person', TENANT, null, null)).resolves.toBeDefined();
+    await expect(write('tenants', null, null, null)).resolves.toBeDefined();
+  });
+
+  it('refuses a query on a read that is not a search', async () => {
+    // Otherwise they are two more nullable fields any future caller could fill
+    // with anything, and the log stops being countable.
+    await expect(write('tenant', TENANT, 'jan', 1)).rejects.toThrow(/check constraint/i);
+  });
+
+  it('refuses a search that does not say what it looked for, or how much it found', async () => {
+    // Either half alone cannot distinguish answering one email from
+    // enumerating the customer base, which is the whole point of storing them.
+    await expect(write('people', null, null, null)).rejects.toThrow(/check constraint/i);
+    await expect(write('people', null, 'jan', null)).rejects.toThrow(/check constraint/i);
+    await expect(write('people', null, null, 3)).rejects.toThrow(/check constraint/i);
+  });
+
+  it('refuses a person who belongs to no organisation', async () => {
+    // The log's value is being able to ask "who looked at this customer" and
+    // get every answer. A read about one person that names no organisation
+    // would be invisible to that question.
+    await expect(write('person', null, null, null)).rejects.toThrow(/check constraint/i);
+  });
+
+  it('refuses a query longer than the column is meant to hold', async () => {
+    await expect(write('people', null, 'x'.repeat(201), 1)).rejects.toThrow(/check constraint/i);
+  });
+
+  it('refuses a view_name nobody defined', async () => {
+    // The closed vocabulary, still closed.
+    await expect(write('invented', null, null, null)).rejects.toThrow(/check constraint/i);
   });
 });
