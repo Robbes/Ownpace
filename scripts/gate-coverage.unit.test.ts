@@ -369,16 +369,27 @@ describe('finding a person, and the log that says you did', () => {
   });
 
   it('asks about the person this run created, not about the seed', () => {
-    // The granted organisation has exactly one member whose address this block
-    // chose, so the expected count is 1 rather than whatever the demo seed
-    // holds — a number that would go red on a seed change rather than on a
-    // defect. It also means the answer comes from a row that did not exist a
-    // minute earlier, which is the part a fixture cannot prove.
+    // Not the demo seed: the address is one this block chose, so the answer
+    // comes from rows that did not exist a minute earlier — the part a fixture
+    // cannot prove.
     expect(block).toContain('q=${GRANT_EMAIL}');
-    expect(block).toContain('"$found" = "1"');
-    expect(block, 'the person is not tied back to the organisation just created').toContain(
-      '"$found_tenant" = "$new_tenant"',
-    );
+  });
+
+  it('requires EVERY organisation this run created, not a count', () => {
+    // MEASURED, not reasoned: this first asserted `matches = 1` and E2E
+    // (managed) #104 answered `matches=2`. The block above deliberately makes
+    // a SECOND organisation for the same address — that is what the override
+    // is — so the person owns two by then, and the test was wrong about the
+    // product rather than the other way round.
+    //
+    // Asking for both is stronger than asking for a number: a search that
+    // returned one of them would be failing at the only job this route has,
+    // and this does not go red when the block above changes how many it makes.
+    expect(block).toContain('in_first');
+    expect(block).toContain('in_second');
+    expect(block).toContain('"$in_first" = "1"');
+    expect(block).toContain('"$in_second" = "1"');
+    expect(block, 'a bare count would drift with the block above it').not.toContain('"$found" = "1"');
   });
 
   it('checks the floor, because a blank box is not a question', () => {
@@ -392,7 +403,14 @@ describe('finding a person, and the log that says you did', () => {
     // and a check that ignored it would pass a route that logged neither.
     expect(block).toContain("view_name = 'people'");
     expect(block).toContain('query = ');
-    expect(block).toContain('result_count = 1');
+    // Against what CAME BACK, not against a constant. The column records what
+    // the operator actually saw, so comparing it to the answer is the
+    // assertion — and it catches a route that logs a fixed number, which a
+    // hardcoded expectation here could not.
+    expect(block).toContain('result_count = ${found}');
+    expect(block, 'a constant would pass a route that logs a constant').not.toMatch(
+      /result_count = \d/,
+    );
   });
 
   it('treats opening a person as its own read', () => {
@@ -411,5 +429,77 @@ describe('finding a person, and the log that says you did', () => {
     // cannot be blocked by them either.
     expect(block, 'the gate deletes its own audit rows').not.toMatch(/DELETE FROM support_read/);
     expect(block).toContain('NOTHING SWEEPS support_read, DELIBERATELY');
+  });
+});
+
+describe('the other decision, and the mail that does or does not go', () => {
+  /**
+   * Granting is the decision this product is FOR; declining is the one an
+   * operator makes far more often. The front door is public and rate-limited
+   * but still public, so junk reaches the queue and most of what arrives is
+   * answered no.
+   *
+   * It also carries the only outward-facing act on this surface. A grant's
+   * mail is a courtesy to somebody who asked; a decline's goes to an address a
+   * stranger typed, and mailing a forged one means mailing an uninvolved
+   * person. Which is why `notify` exists, why the client sends it explicitly,
+   * and why `skipped` and `off` are different words: one is a choice a human
+   * made, the other is a deployment that cannot send and hands them a manual
+   * step. Collapsing them would tell an operator to go and email somebody they
+   * deliberately ignored.
+   */
+  const block = smoke.slice(
+    smoke.indexOf('THE OTHER DECISION, AND THE MAIL THAT DOES OR DOES NOT GO'),
+    smoke.indexOf("DELETE FROM platform_operator WHERE user_id"),
+  );
+
+  it('found the block', () => {
+    expect(block.length).toBeGreaterThan(500);
+  });
+
+  it('asks for BOTH halves, which are different decisions', () => {
+    expect(block).toContain('decline_one "$DECLINE_LOUD" true');
+    expect(block).toContain('decline_one "$DECLINE_QUIET" false');
+  });
+
+  it('distinguishes `sent` from `skipped`, and does not accept `off`', () => {
+    // `off` and `failed` both mean nobody was told, and both mean the operator
+    // is now the only person who can tell them — a different problem from a
+    // refusal, and not something this gate may pass over.
+    expect(block).toContain('"$d_notified" = "sent"');
+    expect(block).toContain('"$qd_notified" = "skipped"');
+    expect(block, 'a deployment that cannot send would pass').not.toMatch(/d_notified" = "off"/);
+  });
+
+  it('proves the quiet one by the CATCHER, not by the API\'s own word', () => {
+    // The API saying `skipped` is exactly what a silently broken send would
+    // also say. The only honest evidence is that no mail arrived.
+    expect(block).toContain('qd_seen');
+    expect(block).toContain('"${qd_seen:-1}" = "0"');
+  });
+
+  it('checks the loud one reached the APPLICANT, not the operator channel', () => {
+    // The knock mail goes to NOTIFY_TO and must never reach the person; this
+    // one is the opposite. The two are easy to wire the wrong way round, and
+    // each wrong way is a different disclosure.
+    expect(block).toContain('the refusal was addressed to the applicant');
+    expect(block).toContain('.To[]?.Address');
+  });
+
+  it('reads the state from the DATABASE, not from the reply', () => {
+    // A route that answered 200 and left the row open would satisfy every
+    // status assertion here.
+    expect(block).toContain('SELECT state FROM access_request');
+    expect(block).toContain('"$d_state" = "declined"');
+  });
+
+  it('takes its requests back, and declining creates no tenant to take back', () => {
+    expect(block).toMatch(/DELETE FROM access_request WHERE email LIKE 'smoke-decline-/);
+    expect(block).toContain('d_left');
+    expect(block, 'a residue count that cannot fail the run').toMatch(/d_left[\s\S]{0,200}fail=1/);
+    // Declining provisions nothing, so there is deliberately no tenant sweep
+    // here — a DELETE FROM tenant in this block would be reaching for
+    // something it never created.
+    expect(block).not.toMatch(/DELETE FROM tenant/);
   });
 });

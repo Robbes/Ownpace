@@ -2529,11 +2529,25 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         r="$(http GET "$API/api/support/people?q=${GRANT_EMAIL}" "$OP_TOKEN")"
         code="${r%% *}"; body="${r#* }"
         found="$(jq -r --arg e "$GRANT_EMAIL" '[.people[]? | select(.email == $e)] | length' <<<"$body" 2>/dev/null || echo -1)"
-        found_tenant="$(jq -r --arg e "$GRANT_EMAIL" '.people[]? | select(.email == $e) | .tenant_id' <<<"$body" 2>/dev/null | head -1)"
-        if [ "$code" = "200" ] && [ "$found" = "1" ] && [ "$found_tenant" = "$new_tenant" ]; then
-          echo "the search finds the person this run created, in the organisation it created"
+        # EVERY ORGANISATION THIS RUN CREATED, not a count.
+        #
+        # The block above deliberately makes a SECOND one for this same address
+        # — that is what the override is — so the person owns two by now, and a
+        # search that returned only one would be failing at the only job this
+        # route has. Asking for both is therefore stronger than asking for a
+        # number, and it does not go red when the block above changes how many
+        # it makes. MEASURED THE HARD WAY: this asserted `1`, and E2E (managed)
+        # #104 answered `matches=2` — the product being right.
+        in_first="$(jq -r --arg e "$GRANT_EMAIL" --arg t "$new_tenant" \
+          '[.people[]? | select(.email == $e and .tenant_id == $t)] | length' <<<"$body" 2>/dev/null || echo 0)"
+        in_second="$(jq -r --arg e "$GRANT_EMAIL" --arg t "${second_tenant:-}" \
+          '[.people[]? | select(.email == $e and .tenant_id == $t)] | length' <<<"$body" 2>/dev/null || echo 0)"
+        if [ "$code" = "200" ] && [ "$in_first" = "1" ] && [ "$in_second" = "1" ]; then
+          echo "the search crosses organisations: the person is found in both this run created (${found} rows)"
         else
-          echo "the people search: HTTP ${code}, matches=${found}, tenant='${found_tenant}' (expected '${new_tenant}') — ${body:0:200}"
+          echo "the people search: HTTP ${code}, matches=${found}, in first=${in_first}, in second=${in_second}"
+          echo "    A search scoped to one organisation cannot answer 'who is this?', which is the"
+          echo "    only question this route exists for."
           fail=1
         fi
 
@@ -2541,9 +2555,13 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         # answers neither: an operator who searched for one address and one who
         # listed everybody would leave the same row, and the point of keeping
         # the query text is that those are different reads.
+        # result_count AGAINST WHAT CAME BACK, not against a constant. The
+        # column exists to record what the operator actually saw, so comparing
+        # it to the answer is the assertion — and it catches a route that logs
+        # a fixed number, which a hardcoded expectation here could not.
         logged="$(q "SELECT count(*) FROM support_read
                       WHERE operator_user_id = '${OP_SUBJECT}' AND view_name = 'people'
-                        AND query = '${GRANT_EMAIL}' AND result_count = 1" 2>/dev/null || echo '?')"
+                        AND query = '${GRANT_EMAIL}' AND result_count = ${found}" 2>/dev/null || echo '?')"
         if [ "$logged" = "1" ]; then
           echo "the search was written to support_read with its query and its count"
         else
@@ -2595,6 +2613,98 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "    A tenant per nightly run accumulates in the stack this same script measures."
       fail=1
     fi
+
+
+    # ---------- THE OTHER DECISION, AND THE MAIL THAT DOES OR DOES NOT GO ----------
+    #
+    # Granting is covered above. Declining was not, and it is the decision an
+    # operator makes far more often: the front door is public and rate-limited
+    # but still public, so junk reaches this queue and most of what arrives
+    # there is answered `no`.
+    #
+    # It carries the only outward-facing act on this surface. A grant's mail is
+    # a courtesy to somebody who asked; a DECLINE's mail goes to an address a
+    # stranger typed, and mailing a forged one means mailing an uninvolved
+    # person. That is why `notify` exists, why it is EXPLICIT rather than
+    # defaulted, and why `skipped` and `off` are different words: one is a
+    # choice a human made, the other is a deployment that cannot send and hands
+    # them a manual step. A gate that collapsed those would tell an operator to
+    # go and email somebody they deliberately ignored.
+    #
+    # Both halves are asked here, and the quiet one is asked as a NEGATIVE:
+    # not "the API said skipped" but "no mail reached the catcher". The API's
+    # own word for what it did is exactly what a broken send would also say.
+    DECLINE_LOUD="smoke-decline-loud-${SMOKE_MAIL_RUN}@smoke.local"
+    DECLINE_QUIET="smoke-decline-quiet-${SMOKE_MAIL_RUN}@smoke.local"
+
+    q "DELETE FROM access_request WHERE email LIKE 'smoke-decline-%@smoke.local'" >/dev/null 2>&1 || true
+
+    decline_one() { # decline_one <email> <notify true|false> -> prints "<code> <notified> <state>"
+      local email="$1" notify="$2" id code body notified state
+      curl -sS -o /dev/null -X POST "${API}/api/access-requests" -H 'Content-Type: application/json' \
+        -d "$(jq -nc --arg e "$email" '{email:$e, locale:"en"}')" || true
+      id="$(q "SELECT id FROM access_request WHERE email = '${email}' AND state = 'open'" 2>/dev/null | head -1)"
+      [ -n "$id" ] || { printf '%s %s %s\n' "no-request" "-" "-"; return 0; }
+      body="$(http POST "$API/api/access-requests/${id}/decline" "$OP_TOKEN" \
+        "$(jq -nc --argjson n "$notify" '{note:"smoke: not a real applicant", notify:$n}')")"
+      code="${body%% *}"; body="${body#* }"
+      notified="$(jq -r '.notified // empty' <<<"$body" 2>/dev/null || true)"
+      state="$(q "SELECT state FROM access_request WHERE id = '${id}'" 2>/dev/null || echo '?')"
+      printf '%s %s %s\n' "$code" "${notified:--}" "$state"
+    }
+
+    read -r d_code d_notified d_state <<<"$(decline_one "$DECLINE_LOUD" true)"
+    if [ "$d_code" = "200" ] && [ "$d_notified" = "sent" ] && [ "$d_state" = "declined" ]; then
+      echo "a decline is recorded and the applicant is told: HTTP 200, notified=sent, state=declined"
+    else
+      echo "declining loudly: HTTP ${d_code}, notified=${d_notified}, state=${d_state} (expected 200/sent/declined)"
+      echo "    'off' or 'failed' here means this deployment could not send and the operator is"
+      echo "    now the only person who can tell them — which is a different problem from a refusal."
+      fail=1
+    fi
+
+    # AND IT REACHED THE APPLICANT, not the operator's own channel. The knock
+    # mail above goes to NOTIFY_TO and must never go to the person; this one is
+    # the opposite, and the two are easy to wire the wrong way round.
+    d_caught=0
+    for _ in $(seq 1 20); do
+      d_caught="$(curl -fsS --get "${MAILPIT}/api/v1/search" --data-urlencode "query=${DECLINE_LOUD}" \
+        | jq -r '.messages_count // 0')"
+      [ "${d_caught:-0}" != "0" ] && break
+      sleep 1
+    done
+    if [ "${d_caught:-0}" != "0" ]; then
+      d_to="$(curl -fsS --get "${MAILPIT}/api/v1/search" --data-urlencode "query=${DECLINE_LOUD}" \
+        | jq -r --arg k "$DECLINE_LOUD" '[.messages[0].To[]?.Address] | index($k) // empty')"
+      if [ -n "$d_to" ]; then
+        echo "the refusal was addressed to the applicant, as a refusal must be"
+      else
+        echo "a decline mail exists but is not addressed to ${DECLINE_LOUD} — it went somewhere else"
+        fail=1
+      fi
+    else
+      echo "nobody told ${DECLINE_LOUD} they were declined: no mail within 20s"; fail=1
+    fi
+
+    # THE QUIET ONE. `skipped`, and — the half that matters — NO MAIL. The
+    # API's own word is what a silently broken send would also say.
+    read -r qd_code qd_notified qd_state <<<"$(decline_one "$DECLINE_QUIET" false)"
+    qd_seen="$(curl -fsS --get "${MAILPIT}/api/v1/search" --data-urlencode "query=${DECLINE_QUIET}" \
+      | jq -r '.messages_count // 0' 2>/dev/null || echo '?')"
+    if [ "$qd_code" = "200" ] && [ "$qd_notified" = "skipped" ] && [ "$qd_state" = "declined" ] &&
+       [ "${qd_seen:-1}" = "0" ]; then
+      echo "a quiet decline is recorded and nobody was mailed: notified=skipped, catcher has 0"
+    else
+      echo "declining quietly: HTTP ${qd_code}, notified=${qd_notified}, state=${qd_state}, mail in catcher=${qd_seen}"
+      echo "    Unticking the box is a decision about a person who may not exist. A mail sent"
+      echo "    anyway reaches whoever really owns that address."
+      fail=1
+    fi
+
+    q "DELETE FROM access_request WHERE email LIKE 'smoke-decline-%@smoke.local'" >/dev/null 2>&1 || true
+    d_left="$(q "SELECT count(*) FROM access_request WHERE email LIKE 'smoke-decline-%@smoke.local'" 2>/dev/null || echo '?')"
+    [ "$d_left" = "0" ] ||
+      { echo "the gate's declined requests were NOT taken back: ${d_left} left"; fail=1; }
 
     q "DELETE FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" >/dev/null
     left="$(q "SELECT count(*) FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" 2>/dev/null || echo '?')"
