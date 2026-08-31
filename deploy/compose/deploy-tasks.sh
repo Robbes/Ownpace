@@ -21,8 +21,11 @@ set -euo pipefail
 #      Then restart the api so it picks the key up:
 #        docker compose -f deploy/compose/managed.yml up -d api
 #   4. CLI login, once per machine:
-#        npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile openmig
-#      (this script prints the exact pinned command if you are not logged in)
+#        npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <name>
+#      where <name> is TRIGGER_CLI_PROFILE (default openmig) — a SETTING, not
+#      a constant, and one that cannot move a login that already exists under
+#      another name. This script prints the exact pinned command, with the
+#      name filled in, if you are not logged in.
 #
 # TASK RUNTIME ENV VARS — the deployed tasks run in their own containers on
 # the compose network, NOT in the worker container, so they inherit nothing:
@@ -63,7 +66,7 @@ fi
 
 CLI_VERSION="$(node -p "require('${REPO_ROOT}/apps/worker/package.json').dependencies['@trigger.dev/sdk']")"
 TRIGGER_URL="http://localhost:${TRIGGER_PORT:-3090}"
-PROFILE="${TRIGGER_CLI_PROFILE:-openmig}"
+PROFILE="${TRIGGER_CLI_PROFILE:-$TRIGGER_CLI_PROFILE_DEFAULT}"
 
 echo "[deploy-tasks] CLI/SDK version: ${CLI_VERSION}  instance: ${TRIGGER_URL}  profile: ${PROFILE}"
 
@@ -128,8 +131,14 @@ if ! trigger_cli_logged_in "${CLI_VERSION}" "${PROFILE}"; then
     # shellcheck disable=SC2086
     printf '[deploy-tasks]   %s\n' $present >&2
   fi
-  echo "[deploy-tasks] The name comes from TRIGGER_CLI_PROFILE in deploy/compose/.env" >&2
-  echo "[deploy-tasks] (default '${PROFILE}'). To point it at one you already have:" >&2
+  # The resolved name and where it came from, as two facts rather than one
+  # sentence that calls the first the second (2026-08-31 — see
+  # trigger_cli_profile_origin).
+  echo "[deploy-tasks] The profile name is a SETTING, and these are two facts:" >&2
+  echo "[deploy-tasks]   in use    '${PROFILE}' — $(trigger_cli_profile_origin)" >&2
+  echo "[deploy-tasks]   default   '${TRIGGER_CLI_PROFILE_DEFAULT}'" >&2
+  echo "[deploy-tasks] Read from this shell, or from ${ENV_FILE}." >&2
+  echo "[deploy-tasks] To point it at one you already have:" >&2
   echo "[deploy-tasks]   ./deploy/compose/env-upsert.sh deploy/compose/.env TRIGGER_CLI_PROFILE=<name>" >&2
   exit 1
 fi

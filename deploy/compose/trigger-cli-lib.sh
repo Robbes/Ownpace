@@ -2,6 +2,47 @@
 # trigger-cli-lib.sh — shared helpers for scripts that shell out to the
 # Trigger.dev deploy CLI. Sourced, not run.
 #
+# THE PROFILE NAME'S DEFAULT, IN ONE PLACE.
+#
+# `openmig` is pre-rename branding (ADR-0040) and stays the default on
+# purpose: a machine already logged in under it — the gate's runner, most
+# likely — would be stranded by a default that moved under it (workplan 0099).
+#
+# It lives HERE rather than as a literal in each caller because both callers
+# now do two different things with it: RESOLVE the profile from it, and PRINT
+# it when they refuse. A default that is applied in one place and described in
+# another is two copies, and the described copy is the one that goes stale
+# without anything failing.
+TRIGGER_CLI_PROFILE_DEFAULT=openmig
+
+# WHERE THE PROFILE NAME CAME FROM — a sentence, for a refusal to print.
+#
+# Both refusals used to say "(default '<resolved profile>')", which labels the
+# RESOLVED value as the default. With TRIGGER_CLI_PROFILE set, that hands an
+# operator their own setting back as though it were the built-in one, hiding
+# both that they set it and what the default actually is.
+#
+# On 2026-08-31 the owner read exactly that, mid bring-up: `.env` said
+# `ownpace`, the host's CLI store held only `openmig`, and this message said
+# the default was `ownpace`. Three facts, two of them true, and the false one
+# was the one that looked like the answer — it sent him looking for `openmig`
+# wired into a repository that does not wire it anywhere but here.
+#
+# So which name is in use, and where that name came from, are two facts and
+# get printed as two (hard rule 10).
+# It answers ONLY "where did this name come from". It deliberately does not
+# print the default: a caller that wants it prints
+# $TRIGGER_CLI_PROFILE_DEFAULT itself, on its own line, so the default a
+# message shows is the same string the resolution above applied — not a
+# second rendering of it that can disagree.
+trigger_cli_profile_origin() {
+  if [ -n "${TRIGGER_CLI_PROFILE:-}" ]; then
+    printf "set as TRIGGER_CLI_PROFILE"
+  else
+    printf "nothing set it; TRIGGER_CLI_PROFILE is empty here"
+  fi
+}
+
 # `trigger.dev whoami` cannot be trusted by exit code.
 #
 # Read from the installed CLI's own source (dist/esm/commands/whoami.js +

@@ -385,11 +385,31 @@ so there is one version number and it lives where it already lived.
 npx -y trigger.dev@<version> login -a http://localhost:3090 --profile openmig
 ```
 
+**`openmig` is the DEFAULT profile name, not a fixed one.** It is pre-rename
+branding (ADR-0040) kept on purpose — a machine already logged in under it,
+the gate's runner most likely, would be stranded by a default that moved.
+`TRIGGER_CLI_PROFILE` in `.env` overrides it, and the phase then asks for
+whatever you set.
+
+**Setting that variable moves the SETTING, and cannot move a login.** A login
+is a token stored per profile NAME in `~/.config/trigger/config.json` on the
+host — outside the checkout, untouched by the rename, and invisible to
+anything in this repository. So a stack whose `.env` says `ownpace` while that
+file holds only `openmig` is correct in both halves and refuses anyway; it is
+one browser round trip from agreeing (2026-08-31). The refusal prints the name
+in use and the default as two separate lines for exactly this reason.
+
 The script prints the exact line with the version filled in and stops, because
 the command opens a browser and waits for you. Note the address is the plain
 **http api origin**, not the https front.
 
-**Verify:** `npx -y trigger.dev@<version> whoami --profile openmig`
+**The URL it then asks you to open is on the https front**
+(`TRIGGER_LOGIN_ORIGIN`, the `trigger-tls` service), which serves a
+self-signed certificate — and one browser has been seen to fail there where
+another succeeds. See the failure table.
+
+**Verify:** `npx -y trigger.dev@<version> whoami --profile <name>` — and read
+its OUTPUT, not its exit code, which is 0 either way (below).
 
 ### 8. `app` — API and web
 
@@ -1126,6 +1146,8 @@ let a credential obtained once survive to the next run.
 | Any `docker compose` command fails with `required variable X is missing a value` | Compose interpolates the **whole** file before running anything, so one unset variable breaks every command — including ones that never touch the service named in the error. An `.env` that predates the pooler hits this on `PGBOUNCER_AUTH_PASSWORD` | `./deploy/compose/ensure-env-secrets.sh`, then `--only data` to create the matching Postgres role and start the pooler |
 | `pgbouncer` never becomes healthy, complains about a password | `setup-auth.sql` has not run, or ran without `my.pw` set | `--only data`. The SQL now refuses an unset `my.pw` rather than creating a role with no password |
 | Every app connection: `password authentication failed`, though `.env` and the container agree | A volume from a *different* project — compose's project name derived from the directory basename | `managed.yml` pins `name: ownpace-managed`. Check `docker volume ls` for a stray `compose_postgres_data` |
+| `trigger.dev login` prints an authorization URL on the https front, and **Firefox** answers *"De pagina verwijst niet op een juiste manier door"* / cannot connect to `<host>:3443`, while **Chromium completes the same URL** — both after clicking through the self-signed-certificate warning | **Observed 2026-08-31 on the Spark, and NOT root-caused — do not repeat the following as though it were the cause.** What is known: `trigger-tls` serves a self-signed certificate, the dashboard's session is a `Secure` cookie, and a session cookie that never sticks renders precisely as "isn't redirecting properly". Chromium and Firefox do not agree about what a connection whose certificate was manually overridden may do with cookies. Whether that is what happened here was not established, because the workaround cost nothing | Do the one-time login in Chromium. The token lands in the host's CLI profile and no browser is needed again, so this is one browser choice per machine and blocks nothing. **It says nothing about the PRODUCT's sign-in**, which is Zitadel on a real hostname with a real certificate — if that ever fails in one browser only, it is a different fault and this row is not it |
+| The `login` phase refuses, you run the printed command, it succeeds, and the phase refuses again | Two different things, both true: `TRIGGER_CLI_PROFILE` names the profile the phase asks for, and the CLI stores logins per profile NAME in `~/.config/trigger/config.json` on the host. Setting the variable does not create the login; logging in under the old name does not satisfy the new setting | Read the two lines the refusal prints — `in use` and `default`. Either log in under the name in use, or point the setting at a name the machine already has: `./deploy/compose/env-upsert.sh deploy/compose/.env TRIGGER_CLI_PROFILE=<name>`. Do not delete the other profile to tidy up; the gate's runner may be using it |
 | `trigger-magic-link.sh` finds nothing | The link is only written when one is **requested** | Submit your email on the dashboard's login page first, then re-run |
 | Dashboard loads but the login never completes | `TRIGGER_APP_ORIGIN` / `TRIGGER_LOGIN_ORIGIN` do not match the address the browser is using; the `Secure` cookie is dropped | Set both (and `TRIGGER_TLS_HOST`) to the real address, then `--from trigger` |
 | `npx trigger.dev deploy` dies with a bare `Connection error` | The CLI was pointed at the https front | Log in against `http://localhost:3090` |

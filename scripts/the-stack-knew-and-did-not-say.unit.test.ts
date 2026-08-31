@@ -73,8 +73,77 @@ describe('the profile name is a setting, and both refusals now say so', () => {
     // A machine already logged in under the old name — the gate's runner, most
     // likely — would be stranded by a default that moved under it. The fix is
     // to make the name visible, not to change it.
-    expect(bootstrap).toContain('TRIGGER_CLI_PROFILE:-openmig');
-    expect(deployTasks).toContain('TRIGGER_CLI_PROFILE:-openmig');
+    //
+    // Asserted at its ONE definition now, rather than as a literal in each
+    // caller: both callers resolve from it AND print it, and a default written
+    // three times is a default that can be applied and described differently.
+    expect(cliLib).toMatch(/^TRIGGER_CLI_PROFILE_DEFAULT=openmig$/m);
+    expect(bootstrap).toContain('TRIGGER_CLI_PROFILE:-$TRIGGER_CLI_PROFILE_DEFAULT');
+    expect(deployTasks).toContain('TRIGGER_CLI_PROFILE:-$TRIGGER_CLI_PROFILE_DEFAULT');
+  });
+
+  it.each(refusals)('%s never calls the RESOLVED profile the default', (_file, text) => {
+    // The 2026-08-31 sequel to the bug at the top of this file. Both refusals
+    // printed "(default '<resolved profile>')" — so an operator who had SET
+    // TRIGGER_CLI_PROFILE was told their own value was the built-in one. It
+    // hides the setting and misnames the default in the same breath, and the
+    // owner spent a bring-up looking for `openmig` in a repository that holds
+    // it in exactly one place.
+    expect(text).not.toMatch(/default\s*'?\$\{?(profile|PROFILE)\}?'?/i);
+  });
+
+  it.each(refusals)('%s says where the name came from, not just what it is', (_file, text) => {
+    expect(text).toContain('trigger_cli_profile_origin');
+  });
+
+  it.each(refusals)('%s prints the default from the one place that defines it', (_file, text) => {
+    // Not the literal `openmig` retyped into a message. The default an
+    // operator READS and the default the script APPLIED are then the same
+    // string by construction, which is the only version of this that cannot
+    // rot into the bug above.
+    expect(text).toContain('${TRIGGER_CLI_PROFILE_DEFAULT}');
+    expect(text).not.toMatch(/default\s+'openmig'/);
+  });
+});
+
+describe('trigger_cli_profile_origin, run for real', () => {
+  // String-matching the scripts proves the sentence is CALLED. Only running it
+  // proves the sentence is TRUE — which is the whole defect being fixed here.
+  function origin(profile: string): string {
+    const r = spawnSync(
+      'bash',
+      [
+        '-c',
+        `source "${join(COMPOSE_DIR, 'trigger-cli-lib.sh')}"; trigger_cli_profile_origin /somewhere/.env`,
+      ],
+      { encoding: 'utf8', env: { ...process.env, TRIGGER_CLI_PROFILE: profile } },
+    );
+    return (r.stdout ?? '').trim();
+  }
+
+  it('says plainly that nothing set it, naming the variable that would have', () => {
+    const out = origin('');
+    expect(out).toContain('nothing set it');
+    expect(out).toContain('TRIGGER_CLI_PROFILE');
+  });
+
+  it('names the setting, and says nothing at all about defaults', () => {
+    const out = origin('ownpace');
+    expect(out).toContain('set as TRIGGER_CLI_PROFILE');
+    // The bug itself, asserted as an absence. This sentence describes ONE
+    // fact — where the name came from — so a value that was set can never be
+    // rendered as the built-in one, whatever the caller wraps around it.
+    expect(out.toLowerCase()).not.toContain('default');
+  });
+
+  it('points at the shell as well as the file, because both look the same here', () => {
+    // `set -a; . .env` and an exported variable are indistinguishable by the
+    // time this runs, so the refusal must send somebody to both rather than
+    // to a file that may not contain the answer.
+    // `bootstrap`/`deployTasks` directly rather than the `refusals` table,
+    // which belongs to the describe above.
+    expect(bootstrap, 'bootstrap-managed.sh names only the file').toMatch(/this shell/);
+    expect(deployTasks, 'deploy-tasks.sh names only the file').toMatch(/this shell/);
   });
 });
 
