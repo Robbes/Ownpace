@@ -47,7 +47,23 @@ import type { PgDatabase } from '@openmig/ledger';
  * and this list and that CHECK must be changed together or a read the product
  * offers becomes a constraint violation at the moment it is logged.
  */
-export const SUPPORT_VIEWS = ['tenants', 'tenant', 'migration', 'retained_invoices'] as const;
+/**
+ * The closed vocabulary, and it is closed on purpose: 0009 built it so the log
+ * could be COUNTED rather than grepped, and said that a new value "is a design
+ * change, not a copy edit". `people` and `person` are that change (0019).
+ *
+ *   people  — a search across every customer's people. No tenant to name.
+ *   person  — following one result through to that account at the provider.
+ *             Names the tenant: by then we know whose organisation they are in.
+ */
+export const SUPPORT_VIEWS = [
+  'tenants',
+  'tenant',
+  'migration',
+  'retained_invoices',
+  'people',
+  'person',
+] as const;
 export type SupportView = (typeof SUPPORT_VIEWS)[number];
 
 /**
@@ -67,6 +83,15 @@ export async function recordSupportRead(
     readonly operatorUserId: string;
     readonly tenantId: string | null;
     readonly view: SupportView;
+    /**
+     * What was searched for, and how much came back — `people` only, and the
+     * database refuses them anywhere else (0019). "A search was run" is a row
+     * that cannot be audited: it cannot tell somebody answering one email from
+     * somebody enumerating the customer base, and those two facts are what
+     * make it possible to.
+     */
+    readonly query?: string;
+    readonly resultCount?: number;
   },
 ): Promise<void> {
   if (!read.operatorUserId) {
@@ -94,9 +119,17 @@ export async function recordSupportRead(
   // check that is then trusted invites somebody to "simplify" the real one
   // away later. A non-operator writes nothing and is told nothing — no error,
   // because there is no failure here, only an absence.
+  // TRIMMED TO WHAT THE COLUMN HOLDS, here rather than at the call site: the
+  // CHECK is 200 characters and a refused INSERT would take down the answer the
+  // operator asked for, turning a log that could not be written into a search
+  // that did not work. The record stays honest — a truncated query is still
+  // what they typed, and no query is longer than a search box usefully carries.
+  const query = read.query === undefined ? null : read.query.slice(0, 200);
+  const resultCount = read.resultCount === undefined ? null : read.resultCount;
   await db.execute(
-    sql`INSERT INTO support_read (operator_user_id, tenant_id, view_name)
-        SELECT ${read.operatorUserId}, ${read.tenantId}::uuid, ${read.view}
+    sql`INSERT INTO support_read (operator_user_id, tenant_id, view_name, query, result_count)
+        SELECT ${read.operatorUserId}, ${read.tenantId}::uuid, ${read.view},
+               ${query}::text, ${resultCount}::integer
         WHERE EXISTS (
           SELECT 1 FROM public.platform_operator
            WHERE user_id = current_setting('app.current_user', true)

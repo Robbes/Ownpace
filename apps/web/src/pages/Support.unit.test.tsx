@@ -25,7 +25,7 @@
  *     made.
  */
 
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -34,6 +34,8 @@ import {
   listSupportTenants,
   getSupportTenant,
   getSupportMigration,
+  searchSupportPeople,
+  recordPersonOpened,
   type SupportTenantUsage,
 } from '../services/support.ts';
 import { STRINGS } from '../i18n/strings.ts';
@@ -42,6 +44,8 @@ vi.mock('../services/support.ts', () => ({
   listSupportTenants: vi.fn(),
   getSupportTenant: vi.fn(),
   getSupportMigration: vi.fn(),
+  searchSupportPeople: vi.fn(),
+  recordPersonOpened: vi.fn(),
 }));
 
 /**
@@ -532,5 +536,99 @@ describe('the people on an organisation', () => {
   it('says so when nobody belongs to it', async () => {
     await withMembers([]);
     expect(screen.getByText(STRINGS.en['support.noPeople'])).toBeInTheDocument();
+  });
+});
+
+/**
+ * FINDING A PERSON, which is the question the surface did not answer.
+ *
+ * The organisation list answers "show me the customers"; a support day starts
+ * with somebody making contact. Reported the day the per-organisation list
+ * shipped: "I was expecting ... a search for people or list with them" — and on
+ * a deployment with no organisations yet, the People section it was nested
+ * inside could not be reached at all.
+ */
+describe('finding a person', () => {
+  const searchMock = vi.mocked(searchSupportPeople);
+  const openedMock = vi.mocked(recordPersonOpened);
+
+  const PERSON = {
+    tenant_id: 'a1b2c3d4-0000-0000-0000-000000000001',
+    tenant_name: 'Alpha BV',
+    user_id: '388706935093854213',
+    email: 'jan@alpha.test',
+    role: 'owner',
+    status: 'active',
+    joined_at: '2026-08-01T09:00:00.000Z',
+  };
+
+  beforeEach(() => {
+    searchMock.mockReset();
+    openedMock.mockReset();
+    consoleUrl.value = 'https://id.test/ui/console/users/{sub}';
+    listMock.mockResolvedValue([]);
+  });
+
+  /** Type a term and submit, the way somebody actually uses the box. */
+  async function search(term: string) {
+    mount(<SupportTenants />);
+    const box = await screen.findByLabelText(STRINGS.en['support.findPerson']);
+    await act(async () => {
+      fireEvent.change(box, { target: { value: term } });
+      fireEvent.submit(box.closest('form') as HTMLFormElement);
+    });
+  }
+
+  it('searches across organisations and says which one each person is in', async () => {
+    // The organisation is half the answer — "and what are they on" is the next
+    // question every time — so a result that named only the person would send
+    // the operator back to guessing.
+    searchMock.mockResolvedValue({ people: [PERSON], limit: 50 });
+    await search('jan');
+
+    expect(searchMock).toHaveBeenCalledWith('jan');
+    expect(await screen.findByText('jan@alpha.test')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Alpha BV' })).toHaveAttribute(
+      'href',
+      '/support/tenants/a1b2c3d4-0000-0000-0000-000000000001',
+    );
+  });
+
+  it('records that an account was opened at the provider', async () => {
+    // The owner asked for both halves logged: the search, and the opening of a
+    // result. The click leaves Ownpace, so this is the last thing that can
+    // honestly be recorded about it.
+    searchMock.mockResolvedValue({ people: [PERSON], limit: 50 });
+    await search('jan');
+
+    fireEvent.click(await screen.findByRole('link', { name: 'jan@alpha.test' }));
+    expect(openedMock).toHaveBeenCalledWith(PERSON.tenant_id, PERSON.user_id);
+  });
+
+  it('will not search on one character', async () => {
+    // A one-character search matches everybody, and "the operator pressed
+    // enter" is not a reason to read every customer's people. The server
+    // refuses too; this is the half that says so before the press.
+    mount(<SupportTenants />);
+    const box = await screen.findByLabelText(STRINGS.en['support.findPerson']);
+    fireEvent.change(box, { target: { value: 'j' } });
+    expect(screen.getByRole('button', { name: STRINGS.en['support.find'] })).toBeDisabled();
+    expect(searchMock).not.toHaveBeenCalled();
+  });
+
+  it('says the search is recorded, before it is used', async () => {
+    // The widest read on this surface. A record nobody is told about is
+    // surveillance with paperwork — 0110's words, and the reason the line sits
+    // beside the box rather than in a policy.
+    mount(<SupportTenants />);
+    expect(
+      await screen.findByText(STRINGS.en['support.findPersonRecorded']),
+    ).toBeInTheDocument();
+  });
+
+  it('says so when nobody matches', async () => {
+    searchMock.mockResolvedValue({ people: [], limit: 50 });
+    await search('nobody');
+    expect(await screen.findByText(STRINGS.en['support.noPeopleFound'])).toBeInTheDocument();
   });
 });

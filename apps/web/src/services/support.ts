@@ -216,3 +216,48 @@ export async function getSupportMigration(mappingId: string): Promise<SupportMig
   );
   return response.data;
 }
+
+/**
+ * One person, found across every organisation (owner request 2026-08-31).
+ *
+ * Carries the organisation's NAME as well as its id, because a result whose
+ * only context is a uuid answers half the question — "who are they" is not
+ * separable from "and what are they on".
+ */
+export interface SupportPerson {
+  readonly tenant_id: string;
+  readonly tenant_name: string;
+  readonly user_id: string;
+  readonly email: string;
+  readonly role: string;
+  readonly status: string;
+  readonly joined_at: string | null;
+}
+
+export async function searchSupportPeople(
+  q: string,
+): Promise<{ people: SupportPerson[]; limit: number }> {
+  const response = await apiClient.get<{ people: SupportPerson[]; limit: number }>(
+    '/support/people',
+    { params: { q } },
+  );
+  return response.data;
+}
+
+/**
+ * Say that an operator followed a result through to the provider.
+ *
+ * FIRE AND FORGET, and it must stay that way: the link opens in another tab, so
+ * nothing is waiting on this, and a log write that failed must not be allowed
+ * to stop somebody reaching the account they were going to. The failure is not
+ * swallowed — it reaches the console where an operator can see it — it just
+ * does not become the user's problem. The write itself is the server's, and it
+ * refuses a pair that was never related (0019).
+ */
+export function recordPersonOpened(tenantId: string, userId: string): void {
+  void apiClient
+    .post(`/support/people/${tenantId}/${encodeURIComponent(userId)}/opened`)
+    .catch((err: unknown) => {
+      console.error('could not record that an account was opened', err);
+    });
+}

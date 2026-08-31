@@ -3021,6 +3021,89 @@ paths:
                     items: { $ref: '#/components/schemas/SupportTenant' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /api/support/people:
+    get:
+      tags: [support]
+      summary: Find a person across every organisation
+      description: |
+        The question an operator starts from: somebody made contact, who are
+        they and what are they on. The per-organisation list (0018) answers only
+        "who is in THIS organisation", which needs the organisation guessed
+        first.
+
+        This is the widest read the support surface performs — not one customer,
+        all of them — so it is recorded with WHAT was searched for and HOW MANY
+        came back (migration 0019). "An operator ran a search" cannot tell
+        somebody answering one email from somebody enumerating the customer
+        base; those two facts can. The log is readable only by the operator who
+        wrote it.
+
+        Joins `support_tenant_members` and `support_tenants`, both behind the
+        same `platform_operator` predicate — a non-operator sees an empty list
+        because to the database those rows are invisible.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2 }
+          description: |
+            Part of an email address. At least two characters: a shorter one
+            matches everybody, and every customer's people is not an answer to
+            a blank box.
+      responses:
+        '200':
+          description: Matching people, capped.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  people:
+                    type: array
+                    items: { $ref: '#/components/schemas/SupportPerson' }
+                  limit:
+                    type: integer
+                    description: |
+                      A cap, not a page. A support answer is one person; hitting
+                      the ceiling means the question was wrong rather than that
+                      there is more to fetch.
+        '400':
+          description: Fewer than two characters.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/support/people/{tenantId}/{userId}/opened:
+    post:
+      tags: [support]
+      summary: Record that an operator opened an account at the identity provider
+      description: |
+        The click leaves Ownpace — account-level work is the issuer's and never
+        ours (ADR-0042) — so this is the last thing that can honestly be
+        recorded about it. The owner asked for both halves logged: the search,
+        and the opening of a result.
+
+        Verifies the pair before writing. Not to authorise anything (the log's
+        INSERT is already gated on being an operator) but because a row naming a
+        tenant and a subject that were never related is a false entry in the one
+        record standing in for the consent that was dropped.
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+          description: The identity provider's subject.
+      responses:
+        '204':
+          description: Recorded. Nothing to return, and the screen does not wait on it.
+        '400':
+          description: The tenantId is not a uuid, or the subject is empty.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: |
+            No such membership — or none this caller may see. The same answer
+            for both, like every route on this surface.
   /api/support/tenants/{tenantId}:
     parameters:
       - name: tenantId
@@ -3321,6 +3404,23 @@ components:
           type: object
           nullable: true
           description: Counts and durations only — never folder names or addresses.
+    SupportPerson:
+      type: object
+      description: |
+        One person, found across every organisation. Carries the organisation's
+        NAME as well as its id: a result whose only context is a uuid answers
+        half the question, because "who are they" is not separable from "and
+        what are they on".
+      properties:
+        tenant_id: { type: string, format: uuid }
+        tenant_name: { type: string }
+        user_id:
+          type: string
+          description: The identity provider's subject.
+        email: { type: string, format: email }
+        role: { type: string, enum: [owner, admin, member, viewer] }
+        status: { type: string, enum: [active, invited, suspended, removed] }
+        joined_at: { type: string, format: date-time, nullable: true }
     SupportTenantMember:
       type: object
       description: |

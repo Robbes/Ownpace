@@ -768,6 +768,17 @@ const en = {
   // Who may act on the organisation, and the way through to their account at
   // the identity provider (migration 0018). "People" rather than "Members":
   // the row can be somebody who was removed, and the screen says so.
+  // Finding a person across every organisation (owner request 2026-08-31). The
+  // question an operator starts from is "somebody contacted me, who are they" —
+  // the organisation list answers a question nobody's support day begins with.
+  'support.findPerson': 'Find a person',
+  'support.find': 'Find',
+  'support.findPersonHint': 'Part of an email address',
+  'support.findPersonRecorded':
+    'A search reads every organisation. What you searched for and how many people it found are recorded against your name.',
+  'support.noPeopleFound': 'Nobody matches that.',
+  'support.findPersonCapped':
+    'Showing the first matches only — narrow the search rather than scrolling.',
   'support.people': 'People',
   'support.noPeople': 'Nobody belongs to this organisation.',
   'support.col.email': 'Email',
@@ -1382,6 +1393,14 @@ const nl: Record<keyof typeof en, string> = {
   'support.back': 'Alle organisaties',
   'support.backToOrganisation': 'Terug naar de organisatie',
   'support.joinedOn': 'Klant sinds',
+  'support.findPerson': 'Iemand zoeken',
+  'support.find': 'Zoeken',
+  'support.findPersonHint': 'Deel van een e-mailadres',
+  'support.findPersonRecorded':
+    'Een zoekopdracht leest alle organisaties. Waarop u zocht en hoeveel mensen dat opleverde, worden op uw naam vastgelegd.',
+  'support.noPeopleFound': 'Niemand komt overeen.',
+  'support.findPersonCapped':
+    'Alleen de eerste resultaten — verfijn de zoekopdracht in plaats van te scrollen.',
   'support.people': 'Mensen',
   'support.noPeople': 'Niemand hoort bij deze organisatie.',
   'support.col.email': 'E-mailadres',
