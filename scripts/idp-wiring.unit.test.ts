@@ -372,7 +372,12 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
     // healthcheck for `--wait` to gate on (#47 — the probe asked an address that
     // cannot be reached from inside it). Readiness moved to a host-side poll,
     // and the ordering this case exists for is unchanged.
-    const up = BOOTSTRAP.indexOf('" up -d zitadel"'.slice(1, -1));
+    // THE COMMAND, not any mention of it. A bare ` up -d zitadel` also matches
+    // the remedy text `check_idp_console_config` prints — which is prose, sits
+    // earlier in the file, and runs nothing — so this once compared against an
+    // echo and called the ordering broken. Anchoring on the invocation is
+    // stricter: a message can no longer satisfy or break it.
+    const up = BOOTSTRAP.indexOf('"${COMPOSE[@]}" up -d zitadel');
     expect(prep, 'the bring-up no longer prepares the volume at all').toBeGreaterThan(-1);
     expect(up, 'the zitadel bring-up moved or went away').toBeGreaterThan(-1);
     expect(prep, 'preparing it after the provider starts prepares it for the NEXT run').

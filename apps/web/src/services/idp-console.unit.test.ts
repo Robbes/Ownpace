@@ -86,3 +86,36 @@ describe('idpConsoleUserUrl', () => {
     expect(idpConsoleUserUrl('u1', at(`not a url ${SUBJECT_PLACEHOLDER}`))).toBeNull();
   });
 });
+
+describe('a subject the provider never minted', () => {
+  const TEMPLATE = { VITE_IDP_CONSOLE_USER_URL: 'https://id.example.test/ui/console/users/{sub}' };
+
+  it('refuses a pending: invitation, which has no account to link to', () => {
+    // Granting writes `pending:<uuid>` because the person has not signed in
+    // yet. Linking it sends an operator to a console page about a user that
+    // does not exist — which looks like a broken product, not like somebody
+    // who has not arrived.
+    expect(idpConsoleUserUrl('pending:6b1f0f1e-0000-4000-8000-000000000001', TEMPLATE)).toBeNull();
+  });
+
+  it('still links a real subject that merely CONTAINS the word', () => {
+    // The prefix, not a substring: refusing anything with "pending" in it
+    // would drop real accounts for a coincidence of spelling.
+    expect(idpConsoleUserUrl('388706935093854213-pending', TEMPLATE)).toContain(
+      '388706935093854213-pending',
+    );
+    expect(idpConsoleUserUrl('user-pending:1', TEMPLATE)).toContain('user-pending');
+  });
+
+  it('refuses it however it is spaced, since the value is trimmed anyway', () => {
+    expect(idpConsoleUserUrl('  pending:abc  ', TEMPLATE)).toBeNull();
+  });
+
+  it('still links the ordinary case — a provider subject', () => {
+    // The control. A refusal that also refused real users would hide the
+    // feature rather than fix it.
+    expect(idpConsoleUserUrl('388706935093854213', TEMPLATE)).toBe(
+      'https://id.example.test/ui/console/users/388706935093854213',
+    );
+  });
+});
