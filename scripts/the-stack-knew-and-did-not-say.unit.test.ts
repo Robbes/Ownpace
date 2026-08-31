@@ -40,6 +40,8 @@ const COMPOSE_DIR = join(REPO_ROOT, 'deploy/compose');
 const bootstrap = readFileSync(join(COMPOSE_DIR, 'bootstrap-managed.sh'), 'utf8');
 const deployTasks = readFileSync(join(COMPOSE_DIR, 'deploy-tasks.sh'), 'utf8');
 const cliLib = readFileSync(join(COMPOSE_DIR, 'trigger-cli-lib.sh'), 'utf8');
+const setTaskEnv = readFileSync(join(COMPOSE_DIR, 'set-task-env.sh'), 'utf8');
+const triggerCredentials = readFileSync(join(COMPOSE_DIR, 'trigger-credentials.sh'), 'utf8');
 const envExample = readFileSync(join(COMPOSE_DIR, 'managed.env.example'), 'utf8');
 const zitadelDbPassword = readFileSync(join(COMPOSE_DIR, 'zitadel-db-password.sh'), 'utf8');
 
@@ -453,5 +455,109 @@ describe('a catcher serving what looks like a real deployment', () => {
       MAILPIT_PORT: '',
     });
     expect(said).toContain('http://localhost:3127');
+  });
+});
+
+describe('one environment name, resolved in one place (2026-08-31)', () => {
+  // Three scripts choose a Trigger environment. They used to read TWO
+  // variables for it, at three different moments relative to sourcing .env —
+  // so following this repository's own documented procedure moved the deploy
+  // and left the task variables and the key behind, silently.
+  const SCRIPTS = [
+    ['deploy-tasks.sh', deployTasks],
+    ['set-task-env.sh', setTaskEnv],
+    ['trigger-credentials.sh', triggerCredentials],
+  ] as const;
+
+  it.each(SCRIPTS)('%s resolves through the shared helper, never its own copy', (_f, text) => {
+    expect(text).toMatch(/trigger_env\s+"\$\{ENV_FILE\}"/);
+    // The literal default is the drift this removes: a script carrying its own
+    // `:-prod` is a script that can disagree with the other two again.
+    expect(text).not.toMatch(/TRIGGER_ENV(_SLUG)?:-prod/);
+  });
+
+  it.each(SCRIPTS)('%s keeps no functional reference to the old name', (_f, text) => {
+    // Prose in a comment is fine and wanted — it explains the rename. A read
+    // is not.
+    expect(text).not.toMatch(/\$\{?TRIGGER_ENV_SLUG/);
+    expect(text).not.toMatch(/^TRIGGER_ENV_SLUG=/m);
+  });
+
+  it('defines the default exactly once, in the lib', () => {
+    expect(cliLib).toMatch(/^TRIGGER_ENV_DEFAULT=prod$/m);
+    for (const [file, text] of SCRIPTS) {
+      expect(text, `${file} restates the default`).not.toMatch(/^TRIGGER_ENV_DEFAULT=/m);
+    }
+  });
+
+  it('resolves the environment where the env file has actually been read', () => {
+    // set-task-env.sh read the old name BEFORE sourcing .env, so the file it
+    // is pointed at could not decide. Order is the property, so order is what
+    // is asserted.
+    const sourced = setTaskEnv.indexOf('. "$ENV_FILE"');
+    const resolved = setTaskEnv.indexOf('trigger_env "${ENV_FILE}"');
+    expect(sourced).toBeGreaterThan(-1);
+    expect(resolved).toBeGreaterThan(sourced);
+  });
+});
+
+describe('trigger_env, run for real', () => {
+  function env(args: { file?: string; shell?: Record<string, string> }): {
+    out: string;
+    code: number;
+    err: string;
+  } {
+    const r = spawnSync(
+      'bash',
+      [
+        '-c',
+        `set -euo pipefail; source "${join(COMPOSE_DIR, 'trigger-cli-lib.sh')}"; trigger_env ${args.file ? `"${args.file}"` : ''}`,
+      ],
+      { encoding: 'utf8', env: { ...process.env, TRIGGER_ENV: '', TRIGGER_ENV_SLUG: '', ...args.shell } },
+    );
+    return { out: (r.stdout ?? '').trim(), code: r.status ?? -1, err: r.stderr ?? '' };
+  }
+
+  /** An env file, written where the test can point the helper at it. */
+  function envFile(body: string): string {
+    const p = join(mkdtempSync(join(tmpdir(), 'trigger-env-')), '.env');
+    writeFileSync(p, body);
+    return p;
+  }
+
+  it('is prod when nothing anywhere says otherwise', () => {
+    expect(env({ file: envFile('') })).toMatchObject({ out: 'prod', code: 0 });
+  });
+
+  it('takes the shell over the file — overriding one command', () => {
+    const f = envFile('TRIGGER_ENV=prod\n');
+    expect(env({ file: f, shell: { TRIGGER_ENV: 'staging' } }).out).toBe('staging');
+  });
+
+  it('reads the FILE, so a script that never sources .env still agrees', () => {
+    // This is the whole reason trigger-credentials.sh could disagree: it runs
+    // `docker compose exec` and cannot export the file over compose's own
+    // interpolation, so it never sourced it at all.
+    expect(env({ file: envFile('TRIGGER_ENV=staging\n') }).out).toBe('staging');
+  });
+
+  it('honours the old name, and says so once', () => {
+    const r = env({ file: envFile('TRIGGER_ENV_SLUG=staging\n') });
+    expect(r).toMatchObject({ out: 'staging', code: 0 });
+    expect(r.err).toContain('old name');
+  });
+
+  it('REFUSES when the two names disagree, rather than picking one', () => {
+    // Picking is what produced the original failure: one name decided where
+    // the tasks deployed and the other where their variables came from.
+    const r = env({ file: envFile('TRIGGER_ENV=staging\nTRIGGER_ENV_SLUG=prod\n') });
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('disagree');
+  });
+
+  it('does not mistake TRIGGER_ENV_SLUG= for TRIGGER_ENV=', () => {
+    // `^TRIGGER_ENV=` must not match the longer key, or a file carrying only
+    // the old name would resolve to an empty string and read as unset.
+    expect(env({ file: envFile('TRIGGER_ENV_SLUG=staging\n') }).out).toBe('staging');
   });
 });

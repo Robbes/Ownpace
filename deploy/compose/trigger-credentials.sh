@@ -35,16 +35,28 @@
 #                     the trigger-db container. Set it to talk to a Trigger.dev
 #                     instance that is not this compose stack's — or, in the
 #                     unit tests, to a stub that returns a fixture.
-#   TRIGGER_ENV_SLUG  which runtime environment's key to read (default `prod` —
+#   TRIGGER_ENV       which runtime environment's key to read (default `prod` —
 #                     the one the API enqueues with; `dev` keys are personal to
 #                     a CLI session and would not work from a container).
+#                     Resolved by the same helper deploy-tasks.sh and
+#                     set-task-env.sh use, and read from deploy/compose/.env as
+#                     well as the shell — so the key this WRITES belongs to the
+#                     environment those two deploy to. It did not, before
+#                     2026-08-31: this script never sources .env, so a setting
+#                     made there reached the other two and not this one, and
+#                     `--write` put the wrong environment's key back.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
+# shellcheck source=trigger-cli-lib.sh
+. "${SCRIPT_DIR}/trigger-cli-lib.sh"
 PROJECT_FILTER=""
 WRITE=0
-ENV_SLUG="${TRIGGER_ENV_SLUG:-prod}"
+# The env FILE is passed rather than sourced: this script runs `docker compose
+# exec`, and compose resolves its own interpolation from that same file — an
+# exported copy of it here would put shell values in front of compose's.
+ENV_SLUG="$(trigger_env "${ENV_FILE}")" || exit 1
 
 while [ "$#" -gt 0 ]; do
   case "$1" in

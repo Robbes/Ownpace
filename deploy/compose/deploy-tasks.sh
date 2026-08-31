@@ -196,7 +196,7 @@ fi
 # prod key prefix (tr_prod_) is the one this repository has actually seen, so
 # it is the only one asserted; a non-prod environment whose key prefix we do
 # not recognise is left alone rather than guessed at.
-TRIGGER_ENV="${TRIGGER_ENV:-prod}"
+TRIGGER_ENV="$(trigger_env "${ENV_FILE}")" || exit 1
 
 case "${TRIGGER_ENV}:${TRIGGER_SECRET_KEY}" in
   prod:tr_prod_*) ;;

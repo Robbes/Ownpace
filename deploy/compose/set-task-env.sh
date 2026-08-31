@@ -81,7 +81,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SET_TASK_ENV_FILE:-${SCRIPT_DIR}/.env}"
-TRIGGER_ENV_SLUG="${TRIGGER_ENV_SLUG:-prod}"
+# shellcheck source=trigger-cli-lib.sh
+. "${SCRIPT_DIR}/trigger-cli-lib.sh"
 
 [ -f "$ENV_FILE" ] || {
   echo "FATAL: $ENV_FILE not found — copy managed.env.example and fill it in" >&2
@@ -91,6 +92,12 @@ set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
 set +a
+
+# AFTER the env file, not before it. The old name was read ABOVE the sourcing,
+# so the value in force depended on whether the file happened to carry that
+# same key — and the file this repository ships carries the other one. One
+# helper, one name, resolved where the file has actually been read.
+TRIGGER_ENV="$(trigger_env "${ENV_FILE}")" || exit 1
 
 : "${TRIGGER_PROJECT_REF:?set TRIGGER_PROJECT_REF in .env (dashboard project settings, proj_...)}"
 : "${TRIGGER_SECRET_KEY:?set TRIGGER_SECRET_KEY in .env (the prod tr_prod_... key)}"
@@ -144,13 +151,13 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 
-echo "[set-task-env] uploading task env vars to project ${TRIGGER_PROJECT_REF} env '${TRIGGER_ENV_SLUG}'"
+echo "[set-task-env] uploading task env vars to project ${TRIGGER_PROJECT_REF} env '${TRIGGER_ENV}'"
 
 cd "$REPO_ROOT/apps/worker"
 TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   TRIGGER_SECRET_KEY="$TRIGGER_SECRET_KEY" \
   TRIGGER_PROJECT_REF="$TRIGGER_PROJECT_REF" \
-  TRIGGER_ENV_SLUG="$TRIGGER_ENV_SLUG" \
+  TRIGGER_ENV="$TRIGGER_ENV" \
   TASK_DATABASE_URL="$TASK_DATABASE_URL" \
   TASK_APP_DATABASE_URL="$TASK_APP_DATABASE_URL" \
   TASK_DIRECT_DATABASE_URL="$TASK_DIRECT_DATABASE_URL" \
@@ -175,7 +182,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
 const { envvars } = require("@trigger.dev/sdk");
 (async () => {
   const ref = process.env.TRIGGER_PROJECT_REF;
-  const slug = process.env.TRIGGER_ENV_SLUG;
+  const slug = process.env.TRIGGER_ENV;
   const variables = {
     DATABASE_URL: process.env.TASK_DATABASE_URL,
     APP_DATABASE_URL: process.env.TASK_APP_DATABASE_URL,
