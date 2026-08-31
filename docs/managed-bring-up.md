@@ -385,11 +385,31 @@ so there is one version number and it lives where it already lived.
 npx -y trigger.dev@<version> login -a http://localhost:3090 --profile openmig
 ```
 
+**`openmig` is the DEFAULT profile name, not a fixed one.** It is pre-rename
+branding (ADR-0040) kept on purpose — a machine already logged in under it,
+the gate's runner most likely, would be stranded by a default that moved.
+`TRIGGER_CLI_PROFILE` in `.env` overrides it, and the phase then asks for
+whatever you set.
+
+**Setting that variable moves the SETTING, and cannot move a login.** A login
+is a token stored per profile NAME in `~/.config/trigger/config.json` on the
+host — outside the checkout, untouched by the rename, and invisible to
+anything in this repository. So a stack whose `.env` says `ownpace` while that
+file holds only `openmig` is correct in both halves and refuses anyway; it is
+one browser round trip from agreeing (2026-08-31). The refusal prints the name
+in use and the default as two separate lines for exactly this reason.
+
 The script prints the exact line with the version filled in and stops, because
 the command opens a browser and waits for you. Note the address is the plain
 **http api origin**, not the https front.
 
-**Verify:** `npx -y trigger.dev@<version> whoami --profile openmig`
+**The URL it then asks you to open is on the https front**
+(`TRIGGER_LOGIN_ORIGIN`, the `trigger-tls` service), which serves a
+self-signed certificate — and one browser has been seen to fail there where
+another succeeds. See the failure table.
+
+**Verify:** `npx -y trigger.dev@<version> whoami --profile <name>` — and read
+its OUTPUT, not its exit code, which is 0 either way (below).
 
 ### 8. `app` — API and web
 
@@ -715,7 +735,10 @@ key, its own deployed task version and its own runs. To move a stack onto one of
 1. **Take that environment's key** from the dashboard (project → API keys) and put it in
    `deploy/compose/.env` as `TRIGGER_SECRET_KEY`. This is the key the **api** enqueues with.
 2. **Set `TRIGGER_ENV`** in the same file to that environment's name (`prod` is the default).
-   This is what the **deploy** targets.
+   **One name does all three** — the deploy target, the task variables, and the key
+   `trigger-credentials.sh` reads. Until 2026-08-31 the other two read `TRIGGER_ENV_SLUG`,
+   so this step moved the deploy alone and this list was the way to find that out; the old
+   name is still honoured, once, out loud.
 3. **Restart the api** so it picks up the new key:
    `docker compose -f deploy/compose/managed.yml up -d api`
 4. **Re-upload the task environment variables**, which are stored per environment and do not
@@ -1117,7 +1140,7 @@ let a credential obtained once survive to the next run.
 | `pgbouncer` logs `could not open auth_file … Permission denied`, then `no such user: pgbouncer_auth` | `userlist.txt` was written 0600 by the host user; PgBouncer reads it as a different user inside the container, finds no users, and rejects every login | `chmod 644 deploy/compose/pgbouncer/userlist.txt`, then force-recreate. `ensure-env-secrets.sh` now writes 644 and `--only data` repairs the mode |
 | The seed or a host-run script talks to the wrong Postgres | On a shared host, `localhost:5432` may belong to something else entirely — this stack's Postgres is published wherever `POSTGRES_PORT` says | The `demo` phase asks `docker compose port postgres 5432` rather than trusting a default. For your own commands, do the same |
 | `deploy-tasks.sh` proceeds past its own login check and then fails with `Unable to validate existing personal access token` / `Invalid or Missing Access Token` | `whoami` exits 0 whether or not you are actually logged in — confirmed from the CLI's own source, an auth failure returns data rather than throwing. A stale profile (e.g. left over after `reset-trigger.sh`) passes the check and only fails once `deploy` tries to use it | `npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <profile>`, then re-run. Fixed at the source in `trigger-cli-lib.sh`, which both scripts now use instead of trusting the exit code |
-| `deploy-tasks.sh` says **`Not logged in`** while `trigger.dev login` answers **`You are already logged in`** | The instance's database was destroyed (a wipe, `down -v`, a rename cutover) but the CLI profile at `~/.config/trigger/config.json` is on the HOST and survived it. `login` sees a token in the profile and short-circuits without validating it against the instance, so it reports success for a token whose account no longer exists; `trigger_cli_logged_in()` reads `whoami`'s output properly and correctly says no. **`login` alone cannot fix this** — it never gets far enough to replace the token | `npx -y trigger.dev@<version> logout --profile <profile>` **first**, then `login` as above. If `logout` also short-circuits, delete the profile's entry from `~/.config/trigger/config.json` |
+| `deploy-tasks.sh` says **`Not logged in`** while `trigger.dev login` answers **`You are already logged in`** | The instance's database was destroyed (a wipe, `down -v`, a rename cutover) but the CLI profile at `~/.config/trigger/config.json` is on the HOST and survived it. `login` sees a token in the profile and short-circuits without validating it against the instance, so it reports success for a token whose account no longer exists; `trigger_cli_logged_in()` reads `whoami`'s output properly and correctly says no. **`login` alone cannot fix this** — it never gets far enough to replace the token | `npx -y trigger.dev@<version> logout --profile <profile>` **first**, then `login` as above. If `logout` also short-circuits, delete the profile's entry from `~/.config/trigger/config.json`. **Until 2026-08-31 this symptom had a SECOND cause with the same appearance**: the detector piped `whoami`'s output into `grep -q`, which exits at the first match, so under `set -o pipefail` a long-enough answer killed the producer with SIGPIPE and the pipeline returned 141 for a match that had SUCCEEDED. Verified and fixed — it now reads from a here-string — so on a current checkout this row's cause is the only one left |
 | `trigger-supervisor` is `Restarting`, its log says **`Unable to read worker token from file: EACCES … /home/node/shared/worker_token`**, and `up` aborts with `container trigger-supervisor is unhealthy` | trigger-api bootstraps the worker token into the shared volume as **root, mode 0600**; the supervisor reads it as **node**. On a FRESH `trigger_shared` volume — first install, or after a `down -v` — it cannot open its own credential. Everything else reports healthy, so the stack looks fine while dequeuing nothing | `docker exec -u 0 trigger-api chown node:node /home/node/shared/worker_token`, then `docker restart trigger-supervisor`. **chown, not `chmod 644`** — the token is a credential and root bypasses permissions anyway. `bootstrap-managed.sh`'s `trigger` phase now does this between trigger-api and the supervisor, so a fresh volume no longer needs the manual step |
 | `set-task-env.sh` fails **`Invalid or Missing API key`** against a `proj_…` ref that looks right | Same cause, other credential: `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY` in `.env` belong to the destroyed instance. `bootstrap-managed.sh`'s `account` phase **short-circuits when both are already set** (it cannot tell a stale value from a good one), so re-running bring-up never replaces them | `./deploy/compose/trigger-credentials.sh --write` — it reads the ref and the prod key out of the INSTANCE and upserts both, overwriting whatever `.env` held. Then re-run `set-task-env.sh` |
 | A config fix to `pgbouncer.ini` seems to change nothing — same error after pulling | `pgbouncer.ini` is a bind mount read once at start-up, and `up -d` does not recreate a container whose spec has not changed, so the old process keeps running the old file | `docker compose -f deploy/compose/managed.yml up -d --force-recreate pgbouncer`. `--only data` now does this automatically when the container is unhealthy |
@@ -1126,6 +1149,8 @@ let a credential obtained once survive to the next run.
 | Any `docker compose` command fails with `required variable X is missing a value` | Compose interpolates the **whole** file before running anything, so one unset variable breaks every command — including ones that never touch the service named in the error. An `.env` that predates the pooler hits this on `PGBOUNCER_AUTH_PASSWORD` | `./deploy/compose/ensure-env-secrets.sh`, then `--only data` to create the matching Postgres role and start the pooler |
 | `pgbouncer` never becomes healthy, complains about a password | `setup-auth.sql` has not run, or ran without `my.pw` set | `--only data`. The SQL now refuses an unset `my.pw` rather than creating a role with no password |
 | Every app connection: `password authentication failed`, though `.env` and the container agree | A volume from a *different* project — compose's project name derived from the directory basename | `managed.yml` pins `name: ownpace-managed`. Check `docker volume ls` for a stray `compose_postgres_data` |
+| `trigger.dev login` prints an authorization URL on the https front, and **Firefox** answers *"De pagina verwijst niet op een juiste manier door"* / cannot connect to `<host>:3443`, while **Chromium completes the same URL** — both after clicking through the self-signed-certificate warning | **Observed 2026-08-31 on the Spark, and NOT root-caused — do not repeat the following as though it were the cause.** What is known: `trigger-tls` serves a self-signed certificate, the dashboard's session is a `Secure` cookie, and a session cookie that never sticks renders precisely as "isn't redirecting properly". Chromium and Firefox do not agree about what a connection whose certificate was manually overridden may do with cookies. Whether that is what happened here was not established, because the workaround cost nothing | Do the one-time login in Chromium. The token lands in the host's CLI profile and no browser is needed again, so this is one browser choice per machine and blocks nothing. **It says nothing about the PRODUCT's sign-in**, which is Zitadel on a real hostname with a real certificate — if that ever fails in one browser only, it is a different fault and this row is not it |
+| The `login` phase refuses, you run the printed command, it succeeds, and the phase refuses again | Two different things, both true: `TRIGGER_CLI_PROFILE` names the profile the phase asks for, and the CLI stores logins per profile NAME in `~/.config/trigger/config.json` on the host. Setting the variable does not create the login; logging in under the old name does not satisfy the new setting | Read the two lines the refusal prints — `in use` and `default`. Either log in under the name in use, or point the setting at a name the machine already has: `./deploy/compose/env-upsert.sh deploy/compose/.env TRIGGER_CLI_PROFILE=<name>`. Do not delete the other profile to tidy up; the gate's runner may be using it |
 | `trigger-magic-link.sh` finds nothing | The link is only written when one is **requested** | Submit your email on the dashboard's login page first, then re-run |
 | Dashboard loads but the login never completes | `TRIGGER_APP_ORIGIN` / `TRIGGER_LOGIN_ORIGIN` do not match the address the browser is using; the `Secure` cookie is dropped | Set both (and `TRIGGER_TLS_HOST`) to the real address, then `--from trigger` |
 | `npx trigger.dev deploy` dies with a bare `Connection error` | The CLI was pointed at the https front | Log in against `http://localhost:3090` |

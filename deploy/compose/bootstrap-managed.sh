@@ -955,10 +955,14 @@ EOF
 phase_login() {
   say login "the deploy CLI, once per machine"
   load_env
-  local cli_version profile url
+  local cli_version profile url origin
   cli_version="$(node -p "require('${REPO_ROOT}/apps/worker/package.json').dependencies['@trigger.dev/sdk']")"
-  profile="${TRIGGER_CLI_PROFILE:-openmig}"
+  profile="${TRIGGER_CLI_PROFILE:-$TRIGGER_CLI_PROFILE_DEFAULT}"
   url="http://localhost:${TRIGGER_PORT:-3090}"
+  # Computed BEFORE the refusals so both branches print the same sentence, and
+  # so the resolved name and its origin cannot be described by two expressions
+  # that disagree.
+  origin="$(trigger_cli_profile_origin)"
 
   if trigger_cli_logged_in "$cli_version" "$profile"; then
     # SAY WHICH ANSWER THIS IS. `trigger_cli_logged_in` short-circuits on
@@ -1005,18 +1009,30 @@ EOF
     This machine IS logged in under:
 
 $(printf '      %s\n' $present)
-    The name comes from TRIGGER_CLI_PROFILE in ${ENV_FILE} (default
-    '${profile}'). If one of the above is the account you want, point the
-    setting at it instead of logging in a second time:
+    The profile name is a SETTING, and these are two different facts:
+
+      in use    '${profile}' — ${origin}
+      default   '${TRIGGER_CLI_PROFILE_DEFAULT}'
+
+    It is read from this shell's environment, or from:
+      ${ENV_FILE}
+
+    If one of the above is the account you want, point the setting at it
+    instead of logging in a second time:
 
       ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_CLI_PROFILE=<name>
 
 EOF
   else
     cat <<EOF
-    The name comes from TRIGGER_CLI_PROFILE in ${ENV_FILE} (default
-    '${profile}'), so if you are already logged in under a different one,
-    set that here rather than logging in again:
+    The profile name is a SETTING, and these are two different facts:
+
+      in use    '${profile}' — ${origin}
+      default   '${TRIGGER_CLI_PROFILE_DEFAULT}'
+
+    It is read from this shell's environment, or from ${ENV_FILE}.
+    So if you are already logged in under a different one, set that here
+    rather than logging in again:
 
       ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_CLI_PROFILE=<name>
 
