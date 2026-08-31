@@ -100,6 +100,7 @@ const SUPPORT_VIEWS = [
   'support_tenant_invoices',
   'support_migration_domains',
   'support_retained_invoices',
+  'support_tenant_usage',
 ] as const;
 
 beforeAll(async () => {
@@ -159,10 +160,38 @@ beforeAll(async () => {
       OPERATOR,
       'rob@example.invalid',
     ]);
+    // The tier evidence (0109 T4 surfaced): a recorded peak for THIS month, a
+    // meter total, and three path rows in three different states — so the
+    // usage view has one of everything it joins, and the per-state counts can
+    // be told apart from a bare row count.
+    await q(
+      `INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at)
+       VALUES ($1, date_trunc('month', now())::date, 2, TIMESTAMPTZ '2026-08-12T10:00:00Z')`,
+      [TENANT_A],
+    );
+    await q('INSERT INTO bytes_moved (tenant_id, bytes) VALUES ($1, 100000000000)', [TENANT_A]);
+    for (const [domain, state] of [
+      ['email', 'active'],
+      ['calendar', 'paused'],
+      ['contact', 'cutover'],
+    ]) {
+      await q(
+        `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state)
+         VALUES ($1, $2, $3, $4)`,
+        [TENANT_A, MAPPING_A, domain, state],
+      );
+    }
   } finally {
     await conn.release();
   }
-});
+},
+  // Both migration chains in an in-memory Postgres, before any test runs —
+  // the same cost `support-routes.unit.test.ts` states 30s for. This hook
+  // outgrew vitest's 10s default when the managed chain reached seventeen
+  // migrations; the number lives here so the failure mode is a red assertion
+  // rather than a timeout that reads as a hung machine.
+  60_000,
+);
 
 afterAll(async () => {
   await driver.end?.();
@@ -283,6 +312,61 @@ describe('an operator sees metadata, and only metadata', () => {
     for (const view of ['support_items', 'support_mailboxes', 'support_collections']) {
       await expect(
         asSubject(OPERATOR, (q) => q(`SELECT 1 FROM public.${view}`)),
+      ).rejects.toThrow();
+    }
+  });
+});
+
+describe('the tier evidence, per tenant (0109 T4 surfaced)', () => {
+  it('serves the recorded peak, the meter, and the counts per state', async () => {
+    const rows = await asSubject(OPERATOR, async (q) => {
+      const r = await q(
+        `SELECT peak_paths, peak_at, bytes_moved, paths_by_state
+           FROM public.support_tenant_usage WHERE tenant_id = $1`,
+        [TENANT_A],
+      );
+      return r.rows as Array<{
+        peak_paths: number;
+        peak_at: Date | string;
+        bytes_moved: number | string;
+        paths_by_state: Record<string, number>;
+      }>;
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.peak_paths).toBe(2);
+    expect(Number(rows[0]?.bytes_moved)).toBe(100_000_000_000);
+    // Counts PER STATE, raw — which states hold a slot is `holdsASlot`'s call,
+    // in code, and the view restating that list is the drift the ledger's own
+    // SLOT_HOLDING_STATES comment records being bitten by.
+    expect(rows[0]?.paths_by_state).toEqual({ active: 1, paused: 1, cutover: 1 });
+  });
+
+  it('serves a tenant with NO usage as one row of nulls, never as absence', async () => {
+    // The route joins this to a tenant it has already found; a view that
+    // dropped quiet tenants would make "nothing recorded yet" and "query bug"
+    // the same symptom.
+    const rows = await asSubject(OPERATOR, async (q) => {
+      const r = await q(
+        `SELECT peak_paths, peak_at, bytes_moved, paths_by_state
+           FROM public.support_tenant_usage WHERE tenant_id = $1`,
+        [TENANT_B],
+      );
+      return r.rows as Array<Record<string, unknown>>;
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.peak_paths).toBeNull();
+    expect(rows[0]?.bytes_moved).toBeNull();
+    expect(rows[0]?.paths_by_state).toEqual({});
+  });
+
+  it('cannot reach WHICH paths run — no mapping id, no domain', async () => {
+    // Counts, one meter number and two timestamps: the question this view
+    // answers is "what would this month cost, on what evidence". Which paths
+    // those are is level 2/3's business through the views that already exist.
+    for (const column of ['mapping_id', 'domain', 'name']) {
+      await expect(
+        asSubject(OPERATOR, (q) => q(`SELECT ${column} FROM public.support_tenant_usage`)),
+        `${column} must not be reachable`,
       ).rejects.toThrow();
     }
   });

@@ -54,6 +54,7 @@ import {
   getSupportMigration,
   listRetainedInvoices,
   type SupportTenant,
+  type SupportTenantUsage,
   type SupportMigrationDomain,
   type SupportRetainedInvoice,
 } from '../services/support.ts';
@@ -219,6 +220,83 @@ export const SupportTenants: React.FC = () => {
 
 /* ------------------------------------------------------------------ level 2 */
 
+/**
+ * `decided_by` is a closed vocabulary from the API; mapped to keys the same
+ * way `FAILURE_KEY` maps categories, so `t()` stays typed over literal keys.
+ */
+const DECIDED_KEY = {
+  paths: 'support.usage.decidedBy.paths',
+  data: 'support.usage.decidedBy.data',
+  both: 'support.usage.decidedBy.both',
+} as const;
+
+/**
+ * The tier the month has earned so far, with its evidence (0109 T4 surfaced).
+ *
+ * Rendered exactly as the API derived it — this component adds no arithmetic,
+ * because the point of the surface is to see what the INVOICE will see, and a
+ * screen that recomputed would be a second copy that could drift. The state
+ * tokens in the breakdown are product vocabulary, rendered raw like every
+ * lifecycle and status column on these screens.
+ */
+const TenantUsage: React.FC<{ usage: SupportTenantUsage }> = ({ usage }) => {
+  const t = useT();
+  const { dateTime, number, currency } = useFormatters();
+  const byState = Object.entries(usage.paths_by_state).sort(([a], [b]) => a.localeCompare(b));
+  return (
+    <Section title={t('support.usage')} empty="" rows={1}>
+      <div className="px-3 py-2 text-sm">
+        <p className="mb-1">
+          <span className="font-medium text-gray-900">
+            {usage.tier ? usage.tier.name : t('support.usage.beyondTable')}
+          </span>
+          {usage.tier && (
+            <span className="text-gray-600">
+              {' '}
+              · {currency(usage.tier.monthly * 100, 'EUR')} {t('support.usage.perMonth')}
+            </span>
+          )}
+        </p>
+        <p className="mb-3 text-gray-600">{t(DECIDED_KEY[usage.decided_by])}</p>
+        <table className="min-w-full text-sm">
+          <tbody className="divide-y divide-gray-100">
+            <tr>
+              <td className="py-1 pr-3 text-gray-500">{t('support.usage.peak')}</td>
+              <td className="py-1 text-gray-900">
+                {usage.recorded_peak_at ? (
+                  <>
+                    {usage.recorded_peak_paths}
+                    <span className="text-gray-500"> — {dateTime(usage.recorded_peak_at)}</span>
+                  </>
+                ) : (
+                  <span className="text-gray-400">{t('support.usage.noPeak')}</span>
+                )}
+              </td>
+            </tr>
+            <tr>
+              <td className="py-1 pr-3 text-gray-500">{t('support.usage.now')}</td>
+              <td className="py-1 text-gray-900">
+                {usage.paths_now}
+                {byState.length > 0 && (
+                  <span className="text-gray-500">
+                    {' '}
+                    ({byState.map(([state, n]) => `${state} ${n}`).join(' · ')})
+                  </span>
+                )}
+              </td>
+            </tr>
+            <tr>
+              <td className="py-1 pr-3 text-gray-500">{t('support.usage.data')}</td>
+              <td className="py-1 text-gray-900">{number(usage.evidence.gb_moved)} GB</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-gray-500">{t('support.usage.note')}</p>
+      </div>
+    </Section>
+  );
+};
+
 export const SupportTenantDetail: React.FC = () => {
   const t = useT();
   const { dateTime } = useFormatters();
@@ -253,7 +331,7 @@ export const SupportTenantDetail: React.FC = () => {
     );
   }
 
-  const { tenant, connections, migrations, invoices } = query.data;
+  const { tenant, connections, migrations, invoices, usage } = query.data;
 
   return (
     <div>
@@ -331,6 +409,8 @@ export const SupportTenantDetail: React.FC = () => {
           </tbody>
         </table>
       </Section>
+
+      {usage && <TenantUsage usage={usage} />}
 
       <Section title={t('support.invoices')} empty={t('support.noInvoices')} rows={invoices.length}>
         <table className="min-w-full text-sm">

@@ -797,6 +797,25 @@ const en = {
   'support.col.domain': 'Domain',
   'support.col.state': 'State',
   'support.col.whatToDo': 'What to do',
+  // The tier evidence (0109 T4 surfaced). "Package" and not "tier": the same
+  // customer-facing word `access.tier` uses — the operator reads what the
+  // customer would recognise.
+  'support.usage': 'Usage and package this month',
+  'support.usage.beyondTable': 'Beyond the published table — a talk-to-us size.',
+  'support.usage.perMonth': 'per month',
+  'support.usage.decidedBy.paths':
+    'Decided by the paths axis — how many run at the same time.',
+  'support.usage.decidedBy.data':
+    'Decided by the data axis — what has moved sets the floor.',
+  'support.usage.decidedBy.both': 'Both axes land on the same package.',
+  'support.usage.peak': 'Recorded peak this month',
+  'support.usage.noPeak': 'nothing recorded yet',
+  'support.usage.now': 'Holding a slot right now',
+  'support.usage.data': 'Data moved (first copies)',
+  'support.usage.note':
+    'The higher axis decides — paths running at the same time, or data moved since the '
+    + 'start (first copies only; a paused path keeps its slot). This is the same derivation a '
+    + 'future invoice will use; nothing changes by looking.',
   // What an erasure kept, and could not be read until there was a screen.
   'support.retained.link': 'Invoices kept after an erasure',
   'support.retained.heading': 'Invoices kept after an erasure',
@@ -1386,6 +1405,24 @@ const nl: Record<keyof typeof en, string> = {
   'support.col.domain': 'Soort',
   'support.col.state': 'Status',
   'support.col.whatToDo': 'Wat te doen',
+  // Het staffelbewijs (0109 T4 zichtbaar gemaakt). "Pakket", hetzelfde woord
+  // dat `access.tier` richting de klant gebruikt.
+  'support.usage': 'Gebruik en pakket deze maand',
+  'support.usage.beyondTable': 'Voorbij de gepubliceerde tabel — een maat om over te praten.',
+  'support.usage.perMonth': 'per maand',
+  'support.usage.decidedBy.paths':
+    'Bepaald door de paden-as — hoeveel er tegelijk lopen.',
+  'support.usage.decidedBy.data':
+    'Bepaald door de data-as — wat verplaatst is, zet de ondergrens.',
+  'support.usage.decidedBy.both': 'Beide assen komen op hetzelfde pakket uit.',
+  'support.usage.peak': 'Vastgelegde piek deze maand',
+  'support.usage.noPeak': 'nog niets vastgelegd',
+  'support.usage.now': 'Houdt nu een plek vast',
+  'support.usage.data': 'Verplaatste data (eerste kopieën)',
+  'support.usage.note':
+    'De hoogste as bepaalt — paden die tegelijk lopen, of data die sinds het begin is '
+    + 'verplaatst (alleen eerste kopieën; een gepauzeerd pad houdt zijn plek). Dit is dezelfde '
+    + 'afleiding die een toekomstige factuur gebruikt; kijken verandert niets.',
   // Wat na een wissing bewaard is gebleven.
   'support.retained.link': 'Facturen bewaard na een wissing',
   'support.retained.heading': 'Facturen bewaard na een wissing',

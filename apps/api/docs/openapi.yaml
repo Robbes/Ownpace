@@ -3061,6 +3061,7 @@ paths:
                   invoices:
                     type: array
                     items: { $ref: '#/components/schemas/SupportInvoice' }
+                  usage: { $ref: '#/components/schemas/SupportTenantUsage' }
         '400':
           description: The id in the path is not a uuid.
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -3317,6 +3318,61 @@ components:
           type: object
           nullable: true
           description: Counts and durations only — never folder names or addresses.
+    SupportTenantUsage:
+      type: object
+      description: |
+        The tier this month has earned so far, with the evidence an invoice
+        would quote (ADR-0014's two axes, workplan 0109 T4 surfaced). Derived
+        read-only: the recorded peak and the LIVE count of slot-holding paths
+        are folded together the same way the tier calculator's true-up would
+        write them, so the screen and a bill drawn at the same moment agree —
+        but looking at this moves no billing mark. Counts, one data total and
+        two timestamps; nothing here names what is moving.
+      properties:
+        tier:
+          type: object
+          nullable: true
+          description: |
+            The published tier the usage lands on, or null past the table's
+            end — the same deliberate "talk to us" the pricing page has.
+          properties:
+            id: { type: string, enum: [tiny, small, medium, large, xl] }
+            name: { type: string }
+            paths: { type: integer, description: The tier's simultaneous-path capacity. }
+            data_gb: { type: number, description: The tier's cumulative-data ceiling, decimal GB. }
+            setup: { type: number, description: One-off, EUR. }
+            monthly: { type: number, description: Per month, EUR. }
+        decided_by:
+          type: string
+          enum: [paths, data, both]
+          description: Which axis forced the answer — the higher one wins.
+        evidence:
+          type: object
+          description: |
+            Exactly what an invoice would quote — "3 paths at the same time,
+            100 GB moved". `peak_paths` here is the EFFECTIVE peak (recorded
+            mark or live count, whichever is higher).
+          properties:
+            peak_paths: { type: integer }
+            gb_moved: { type: number }
+        recorded_peak_paths:
+          type: integer
+          description: The month's recorded high-water mark; 0 when nothing raised it.
+        recorded_peak_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the recorded mark was set — null when nothing raised it.
+        paths_now:
+          type: integer
+          description: Paths holding a slot right now (`active` and `paused`).
+        paths_by_state:
+          type: object
+          additionalProperties: { type: integer }
+          description: |
+            Every path row counted per lifecycle state, e.g. `{"active": 2,
+            "paused": 1}` — the breakdown that answers "why is a paused
+            migration still holding a slot" without naming any path.
     QualifiedDomain:
       type: object
       description: One domain's measured answer (workplan 0106 T0).

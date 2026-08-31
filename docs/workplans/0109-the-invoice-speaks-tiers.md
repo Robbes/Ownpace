@@ -1,6 +1,21 @@
 # Workplan 0109 — the invoice speaks tiers
 
-## Status — 2026-08-30 (update this block at the end of every session)
+## Status — 2026-08-31 (update this block at the end of every session)
+
+**2026-08-31: T4 surfaced — the tier is visible before the invoice.** The whole
+measurement layer had no reader a person could open: the first wrong number would
+have been found by a customer, on a bill. Now the operator's tenant screen (0110
+T4's level 2) shows the month's derived tier with the invoice's evidence — the
+recorded peak and its date, the live per-state path counts, the meter's GB — via a
+new `support_tenant_usage` view (managed migration 0017, same operator predicate
+as every 0110 view, columns are counts + one meter number + two timestamps) and
+`observedTier`, `currentTier`'s read-only twin: an operator LOOKING must not move
+a billing mark, so the live count is folded in by derivation instead of by the
+true-up's write. Parity with `currentTier` is pinned over a real database, before
+and after its true-up. Proofs by breaking: the view arriving unlisted → the
+catalog guard red; dropping the live counts / copying the slot rule wrong /
+dropping the meter → 2, 2 and 3 red respectively. **T5 still waits on the
+Moneybird trial; T6 on T5; T1c on the owner's one-announcement decision.**
 
 **2026-08-30: T1b split in two, and the safe half built.** The **wiring** is in: all
 four lifecycle writers — create-as-active, start, the update route, finish — now move
@@ -53,7 +68,7 @@ per mapping, so nothing above it can be right until that moves.
 | T1 A lifecycle per PATH, not per mapping | 🟡 T1a done 2026-08-27; **T1b (the wiring) BUILT 2026-08-30** — the four writers move the paths in-transaction, T2/T3 unblocked; **T1c (the cutover grain) extracted — needs an owner decision** (0104's one-announcement rule vs paths ending one at a time) | The unit ADR-0014 bills is `(mapping, domain)`. The billing ledger now moves with every press; only the machinery for paths ENDING one at a time still waits. |
 | T2 The peak, recorded rather than recomputed | ✅ **Built 2026-08-30** (managed migration 0015, `PgOccupancyPeakStore`, recorded inside the activation transaction) | "Six at the same time on 12 August" now comes from `occupancy_peak`: per-tenant per-month high-water, raise-only by trigger for every role, tie keeps its first date. Under-records only (concurrency, quiet months) — T4 trues up the live month before reading. |
 | T3 The first-copy byte meter, append-only | ✅ **Built 2026-08-30** (engine statistic + managed migration 0016 + worker flush) | `firstCopyBytes` computed in the one shared loop at the moment of each target CREATE; `bytes_moved` raised by the managed worker after each pass, raise-only by trigger. Never the same query as 0090's byte budget, and never a live-row SUM — proved byte-exact by sensitivity at the engine. |
-| T4 The tier calculator, and its drift guard | ✅ **Built 2026-08-30** (`tier-calculator.ts`, on T1–T3 the same evening) | The third copy of the numbers, held to the first two: the same structurally-identical ADR-table parse the site guard runs, PLUS an agreement grid driving this derivation and `site/calculator.mjs`'s over every boundary (195 points — tier and axis must match). `currentTier` derives from the month's peak (with T2's true-up, closing the quiet-month gap) and the meter's total, and answers with the EVIDENCE T5 quotes. Proved by breaking: a one-euro price drift and a wrong-axis derivation each turn red. |
+| T4 The tier calculator, and its drift guard | ✅ **Built 2026-08-30** (`tier-calculator.ts`, on T1–T3 the same evening); **surfaced 2026-08-31** on the support tenant screen | The third copy of the numbers, held to the first two: the same structurally-identical ADR-table parse the site guard runs, PLUS an agreement grid driving this derivation and `site/calculator.mjs`'s over every boundary (195 points — tier and axis must match). `currentTier` derives from the month's peak (with T2's true-up, closing the quiet-month gap) and the meter's total, and answers with the EVIDENCE T5 quotes. Proved by breaking: a one-euro price drift and a wrong-axis derivation each turn red. **Surfaced**: `support_tenant_usage` (managed 0017) + `observedTier` (the read-only twin — looking moves no billing mark) render tier, axis, peak+date, live per-state counts and GB on the operator's tenant screen, parity with `currentTier` pinned before and after its true-up — so a wrong derivation is seen by the operator months before a customer sees a bill. |
 | T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. |
 | T6 Top-ups, step-ups and the floor | 📋 Planned (needs T4) | The mechanics ADR-0014 published and nothing implements. |
 | T7 Extend the leakage guard before, not after | ✅ **Obsolete as written — resolved by the guard itself, verified 2026-08-30** | The premise ("a fixed list of five") is stale: the guard's table list now DERIVES from the managed chain's own SQL, so `occupancy_peak` was appliance-forbidden the moment migration 0015 existed, with no list to edit. Verified green with the new table; T3's meter inherits the same coverage for free. |
