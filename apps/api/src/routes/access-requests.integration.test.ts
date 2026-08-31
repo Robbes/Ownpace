@@ -130,8 +130,41 @@ describe('POST /api/access-requests', () => {
 
     expect(second.status).toBe(first.status);
     expect(second.body).toEqual(first.body);
-    // And both are kept: a second request from the same address a year later is
-    // information, not an error.
+    // ONE ROW, NOT TWO — and this line changed on 2026-08-31 without the
+    // property above changing at all, which is the point of them being separate
+    // assertions.
+    //
+    // It used to expect two, explaining that "a second request from the same
+    // address A YEAR LATER is information, not an error". That is 0002's
+    // reasoning and it is right — but a year later is not what this test does.
+    // It knocks twice in a row with nothing decided in between, which is the
+    // case the reasoning never covered: noise in the operator's queue, and two
+    // organisations for one person if both are granted. Migration 0020 forbids
+    // it, and the test below is the one that exercises what this comment used
+    // to claim.
+    expect(await rows()).toHaveLength(1);
+  });
+
+  it('lets somebody ask again once the first was answered', async () => {
+    // 0002's actual intent, exercised for the first time: asking again after a
+    // decision IS information and must survive. Only several OPEN at once is
+    // noise.
+    await request.post('/api/access-requests').send({ email: 'later@example.test' });
+    const answered = await pool.query(
+      `UPDATE access_request SET state = 'declined', decided_by = 'op', decided_at = now()
+        WHERE email = 'later@example.test'`,
+    );
+    // The fixture asserts its OWN effect, which is the lesson this whole change
+    // came from. `access_request` has FORCE ROW LEVEL SECURITY and no UPDATE
+    // policy; this works only because the test pool connects as a superuser,
+    // which bypasses it. If that ever stops being true the update silently
+    // touches nothing, the row stays open, and the knock below is refused by
+    // migration 0020 — failing on `toHaveLength` with "expected 2 got 1", which
+    // points at the index rather than at the fixture that did nothing.
+    expect(answered.rowCount).toBe(1);
+
+    const again = await request.post('/api/access-requests').send({ email: 'later@example.test' });
+    expect(again.status).toBe(201);
     expect(await rows()).toHaveLength(2);
   });
 
