@@ -341,6 +341,155 @@ router.get(
 );
 
 /**
+ * Finding a person, across every organisation (owner request 2026-08-31).
+ *
+ * ## Why this exists beside the per-organisation list
+ *
+ * Migration 0018 put an organisation's people on its own screen, which answers
+ * "who is in THIS organisation" and only that. The question an operator
+ * actually starts from is the other way round — somebody made contact, who are
+ * they and what are they on — and answering it from the per-organisation list
+ * means guessing which organisation to open. That is a memory test, not a
+ * surface, and it stops working at about the fifth customer.
+ *
+ * ## No new view, deliberately
+ *
+ * `support_tenant_members` carries the people and `support_tenants` carries the
+ * organisation's name, both behind the same `platform_operator` predicate. This
+ * JOINS them rather than declaring a third view, so neither fact gets a second
+ * authority to drift from — and the guard is unchanged, because it is the same
+ * guard, twice.
+ *
+ * ## The search is a read, and it is recorded as one
+ *
+ * This is the widest read the support surface can perform: not one customer,
+ * all of them. So it is logged with WHAT was searched for and HOW MANY came
+ * back (0019) — "an operator ran a search" cannot tell somebody answering one
+ * email from somebody enumerating the customer base, and those two facts can.
+ * The log is readable only by the operator who wrote it (0009's policy), which
+ * is what makes storing the query safe rather than a second exposure.
+ *
+ * ## Two refusals rather than a helpful default
+ *
+ * A blank or one-character query would match everybody, and "the operator
+ * pressed enter in an empty box" is not a reason to serve every customer's
+ * people in one screen. It refuses instead, and the ceiling is a cap rather
+ * than a page: a support answer is one person, and a hundred rows means the
+ * question was wrong.
+ */
+const PEOPLE_QUERY_MIN = 2;
+const PEOPLE_LIMIT = 50;
+
+router.get('/people', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return void res
+        .status(401)
+        .json({ error: 'Unauthorized', message: 'No subject on this request' });
+    }
+    const raw = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (raw.length < PEOPLE_QUERY_MIN) {
+      return void res.status(400).json({
+        error: 'Bad request',
+        message: `Search for at least ${PEOPLE_QUERY_MIN} characters — a shorter one matches everybody, and every customer's people is not an answer to a blank box.`,
+      });
+    }
+
+    // ESCAPED, because the operator's own typing reaches a LIKE pattern. A `%`
+    // in the box would otherwise widen the match rather than look for a percent
+    // sign, which is a small surprise on a screen where the difference is
+    // "one person" versus "all of them".
+    const pattern = `%${raw.replace(/([\\%_])/g, '\\$1')}%`;
+
+    const people = await withSubject(pool(), userId, async (db) => {
+      const found = await db.execute(
+        sql`SELECT m.tenant_id, t.tenant_name, m.user_id, m.email, m.role, m.status, m.joined_at
+              FROM public.support_tenant_members m
+              JOIN public.support_tenants t ON t.tenant_id = m.tenant_id
+             WHERE m.email ILIKE ${pattern} ESCAPE '\\'
+             ORDER BY m.email
+             LIMIT ${PEOPLE_LIMIT}`,
+      );
+      const rows = found.rows as Row[];
+      // Recorded with what came back, not with what was asked for alone — and
+      // AFTER the read, so a search that failed does not claim one happened.
+      await recordSupportRead(db, {
+        operatorUserId: userId,
+        tenantId: null,
+        view: 'people',
+        query: raw,
+        resultCount: rows.length,
+      });
+      return rows;
+    });
+
+    res.json({ people, limit: PEOPLE_LIMIT });
+  } catch (error) {
+    serverFault(res, 'support_people_failed', 'searching for a person', error);
+  }
+});
+
+/**
+ * An operator followed a result through to that account at the provider.
+ *
+ * The click leaves Ownpace — the account-level work is the issuer's and never
+ * ours (ADR-0042) — so this is the last thing we can honestly record about it.
+ * The owner asked for both halves: the search, and the opening of a result.
+ *
+ * IT VERIFIES THE PAIR BEFORE WRITING. Not to authorise anything — the log's
+ * INSERT is already gated on being an operator — but because a row naming a
+ * tenant and a subject that were never related to each other is a false entry
+ * in the one record standing in for the consent the owner dropped. A log that
+ * can be written with anything is a log nobody can rely on.
+ *
+ * Answers 204: there is nothing to return, and the screen must not wait on it.
+ */
+router.post(
+  '/people/:tenantId/:userId/opened',
+  authenticateSubject,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const operator = req.userId;
+      if (!operator) {
+        return void res
+          .status(401)
+          .json({ error: 'Unauthorized', message: 'No subject on this request' });
+      }
+      const tenantId = oneUuid(req.params.tenantId);
+      const subject = typeof req.params.userId === 'string' ? req.params.userId.trim() : '';
+      if (!tenantId || !subject) {
+        return void res.status(400).json({
+          error: 'Bad request',
+          message: 'tenantId must be one uuid, and userId must be a subject',
+        });
+      }
+
+      const known = await withSubject(pool(), operator, async (db) => {
+        const found = await db.execute(
+          sql`SELECT 1 FROM public.support_tenant_members
+               WHERE tenant_id = ${tenantId}::uuid AND user_id = ${subject}
+               LIMIT 1`,
+        );
+        if (found.rows.length === 0) return false;
+        await recordSupportRead(db, { operatorUserId: operator, tenantId, view: 'person' });
+        return true;
+      });
+
+      if (!known) {
+        // The same answer for "no such membership" and "not yours to see", for
+        // the reason every route here gives: telling them apart undoes what the
+        // views refuse to say.
+        return void res.status(404).json({ error: 'Not found', message: 'No such person' });
+      }
+      res.status(204).end();
+    } catch (error) {
+      serverFault(res, 'support_person_opened_failed', 'recording that an account was opened', error);
+    }
+  },
+);
+
+/**
  * The invoices an erasure kept — the one screen that is not about a customer.
  *
  * Every other route here hangs off a tenant. This one cannot: the tenants it

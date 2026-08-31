@@ -14,13 +14,17 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { editionFlag, authFlag } = vi.hoisted(() => ({
+const { editionFlag, authFlag, whoFlag } = vi.hoisted(() => ({
   editionFlag: { selfhost: false },
   // Signed-out is a state the route table behaves DIFFERENTLY in, and until
   // 2026-08-25 nothing here exercised it. That is how a catch-all route inside
   // ProtectedRoute shipped: every case in this file was signed in, so the
   // redirect it caused for everybody else was invisible.
   authFlag: { authenticated: true },
+  // Who is signing in, which `/` now routes on. Defaults are an ordinary member
+  // of one organisation — the case every test in this file assumed without
+  // saying so, and the case the index redirect has always been right for.
+  whoFlag: { operator: false, tenantCount: 1 },
 }));
 
 // VITE_EDITION is baked by vite `define`; component tests mock the module
@@ -35,10 +39,18 @@ vi.mock('./services/edition', () => ({
 }));
 
 vi.mock('./stores/auth-store', () => {
-  const state = { isAuthenticated: true, user: null, logout: () => {} };
+  const state = {
+    isAuthenticated: true,
+    user: null,
+    logout: () => {},
+    operator: false,
+    tenantCount: 1,
+  };
   return {
     useAuthStore: (selector?: (s: typeof state) => unknown) => {
       state.isAuthenticated = authFlag.authenticated;
+      state.operator = whoFlag.operator;
+      state.tenantCount = whoFlag.tenantCount;
       return selector ? selector(state) : state;
     },
   };
@@ -46,6 +58,7 @@ vi.mock('./stores/auth-store', () => {
 
 // Markers, not screens: mounting is the thing under test.
 vi.mock('./pages/Dashboard', () => ({ default: () => <div>screen:dashboard</div> }));
+vi.mock('./pages/AccessRequests', () => ({ default: () => <div>screen:access-requests</div> }));
 vi.mock('./pages/Mappings', () => ({ default: () => <div>screen:mappings</div> }));
 vi.mock('./pages/MappingDetail', () => ({ default: () => <div>screen:mapping-detail</div> }));
 vi.mock('./pages/CreateMapping', () => ({ default: () => <div>screen:create-mapping</div> }));
@@ -78,6 +91,8 @@ const renderAt = (path: string) =>
 beforeEach(() => {
   editionFlag.selfhost = false;
   authFlag.authenticated = true;
+  whoFlag.operator = false;
+  whoFlag.tenantCount = 1;
 });
 
 describe('appliance builds redirect managed-only URLs to /confirm', () => {
@@ -205,5 +220,46 @@ describe('a wrong address is a 404, signed in or not', () => {
     renderAt('/dashboard');
     expect(screen.getByText('screen:login')).toBeInTheDocument();
     expect(screen.queryByText('screen:dashboard')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * WHERE `/` GOES, and the door the first fix missed.
+ *
+ * The index redirect sent every signed-in managed session to `/dashboard`.
+ * `AuthCallback` and `Login` were taught to land a platform operator on the
+ * queue instead — they belong to no organisation by design (0093 T6/T7), so
+ * the dashboard's first request is refused — and this route was not. Those two
+ * only run at the MOMENT OF SIGNING IN; this one runs every time somebody opens
+ * the bare host, returns to a live session, or clicks the product's own logo.
+ * Reported the day the first fix shipped: "I need to manually go to the access
+ * requests url."
+ */
+describe('where the bare host lands you', () => {
+  it('takes an operator with no organisation to the queue', async () => {
+    whoFlag.operator = true;
+    whoFlag.tenantCount = 0;
+    renderAt('/');
+    expect(
+      await screen.findByText('screen:access-requests'),
+      'the bare host still sends an operator to a dashboard whose first request\n' +
+        'is refused. They belong to no organisation by design, so this is not a\n' +
+        'screen they can be given — and since the membership 403 no longer ends\n' +
+        'their session, they now SIT on the broken one rather than bouncing.',
+    ).toBeInTheDocument();
+    expect(screen.queryByText('screen:dashboard')).not.toBeInTheDocument();
+  });
+
+  it('still takes an ordinary member to the dashboard', async () => {
+    // The other half: the axis is "no organisation", never "is an operator".
+    renderAt('/');
+    expect(await screen.findByText('screen:dashboard')).toBeInTheDocument();
+  });
+
+  it('takes an operator who DOES belong somewhere to the dashboard', async () => {
+    whoFlag.operator = true;
+    whoFlag.tenantCount = 1;
+    renderAt('/');
+    expect(await screen.findByText('screen:dashboard')).toBeInTheDocument();
   });
 });

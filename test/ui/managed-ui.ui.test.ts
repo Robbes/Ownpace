@@ -191,7 +191,14 @@ const FIXTURES: Record<string, unknown> = {
 };
 
 /** Per-test failures: `METHOD /path` -> status. Cleared between tests. */
-const failures = new Map<string, number>();
+/**
+ * Forced refusals. A bare number is a status with a generic body; the object
+ * form carries the BODY too, because one refusal in this product is keyed on
+ * its sentence rather than its status — `api.ts` treats
+ * `403 {message: 'No active membership for this tenant'}` as a dead session and
+ * signs the caller out, and a generic 403 proves nothing about it.
+ */
+const failures = new Map<string, number | { status: number; body: unknown }>();
 /** Every `/api` path the browser asked for, and the ones no fixture knew. */
 const apiHits: string[] = [];
 const apiMisses: string[] = [];
@@ -219,8 +226,13 @@ function startServer(): Promise<{ server: Server; base: string }> {
       apiHits.push(url.pathname);
       const forced = failures.get(key);
       if (forced) {
-        res.writeHead(forced, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Internal server error', message: 'the database is unreachable' }));
+        const status = typeof forced === 'number' ? forced : forced.status;
+        const body =
+          typeof forced === 'number'
+            ? { error: 'Internal server error', message: 'the database is unreachable' }
+            : forced.body;
+        res.writeHead(status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(body));
         return;
       }
       const body = FIXTURES[key];
@@ -487,5 +499,117 @@ describe('bilingual rendering', () => {
 
     expect(nlText).toContain('Aanmelden bij Ownpace'); // login.title, nl
     expect(nlText).not.toBe(enText);
+  });
+});
+
+/**
+ * THE PERSON THE GATE HAD NEVER SIGNED IN AS.
+ *
+ * A platform operator belongs to no organisation by design (0093 T6/T7). Every
+ * fixture in this file says `operator: false` with one membership, so the suite
+ * has only ever walked an ordinary owner's product — and the operator's shipped
+ * with six nav entries that each answered
+ *
+ *     403 { message: 'No active membership for this tenant' }
+ *
+ * which `api.ts` reads as a dead session and signs them out. Reported from the
+ * OTA instance on 2026-08-31: "I see the full menu, and if I click on any menu
+ * items, I switch back to login." Unit tests cover both halves now; this is the
+ * one that walks it in a real browser, which is where the report came from.
+ */
+describe('signed in as a platform operator', () => {
+  const ME = FIXTURES['GET /api/me'];
+
+  /** Swap the whole deployment's answer for an operator's, and give it back. */
+  function asOperator(): () => void {
+    FIXTURES['GET /api/me'] = {
+      userId: 'op-smoke',
+      email: 'operator@demo.openmigrate.test',
+      role: 'member',
+      // The two facts that make this person an operator and not a customer.
+      tenants: [],
+      operator: true,
+      invitations: [],
+    };
+    // Every screen they CAN open needs an answer, or `apiMisses` catches it in
+    // the sweep below and the failure reads as a missing fixture rather than as
+    // what it is.
+    FIXTURES['GET /api/access-requests'] = { requests: [] };
+    FIXTURES['GET /api/support/tenants'] = { tenants: [] };
+    return () => {
+      FIXTURES['GET /api/me'] = ME;
+    };
+  }
+
+  /** The nav's links, by their visible text. */
+  async function navLinks(l: Loaded): Promise<string[]> {
+    return l.page.$$eval('nav a', (as) => as.map((a) => (a.textContent ?? '').trim()));
+  }
+
+  it('is offered only the screens it can open', async () => {
+    const restore = asOperator();
+    try {
+      const l = await open('/access-requests');
+      const links = await navLinks(l);
+
+      // Theirs: the queue they came for, the support surface, and the guides —
+      // which call no API at all.
+      for (const kept of ['Access requests', 'Support', 'Setup guides']) {
+        expect(links, `the nav no longer offers ${kept}`).toContain(kept);
+      }
+      // And not one of the six that would refuse them. Exact strings: "Setup
+      // checklist" and "Setup guides" differ by one word, and a substring
+      // match cannot tell them apart.
+      for (const hidden of [
+        'Dashboard',
+        'Migrations',
+        'Connections',
+        'Setup checklist',
+        'Attention',
+        'Tenants',
+      ]) {
+        expect(
+          links,
+          `the nav offers ${hidden} to somebody with no organisation. Its first\n` +
+            'request answers 403 "No active membership for this tenant", which\n' +
+            'api.ts reads as a dead session — so the entry is not merely a dead\n' +
+            'end, it signs the operator out.',
+        ).not.toContain(hidden);
+      }
+      expectClean(l, 'the access queue as an operator');
+      await l.page.close();
+    } finally {
+      restore();
+    }
+  });
+
+  it('keeps its session when a typed URL reaches a screen that is not its own', async () => {
+    // The nav no longer offers those screens, so reaching one now takes a typed
+    // URL — and the session must survive it. This is the half that cannot be
+    // proved from the nav: the refusal has to actually happen, and the browser
+    // has to still be signed in afterwards.
+    const restore = asOperator();
+    failures.set('GET /api/migrations', {
+      status: 403,
+      body: { error: 'Forbidden', message: 'No active membership for this tenant' },
+    });
+    try {
+      const l = await open('/mappings');
+      // Give the interceptor every chance to redirect before asserting it did
+      // not: `onUnauthorized` sets `location.href` synchronously on the
+      // response, so if it fires at all it fires within this settle.
+      await l.page.waitForTimeout(1000);
+      expect(
+        new URL(l.page.url()).pathname,
+        'a platform operator was signed out by opening a tenant-scoped screen.\n\n' +
+          'They belong to no organisation BY DESIGN, so that 403 is what every\n' +
+          'such route answers them — it means "that screen is not yours", never\n' +
+          '"your session died".',
+      ).not.toContain('/login');
+      await l.page.close();
+    } finally {
+      failures.delete('GET /api/migrations');
+      restore();
+    }
   });
 });

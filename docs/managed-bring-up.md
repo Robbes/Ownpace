@@ -723,8 +723,20 @@ Two different jobs, in two different places:
 | Change who may act on an organisation, or their role | **Team**, and it belongs to that organisation's owner | Membership *is* authorization (0020 T1). An operator does not hold it, and the roles are theirs to set |
 | Reset a password, clear a lost second factor, disable an account | **The identity provider's console** | Ownpace stores no passwords and never calls the provider's user-management API — ADR-0042's second and third operative rules, and what keeps the issuer swappable |
 
-The Support screen's **People** list links each address straight to that account
-at the provider, so the third row is one click rather than a search. The link is
+**Finding somebody.** Support opens with a search box: type part of an email
+address and you get matching people across every organisation, with which one
+they are in, their role, and a link straight to that account at the provider.
+That is the question a support day actually starts from — the organisation list
+answers "show me the customers", which is not where anybody begins.
+
+Both halves are recorded against your name (migration 0019): the search, with
+what you looked for and how many people it found, and separately the moment you
+follow a result through to the provider. A search reads every organisation, so
+it leaves the widest trace on this surface, and the screen says so next to the
+box rather than in a policy. Nobody but you can read those rows.
+
+Per organisation, the **People** list on its own screen does the same for its
+members, so the third row above is one click rather than a hunt. The link is
 `VITE_IDP_CONSOLE_USER_URL`, which `setup-zitadel.sh` writes; leave it empty and
 the addresses render as plain text rather than as links that go nowhere.
 

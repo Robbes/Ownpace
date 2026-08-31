@@ -112,6 +112,12 @@ async function rows(sql: string, params: unknown[] = []): Promise<Array<Record<s
 const logRows = () =>
   rows('SELECT operator_user_id, tenant_id, view_name FROM support_read ORDER BY at, view_name');
 
+/** The same log, with the two facts a SEARCH records and nothing else does (0019). */
+const searchLogRows = () =>
+  rows(
+    'SELECT view_name, tenant_id, query, result_count FROM support_read ORDER BY at, view_name',
+  );
+
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
@@ -126,6 +132,13 @@ beforeAll(async () => {
       JSON.stringify({ notes: TENANT_NOTE }),
     ]);
     await q('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT_B, 'Beta BV']);
+    await q(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status, joined_at)
+       VALUES ($1,'sub-jan','jan@alpha.test','owner','active',now()),
+              ($2,'sub-ana','ana@beta.test','admin','active',now()),
+              ($1,'sub-gone','gone@alpha.test','member','removed',now())`,
+      [TENANT_A, TENANT_B],
+    );
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
        VALUES ($1,$2,'source','imap','Alpha mail','{"host":"mail.internal.example"}'::jsonb,'connected',$3)`,
@@ -708,5 +721,122 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
     expect(body).not.toContain('someone@example.invalid');
     expect(body).not.toContain(DECISION_PROSE);
     expect(body).toContain('"usage"');
+  });
+});
+
+/**
+ * FINDING A PERSON, and the two reads it makes (owner request 2026-08-31).
+ *
+ * The widest read this surface performs: not one customer, all of them. The
+ * owner asked for both halves recorded — the search, and the opening of a
+ * result — so what is pinned here is that the log can describe them, which
+ * before migration 0019 it could not.
+ */
+describe('finding a person, and recording that it happened', () => {
+  /**
+   * THE PEOPLE ARE PUT BACK BEFORE EACH CASE, and that is not belt and braces.
+   *
+   * "a read of nothing is not recorded as a read of somebody" empties the
+   * platform to prove an empty answer is still logged — `DELETE FROM tenant`,
+   * which CASCADES to `tenant_member` — and restores the tenants it removed.
+   * Not the members: nothing needed them when that test was written.
+   *
+   * So these cases cannot assume `beforeAll`'s seed survived, and the failure
+   * if they do is the worst kind: they pass alone and fail in the file, which
+   * is exactly how this was found.
+   */
+  beforeEach(async () => {
+    await rows('DELETE FROM tenant_member');
+    await rows(
+      `INSERT INTO tenant_member (tenant_id, user_id, email, role, status, joined_at)
+       VALUES ($1,'sub-jan','jan@alpha.test','owner','active',now()),
+              ($2,'sub-ana','ana@beta.test','admin','active',now()),
+              ($1,'sub-gone','gone@alpha.test','member','removed',now())`,
+      [TENANT_A, TENANT_B],
+    );
+    // The log is cleared by the outer beforeEach, but the insert above runs
+    // after it — nothing here writes to support_read, so no re-clear is needed.
+  });
+
+  it('searches across organisations and names the one each person is in', async () => {
+    // The organisation is half the answer: "who are they" is not separable
+    // from "and what are they on", and a result carrying only a uuid sends the
+    // operator back to guessing.
+    caller = OPERATOR;
+    const res = await get('/api/support/people?q=jan');
+    expect(res.status).toBe(200);
+    expect(res.body.people).toHaveLength(1);
+    expect(res.body.people[0].email).toBe('jan@alpha.test');
+    expect(res.body.people[0].tenant_name).toBe('Alpha BV');
+    // The subject, because it is the only thing that can address the right
+    // account at the provider.
+    expect(res.body.people[0].user_id).toBe('sub-jan');
+  });
+
+  it('records WHAT was searched for and HOW MANY came back', async () => {
+    // "An operator ran a search" is a row nobody can audit: it cannot tell
+    // somebody answering one email from somebody enumerating the customer base.
+    caller = OPERATOR;
+    await get('/api/support/people?q=alpha.test');
+    expect(await searchLogRows()).toEqual([
+      { view_name: 'people', tenant_id: null, query: 'alpha.test', result_count: 2 },
+    ]);
+  });
+
+  it('finds somebody who was removed, and says so', async () => {
+    // "This person used to be the owner" is most of a support conversation
+    // about a lost account.
+    caller = OPERATOR;
+    const res = await get('/api/support/people?q=gone@');
+    expect(res.status).toBe(200);
+    expect(res.body.people[0].status).toBe('removed');
+  });
+
+  it('refuses fewer than two characters, and records nothing', async () => {
+    caller = OPERATOR;
+    const res = await get('/api/support/people?q=j');
+    expect(res.status).toBe(400);
+    expect(await logRows()).toEqual([]);
+  });
+
+  it('treats a wildcard as a character, not as a wider search', async () => {
+    // `%%` would otherwise match everybody — a large surprise on a screen where
+    // the difference is "one person" versus "every customer's people".
+    caller = OPERATOR;
+    const res = await get('/api/support/people?q=%25%25');
+    expect(res.status).toBe(200);
+    expect(res.body.people).toEqual([]);
+  });
+
+  it('shows a non-operator nobody, and writes nothing for them', async () => {
+    caller = NOT_OPERATOR;
+    const res = await get('/api/support/people?q=jan');
+    expect(res.status).toBe(200);
+    expect(res.body.people).toEqual([]);
+    expect(await logRows()).toEqual([]);
+  });
+
+  it('records opening an account against the organisation that person is in', async () => {
+    caller = OPERATOR;
+    const res = await request(app)
+      .post(`/api/support/people/${TENANT_A}/sub-jan/opened`)
+      .set('Authorization', 'Bearer stub');
+    expect(res.status).toBe(204);
+    expect(await searchLogRows()).toEqual([
+      { view_name: 'person', tenant_id: TENANT_A, query: null, result_count: null },
+    ]);
+  });
+
+  it('refuses a pair that was never related, rather than logging a lie', async () => {
+    // Not about authorisation — the log's INSERT is already gated on being an
+    // operator. A row naming a tenant and a subject who were never connected is
+    // a false entry in the one record standing in for the consent that was
+    // dropped.
+    caller = OPERATOR;
+    const res = await request(app)
+      .post(`/api/support/people/${TENANT_B}/sub-jan/opened`)
+      .set('Authorization', 'Bearer stub');
+    expect(res.status).toBe(404);
+    expect(await logRows()).toEqual([]);
   });
 });

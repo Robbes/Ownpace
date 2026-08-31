@@ -56,10 +56,14 @@ import {
   type SupportTenant,
   type SupportTenantUsage,
   type SupportTenantMember,
+  type SupportPerson,
+  searchSupportPeople,
+  recordPersonOpened,
   type SupportMigrationDomain,
   type SupportRetainedInvoice,
 } from '../services/support.ts';
 import { idpConsoleUserUrl } from '../services/idp-console.ts';
+import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
 
@@ -125,6 +129,137 @@ const Section: React.FC<{ title: string; empty: string; rows: number; children: 
 
 /* ------------------------------------------------------------------ level 1 */
 
+/**
+ * FINDING A PERSON, which is the question an operator actually starts from.
+ *
+ * The organisation list answers "show me the customers"; nobody's support day
+ * begins there. It begins with somebody making contact, and the first thing you
+ * need is who they are and what they are on — which the per-organisation list
+ * can only answer once you have guessed the organisation.
+ *
+ * ## It searches when asked, never as you type
+ *
+ * Every search is a read of every customer's people and writes a row into
+ * `support_read` naming what was looked for. Searching per keystroke would put
+ * six rows in that log for one question and make the record unreadable — the
+ * opposite of what it is for. So: submit, one read, one row.
+ *
+ * ## An empty box is not a question
+ *
+ * The server refuses under two characters, and the button is disabled there
+ * too. Not the same guard twice for its own sake: the disabled button says why
+ * before you press it, and the server's refusal is the one that holds when
+ * somebody calls the route directly.
+ */
+const FindAPerson: React.FC = () => {
+  const t = useT();
+  const [term, setTerm] = React.useState('');
+  const [asked, setAsked] = React.useState<string | null>(null);
+
+  const query = useQuery({
+    queryKey: ['support', 'people', asked],
+    queryFn: () => searchSupportPeople(asked as string),
+    enabled: asked !== null,
+    retry: false,
+    ...ONCE,
+  });
+
+  const tooShort = term.trim().length < 2;
+
+  return (
+    <section className="mb-6">
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        {t('support.findPerson')}
+      </h2>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!tooShort) setAsked(term.trim());
+        }}
+      >
+        <label className="sr-only" htmlFor="support-person-search">
+          {t('support.findPerson')}
+        </label>
+        <input
+          id="support-person-search"
+          type="search"
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          placeholder={t('support.findPersonHint')}
+          className="w-full max-w-sm rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={tooShort}
+          className="rounded-md bg-blue-700 px-3 py-2 text-sm text-white disabled:bg-gray-300"
+        >
+          {t('support.find')}
+        </button>
+      </form>
+
+      {/* Said once, next to the box, because this is the widest read here. */}
+      <p className="mt-2 text-xs text-gray-500">{t('support.findPersonRecorded')}</p>
+
+      {asked !== null && query.isLoading && (
+        <p className="mt-3 text-sm text-gray-500">{t('common.loading')}</p>
+      )}
+      {asked !== null && query.isError && (
+        <p className="mt-3 text-sm text-red-700">{serverMessage(query.error)}</p>
+      )}
+      {asked !== null && query.data && query.data.people.length === 0 && (
+        <p className="mt-3 text-sm text-gray-500">{t('support.noPeopleFound')}</p>
+      )}
+      {asked !== null && query.data && query.data.people.length > 0 && (
+        <div className="mt-3 overflow-x-auto rounded-md border border-gray-200 bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-3 py-2">{t('support.col.email')}</th>
+                <th className="px-3 py-2">{t('support.col.organisation')}</th>
+                <th className="px-3 py-2">{t('support.col.role')}</th>
+                <th className="px-3 py-2">{t('support.col.status')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {query.data.people.map((person: SupportPerson) => (
+                <tr key={`${person.tenant_id}:${person.user_id}`}>
+                  <td className="px-3 py-2">
+                    <PersonLink
+                      tenantId={person.tenant_id}
+                      userId={person.user_id}
+                      email={person.email}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    {/* The organisation is the other half of the answer, and it
+                        is a link because "and what are they on" is the next
+                        question every single time. */}
+                    <Link
+                      to={`/support/tenants/${person.tenant_id}`}
+                      className="text-blue-700 hover:underline"
+                    >
+                      {person.tenant_name}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2 text-gray-600">{person.role}</td>
+                  <td className="px-3 py-2 text-gray-600">{person.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {/* A cap, not a page: a support answer is one person, and hitting the
+          ceiling means the question was wrong rather than that there is more
+          to fetch. */}
+      {query.data && query.data.people.length >= query.data.limit && (
+        <p className="mt-2 text-xs text-gray-500">{t('support.findPersonCapped')}</p>
+      )}
+    </section>
+  );
+};
+
 export const SupportTenants: React.FC = () => {
   const t = useT();
   const { dateTime } = useFormatters();
@@ -153,6 +288,8 @@ export const SupportTenants: React.FC = () => {
       {!query.isLoading && !query.isError && tenants.length === 0 && (
         <p className="text-sm text-gray-500">{t('support.noOrganisations')}</p>
       )}
+
+      <FindAPerson />
 
       {tenants.length > 0 && (
         <div className="overflow-x-auto rounded-md border border-gray-200 bg-white">
@@ -316,7 +453,46 @@ const TenantUsage: React.FC<{ usage: SupportTenantUsage }> = ({ usage }) => {
  * administrative console, and the page it lands on has no business being
  * handed a window handle or the address it came from.
  */
-const People: React.FC<{ members: ReadonlyArray<SupportTenantMember> }> = ({ members }) => {
+/**
+ * An address that is a way through to the account, and says so when it is not.
+ *
+ * ONE COMPONENT, because there are two places a person is shown — an
+ * organisation's own list and a search across all of them — and the recording
+ * must not depend on which one somebody used. The first version of this had the
+ * anchor written out twice; the second would have had the log written in one of
+ * them.
+ *
+ * `target="_blank"` is what makes the click safe to record: the page is not
+ * navigating, so an ordinary request finishes normally and nothing has to
+ * survive an unload. `rel="noreferrer"` because the page it lands on has no
+ * business being handed a window handle or the address it came from.
+ */
+const PersonLink: React.FC<{ tenantId: string; userId: string; email: string }> = ({
+  tenantId,
+  userId,
+  email,
+}) => {
+  const t = useT();
+  const href = idpConsoleUserUrl(userId);
+  if (!href) return <>{email}</>;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-blue-700 hover:underline"
+      title={t('support.openAtProvider')}
+      onClick={() => recordPersonOpened(tenantId, userId)}
+    >
+      {email}
+    </a>
+  );
+};
+
+const People: React.FC<{ tenantId: string; members: ReadonlyArray<SupportTenantMember> }> = ({
+  tenantId,
+  members,
+}) => {
   const t = useT();
   const { dateTime } = useFormatters();
   return (
@@ -332,23 +508,10 @@ const People: React.FC<{ members: ReadonlyArray<SupportTenantMember> }> = ({ mem
         </thead>
         <tbody className="divide-y divide-gray-100">
           {members.map((m) => {
-            const href = idpConsoleUserUrl(m.user_id);
             return (
               <tr key={m.user_id}>
                 <td className="px-3 py-2">
-                  {href ? (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-700 hover:underline"
-                      title={t('support.openAtProvider')}
-                    >
-                      {m.email}
-                    </a>
-                  ) : (
-                    m.email
-                  )}
+                  <PersonLink tenantId={tenantId} userId={m.user_id} email={m.email} />
                 </td>
                 <td className="px-3 py-2 text-gray-600">{m.role}</td>
                 <td className="px-3 py-2 text-gray-600">{m.status}</td>
@@ -443,7 +606,7 @@ export const SupportTenantDetail: React.FC = () => {
         </table>
       </Section>
 
-      <People members={members} />
+      <People tenantId={tenant.tenant_id} members={members} />
 
       <Section
         title={t('support.migrations')}

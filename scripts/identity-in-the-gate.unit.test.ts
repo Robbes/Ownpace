@@ -649,7 +649,11 @@ describe('the people a dead run leaves behind get taken back', () => {
     expect(guardSrc).not.toBe('');
     const guard = new RegExp(guardSrc);
     const created = [...new Set([...smoke.matchAll(/smoke-[a-z]+-\$\$@smoke\.local/g)].map((m) => m[0]))];
-    expect(created.length).toBe(3);
+    // FOUR since 2026-08-31: the operator joined, and this count going 3 -> 4
+    // is exactly the notice this guard exists to give. They are signed in
+    // beside the other three rather than beside the assertion that uses them,
+    // so the sweep and the capture below cover them by construction.
+    expect(created.length).toBe(4);
     for (const email of created) {
       expect(email.replace('$$', '12345'), `${email} is not matched by the sweep guard`).toMatch(guard);
     }
@@ -709,7 +713,7 @@ describe('the take-back list is filled where it can survive: the parent shell', 
     // list — extracted from the reads themselves, so a fourth sign-in added
     // without extending the capture fails here.
     const subjects = [...smoke.matchAll(/read -r ([A-Z_]+) [A-Z_]+ +<<<"\$\(sign_in_as/g)].map((m) => m[1]);
-    expect(subjects.length).toBe(3);
+    expect(subjects.length).toBe(4);
     for (const v of subjects) {
       expect(capture?.[1], `${v} is read but never captured into IDP_USERS`).toContain(`"\${${v}:-}"`);
     }

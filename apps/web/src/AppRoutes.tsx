@@ -96,6 +96,35 @@ const ManagedOnly: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 const SelfhostOnly: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   isSelfHost() ? <>{children}</> : <Navigate to="/dashboard" replace />;
 
+/**
+ * WHERE `/` GOES, and the third door onto the same trap.
+ *
+ * This sent every signed-in managed session to `/dashboard`, which is
+ * tenant-scoped. A platform operator belongs to no organisation by design
+ * (0093 T6/T7), so for them that is a screen whose first request is refused —
+ * and since the membership 403 no longer ends their session, they now sit on a
+ * broken dashboard instead of being bounced to a login page. Reported the day
+ * the fix shipped: "I need to manually go to the access requests url."
+ *
+ * `AuthCallback` and `Login` already choose this landing, and both were fixed.
+ * This one was missed, and it is the door somebody uses EVERY DAY — the other
+ * two only run at the moment of signing in. A returning session, a bookmark on
+ * the bare host, a click on the product's own logo: all of them land here.
+ *
+ * The same axis the nav uses, and deliberately the same expression: an
+ * operator with no organisation goes to the queue they came for; everybody
+ * else goes where they always went. Nought is the only value that means
+ * "nowhere yet" — several organisations with none chosen is not this
+ * function's problem to solve, and sending those people to the dashboard is
+ * what has always happened.
+ */
+const Landing: React.FC = () => {
+  const { operator, tenantCount } = useAuthStore();
+  if (isSelfHost()) return <Navigate to="/confirm" replace />;
+  if (tenantCount === 0 && operator) return <Navigate to="/access-requests" replace />;
+  return <Navigate to="/dashboard" replace />;
+};
+
 const AppRoutes: React.FC = () => {
   return (
     <Routes>
@@ -166,10 +195,7 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         }
       >
-        <Route
-          index
-          element={<Navigate to={isSelfHost() ? '/confirm' : '/dashboard'} replace />}
-        />
+        <Route index element={<Landing />} />
         {/*
           Review & confirm. The appliance's landing screen (ADR-0026): it
           replaced the hand-rolled HTML page that used to be its only UI, so
