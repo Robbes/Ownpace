@@ -2643,7 +2643,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       local email="$1" notify="$2" id code body notified state
       curl -sS -o /dev/null -X POST "${API}/api/access-requests" -H 'Content-Type: application/json' \
         -d "$(jq -nc --arg e "$email" '{email:$e, locale:"en"}')" || true
-      id="$(q "SELECT id FROM access_request WHERE email = '${email}' AND state = 'open'" 2>/dev/null | head -1)"
+      id="$(q "SELECT id FROM access_request WHERE email = '${email}' AND state = 'open'" 2>/dev/null | awk 'NR==1')"
       [ -n "$id" ] || { printf '%s %s %s\n' "no-request" "-" "-"; return 0; }
       body="$(http POST "$API/api/access-requests/${id}/decline" "$OP_TOKEN" \
         "$(jq -nc --argjson n "$notify" '{note:"smoke: not a real applicant", notify:$n}')")"
@@ -2829,13 +2829,13 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       #
       # One more knock on a public, rate-limited door. The cap is 60 an hour and
       # — with `TRUST_PROXY` unset — service-wide rather than per caller, so it
-      # is worth counting: this whole gate makes seven, and the API container is
-      # recreated at every bring-up, which resets the window anyway. If a later
-      # block pushes that total near the cap, the failure will look like a
-      # 429 on somebody else's line, not this one.
+      # is worth keeping in mind: this gate's knocks are still in single figures
+      # and the API container is recreated at every bring-up, which resets the
+      # window anyway. If a later block pushes the total near the cap, the
+      # failure will appear as a 429 on somebody else's line, not on this one.
       curl -sS -o /dev/null -X POST "${API}/api/access-requests" -H 'Content-Type: application/json' \
         -d "$(jq -nc --arg e "$BOUNDARY_EMAIL" '{email:$e, locale:"en"}')" || true
-      b_id="$(q "SELECT id FROM access_request WHERE email = '${BOUNDARY_EMAIL}' AND state = 'open'" 2>/dev/null | head -1)"
+      b_id="$(q "SELECT id FROM access_request WHERE email = '${BOUNDARY_EMAIL}' AND state = 'open'" 2>/dev/null | awk 'NR==1')"
       queue_len() { # queue_len <token> -> how many requests that token is shown
         local r
         r="$(http GET "$API/api/access-requests" "$1")"
@@ -2874,6 +2874,151 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     b_left="$(q "SELECT count(*) FROM access_request WHERE email LIKE 'smoke-boundary-%@smoke.local'" 2>/dev/null || echo '?')"
     [ "$b_left" = "0" ] ||
       { echo "the boundary block's request was NOT taken back: ${b_left} left"; fail=1; }
+
+    # ---------- THE DECISION THAT WAS ALREADY MADE ----------
+    #
+    # Two operators looking at the same queue, or one who clicked twice on a
+    # slow connection. Both routes check `state != 'open'` INSIDE the
+    # transaction that would otherwise write — the only place that check means
+    # anything — and both answer 409. What a gate has to prove is not the
+    # status code but what did NOT happen behind it.
+    #
+    # Granting twice makes a second organisation with one person owning both,
+    # and every later sign-in has to ask them which they meant; the route's own
+    # 409 names it — "either create a second organisation or lose the first".
+    # Declining twice mails somebody a refusal they have already read. Granting
+    # something that was declined turns a no into an organisation.
+    #
+    # And a decision is a RECORD, not only a state. `decided_by`, `decided_at`
+    # and `decision_note` say who said it and why, and a second press that
+    # quietly re-stamped them would write the first operator out of the queue's
+    # own history while the state stayed exactly right — the kind of defect
+    # that surfaces months later, in an argument about who decided what.
+    #
+    # `mail_to_count` comes from the decline block above: the same question,
+    # asked for the same reason. Named here rather than assumed, because a
+    # missing function in bash is an empty answer, and an empty answer is what
+    # this block would read as "no second mail was sent".
+    if ! declare -F mail_to_count >/dev/null 2>&1; then
+      echo "mail_to_count is gone — this block cannot tell a second mail from none"; fail=1
+    fi
+
+    DECIDED_NO="smoke-decided-no-${SMOKE_MAIL_RUN}@smoke.local"
+    DECIDED_YES="smoke-decided-yes-${SMOKE_MAIL_RUN}@smoke.local"
+    DECIDED_ORG="Smoke Decided ${SMOKE_MAIL_RUN}"
+    q "DELETE FROM access_request WHERE email LIKE 'smoke-decided-%@smoke.local'" >/dev/null 2>&1 || true
+    q "DELETE FROM tenant WHERE name LIKE 'Smoke Decided %'" >/dev/null 2>&1 || true
+
+    knock_open() { # knock_open <email> -> the id of the open request, or empty
+      curl -sS -o /dev/null -X POST "${API}/api/access-requests" -H 'Content-Type: application/json' \
+        -d "$(jq -nc --arg e "$1" '{email:$e, locale:"en"}')" || true
+      # `awk 'NR==1'` rather than `head -1`: head stops reading and psql takes the
+      # SIGPIPE. At most one row can come back anyway — migration 0020 forbids two
+      # OPEN requests per address — so this is about the pipe, not the count.
+      q "SELECT id FROM access_request WHERE email = '$1' AND state = 'open'" 2>/dev/null | awk 'NR==1'
+    }
+
+    # ---- SAID NO, THEN ASKED AGAIN ----
+    dn_id="$(knock_open "$DECIDED_NO")"
+    if [ -z "$dn_id" ]; then
+      echo "the gate could not file a request to decide twice: no open row for ${DECIDED_NO}"; fail=1
+    else
+      dn_first="$(http POST "$API/api/access-requests/${dn_id}/decline" "$OP_TOKEN" \
+        '{"note":"smoke: the first decision, and the one that stands","notify":true}')"
+      [ "${dn_first%% *}" = "200" ] ||
+        { echo "the first decline was refused: HTTP ${dn_first%% *}"; fail=1; }
+
+      # THE FIRST MAIL IS THE CONTROL for the second one's absence, exactly as
+      # in the decline block: "no further mail" on a dead pipe is not a finding.
+      dn_mail=0
+      for _ in $(seq 1 20); do
+        dn_mail="$(mail_to_count "$DECIDED_NO")"
+        [ "${dn_mail:-0}" != "0" ] && break
+        sleep 1
+      done
+      [ "${dn_mail:-0}" = "1" ] ||
+        { echo "the first refusal did not reach ${DECIDED_NO}: ${dn_mail} addressed to them"; fail=1; }
+
+      # WHO DECIDED IT, before anybody presses anything a second time.
+      dn_was="$(q "SELECT decided_by ||'|'|| coalesce(decision_note,'') ||'|'|| decided_at
+                     FROM access_request WHERE id = '${dn_id}'" 2>/dev/null || echo '?')"
+
+      dn_again="$(http POST "$API/api/access-requests/${dn_id}/decline" "$OP_TOKEN" \
+        '{"note":"smoke: a second note that must not land","notify":true}')"
+      dn_now="$(q "SELECT decided_by ||'|'|| coalesce(decision_note,'') ||'|'|| decided_at
+                     FROM access_request WHERE id = '${dn_id}'" 2>/dev/null || echo '??')"
+      dn_state="$(q "SELECT state FROM access_request WHERE id = '${dn_id}'" 2>/dev/null || echo '?')"
+      dn_mail2="$(mail_to_count "$DECIDED_NO")"
+      if [ "${dn_again%% *}" = "409" ] && [ "$dn_state" = "declined" ] &&
+         [ "$dn_now" = "$dn_was" ] && [ "$dn_mail2" = "$dn_mail" ]; then
+        echo "a refusal is answered once: HTTP 409, the first decision and its note stand, still ${dn_mail2} mail"
+      else
+        echo "deciding a declined request again: HTTP ${dn_again%% *}, state=${dn_state}, mail ${dn_mail} -> ${dn_mail2}"
+        echo "    record before: ${dn_was}"
+        echo "    record after:  ${dn_now}"
+        echo "    A second press that re-stamps decided_by writes the first operator out of the"
+        echo "    queue's history, and a second mail tells somebody twice that they were refused."
+        fail=1
+      fi
+
+      # AND THE OTHER BUTTON, on the same decided row. This is the one whose
+      # wrong answer creates an organisation out of a refusal.
+      dn_tenants_before="$(q "SELECT count(*) FROM tenant WHERE name LIKE 'Smoke Decided %'" 2>/dev/null || echo '?')"
+      dn_grant="$(http POST "$API/api/access-requests/${dn_id}/grant" "$OP_TOKEN" \
+        "$(jq -nc --arg n "$DECIDED_ORG" '{organisationName:$n}')")"
+      dn_tenants_after="$(q "SELECT count(*) FROM tenant WHERE name LIKE 'Smoke Decided %'" 2>/dev/null || echo '?')"
+      if [ "${dn_grant%% *}" = "409" ] && [ "$dn_tenants_after" = "$dn_tenants_before" ]; then
+        echo "and a no cannot be turned into an organisation: HTTP 409, organisations ${dn_tenants_after}"
+      else
+        echo "granting a DECLINED request: HTTP ${dn_grant%% *}, organisations ${dn_tenants_before} -> ${dn_tenants_after}"
+        fail=1
+      fi
+    fi
+
+    # ---- SAID YES, THEN ASKED AGAIN ----
+    dy_id="$(knock_open "$DECIDED_YES")"
+    if [ -z "$dy_id" ]; then
+      echo "the gate could not file a request to grant and then re-decide: no open row for ${DECIDED_YES}"; fail=1
+    else
+      dy_grant="$(http POST "$API/api/access-requests/${dy_id}/grant" "$OP_TOKEN" \
+        "$(jq -nc --arg n "$DECIDED_ORG" '{organisationName:$n}')")"
+      dy_tenant="$(jq -r '.tenantId // empty' <<<"${dy_grant#* }" 2>/dev/null || true)"
+      [ "${dy_grant%% *}" = "201" ] && [ -n "$dy_tenant" ] ||
+        { echo "the gate's second grant failed: HTTP ${dy_grant%% *} — ${dy_grant#* }"; fail=1; }
+
+      dy_mail=0
+      for _ in $(seq 1 20); do
+        dy_mail="$(mail_to_count "$DECIDED_YES")"
+        [ "${dy_mail:-0}" != "0" ] && break
+        sleep 1
+      done
+
+      dy_again="$(http POST "$API/api/access-requests/${dy_id}/decline" "$OP_TOKEN" \
+        '{"note":"smoke: taking back an organisation by declining it","notify":true}')"
+      dy_state="$(q "SELECT state FROM access_request WHERE id = '${dy_id}'" 2>/dev/null || echo '?')"
+      dy_still="$(q "SELECT (SELECT count(*) FROM tenant WHERE id = '${dy_tenant:-00000000-0000-4000-8000-000000000000}')
+                    ||'/'|| (SELECT count(*) FROM tenant_member
+                               WHERE tenant_id = '${dy_tenant:-00000000-0000-4000-8000-000000000000}'
+                                 AND role = 'owner' AND status = 'invited')" 2>/dev/null || echo '?')"
+      dy_mail2="$(mail_to_count "$DECIDED_YES")"
+      if [ "${dy_again%% *}" = "409" ] && [ "$dy_state" = "granted" ] &&
+         [ "$dy_still" = "1/1" ] && [ "$dy_mail2" = "$dy_mail" ]; then
+        echo "a grant is not undone by pressing the other button: HTTP 409, organisation/invitation = ${dy_still}"
+      else
+        echo "declining a GRANTED request: HTTP ${dy_again%% *}, state=${dy_state}, organisation/invitation=${dy_still}, mail ${dy_mail} -> ${dy_mail2}"
+        echo "    A decline that landed here would leave an organisation nobody is the owner of,"
+        echo "    or tell somebody their access was refused after they had already been let in."
+        fail=1
+      fi
+    fi
+
+    # TAKE IT BACK. Requests first, then tenants — ON DELETE RESTRICT again.
+    q "DELETE FROM access_request WHERE email LIKE 'smoke-decided-%@smoke.local'" >/dev/null 2>&1 || true
+    q "DELETE FROM tenant WHERE name LIKE 'Smoke Decided %'" >/dev/null 2>&1 || true
+    dd_left="$(q "SELECT (SELECT count(*) FROM access_request WHERE email LIKE 'smoke-decided-%@smoke.local')
+              ||'/'|| (SELECT count(*) FROM tenant WHERE name LIKE 'Smoke Decided %')" 2>/dev/null || echo '?')"
+    [ "$dd_left" = "0/0" ] ||
+      { echo "the twice-decided requests were NOT taken back: requests/tenants left = ${dd_left}"; fail=1; }
 
     q "DELETE FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" >/dev/null
     left="$(q "SELECT count(*) FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" 2>/dev/null || echo '?')"
