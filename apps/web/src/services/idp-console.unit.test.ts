@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { idpConsoleUserUrl, SUBJECT_PLACEHOLDER } from './idp-console.ts';
+import { idpConsoleUserUrl, isPendingSubject, SUBJECT_PLACEHOLDER } from './idp-console.ts';
 
 /**
  * The environment is handed in, never stubbed. `import.meta.env` is not shared
@@ -117,5 +117,29 @@ describe('a subject the provider never minted', () => {
     expect(idpConsoleUserUrl('388706935093854213', TEMPLATE)).toBe(
       'https://id.example.test/ui/console/users/388706935093854213',
     );
+  });
+});
+
+describe('isPendingSubject — which KIND of "no link" this is', () => {
+  it('is true for what granting writes', () => {
+    expect(isPendingSubject('pending:6b1f0f1e-0000-4000-8000-000000000001')).toBe(true);
+  });
+
+  it('is false for a provider subject, however it is spelled', () => {
+    // The screen shows a reason only when there is one. Saying "has not signed
+    // in yet" about somebody who has would be worse than saying nothing.
+    expect(isPendingSubject('387865757964304395')).toBe(false);
+    expect(isPendingSubject('user-pending:1')).toBe(false);
+    expect(isPendingSubject('388706935093854213-pending')).toBe(false);
+  });
+
+  it('agrees with idpConsoleUserUrl, which is the point of exporting it', () => {
+    // Two readings of one rule that must not drift: the link refuses exactly
+    // the subjects the screen explains, or an operator gets a reason beside a
+    // working link, or no reason beside a missing one.
+    const TEMPLATE = { VITE_IDP_CONSOLE_USER_URL: 'https://id.example.test/users/{sub}' };
+    for (const sub of ['pending:abc', '  pending:abc  ', '387865757964304395', 'x-pending:1']) {
+      expect(idpConsoleUserUrl(sub, TEMPLATE) === null, sub).toBe(isPendingSubject(sub));
+    }
   });
 });

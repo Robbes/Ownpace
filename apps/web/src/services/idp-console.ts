@@ -66,6 +66,19 @@ export const SUBJECT_PLACEHOLDER = '{sub}';
 const PENDING_PREFIX = 'pending:';
 
 /**
+ * Is this an invitation nobody has answered yet, rather than an account?
+ *
+ * Exported so the screen can say WHICH kind of "no link" this is. Absent
+ * because a deployment never configured a console, and absent because the
+ * person has not signed in, look identical on the page and mean completely
+ * different things: one is a setting, the other is a fact about a person that
+ * will change by itself the moment they arrive.
+ */
+export function isPendingSubject(subject: string): boolean {
+  return subject.trim().startsWith(PENDING_PREFIX);
+}
+
+/**
  * The provider's page for one account, or null when this deployment cannot say.
  *
  * REFUSES RATHER THAN GUESSES, in all four ways it can be wrong:
@@ -98,7 +111,7 @@ export function idpConsoleUserUrl(
   // Ours, not the provider's — see the header. Both places that mint one are
   // in this repository, so the prefix is a fact about this system rather than
   // a guess about somebody else's identity provider.
-  if (sub.startsWith(PENDING_PREFIX)) return null;
+  if (isPendingSubject(sub)) return null;
 
   // `split`/`join` rather than `replaceAll`: the web build's lib target is
   // below es2021, and the convenient method typechecks nowhere here.

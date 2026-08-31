@@ -62,7 +62,7 @@ import {
   type SupportMigrationDomain,
   type SupportRetainedInvoice,
 } from '../services/support.ts';
-import { idpConsoleUserUrl } from '../services/idp-console.ts';
+import { idpConsoleUserUrl, isPendingSubject } from '../services/idp-console.ts';
 import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
@@ -474,7 +474,23 @@ const PersonLink: React.FC<{ tenantId: string; userId: string; email: string }> 
 }) => {
   const t = useT();
   const href = idpConsoleUserUrl(userId);
-  if (!href) return <>{email}</>;
+  if (!href) {
+    // Two reasons there is no link, and they are not the same answer. A
+    // deployment with no console configured is a SETTING; somebody who has not
+    // signed in yet is a fact about a person that changes by itself when they
+    // arrive. Both render as plain text — there is nowhere to send anybody —
+    // but only one of them is worth explaining, and an operator who reads
+    // "invited" beside an address they cannot click should not have to guess
+    // whether the product is broken.
+    if (isPendingSubject(userId)) {
+      return (
+        <span className="text-gray-500" title={t('support.notArrivedYet')}>
+          {email}
+        </span>
+      );
+    }
+    return <>{email}</>;
+  }
   return (
     <a
       href={href}
