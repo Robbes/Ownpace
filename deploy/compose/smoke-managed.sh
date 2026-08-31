@@ -2723,6 +2723,158 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     [ "$d_left" = "0" ] ||
       { echo "the gate's declined requests were NOT taken back: ${d_left} left"; fail=1; }
 
+    # ---------- THE SAME BUTTONS, PRESSED BY SOMEBODY WHO IS NOT AN OPERATOR ----------
+    #
+    # Every block above is a positive: an operator presses, the product answers.
+    # The property all of them rest on is the negative, and it is the one that
+    # has never been pressed on a real stack.
+    #
+    # The support views bypass row security ON PURPOSE — an operator has no
+    # tenant, so a view honouring the tenant policy would be useless to them —
+    # which means there is NO SECOND NET. One
+    # `EXISTS (SELECT 1 FROM platform_operator WHERE user_id = app.current_user)`
+    # inside each view is the entire boundary. A deployment where that predicate
+    # was dropped, mis-owned, or shadowed by a re-created view serves every
+    # customer's metadata to anybody who can sign in, and every check above it
+    # would stay green while it did.
+    #
+    # `$TOK_R` is the right instrument for it, and deliberately not a stranger:
+    # it belongs to a real signed-in person who IS A MEMBER of `$APPLY_TENANT`.
+    # A support route that quietly fell back to tenant scope would answer 200
+    # here — and a test that only ever asked about organisations the caller has
+    # nothing to do with would never find out.
+    BOUNDARY_EMAIL="smoke-boundary-${SMOKE_MAIL_RUN}@smoke.local"
+    q "DELETE FROM access_request WHERE email LIKE 'smoke-boundary-%@smoke.local'" >/dev/null 2>&1 || true
+
+    # THE INSTRUMENT IS WHAT THIS CLAIMS IT IS, asked of the database rather
+    # than assumed. Every line below reads as a pass if `$TOK_R` were an
+    # operator with no membership: 404 everywhere, zero rows, nothing written.
+    # The two counts are what make the refusals mean refusal.
+    b_isop="$(q "SELECT count(*) FROM platform_operator WHERE user_id = '${APPLY_SUBJECT}'" 2>/dev/null || echo '?')"
+    b_member="$(q "SELECT count(*) FROM tenant_member
+                    WHERE tenant_id = '${APPLY_TENANT}' AND user_id = '${APPLY_SUBJECT}'" 2>/dev/null || echo '?')"
+    if [ "$b_isop" = "0" ] && [ "$b_member" = "1" ]; then
+      echo "the boundary is asked by a member who is not an operator: operator=0, membership=1"
+    else
+      echo "the non-operator instrument is wrong: platform_operator=${b_isop}, tenant_member=${b_member} (expected 0/1)"
+      echo "    Everything below would pass for the wrong reason, so nothing below is asked."
+      fail=1
+    fi
+
+    if [ "$b_isop" = "0" ] && [ "$b_member" = "1" ]; then
+      b_ghost="$(q "SELECT gen_random_uuid()" 2>/dev/null || echo '')"
+      b_ghost_real="$(q "SELECT count(*) FROM tenant WHERE id = '${b_ghost}'" 2>/dev/null || echo '?')"
+      [ "$b_ghost_real" = "0" ] ||
+        { echo "the invented organisation id is not invented: ${b_ghost} matches ${b_ghost_real} row(s)"; fail=1; }
+
+      # THE CONTROL FIRST. A 404 proves nothing if the route answers 404 to
+      # everybody — a mis-typed path, a dropped view, a stack that never wired
+      # this surface at all would all read as a boundary holding.
+      b_op="$(http GET "$API/api/support/tenants/${APPLY_TENANT}" "$OP_TOKEN")"
+      b_op_code="${b_op%% *}"
+      if [ "$b_op_code" = "200" ]; then
+        echo "the organisation is readable through the operator's window: HTTP 200"
+      else
+        echo "the operator cannot read ${APPLY_TENANT} either: HTTP ${b_op_code} — the refusals below prove nothing"
+        fail=1
+      fi
+
+      # AND NOW THE SAME ID, THE SAME ROUTE, THE OTHER TOKEN.
+      b_real="$(http GET "$API/api/support/tenants/${APPLY_TENANT}" "$TOK_R")"
+      b_real_code="${b_real%% *}"; b_real_body="${b_real#* }"
+      b_fake="$(http GET "$API/api/support/tenants/${b_ghost}" "$TOK_R")"
+      b_fake_code="${b_fake%% *}"; b_fake_body="${b_fake#* }"
+      if [ "$b_real_code" = "404" ]; then
+        echo "a member of that organisation still cannot read it through the operator's window: HTTP 404"
+      else
+        echo "THE SUPPORT SURFACE ANSWERED A NON-OPERATOR: HTTP ${b_real_code} for ${APPLY_TENANT}"
+        echo "    ${b_real_body:0:200}"
+        echo "    This is every customer's metadata, served to anybody with an account."
+        fail=1
+      fi
+
+      # AND IT DOES NOT SAY WHICH KIND OF NOTHING. The route's own comment
+      # promises a non-operator cannot tell whether an id exists; that promise
+      # is only kept if the two answers are indistinguishable, which is a
+      # comparison and not a status code.
+      if [ "$b_real_code" = "$b_fake_code" ] && [ "$b_real_body" = "$b_fake_body" ]; then
+        echo "a real organisation and an invented one are answered identically: ${b_fake_code}, same body"
+      else
+        echo "the refusal leaks which ids exist: real -> ${b_real_code} ${b_real_body:0:80}"
+        echo "                                   invented -> ${b_fake_code} ${b_fake_body:0:80}"
+        fail=1
+      fi
+
+      # THE AUDIT LOG IS NOT WRITABLE BY THE PERSON IT IS ABOUT. `/opened` is
+      # the one operator route whose whole purpose is to write a row, and it is
+      # asked here about a membership that genuinely exists — so a route that
+      # recorded first and checked afterwards would leave a row claiming a
+      # non-operator read somebody's account.
+      b_reads_before="$(q "SELECT count(*) FROM support_read WHERE operator_user_id = '${APPLY_SUBJECT}'" 2>/dev/null || echo '?')"
+      b_open="$(http POST "$API/api/support/people/${APPLY_TENANT}/${APPLY_SUBJECT}/opened" "$TOK_R" '{}')"
+      b_open_code="${b_open%% *}"
+      b_reads_after="$(q "SELECT count(*) FROM support_read WHERE operator_user_id = '${APPLY_SUBJECT}'" 2>/dev/null || echo '?')"
+      if [ "$b_open_code" = "404" ] && [ "$b_reads_after" = "$b_reads_before" ]; then
+        echo "a non-operator cannot open a person, nor write that they did: HTTP 404, support_read unchanged (${b_reads_after})"
+      else
+        echo "opening a person as a non-operator: HTTP ${b_open_code}, support_read ${b_reads_before} -> ${b_reads_after}"
+        echo "    A row here says somebody read an account. Written by the wrong hand it is worse"
+        echo "    than no row at all, because the log is what a later question gets answered from."
+        fail=1
+      fi
+
+      # THE QUEUE, AND THE DECISION. Both asked against a request that really is
+      # open at this moment, because "no rows" and "no such row" are the same
+      # answer to somebody who cannot see any.
+      #
+      # One more knock on a public, rate-limited door. The cap is 60 an hour and
+      # — with `TRUST_PROXY` unset — service-wide rather than per caller, so it
+      # is worth counting: this whole gate makes seven, and the API container is
+      # recreated at every bring-up, which resets the window anyway. If a later
+      # block pushes that total near the cap, the failure will look like a
+      # 429 on somebody else's line, not this one.
+      curl -sS -o /dev/null -X POST "${API}/api/access-requests" -H 'Content-Type: application/json' \
+        -d "$(jq -nc --arg e "$BOUNDARY_EMAIL" '{email:$e, locale:"en"}')" || true
+      b_id="$(q "SELECT id FROM access_request WHERE email = '${BOUNDARY_EMAIL}' AND state = 'open'" 2>/dev/null | head -1)"
+      queue_len() { # queue_len <token> -> how many requests that token is shown
+        local r
+        r="$(http GET "$API/api/access-requests" "$1")"
+        # A 500 answered as "0 requests" would read as the boundary holding.
+        [ "${r%% *}" = "200" ] || { echo "?"; return 0; }
+        jq -r '.requests | length' <<<"${r#* }" 2>/dev/null || echo '?'
+      }
+      b_op_sees="$(queue_len "$OP_TOKEN")"
+      b_sees="$(queue_len "$TOK_R")"
+      case "$b_op_sees" in ''|*[!0-9]*) b_op_sees=-1 ;; esac
+      if [ -n "$b_id" ] && [ "$b_op_sees" -ge 1 ] && [ "$b_sees" = "0" ]; then
+        echo "the queue is invisible to a non-operator while it is not empty: operator sees ${b_op_sees}, they see 0"
+      else
+        echo "the access queue as a non-operator: id='${b_id:-<none>}', operator sees ${b_op_sees}, they see ${b_sees}"
+        echo "    Expected a knock to exist, the operator to see it, and them to see none."
+        fail=1
+      fi
+
+      if [ -n "$b_id" ]; then
+        b_dec="$(http POST "$API/api/access-requests/${b_id}/decline" "$TOK_R" \
+          '{"note":"smoke: a decision that is not theirs to make","notify":false}')"
+        b_dec_code="${b_dec%% *}"
+        b_after="$(q "SELECT state FROM access_request WHERE id = '${b_id}'" 2>/dev/null || echo '?')"
+        if [ "$b_dec_code" = "404" ] && [ "$b_after" = "open" ]; then
+          echo "and they cannot answer it: HTTP 404, the request is still open"
+        else
+          echo "DECIDING SOMEBODY ELSE'S REQUEST: HTTP ${b_dec_code}, state is now '${b_after}' (expected 404/open)"
+          echo "    A refusal that went through silently is the one failure the reply cannot show:"
+          echo "    the applicant is told no by somebody who was never given that button."
+          fail=1
+        fi
+      fi
+    fi
+
+    q "DELETE FROM access_request WHERE email LIKE 'smoke-boundary-%@smoke.local'" >/dev/null 2>&1 || true
+    b_left="$(q "SELECT count(*) FROM access_request WHERE email LIKE 'smoke-boundary-%@smoke.local'" 2>/dev/null || echo '?')"
+    [ "$b_left" = "0" ] ||
+      { echo "the boundary block's request was NOT taken back: ${b_left} left"; fail=1; }
+
     q "DELETE FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" >/dev/null
     left="$(q "SELECT count(*) FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" 2>/dev/null || echo '?')"
     if [ "$left" = "0" ]; then
