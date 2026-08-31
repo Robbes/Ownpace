@@ -664,12 +664,22 @@ curl -fsS -H "Authorization: Bearer <token>" http://localhost:3001/api/me
    connection — `app_user` cannot write this table, which is the point of it:
 
 ```bash
-DATABASE_URL="$(grep '^DATABASE_URL=' deploy/compose/.env | cut -d= -f2-)"   pnpm --filter @openmig/api operator:add <userId> you@example.com "first operator"
+./deploy/compose/operator.sh add <userId> you@example.com "first operator"
 ```
 
-`operator:list` shows who can currently answer; `operator:remove <userId>` takes
-it away. Adding somebody twice updates their row rather than failing, so a typo
-is fixed by re-running.
+`operator.sh list` shows who can currently answer; `operator.sh remove <userId>`
+takes it away. Adding somebody twice updates their row rather than failing, so a
+typo is fixed by re-running.
+
+**This block used to read the connection out of `.env` with `grep
+'^DATABASE_URL='`, and that could not work on any stack** — `managed.yml`
+COMPOSES `DATABASE_URL` from `POSTGRES_*` and `DB_HOST` (line 742), so the file
+has never carried such a line. The grep returned empty, the assignment
+succeeded, and the script refused for a requirement the reader had just
+apparently met. `operator.sh` is the same answer `seed-managed.sh` already was
+for the seed: a wrapper that composes what a host-run script cannot inherit,
+and that asks compose for the published port rather than assuming 5432 — on the
+reference box this stack's Postgres is on 55432.
 
 **Why not an email address, and why not a screen.** Keying the appointment on an
 email would mean whoever can register that address becomes an operator. Making

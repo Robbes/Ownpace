@@ -10,9 +10,15 @@
  *
  * Usage (from the repo root):
  *
- *   DATABASE_URL=postgres://…  pnpm --filter @openmig/api operator:list
- *   DATABASE_URL=postgres://…  pnpm --filter @openmig/api operator:add  <subject> <email> [note]
- *   DATABASE_URL=postgres://…  pnpm --filter @openmig/api operator:remove <subject>
+ *   ./deploy/compose/operator.sh list
+ *   ./deploy/compose/operator.sh add    <subject> <email> [note]
+ *   ./deploy/compose/operator.sh remove <subject>
+ *
+ * The wrapper composes the owner connection and asks compose for Postgres's
+ * published port. Calling the underlying `pnpm --filter @openmig/api
+ * operator:*` scripts directly works too, but then DATABASE_URL is yours to
+ * build — and it is NOT a line in deploy/compose/.env, which is what made the
+ * documented recipe fail silently until 2026-08-31.
  *
  * THE SUBJECT, NOT THE EMAIL. `<subject>` is the `sub` the identity provider
  * mints — an opaque string, not an address. There is no way to know it before
@@ -40,9 +46,27 @@ which is the point of it.`;
 function connectionString(): string {
   const url = process.env.DATABASE_URL ?? process.env.SEED_DATABASE_URL;
   if (!url) {
-    // Named, because the fix is to set it and a message that does not say which
-    // variable sends somebody reading source code.
-    throw new Error('DATABASE_URL (the DB owner connection) is required.');
+    // NAMING THE VARIABLE IS NOT ENOUGH, and this refusal learned that the
+    // expensive way. It used to say only "DATABASE_URL is required", and
+    // docs/managed-bring-up.md §8c answered it with
+    // `grep '^DATABASE_URL=' deploy/compose/.env` — a line that file has never
+    // carried, because managed.yml COMPOSES the value from POSTGRES_* and
+    // DB_HOST. So the remedy set it to the empty string and this threw again,
+    // on a requirement the operator had just apparently met (2026-08-31).
+    //
+    // The seed had the same shape and the same fix (`seed-managed.sh`): a
+    // wrapper that composes what a host-run script cannot inherit. Say its
+    // name, because "set DATABASE_URL" sends somebody to a file that does not
+    // contain it.
+    throw new Error(
+      'DATABASE_URL (the DB owner connection) is required.\n\n' +
+        'This runs on the HOST and inherits nothing, and .env does not carry a\n' +
+        'DATABASE_URL line — compose builds it from POSTGRES_* and DB_HOST. Use\n' +
+        'the wrapper, which composes it and asks compose for the published port:\n' +
+        '  ./deploy/compose/operator.sh list\n' +
+        '  ./deploy/compose/operator.sh add <subject> <email> [note]\n' +
+        '  ./deploy/compose/operator.sh remove <subject>',
+    );
   }
   return url;
 }
