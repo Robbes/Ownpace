@@ -882,9 +882,9 @@ export async function startTestEnvironment(skipStalwart: boolean = false, skipNe
   const postgresContainer = await new GenericContainer('postgres:18-alpine')
     .withExposedPorts(5432)
     .withEnvironment({
-      POSTGRES_DB: 'openmig',
-      POSTGRES_USER: 'openmig',
-      POSTGRES_PASSWORD: 'openmig',
+      POSTGRES_DB: 'ownpace',
+      POSTGRES_USER: 'ownpace',
+      POSTGRES_PASSWORD: 'ownpace',
       POSTGRES_INITDB_ARGS: '-E UTF8',
     })
     .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/))
@@ -895,7 +895,7 @@ export async function startTestEnvironment(skipStalwart: boolean = false, skipNe
 
   const postgresPort = postgresContainer.getMappedPort(5432);
   const postgresHost = postgresContainer.getHost();
-  const postgresConnectionString = `postgres://openmig:openmig@${postgresHost}:${postgresPort}/openmig`;
+  const postgresConnectionString = `postgres://ownpace:ownpace@${postgresHost}:${postgresPort}/ownpace`;
 
   console.log(`[Testcontainers] Postgres ready at ${postgresConnectionString}`);
 

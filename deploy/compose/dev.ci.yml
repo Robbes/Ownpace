@@ -1,4 +1,4 @@
-# CI/e2e-only override for dev.yml — layer it on top when openmig_dev-network already
+# CI/e2e-only override for dev.yml — layer it on top when ownpace_dev-network already
 # exists as a raw `docker network create` (e.g. deploy/selfhost/setup-stalwart.sh ran
 # first, as it does in .github/workflows/e2e.yml):
 #
@@ -6,7 +6,7 @@
 #   docker compose -f deploy/compose/dev.yml -f deploy/compose/dev.ci.yml up -d nextcloud
 #
 # Without this, `docker compose -f dev.yml up` refuses to attach to the pre-existing
-# network ("a network with name openmig_dev-network exists but was not created by
+# network ("a network with name ownpace_dev-network exists but was not created by
 # compose... Set `external: true` to use an existing network") — Compose only lets a
 # `networks:` block without `external: true` create-or-reuse a network it labeled
 # itself; a network created by a bare `docker network create` (as setup-stalwart.sh
@@ -19,5 +19,5 @@
 # setup-stalwart.sh joins the network dev.yml created.
 networks:
   dev-network:
-    name: openmig_dev-network
+    name: ownpace_dev-network
     external: true

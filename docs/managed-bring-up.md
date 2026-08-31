@@ -84,7 +84,7 @@ docker volume ls  --filter name=open-migrate
 docker network ls --filter name=open-migrate
 ```
 
-**Do not delete `openmig-dev-stalwart*`.** That is the dev/e2e Stalwart instance,
+**Do not delete `ownpace-dev-stalwart*`.** That is the dev/e2e Stalwart instance,
 named after the package scope rather than the product, so it is deliberately
 untouched by the rename and is still in use.
 

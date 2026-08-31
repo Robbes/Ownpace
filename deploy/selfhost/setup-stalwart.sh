@@ -22,7 +22,7 @@ set -euo pipefail
 #   curl --proto '=https' --tlsv1.2 -LsSf \
 #     https://github.com/stalwartlabs/cli/releases/latest/download/stalwart-cli-installer.sh | sh
 #
-# Also joins `openmig_dev-network` (the fixed-name network deploy/compose/dev.yml declares
+# Also joins `ownpace_dev-network` (the fixed-name network deploy/compose/dev.yml declares
 # for postgres/nextcloud) under the network alias "stalwart", creating it first if it doesn't
 # exist yet. This is what makes the confirmed Docker-outside-of-Docker fix work (see
 # docs/stalwart-integration-fix.md, "Running from inside a sandboxed agent container"): a
@@ -30,10 +30,10 @@ set -euo pipefail
 # `stalwart:993` directly, without published host ports or `host.docker.internal` at all.
 #
 # Env overrides (all optional):
-#   STALWART_CONTAINER          container name (default openmig-dev-stalwart)
-#   STALWART_VOLUME             data volume name (default openmig-dev-stalwart-data)
-#   STALWART_CONFIG_VOLUME      config volume name (default openmig-dev-stalwart-config)
-#   STALWART_NETWORK            shared network to join (default openmig_dev-network)
+#   STALWART_CONTAINER          container name (default ownpace-dev-stalwart)
+#   STALWART_VOLUME             data volume name (default ownpace-dev-stalwart-data)
+#   STALWART_CONFIG_VOLUME      config volume name (default ownpace-dev-stalwart-config)
+#   STALWART_NETWORK            shared network to join (default ownpace_dev-network)
 #   STALWART_JMAP_PORT          host port for JMAP/management (default 18080)
 #   STALWART_IMAPS_PORT         host port for IMAPS (default 1993)
 #   STALWART_RECOVERY_PASSWORD  recovery-mode admin password (default provision_password)
@@ -46,10 +46,10 @@ set -euo pipefail
 #                                through `docker exec`, so it needs no such override.
 
 IMAGE="stalwartlabs/stalwart:v0.16.10"
-CONTAINER="${STALWART_CONTAINER:-openmig-dev-stalwart}"
-VOLUME="${STALWART_VOLUME:-openmig-dev-stalwart-data}"
-CONFIG_VOLUME="${STALWART_CONFIG_VOLUME:-openmig-dev-stalwart-config}"
-NETWORK="${STALWART_NETWORK:-openmig_dev-network}"
+CONTAINER="${STALWART_CONTAINER:-ownpace-dev-stalwart}"
+VOLUME="${STALWART_VOLUME:-ownpace-dev-stalwart-data}"
+CONFIG_VOLUME="${STALWART_CONFIG_VOLUME:-ownpace-dev-stalwart-config}"
+NETWORK="${STALWART_NETWORK:-ownpace_dev-network}"
 JMAP_PORT="${STALWART_JMAP_PORT:-18080}"
 IMAPS_PORT="${STALWART_IMAPS_PORT:-1993}"
 RECOVERY_PASSWORD="${STALWART_RECOVERY_PASSWORD:-provision_password}"

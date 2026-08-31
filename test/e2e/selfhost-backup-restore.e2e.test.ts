@@ -93,7 +93,7 @@ afterAll(() => {
  *
  * That is precisely what happened on the first shakedown (run #92). The list
  * here omitted `compose.dev.yml`, the override that joins the appliance to
- * `openmig_dev-network`, so the restored app came back healthy but could no
+ * `ownpace_dev-network`, so the restored app came back healthy but could no
  * longer resolve `stalwart` or `nextcloud`: every later sync died with
  * `getaddrinfo ENOTFOUND stalwart` and the Finish gate failed two steps later.
  * The drill itself passed, because a ledger that cannot reach anything also

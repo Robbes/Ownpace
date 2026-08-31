@@ -6,7 +6,7 @@
 # a two-phase startup (provisioning in recovery mode, then serving in normal mode — see
 # docs/stalwart-integration-fix.md) that plain `docker compose up` cannot express for one
 # service. Bring it up with `deploy/selfhost/setup-stalwart.sh` instead — it joins this file's
-# `openmig_dev-network` (see below), so anything on that network reaches it at `stalwart:8080`
+# `ownpace_dev-network` (see below), so anything on that network reaches it at `stalwart:8080`
 # (JMAP) / `stalwart:993` (IMAPS) regardless of whether Stalwart was started before or after
 # this stack. The O365 SOURCE is separate and uses IMAP+OAuth2/Graph (Microsoft has no JMAP),
 # so it is not part of this local stack either. Nextcloud is a second, DAV-only target (files +
@@ -20,16 +20,16 @@ services:
   postgres:
     image: postgres:18-alpine            # multi-arch (arm64); base: Alpine 3.x (current)
     environment:
-      POSTGRES_DB: openmig
-      POSTGRES_USER: openmig
-      POSTGRES_PASSWORD: openmig
+      POSTGRES_DB: ownpace
+      POSTGRES_USER: ownpace
+      POSTGRES_PASSWORD: ownpace
       POSTGRES_INITDB_ARGS: -E UTF8
     ports:
       # Overridable so CI/agents running this stack alongside other things on the
       # same host can pick a free port instead of assuming 5433 is available.
       - "${DEV_POSTGRES_PORT:-5433}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U openmig -d openmig"]
+      test: ["CMD-SHELL", "pg_isready -U ownpace -d ownpace"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -38,7 +38,7 @@ services:
   # Secondary DAV target: files (WebDAV) + CalDAV/CardDAV. SQLite keeps dev light.
   nextcloud:
     image: nextcloud:34-apache            # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
-    container_name: openmig-dev-nextcloud # fixed name so provisioning scripts can `docker exec` it deterministically
+    container_name: ownpace-dev-nextcloud # fixed name so provisioning scripts can `docker exec` it deterministically
     environment:
       SQLITE_DATABASE: nextcloud
       NEXTCLOUD_ADMIN_USER: admin
@@ -52,5 +52,5 @@ services:
 
 networks:
   dev-network:
-    name: openmig_dev-network
+    name: ownpace_dev-network
     driver: bridge
