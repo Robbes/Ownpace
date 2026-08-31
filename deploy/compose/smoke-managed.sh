@@ -3133,14 +3133,48 @@ if [ -n "${STACK_ISSUER:-}" ]; then
 
     # ---- AND THERE IS NO LEVEL FOUR ----
     #
-    # Asked with a REAL natural key out of this tenant's ledger, because the
-    # only convincing version of "it does not show items" is that a string
-    # which identifies one is absent from the answer. `natural_key` is the
-    # href or UID the item actually has — the closest thing to a subject line
-    # this schema stores in the clear.
-    l4_key="$(q "SELECT natural_key FROM item
+    # MEASURED THE HARD WAY. This first looked for a real `natural_key` — the
+    # href or UID — reasoning that the only convincing version of "it does not
+    # show items" is that a string identifying one is absent from the answer.
+    # E2E (managed) #109 answered `key=''`, and the product was right: the
+    # ledger writes `naturalKey: ''` and keeps only the hash. There is no
+    # plaintext item identifier stored to leak, which is a better fact than the
+    # one the check was reaching for.
+    #
+    # So the boundary is asked two ways, and neither can go vacuous:
+    #
+    #   THE SHAPE — exactly two keys at the top, and no item-level name
+    #   anywhere in the body. This is the one that cannot be satisfied by
+    #   accident: a level four would have to introduce a key to hold it.
+    #
+    #   A NEEDLE THAT EXISTS — this tenant's own `natural_key_hash`, which IS
+    #   what identifies an item in this schema. Absent from the answer, or the
+    #   run fails; and an empty needle fails rather than matching everything.
+    l4_top="$(jq -r 'keys | join(",")' <<<"$l3_body" 2>/dev/null || echo '?')"
+    l4_named="$(jq -r '[paths | .[] | select(type == "string")] | unique
+                       | map(select(. == "items" or . == "item" or . == "natural_key"
+                                    or . == "natural_key_hash" or . == "source_ref"
+                                    or . == "target_ref" or . == "href" or . == "subject"
+                                    or . == "summary" or . == "collection"))
+                       | length' <<<"$l3_body" 2>/dev/null || echo '?')"
+    if [ "$l4_top" = "domains,migration" ] && [ "$l4_named" = "0" ]; then
+      echo "and no fourth level: the migration screen carries ${l4_top}, and no item-level field"
+    else
+      echo "the migration screen's shape: top-level keys='${l4_top}', item-level names=${l4_named}"
+      echo "    Level 3 is the last one on purpose. A screen that lists items is a screen that"
+      echo "    shows subject lines, and a fourth level has to introduce a key to hold them."
+      fail=1
+    fi
+
+    #
+    # `$ELIGIBLE` rather than a filter of this block's own: every item query in
+    # this script uses the one definition, and `smoke-managed-verdict` refuses
+    # any that does not — eligibility open-coded twice is eligibility that
+    # drifts. It also happens to be what this needle wants, since it guarantees
+    # a real target handle rather than a row that was never copied.
+    l4_key="$(q "SELECT natural_key_hash FROM item
                   WHERE tenant_id = '${APPLY_TENANT}' AND mapping_id = '${APPLY_MAPPING}'
-                    AND natural_key <> '' ORDER BY natural_key LIMIT 1" 2>/dev/null || echo '')"
+                    AND $ELIGIBLE ORDER BY natural_key_hash LIMIT 1" 2>/dev/null || echo '')"
     if [ ${#l4_key} -lt 8 ]; then
       echo "no item was available to prove the metadata boundary with (key='${l4_key}')"
       echo "    Not a pass: the check below would compare against an empty string and match"
@@ -3150,12 +3184,10 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       case "$l3_body" in
         *"$l4_key"*)
           echo "THE MIGRATION SCREEN NAMED AN ITEM: it carries ${l4_key}"
-          echo "    Level 3 is the last one on purpose. A screen that lists items is a screen"
-          echo "    that shows subject lines, and this is where that boundary is."
           fail=1
           ;;
         *)
-          echo "and no fourth level: the migration screen names none of this organisation's items"
+          echo "and it names none of this organisation's items: the key that identifies one is absent"
           ;;
       esac
     fi

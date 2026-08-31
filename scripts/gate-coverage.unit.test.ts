@@ -814,11 +814,27 @@ describe('how far an operator can walk, and what the log says at each step', () 
     expect(block).toContain('.tenant, .connections, .migrations, .invoices, .members, .usage');
   });
 
-  it('proves there is no fourth level with a REAL item key', () => {
-    // The only convincing version of "it does not show items" is that a string
-    // identifying one is absent from the answer. And an empty key would match
-    // everything, so the block refuses rather than reporting a pass.
-    expect(block).toContain('SELECT natural_key FROM item');
+  it('proves there is no fourth level by SHAPE, which cannot go vacuous', () => {
+    // MEASURED. This first looked for a plaintext `natural_key` and E2E
+    // (managed) #109 answered `key=''` — the ledger writes `naturalKey: ''`
+    // and keeps only the hash, so there is no plaintext item identifier stored
+    // to leak. A better fact than the one the check was reaching for, and it
+    // left the check with nothing to compare against.
+    //
+    // The shape is the version that cannot be satisfied by accident: a fourth
+    // level has to introduce a key to hold it.
+    expect(block).toContain("jq -r 'keys | join(\",\")'");
+    expect(block).toMatch(/\[ "\$l4_top" = "domains,migration" \]/);
+    expect(block).toContain('natural_key_hash');
+    expect(block).toContain('source_ref');
+    expect(block).toMatch(/\[ "\$l4_named" = "0" \]/);
+  });
+
+  it('also looks for a needle that actually exists in this schema', () => {
+    // The hash IS what identifies an item here. And an empty needle would
+    // match everything, so a short one fails the run rather than passing it —
+    // which is exactly how #109 reported the emptiness instead of hiding it.
+    expect(block).toContain('SELECT natural_key_hash FROM item');
     expect(block).toMatch(/case "\$l3_body" in\s*\n\s*\*"\$l4_key"\*\)/);
     expect(block, 'an empty key would match every answer').toMatch(
       /\[ \$\{#l4_key\} -lt 8 \][\s\S]{0,400}fail=1/,
