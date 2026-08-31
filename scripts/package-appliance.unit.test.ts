@@ -465,7 +465,7 @@ describe('an unwritable data directory fails as an unwritable data directory', (
     // preflight to a bare `mkdir` and this test boots the appliance instead of
     // refusing; downgrade the throw to a warning and it does the same.
     const dir = mkdtempSync(join(tmpdir(), 'openmig-eisdir-'));
-    mkdirSync(join(dir, '.openmig-write-probe'));
+    mkdirSync(join(dir, '.ownpace-write-probe'));
     try {
       const { code, out } = await runPayload({ PORT: '18436', SELFHOST_PGLITE_DIR: dir });
 

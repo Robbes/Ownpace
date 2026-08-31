@@ -14,7 +14,7 @@ set -euo pipefail
 # already exists", which this script tolerates).
 #
 # Env overrides (all optional except NEXTCLOUD_HOST_PORT):
-#   NEXTCLOUD_CONTAINER      container name (default openmig-dev-nextcloud)
+#   NEXTCLOUD_CONTAINER      container name (default ownpace-dev-nextcloud)
 #   NEXTCLOUD_HOST_PORT      the host port the container's :80 is published on (required —
 #                            the e2e workflow picks this dynamically; see "Pick free host ports")
 #   NEXTCLOUD_ADMIN_USER     admin username (default admin, matches dev.yml)
@@ -38,7 +38,7 @@ set -euo pipefail
 #                            PROPFIND that failed with curl status 000 while `docker
 #                            exec ... occ status` confirmed the app was fully installed).
 
-CONTAINER="${NEXTCLOUD_CONTAINER:-openmig-dev-nextcloud}"
+CONTAINER="${NEXTCLOUD_CONTAINER:-ownpace-dev-nextcloud}"
 HOST_PORT="${NEXTCLOUD_HOST_PORT:?NEXTCLOUD_HOST_PORT is required}"
 ADMIN_USER="${NEXTCLOUD_ADMIN_USER:-admin}"
 ADMIN_PASSWORD="${NEXTCLOUD_ADMIN_PASSWORD:-admin_dev_pw}"
@@ -66,7 +66,7 @@ fi
 echo "[setup-nextcloud-users] Internal readiness OK"
 
 # Trusted domains: the appliance reaches this container by its compose service/alias name
-# ("nextcloud", on openmig_dev-network); this script and the seed step reach it via the
+# ("nextcloud", on ownpace_dev-network); this script and the seed step reach it via the
 # dynamically-picked host-published port. Both host forms must be trusted or Nextcloud
 # rejects every request with its "untrusted domain" error page.
 echo "[setup-nextcloud-users] Registering trusted domains..."

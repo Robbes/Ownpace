@@ -217,11 +217,11 @@ what actually resolves the problem vs. what merely works around it:
 0. **Best fix: put the agent's own container on the same Docker network as the target container,
    and address it by Docker DNS name instead of a published host port at all.** Confirmed working
    on the DGX Spark box this repo's e2e work happens on:
-   `deploy/compose/dev.yml` declares a **fixed-name** network, `openmig_dev-network`
-   (`networks: dev-network: name: openmig_dev-network`), and `deploy/selfhost/setup-stalwart.sh`
+   `deploy/compose/dev.yml` declares a **fixed-name** network, `ownpace_dev-network`
+   (`networks: dev-network: name: ownpace_dev-network`), and `deploy/selfhost/setup-stalwart.sh`
    joins it under the alias `stalwart` (creating the network first if `dev.yml` hasn't been brought
    up yet). Once Stalwart is up (`./deploy/selfhost/setup-stalwart.sh`), run
-   `docker network connect openmig_dev-network <agent-container-name>` once from the host (or
+   `docker network connect ownpace_dev-network <agent-container-name>` once from the host (or
    wherever has access to the host daemon) — after that the agent can reach Stalwart at
    `stalwart:8080` / `stalwart:993` directly, no `host.docker.internal`, no published port, no
    collision with whatever else is squatting on a host port. This sidesteps the whole
@@ -430,7 +430,7 @@ stalwart-compose.yml` is deleted too — superseded, not fixed in place. In thei
 and `e2e.yml`: the exact two-phase dance from this doc (minimal config.json, recovery-mode
 `stalwart-cli apply`, then a normal-mode restart), official image only, run via plain `docker run`
 so it isn't fighting `docker compose`'s single-service model. It also joins `dev.yml`'s
-`openmig_dev-network` under the alias `stalwart` — preserving the confirmed DooD fix above without
+`ownpace_dev-network` under the alias `stalwart` — preserving the confirmed DooD fix above without
 needing a `stalwart` compose service to hang it off of. `e2e.yml`'s fixture and seed step moved to
 IMAPS 993, matching the Testcontainers path's already-proven doctrine instead of a second one.
 
@@ -464,15 +464,15 @@ neither Stalwart's fault:
   `host.docker.internal` doesn't resolve inside a Linux container without an explicit `extra_hosts`
   entry — Docker Desktop adds this automatically, native Linux does not, and `compose.yml` didn't
   declare one; (2) `deploy/selfhost/compose.yml` creates its own compose-project network, entirely
-  separate from `setup-stalwart.sh`'s `openmig_dev-network`, so addressing Stalwart by name
+  separate from `setup-stalwart.sh`'s `ownpace_dev-network`, so addressing Stalwart by name
   (`stalwart`) never resolved either. **Fix**: `deploy/selfhost/compose.dev.yml` — a new,
   **dev/e2e-only** override (real self-host operators never reference it; `compose.yml` alone stays
-  the product) that adds the `extra_hosts` entry and attaches `app` to `openmig_dev-network` too:
+  the product) that adds the `extra_hosts` entry and attaches `app` to `ownpace_dev-network` too:
   `docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.dev.yml up -d`.
   `e2e.yml` uses it instead of generating a throwaway per-run override file, and the T5 fixture now
   addresses Stalwart as `stalwart:8080`/`stalwart:993` (the shared network, fixed internal ports) —
   a manual `docker network connect` for the *appliance* container is no longer needed at all. (A
-  sandboxed **agent's own** `docker network connect openmig_dev-network <agent-container>`, to poll
+  sandboxed **agent's own** `docker network connect ownpace_dev-network <agent-container>`, to poll
   `/status` itself, is still a separate, still-necessary step — see the DooD section above.)
 - **`apps/worker/src/build-deps.ts`'s `buildImapSource()` hardcoded `authType: 'XOAUTH2'`**
   regardless of the configured `auth.kind`, and never read a password for `auth.kind: 'login'` at

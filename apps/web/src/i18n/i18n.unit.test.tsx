@@ -54,7 +54,7 @@ describe('the dictionary', () => {
 describe('detectLocale', () => {
   it('prefers the persisted choice over the browser language', () => {
     vi.spyOn(navigator, 'language', 'get').mockReturnValue('nl-NL');
-    window.localStorage.setItem('openmig.locale', 'en');
+    window.localStorage.setItem('ownpace.locale', 'en');
     expect(detectLocale()).toBe('en');
   });
 
@@ -65,6 +65,24 @@ describe('detectLocale', () => {
 
   it('defaults to English for anything else', () => {
     vi.spyOn(navigator, 'language', 'get').mockReturnValue('de-DE');
+    expect(detectLocale()).toBe('en');
+  });
+
+  it('still honours a choice saved under the OLD key', () => {
+    // The rename from `openmig.locale`, from the browser's side. Somebody who
+    // set their language before it happened has that key and no other; without
+    // this read they silently revert to `navigator.language` and have to set
+    // it again, which is the whole cost of renaming a key that is really an
+    // interface to data somebody else is holding.
+    vi.spyOn(navigator, 'language', 'get').mockReturnValue('de-DE');
+    window.localStorage.setItem('openmig.locale', 'nl');
+    expect(detectLocale()).toBe('nl');
+  });
+
+  it('prefers the new key when a browser somehow has both', () => {
+    vi.spyOn(navigator, 'language', 'get').mockReturnValue('de-DE');
+    window.localStorage.setItem('openmig.locale', 'nl');
+    window.localStorage.setItem('ownpace.locale', 'en');
     expect(detectLocale()).toBe('en');
   });
 });
@@ -91,11 +109,11 @@ describe('LocaleProvider', () => {
     expect(screen.getByTestId('deletions').textContent).toBe('Deletions');
     fireEvent.click(screen.getByText('to-nl'));
     expect(screen.getByTestId('deletions').textContent).toBe('Verwijderingen');
-    expect(window.localStorage.getItem('openmig.locale')).toBe('nl');
+    expect(window.localStorage.getItem('ownpace.locale')).toBe('nl');
   });
 
   it('boots in Dutch when the choice was persisted', () => {
-    window.localStorage.setItem('openmig.locale', 'nl');
+    window.localStorage.setItem('ownpace.locale', 'nl');
     render(
       <LocaleProvider>
         <Probe />
@@ -112,7 +130,7 @@ describe('LocaleProvider', () => {
   });
 
   it('the queue primitives speak Dutch under nl — and the refusal stays the server verbatim', () => {
-    window.localStorage.setItem('openmig.locale', 'nl');
+    window.localStorage.setItem('ownpace.locale', 'nl');
     render(
       <LocaleProvider>
         <ReceiptStatus receipt={{ state: 'queued' } as never} />

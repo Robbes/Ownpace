@@ -84,9 +84,14 @@ docker volume ls  --filter name=open-migrate
 docker network ls --filter name=open-migrate
 ```
 
-**Do not delete `openmig-dev-stalwart*`.** That is the dev/e2e Stalwart instance,
-named after the package scope rather than the product, so it is deliberately
-untouched by the rename and is still in use.
+**Do not delete `ownpace-dev-stalwart*`.** That is the dev/e2e Stalwart instance —
+a different stack from the one this page brings up, not part of the
+`open-migrate*` family being removed above, and still in use.
+
+It was called `openmig-dev-stalwart*` until 2026-08-31, <!-- PRE-RENAME SWEEP --> so a long-lived box may
+show both generations for a while. `e2e.yml` removes the older one itself (the
+lines marked `PRE-RENAME SWEEP`); you do not need to, and should not reach for
+a wildcard that would take the current one with it.
 
 **Do NOT delete `~/.persistent/open-migrate-managed`.** It holds the stack's `.env`
 — including `SECRET_ENCRYPTION_KEY`, the key that decrypts every stored credential

@@ -143,7 +143,7 @@ function headFilenames(): string[] {
  * production.
  */
 function materialiseReleasedMigrations(): string {
-  const dir = join(tempDir('openmig-upgrade-'), 'migrations');
+  const dir = join(tempDir('ownpace-upgrade-'), 'migrations');
   mkdirSync(dir, { recursive: true });
   for (const name of releasedFilenames()) {
     writeFileSync(join(dir, name), git('show', `${FROM_REF}:${MIGRATIONS_PATH}/${name}`));

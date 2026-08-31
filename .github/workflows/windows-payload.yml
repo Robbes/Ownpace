@@ -75,7 +75,7 @@ jobs:
       - name: Stage the payload
         run: |
           node scripts/package-appliance.mjs \
-            --out "dist/openmig-appliance-${{ matrix.platform }}" \
+            --out "dist/ownpace-appliance-${{ matrix.platform }}" \
             --with-node "${{ matrix.platform }}"
 
       # DO NOT ZIP HERE. `upload-artifact` zips whatever it is given, so zipping
@@ -93,7 +93,7 @@ jobs:
         id: pack
         run: |
           set -euo pipefail
-          NAME="openmig-appliance-${{ matrix.platform }}"
+          NAME="ownpace-appliance-${{ matrix.platform }}"
           # A manifest that survives the round trip. A hash of our own zip would
           # not: GitHub discards that zip and makes its own.
           ( cd "dist/${NAME}" && find . -type f ! -name SHA256SUMS.txt -print0 \

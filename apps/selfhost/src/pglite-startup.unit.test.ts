@@ -91,8 +91,8 @@ afterAll(async () => {
 
 describe('the appliance on PGlite', () => {
   it('starts with no DATABASE_URL at all', async () => {
-    const configDir = tempDir('openmig-cfg-');
-    const dataDir = tempDir('openmig-pglite-');
+    const configDir = tempDir('ownpace-cfg-');
+    const dataDir = tempDir('ownpace-pglite-');
     writeMapping(configDir, MAPPING_ID);
 
     // No connectionString anywhere. Before this, `start()` threw
@@ -210,7 +210,7 @@ describe('the postgres path is unchanged', () => {
     // an operator who simply forgot the URL should be told the alternative
     // rather than left to find it.
     await expect(
-      start({ configDir: tempDir('openmig-cfg-'), port: 0 }),
+      start({ configDir: tempDir('ownpace-cfg-'), port: 0 }),
     ).rejects.toThrow(/DATABASE_URL is required.*SELFHOST_PERSISTENCE=pglite/s);
   });
 });

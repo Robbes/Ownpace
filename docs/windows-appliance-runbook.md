@@ -159,7 +159,7 @@ sha256sum -c SHA256SUMS.txt
 Then, **from a writable folder**:
 
 ```powershell
-cd openmig-appliance-win-x64
+cd ownpace-appliance-win-x64
 .\node.exe start.mjs
 ```
 
@@ -546,7 +546,7 @@ Those predate the scripts being staged. The repository is public, so fetch them
 without cloning:
 
 ```powershell
-$dst  = "$env:USERPROFILE\openmig-scripts"
+$dst  = "$env:USERPROFILE\ownpace-scripts"
 $base = "https://raw.githubusercontent.com/Robbes/Ownpace/main/scripts/windows"
 New-Item -ItemType Directory -Force $dst | Out-Null
 foreach ($f in 'install-task.ps1','install-task.cmd','uninstall-task.ps1','uninstall-task.cmd',

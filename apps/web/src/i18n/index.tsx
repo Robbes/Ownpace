@@ -3,7 +3,7 @@
  * Locale context (workplan 0024 T1, ADR-0013).
  *
  * The locale is a CLIENT concern: persisted per browser
- * (localStorage `openmig.locale`), defaulting from `navigator.language`
+ * (localStorage `ownpace.locale`), defaulting from `navigator.language`
  * (`nl*` → Dutch, everything else → English). No server state — a per-member
  * preference can join the managed edition later without changing callers.
  */
@@ -12,11 +12,28 @@ import React from 'react';
 import { STRINGS, type Locale, type StringKey } from './strings.ts';
 import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency } from './datetime.ts';
 
-const STORAGE_KEY = 'openmig.locale';
+const STORAGE_KEY = 'ownpace.locale';
+
+/**
+ * What the key was called before the name changed.
+ *
+ * A storage key is an INTERFACE to a browser that already has data in it, not
+ * a private name: renaming it without reading the old one silently discards
+ * the choice of every person who ever set their language, and they discover it
+ * as the app quietly reverting to whatever `navigator.language` says. Read
+ * both, and the rename costs nobody anything.
+ *
+ * Nothing writes this. The value migrates the first time somebody changes
+ * language; until then the old key is simply still true. It can go once no
+ * browser plausibly still holds it.
+ */
+const LEGACY_STORAGE_KEY = 'openmig.locale';
 
 export function detectLocale(): Locale {
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored =
+      window.localStorage.getItem(STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (stored === 'en' || stored === 'nl') return stored;
   } catch {
     // Storage unavailable (private mode, embedded) — fall through to detection.

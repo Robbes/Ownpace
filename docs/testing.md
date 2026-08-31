@@ -65,7 +65,7 @@ client connects to 993 with `rejectUnauthorized: false` for the self-signed test
 The optional `deploy/compose/dev.yml` stack (Postgres + Nextcloud) remains available for manual
 exploration, but the integration suite does not depend on it. `dev.yml` does **not** include
 Stalwart — its two-phase startup can't be expressed as one `docker compose` service; bring it up
-with `deploy/selfhost/setup-stalwart.sh` instead (joins `dev.yml`'s `openmig_dev-network`, so it's
+with `deploy/selfhost/setup-stalwart.sh` instead (joins `dev.yml`'s `ownpace_dev-network`, so it's
 reachable from anything else on that network too).
 
 ### UI smoke (requires Chromium, no Docker)

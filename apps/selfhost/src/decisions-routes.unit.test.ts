@@ -46,7 +46,7 @@ let handle: SelfhostHandle;
 let base: string;
 
 beforeAll(async () => {
-  const configDir = tempDir('openmig-decisions-cfg-');
+  const configDir = tempDir('ownpace-decisions-cfg-');
   writeFileSync(
     join(configDir, 'mapping.json'),
     JSON.stringify({
@@ -72,7 +72,7 @@ beforeAll(async () => {
 
   handle = await start({
     persistence: 'pglite',
-    pgliteDataDir: tempDir('openmig-decisions-db-'),
+    pgliteDataDir: tempDir('ownpace-decisions-db-'),
     configDir,
     port: 0,
     host: '127.0.0.1',

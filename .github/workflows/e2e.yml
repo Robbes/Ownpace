@@ -14,11 +14,11 @@ name: E2E (self-hosted)
 #      up` cannot express Stalwart's two-phase requirement for one service, which
 #      is why this is a script, not a dev.yml service). Publishes JMAP + IMAPS on
 #      the host so the appliance can reach them via host.docker.internal, and also
-#      joins openmig_dev-network under the alias "stalwart" — so a sandboxed agent
+#      joins ownpace_dev-network under the alias "stalwart" — so a sandboxed agent
 #      that joins that same network (see the doc's DooD section) can reach it by
 #      name instead, with no published ports involved at all.
 #   1b. Bring up Nextcloud (deploy/compose/dev.yml's `nextcloud` service) on the
-#      same openmig_dev-network, then provision TWO accounts on it — e2e-source and
+#      same ownpace_dev-network, then provision TWO accounts on it — e2e-source and
 #      e2e-target (deploy/selfhost/setup-nextcloud-users.sh) — so calendar/contacts/
 #      files sync is proven ACROSS accounts, the real-world shape, not within one
 #      shared admin account like the source-only DAV integration tests use.
@@ -150,9 +150,19 @@ jobs:
       - name: Clean up any previous stacks (fresh volumes)
         run: |
           docker compose $SELFHOST_COMPOSE_FILES down -v --remove-orphans 2>/dev/null || true
-          docker rm -f openmig-dev-stalwart 2>/dev/null || true
-          docker volume rm openmig-dev-stalwart-data 2>/dev/null || true
-          docker rm -f openmig-dev-nextcloud 2>/dev/null || true
+          docker rm -f ownpace-dev-stalwart 2>/dev/null || true
+          docker volume rm ownpace-dev-stalwart-data 2>/dev/null || true
+          docker rm -f ownpace-dev-nextcloud 2>/dev/null || true
+          # The runner keeps its containers and volumes between runs, so the
+          # rename on 2026-08-31 does not tidy the old ones up on its own — it
+          # ABANDONS them, because every line above now looks for a name that
+          # was never there. So remove both for a while. These four go once a
+          # run has been seen with nothing left for them to remove.
+          #                                                     PRE-RENAME SWEEP
+          docker rm -f openmig-dev-stalwart 2>/dev/null || true          # PRE-RENAME SWEEP
+          docker volume rm openmig-dev-stalwart-data 2>/dev/null || true # PRE-RENAME SWEEP
+          docker volume rm openmig-dev-stalwart-config 2>/dev/null || true # PRE-RENAME SWEEP
+          docker rm -f openmig-dev-nextcloud 2>/dev/null || true         # PRE-RENAME SWEEP
 
       # Pick genuinely free host ports for everything this workflow publishes
       # (Stalwart JMAP/IMAPS, the selfhost appliance), instead of assuming
@@ -192,7 +202,7 @@ jobs:
         run: ./deploy/selfhost/setup-stalwart.sh
 
       - name: Start Nextcloud (calendar + contacts DAV target)
-        # dev.ci.yml: setup-stalwart.sh already created openmig_dev-network via a raw
+        # dev.ci.yml: setup-stalwart.sh already created ownpace_dev-network via a raw
         # `docker network create` (no compose label) — dev.yml alone refuses to attach
         # to it without this override marking it external. See dev.ci.yml's header.
         run: docker compose -f deploy/compose/dev.yml -f deploy/compose/dev.ci.yml up -d nextcloud
@@ -274,7 +284,7 @@ jobs:
         run: |
           # Fixture mapping is git-ignored under the config dir on purpose; the
           # Dockerfile bakes deploy/selfhost/config into the image. The appliance
-          # reaches Stalwart/Nextcloud over openmig_dev-network by container name
+          # reaches Stalwart/Nextcloud over ownpace_dev-network by container name
           # (see deploy/selfhost/compose.dev.yml, applied below) — container-to-
           # container traffic uses each service's fixed internal port (Stalwart
           # 8080/993, Nextcloud 80), not whatever dynamic host port it's published
@@ -530,9 +540,9 @@ jobs:
             echo "===== appliance app logs ====="
             docker compose $SELFHOST_COMPOSE_FILES logs app --no-color --tail 400 || true
             echo "===== Stalwart logs (tail) ====="
-            docker logs openmig-dev-stalwart --tail 150 2>&1 || true
+            docker logs ownpace-dev-stalwart --tail 150 2>&1 || true
             echo "===== Nextcloud logs (tail) ====="
-            docker logs openmig-dev-nextcloud --tail 150 2>&1 || true
+            docker logs ownpace-dev-nextcloud --tail 150 2>&1 || true
           } 2>&1 | tee diagnostics/e2e-diagnostics.txt
 
       - name: Upload diagnostics
@@ -550,8 +560,8 @@ jobs:
         if: always()
         run: |
           docker compose $SELFHOST_COMPOSE_FILES down -v --remove-orphans || true
-          docker rm -f openmig-dev-stalwart || true
-          docker volume rm openmig-dev-stalwart-data || true
+          docker rm -f ownpace-dev-stalwart || true
+          docker volume rm ownpace-dev-stalwart-data || true
           docker compose -f deploy/compose/dev.yml -f deploy/compose/dev.ci.yml down --remove-orphans || true
-          docker rm -f openmig-dev-nextcloud || true
+          docker rm -f ownpace-dev-nextcloud || true
           rm -f deploy/selfhost/.env deploy/selfhost/config/mapping.json || true
