@@ -44,6 +44,21 @@ vi.mock('../services/support.ts', () => ({
   getSupportMigration: vi.fn(),
 }));
 
+/**
+ * The console link is mocked at the module, not through the environment.
+ * `import.meta.env` is not shared between modules under vitest — the lesson
+ * `oidc.ts` records — so setting the variable here would set it on this file
+ * and `idp-console.ts` would go on reading its own. What belongs here is the
+ * WIRING (does a row become a link when there is one to make); the helper's own
+ * refusals are `idp-console.unit.test.ts`.
+ */
+const consoleUrl = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock('../services/idp-console.ts', () => ({
+  SUBJECT_PLACEHOLDER: '{sub}',
+  idpConsoleUserUrl: (sub: string) =>
+    consoleUrl.value === null ? null : consoleUrl.value.replace('{sub}', sub),
+}));
+
 const listMock = vi.mocked(listSupportTenants);
 const tenantMock = vi.mocked(getSupportTenant);
 const migrationMock = vi.mocked(getSupportMigration);
@@ -145,6 +160,7 @@ describe('one organisation', () => {
         paid_at: null,
       },
     ],
+    members: [],
   };
 
   it('shows the three lists', async () => {
@@ -288,6 +304,7 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       connections: [],
       migrations: [],
       invoices: [],
+      members: [],
     });
     mount(
       <SupportTenantDetail />,
@@ -303,6 +320,7 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       connections: [],
       migrations: [],
       invoices: [],
+      members: [],
     });
     mount(
       <SupportTenantDetail />,
@@ -321,6 +339,7 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       connections: [],
       migrations: [],
       invoices: [],
+      members: [],
     });
     mount(
       <SupportTenantDetail />,
@@ -341,6 +360,7 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
       connections: [],
       migrations: [],
       invoices: [],
+      members: [],
     });
     const { container } = mount(
       <SupportTenantDetail />,
@@ -377,6 +397,7 @@ describe('the package the month has earned so far (0109 T4, surfaced)', () => {
       connections: [],
       migrations: [],
       invoices: [],
+      members: [],
       usage,
     });
     return mount(
@@ -421,5 +442,95 @@ describe('the package the month has earned so far (0109 T4, surfaced)', () => {
     // exactly the conversation where the operator needs the sentence.
     mountWithUsage({ ...USAGE, tier: null });
     expect(await screen.findByText(STRINGS.en['support.usage.beyondTable'])).toBeInTheDocument();
+  });
+});
+
+/**
+ * WHO IS IN THIS ORGANISATION, and the way through to their account.
+ *
+ * The first support view carrying people (migration 0018, owner request
+ * 2026-08-31). The operator asked for it and named the use: the account-level
+ * work — a password nobody can reset, a second factor lost with a phone — is
+ * the identity provider's and never Ownpace's (ADR-0042), and without a name to
+ * click, "go and look in the console" means searching a list by memory.
+ */
+describe('the people on an organisation', () => {
+  const MEMBERS = [
+    {
+      user_id: '388706935093854213',
+      email: 'owner@acme.test',
+      role: 'owner',
+      status: 'active',
+      invited_at: null,
+      joined_at: '2026-08-01T09:00:00.000Z',
+    },
+    {
+      user_id: 'sub-two',
+      email: 'gone@acme.test',
+      role: 'admin',
+      status: 'removed',
+      invited_at: null,
+      joined_at: '2026-08-02T09:00:00.000Z',
+    },
+  ];
+
+  const withMembers = async (members: typeof MEMBERS) => {
+    tenantMock.mockResolvedValue({
+      tenant: TENANT,
+      connections: [],
+      migrations: [],
+      invoices: [],
+      members,
+    });
+    mount(
+      <SupportTenantDetail />,
+      `/support/tenants/${TENANT.tenant_id}`,
+      '/support/tenants/:tenantId',
+    );
+    await screen.findByText(TENANT.tenant_name);
+  };
+
+  beforeEach(() => {
+    consoleUrl.value = null;
+  });
+
+  it('lists them, and keeps somebody who was removed', async () => {
+    // "This person used to be the owner" is most of what a support
+    // conversation about a lost account is about. Dropping the row would make
+    // the screen answer a question it was not asked.
+    consoleUrl.value = 'https://id.test/ui/console/users/{sub}';
+    await withMembers(MEMBERS);
+
+    expect(screen.getByText('owner@acme.test')).toBeInTheDocument();
+    expect(screen.getByText('gone@acme.test')).toBeInTheDocument();
+    expect(screen.getByText('removed')).toBeInTheDocument();
+  });
+
+  it('links each person to their account at the provider', async () => {
+    consoleUrl.value = 'https://id.test/ui/console/users/{sub}';
+    await withMembers(MEMBERS);
+
+    const link = screen.getByRole('link', { name: 'owner@acme.test' });
+    expect(link).toHaveAttribute('href', 'https://id.test/ui/console/users/388706935093854213');
+    // It leaves the product for an administrative console, which has no
+    // business being handed a window handle or the address it came from.
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noreferrer');
+  });
+
+  it('shows the address as plain text when the deployment has no console to point at', async () => {
+    // The appliance has no issuer at all (hard rule 5), and a stack
+    // mid-upgrade has not been given the variable. Neither may render a dead
+    // anchor: a link that goes nowhere is worse than no link, because somebody
+    // clicks it.
+    await withMembers(MEMBERS);
+
+    expect(screen.getByText('owner@acme.test')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'owner@acme.test' })).not.toBeInTheDocument();
+  });
+
+  it('says so when nobody belongs to it', async () => {
+    await withMembers([]);
+    expect(screen.getByText(STRINGS.en['support.noPeople'])).toBeInTheDocument();
   });
 });

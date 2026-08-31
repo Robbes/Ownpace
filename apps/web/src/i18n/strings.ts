@@ -765,6 +765,15 @@ const en = {
   'support.back': 'All organisations',
   'support.backToOrganisation': 'Back to the organisation',
   'support.joinedOn': 'Joined',
+  // Who may act on the organisation, and the way through to their account at
+  // the identity provider (migration 0018). "People" rather than "Members":
+  // the row can be somebody who was removed, and the screen says so.
+  'support.people': 'People',
+  'support.noPeople': 'Nobody belongs to this organisation.',
+  'support.col.email': 'Email',
+  // The title on the link out. It names what happens — a different application
+  // opens — because an operator clicking an address expects to mail it.
+  'support.openAtProvider': 'Open this account at the identity provider',
   'support.connections': 'Connections',
   'support.migrations': 'Migrations',
   'support.invoices': 'Invoices',
@@ -1373,6 +1382,10 @@ const nl: Record<keyof typeof en, string> = {
   'support.back': 'Alle organisaties',
   'support.backToOrganisation': 'Terug naar de organisatie',
   'support.joinedOn': 'Klant sinds',
+  'support.people': 'Mensen',
+  'support.noPeople': 'Niemand hoort bij deze organisatie.',
+  'support.col.email': 'E-mailadres',
+  'support.openAtProvider': 'Dit account openen bij de identiteitsprovider',
   'support.connections': 'Verbindingen',
   'support.migrations': 'Migraties',
   'support.invoices': 'Facturen',

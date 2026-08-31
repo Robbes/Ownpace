@@ -3061,6 +3061,9 @@ paths:
                   invoices:
                     type: array
                     items: { $ref: '#/components/schemas/SupportInvoice' }
+                  members:
+                    type: array
+                    items: { $ref: '#/components/schemas/SupportTenantMember' }
                   usage: { $ref: '#/components/schemas/SupportTenantUsage' }
         '400':
           description: The id in the path is not a uuid.
@@ -3318,6 +3321,30 @@ components:
           type: object
           nullable: true
           description: Counts and durations only — never folder names or addresses.
+    SupportTenantMember:
+      type: object
+      description: |
+        Who may act on an organisation: an address, a role and a state, plus
+        the identity provider's subject so a screen can link to that account.
+        The first support view carrying PEOPLE — every other one is metadata
+        about the work, and this one is deliberately no wider than a
+        membership. No name, no phone, nothing the person did.
+
+        Removed members stay listed with their state, because "this person
+        used to be the owner" is most of what a support conversation about a
+        lost account is about.
+      properties:
+        user_id:
+          type: string
+          description: |
+            The identity provider's subject — opaque, and useless to anybody
+            who cannot already sign in to that provider. Never an Ownpace id
+            and never derived from the address.
+        email: { type: string, format: email }
+        role: { type: string, enum: [owner, admin, member, viewer] }
+        status: { type: string, enum: [active, invited, suspended, removed] }
+        invited_at: { type: string, format: date-time, nullable: true }
+        joined_at: { type: string, format: date-time, nullable: true }
     SupportTenantUsage:
       type: object
       description: |
