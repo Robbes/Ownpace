@@ -35,7 +35,12 @@ import {
   type AccessRequest,
 } from '../services/access-requests.ts';
 
-vi.mock('../services/access-requests.ts', () => ({
+// The three network calls are stubbed; `alreadyOwnsRefusal` is NOT. It is a
+// pure reading of a response body and it is half of what these tests are about
+// — stubbing it would let the screen pass while the recogniser was wrong, which
+// is the only way this feature can fail silently.
+vi.mock('../services/access-requests.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/access-requests.ts')>()),
   listAccessRequests: vi.fn(),
   grantAccessRequest: vi.fn(),
   declineAccessRequest: vi.fn(),
@@ -228,5 +233,93 @@ describe('what became of the email', () => {
     const said = await screen.findByRole('status');
     expect(said).toHaveTextContent(/nobody was emailed/i);
     expect(said).toHaveTextContent(REQUEST.email);
+  });
+});
+
+describe('granting somebody who already owns an organisation', () => {
+  /** What the route answers: 409, the names, and the field that means it anyway. */
+  const REFUSAL = {
+    response: {
+      status: 409,
+      data: {
+        error: 'Conflict',
+        message:
+          'That address already owns organisations: De Vries, Bakerloo SMB. Granting again ' +
+          'creates another one, with them as owner of both.',
+        organisations: ['De Vries', 'Bakerloo SMB'],
+        confirmWith: 'alsoCreateSecondOrganisation',
+      },
+    },
+  };
+
+  it('names what they already own, rather than describing it', async () => {
+    const user = userEvent.setup();
+    grantMock.mockRejectedValue(REFUSAL);
+    renderQueue();
+
+    await user.click(await screen.findByRole('button', { name: /grant access/i }));
+
+    // The organisations themselves. "They already own one" sends an operator
+    // off to go and look; the answer is usually visible on reading which.
+    expect(await screen.findByText('De Vries')).toBeInTheDocument();
+    expect(screen.getByText('Bakerloo SMB')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/already owns an organisation/i);
+  });
+
+  it('sends the confirmation the server asked for, and only on the second press', async () => {
+    const user = userEvent.setup();
+    grantMock.mockRejectedValueOnce(REFUSAL).mockResolvedValueOnce({
+      tenantId: 't-2',
+      name: 'De Vries',
+      email: REQUEST.email,
+      notified: 'sent',
+    });
+    renderQueue();
+
+    await user.click(await screen.findByRole('button', { name: /grant access/i }));
+    // THE PROPERTY: the first press carries no override. A screen that sent it
+    // pre-emptively would make the server's refusal unreachable and quietly
+    // create the second organisation the refusal exists to prevent.
+    expect(grantMock).toHaveBeenLastCalledWith('req-1', { organisationName: 'De Vries' });
+
+    await user.click(await screen.findByRole('button', { name: /create a second organisation/i }));
+
+    await waitFor(() =>
+      expect(grantMock).toHaveBeenLastCalledWith('req-1', {
+        organisationName: 'De Vries',
+        alsoCreateSecondOrganisation: true,
+      }),
+    );
+  });
+
+  it('takes the operator at their word when they back out', async () => {
+    const user = userEvent.setup();
+    grantMock.mockRejectedValue(REFUSAL);
+    renderQueue();
+
+    await user.click(await screen.findByRole('button', { name: /grant access/i }));
+    await user.click(await screen.findByRole('button', { name: /leave it as it is/i }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    // Backing out is not a decision: nothing more was sent.
+    expect(grantMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers NO override for a refusal that has none', async () => {
+    // "Already decided" is also a 409 and cannot be overridden by anything.
+    // Keying the block on the status rather than on `confirmWith` would put a
+    // button here that could only ever fail.
+    const user = userEvent.setup();
+    grantMock.mockRejectedValue({
+      response: { status: 409, data: { message: 'That request was already granted.' } },
+    });
+    renderQueue();
+
+    await user.click(await screen.findByRole('button', { name: /grant access/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/already granted/i);
+    expect(
+      screen.queryByRole('button', { name: /create a second organisation/i }),
+    ).not.toBeInTheDocument();
   });
 });
