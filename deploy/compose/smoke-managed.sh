@@ -1177,6 +1177,33 @@ else
        ON CONFLICT DO NOTHING" >/dev/null
   fi
   echo "signed in: verify=${VERIFY_SUBJECT:-<none>}  apply=${APPLY_SUBJECT:-<none>}  invitee=${INV_SUB:-<none>}"
+
+  # ---------- and the memberships from every run before this one ----------
+  #
+  # THE TAKE-BACK STOPPED AT THE PROVIDER. `idp_take_back` deletes the people
+  # and the throwaway client, and the invitee's membership is removed where it
+  # is made — but the two rows above were never removed by anything. One owner
+  # per demo tenant, per night, for ever.
+  #
+  # Found by the owner on 2026-08-31, reading the support screen this gate now
+  # also exercises: "Demo Tenant A — Acme Families has 31 probe owner users...
+  # a bit much!?" Thirty-one nights.
+  #
+  # Exactly the shape of run #68, where eighteen abandoned people were found at
+  # the PROVIDER — that leak was fixed on the provider side and our own database
+  # was never looked at. The lesson costs nothing the second time only if it is
+  # applied on both sides.
+  #
+  # SWEPT BEFORE THIS RUN'S OWN ROWS ARE WRITTEN would be wrong — they are
+  # written above, and this runs after. So it removes every `@smoke.local`
+  # membership that is NOT this run's, keyed on the pid the emails carry. A
+  # membership belonging to a person the provider no longer has is residue by
+  # definition.
+  swept="$(q "DELETE FROM tenant_member
+              WHERE email LIKE '%@smoke.local'
+                AND email NOT LIKE '%-$$@smoke.local'
+              RETURNING 1" | grep -c 1 || true)"
+  echo "swept ${swept:-0} membership(s) left behind by earlier runs"
 fi
 
 # ---------- VERIFY half ----------

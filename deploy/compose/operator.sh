@@ -78,4 +78,4 @@ PGPORT_HOST="${hostport##*:}"
 echo "[operator] ${POSTGRES_DB:-openmigrate} via localhost:${PGPORT_HOST} (the port compose reports)"
 
 DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@localhost:${PGPORT_HOST}/${POSTGRES_DB:-openmigrate}" \
-  pnpm --dir "$REPO_ROOT" --filter @openmig/api "operator:$1" -- "${@:2}"
+  pnpm --dir "$REPO_ROOT" --filter @openmig/api "operator:$1" "${@:2}"

@@ -740,6 +740,36 @@ members, so the third row above is one click rather than a hunt. The link is
 `VITE_IDP_CONSOLE_USER_URL`, which `setup-zitadel.sh` writes; leave it empty and
 the addresses render as plain text rather than as links that go nowhere.
 
+**The console needs its own grant, and its own sign-in.** An Ownpace operator is
+not automatically anybody at the identity provider: `setup-zitadel.sh` creates
+the machine user and gives no human a role, deliberately — it cannot know which
+human before they have signed in once, the same chicken-and-egg as the operator
+appointment. So the People links land on a console that refuses to load until
+that account is an org owner there:
+
+```bash
+PAT="$(docker compose -f deploy/compose/managed.yml run --rm -T zitadel-machinekey cat /machinekey/pat.txt | tr -d '\r\n')"
+curl -sS -X POST "$JWT_ISSUER/management/v1/orgs/me/members" \
+  -H "Authorization: Bearer $PAT" -H "Content-Type: application/json" \
+  -d '{"userId":"<the operator subject>","roles":["ORG_OWNER"]}'
+```
+
+The console session is also separate from the app's, so sign in at
+`$JWT_ISSUER/ui/console` once before the deep links work.
+
+**One open request per address.** Somebody may ask again after a decision —
+that is information, and migration 0002 kept it deliberately — but a second
+knock while the first is unanswered is not recorded twice. They are told exactly
+what they were told the first time, because a different answer is a way to find
+out which addresses have asked. Migration 0020's partial index is where that
+rule lives: the knock is anonymous and cannot read the queue to check.
+
+**Granting somebody who already owns an organisation is refused.** Granting is
+an unconditional new organisation, so a double press would leave one person
+owning two, and the app then has to ask them which they meant on every sign-in.
+The refusal names what they already own; sending `alsoCreateSecondOrganisation`
+goes ahead, for the case where a second one is genuinely wanted.
+
 **Multiple owners are allowed**, and are the sensible arrangement for anything
 that outlives one person. The database refuses to leave an organisation with
 none: the last owner can be neither demoted nor removed, and only an owner may

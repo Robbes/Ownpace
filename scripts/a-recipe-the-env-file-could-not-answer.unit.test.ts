@@ -170,10 +170,39 @@ describe('operator.sh composes what the host cannot inherit', () => {
     expect(out).not.toContain('0.0.0.0:55432/');
   });
 
-  it('passes the sub-command and its arguments straight through', () => {
+  it('passes the sub-command and its arguments straight through, IN ORDER', () => {
+    /**
+     * THE POSITION IS THE WHOLE POINT, and the first version of this test did
+     * not check it. It asserted that `operator:add` appeared and that the
+     * arguments appeared, with `.*` between them — which stayed green while
+     * the wrapper sent
+     *
+     *     pnpm … operator:add -- sub-abc me@example.invalid a note
+     *
+     * because pnpm FORWARDS `--` instead of consuming it. Every argument
+     * shifted one place: `user_id` became the literal `--`, the subject went
+     * into the email column and the email into the note. The appointment
+     * matched nobody, `/api/me` answered `operator: false`, the nav correctly
+     * hid the operator screens, and the script printed "may now read the
+     * access queue" both times it happened (2026-08-31).
+     *
+     * A loose assertion is how a guard watches the right file and proves the
+     * wrong thing. This one pins the exact line.
+     */
     const { out } = runWrapper('0.0.0.0:55432', ['add', 'sub-abc', 'me@example.invalid', 'a', 'note']);
-    expect(out).toMatch(/ARGV=.*operator:add/);
-    expect(out).toMatch(/ARGV=.*sub-abc me@example\.invalid a note/);
+    const argv = out.split('\n').find((l) => l.startsWith('ARGV='));
+    expect(argv, 'the pnpm stub reported no ARGV line').toBeDefined();
+    // The stub echoes `$*`, so pnpm's OWN flags (--dir, --filter) lead the line
+    // and the repo root varies with the temp dir. What is pinned is the tail:
+    // the sub-command immediately followed by the arguments, nothing between.
+    expect(argv).toMatch(/operator:add sub-abc me@example\.invalid a note$/);
+    // Said separately, because this is the failure and it deserves its own
+    // sentence when it comes back.
+    expect(
+      argv,
+      'the wrapper passes `--` before the arguments again. pnpm forwards it, so\n' +
+        'every value shifts one place and the appointment goes to nobody.',
+    ).not.toContain(' -- ');
   });
 
   it('refuses with the three sub-commands when given none', () => {
