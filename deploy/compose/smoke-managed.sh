@@ -2491,6 +2491,96 @@ if [ -n "${STACK_ISSUER:-}" ]; then
           fail=1
         fi
       fi
+
+      # ---------- FINDING A PERSON, AND THE LOG THAT SAYS YOU DID ----------
+      #
+      # `GET /api/support/people` crosses every organisation at once — the one
+      # read on this surface that is not scoped to a tenant the operator
+      # already chose. It exists because an operator with an email address and
+      # nothing else could not answer "who is this?", and it is the widest
+      # question this product can be asked.
+      #
+      # So the accountability half is not decoration. Every read writes a
+      # `support_read` row against the operator's SUBJECT, inside the same
+      # transaction as the read itself, so a read that happened cannot fail to
+      # be logged and a log entry cannot describe a read that did not. Nothing
+      # anywhere checked that the row appears. A regression there is invisible
+      # by construction: the screen still works, the operator still sees the
+      # person, and the only thing missing is the record that they looked.
+      #
+      # ASKED ABOUT THE PERSON THIS RUN JUST CREATED, not about the demo seed.
+      # The granted organisation above has exactly one member, whose address
+      # this block chose, so the expected count is 1 rather than whatever the
+      # seed happens to hold — a number that would go red on a seed change
+      # rather than on a defect. It also means the search is answered by a row
+      # that did not exist sixty seconds ago, which is the part a fixture
+      # cannot prove.
+      if [ -n "${new_tenant:-}" ]; then
+        # THE FLOOR FIRST. One character matches most of a customer list, and
+        # "every person we have" is not an answer to a blank box.
+        r="$(http GET "$API/api/support/people?q=a" "$OP_TOKEN")"; code="${r%% *}"
+        if [ "$code" = "400" ]; then
+          echo "a one-character search is refused: HTTP 400"
+        else
+          echo "a one-character search: HTTP ${code}, expected 400 — it would match most of a customer list"
+          fail=1
+        fi
+
+        r="$(http GET "$API/api/support/people?q=${GRANT_EMAIL}" "$OP_TOKEN")"
+        code="${r%% *}"; body="${r#* }"
+        found="$(jq -r --arg e "$GRANT_EMAIL" '[.people[]? | select(.email == $e)] | length' <<<"$body" 2>/dev/null || echo -1)"
+        found_tenant="$(jq -r --arg e "$GRANT_EMAIL" '.people[]? | select(.email == $e) | .tenant_id' <<<"$body" 2>/dev/null | head -1)"
+        if [ "$code" = "200" ] && [ "$found" = "1" ] && [ "$found_tenant" = "$new_tenant" ]; then
+          echo "the search finds the person this run created, in the organisation it created"
+        else
+          echo "the people search: HTTP ${code}, matches=${found}, tenant='${found_tenant}' (expected '${new_tenant}') — ${body:0:200}"
+          fail=1
+        fi
+
+        # THE LOG SAYS WHAT WAS ASKED AND WHAT CAME BACK. `view_name` alone
+        # answers neither: an operator who searched for one address and one who
+        # listed everybody would leave the same row, and the point of keeping
+        # the query text is that those are different reads.
+        logged="$(q "SELECT count(*) FROM support_read
+                      WHERE operator_user_id = '${OP_SUBJECT}' AND view_name = 'people'
+                        AND query = '${GRANT_EMAIL}' AND result_count = 1" 2>/dev/null || echo '?')"
+        if [ "$logged" = "1" ]; then
+          echo "the search was written to support_read with its query and its count"
+        else
+          echo "support_read rows for this search: ${logged}, expected 1"
+          echo "    A read that is not logged is the failure this table exists to prevent, and it"
+          echo "    is invisible from the screen: the operator still sees the person either way."
+          fail=1
+        fi
+
+        # AND OPENING ONE IS ITS OWN READ. A different view_name, scoped to the
+        # tenant, because "searched for an address" and "opened that account"
+        # are different things to anybody reading the log afterwards.
+        found_user="$(jq -r --arg e "$GRANT_EMAIL" '.people[]? | select(.email == $e) | .user_id' <<<"$body" 2>/dev/null | head -1)"
+        if [ -n "$found_user" ]; then
+          r="$(http POST "$API/api/support/people/${new_tenant}/${found_user}/opened" "$OP_TOKEN" '{}')"
+          code="${r%% *}"
+          opened="$(q "SELECT count(*) FROM support_read
+                        WHERE operator_user_id = '${OP_SUBJECT}' AND view_name = 'person'
+                          AND tenant_id = '${new_tenant}'" 2>/dev/null || echo '?')"
+          if [ "$code" = "204" ] && [ "$opened" = "1" ]; then
+            echo "opening the person is recorded separately: HTTP 204, support_read view_name=person"
+          else
+            echo "opening the person: HTTP ${code}, support_read person rows = ${opened}, expected 204 and 1"
+            fail=1
+          fi
+        else
+          echo "the search answered without a user_id, so there was nobody to open"; fail=1
+        fi
+
+        # NOTHING SWEEPS support_read, DELIBERATELY. It is the record of what
+        # this run's operator looked at, and a gate that erased its own audit
+        # trail would be demonstrating the failure the table exists to catch.
+        # The rows outlive the tenant on purpose: `tenant_id` carries no
+        # foreign key (migration 0009), so the take-back below cannot be
+        # blocked by them and the log keeps describing a read that happened.
+        :
+      fi
     fi
 
     # TAKE IT BACK. Requests first, then tenants — see the header above.

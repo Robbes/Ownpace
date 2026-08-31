@@ -346,3 +346,70 @@ describe('the refusal the operator can answer', () => {
     );
   });
 });
+
+describe('finding a person, and the log that says you did', () => {
+  /**
+   * `GET /api/support/people` crosses every organisation at once — the one
+   * read on this surface not scoped to a tenant the operator already chose,
+   * and so the widest question this product can be asked.
+   *
+   * Which makes the accountability half load-bearing rather than decorative.
+   * A regression in `support_read` is invisible by construction: the screen
+   * still works, the operator still sees the person, and the only thing
+   * missing is the record that they looked. Nothing anywhere checked the row
+   * appears.
+   */
+  const block = smoke.slice(
+    smoke.indexOf('FINDING A PERSON, AND THE LOG THAT SAYS YOU DID'),
+    smoke.indexOf('TAKE IT BACK. Requests first'),
+  );
+
+  it('found the block', () => {
+    expect(block.length).toBeGreaterThan(500);
+  });
+
+  it('asks about the person this run created, not about the seed', () => {
+    // The granted organisation has exactly one member whose address this block
+    // chose, so the expected count is 1 rather than whatever the demo seed
+    // holds — a number that would go red on a seed change rather than on a
+    // defect. It also means the answer comes from a row that did not exist a
+    // minute earlier, which is the part a fixture cannot prove.
+    expect(block).toContain('q=${GRANT_EMAIL}');
+    expect(block).toContain('"$found" = "1"');
+    expect(block, 'the person is not tied back to the organisation just created').toContain(
+      '"$found_tenant" = "$new_tenant"',
+    );
+  });
+
+  it('checks the floor, because a blank box is not a question', () => {
+    expect(block).toContain('q=a');
+    expect(block).toContain('a one-character search is refused');
+  });
+
+  it('reads the LOG, with the query and the count, not just view_name', () => {
+    // `view_name` alone cannot tell an operator who searched one address from
+    // one who listed everybody. Keeping the query is the whole point of 0019,
+    // and a check that ignored it would pass a route that logged neither.
+    expect(block).toContain("view_name = 'people'");
+    expect(block).toContain('query = ');
+    expect(block).toContain('result_count = 1');
+  });
+
+  it('treats opening a person as its own read', () => {
+    // A different view_name, scoped to the tenant: "searched for an address"
+    // and "opened that account" are different things to anybody reading the
+    // log afterwards.
+    expect(block).toContain('/opened');
+    expect(block).toContain("view_name = 'person'");
+    expect(block).toContain('"$code" = "204"');
+  });
+
+  it('does NOT sweep support_read, and says why', () => {
+    // A gate that erased its own audit trail would be demonstrating the
+    // failure the table exists to catch. The rows outlive the tenant because
+    // `tenant_id` carries no foreign key (migration 0009), so the take-back
+    // cannot be blocked by them either.
+    expect(block, 'the gate deletes its own audit rows').not.toMatch(/DELETE FROM support_read/);
+    expect(block).toContain('NOTHING SWEEPS support_read, DELIBERATELY');
+  });
+});
