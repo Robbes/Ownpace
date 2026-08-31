@@ -180,6 +180,19 @@ const en = {
     'A short refusal in their own language, with no reason and never your note. Untick it for ' +
     'junk: this form is public, so a made-up address belongs to a stranger. Granting always ' +
     'emails them — that is how they learn they can sign in.',
+  // THE OVERRIDE (owner decision 2026-08-31). Granting a person who already
+  // owns an organisation creates a SECOND one with them as owner of both, and
+  // `/api/me` then has two tenants for somebody who asked once and pressed
+  // twice. The server refuses and names what they already own; this is the
+  // operator saying they meant it. Not a checkbox beside the button — a
+  // deliberate second press, after seeing the list.
+  'queue.alreadyOwnsHeading': 'This address already owns an organisation',
+  'queue.alreadyOwnsHelp':
+    'Granting again creates another one, with them as owner of both — and the app then has to ' +
+    'ask them which they meant every time they sign in. Usually this is a double press. If it ' +
+    'is genuinely a second organisation, say so below.',
+  'queue.grantAnyway': 'Create a second organisation',
+  'queue.grantAnywayCancel': 'Leave it as it is',
   'queue.mailSent': 'We emailed {email}.',
   'queue.mailOff': 'Nobody was emailed — this deployment sends no mail. Tell {email} yourself.',
   'queue.mailFailed':
@@ -1590,6 +1603,13 @@ const nl: Record<keyof typeof en, string> = {
     'Een korte afwijzing in hun eigen taal, zonder reden en nooit met uw notitie. Vink het uit ' +
     'bij rommel: dit formulier is openbaar, dus een verzonnen adres is van een onbekende. Bij ' +
     'toekennen mailen wij altijd — zo weten zij dat zij zich kunnen aanmelden.',
+  'queue.alreadyOwnsHeading': 'Dit adres is al eigenaar van een organisatie',
+  'queue.alreadyOwnsHelp':
+    'Nog een keer toekennen maakt er nóg een, met deze persoon als eigenaar van beide — en de ' +
+    'app moet hen dan bij elke aanmelding vragen welke zij bedoelen. Meestal is dit twee keer ' +
+    'drukken. Gaat het echt om een tweede organisatie, geef dat hieronder aan.',
+  'queue.grantAnyway': 'Tweede organisatie aanmaken',
+  'queue.grantAnywayCancel': 'Laat het zoals het is',
   'queue.mailSent': 'Wij hebben {email} gemaild.',
   'queue.mailOff':
     'Er is niemand gemaild — deze installatie verstuurt geen e-mail. Laat het {email} zelf weten.',

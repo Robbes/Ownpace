@@ -36,12 +36,14 @@
 
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { DoorOpen, Check, X } from 'lucide-react';
+import { DoorOpen, Check, X, AlertTriangle } from 'lucide-react';
 import {
+  alreadyOwnsRefusal,
   declineAccessRequest,
   grantAccessRequest,
   listAccessRequests,
   type AccessRequest,
+  type AlreadyOwnsRefusal,
   type NotifiedOutcome,
   type RequestState,
 } from '../services/access-requests.ts';
@@ -85,13 +87,25 @@ const RequestCard: React.FC<{
   // Ticked. Silence has to be chosen, not defaulted into — see the file header.
   const [tellThem, setTellThem] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The refusal an operator can answer, held apart from `error`.
+   *
+   * Both are 409s and only this one has a way forward, so merging them would
+   * mean either offering an override for "already decided" — which cannot work
+   * — or offering none for this, which is where we were: the refusal named the
+   * organisations and the field to send, and the only way to send it was curl.
+   */
+  const [alreadyOwns, setAlreadyOwns] = useState<AlreadyOwnsRefusal | null>(null);
 
   const decide = useMutation({
-    mutationFn: async (decision: 'grant' | 'decline'): Promise<Decision> => {
-      if (decision === 'grant') {
+    mutationFn: async (decision: 'grant' | 'grant-anyway' | 'decline'): Promise<Decision> => {
+      if (decision === 'grant' || decision === 'grant-anyway') {
         const result = await grantAccessRequest(request.id, {
           ...(name.trim() ? { organisationName: name.trim() } : {}),
           ...(note.trim() ? { note: note.trim() } : {}),
+          // Only ever `true`, and only on the second press. See the field's own
+          // comment in the client for why it has no `false`.
+          ...(decision === 'grant-anyway' ? { alsoCreateSecondOrganisation: true } as const : {}),
         });
         // The server's own `email`, not the card's: it is the address the mail
         // was actually addressed to, and reporting anything else would be a
@@ -108,13 +122,24 @@ const RequestCard: React.FC<{
     },
     onSuccess: (decision) => {
       setError(null);
+      setAlreadyOwns(null);
       onDecided(decision);
     },
     onError: (err: unknown) => {
+      // Ask first whether this is the refusal with an answer. Exactly one of
+      // the two is ever set, so the card can never show a red sentence and an
+      // override for it at the same time.
+      const refusal = alreadyOwnsRefusal(err);
+      if (refusal) {
+        setAlreadyOwns(refusal);
+        setError(null);
+        return;
+      }
       // The server's own sentence where there is one — a 409 says the request
       // was already decided, which is the thing worth reading.
       const detail = (err as { response?: { data?: { message?: string } } })?.response?.data
         ?.message;
+      setAlreadyOwns(null);
       setError(detail ?? (err instanceof Error ? err.message : String(err)));
     },
   });
@@ -202,6 +227,56 @@ const RequestCard: React.FC<{
             <p role="alert" className="text-sm text-red-600">
               {error}
             </p>
+          )}
+
+          {alreadyOwns !== null && (
+            // AMBER, NOT RED. Nothing failed and nothing is broken: the server
+            // stopped short of a thing it could not undo and is asking. Red
+            // here would read as an error to dismiss, which is how somebody
+            // presses past it.
+            <div
+              role="alert"
+              className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-2"
+            >
+              <p className="flex items-start gap-2 text-sm font-medium text-amber-900">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                {t('queue.alreadyOwnsHeading')}
+              </p>
+              {/* The organisations by name, because "they already own one" sends
+                  an operator off to go and look, and the answer is usually
+                  visible the moment they read which. */}
+              <ul className="ml-6 list-disc text-sm text-amber-900">
+                {alreadyOwns.organisations.map((org) => (
+                  <li key={org}>{org}</li>
+                ))}
+              </ul>
+              <p className="ml-6 text-xs text-amber-800">{t('queue.alreadyOwnsHelp')}</p>
+              <div className="ml-6 flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={decide.isPending}
+                  onClick={() => decide.mutate('grant-anyway')}
+                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md text-white bg-amber-700 hover:bg-amber-800 disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                  {decide.isPending ? t('queue.granting') : t('queue.grantAnyway')}
+                </button>
+                {/* No `confirm()` on the way out. The block above IS the
+                    confirmation — it names what they own and what a second one
+                    costs — and a dialog on top of it would be one more thing to
+                    click through rather than one more thing to read. The
+                    decline button uses one precisely because it has no such
+                    block. */}
+                <button
+                  type="button"
+                  disabled={decide.isPending}
+                  onClick={() => setAlreadyOwns(null)}
+                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md text-amber-900 border border-amber-300 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  {t('queue.grantAnywayCancel')}
+                </button>
+              </div>
+            </div>
           )}
 
           <div className="flex gap-2">
