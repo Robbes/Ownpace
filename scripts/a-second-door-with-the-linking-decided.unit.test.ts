@@ -107,7 +107,7 @@ describe('and a provider that is configured is a provider somebody can see', () 
      */
     expect(setup, 'nothing derives whether providers may be offered').toMatch(/WANT_EXTERNAL=/);
     expect(setup, 'the login policy does not carry that decision').toMatch(
-      /allowExternalIdp:\$x/,
+      /allowExternalIdp:\s*\$x/,
     );
   });
 
