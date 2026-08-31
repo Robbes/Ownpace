@@ -112,6 +112,34 @@ export interface TenantTier extends TierDerivation {
  * derive with the meter total as of period close — T5's scheduled close is
  * where that belongs.
  */
+/**
+ * The read-only twin of `currentTier`, for surfaces that LOOK without pricing.
+ *
+ * `currentTier` trues the month up — it writes the peak it is about to read —
+ * because it runs at a moment that prices something. The operator's support
+ * screen must give the same answer while writing nothing: an operator looking
+ * must not move a billing mark, and under the operator subject the tenant-RLS
+ * write would be refused anyway. So the caller hands in what the support view
+ * serves — the recorded peak (0 when nothing raised the mark), the live count
+ * of slot-holding paths, and the meter — and this derives from the higher of
+ * the two peaks, which is exactly the number the true-up would have written.
+ *
+ * `evidence.peakPaths` is that EFFECTIVE peak. `peakAt` is deliberately not
+ * set: when the live count is the higher number, the moment it becomes the
+ * month's mark is when something records it, and this function records
+ * nothing. `support-routes.unit.test.ts` pins the parity with `currentTier`
+ * over a real database, which is the guard that matters — a drift between the
+ * screen and the invoice is the confusion this whole surface exists to
+ * prevent.
+ */
+export function observedTier(peakRecorded: number, pathsNow: number, gbMoved: number): TenantTier {
+  const peakPaths = Math.max(peakRecorded, pathsNow);
+  return {
+    ...deriveTier(peakPaths, gbMoved),
+    evidence: { peakPaths, gbMoved },
+  };
+}
+
 export async function currentTier(db: PgDatabase, tenantId: TenantId): Promise<TenantTier> {
   const peaks = new PgOccupancyPeakStore(db);
   await peaks.recordCurrentOccupancy(tenantId);

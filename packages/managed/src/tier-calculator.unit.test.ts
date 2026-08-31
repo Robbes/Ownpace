@@ -30,7 +30,13 @@ import { pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import type { TenantId } from '@openmig/shared';
 import { runManagedMigrations } from './migrate-managed.ts';
-import { MANAGED_TIERS, GB_PER_TB, deriveTier, currentTier } from './tier-calculator.ts';
+import {
+  MANAGED_TIERS,
+  GB_PER_TB,
+  deriveTier,
+  observedTier,
+  currentTier,
+} from './tier-calculator.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..', '..');
@@ -108,6 +114,40 @@ describe('the managed derivation agrees with the site, everywhere', () => {
         expect(ours.decidedBy, `decidedBy disagrees at ${at}`).toBe(theirs.decidedBy);
       }
     }
+  });
+});
+
+describe('observedTier — the read-only twin', () => {
+  it('answers exactly as deriveTier over the higher peak, and says which number it used', () => {
+    // The whole contract: fold the live count in the way the true-up would
+    // have written it, and derive. Driven over the same boundary grid as the
+    // site parity, with recorded and live crossed both ways round — the twin
+    // must not care which of the two is the higher one.
+    const pathPoints = [0, 1, 2, 4, 5, 20, 21, 200, 201];
+    const gbPoints = [0, 250, 251, 2000, 15000, 15001];
+    for (const recorded of pathPoints) {
+      for (const now of pathPoints) {
+        for (const gb of gbPoints) {
+          const observed = observedTier(recorded, now, gb);
+          const effective = Math.max(recorded, now);
+          const derived = deriveTier(effective, gb);
+          const at = `recorded=${recorded}, now=${now}, gb=${gb}`;
+          expect(observed.tier?.id ?? null, `tier disagrees at ${at}`).toBe(
+            derived.tier?.id ?? null,
+          );
+          expect(observed.decidedBy, `decidedBy disagrees at ${at}`).toBe(derived.decidedBy);
+          expect(observed.evidence.peakPaths, `evidence peak at ${at}`).toBe(effective);
+          expect(observed.evidence.gbMoved, `evidence gb at ${at}`).toBe(gb);
+        }
+      }
+    }
+  });
+
+  it('carries no peakAt — it records nothing, so it cannot date a mark', () => {
+    // When the live count IS the higher number, the moment it becomes the
+    // month's mark is when something writes it down; a date invented here
+    // would be evidence of an event that has not happened.
+    expect(observedTier(1, 3, 0).evidence.peakAt).toBeUndefined();
   });
 });
 

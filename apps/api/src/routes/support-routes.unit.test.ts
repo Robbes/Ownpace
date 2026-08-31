@@ -34,10 +34,11 @@ import request from 'supertest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { pgliteDriver, runMigrations } from '@openmig/ledger';
+import { pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import { runManagedMigrations, tenantRef } from '@openmig/managed';
+import { runManagedMigrations, tenantRef, currentTier } from '@openmig/managed';
 import { FAILURE_CATEGORIES } from '@openmig/shared';
+import type { TenantId } from '@openmig/shared';
 
 const TENANT_A = '5f5c0000-e29b-41d4-a716-446655442201';
 const TENANT_B = '5f5c0000-e29b-41d4-a716-446655442202';
@@ -581,5 +582,131 @@ describe('the invoices an erasure kept', () => {
     expect(live.map((i) => i.invoice_id)).not.toContain(RETAINED_INVOICE);
     const liveIds = new Set(live.map((i) => i.invoice_id));
     expect(retained.some((i) => liveIds.has(i.invoice_id))).toBe(false);
+  });
+});
+
+describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
+  // Seeded HERE rather than in the file's beforeAll: the empty-list test above
+  // deletes and restores the tenants, and rows seeded before it would need to
+  // be part of its restore block — a coupling this data has no reason to buy.
+  //
+  // The numbers are chosen so the derivation FLIPS if any input is dropped:
+  //  - recorded peak 1, live slot-holders 3 (2 active + 1 paused; the cutover
+  //    row holds nothing) → the paths axis says Small only because the LIVE
+  //    number is folded in; from the recorded peak alone it says Tiny.
+  //  - meter 100 GB → the data axis says Tiny, so `decided_by` is 'paths' —
+  //    and the meter still shows in the evidence, so dropping it is visible.
+  beforeAll(async () => {
+    const conn = await driver.acquire();
+    try {
+      const q = (sql: string, p: unknown[] = []) => conn.query(sql, p);
+      await q(
+        `INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at)
+         VALUES ($1, date_trunc('month', now())::date, 1, TIMESTAMPTZ '2026-08-12T10:00:00Z')`,
+        [TENANT_A],
+      );
+      await q('INSERT INTO bytes_moved (tenant_id, bytes) VALUES ($1, 100000000000)', [TENANT_A]);
+      for (const [domain, state] of [
+        ['email', 'active'],
+        ['calendar', 'active'],
+        ['contact', 'paused'],
+        ['file', 'cutover'],
+      ]) {
+        await q(
+          `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state)
+           VALUES ($1, $2, $3, $4)`,
+          [TENANT_A, MAPPING_A, domain, state],
+        );
+      }
+      // A second organisation where only the DATA axis says anything: 800 GB
+      // moved, nothing running, nothing recorded.
+      await q('INSERT INTO bytes_moved (tenant_id, bytes) VALUES ($1, 800000000000)', [TENANT_B]);
+    } finally {
+      await conn.release();
+    }
+  });
+
+  it('serves the derivation with its evidence, live occupancy folded in', async () => {
+    caller = OPERATOR;
+    const res = await get(`/api/support/tenants/${TENANT_A}`);
+    expect(res.status).toBe(200);
+    const usage = res.body.usage as Record<string, unknown>;
+    // Small, and by PATHS: 3 slot-holders clear Tiny's 1 while 100 GB does
+    // not clear Tiny's 250. From the recorded peak alone this would read
+    // Tiny/'both' — a route that ignores the live counts fails here.
+    expect((usage.tier as Record<string, unknown>).id).toBe('small');
+    expect(usage.decided_by).toBe('paths');
+    expect(usage.evidence).toEqual({ peak_paths: 3, gb_moved: 100 });
+    // The observations behind it, separately: the mark somebody recorded and
+    // when, and what stands right now. The cutover path is counted in its
+    // state and NOT as a slot-holder — a route that counted rows instead of
+    // asking `holdsASlot` would say 4 here.
+    expect(usage.recorded_peak_paths).toBe(1);
+    expect(new Date(usage.recorded_peak_at as string).toISOString()).toBe(
+      '2026-08-12T10:00:00.000Z',
+    );
+    expect(usage.paths_now).toBe(3);
+    expect(usage.paths_by_state).toEqual({ active: 2, paused: 1, cutover: 1 });
+  });
+
+  it('agrees with the calculator the invoice will use — before AND after its true-up', async () => {
+    // The parity that makes this screen trustworthy: `currentTier` is what T5
+    // will bill from, and it WRITES the month up before reading. The screen
+    // must reach the same answer without writing anything — and must still
+    // agree after the calculator's true-up has moved the recorded mark.
+    caller = OPERATOR;
+    const before = (await get(`/api/support/tenants/${TENANT_A}`)).body.usage as Record<
+      string,
+      { peak_paths?: number; gb_moved?: number; id?: string }
+    >;
+
+    const billed = await withTenant(driver, TENANT_A, async (db) =>
+      currentTier(db, TENANT_A as TenantId),
+    );
+    expect(billed.tier?.id).toBe(before.tier?.id);
+    expect(billed.decidedBy).toBe(before.decided_by as unknown as string);
+    expect(billed.evidence.peakPaths).toBe(before.evidence?.peak_paths);
+    expect(billed.evidence.gbMoved).toBe(before.evidence?.gb_moved);
+
+    // The calculator's true-up just raised the recorded mark to 3. The screen
+    // reads the same tables, so it now shows the raised mark — and the SAME
+    // tier, because folding the live count in is exactly what the true-up
+    // writes down.
+    const after = (await get(`/api/support/tenants/${TENANT_A}`)).body.usage as Record<
+      string,
+      unknown
+    >;
+    expect(after.recorded_peak_paths).toBe(3);
+    expect((after.tier as Record<string, unknown>).id).toBe(before.tier?.id);
+    expect(after.evidence).toEqual({ peak_paths: 3, gb_moved: 100 });
+  });
+
+  it('lets the data axis decide when it is the higher one', async () => {
+    caller = OPERATOR;
+    const res = await get(`/api/support/tenants/${TENANT_B}`);
+    expect(res.status).toBe(200);
+    const usage = res.body.usage as Record<string, unknown>;
+    // 800 GB clears Small's 750 → Medium, with zero paths anywhere: the
+    // floor ADR-0014 promises ("the size of what you moved sets a floor").
+    expect((usage.tier as Record<string, unknown>).id).toBe('medium');
+    expect(usage.decided_by).toBe('data');
+    expect(usage.evidence).toEqual({ peak_paths: 0, gb_moved: 800 });
+    expect(usage.recorded_peak_paths).toBe(0);
+    expect(usage.recorded_peak_at).toBeNull();
+    expect(usage.paths_now).toBe(0);
+    expect(usage.paths_by_state).toEqual({});
+  });
+
+  it('adds numbers to the body, never words about what is moving', async () => {
+    // The usage block is counts, a tier name from a fixed table, and two
+    // timestamps. The boundary assertions above already run before this data
+    // exists; this re-runs the load-bearing ones on the body that now carries
+    // usage.
+    caller = OPERATOR;
+    const body = (await get(`/api/support/tenants/${TENANT_A}`)).text;
+    expect(body).not.toContain(SECRET_REF);
+    expect(body).not.toContain('someone@example.invalid');
+    expect(body).not.toContain(DECISION_PROSE);
+    expect(body).toContain('"usage"');
   });
 });

@@ -34,6 +34,7 @@ import {
   listSupportTenants,
   getSupportTenant,
   getSupportMigration,
+  type SupportTenantUsage,
 } from '../services/support.ts';
 import { STRINGS } from '../i18n/strings.ts';
 
@@ -311,6 +312,25 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
     expect(await screen.findByText(STRINGS.en['support.waiting.none'])).toBeInTheDocument();
   });
 
+  it('shows nothing of usage when the API sends none — an older server, not a broken screen', async () => {
+    // `usage` arrived after these routes did. A detail payload without it must
+    // render the rest of the screen untouched rather than crash or show an
+    // empty claim about somebody's bill.
+    tenantMock.mockResolvedValue({
+      tenant: TENANT,
+      connections: [],
+      migrations: [],
+      invoices: [],
+    });
+    mount(
+      <SupportTenantDetail />,
+      `/support/tenants/${TENANT.tenant_id}`,
+      '/support/tenants/:tenantId',
+    );
+    await screen.findByText(STRINGS.en['support.waiting.some']);
+    expect(screen.queryByText(STRINGS.en['support.usage'])).not.toBeInTheDocument();
+  });
+
   it('never shows the decisions themselves — only how many', async () => {
     // `decision.summary` is prose a detector wrote about a specific mailbox
     // and `decision.detail` is a jsonb bag that has carried addresses since
@@ -330,5 +350,76 @@ describe('failing and waiting are two different conversations (workplan 0110 T5)
     await screen.findByText(STRINGS.en['support.waiting.some']);
     expect(container.textContent).not.toContain('summary');
     expect(container.textContent).not.toContain('@');
+  });
+});
+
+describe('the package the month has earned so far (0109 T4, surfaced)', () => {
+  const USAGE: SupportTenantUsage = {
+    tier: {
+      id: 'small',
+      name: 'Small',
+      paths: 4,
+      data_gb: 750,
+      setup: 8,
+      monthly: 4,
+    },
+    decided_by: 'paths',
+    evidence: { peak_paths: 3, gb_moved: 100 },
+    recorded_peak_paths: 1,
+    recorded_peak_at: '2026-08-12T10:00:00.000Z',
+    paths_now: 3,
+    paths_by_state: { active: 2, paused: 1, cutover: 1 },
+  };
+
+  const mountWithUsage = (usage: SupportTenantUsage) => {
+    tenantMock.mockResolvedValue({
+      tenant: TENANT,
+      connections: [],
+      migrations: [],
+      invoices: [],
+      usage,
+    });
+    return mount(
+      <SupportTenantDetail />,
+      `/support/tenants/${TENANT.tenant_id}`,
+      '/support/tenants/:tenantId',
+    );
+  };
+
+  it('shows the package, which axis decided, and the evidence — as served, not recomputed', async () => {
+    // The API's derivation is the invoice's; this screen adds no arithmetic.
+    // The fixture's numbers are deliberately inconsistent-looking (recorded
+    // peak 1, live 3): the screen must show BOTH, because "why does the tier
+    // say more than the recorded peak" is answered by the live count.
+    const { container } = mountWithUsage(USAGE);
+    expect(await screen.findByText('Small')).toBeInTheDocument();
+    expect(screen.getByText(STRINGS.en['support.usage.decidedBy.paths'])).toBeInTheDocument();
+    // The paused path is visible in the breakdown — the classic "why am I
+    // still billed" answer, without naming any path.
+    expect(container.textContent).toContain('active 2 · cutover 1 · paused 1');
+    expect(container.textContent).toContain('100 GB');
+    expect(screen.getByText(STRINGS.en['support.usage.note'])).toBeInTheDocument();
+  });
+
+  it('says a quiet month plainly rather than rendering a bare zero', async () => {
+    mountWithUsage({
+      ...USAGE,
+      tier: { id: 'tiny', name: 'Tiny', paths: 1, data_gb: 250, setup: 4, monthly: 2 },
+      decided_by: 'both',
+      evidence: { peak_paths: 0, gb_moved: 0 },
+      recorded_peak_paths: 0,
+      recorded_peak_at: null,
+      paths_now: 0,
+      paths_by_state: {},
+    });
+    expect(await screen.findByText(STRINGS.en['support.usage.noPeak'])).toBeInTheDocument();
+  });
+
+  it("renders the table's deliberate end as words, never as a missing package", async () => {
+    // Past the largest tier the API serves null — the same "talk to us" the
+    // pricing page publishes. A blank cell here would read as a bug in
+    // exactly the conversation where the operator needs the sentence.
+    mountWithUsage({ ...USAGE, tier: null });
+    expect(await screen.findByText(STRINGS.en['support.usage.beyondTable'])).toBeInTheDocument();
   });
 });

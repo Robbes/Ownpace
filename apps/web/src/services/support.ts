@@ -96,11 +96,47 @@ export interface SupportMigrationDomain {
   readonly last_pass_metrics: unknown;
 }
 
+/**
+ * The tier this month has earned so far, with the evidence an invoice would
+ * quote (ADR-0014's two axes; 0109 T4 surfaced on this screen).
+ *
+ * Derived read-only on the server: the recorded peak and the live count of
+ * slot-holding paths are folded together exactly as the tier calculator's
+ * true-up would write them — so this and a bill drawn at the same moment
+ * agree — but LOOKING at it moves no billing mark. `tier` is null past the
+ * published table's end, the same deliberate "talk to us" the pricing page
+ * has. Counts, one data total and two timestamps; nothing here names what is
+ * moving.
+ */
+export interface SupportTenantUsage {
+  readonly tier: {
+    readonly id: 'tiny' | 'small' | 'medium' | 'large' | 'xl';
+    readonly name: string;
+    readonly paths: number;
+    readonly data_gb: number;
+    readonly setup: number;
+    readonly monthly: number;
+  } | null;
+  /** Which axis forced the answer — the higher one wins. */
+  readonly decided_by: 'paths' | 'data' | 'both';
+  /** Exactly what an invoice would quote; `peak_paths` is the EFFECTIVE peak. */
+  readonly evidence: { readonly peak_paths: number; readonly gb_moved: number };
+  /** The month's recorded high-water mark; 0 when nothing raised it. */
+  readonly recorded_peak_paths: number;
+  readonly recorded_peak_at: string | null;
+  /** Paths holding a slot right now — `active` and `paused`. */
+  readonly paths_now: number;
+  /** Every path row counted per lifecycle state, e.g. `{"active": 2}`. */
+  readonly paths_by_state: Readonly<Record<string, number>>;
+}
+
 export interface SupportTenantDetail {
   readonly tenant: SupportTenant;
   readonly connections: SupportConnection[];
   readonly migrations: SupportMigration[];
   readonly invoices: SupportInvoice[];
+  /** Absent only from an API older than this screen — render nothing then. */
+  readonly usage?: SupportTenantUsage;
 }
 
 export interface SupportMigrationDetail {

@@ -52,9 +52,9 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import type { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
-import { withSubject } from '@openmig/ledger';
-import type { LedgerDriver } from '@openmig/ledger';
-import { recordSupportRead } from '@openmig/managed';
+import { withSubject, holdsASlot, PATH_STATES } from '@openmig/ledger';
+import type { LedgerDriver, PathState } from '@openmig/ledger';
+import { recordSupportRead, observedTier } from '@openmig/managed';
 import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
@@ -89,6 +89,58 @@ function oneUuid(value: unknown): string | null {
 }
 
 type Row = Record<string, unknown>;
+
+/**
+ * The month's tier so far, from what `support_tenant_usage` serves (0109 T4
+ * surfaced on the operator screen).
+ *
+ * Read-only on purpose. `currentTier` trues the month up — it WRITES the peak
+ * it is about to read — because it runs at a moment that prices something. An
+ * operator looking must not move a billing mark, so the view serves the
+ * recorded peak and the live per-state counts side by side, and `observedTier`
+ * derives from the higher of the two — the same answer the calculator would
+ * give, with nothing written. The unit test pins that parity against
+ * `currentTier` over a real database.
+ *
+ * Which states hold a slot is `holdsASlot`'s call, made here in code on the
+ * raw counts rather than restated in the view's SQL — one authority. A state
+ * this build does not know counts as holding nothing: the same
+ * read-back-through-the-guard rule the failure-category rendering follows,
+ * and the direction that cannot overstate what a customer would pay.
+ */
+function usageForScreen(row: Row | undefined) {
+  const byState = (row?.paths_by_state ?? {}) as Record<string, unknown>;
+  const pathsNow = Object.entries(byState).reduce((n, [state, count]) => {
+    const known = (PATH_STATES as readonly string[]).includes(state);
+    return known && holdsASlot(state as PathState) ? n + Number(count) : n;
+  }, 0);
+  const recordedPeak = row?.peak_paths == null ? 0 : Number(row.peak_paths);
+  const gbMoved = Number(row?.bytes_moved ?? 0) / 1e9;
+  const { tier, decidedBy, evidence } = observedTier(recordedPeak, pathsNow, gbMoved);
+  return {
+    // Null past the table's end — the same deliberate "talk to us" the site
+    // publishes and the calculator returns.
+    tier: tier
+      ? {
+          id: tier.id,
+          name: tier.name,
+          paths: tier.paths,
+          data_gb: tier.dataGb,
+          setup: tier.setup,
+          monthly: tier.monthly,
+        }
+      : null,
+    decided_by: decidedBy,
+    // Exactly what an invoice would quote — the calculator's own evidence
+    // shape, so the parity test can compare field by field.
+    evidence: { peak_paths: evidence.peakPaths, gb_moved: evidence.gbMoved },
+    // ...and the raw observations behind it, for the operator reading it.
+    recorded_peak_paths: recordedPeak,
+    recorded_peak_at: row?.peak_at ?? null,
+    paths_now: pathsNow,
+    paths_by_state: byState,
+  };
+}
 
 /**
  * Level 1 — every organisation.
@@ -178,6 +230,11 @@ router.get(
                 FROM public.support_tenant_invoices
                WHERE tenant_id = ${tenantId}::uuid ORDER BY period_start DESC`,
         );
+        const usage = await db.execute(
+          sql`SELECT peak_paths, peak_at, bytes_moved, paths_by_state
+                FROM public.support_tenant_usage
+               WHERE tenant_id = ${tenantId}::uuid`,
+        );
 
         // Recorded only once the tenant was actually found and served: a 404 is
         // not a read of anybody's data, and logging one would put organisations
@@ -189,6 +246,7 @@ router.get(
           connections: connections.rows as Row[],
           migrations: migrations.rows as Row[],
           invoices: invoices.rows as Row[],
+          usage: usageForScreen(usage.rows[0] as Row | undefined),
         };
       });
 
