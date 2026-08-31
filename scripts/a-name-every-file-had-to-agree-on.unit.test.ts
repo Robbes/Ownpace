@@ -75,6 +75,12 @@ const PARTICIPANTS = [
  * because the new cleanup looks for names that were never there. So the sweep
  * keeps both for a while, and says so on the line rather than in a commit
  * message nobody reads from inside a YAML file.
+ *
+ * Prose carries it too, in an HTML comment so it renders as nothing: a runbook
+ * telling somebody what a thing USED to be called is the one place naming the
+ * old generation is the whole point. `docs/managed-bring-up.md` is that case —
+ * it warns an operator cleaning up an even older family not to take the dev
+ * stack with it, and that warning is useless if it cannot say both names.
  */
 const LEGACY = 'PRE-RENAME SWEEP';
 
