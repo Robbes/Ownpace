@@ -233,3 +233,53 @@ describe('and the organisation it grants itself, in the order the schema allows'
     expect(block, 'an unanchored tenant delete').not.toMatch(/DELETE FROM tenant(?! WHERE name LIKE 'Smoke Grant )/);
   });
 });
+
+describe('and the refusals it files, which no grant deletes for it', () => {
+  /**
+   * The decline block knocks on the public front door twice per run and then
+   * says no to both. Those rows carry no tenant, so the ON DELETE RESTRICT
+   * ordering above does not apply to them — but they accumulate exactly the
+   * same way, and in the queue an operator READS. Two junk rows a night is a
+   * queue nobody trusts within a month.
+   *
+   * They are also the one thing here the product itself will not clean up:
+   * `access_request` has no DELETE grant for any application role, on purpose
+   * (a refusal must not be made to disappear). The sweep therefore runs as the
+   * gate's own database user, and it has to be anchored to a prefix that
+   * cannot match a real applicant.
+   */
+  const declineBlock = (): string => {
+    const at = smoke.indexOf('THE OTHER DECISION');
+    const end = smoke.indexOf('DELETE FROM platform_operator WHERE user_id', at);
+    expect(at, 'the decline block is gone').toBeGreaterThan(-1);
+    expect(end, 'the operator take-back moved above the decline block').toBeGreaterThan(at);
+    return smoke.slice(at, end);
+  };
+
+  it('sweeps before it knocks and again after it is done', () => {
+    const block = declineBlock();
+    const sweeps = [...block.matchAll(/DELETE FROM access_request WHERE email LIKE 'smoke-decline-%/g)];
+    // Same two as the grant block, for the same reason: a run killed between
+    // the knock and the take-back must not hand the next one a mystery row.
+    expect(sweeps, 'a stale sweep at the top and a take-back at the bottom').toHaveLength(2);
+    const knock = block.indexOf('/api/access-requests');
+    expect(sweeps[0]!.index, 'the stale sweep runs after the gate has knocked').toBeLessThan(knock);
+  });
+
+  it('anchors the sweep to a prefix a real applicant cannot have', () => {
+    const block = declineBlock();
+    expect(block).toContain('DECLINE_LOUD="smoke-decline-loud-${SMOKE_MAIL_RUN}@smoke.local"');
+    expect(block).toContain('DECLINE_QUIET="smoke-decline-quiet-${SMOKE_MAIL_RUN}@smoke.local"');
+    expect(
+      block,
+      'an access_request delete this gate does not own — one loose predicate reaches the real queue',
+    ).not.toMatch(/DELETE FROM access_request(?! WHERE email LIKE 'smoke-decline-%)/);
+  });
+
+  it('asserts the balance rather than reporting it', () => {
+    const block = declineBlock();
+    expect(block).toContain('d_left');
+    expect(block).toMatch(/\[ "\$d_left" = "0" \]/);
+    expect(block, 'a residue count that cannot fail the run').toMatch(/NOT taken back[\s\S]{0,200}fail=1/);
+  });
+});

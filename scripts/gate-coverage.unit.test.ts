@@ -431,3 +431,112 @@ describe('finding a person, and the log that says you did', () => {
     expect(block).toContain('NOTHING SWEEPS support_read, DELIBERATELY');
   });
 });
+
+describe('the other decision, and the mail that does or does not go', () => {
+  /**
+   * Granting is the decision this product is FOR; declining is the one an
+   * operator makes far more often. The front door is public and rate-limited
+   * but still public, so junk reaches the queue and most of what arrives is
+   * answered no.
+   *
+   * It also carries the only outward-facing act on this surface. A grant's
+   * mail is a courtesy to somebody who asked; a decline's goes to an address a
+   * stranger typed, and mailing a forged one means mailing an uninvolved
+   * person. Which is why `notify` exists, why the client sends it explicitly,
+   * and why `skipped` and `off` are different words: one is a choice a human
+   * made, the other is a deployment that cannot send and hands them a manual
+   * step. Collapsing them would tell an operator to go and email somebody they
+   * deliberately ignored.
+   */
+  const block = smoke.slice(
+    smoke.indexOf('THE OTHER DECISION, AND THE MAIL THAT DOES OR DOES NOT GO'),
+    smoke.indexOf("DELETE FROM platform_operator WHERE user_id"),
+  );
+
+  it('found the block', () => {
+    expect(block.length).toBeGreaterThan(500);
+  });
+
+  it('asks for BOTH halves, which are different decisions', () => {
+    expect(block).toContain('decline_one "$DECLINE_LOUD" true');
+    expect(block).toContain('decline_one "$DECLINE_QUIET" false');
+  });
+
+  it('distinguishes `sent` from `skipped`, and does not accept `off`', () => {
+    // `off` and `failed` both mean nobody was told, and both mean the operator
+    // is now the only person who can tell them — a different problem from a
+    // refusal, and not something this gate may pass over.
+    expect(block).toContain('"$d_notified" = "sent"');
+    expect(block).toContain('"$qd_notified" = "skipped"');
+    expect(block, 'a deployment that cannot send would pass').not.toMatch(/d_notified" = "off"/);
+  });
+
+  it('proves the quiet one by the CATCHER, not by the API\'s own word', () => {
+    // The API saying `skipped` is exactly what a silently broken send would
+    // also say. The only honest evidence is that no mail arrived.
+    expect(block).toContain('qd_seen');
+    expect(block).toContain('"${qd_seen:-1}" = "0"');
+  });
+
+  it('counts mail by RECIPIENT, never by mention', () => {
+    // MEASURED, not reasoned. This block first counted `messages_count` for a
+    // search on the applicant's address, and E2E (managed) #105 answered
+    //
+    //     declining quietly: ... notified=skipped, ..., mail in catcher=1
+    //
+    // with nothing having been sent to that person at all. Mailpit's search
+    // matches anything that MENTIONS the address, and the knock mail to the
+    // operator names the applicant — correctly, it is how they know who wrote.
+    // So the count was reading the product working.
+    //
+    // A mention count cannot answer either half: the negative goes red on a
+    // mail nobody sent, and the positive would go green on the operator's copy
+    // of a refusal that never left.
+    const code = block
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n');
+    expect(code).toContain('mail_to_count()');
+    expect(code).toContain('.To[]?.Address');
+    expect(code, 'a mention count is back — #105 is repeatable').not.toContain('messages_count');
+  });
+
+  it('asks the negative only once a mail has actually landed', () => {
+    // "Nobody was mailed" passes on a stack whose SMTP pipe is dead, and that
+    // is the failure this whole block would be least likely to notice. The
+    // quiet decline therefore goes FIRST and its answer is read LAST, with the
+    // loud one's delivery in between as the positive control: a wrongly sent
+    // quiet mail had strictly longer to arrive than the one that did.
+    const quiet = block.indexOf('decline_one "$DECLINE_QUIET" false');
+    const loudLanded = block.indexOf('mail_to_count "$DECLINE_LOUD"');
+    const negative = block.indexOf('qd_seen="$(mail_to_count');
+    expect(quiet, 'the quiet decline is gone').toBeGreaterThan(-1);
+    expect(loudLanded, 'nothing waits for the loud mail any more').toBeGreaterThan(quiet);
+    expect(negative, 'the negative is read before its control').toBeGreaterThan(loudLanded);
+  });
+
+  it('checks the loud one reached the APPLICANT, not the operator channel', () => {
+    // The knock mail goes to NOTIFY_TO and must never reach the person; this
+    // one is the opposite. The two are easy to wire the wrong way round, and
+    // each wrong way is a different disclosure.
+    expect(block).toContain('the refusal was addressed to the applicant');
+    expect(block).toContain('.To[]?.Address');
+  });
+
+  it('reads the state from the DATABASE, not from the reply', () => {
+    // A route that answered 200 and left the row open would satisfy every
+    // status assertion here.
+    expect(block).toContain('SELECT state FROM access_request');
+    expect(block).toContain('"$d_state" = "declined"');
+  });
+
+  it('takes its requests back, and declining creates no tenant to take back', () => {
+    expect(block).toMatch(/DELETE FROM access_request WHERE email LIKE 'smoke-decline-/);
+    expect(block).toContain('d_left');
+    expect(block, 'a residue count that cannot fail the run').toMatch(/d_left[\s\S]{0,200}fail=1/);
+    // Declining provisions nothing, so there is deliberately no tenant sweep
+    // here — a DELETE FROM tenant in this block would be reaching for
+    // something it never created.
+    expect(block).not.toMatch(/DELETE FROM tenant/);
+  });
+});
