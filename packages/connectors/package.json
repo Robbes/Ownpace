@@ -20,9 +20,9 @@
   "dependencies": {
     "@azure/msal-node": "^5.6.0",
     "@openmig/shared": "workspace:*",
-    "imapflow": "^1.7.1",
-    "jmap-jam": "^0.13.3",
-    "nodemailer": "^9.0.5"
+    "imapflow": "^1.7.6",
+    "jmap-jam": "^0.13.5",
+    "nodemailer": "^9.0.6"
   },
   "devDependencies": {
     "@types/nodemailer": "^8.0.1"

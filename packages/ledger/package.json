@@ -10,7 +10,7 @@
     "./db": "./src/db.ts"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.5",
+    "@electric-sql/pglite": "^0.5.8",
     "@openmig/core": "workspace:*",
     "@openmig/shared": "workspace:*",
     "@types/pg": "catalog:",
@@ -19,6 +19,6 @@
   },
   "devDependencies": {
     "@openmig/managed": "workspace:*",
-    "imapflow": "^1.7.1"
+    "imapflow": "^1.7.6"
   }
 }
