@@ -269,3 +269,80 @@ describe('the decision the operator role exists for', () => {
     expect(queue).toBeLessThan(revoked);
   });
 });
+
+describe('the refusal the operator can answer', () => {
+  /**
+   * The queue's second decision, and the one whose wrong answer cannot be
+   * taken back: granting an address that already owns an organisation makes a
+   * second one with that person as owner of both, and every later sign-in has
+   * to ask them which they meant. The owner found exactly that in their own
+   * queue on 2026-08-31.
+   *
+   * Proved against PGlite, and in the browser against a mocked API. Never
+   * against the real route — where the refusal reads through
+   * `support_tenant_members`, a view whose entire protection is one EXISTS
+   * against `platform_operator`, on a transaction scoped to a tenant that does
+   * not exist yet. That is not a shape a unit test can stand up.
+   */
+  const block = smoke.slice(
+    smoke.indexOf('AND THE REFUSAL THE OPERATOR CAN ANSWER'),
+    smoke.indexOf('TAKE IT BACK. Requests first'),
+  );
+
+  it('found the block', () => {
+    expect(block.length).toBeGreaterThan(500);
+  });
+
+  it('asks AFTER a decision, which the index allows, not while one is open', () => {
+    // Migration 0020 forbids two OPEN requests per address and says nothing
+    // about a second ask after a decision — 0002 was right about that one.
+    // Knocking again before the grant would be refused by the index and this
+    // whole block would test the wrong rule.
+    const grant = smoke.indexOf('granting created an organisation');
+    const third = smoke.indexOf('gk3=');
+    expect(grant).toBeGreaterThan(-1);
+    expect(third, 'the second ask happens before the first is granted').toBeGreaterThan(grant);
+  });
+
+  it('requires the 409 to NAME the organisation, not merely to refuse', () => {
+    // A bare "already owns one" sends an operator off to go and look. The
+    // names are what they weigh, and `confirmWith` is how the client learns
+    // what to send without carrying a copy of the route's vocabulary.
+    expect(block).toContain('confirmWith');
+    expect(block).toContain('alsoCreateSecondOrganisation');
+    expect(block, 'the refusal is accepted without checking it names anything').toContain('named');
+  });
+
+  it('proves the refusal PROVISIONED NOTHING while refusing', () => {
+    // The check runs before the insert precisely so nothing half-happens. A
+    // refusal that had already created the tenant would be worse than none,
+    // and a status-code assertion alone cannot tell those apart.
+    expect(block).toContain('before');
+    expect(block).toContain('during');
+    expect(block).toContain('the refusal provisioned nothing');
+  });
+
+  it('then MEANS it, and counts the organisations either side', () => {
+    // The half that had no way to be sent at all until the screen grew a
+    // button. If the field does not work, the refusal is a dead end whose only
+    // way past is a hand-written POST — which is where this was yesterday.
+    expect(block).toMatch(/alsoCreateSecondOrganisation:true/);
+    expect(block).toContain('second_tenant');
+    expect(block, 'the second organisation is not distinguished from the first').toContain(
+      '"$second_tenant" != "$new_tenant"',
+    );
+    expect(block, 'a count that is not compared').toMatch(/"\$after" = "\$\(\(before \+ 1\)\)"/);
+  });
+
+  it('refuses to do arithmetic on a count it could not read', () => {
+    // `q` answers '?' when psql could not run, and `$(( ? + 1 ))` is a bash
+    // syntax error: it prints noise and leaves the comparison against an empty
+    // string, so an UNREADABLE count would report as a specific disagreement.
+    // Sanitised to -1 first, which fails the test and shows the real value.
+    expect(block).toMatch(/case "\$before" in ''\|\*\[!0-9\]\*\) before=-1/);
+    expect(block).toMatch(/case "\$after" {2}in ''\|\*\[!0-9\]\*\) after=-1/);
+    expect(block, 'the sanitised value is never checked, so -1 could still pass').toContain(
+      '"$before" -ge 0',
+    );
+  });
+});
