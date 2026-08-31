@@ -41,7 +41,7 @@ import type { Request, Response } from 'express';
 import { Pool } from 'pg';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { withSubject, withSubjectAndTenant, tenant as tenantTable } from '@openmig/ledger';
 import { accessRequest, tenantMember } from '@openmig/managed/schema-managed';
 import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
@@ -128,14 +128,68 @@ router.post('/', async (req: Request, res: Response) => {
     // NOT `withTenantDb`: there is no tenant. That is the point of this row,
     // and the reason `access_request` has no `tenant_id` on the way in.
     const db = drizzle(getSharedPool());
-    await db.insert(accessRequest).values({
-      email: body.email,
-      ...(body.name ? { name: body.name } : {}),
-      ...(body.organisation ? { organisation: body.organisation } : {}),
-      ...(body.note ? { note: body.note } : {}),
-      ...(body.tier ? { tier: body.tier } : {}),
-      locale: body.locale,
-    });
+
+    /**
+     * A SECOND KNOCK WHILE THE FIRST IS UNANSWERED IS NOT A SECOND REQUEST.
+     *
+     * Migration 0002 deliberately left `email` non-unique, and was right about
+     * why: "somebody who asked a year ago may ask again". That reasoning is
+     * about requests made in SEQUENCE. Several open at once is a different
+     * thing — queue noise for the operator reading it, and worse, granting two
+     * of them creates TWO ORGANISATIONS with that person as owner of both,
+     * after which `/api/me` returns two tenants and `resolveTenant` refuses to
+     * guess. Migration 0020's partial unique index forbids it.
+     *
+     * THE RULE LIVES IN THE DATABASE BECAUSE IT CANNOT LIVE HERE. This route is
+     * anonymous and `access_request` has no SELECT policy at all — knocking is
+     * allowed, reading the queue is not — so nothing here can look for an
+     * existing request, and a `WHERE NOT EXISTS` would see nothing and always
+     * write.
+     *
+     * AND THE ANSWER IS THE SAME 201, deliberately. Every other outcome of this
+     * route tells the caller the same thing, because a different answer for an
+     * address that has already asked is a way to find out which addresses have.
+     * The sentence stays true: we do have their request. Nothing is masked
+     * (hard rule 9) — the duplicate is recorded in the log, where an operator
+     * can see it and the stranger cannot.
+     */
+    try {
+      await db.insert(accessRequest).values({
+        email: body.email,
+        ...(body.name ? { name: body.name } : {}),
+        ...(body.organisation ? { organisation: body.organisation } : {}),
+        ...(body.note ? { note: body.note } : {}),
+        ...(body.tier ? { tier: body.tier } : {}),
+        locale: body.locale,
+      });
+    } catch (error) {
+      // 23505 is unique_violation, narrowed to the index BY NAME so an unrelated
+      // constraint still reaches the 500 it deserves.
+      //
+      // ON THE CAUSE, NOT THE ERROR. drizzle wraps failures in a
+      // `DrizzleQueryError` and the driver's `code`/`constraint` live one level
+      // down. Reading them off the outer object finds undefined, every time —
+      // so the first version of this rethrew and answered a stranger 500 for
+      // knocking twice. Caught by its own test, which is the only reason it is
+      // not shipping.
+      const cause = (error as { cause?: unknown }).cause;
+      const pg = (cause ?? error) as { code?: string; constraint?: string };
+      if (pg.code !== '23505' || pg.constraint !== 'ux_access_request_one_open_per_email') throw error;
+      log.info(
+        `[access-request] ${body.email} asked again while a request is still open — ` +
+          'not recorded twice, and told the same thing as the first time',
+      );
+      // BYTE FOR BYTE what the first knock answers, below. The first version of
+      // this wrote `status: 'received'` where the real one says `received:
+      // true` — a difference invisible to a person and perfectly visible to
+      // anybody probing which addresses have already asked, which is the one
+      // thing this arm exists not to reveal.
+      res.status(201).json({
+        received: true,
+        message: 'Thank you — we have your request. You will hear back by email.',
+      });
+      return;
+    }
 
     // Logged without the note, and without the name: an access request is
     // somebody's contact details, and logs travel further than the database
@@ -311,6 +365,17 @@ const DecisionSchema = z.object({
   note: z.string().trim().max(2000).optional(),
   /** What to call the organisation. Defaults to what they told us. */
   organisationName: z.string().trim().min(1).max(200).optional(),
+  /**
+   * Grant even though this address already owns an organisation.
+   *
+   * Granting is an unconditional `INSERT INTO tenant`, so a second grant to one
+   * person makes a SECOND organisation with them as owner of both — after which
+   * `/api/me` returns two tenants and `resolveTenant` refuses to choose. That is
+   * occasionally what somebody means (a second company, a family and a
+   * business) and never what a double-press means, so it is refused by default
+   * and this makes it deliberate.
+   */
+  alsoCreateSecondOrganisation: z.literal(true).optional(),
 });
 
 /**
@@ -391,6 +456,42 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
       if (!request) return { kind: 'notFound' } as const;
       if (request.state !== 'open') return { kind: 'decided', state: request.state } as const;
 
+      /**
+       * DOES THIS ADDRESS ALREADY OWN ONE?
+       *
+       * Read through `support_tenant_members`, not `tenant_member`: this
+       * transaction runs scoped to the NEW tenant, so tenant RLS would hide
+       * every organisation except the one being created — the read would come
+       * back empty and the check would pass for exactly the case it exists to
+       * catch. The support view crosses that boundary on the strength of the
+       * same `platform_operator` predicate this route already requires, so no
+       * new authority is invented for it.
+       *
+       * `lower(btrim(...))` because that is how the rest of this system decides
+       * two addresses are one person (`auth.ts`), and how migration 0020's index
+       * decides it too. Three copies of a rule would be two too many; this
+       * follows the one that was already there.
+       *
+       * Removed members do not count: somebody taken off an organisation does
+       * not own it any more, and refusing on their behalf would strand a real
+       * grant.
+       */
+      const owned = await db.execute(
+        sql`SELECT t.tenant_name
+              FROM public.support_tenant_members m
+              JOIN public.support_tenants t ON t.tenant_id = m.tenant_id
+             WHERE lower(btrim(m.email)) = lower(btrim(${request.email}))
+               AND m.role = 'owner'
+               AND m.status <> 'removed'
+             ORDER BY t.tenant_name`,
+      );
+      const already = (owned.rows as Array<{ tenant_name: string }>).map((r) => r.tenant_name);
+      if (already.length > 0 && parsed.data.alsoCreateSecondOrganisation !== true) {
+        // Refused BEFORE the insert, so nothing half-happens: no tenant, no
+        // membership, and the request stays open for whatever is decided next.
+        return { kind: 'alreadyOwns', organisations: already } as const;
+      }
+
       const name =
         parsed.data.organisationName ?? request.organisation ?? request.name ?? request.email;
 
@@ -423,6 +524,23 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
       // asked in (ADR-0013), and the transaction is the only place the row is read.
       return { kind: 'granted', tenantId, name, email: request.email, locale: request.locale } as const;
     });
+
+    if (outcome.kind === 'alreadyOwns') {
+      // 409, and it names them: an operator deciding whether this is a double
+      // press or a genuine second organisation needs to know WHICH ones already
+      // exist, and a bare "already owns one" sends them to go and look.
+      res.status(409).json({
+        error: 'Conflict',
+        message:
+          `That address already owns ${outcome.organisations.length === 1 ? 'an organisation' : 'organisations'}: ` +
+          `${outcome.organisations.join(', ')}. Granting again creates another one, with them as owner of both.`,
+        organisations: outcome.organisations,
+        // What to send to mean it anyway. Named in the body so the client does
+        // not have to carry a copy of this route's vocabulary.
+        confirmWith: 'alsoCreateSecondOrganisation',
+      });
+      return;
+    }
 
     if (outcome.kind === 'notFound') {
       res.status(404).json({ error: 'Not Found', message: 'No such access request.' });
