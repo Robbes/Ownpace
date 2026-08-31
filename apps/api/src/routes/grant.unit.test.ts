@@ -164,7 +164,16 @@ beforeAll(async () => {
   } finally {
     await conn.release();
   }
-});
+},
+  // 30s, not vitest's default 10s for hooks. This builds BOTH migration chains
+  // in an in-memory Postgres before a single test runs. It passes alone and
+  // failed only in a full `--project unit` run, where the machine is doing
+  // dozens of other files at once — the third file in this repo to meet the
+  // same wall (`support-routes` and `support-views` carry the same note and
+  // the same remedy), and the worst way to find out, since a hook timeout
+  // reports as 13 SKIPPED tests rather than as a failure with a cause.
+  30_000,
+);
 
 afterAll(async () => {
   vi.unstubAllGlobals();
