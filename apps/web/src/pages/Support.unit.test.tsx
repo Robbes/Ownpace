@@ -37,6 +37,7 @@ import {
   searchSupportPeople,
   recordPersonOpened,
   type SupportTenantUsage,
+  type SupportTenantMember,
 } from '../services/support.ts';
 import { STRINGS } from '../i18n/strings.ts';
 
@@ -49,19 +50,32 @@ vi.mock('../services/support.ts', () => ({
 }));
 
 /**
- * The console link is mocked at the module, not through the environment.
+ * The console link is steered at the module, not through the environment.
  * `import.meta.env` is not shared between modules under vitest — the lesson
  * `oidc.ts` records — so setting the variable here would set it on this file
  * and `idp-console.ts` would go on reading its own. What belongs here is the
  * WIRING (does a row become a link when there is one to make); the helper's own
  * refusals are `idp-console.unit.test.ts`.
+ *
+ * BUT IT DELEGATES TO THE REAL FUNCTION rather than reimplementing it. This
+ * mock used to be `consoleUrl.value.replace('{sub}', sub)` — a second, simpler
+ * copy of the rule, which therefore had none of the refusals. When
+ * `idpConsoleUserUrl` learned to refuse a `pending:` subject, this file went on
+ * rendering links for them and could not have caught it going wrong. The real
+ * function takes its environment as an ARGUMENT for exactly this reason, so
+ * pass one: the template stays controllable and every rule stays real.
  */
 const consoleUrl = vi.hoisted(() => ({ value: null as string | null }));
-vi.mock('../services/idp-console.ts', () => ({
-  SUBJECT_PLACEHOLDER: '{sub}',
-  idpConsoleUserUrl: (sub: string) =>
-    consoleUrl.value === null ? null : consoleUrl.value.replace('{sub}', sub),
-}));
+vi.mock('../services/idp-console.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/idp-console.ts')>();
+  return {
+    ...actual,
+    idpConsoleUserUrl: (sub: string) =>
+      actual.idpConsoleUserUrl(sub, {
+        ...(consoleUrl.value === null ? {} : { VITE_IDP_CONSOLE_USER_URL: consoleUrl.value }),
+      }),
+  };
+});
 
 const listMock = vi.mocked(listSupportTenants);
 const tenantMock = vi.mocked(getSupportTenant);
@@ -478,7 +492,11 @@ describe('the people on an organisation', () => {
     },
   ];
 
-  const withMembers = async (members: typeof MEMBERS) => {
+  // The SERVED type, not `typeof MEMBERS`. Inferring it from one literal made
+  // that fixture's nullability the contract — `invited_at` null and
+  // `joined_at` a string — so an invitation, which is the other way round, did
+  // not typecheck as a member of the table it is displayed in.
+  const withMembers = async (members: ReadonlyArray<SupportTenantMember>) => {
     tenantMock.mockResolvedValue({
       tenant: TENANT,
       connections: [],
@@ -531,6 +549,45 @@ describe('the people on an organisation', () => {
 
     expect(screen.getByText('owner@acme.test')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'owner@acme.test' })).not.toBeInTheDocument();
+  });
+
+  it('will not link somebody who has not signed in, and says why', async () => {
+    // FOUND IN LIVE USE, 2026-08-31. Granting writes `pending:<uuid>` because
+    // the person has no subject until they arrive, and the screen linked it —
+    // sending an operator to a console page about a user that does not exist,
+    // which Zitadel answers with its whole user list and an error. It reads
+    // like a broken product rather than like somebody who has not arrived.
+    consoleUrl.value = 'https://id.example.test/ui/console/users/{sub}';
+    await withMembers([
+      {
+        user_id: 'pending:038fc2a8-c534-4265-a78b-64342df08efe',
+        email: 'invited@acme.test',
+        role: 'owner',
+        status: 'invited',
+        invited_at: '2026-08-31T09:00:00.000Z',
+        joined_at: null,
+      },
+    ]);
+
+    expect(screen.queryByRole('link', { name: 'invited@acme.test' })).not.toBeInTheDocument();
+    // And the reason, because a missing link is otherwise indistinguishable
+    // from a deployment that never configured one — a setting, not a person.
+    expect(screen.getByText('invited@acme.test')).toHaveAttribute(
+      'title',
+      STRINGS.en['support.notArrivedYet'],
+    );
+  });
+
+  it('still links the person once they have arrived', async () => {
+    // The control. A refusal that also caught real accounts would remove the
+    // feature rather than fix it — and `388706935093854213` is the shape a
+    // provider subject actually has.
+    consoleUrl.value = 'https://id.example.test/ui/console/users/{sub}';
+    await withMembers(MEMBERS);
+    expect(screen.getByRole('link', { name: 'owner@acme.test' })).toHaveAttribute(
+      'href',
+      'https://id.example.test/ui/console/users/388706935093854213',
+    );
   });
 
   it('says so when nobody belongs to it', async () => {

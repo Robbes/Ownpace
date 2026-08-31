@@ -797,6 +797,12 @@ const en = {
   'support.col.email': 'Email',
   // The title on the link out. It names what happens — a different application
   // opens — because an operator clicking an address expects to mail it.
+  // WHY there is no link, for the half of the cases that has a reason. The
+  // other half — no console configured — is a deployment setting and says
+  // nothing here, because there is nothing about the PERSON to say.
+  'support.notArrivedYet':
+    'Has not signed in yet, so there is no account at the identity provider to open. ' +
+    'The invitation is waiting; this becomes a link once they arrive.',
   'support.openAtProvider': 'Open this account at the identity provider',
   'support.connections': 'Connections',
   'support.migrations': 'Migrations',
@@ -1417,6 +1423,9 @@ const nl: Record<keyof typeof en, string> = {
   'support.people': 'Mensen',
   'support.noPeople': 'Niemand hoort bij deze organisatie.',
   'support.col.email': 'E-mailadres',
+  'support.notArrivedYet':
+    'Heeft zich nog niet aangemeld, dus er is nog geen account bij de identiteitsprovider ' +
+    'om te openen. De uitnodiging staat klaar; zodra zij zich aanmelden wordt dit een link.',
   'support.openAtProvider': 'Dit account openen bij de identiteitsprovider',
   'support.connections': 'Verbindingen',
   'support.migrations': 'Migraties',

@@ -1186,6 +1186,76 @@ wait_for_idp_ready() {
   explain_failure zitadel
 }
 
+# THE ONE THING ONLY A BROWSER COULD SEE, ASKED HERE INSTEAD.
+#
+# Found on the OTA stack on 2026-08-31, weeks after it started: the admin
+# console showed a bare red "NetworkError" and nothing else anywhere had a
+# word to say about it. Every check we had looked from a side where it was
+# invisible — the smoke asks the issuer from INSIDE the API container, and
+# from there everything was genuinely fine.
+#
+# The console reads `/ui/console/assets/environment.json` at boot to learn
+# where its API is. With `ZITADEL_TLS_MODE=disabled` behind a proxy that
+# terminates TLS, Zitadel writes `api: http://…` there while `issuer` stays
+# `https://…` (that one follows ZITADEL_EXTERNALSECURE). The page is served
+# over https, so the browser refuses the http call as MIXED CONTENT before it
+# leaves: no status code, no CORS message, no server log. Unfindable from the
+# server, and one line to see from here.
+#
+# WHAT IS ASSERTED IS AGREEMENT, NOT HTTPS. A local bring-up is http on both
+# and perfectly correct; a fronted one is https on both. Only a document that
+# disagrees with ITSELF is broken, in every deployment shape, which is what
+# makes this safe to run everywhere rather than only where TLS is expected.
+#
+# NOT FATAL. The stack works — sign-in, the API, every migration; it is the
+# admin console alone that cannot load, and failing a bring-up over it would
+# refuse an operator a working system to fix a screen they may not need
+# today. It is loud, it names the variable, and it leaves the choice with the
+# person reading it.
+#
+# The Host header, because Zitadel resolves the instance by ORIGIN and answers
+# 404 "Instance not found" for any other — the same rule that made
+# ZITADEL_EXTERNALDOMAIN matter so much. localhost reaches the published port;
+# the header makes the request look like the one a browser sends.
+check_idp_console_config() {
+  local port domain body api issuer
+  port="$(env_get ZITADEL_PORT)"; port="${port:-3126}"
+  domain="$(env_get ZITADEL_EXTERNALDOMAIN)"; domain="${domain:-ownpace-idp}"
+
+  body="$(curl -sS --max-time 5 -H "Host: ${domain}" \
+    "http://localhost:${port}/ui/console/assets/environment.json" 2>/dev/null || true)"
+
+  api="$(printf '%s' "$body" | sed -n 's/.*"api" *: *"\([^"]*\)".*/\1/p')"
+  issuer="$(printf '%s' "$body" | sed -n 's/.*"issuer" *: *"\([^"]*\)".*/\1/p')"
+
+  # Say nothing rather than guess. A body we could not read is not evidence of
+  # a mismatch, and a false alarm here would teach an operator to skip the
+  # real one.
+  if [ -z "$api" ] || [ -z "$issuer" ]; then
+    note "could not read the console's environment.json — skipping its scheme check"
+    return 0
+  fi
+
+  if [ "${api%%:*}" = "${issuer%%:*}" ]; then
+    note "the console's api and issuer agree on ${api%%:*}"
+    return 0
+  fi
+
+  echo >&2
+  echo "!!! THE ADMIN CONSOLE WILL NOT LOAD, and it will not say why." >&2
+  echo "!!!   api    ${api}" >&2
+  echo "!!!   issuer ${issuer}" >&2
+  echo "!!! A page served over ${issuer%%:*} may not call ${api%%:*} — the browser refuses it" >&2
+  echo "!!! as mixed content before the request leaves, so the console shows a bare" >&2
+  echo "!!! NetworkError and no server anywhere logs a thing." >&2
+  echo "!!! ZITADEL_EXTERNALSECURE fixes the issuer; the api follows ZITADEL_TLS_MODE." >&2
+  echo "!!! Behind a proxy that terminates TLS, set in ${ENV_FILE}:" >&2
+  echo "!!!   ZITADEL_TLS_MODE=external" >&2
+  echo "!!!   docker compose -f managed.yml up -d zitadel" >&2
+  echo "!!! Everything else — sign-in, the API, tokens — is unaffected either way." >&2
+  echo >&2
+}
+
 # ---------------------------------------------------------------------------
 phase_app() {
   say app "api, web, and anything else not yet running"
@@ -1277,6 +1347,7 @@ phase_app() {
   # `explain_failure` — so the diagnosis path is unchanged, only the asker is.
   "${COMPOSE[@]}" up -d zitadel || explain_failure zitadel
   wait_for_idp_ready
+  check_idp_console_config
   "${SCRIPT_DIR}/setup-zitadel.sh"
   note "identity provider provisioned before the web build (idempotent)"
 

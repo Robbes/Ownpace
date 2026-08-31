@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { idpConsoleUserUrl, SUBJECT_PLACEHOLDER } from './idp-console.ts';
+import { idpConsoleUserUrl, isPendingSubject, SUBJECT_PLACEHOLDER } from './idp-console.ts';
 
 /**
  * The environment is handed in, never stubbed. `import.meta.env` is not shared
@@ -84,5 +84,62 @@ describe('idpConsoleUserUrl', () => {
 
   it('refuses a template that is not a URL at all', () => {
     expect(idpConsoleUserUrl('u1', at(`not a url ${SUBJECT_PLACEHOLDER}`))).toBeNull();
+  });
+});
+
+describe('a subject the provider never minted', () => {
+  const TEMPLATE = { VITE_IDP_CONSOLE_USER_URL: 'https://id.example.test/ui/console/users/{sub}' };
+
+  it('refuses a pending: invitation, which has no account to link to', () => {
+    // Granting writes `pending:<uuid>` because the person has not signed in
+    // yet. Linking it sends an operator to a console page about a user that
+    // does not exist — which looks like a broken product, not like somebody
+    // who has not arrived.
+    expect(idpConsoleUserUrl('pending:6b1f0f1e-0000-4000-8000-000000000001', TEMPLATE)).toBeNull();
+  });
+
+  it('still links a real subject that merely CONTAINS the word', () => {
+    // The prefix, not a substring: refusing anything with "pending" in it
+    // would drop real accounts for a coincidence of spelling.
+    expect(idpConsoleUserUrl('388706935093854213-pending', TEMPLATE)).toContain(
+      '388706935093854213-pending',
+    );
+    expect(idpConsoleUserUrl('user-pending:1', TEMPLATE)).toContain('user-pending');
+  });
+
+  it('refuses it however it is spaced, since the value is trimmed anyway', () => {
+    expect(idpConsoleUserUrl('  pending:abc  ', TEMPLATE)).toBeNull();
+  });
+
+  it('still links the ordinary case — a provider subject', () => {
+    // The control. A refusal that also refused real users would hide the
+    // feature rather than fix it.
+    expect(idpConsoleUserUrl('388706935093854213', TEMPLATE)).toBe(
+      'https://id.example.test/ui/console/users/388706935093854213',
+    );
+  });
+});
+
+describe('isPendingSubject — which KIND of "no link" this is', () => {
+  it('is true for what granting writes', () => {
+    expect(isPendingSubject('pending:6b1f0f1e-0000-4000-8000-000000000001')).toBe(true);
+  });
+
+  it('is false for a provider subject, however it is spelled', () => {
+    // The screen shows a reason only when there is one. Saying "has not signed
+    // in yet" about somebody who has would be worse than saying nothing.
+    expect(isPendingSubject('387865757964304395')).toBe(false);
+    expect(isPendingSubject('user-pending:1')).toBe(false);
+    expect(isPendingSubject('388706935093854213-pending')).toBe(false);
+  });
+
+  it('agrees with idpConsoleUserUrl, which is the point of exporting it', () => {
+    // Two readings of one rule that must not drift: the link refuses exactly
+    // the subjects the screen explains, or an operator gets a reason beside a
+    // working link, or no reason beside a missing one.
+    const TEMPLATE = { VITE_IDP_CONSOLE_USER_URL: 'https://id.example.test/users/{sub}' };
+    for (const sub of ['pending:abc', '  pending:abc  ', '387865757964304395', 'x-pending:1']) {
+      expect(idpConsoleUserUrl(sub, TEMPLATE) === null, sub).toBe(isPendingSubject(sub));
+    }
   });
 });

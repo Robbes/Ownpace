@@ -20,15 +20,27 @@
  *     timeout expires. Five minutes to be told about a password nobody had
  *     changed, when one query answers it in a second.
  *
- * Both are the same defect, and it is not "the check was missing". The checks
- * existed; they ran too late, or answered a narrower question than the one the
- * operator needed answered. So these tests are about WHEN and WHAT IS SAID,
- * which is why several of them assert on message content — that content is the
- * interface here, exactly as much as an exit code is.
+ *  3. The admin console showed a bare red "NetworkError" on the OTA stack for
+ *     WEEKS (2026-08-31). Every check we had looked from a side where it was
+ *     invisible: the smoke asks the issuer from inside the API container, and
+ *     from there the stack was genuinely, completely fine. Zitadel was writing
+ *     `api: http://…` into the console's own config beside `issuer: https://…`,
+ *     and a browser refuses that call as mixed content BEFORE it leaves — no
+ *     status, no CORS message, no server log anywhere. Unfindable from the
+ *     server; one line to see from the outside. The repository had also
+ *     recommended the setting that caused it.
+ *
+ * All three are the same defect, and it is not "the check was missing". The
+ * checks existed; they ran too late, or answered a narrower question than the
+ * one the operator needed answered. So these tests are about WHEN and WHAT IS
+ * SAID, which is why several of them assert on message content — that content
+ * is the interface here, exactly as much as an exit code is.
  */
 
 import { describe, it, expect } from 'vitest';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -207,7 +219,12 @@ describe('the zitadel role password is asked BEFORE the container is started', (
     // be behind the readiness timeout, which is where the five minutes went.
     const pg = bootstrap.indexOf('up_wait postgres');
     const check = bootstrap.indexOf('assert_zitadel_role_password\n');
-    const up = bootstrap.indexOf('up -d zitadel');
+    // The COMMAND, not any mention of it. A bare `up -d zitadel` also matches
+    // the remedy text `check_idp_console_config` prints, which sits earlier in
+    // the file and is not a thing that runs — so this once found an echo and
+    // called the ordering broken. Anchoring on the invocation is stricter, not
+    // looser: prose can no longer satisfy or break it.
+    const up = bootstrap.indexOf('"${COMPOSE[@]}" up -d zitadel');
 
     expect(pg, 'postgres is not brought up before the check').toBeGreaterThan(-1);
     expect(check, 'the role check is never called').toBeGreaterThan(-1);
@@ -559,5 +576,164 @@ describe('trigger_env, run for real', () => {
     // `^TRIGGER_ENV=` must not match the longer key, or a file carrying only
     // the old name would resolve to an empty string and read as unset.
     expect(env({ file: envFile('TRIGGER_ENV_SLUG=staging\n') }).out).toBe('staging');
+  });
+});
+
+describe('the console config, read from the side a browser sees it from', () => {
+  /**
+   * Runs the REAL function against a throwaway HTTP server, because the risky
+   * part of it is two `sed` expressions and a text assertion cannot tell a
+   * working one from a typo. Same lifting technique as the catcher block
+   * above: the text under test is the text that ships.
+   */
+  async function checkAgainst(body: string | null): Promise<string> {
+    const home = mkdtempSync(join(tmpdir(), 'consolecfg-'));
+    let server: Server | undefined;
+    try {
+      const envFile = join(home, '.env');
+
+      let port = 9; // The discard port: nothing listens, for the "no answer" case.
+      if (body !== null) {
+        server = createServer((_req, res) => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(body);
+        });
+        // AWAITED. `listen` is asynchronous and `address()` is null until it
+        // resolves — reading it straight after returns null and the whole rig
+        // fails on a port that was never assigned.
+        await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
+        port = (server.address() as AddressInfo).port;
+      }
+      writeFileSync(envFile, `ZITADEL_EXTERNALDOMAIN=id.example.test\nZITADEL_PORT=${port}\n`);
+
+      const fn = (name: string) => {
+        const at = bootstrap.indexOf(`${name}() {`);
+        return at < 0 ? '' : bootstrap.slice(at, bootstrap.indexOf('\n}\n', at) + 3);
+      };
+      const program = [
+        'set -uo pipefail',
+        `ENV_FILE="${envFile}"`,
+        'note() { echo "    $*"; }',
+        fn('env_get'),
+        fn('check_idp_console_config'),
+        'check_idp_console_config',
+        'echo "EXIT=$?"',
+      ].join('\n');
+      // `spawn`, NOT `spawnSync`, and this is the whole reason this helper is
+      // async. The server above lives in THIS process, and spawnSync blocks
+      // the event loop for its entire duration — so the listener never accepts
+      // the connection, curl waits out its own --max-time, and every case
+      // reports "could not read" no matter what is being served. The
+      // synchronous helpers elsewhere in this file are fine because none of
+      // them needs to answer their own subprocess.
+      return await new Promise<string>((resolve) => {
+        const child = spawn('bash', ['-c', program], { stdio: ['ignore', 'pipe', 'pipe'] });
+        let out = '';
+        child.stdout.on('data', (d: Buffer) => (out += d.toString()));
+        child.stderr.on('data', (d: Buffer) => (out += d.toString()));
+        child.on('close', () => resolve(out.trim()));
+      });
+    } finally {
+      server?.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  }
+
+  it('the function was found in the script, and is actually called', () => {
+    expect(bootstrap).toContain('check_idp_console_config() {');
+    expect(bootstrap, 'defined but never called').toMatch(/^ {2}check_idp_console_config$/m);
+    // AFTER readiness, not before: nothing serves that asset until it is up,
+    // and a check that ran first would only ever report "could not read".
+    expect(bootstrap).toMatch(/wait_for_idp_ready\n {2}check_idp_console_config/);
+  });
+
+  it('SPEAKS when the api and the issuer disagree — the OTA bug, exactly', async () => {
+    const out = await checkAgainst(
+      '{"api":"http://id.example.test","issuer":"https://id.example.test","clientid":"1"}',
+    );
+    expect(out).toContain('THE ADMIN CONSOLE WILL NOT LOAD');
+    // Both values, because "they disagree" without saying how sends somebody
+    // to go and look at the thing the check just read.
+    expect(out).toContain('http://id.example.test');
+    expect(out).toContain('https://id.example.test');
+    // The variable that fixes it, and the one that does NOT — the trap here is
+    // that ZITADEL_EXTERNALSECURE is already true and looks like the answer.
+    expect(out).toContain('ZITADEL_TLS_MODE=external');
+    expect(out).toContain('ZITADEL_EXTERNALSECURE fixes the issuer');
+  });
+
+  it('does not fail the bring-up over a screen', async () => {
+    // The stack works — sign-in, the API, every token. Refusing an operator a
+    // working system to fix a console they may not need today is the wrong
+    // trade, so this is loud and non-fatal, deliberately.
+    const out = await checkAgainst(
+      '{"api":"http://id.example.test","issuer":"https://id.example.test","clientid":"1"}',
+    );
+    expect(out).toContain('EXIT=0');
+  });
+
+  it('says nothing alarming when both are https — a fronted deployment', async () => {
+    const out = await checkAgainst(
+      '{"api":"https://id.example.test","issuer":"https://id.example.test","clientid":"1"}',
+    );
+    expect(out).toContain('agree on https');
+    expect(out).not.toContain('WILL NOT LOAD');
+  });
+
+  it('says nothing alarming when both are http — a plain local bring-up', async () => {
+    // THE ASSERTION IS AGREEMENT, NOT HTTPS. A local stack has no TLS anywhere
+    // and is completely correct; a check that demanded https would cry wolf on
+    // every developer machine and be ignored by the time it mattered.
+    const out = await checkAgainst(
+      '{"api":"http://ownpace-idp:3126","issuer":"http://ownpace-idp:3126","clientid":"1"}',
+    );
+    expect(out).toContain('agree on http');
+    expect(out).not.toContain('WILL NOT LOAD');
+  });
+
+  it('does not invent a mismatch out of a body it could not read', async () => {
+    // A proxy error page is what you actually get while the provider restarts
+    // — the OTA stack served exactly this 502 HTML mid-fix. Reading a missing
+    // `api` as a mismatch would raise the alarm every time somebody recreated
+    // the container.
+    const out = await checkAgainst('<!doctype html><html><body>502 Service Unavailable</body></html>');
+    expect(out).toContain('could not read');
+    expect(out).not.toContain('WILL NOT LOAD');
+    expect(out).toContain('EXIT=0');
+  });
+
+  it('says nothing when nothing is listening at all', async () => {
+    const out = await checkAgainst(null);
+    expect(out).toContain('could not read');
+    expect(out).not.toContain('WILL NOT LOAD');
+    expect(out).toContain('EXIT=0');
+  });
+});
+
+describe('the setting that caused it is no longer recommended', () => {
+  it('tells a fronted deployment to say external, not disabled', () => {
+    // managed.env.example carried `ZITADEL_TLS_MODE=disabled  # netbird
+    // terminated it already` inside the recipe for exactly the OTA shape. The
+    // comment is the description of `external`; the value was its opposite,
+    // and the OTA stack was configured correctly ACCORDING TO THIS FILE.
+    const recipe = envExample.slice(
+      envExample.indexOf('ZITADEL_EXTERNALDOMAIN=id.ota'),
+      envExample.indexOf('The provider needs a name OF ITS OWN'),
+    );
+    expect(recipe, 'the fronted-deployment recipe changed shape').not.toBe('');
+    expect(recipe).toContain('ZITADEL_TLS_MODE=external');
+    expect(recipe).not.toMatch(/ZITADEL_TLS_MODE=disabled/);
+  });
+
+  it('explains what each mode tells the CONSOLE, which is where it bites', () => {
+    expect(envExample).toMatch(/disabled\s+the provider accepts HTTP and tells its clients to use HTTP/);
+    expect(envExample).toMatch(/external\s+the provider still accepts HTTP, and tells its clients HTTPS/);
+  });
+
+  it('warns that ZITADEL_EXTERNALSECURE alone looks like the fix and is not', () => {
+    // The trap that cost the weeks: the issuer goes https, everything
+    // measurable from the server looks right, and the console stays broken.
+    expect(envExample).toContain('is NOT enough on its own');
+    expect(envExample).toContain('MIXED');
   });
 });
