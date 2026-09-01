@@ -37,9 +37,19 @@
 #   ./deploy/compose/operator.sh list
 #   ./deploy/compose/operator.sh add <subject> <email> [note]
 #   ./deploy/compose/operator.sh remove <subject>
+#   ./deploy/compose/operator.sh memberships <subject>
+#   ./deploy/compose/operator.sh leave <subject> <tenant-id>
+#   ./deploy/compose/operator.sh leave <subject> --all
 #
 # `<subject>` is the OIDC `sub`, never an email: sign in once, call
 # `GET /api/me`, and read `userId` back. operator.ts's header says why.
+#
+# The last three are about MEMBERSHIP, not appointment, and they are here for
+# the reason the first three are: `tenant_member` is behind the same row-level
+# policies, and asking which organisations one subject is in is a question that
+# spans all of them — so it can only be answered over the owner connection, at
+# the machine. `leave` never touches `platform_operator`; that separation is
+# the whole point, and operator.ts's header carries the rest.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,6 +62,9 @@ if [ "$#" -eq 0 ]; then
   echo "  ./deploy/compose/operator.sh list" >&2
   echo "  ./deploy/compose/operator.sh add <subject> <email> [note]" >&2
   echo "  ./deploy/compose/operator.sh remove <subject>" >&2
+  echo "  ./deploy/compose/operator.sh memberships <subject>" >&2
+  echo "  ./deploy/compose/operator.sh leave <subject> <tenant-id>" >&2
+  echo "  ./deploy/compose/operator.sh leave <subject> --all" >&2
   exit 1
 fi
 
