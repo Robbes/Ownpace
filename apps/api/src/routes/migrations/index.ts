@@ -51,6 +51,7 @@ import {
   providerAccountDomains,
   googleDeploymentClient,
   halfGoogleClientPairProblem,
+  resolveGoogleClient,
   parseGoogleDriveSource,
   ConfigError,
   describeCronScheduleProblem,
@@ -1035,21 +1036,48 @@ const SharedDrivesSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
+/**
+ * The Google browse's own shape (ADR-0041): the pair is optional as a WHOLE,
+ * because the deployment may carry it — `resolveGoogleClient` decides, in
+ * the order the consent route uses. `.min(1)` on the optional halves so an
+ * empty string is refused rather than read as "the deployment's". Dropbox
+ * keeps `SharedDrivesSchema` above: the same three names, its own
+ * application, no deployment fallback.
+ */
+const GoogleBrowseSchema = z.object({
+  clientId: z.string().min(1).optional(),
+  clientSecret: z.string().min(1).optional(),
+  refreshToken: z.string().min(1),
+});
+
+/** The refusal for a body the Google browse cannot read. */
+const GOOGLE_BROWSE_BODY_REFUSAL = {
+  error: 'invalid_body',
+  reason:
+    'Send { refreshToken } and, unless this deployment carries its own Google client, ' +
+    '{ clientId, clientSecret } — the values the Drive source stores.',
+} as const;
+
 router.post(
   '/google-drive/shared-drives',
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const parsed = SharedDrivesSchema.safeParse(req.body);
+      const parsed = GoogleBrowseSchema.safeParse(req.body);
       if (!parsed.success) {
-        return void res.status(400).json({
-          error: 'invalid_body',
-          reason:
-            'Send { clientId, clientSecret, refreshToken } — the same three values the Drive ' +
-            'source stores.',
-        });
+        return void res.status(400).json(GOOGLE_BROWSE_BODY_REFUSAL);
       }
-      res.json(await listGoogleSharedDrives(parsed.data));
+      const client = resolveGoogleClient(parsed.data);
+      if (!client.ok) {
+        return void res.status(400).json({ error: client.error, reason: client.reason });
+      }
+      res.json(
+        await listGoogleSharedDrives({
+          clientId: client.clientId,
+          clientSecret: client.clientSecret,
+          refreshToken: parsed.data.refreshToken,
+        }),
+      );
     } catch (error) {
       serverFault(res, 'listing_failed', 'listing the shared drives', error);
     }
@@ -1064,16 +1092,21 @@ router.post(
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const parsed = SharedDrivesSchema.safeParse(req.body);
+      const parsed = GoogleBrowseSchema.safeParse(req.body);
       if (!parsed.success) {
-        return void res.status(400).json({
-          error: 'invalid_body',
-          reason:
-            'Send { clientId, clientSecret, refreshToken } — the same three values the Drive ' +
-            'source stores.',
-        });
+        return void res.status(400).json(GOOGLE_BROWSE_BODY_REFUSAL);
       }
-      res.json(await listGoogleSharedFolders(parsed.data));
+      const client = resolveGoogleClient(parsed.data);
+      if (!client.ok) {
+        return void res.status(400).json({ error: client.error, reason: client.reason });
+      }
+      res.json(
+        await listGoogleSharedFolders({
+          clientId: client.clientId,
+          clientSecret: client.clientSecret,
+          refreshToken: parsed.data.refreshToken,
+        }),
+      );
     } catch (error) {
       serverFault(res, 'listing_failed', 'listing the shared folders', error);
     }

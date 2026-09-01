@@ -163,3 +163,51 @@ export function halfGoogleClientPairProblem(
     'refuse the pair at its token endpoint — hours later, from a sync pass.'
   );
 }
+
+/** What a Google request may mint tokens with, or why it may not. */
+export type GoogleClientResolution =
+  | { readonly ok: true; readonly clientId: string; readonly clientSecret: string }
+  | { readonly ok: false; readonly error: 'half_client_pair' | 'no_google_client'; readonly reason: string };
+
+/**
+ * The client a Google request may use: the caller's WHOLE pair, else the
+ * deployment's, else a refusal that names both ways forward.
+ *
+ * The order is the rule ADR-0041 states: a caller's own pair always wins,
+ * the deployment's is a fallback, and half a pair is refused before either
+ * — with the half-pair sentence where the deployment has a client, and as
+ * "no client" where it has none (the sentence there says to send both). A
+ * half-CONFIGURED deployment answers with its own sentence rather than
+ * reading as one that configured nothing. Never prints a value.
+ *
+ * The consent route resolves the same way inline and predates this; the
+ * browse routes read it from here so a third door cannot order it
+ * differently.
+ */
+export function resolveGoogleClient(
+  sent: {
+    readonly clientId?: string | undefined;
+    readonly clientSecret?: string | undefined;
+  },
+  env: GoogleClientEnv = process.env,
+): GoogleClientResolution {
+  const half = halfGoogleClientPairProblem(sent, env);
+  if (half) return { ok: false, error: 'half_client_pair', reason: half };
+  const clientId = trimmed(sent.clientId);
+  const clientSecret = trimmed(sent.clientSecret);
+  const own = clientId && clientSecret ? { clientId, clientSecret } : null;
+  const client = own ?? googleDeploymentClient(env);
+  if (!client) {
+    return {
+      ok: false,
+      error: 'no_google_client',
+      reason:
+        googleDeploymentClientProblem(env) ??
+        'This needs a Google OAuth client and there is none: send clientId and clientSecret ' +
+          'with the request, or set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET on ' +
+          "this deployment so every connection can share the owner's own application " +
+          '(docs/google-workspace-setup.md).',
+    };
+  }
+  return { ok: true, clientId: client.clientId, clientSecret: client.clientSecret };
+}

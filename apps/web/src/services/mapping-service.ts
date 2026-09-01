@@ -536,8 +536,10 @@ export const mappingApi = {
    * wizard's "browse" behind rootFolderId. Read-only; nothing stored.
    */
   listSharedDrives: async (creds: {
-    clientId: string;
-    clientSecret: string;
+    // Both or neither (ADR-0041): absent, the server uses the deployment's
+    // own client — the same rule as `googleAuthorize`.
+    clientId?: string;
+    clientSecret?: string;
     refreshToken: string;
   }): Promise<
     { ok: true; drives: Array<{ id: string; name: string }> } | { ok: false; reason: string }
@@ -554,8 +556,10 @@ export const mappingApi = {
    * at its id. Read-only; nothing stored.
    */
   listSharedFolders: async (creds: {
-    clientId: string;
-    clientSecret: string;
+    // Both or neither (ADR-0041): absent, the server uses the deployment's
+    // own client — the same rule as `googleAuthorize`.
+    clientId?: string;
+    clientSecret?: string;
     refreshToken: string;
   }): Promise<
     | { ok: true; folders: Array<{ id: string; name: string; owner?: string }> }

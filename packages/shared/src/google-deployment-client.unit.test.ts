@@ -30,6 +30,7 @@ import {
   googleDeploymentClientProblem,
   withDeploymentGoogleClient,
   halfGoogleClientPairProblem,
+  resolveGoogleClient,
 } from './google-deployment-client.ts';
 
 const CONFIGURED = {
@@ -162,5 +163,62 @@ describe("half a pair on a connection, where the deployment would complete it wi
     expect(said).not.toContain('the-secret');
     expect(said).not.toContain('deployment-secret');
     expect(said).not.toContain('deployment.apps.googleusercontent.com');
+  });
+});
+
+describe('resolving the client a request may use', () => {
+  const OWN = { clientId: 'own.apps.googleusercontent.com', clientSecret: 'own-secret' };
+
+  it("the caller's whole pair wins, deployment or no deployment", () => {
+    expect(resolveGoogleClient(OWN, CONFIGURED)).toEqual({ ok: true, ...OWN });
+    expect(resolveGoogleClient(OWN, {})).toEqual({ ok: true, ...OWN });
+  });
+
+  it("the deployment's fills in for a caller who sent nothing", () => {
+    expect(resolveGoogleClient({}, CONFIGURED)).toEqual({
+      ok: true,
+      clientId: 'deployment.apps.googleusercontent.com',
+      clientSecret: 'deployment-secret',
+    });
+  });
+
+  it('half a pair is refused as such where the deployment has a client', () => {
+    const r = resolveGoogleClient({ clientId: OWN.clientId }, CONFIGURED);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('half_client_pair');
+      expect(r.reason).toContain('clientId was sent without clientSecret');
+    }
+  });
+
+  it('nothing usable is "no client", naming both ways forward', () => {
+    for (const sent of [{}, { clientId: OWN.clientId }, { clientSecret: OWN.clientSecret }]) {
+      const r = resolveGoogleClient(sent, {});
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.error).toBe('no_google_client');
+        expect(r.reason).toContain('send clientId and clientSecret');
+        expect(r.reason).toContain('GOOGLE_OAUTH_CLIENT_ID');
+      }
+    }
+  });
+
+  it('a half-configured deployment says so, not "none"', () => {
+    const r = resolveGoogleClient({}, { GOOGLE_OAUTH_CLIENT_ID: 'x' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('no_google_client');
+      expect(r.reason).toContain('GOOGLE_OAUTH_CLIENT_SECRET');
+      expect(r.reason).toContain('restart the API');
+    }
+  });
+
+  it('never prints a value in a refusal', () => {
+    const r = resolveGoogleClient({ clientSecret: 'the-secret' }, CONFIGURED);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).not.toContain('the-secret');
+      expect(r.reason).not.toContain('deployment-secret');
+    }
   });
 });

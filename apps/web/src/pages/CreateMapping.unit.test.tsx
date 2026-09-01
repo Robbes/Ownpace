@@ -29,7 +29,12 @@ import { mappingApi, providerAccountsApi } from '../services/mapping-service.ts'
 import type { ProviderAccountFacts } from '../services/mapping-service.ts';
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { create: vi.fn(), googleAuthorize: vi.fn() },
+  mappingApi: {
+    create: vi.fn(),
+    googleAuthorize: vi.fn(),
+    listSharedDrives: vi.fn(),
+    listSharedFolders: vi.fn(),
+  },
   // The wizard offers reusable connections (workplan 0064); an empty list is
   // the "nothing to reuse yet" case these walks exercise.
   connectionsApi: { list: vi.fn().mockResolvedValue([]) },
@@ -962,5 +967,28 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       expect.stringContaining('Enter the Client ID and client secret first'),
     );
     expect(screen.queryByText(/has its own Google client/)).not.toBeInTheDocument();
+  });
+
+  it('the Drive browse works on the token alone, and sends no empty pair', async () => {
+    // The browse behind rootFolderId used to gate on the pair too, and its
+    // routes demanded all three. Same rule as the consent now: the pair as
+    // a whole or not at all, and the deployment's when absent.
+    vi.mocked(mappingApi.listSharedDrives).mockResolvedValue({ ok: true, drives: [] });
+    vi.mocked(mappingApi.listSharedFolders).mockResolvedValue({ ok: true, folders: [] });
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
+    const browse = screen.getByRole('button', { name: /Browse shared drives/ });
+    expect(browse).toBeDisabled(); // no token yet, whatever the deployment has
+    fireEvent.change(screen.getByPlaceholderText('1//…'), {
+      target: { value: '1//drive-refresh' },
+    });
+    await waitFor(() => expect(browse).toBeEnabled());
+
+    fireEvent.click(browse);
+    await waitFor(() => expect(mappingApi.listSharedDrives).toHaveBeenCalled());
+    const sent = vi.mocked(mappingApi.listSharedDrives).mock.calls[0]![0] as Record<string, unknown>;
+    expect(sent.refreshToken).toBe('1//drive-refresh');
+    expect(sent).not.toHaveProperty('clientId');
+    expect(sent).not.toHaveProperty('clientSecret');
   });
 });
