@@ -3020,6 +3020,194 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     [ "$dd_left" = "0/0" ] ||
       { echo "the twice-decided requests were NOT taken back: requests/tenants left = ${dd_left}"; fail=1; }
 
+    # ---------- HOW FAR AN OPERATOR CAN WALK, AND WHAT THE LOG SAYS AT EACH STEP ----------
+    #
+    # Three levels, and deliberately no fourth. The list names organisations,
+    # one organisation names its connections, migrations, invoices, members and
+    # usage, one migration names its domains — and it stops there, because a
+    # screen that lists ITEMS is a screen that shows subject lines. The
+    # metadata boundary is the product's promise, and it is the kind of promise
+    # that erodes one convenient field at a time.
+    #
+    # Each level writes a `support_read` row, and the ROW IS THE POINT. This
+    # surface bypasses tenant row security, so the log is the only record of
+    # what a person with that power actually looked at. Two details in it are
+    # easy to get wrong and invisible from the screen either way:
+    #
+    #   - the list and the retained-invoices screen record a NULL tenant, on
+    #     purpose: there is no organisation to name. A route that attributed
+    #     them to some tenant would put a read in that customer's history that
+    #     never happened.
+    #   - a 404 writes NOTHING. Logging one would put organisations in the
+    #     record that the operator never saw — and an id they guessed wrong is
+    #     not a read of anybody's data.
+    #
+    # Counted as DELTAS rather than totals: the boundary block above already
+    # reads one organisation as its control, so a total of 1 was never the
+    # right expectation and pinning one would break the moment another block
+    # looks at anything.
+    #
+    # NOTHING SWEEPS THESE ROWS, for the reason the people block gives: a gate
+    # that erased its own audit trail would be demonstrating the failure the
+    # table exists to catch.
+    reads_of() { # reads_of <view_name> [tenant predicate] -> how many this operator has
+      q "SELECT count(*) FROM support_read
+          WHERE operator_user_id = '${OP_SUBJECT}' AND view_name = '$1'
+            AND ${2:-true}" 2>/dev/null || echo '?'
+    }
+    delta_ok() { # delta_ok <before> <after> -> did exactly one row appear
+      case "$1" in ''|*[!0-9]*) return 1 ;; esac
+      case "$2" in ''|*[!0-9]*) return 1 ;; esac
+      [ "$(( $2 - $1 ))" = "1" ]
+    }
+
+    # ---- LEVEL 1: every organisation, attributed to none of them ----
+    l1_before="$(reads_of tenants 'tenant_id IS NULL')"
+    l1="$(http GET "$API/api/support/tenants" "$OP_TOKEN")"
+    l1_count="$(jq -r '.tenants | length' <<<"${l1#* }" 2>/dev/null || echo '?')"
+    l1_after="$(reads_of tenants 'tenant_id IS NULL')"
+    # `-ge` on a non-number is a bash error, not a failed comparison, and the
+    # `&&` chain would then fall through to the right branch for the wrong
+    # reason with noise on stderr. Sanitised to a number that cannot pass.
+    case "$l1_count" in ''|*[!0-9]*) l1_count=-1 ;; esac
+    if [ "${l1%% *}" = "200" ] && [ "$l1_count" -ge 1 ] &&
+       delta_ok "$l1_before" "$l1_after"; then
+      echo "level 1 — the list of organisations: HTTP 200, ${l1_count} of them, logged against no tenant"
+    else
+      echo "level 1: HTTP ${l1%% *}, organisations=${l1_count}, null-tenant reads ${l1_before} -> ${l1_after}"
+      echo "    A list read attributed to one organisation is a read in that customer's history"
+      echo "    that never happened; one not logged at all is the record this table exists to be."
+      fail=1
+    fi
+
+    # ---- LEVEL 2: one organisation, and every section of it ----
+    l2_before="$(reads_of tenant "tenant_id = '${APPLY_TENANT}'")"
+    l2="$(http GET "$API/api/support/tenants/${APPLY_TENANT}" "$OP_TOKEN")"
+    l2_body="${l2#* }"
+    # `has` rather than a length: an empty connections list is a true answer for
+    # an organisation with none, and a MISSING key is a screen with a hole in it.
+    l2_shape="$(jq -r '[.tenant, .connections, .migrations, .invoices, .members, .usage]
+                       | map(. != null) | all' <<<"$l2_body" 2>/dev/null || echo false)"
+    l2_id="$(jq -r '.tenant.tenant_id // empty' <<<"$l2_body" 2>/dev/null || true)"
+    l2_after="$(reads_of tenant "tenant_id = '${APPLY_TENANT}'")"
+    if [ "${l2%% *}" = "200" ] && [ "$l2_shape" = "true" ] && [ "$l2_id" = "$APPLY_TENANT" ] &&
+       delta_ok "$l2_before" "$l2_after"; then
+      echo "level 2 — one organisation, all six sections, logged against that organisation"
+    else
+      echo "level 2: HTTP ${l2%% *}, every section present=${l2_shape}, tenant='${l2_id}',"
+      echo "         reads for this tenant ${l2_before} -> ${l2_after}"
+      fail=1
+    fi
+
+    # ---- AND A 404 WRITES NOTHING ----
+    l2_ghost="$(q "SELECT gen_random_uuid()" 2>/dev/null || echo '')"
+    l2_miss_before="$(reads_of tenant 'true')"
+    l2_miss="$(http GET "$API/api/support/tenants/${l2_ghost}" "$OP_TOKEN")"
+    l2_miss_after="$(reads_of tenant 'true')"
+    if [ "${l2_miss%% *}" = "404" ] && [ "$l2_miss_after" = "$l2_miss_before" ]; then
+      echo "an organisation that does not exist is not written into anybody's history: HTTP 404, no row"
+    else
+      echo "reading a missing organisation: HTTP ${l2_miss%% *}, tenant reads ${l2_miss_before} -> ${l2_miss_after}"
+      echo "    A logged 404 puts organisations in the record the operator never saw."
+      fail=1
+    fi
+
+    # ---- LEVEL 3: one migration, attributed to ITS OWN organisation ----
+    l3_before="$(reads_of migration "tenant_id = '${APPLY_TENANT}'")"
+    l3="$(http GET "$API/api/support/migrations/${APPLY_MAPPING}" "$OP_TOKEN")"
+    l3_body="${l3#* }"
+    l3_id="$(jq -r '.migration.mapping_id // empty' <<<"$l3_body" 2>/dev/null || true)"
+    l3_domains="$(jq -r '.domains | length' <<<"$l3_body" 2>/dev/null || echo '?')"
+    l3_after="$(reads_of migration "tenant_id = '${APPLY_TENANT}'")"
+    case "$l3_domains" in ''|*[!0-9]*) l3_domains=-1 ;; esac
+    if [ "${l3%% *}" = "200" ] && [ "$l3_id" = "$APPLY_MAPPING" ] &&
+       [ "$l3_domains" -ge 1 ] && delta_ok "$l3_before" "$l3_after"; then
+      echo "level 3 — one migration and its ${l3_domains} domain(s), logged against the migration's own organisation"
+    else
+      echo "level 3: HTTP ${l3%% *}, mapping='${l3_id}', domains=${l3_domains},"
+      echo "         reads for this tenant ${l3_before} -> ${l3_after}"
+      echo "    The tenant is read back from the view rather than taken from the request —"
+      echo "    there is no path for an operator to name who a read gets attributed to."
+      fail=1
+    fi
+
+    # ---- AND THERE IS NO LEVEL FOUR ----
+    #
+    # MEASURED THE HARD WAY. This first looked for a real `natural_key` — the
+    # href or UID — reasoning that the only convincing version of "it does not
+    # show items" is that a string identifying one is absent from the answer.
+    # E2E (managed) #109 answered `key=''`, and the product was right: the
+    # ledger writes `naturalKey: ''` and keeps only the hash. There is no
+    # plaintext item identifier stored to leak, which is a better fact than the
+    # one the check was reaching for.
+    #
+    # So the boundary is asked two ways, and neither can go vacuous:
+    #
+    #   THE SHAPE — exactly two keys at the top, and no item-level name
+    #   anywhere in the body. This is the one that cannot be satisfied by
+    #   accident: a level four would have to introduce a key to hold it.
+    #
+    #   A NEEDLE THAT EXISTS — this tenant's own `natural_key_hash`, which IS
+    #   what identifies an item in this schema. Absent from the answer, or the
+    #   run fails; and an empty needle fails rather than matching everything.
+    l4_top="$(jq -r 'keys | join(",")' <<<"$l3_body" 2>/dev/null || echo '?')"
+    l4_named="$(jq -r '[paths | .[] | select(type == "string")] | unique
+                       | map(select(. == "items" or . == "item" or . == "natural_key"
+                                    or . == "natural_key_hash" or . == "source_ref"
+                                    or . == "target_ref" or . == "href" or . == "subject"
+                                    or . == "summary" or . == "collection"))
+                       | length' <<<"$l3_body" 2>/dev/null || echo '?')"
+    if [ "$l4_top" = "domains,migration" ] && [ "$l4_named" = "0" ]; then
+      echo "and no fourth level: the migration screen carries ${l4_top}, and no item-level field"
+    else
+      echo "the migration screen's shape: top-level keys='${l4_top}', item-level names=${l4_named}"
+      echo "    Level 3 is the last one on purpose. A screen that lists items is a screen that"
+      echo "    shows subject lines, and a fourth level has to introduce a key to hold them."
+      fail=1
+    fi
+
+    #
+    # `$ELIGIBLE` rather than a filter of this block's own: every item query in
+    # this script uses the one definition, and `smoke-managed-verdict` refuses
+    # any that does not — eligibility open-coded twice is eligibility that
+    # drifts. It also happens to be what this needle wants, since it guarantees
+    # a real target handle rather than a row that was never copied.
+    l4_key="$(q "SELECT natural_key_hash FROM item
+                  WHERE tenant_id = '${APPLY_TENANT}' AND mapping_id = '${APPLY_MAPPING}'
+                    AND $ELIGIBLE ORDER BY natural_key_hash LIMIT 1" 2>/dev/null || echo '')"
+    if [ ${#l4_key} -lt 8 ]; then
+      echo "no item was available to prove the metadata boundary with (key='${l4_key}')"
+      echo "    Not a pass: the check below would compare against an empty string and match"
+      echo "    everything, so it is refused rather than reported."
+      fail=1
+    else
+      case "$l3_body" in
+        *"$l4_key"*)
+          echo "THE MIGRATION SCREEN NAMED AN ITEM: it carries ${l4_key}"
+          fail=1
+          ;;
+        *)
+          echo "and it names none of this organisation's items: the key that identifies one is absent"
+          ;;
+      esac
+    fi
+
+    # ---- THE ONE SCREEN THAT IS NOT ABOUT A CUSTOMER ----
+    #
+    # Logged EVEN WHEN EMPTY, which is the whole assertion: an operator on a
+    # platform that has erased nobody and a non-operator who may see nothing
+    # produce the same empty list, and only the row tells them apart.
+    ri_before="$(reads_of retained_invoices 'tenant_id IS NULL')"
+    ri="$(http GET "$API/api/support/retained-invoices" "$OP_TOKEN")"
+    ri_is_list="$(jq -r '.invoices | type' <<<"${ri#* }" 2>/dev/null || echo '?')"
+    ri_after="$(reads_of retained_invoices 'tenant_id IS NULL')"
+    if [ "${ri%% *}" = "200" ] && [ "$ri_is_list" = "array" ] && delta_ok "$ri_before" "$ri_after"; then
+      echo "the invoices an erasure kept: HTTP 200, and the read is logged whether or not there are any"
+    else
+      echo "retained invoices: HTTP ${ri%% *}, .invoices is a ${ri_is_list}, null-tenant reads ${ri_before} -> ${ri_after}"
+      fail=1
+    fi
+
     q "DELETE FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" >/dev/null
     left="$(q "SELECT count(*) FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" 2>/dev/null || echo '?')"
     if [ "$left" = "0" ]; then

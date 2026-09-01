@@ -753,3 +753,98 @@ describe('the decision that was already made', () => {
     );
   });
 });
+
+describe('how far an operator can walk, and what the log says at each step', () => {
+  /**
+   * Three levels, and deliberately no fourth: organisations, one organisation
+   * with its sections, one migration with its domains — and it stops, because
+   * a screen that lists ITEMS is a screen that shows subject lines. That is
+   * the metadata boundary, and it is the kind of promise that erodes one
+   * convenient field at a time.
+   *
+   * Each level writes a `support_read` row, and the row is the point. This
+   * surface bypasses tenant row security, so the log is the only record of
+   * what somebody with that power actually looked at — and two details in it
+   * are invisible from the screen either way: the list records a NULL tenant
+   * because there is no organisation to name, and a 404 records nothing at
+   * all, because an id guessed wrong is not a read of anybody's data.
+   */
+  const block = operatorBlock('HOW FAR AN OPERATOR CAN WALK, AND WHAT THE LOG SAYS AT EACH STEP');
+
+  it('found the block', () => {
+    expect(block.length).toBeGreaterThan(500);
+  });
+
+  it('walks all three levels, and the screen that is not about a customer', () => {
+    expect(block).toContain('$API/api/support/tenants" "$OP_TOKEN"');
+    expect(block).toContain('$API/api/support/tenants/${APPLY_TENANT}" "$OP_TOKEN"');
+    expect(block).toContain('$API/api/support/migrations/${APPLY_MAPPING}" "$OP_TOKEN"');
+    expect(block).toContain('$API/api/support/retained-invoices" "$OP_TOKEN"');
+  });
+
+  it('counts the log as a DELTA, never as a total', () => {
+    // The boundary block above already reads one organisation as its control,
+    // so a total of 1 was never the right expectation — and pinning one breaks
+    // the moment any other block looks at anything.
+    expect(block).toContain('delta_ok()');
+    expect(block).toMatch(/\[ "\$\(\( \$2 - \$1 \)\)" = "1" \]/);
+    expect(block, 'a total, which another block reading anything would break').not.toMatch(
+      /reads_of [a-z_]+ [^\n]*\)" = "1"/,
+    );
+  });
+
+  it('pins the NULL tenant on the two screens that have none', () => {
+    // A list read attributed to one organisation is a read in that customer's
+    // history that never happened.
+    expect(block).toContain("reads_of tenants 'tenant_id IS NULL'");
+    expect(block).toContain("reads_of retained_invoices 'tenant_id IS NULL'");
+  });
+
+  it('proves a 404 writes nothing', () => {
+    expect(block).toContain('gen_random_uuid()');
+    expect(block).toMatch(/\[ "\$l2_miss_after" = "\$l2_miss_before" \]/);
+    expect(block).toMatch(/\[ "\$\{l2_miss%% \*\}" = "404" \]/);
+  });
+
+  it('asks for every section by presence, not by length', () => {
+    // An empty connections list is a true answer for an organisation with
+    // none. A MISSING key is a screen with a hole in it, and a length check
+    // cannot tell those apart.
+    expect(block).toMatch(/map\(\. != null\) \| all/);
+    expect(block).toContain('.tenant, .connections, .migrations, .invoices, .members, .usage');
+  });
+
+  it('proves there is no fourth level by SHAPE, which cannot go vacuous', () => {
+    // MEASURED. This first looked for a plaintext `natural_key` and E2E
+    // (managed) #109 answered `key=''` — the ledger writes `naturalKey: ''`
+    // and keeps only the hash, so there is no plaintext item identifier stored
+    // to leak. A better fact than the one the check was reaching for, and it
+    // left the check with nothing to compare against.
+    //
+    // The shape is the version that cannot be satisfied by accident: a fourth
+    // level has to introduce a key to hold it.
+    expect(block).toContain("jq -r 'keys | join(\",\")'");
+    expect(block).toMatch(/\[ "\$l4_top" = "domains,migration" \]/);
+    expect(block).toContain('natural_key_hash');
+    expect(block).toContain('source_ref');
+    expect(block).toMatch(/\[ "\$l4_named" = "0" \]/);
+  });
+
+  it('also looks for a needle that actually exists in this schema', () => {
+    // The hash IS what identifies an item here. And an empty needle would
+    // match everything, so a short one fails the run rather than passing it —
+    // which is exactly how #109 reported the emptiness instead of hiding it.
+    expect(block).toContain('SELECT natural_key_hash FROM item');
+    expect(block).toMatch(/case "\$l3_body" in\s*\n\s*\*"\$l4_key"\*\)/);
+    expect(block, 'an empty key would match every answer').toMatch(
+      /\[ \$\{#l4_key\} -lt 8 \][\s\S]{0,400}fail=1/,
+    );
+  });
+
+  it('reads the log for the migration against the migration\'s OWN organisation', () => {
+    // The route takes only a mapping id and reads the tenant back from the
+    // view. There is no path for an operator to name who a read is attributed
+    // to, and this is where that would show up if one appeared.
+    expect(block).toContain('reads_of migration "tenant_id = \'${APPLY_TENANT}\'"');
+  });
+});
