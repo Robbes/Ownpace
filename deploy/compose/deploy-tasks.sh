@@ -163,7 +163,7 @@ if [ "${SKIP_PLATFORM_CHECK:-0}" != "1" ]; then
     *) host_platform="unknown" ;;
   esac
   env_file="${REPO_ROOT}/deploy/compose/.env"
-  configured="$(grep -E '^DEPLOY_IMAGE_PLATFORM=' "$env_file" 2>/dev/null | tail -1 | cut -d= -f2-)"
+  configured="$(grep -E '^DEPLOY_IMAGE_PLATFORM=' "$env_file" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//')"
   configured="${configured:-linux/amd64}" # managed.yml's default when .env is silent
   if [ "$host_platform" != "unknown" ] && [ "$configured" != "$host_platform" ]; then
     echo "[deploy-tasks] ERROR: DEPLOY_IMAGE_PLATFORM is '${configured}' but this host is" >&2

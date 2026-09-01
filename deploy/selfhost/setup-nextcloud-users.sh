@@ -99,27 +99,129 @@ if [ "$installed" != "true" ]; then
 fi
 echo "[setup-nextcloud-users] Install complete"
 
+# THE GUARD THAT OUTLIVES THE RUN THAT TRIPPED IT. Nextcloud's brute-force
+# protection counts failed logins PER SOURCE IP and keeps them for twelve
+# hours; past its threshold every request from that IP is answered 429, and a
+# CORRECT password does not clear the count. So a run with the wrong
+# NEXTCLOUD_ADMIN_PASSWORD does not fail alone — it fails the next twelve
+# hours of runs, after the password has been fixed.
+#
+# That is not hypothetical. E2E (managed) #117 died on 401: the password in
+# .env was no longer the one inside the Nextcloud volume (changing it after
+# the volume exists does not change the volume). #118 ran with the password
+# repaired and Nextcloud healthy, and died anyway — 429, on the attempts #117
+# had already banked against the runner's address.
+#
+# Allow-listing the ranges this stack talks over is not turning the protection
+# off: anything arriving from outside them is still counted and still
+# throttled. It exempts only the source that cannot be someone guessing
+# credentials — this script's own readiness poll and the appliance beside it,
+# which reach the published port from the host and so arrive from the Docker
+# bridge gateway.
+#
+# AFTER the install wait, not before: unlike trusted_domains (which lands in
+# config.php, a file) this writes to the appconfig TABLE, so it needs the
+# schema the installer creates. Before the PROPFIND below, because the whole
+# point is to be in force for the first authenticated request.
+echo "[setup-nextcloud-users] Allow-listing the stack's own networks from brute-force protection..."
+allowlist_range() {
+  # stdout only — an occ failure still fails the script through set -e, and
+  # its stderr still reaches the log. Nothing is swallowed; only the
+  # "Config value ... set to ..." chatter is.
+  docker exec "$CONTAINER" php occ config:app:set bruteForce "whitelist_$1" --value="$2" >/dev/null
+}
+allowlist_range 0 127.0.0.1/32
+allowlist_range 1 10.0.0.0/8
+allowlist_range 2 172.16.0.0/12
+allowlist_range 3 192.168.0.0/16
+echo "[setup-nextcloud-users] Brute-force allow-list in force"
+
+# Sets `code` to the last status seen; 0 when the DAV endpoint answered 207.
+poll_dav() {
+  local attempts="$1" i
+  for i in $(seq 1 "$attempts"); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' -X PROPFIND -H 'Depth: 0' \
+      -u "${ADMIN_USER}:${ADMIN_PASSWORD}" "${BASE_URL}/remote.php/dav/" || echo 000)"
+    if [ "$code" = "207" ]; then
+      return 0
+    fi
+    # A 429 means the brute-force guard is already engaged (e.g. from a previous run's
+    # leftover state) — back off much longer than the steady 2s cadence instead of
+    # hammering it further and making the block last longer.
+    if [ "$code" = "429" ]; then
+      sleep 15
+    else
+      sleep 2
+    fi
+  done
+  return 1
+}
+
 echo "[setup-nextcloud-users] Verifying external DAV readiness (PROPFIND)..."
 propfind_ready=false
 code=""
-for i in $(seq 1 10); do
-  code="$(curl -s -o /dev/null -w '%{http_code}' -X PROPFIND -H 'Depth: 0' \
-    -u "${ADMIN_USER}:${ADMIN_PASSWORD}" "${BASE_URL}/remote.php/dav/" || echo 000)"
-  if [ "$code" = "207" ]; then
+if poll_dav 10; then
+  propfind_ready=true
+elif [ "$code" = "401" ]; then
+  # A 401 HERE IS DRIFT, NOT A DECISION. NEXTCLOUD_ADMIN_PASSWORD is what the
+  # operator has declared the admin password to be — every other account on this
+  # demo instance is already provisioned from the environment, and this is the
+  # one that was not. The two fall out of step because Nextcloud reads that
+  # variable ONCE, at first install: change it afterwards and compose hands the
+  # container a value the volume has never heard of. Nothing announces that. It
+  # surfaces as a 401 in a readiness poll, some number of runs later, and reads
+  # like the service being broken.
+  #
+  # E2E (managed) #117 was exactly that, and it cost #118 as well: dying on 401
+  # banked ten failed logins, and the guard above then refused a run whose
+  # password was correct. So bring the volume into line with the declaration and
+  # poll again, loudly, once — provisioning the admin from the environment the
+  # same way the four demo accounts already are.
+  #
+  # OC_PASS is exported into docker's own environment and forwarded by name, so
+  # the value never appears in an argument list.
+  echo "[setup-nextcloud-users] 401 — the admin password inside the volume is not the one this" >&2
+  echo "[setup-nextcloud-users] run was given. Aligning the volume with NEXTCLOUD_ADMIN_PASSWORD..." >&2
+  OC_PASS="$ADMIN_PASSWORD" docker exec -e OC_PASS "$CONTAINER" \
+    php occ user:resetpassword --password-from-env "$ADMIN_USER" >/dev/null
+  echo "[setup-nextcloud-users] Admin password realigned; re-checking" >&2
+  if poll_dav 5; then
     propfind_ready=true
-    break
   fi
-  # A 429 means the brute-force guard is already engaged (e.g. from a previous run's
-  # leftover state) — back off much longer than the steady 2s cadence instead of
-  # hammering it further and making the block last longer.
-  if [ "$code" = "429" ]; then
-    sleep 15
-  else
-    sleep 2
-  fi
-done
+fi
 if [ "$propfind_ready" != "true" ]; then
   echo "[setup-nextcloud-users] External DAV did not become ready (last PROPFIND status: ${code:-unknown})" >&2
+  # THE STATUS IS THE DIAGNOSIS, so say what it means and what clears it. Two
+  # consecutive managed runs (#117, #118) were spent reading a bare status
+  # code off a log and guessing at it from the outside; each of the three
+  # below has a different cause and a different remedy, and the script is the
+  # only place that knows which one it just saw.
+  note() { echo "[setup-nextcloud-users]   $1" >&2; }
+  case "$code" in
+  401)
+    note "401 AFTER the realignment above, so this is not the ordinary drift"
+    note "between .env and the volume — that step would have ended it. Either the"
+    note "reset did not take, or '${ADMIN_USER}' is not an administrator on this"
+    note "instance and never was. Ask it who is:"
+    note "  docker exec ${CONTAINER} php occ group:list"
+    note "and set NEXTCLOUD_ADMIN_USER to a name in the admin group."
+    ;;
+  429)
+    note "429 = brute-force protection is throttling this source. It counts failed"
+    note "logins for twelve hours, so an EARLIER run's wrong password can refuse"
+    note "this one even with the password now correct. The allow-list applied"
+    note "above should have prevented this; if it did not, read it back with:"
+    note "  docker exec ${CONTAINER} php occ config:app:get bruteForce whitelist_0"
+    note "and clear the banked attempts for the address with:"
+    note "  docker exec ${CONTAINER} php occ security:bruteforce:reset <ip>"
+    ;;
+  000)
+    note "000 = curl never got an answer, which is about REACHABILITY and not"
+    note "about Nextcloud: ${BASE_URL} is not routable from this shell. From a"
+    note "Docker-outside-of-Docker caller joined to the compose network, set"
+    note "NEXTCLOUD_URL=http://nextcloud/ instead (see this file's header)."
+    ;;
+  esac
   exit 1
 fi
 echo "[setup-nextcloud-users] External DAV ready at ${BASE_URL}"

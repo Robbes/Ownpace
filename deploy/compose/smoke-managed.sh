@@ -89,7 +89,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # documented setting is used is a bug in the gate, and it fails pointing at the
 # wrong thing.
 smoke_env_value() {   # <key> — the last assignment in .env, or empty
-  grep -E "^$1=.+" "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true
+  grep -E "^$1=.+" "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true
 }
 
 api_port="$(smoke_env_value API_PORT)"
@@ -2085,7 +2085,7 @@ fi
 # caller exports what it exports, and on the nightly that is not this key.
 # Without it, a stack whose operator never configured mail would fail a gate for
 # a channel they never asked for, which is a gate inventing a requirement.
-smtp_configured="$(grep -E '^SMTP_HOST=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+smtp_configured="$(grep -E '^SMTP_HOST=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
 
 if [ -z "$smtp_configured" ]; then
   note "the identity provider's own mail: no SMTP_HOST in .env, so nothing to assert"

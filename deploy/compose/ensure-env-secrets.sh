@@ -121,7 +121,7 @@ ensure() { # ensure <name> <bytes>
   # `|| true` is load-bearing: this script runs under `set -o pipefail`, and
   # grep exits 1 when the key is absent — which is the ORDINARY case on a fresh
   # .env, and would otherwise abort the script before generating anything.
-  current="$(grep -E "^${name}=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+  current="$(grep -E "^${name}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
 
   if [ -n "$current" ] && ! is_placeholder "$current"; then
     return 0
@@ -224,7 +224,7 @@ ensure ZITADEL_ADMIN_PASSWORD 16
 # The one case where this could surprise somebody is an instance whose password
 # policy was deliberately relaxed, where a hex password DID initialise an
 # account. The note says so rather than assuming it away.
-current_admin="$(grep -E '^ZITADEL_ADMIN_PASSWORD=' "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+current_admin="$(grep -E '^ZITADEL_ADMIN_PASSWORD=' "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
 if grep -qE '^[0-9a-f]{32}$' <<<"$current_admin"; then
   # Through env-upsert.sh for the reason set out at the other write above:
   # `sed -i` would replace a symlinked .env with a regular file and leave the
@@ -246,7 +246,7 @@ fi
 # redeploy it. Generated rather than committed, and gitignored, because a
 # password in a public repository is not a password.
 USERLIST="${SCRIPT_DIR}/pgbouncer/userlist.txt"
-PGB_PW="$(grep -E '^PGBOUNCER_AUTH_PASSWORD=' "$ENV_FILE" | awk 'NR==1' | cut -d= -f2-)"
+PGB_PW="$(grep -E '^PGBOUNCER_AUTH_PASSWORD=' "$ENV_FILE" | awk 'NR==1' | cut -d= -f2- | sed 's/[[:space:]].*$//')"
 if [ -n "$PGB_PW" ]; then
   mkdir -p "${SCRIPT_DIR}/pgbouncer"
   printf '"pgbouncer_auth" "%s"\n' "$PGB_PW" >"$USERLIST"

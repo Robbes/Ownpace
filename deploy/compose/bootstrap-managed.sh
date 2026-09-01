@@ -122,7 +122,7 @@ env_get() { # env_get NAME — the value in force, i.e. the last one
   # `|| true` for the same reason as in ensure-env-secrets.sh: under
   # `set -o pipefail` a grep that finds nothing fails the whole pipeline, and
   # "this key is not set" is a normal answer, not an error.
-  grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true
+  grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true
 }
 
 # env_or NAME DEFAULT — the value in force, or DEFAULT when unset OR EMPTY.
@@ -243,8 +243,8 @@ note_env_divergence() {
   # subshell and the appends are thrown away at the end of it (0099).
   while IFS= read -r k; do
     [ -n "$k" ] || continue
-    a="$(grep -E "^${k}=" "$persisted" | tail -1 | cut -d= -f2- || true)"
-    b="$(grep -E "^${k}=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+    a="$(grep -E "^${k}=" "$persisted" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+    b="$(grep -E "^${k}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
     [ "$a" = "$b" ] || differing+=("$k")
   done <<<"$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$persisted" | sort -u)"
 
@@ -599,7 +599,17 @@ explain_failure() { # explain_failure <service> [service...]
         # expansion to the container, which HAS the variable. IF EXISTS so a
         # second paste is not an error.
         echo "!!!   docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'" >&2
+        # THE DELETION AND THE REBUILD ARE PRINTED TOGETHER, and the second one
+        # is not optional. Deleting the volume leaves Docker to recreate it
+        # owned by root, while this image declares a USER — so first init dies
+        # on `open /machinekey/pat.txt: permission denied`, having ALREADY
+        # registered the instance domain, and every restart after that reports
+        # its own leftover (Errors.Instance.Domain.AlreadyExists) rather than
+        # the cause. prepare_machinekey_volume, in phase_app, is the only thing
+        # in this repository that chowns it. Found 2026-09-01, on a recipe that
+        # stopped one line short of working.
         echo "!!!   docker volume rm ownpace-managed_zitadel_machinekey" >&2
+        echo "!!!   ./deploy/compose/bootstrap-managed.sh --only app" >&2
         ;;
     esac
   done
@@ -645,6 +655,70 @@ phase_env() {
     note "created $ENV_FILE from managed.env.example"
   else
     note "$ENV_FILE already exists — left alone (existing values are never rotated)"
+  fi
+
+  # ---- IS THIS A STACK ENV AT ALL? ----
+  #
+  # Checked BEFORE ensure-env-secrets.sh, because after it has run the damage is
+  # already done: it writes generated secrets THROUGH the symlink, into whatever
+  # the file really is.
+  #
+  # Found live on the Spark, 2026-09-01. `deploy/compose/.env` there is a
+  # symlink into the gate runner's persist directory — the shape THIS SCRIPT
+  # RECOMMENDS, so the link is not the problem and refusing on it would refuse
+  # the advice. The file behind it is not a stack env: it is the DURABLE SET,
+  # the seven values `git clean -ffdx` must not destroy because volumes depend
+  # on them (the Postgres roles, and ZITADEL_MASTERKEY, which encrypts the
+  # identity provider's own data). Everything else is regenerated into the
+  # gate's checkout on every run.
+  #
+  # Pointed at that file, this script did exactly what it is written to do:
+  # generated the eight secrets it found missing, wrote them into the durable
+  # set, and walked into "WEB_URL has no value" two phases later — an error
+  # about the last symptom rather than the first, on a box where the answer was
+  # never "fix WEB_URL" but "you are on the machine that already has a stack".
+  #
+  # THE DISCRIMINATOR IS SIZE, not the symlink and not a missing key. A real
+  # `.env` begins as a copy of managed.env.example and keeps every key name
+  # from its first minute, blank values included — so "WEB_URL is empty" is the
+  # ordinary state of a half-configured install and would refuse the supported
+  # edit-and-resume flow. A durable set defines a handful of keys and never had
+  # the rest. Counting is also what makes the refusal legible: it can say what
+  # it counted rather than asserting a shape.
+  if [ "$freshly_created" -eq 0 ]; then
+    local env_keys example_keys resolved
+    env_keys="$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$ENV_FILE" | sort -u | wc -l)"
+    example_keys="$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "${SCRIPT_DIR}/managed.env.example" | sort -u | wc -l)"
+    # A quarter, not a fixed number: the example grows, and a threshold that
+    # does not grow with it turns into a refusal nobody can explain.
+    resolved="$(readlink -f "$ENV_FILE" 2>/dev/null || printf '%s' "$ENV_FILE")"
+    # AND IT WRITES OUTSIDE THE CHECKOUT. Without this clause the refusal fires
+    # in CI and takes the gate with it: the workflow restores that same small
+    # file INTO `deploy/compose/.env` and then runs this script precisely so it
+    # can top the rest up. There the file is a plain copy the bring-up owns;
+    # here it is a link to the one file it must not own. Same content, opposite
+    # meaning, and the difference is where a write lands.
+    if [ "$env_keys" -gt 0 ] && [ "$example_keys" -gt 0 ] &&
+       [ $(( env_keys * 4 )) -lt "$example_keys" ] &&
+       [ "$resolved" != "$ENV_FILE" ]; then
+      echo "!!! ${ENV_FILE} is not a stack env." >&2
+      echo "!!! It defines ${env_keys} keys; managed.env.example defines ${example_keys}." >&2
+      [ "$resolved" = "$ENV_FILE" ] || echo "!!! It is a link to ${resolved}" >&2
+      echo "!!!" >&2
+      echo "!!! That is the shape of a GATE RUNNER'S DURABLE SET — the few values a" >&2
+      echo "!!! checkout clean must not destroy, restored into the gate's workspace on" >&2
+      echo "!!! every run and topped up there. A stack is already brought up from it." >&2
+      echo "!!! NOTHING HAS BEEN WRITTEN. Continuing would generate secrets into it and" >&2
+      echo "!!! change what the next run of that gate brings up." >&2
+      echo "!!!" >&2
+      echo "!!! On the machine that runs the gate, you do not run this script: dispatch" >&2
+      echo "!!!   the E2E (managed) workflow to exercise a branch on the real stack." >&2
+      echo "!!! To build a SEPARATE stack from this checkout, give it an env of its own:" >&2
+      echo "!!!   unlink ${ENV_FILE} && ${0}" >&2
+      echo "!!! To edit the durable set, edit ${resolved} directly — nothing here writes" >&2
+      echo "!!!   to it on purpose." >&2
+      exit 1
+    fi
   fi
 
   "${SCRIPT_DIR}/ensure-env-secrets.sh"
