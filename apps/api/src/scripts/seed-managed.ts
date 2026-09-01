@@ -54,7 +54,7 @@
  */
 
 import jwt from 'jsonwebtoken';
-import { sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import {
   createPgDb,
   withTenant,
@@ -110,7 +110,7 @@ const DEMO_TENANTS: readonly DemoTenant[] = [
   {
     tenantId: 'a0000000-0000-4000-8000-000000000001',
     name: 'Demo Tenant A — Acme Families',
-    owner: { userId: 'demo-owner-a', email: 'owner-a@demo.openmigrate.test' },
+    owner: { userId: 'seed:demo-owner-a', email: 'owner-a@demo.openmigrate.test' },
     sourceConnectionId: 'a0000000-0000-4000-8000-0000000000c1',
     targetConnectionId: 'a0000000-0000-4000-8000-0000000000c2',
     sourceMailboxId: 'a0000000-0000-4000-8000-0000000000b1',
@@ -133,7 +133,7 @@ const DEMO_TENANTS: readonly DemoTenant[] = [
   {
     tenantId: 'b0000000-0000-4000-8000-000000000002',
     name: 'Demo Tenant B — Bakerloo SMB',
-    owner: { userId: 'demo-owner-b', email: 'owner-b@demo.openmigrate.test' },
+    owner: { userId: 'seed:demo-owner-b', email: 'owner-b@demo.openmigrate.test' },
     sourceConnectionId: 'b0000000-0000-4000-8000-0000000000c1',
     targetConnectionId: 'b0000000-0000-4000-8000-0000000000c2',
     sourceMailboxId: 'b0000000-0000-4000-8000-0000000000b1',
@@ -163,6 +163,36 @@ async function seedTenant(
     await withTenant(db.$pool, t.tenantId, async (tx) => {
       // Root entity first — RLS insert policy requires id === app.current_tenant.
       await tx.insert(tenant).values({ id: t.tenantId, name: t.name }).onConflictDoNothing();
+
+      // THE OWNER THIS SCRIPT CURRENTLY DEFINES, and not also the one it used to.
+      //
+      // `onConflictDoNothing` is right while the subject is unchanged — it is
+      // what makes a re-run cheap. It is exactly wrong when the subject CHANGES,
+      // because the conflict target is `(tenant_id, user_id)`: a new subject
+      // conflicts with nothing, so the row is inserted BESIDE the old one and
+      // the demo tenant has two owners on every volume that ever ran an older
+      // copy. Forever, and growing by one per change.
+      //
+      // That is the pileup the owner found on 2026-08-31 wearing a different
+      // hat — "Demo Tenant A has 31 probe owner users... a bit much!?" — and
+      // the smoke's sweep was written for its `@smoke.local` half. This is the
+      // seed's own half, and it is the half that would have been created by the
+      // very next line, when `demo-owner-a` became `seed:demo-owner-a` (0110's
+      // console link: a subject no provider ever minted must be recognisable as
+      // one, and the prefix is how).
+      //
+      // Narrow on purpose: THIS owner's address, on a tenant whose uuid this
+      // script owns, under some other subject. It cannot reach a real person, a
+      // smoke row, or the other demo tenant.
+      await tx
+        .delete(tenantMember)
+        .where(
+          and(
+            eq(tenantMember.tenantId, t.tenantId),
+            eq(tenantMember.email, t.owner.email),
+            ne(tenantMember.userId, t.owner.userId),
+          ),
+        );
 
       await tx
         .insert(tenantMember)

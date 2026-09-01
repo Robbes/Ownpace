@@ -170,8 +170,11 @@ Use each printed token as `Authorization: Bearer <token>` against the API, or dr
 app's stored auth token, to sign in as that tenant. **Tokens must belong to seeded members**: since
 the tenant-membership gate (0020 T1), `authenticate` confirms `(tenantId, sub)` against
 `tenant_member` and takes the role from that row — a hand-minted token with an arbitrary sub gets
-a 403 *by design*, however valid its signature. The seed's members are `demo-owner-a` (tenant A)
-and `demo-owner-b` (tenant B). The **cross-tenant check** is the acceptance centerpiece: tenant
+a 403 *by design*, however valid its signature. The seed's members are `seed:demo-owner-a`
+(tenant A) and `seed:demo-owner-b` (tenant B) — the `seed:` prefix marks a subject this system
+wrote rather than one an identity provider minted, so the support screen shows them without a
+console link instead of sending an operator to a user the provider has never had. The
+**cross-tenant check** is the acceptance centerpiece: tenant
 B's token must never read or affect tenant A's data through any path — verified at the SQL layer
 (RLS) and the HTTP layer (the T1/T2 integration tests).
 

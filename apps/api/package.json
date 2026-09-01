@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "node --watch src/index.ts",
     "operator:add": "node src/scripts/operator.ts add",
+    "operator:check": "node src/scripts/operator.ts check",
+    "operator:clean": "node src/scripts/operator.ts clean",
     "operator:leave": "node src/scripts/operator.ts leave",
     "operator:list": "node src/scripts/operator.ts list",
     "operator:memberships": "node src/scripts/operator.ts memberships",

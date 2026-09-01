@@ -14,7 +14,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { idpConsoleUserUrl, isPendingSubject, SUBJECT_PLACEHOLDER } from './idp-console.ts';
+import {
+  idpConsoleUserUrl,
+  isPendingSubject,
+  localSubjectKind,
+  LOCAL_SUBJECT_PREFIXES,
+  SUBJECT_PLACEHOLDER,
+} from './idp-console.ts';
 
 /**
  * The environment is handed in, never stubbed. `import.meta.env` is not shared
@@ -140,6 +146,57 @@ describe('isPendingSubject — which KIND of "no link" this is', () => {
     const TEMPLATE = { VITE_IDP_CONSOLE_USER_URL: 'https://id.example.test/users/{sub}' };
     for (const sub of ['pending:abc', '  pending:abc  ', '387865757964304395', 'x-pending:1']) {
       expect(idpConsoleUserUrl(sub, TEMPLATE) === null, sub).toBe(isPendingSubject(sub));
+    }
+  });
+});
+
+/**
+ * AND THE OTHER SUBJECT NO PROVIDER EVER MINTED.
+ *
+ * `pending:` was found on 2026-08-31 and fixed; `seed:` was found the same way
+ * on 2026-09-01, by the same person, one row further down the same screen. The
+ * owner clicked `owner-a@demo.openmigrate.test` on the support screen and
+ * landed on the identity provider's full user list — because the demo seed
+ * writes its owners straight into `tenant_member`, and no provider has ever
+ * heard of them.
+ *
+ * The lesson the second one carries is that this is a CATEGORY rather than a
+ * case, so the link is now refused for anything in `LOCAL_SUBJECT_PREFIXES`
+ * rather than for `pending:` by name. A third kind added later is refused by
+ * default instead of by somebody remembering this file exists.
+ */
+describe('every subject that is ours rather than theirs', () => {
+  const TEMPLATE = { VITE_IDP_CONSOLE_USER_URL: 'https://id.example.test/users/{sub}' };
+
+  it('refuses a seeded demo fixture, which is nobody at all', () => {
+    expect(idpConsoleUserUrl('seed:demo-owner-a', TEMPLATE)).toBeNull();
+    expect(localSubjectKind('seed:demo-owner-a')).toBe('seed');
+  });
+
+  it('tells the two kinds apart, because the screen says different things', () => {
+    // "Has not signed in yet" is true of an invitation and false of a fixture.
+    // One changes by itself when they arrive; the other never changes.
+    expect(localSubjectKind('pending:9a1f')).toBe('pending');
+    expect(isPendingSubject('pending:9a1f')).toBe(true);
+    expect(isPendingSubject('seed:demo-owner-a')).toBe(false);
+  });
+
+  it('leaves real subjects alone, however they are spelled', () => {
+    // THE HALF THAT MATTERS MOST. A prefix match that caught a real subject
+    // would silently remove the way through to a real account.
+    for (const sub of ['387865757964304395', 'user-seed:1', 'seeded', 'aseed:x', 'SEED:x']) {
+      expect(localSubjectKind(sub), sub).toBeNull();
+      expect(idpConsoleUserUrl(sub, TEMPLATE), sub).not.toBeNull();
+    }
+  });
+
+  it('refuses every declared prefix, so a third kind is safe by default', () => {
+    // Read from the exported list rather than restated: adding an entry there
+    // and forgetting the link is the failure this shape exists to make
+    // impossible, and a test that hard-coded two names would not notice.
+    for (const prefix of Object.values(LOCAL_SUBJECT_PREFIXES)) {
+      expect(idpConsoleUserUrl(`${prefix}whoever`, TEMPLATE), prefix).toBeNull();
+      expect(localSubjectKind(`${prefix}whoever`), prefix).not.toBeNull();
     }
   });
 });

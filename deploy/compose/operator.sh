@@ -40,6 +40,8 @@
 #   ./deploy/compose/operator.sh memberships <subject>
 #   ./deploy/compose/operator.sh leave <subject> <tenant-id>
 #   ./deploy/compose/operator.sh leave <subject> --all
+#   ./deploy/compose/operator.sh check [kind]
+#   ./deploy/compose/operator.sh clean <kind> [--confirm]
 #
 # `<subject>` is the OIDC `sub`, never an email: sign in once, call
 # `GET /api/me`, and read `userId` back. operator.ts's header says why.
@@ -50,6 +52,13 @@
 # spans all of them — so it can only be answered over the owner connection, at
 # the machine. `leave` never touches `platform_operator`; that separation is
 # the whole point, and operator.ts's header carries the rest.
+#
+# `check` is the same question asked of the whole deployment rather than of one
+# person: which organisations have people in them and no owner, which operator
+# rows match nobody, what is holding a credential where an address belongs. It
+# writes nothing. `clean` resolves the findings that need no decision, and even
+# then writes nothing without `--confirm` — see operator-housekeeping.ts, which
+# carries a paragraph per check on why it is a question worth asking.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,6 +74,8 @@ if [ "$#" -eq 0 ]; then
   echo "  ./deploy/compose/operator.sh memberships <subject>" >&2
   echo "  ./deploy/compose/operator.sh leave <subject> <tenant-id>" >&2
   echo "  ./deploy/compose/operator.sh leave <subject> --all" >&2
+  echo "  ./deploy/compose/operator.sh check [kind]" >&2
+  echo "  ./deploy/compose/operator.sh clean <kind> [--confirm]" >&2
   exit 1
 fi
 
