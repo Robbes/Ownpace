@@ -166,3 +166,70 @@ describe('the smoke removes what it added, in the only order that stays truthful
     expect(balance).toMatch(/nothing to take back/);
   });
 });
+
+describe('and the organisation it grants itself, in the order the schema allows', () => {
+  /**
+   * The operator block now presses grant, which creates a TENANT on a
+   * long-lived stack. One a night accumulates in the same database this script
+   * measures — the defect this whole file exists for, in a new place.
+   *
+   * The ORDER is the part worth pinning, and it is not a style choice.
+   * `access_request.tenant_id` references the tenant with ON DELETE RESTRICT
+   * (migration 0007) and the row carries CHECK ((state = 'granted') =
+   * (tenant_id IS NOT NULL)). Delete the tenant first and Postgres refuses,
+   * naming a constraint on a table nobody was looking at. Requests, then
+   * tenants.
+   */
+  const opBlock = (): string => {
+    const at = smoke.indexOf('THE QUEUE THEY CAME FOR');
+    const end = smoke.indexOf("DELETE FROM platform_operator WHERE user_id", at);
+    expect(at, 'the operator grant block is gone').toBeGreaterThan(-1);
+    expect(end, 'the take-back of the appointment moved').toBeGreaterThan(at);
+    return smoke.slice(at, end);
+  };
+
+  it('deletes the requests BEFORE the tenants, both times', () => {
+    const block = opBlock();
+    const reqs = [...block.matchAll(/DELETE FROM access_request WHERE email LIKE 'smoke-grant-/g)];
+    const tens = [...block.matchAll(/DELETE FROM tenant WHERE name LIKE 'Smoke Grant /g)];
+    // Twice each: a stale sweep at the top for a run that died mid-block, and
+    // the take-back at the bottom.
+    expect(reqs).toHaveLength(2);
+    expect(tens).toHaveLength(2);
+    for (let i = 0; i < 2; i += 1) {
+      expect(
+        reqs[i]!.index,
+        'a tenant is deleted before the request pointing at it — ON DELETE RESTRICT refuses that',
+      ).toBeLessThan(tens[i]!.index!);
+    }
+  });
+
+  it('asserts the balance rather than reporting it', () => {
+    // The lesson the sibling case above records: a line that prints a count
+    // and does not compare it is a number nobody reads.
+    const block = opBlock();
+    expect(block).toContain('g_left');
+    expect(block).toMatch(/\[ "\$g_left" = "0\/0" \]/);
+    expect(block, 'a residue count that cannot fail the run').toMatch(/taken back[\s\S]{0,400}fail=1/);
+  });
+
+  it('sweeps a previous run before it starts, not only after it ends', () => {
+    // A run killed between the grant and the take-back leaves a tenant behind,
+    // and the next run must not inherit it as a mystery — nor count it.
+    const block = opBlock();
+    const firstReq = block.indexOf('DELETE FROM access_request');
+    const knock = block.indexOf('/api/access-requests');
+    expect(firstReq).toBeGreaterThan(-1);
+    expect(firstReq, 'the stale sweep runs after the gate has already knocked').toBeLessThan(knock);
+  });
+
+  it('names what it creates, so the sweep can find it and nothing else', () => {
+    // Both patterns are anchored to a prefix this gate owns. A sweep on
+    // `DELETE FROM tenant` with a looser predicate is a demo stack away from
+    // deleting a customer.
+    const block = opBlock();
+    expect(block).toContain("GRANT_EMAIL=\"smoke-grant-${SMOKE_MAIL_RUN}@smoke.local\"");
+    expect(block).toContain('GRANT_ORG="Smoke Grant ${SMOKE_MAIL_RUN}"');
+    expect(block, 'an unanchored tenant delete').not.toMatch(/DELETE FROM tenant(?! WHERE name LIKE 'Smoke Grant )/);
+  });
+});
