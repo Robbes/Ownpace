@@ -15,7 +15,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag, Plug, BookOpen, DoorOpen, LifeBuoy } from 'lucide-react';
+  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2 } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { isSelfHost } from '../services/edition.ts';
 import { signOutUrl } from '../services/oidc.ts';
@@ -167,6 +167,15 @@ const Layout: React.FC = () => {
     ...(selfHost || !operator
       ? []
       : [{ name: t('nav.support'), href: '/support', icon: LifeBuoy }]),
+    // Every address this deployment needs registered elsewhere (2026-09-01).
+    // Operator-only in the NAV on the same terms as the two above, and
+    // cosmetically so: the route behind it names no customer and no secret —
+    // every value is an address published to a provider and typed into a
+    // browser's location bar. Hidden because it is nobody else's job, not
+    // because it is a secret.
+    ...(selfHost || !operator
+      ? []
+      : [{ name: t('nav.redirectUris'), href: '/redirect-uris', icon: Link2 }]),
     // Billing reads are owner/admin (owner decision 2026-08-10), so for a
     // lesser role the entry would only lead to a "not for your role"
     // sentence — hidden like the appliance hides what it cannot serve. The

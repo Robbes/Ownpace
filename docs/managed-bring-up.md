@@ -525,6 +525,14 @@ the others redirect:
 | GitHub | Settings → Developer settings → OAuth Apps | `$JWT_ISSUER/ui/login/login/externalidp/callback` |
 | Apple | Developer → Services ID (**paid account**) | `$JWT_ISSUER/ui/login/login/externalidp/callback/form` |
 
+`setup-zitadel.sh` writes the non-Apple value into `.env` as
+`IDP_UPSTREAM_CALLBACK_URL`, and the app's **Redirect URIs** page (operator
+nav) shows it beside every other address this deployment needs registered —
+so you can copy it from a second tab while you are in the provider's console,
+rather than from this table. It is a value rather than a path the product
+composes, because the path is the identity provider's own and shipped source
+must not know it (ADR-0042).
+
 **Our half** is `.env` and a re-run. Fill in the pairs you want — a provider
 with no credentials is simply not offered. The keys, exactly as `.env` spells
 them:

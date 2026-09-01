@@ -31,6 +31,7 @@ import billingRoutes from './routes/billing/index.ts';
 import billingWebhookRoutes from './routes/billing/webhooks.ts';
 import scopeManifestRoutes from './routes/scope-manifest.ts';
 import providerAccountRoutes from './routes/provider-accounts.ts';
+import redirectUriRoutes from './routes/redirect-uris.ts';
 import setupRoutes from './routes/setup.ts';
 import connectionRoutes from './routes/connections.ts';
 import accessRequestRoutes from './routes/access-requests.ts';
@@ -197,6 +198,14 @@ app.use('/api/scope-manifest', scopeManifestRoutes);
  * bundle was built before anybody set it — see the route's own header.
  */
 app.use('/api/provider-accounts', providerAccountRoutes);
+/**
+ * Every address this deployment needs registered elsewhere (2026-09-01).
+ *
+ * Beside the two above and unauthenticated for their reason: each value is an
+ * address published to a provider and typed into a browser's location bar. It
+ * names no customer, no connection and no secret — see the route's header.
+ */
+app.use('/api/redirect-uris', redirectUriRoutes);
 app.use('/api/setup', setupRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/migrations', mappingRoutes);

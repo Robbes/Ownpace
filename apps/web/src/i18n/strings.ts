@@ -158,6 +158,27 @@ const en = {
   // these are the screen where somebody answers, hence a separate prefix.
   'nav.accessRequests': 'Access requests',
   'nav.support': 'Support',
+  'nav.redirectUris': 'Redirect URIs',
+  // ---- Every address this deployment needs registered elsewhere
+  // (2026-09-01). The owner registered the right Google callback, got
+  // `redirect_uri_mismatch` because API_URL disagreed with it, and asked for
+  // the surface: four consoles, near-identical strings, and each wrong one
+  // fails with the same unhelpful sentence from a different vendor.
+  'redirects.title': 'Redirect URIs',
+  'redirects.intro':
+    'The addresses this deployment asks other services to send a browser back to. Each one '
+    + 'has to be registered in that service’s own console, exactly as shown — they are built '
+    + 'from this deployment’s settings, so what is here is what will actually be requested.',
+  'redirects.loading': 'Reading this deployment’s settings…',
+  'redirects.failed': 'Could not read them. The list is built by the API; check that it is up.',
+  'redirects.group.migration': 'Migration sources — in the provider’s own OAuth client',
+  'redirects.group.signIn': 'Signing in — in your identity provider',
+  'redirects.group.socialSignIn': 'Social sign-in — in each upstream provider',
+  'redirects.none': 'No redirect URI to register.',
+  'redirects.unconfigured':
+    'This deployment has not been told the address it is reached at, so there is nothing to '
+    + 'show here yet. Set it first — registering a guess produces a mismatch later, at the '
+    + 'provider’s screen.',
   // ---- Answering an invitation (workplan 0099). ----
   'invite.title': 'You have been invited',
   'invite.subtitle': 'Joining is your choice. Nothing happens until you make it.',
@@ -1624,6 +1645,25 @@ const nl: Record<keyof typeof en, string> = {
   // ---- The access QUEUE (workplan 0093 T7) — see the English block. ----
   'nav.accessRequests': 'Toegangsverzoeken',
   'nav.support': 'Support',
+  'nav.redirectUris': 'Omleidings-URI\u2019s',
+  // ---- Zie het Engelse blok. ----
+  'redirects.title': 'Omleidings-URI\u2019s',
+  'redirects.intro':
+    'De adressen waarnaar deze omgeving andere diensten een browser laat terugsturen. Elk '
+    + 'adres moet exact zo in de console van die dienst worden geregistreerd \u2014 ze worden '
+    + 'opgebouwd uit de instellingen van deze omgeving, dus wat hier staat is wat er ook '
+    + 'daadwerkelijk wordt gevraagd.',
+  'redirects.loading': 'Instellingen van deze omgeving lezen\u2026',
+  'redirects.failed':
+    'Kon ze niet lezen. De lijst wordt door de API opgebouwd; controleer of die draait.',
+  'redirects.group.migration': 'Migratiebronnen \u2014 in de eigen OAuth-client van de aanbieder',
+  'redirects.group.signIn': 'Aanmelden \u2014 in uw identiteitsprovider',
+  'redirects.group.socialSignIn': 'Sociaal aanmelden \u2014 bij elke bovenliggende aanbieder',
+  'redirects.none': 'Geen omleidings-URI te registreren.',
+  'redirects.unconfigured':
+    'Deze omgeving weet nog niet op welk adres zij bereikbaar is, dus hier valt nog niets te '
+    + 'tonen. Stel dat eerst in \u2014 een gok registreren levert later een mismatch op, op '
+    + 'het scherm van de aanbieder.',
   // ---- Een uitnodiging beantwoorden (workplan 0099) — zie het Engelse blok. ----
   'invite.title': 'U bent uitgenodigd',
   'invite.subtitle': 'Meedoen is uw keuze. Er gebeurt niets tot u die maakt.',

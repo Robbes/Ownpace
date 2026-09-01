@@ -417,6 +417,33 @@ export const providerAccountsApi = {
   },
 };
 
+/**
+ * Every address this deployment needs registered in somebody else's console
+ * (2026-09-01).
+ *
+ * ASKED, NOT COMPILED IN, for the same reason as the provider accounts above:
+ * every string is derived from a runtime value (`API_URL`, `WEB_URL`,
+ * `JWT_ISSUER`), and a bundle built before those were set would show a
+ * plausible wrong address — which is worse than none, because somebody would
+ * register it.
+ */
+export const RedirectUriEntrySchema = z.object({
+  id: z.string(),
+  group: z.enum(['migration', 'signIn', 'socialSignIn']),
+  provider: z.string(),
+  uri: z.string().nullable(),
+  why: z.string(),
+  unconfigured: z.boolean().optional(),
+});
+export type RedirectUriEntry = z.infer<typeof RedirectUriEntrySchema>;
+
+export const redirectUriApi = {
+  get: async (): Promise<RedirectUriEntry[]> => {
+    const response = await apiClient.get('/redirect-uris');
+    return z.object({ entries: z.array(RedirectUriEntrySchema) }).parse(response.data).entries;
+  },
+};
+
 /** One probe's outcome (workplan 0046) — the refusal arrives verbatim. */
 export interface TestConnectionResult {
   ok: boolean;

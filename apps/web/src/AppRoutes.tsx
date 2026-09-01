@@ -27,6 +27,7 @@ import RequestAccess from './pages/RequestAccess.tsx';
 import Grant from './pages/Grant.tsx';
 import AuthCallback from './pages/AuthCallback.tsx';
 import AccessRequests from './pages/AccessRequests.tsx';
+import RedirectUris from './pages/RedirectUris.tsx';
 import {
   SupportTenants,
   SupportTenantDetail,
@@ -365,6 +366,19 @@ const AppRoutes: React.FC = () => {
           element={
             <ManagedOnly>
               <SupportTenants />
+            </ManagedOnly>
+          }
+        />
+        {/* Every address this deployment needs registered elsewhere
+            (2026-09-01). Managed only — an appliance registers its own client
+            and has its own answer — and, like the two above, NOT gated on
+            being an operator here: the nav hides it, and a typed URL reaches a
+            list of addresses that are public by construction. */}
+        <Route
+          path="redirect-uris"
+          element={
+            <ManagedOnly>
+              <RedirectUris />
             </ManagedOnly>
           }
         />
