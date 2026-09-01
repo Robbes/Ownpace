@@ -41,6 +41,26 @@ describe('RequestAccess', () => {
     expect(screen.getByRole('button', { name: /send request/i })).toBeDisabled();
   });
 
+  it('arrives filled in when the sign-in that went nowhere sent somebody here', async () => {
+    // The other half of `services/no-organisation.ts`: a good sign-in with no
+    // membership hands the verified address to this form. The `+` proves the
+    // decoding, which a bare template would have turned into a space.
+    renderPage('/request-access?email=rh%2Btagged%40example.test');
+    expect(screen.getByLabelText(/email address/i)).toHaveValue('rh+tagged@example.test');
+    expect(screen.getByRole('button', { name: /send request/i })).toBeEnabled();
+  });
+
+  it('sends the address it was given, not a decoration of it', async () => {
+    const user = userEvent.setup();
+    renderPage('/request-access?email=someone%40example.test');
+    await user.click(screen.getByRole('button', { name: /send request/i }));
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    expect(postMock.mock.calls[0]![1]).toEqual({
+      email: 'someone@example.test',
+      locale: 'en',
+    });
+  });
+
   it('sends only the fields that were filled in', async () => {
     const user = userEvent.setup();
     renderPage();

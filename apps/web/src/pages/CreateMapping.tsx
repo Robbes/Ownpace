@@ -21,9 +21,9 @@ import {
   EyeOff
 } from 'lucide-react';
 import {
-  SOURCE_TYPE_DOMAINS,
   PROVIDER_ACCOUNT_DOMAINS,
   TARGET_TYPE_DOMAINS,
+  sourceTypeDomains,
   sourceDomainRefusal,
   targetDomainRefusal,
   describeCronScheduleProblem,
@@ -39,6 +39,7 @@ import { Cron } from 'croner';
 import {
   connectionsApi,
   mappingApi,
+  providerAccountsApi,
   type ConnectionSummary,
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
@@ -162,6 +163,14 @@ function sourceKindOf(sourceType: string): string {
   if (sourceType === 'box') return 'box';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
+
+/**
+ * The Google ACCOUNT card's hint where the deployment's own application
+ * carries the restricted scopes (ADR-0041). Declared `StringKey` rather than
+ * cast at the call site: a typo is then a build error, where a cast would have
+ * shipped a card rendering its own key name.
+ */
+const RESTRICTED_GOOGLE_HINT: StringKey = 'wizard.proto.google.hint.restricted';
 
 const steps: { id: Step; nameKey: StringKey; icon: React.FC<React.SVGProps<SVGSVGElement>> }[] = [
   // Four steps, not six (workplan 0070): each side carries its own
@@ -450,6 +459,29 @@ const CreateMapping: React.FC = () => {
     queryFn: connectionsApi.list,
     retry: false,
   });
+  /**
+   * WHAT ONE GOOGLE ACCOUNT MAY SERVE HERE (ADR-0041, owner decision
+   * 2026-09-01) — asked, not compiled in.
+   *
+   * A deployment whose own Google application carries the restricted scopes
+   * declares `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, and the API then builds
+   * a four-face consent. That declaration is read at run time; this bundle was
+   * built before it, so a constant here would offer two ticks against a server
+   * willing to ask for four — the half-reachable feature this replaces.
+   *
+   * FALLS BACK TO THE NARROW ANSWER, and every failure falls back with it: an
+   * unreachable route, a shape this build does not recognise, a request still
+   * in flight. Over-offering is the one direction that costs something — a
+   * tick the create door then refuses — so the default is the one that cannot.
+   */
+  const { data: accountDomainsByKind } = useQuery({
+    queryKey: ['provider-accounts'],
+    queryFn: providerAccountsApi.get,
+    retry: false,
+    staleTime: Infinity,
+  });
+  const googleAccountDomains = accountDomainsByKind?.google ?? PROVIDER_ACCOUNT_DOMAINS.google;
+
   const reusableSources = (existingConnections ?? []).filter(
     (c) => c.role === 'source' && c.kind === sourceKindOf(formData.sourceType),
   );
@@ -907,7 +939,7 @@ const CreateMapping: React.FC = () => {
   // against (0037 T4; 0042 for the source side; ADR-0026's one contract): the
   // wizard constrains the choice, the server refuses it verbatim for any
   // other client.
-  const sourceAllowed = SOURCE_TYPE_DOMAINS[formData.sourceType];
+  const sourceAllowed = sourceTypeDomains(formData.sourceType, googleAccountDomains);
   const allowedDomains = TARGET_TYPE_DOMAINS[formData.targetType].filter(
     (d) => !sourceAllowed || sourceAllowed.includes(d),
   );
@@ -1038,7 +1070,8 @@ const CreateMapping: React.FC = () => {
           formData.name.trim() !== '' &&
           formData.domains.length > 0 &&
           targetDomainRefusal(formData.targetType, formData.domains) === null &&
-          sourceDomainRefusal(formData.sourceType, formData.domains) === null &&
+          sourceDomainRefusal(formData.sourceType, formData.domains, googleAccountDomains) ===
+            null &&
           cronProblem() === null // empty = the default cadence, fine
         );
       case 'review':
@@ -1081,7 +1114,7 @@ const CreateMapping: React.FC = () => {
       // leaving Next disabled and silent — the exact defect 0037 T3 removed.
       const refusal =
         targetDomainRefusal(formData.targetType, formData.domains) ??
-        sourceDomainRefusal(formData.sourceType, formData.domains);
+        sourceDomainRefusal(formData.sourceType, formData.domains, googleAccountDomains);
       if (refusal) return refusal;
       const problem = cronProblem();
       if (problem) return `${t('wizard.cron.invalidLead')} ${problem}`;
@@ -1513,8 +1546,29 @@ const CreateMapping: React.FC = () => {
     </button>
   );
 
+  /**
+   * The Google ACCOUNT card's hint follows what this deployment's application
+   * carries (ADR-0041).
+   *
+   * The default hint ends "Gmail and Drive stay separate cards for now: they
+   * need a Google security review we have not bought yet" — true of the client
+   * Ownpace publishes to strangers, and a lie on an installation whose owner
+   * registered their own application and accepted the restricted tier. A card
+   * that names a wall which is not there is worse than one that says nothing:
+   * it sends somebody looking for the wrong problem.
+   *
+   * Keyed off the ceiling itself rather than off the setting, so the two
+   * cannot say different things.
+   */
+  const sourceCardFor = (card: (typeof SOURCE_CARDS)[number]) =>
+    card.id === 'google' &&
+    googleAccountDomains.includes('email') &&
+    googleAccountDomains.includes('file')
+      ? { ...card, hintKey: RESTRICTED_GOOGLE_HINT }
+      : card;
+
   const renderSourceCard = (type: (typeof SOURCE_CARDS)[number]) =>
-    chooserCard(type, formData.sourceType === type.id, () => {
+    chooserCard(sourceCardFor(type), formData.sourceType === type.id, () => {
       // A verdict about the OLD provider must not survive the
       // switch (0073) — it is a statement about a credential
       // this screen no longer asks for.
@@ -1570,7 +1624,7 @@ const CreateMapping: React.FC = () => {
                 // consent asks for less. The empty case stays guarded: untick
                 // both and the button refuses with a sentence rather than
                 // sending a consent for nothing.
-                domains: [...PROVIDER_ACCOUNT_DOMAINS.google],
+                domains: [...googleAccountDomains],
               }))
           : type.id === 'google-calendar'
             ? setFormData((prev) => ({

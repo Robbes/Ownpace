@@ -29,6 +29,10 @@ import { connectionsApi } from '../services/mapping-service.ts';
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { create: vi.fn(), testConnection: vi.fn() },
   connectionsApi: { list: vi.fn().mockResolvedValue([]), add: vi.fn(), rotate: vi.fn() },
+  // The deployment's own ceiling for a Google ACCOUNT (ADR-0041). Mocked
+  // empty: the wizard falls back to the narrow default, which is what an
+  // undeclared deployment gets.
+  providerAccountsApi: { get: vi.fn().mockResolvedValue({}) },
 }));
 
 const DRAFT_KEY = 'wizard.draft.v1';

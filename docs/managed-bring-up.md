@@ -480,6 +480,33 @@ fail if that stops being true.
 > Changing the address later invalidates every live session — it belongs with
 > the other browser-visible addresses in `.env`, decided once.
 
+#### One issuer or two? (owner decision, 2026-09-01)
+
+**One, for now.** The reference stack's provider lives at
+`id.ota.ownpace.eu`; production will later live at `id.ownpace.eu`, and that
+will be a **separate provider on the production box**, not a second name for
+this one.
+
+Why not share it across both: the address is inside every token (see the note
+above), so pointing a production stack at the test box's issuer makes the test
+box a dependency of production sign-in and a single blast radius for both. Why
+not stand the second one up today either: it is one `setup-zitadel.sh` run
+whenever the production stack exists, and an issuer with no users on it is a
+thing to keep patched for nothing.
+
+What that means in practice:
+
+- Every upstream OAuth client registered below gets a redirect URI on
+  `id.ota.ownpace.eu` today, and a **second** one on `id.ownpace.eu` when
+  production arrives — the same client may carry both, or you may register a
+  separate client per environment, which
+  [ADR-0041](./adr/0041-who-owns-the-oauth-client.md) prefers for the
+  *migration* client and which applies equally here.
+- Accounts do not travel. Somebody who signed in to the test stack has no
+  account on production, which is correct: they are different deployments with
+  different data, and a shared identity provider would have made that look
+  otherwise.
+
 #### Offering Google, Microsoft, GitHub or Apple as a second way in
 
 Optional, and configuration only — nothing in the product knows a provider's
@@ -872,6 +899,99 @@ page says this itself, in the button beside its heading.
 
 What it watches is `deploy/compose/gatus.yaml` — in git, reviewed, and edited
 with a restart rather than through a web console.
+
+### 8e. Migrating **from** Google — what your own OAuth application carries
+
+Two different Googles show up in this document and conflating them costs an
+afternoon, so name them once:
+
+| | Google as **identity** | Google as a **source** |
+|---|---|---|
+| What it does | somebody signs in to Ownpace with their Google account | Ownpace reads their mail, calendar, contacts or files |
+| Where it is set up | §8b, `IDP_GOOGLE_CLIENT_ID` — a Zitadel identity provider | here, the OAuth client the migration consent runs against |
+| What it proves | who this person is | what this account let us read |
+| Boundary | [ADR-0042](./adr/0042-who-holds-the-passwords.md): the issuer owns identity, `tenant_member` owns tenancy | [ADR-0041](./adr/0041-who-owns-the-oauth-client.md): the deployment owns its own client |
+
+Signing in with Google puts nobody in an organisation, and a Google grant
+signs nobody in. They are separate all the way down.
+
+#### The one setting: `GOOGLE_ACCOUNT_SCOPE_CLASS`
+
+A **Google account** source is one connection row wearing several faces — one
+address, one credential, one consent, and the object types you tick. Which
+faces it may wear here is a fact about **this deployment's own Google
+application**, and the deployment declares it:
+
+| value | one account consent may ask for |
+|---|---|
+| unset (the default), or `sensitive` | calendar, contacts |
+| `restricted` | mail, calendar, contacts, files |
+
+The split is Google's pricing of its own scopes, not a limit of this product.
+Calendar and CardDAV are *sensitive* — brand review, free. Gmail's
+`https://mail.google.com/` and `drive.readonly` are *restricted*, which needs
+an annual third-party security assessment
+([`google-oauth-verification.md`](./google-oauth-verification.md)). The client
+Ownpace publishes to strangers offers two faces until that assessment is
+actually paid for; a deployment whose owner registered their own application
+and accepts the tier answers for itself.
+
+**Mail and files are migratable either way.** With the narrow default they are
+the `gmail` and `google-drive` sources, each asking its own one scope. What
+`restricted` buys is *one* consent instead of three.
+
+```bash
+# in deploy/compose/.env
+GOOGLE_ACCOUNT_SCOPE_CLASS=restricted
+```
+
+Restart the API afterwards. **No web rebuild** — unlike the `VITE_*` values in
+§8b, the wizard asks the API what this deployment serves
+(`GET /api/provider-accounts`) rather than having it compiled in, so the
+account card and its tick boxes follow the setting on the next page load.
+There is deliberately no `VITE_` twin: two separately settable copies of one
+fact is how a screen comes to offer what the server then refuses.
+
+#### A declaration is not a capability
+
+Setting it does not make Google grant anything. If the application has not
+**registered** those scopes, Google refuses at its own consent screen — with
+the scope string in hand, which is a good failure. The bad one, which this
+avoids, is a consent silently narrowed to two faces and a migration that turns
+out weeks later never to have included mail.
+
+So at Google, once, for the client this deployment uses:
+
+1. **Google Cloud Console → APIs & Services → OAuth consent screen.** Add
+   `https://mail.google.com/` and `https://www.googleapis.com/auth/drive.readonly`
+   to the scopes, beside the calendar and CardDAV ones.
+2. **Credentials → your OAuth client → Authorised redirect URIs.** It must
+   carry `https://<your API host>/api/migrations/google/callback` — the exact
+   string, which `POST /api/migrations/google/authorize` also returns so the
+   wizard can show it.
+3. **Publishing status.** See the warning below before choosing.
+
+#### The seven days, which is the one that bites later
+
+In **External + Testing**, Google expires refresh tokens after **seven days**.
+Nothing fails at consent time; the migration works, and then dies weeks later
+with `invalid_grant` on a schedule nobody changed.
+`google-token-provider.ts` names that cause first when it fails, and this is
+the moment to avoid needing it: set the consent screen to **Production** for a
+personal Google account, or **Internal** for a Workspace one, before any real
+migration. Testing with up to 100 listed users is fine for *trying* the
+button — it is not a publishing status to run a customer on.
+
+#### What it looks like when it worked
+
+- The **Google account** card on step 1 of the wizard offers four object types
+  instead of two, and its hint stops mentioning a security review.
+- The consent button asks for exactly the ticked faces — never more, and never
+  fewer without saying so.
+- The connection's **qualification badges** report each face separately, read
+  from the grant Google actually issued rather than from what was asked. A
+  face you ticked and Google did not grant shows as a measured no, with the
+  remedy: asking is granting, so adding it means re-consenting.
 
 ### 9. `tasks` — the task environment, then the deploy
 

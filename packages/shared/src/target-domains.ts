@@ -164,6 +164,12 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
     name: 'Google',
     // Honest about WHY it is not all four: the missing faces are a scope
     // Google prices differently, not a face this product cannot drive.
+    //
+    // And this is the NARROW deployment's sentence. One whose own application
+    // carries the restricted scopes gets a shorter one — see
+    // `constrainedSourceProse` below, which is where that stops being a
+    // property of the product and becomes a property of the deployment
+    // (ADR-0041, owner decision 2026-09-01).
     reads:
       'the object types you granted — calendars and contacts today; mail and ' +
       'files need a Google security assessment we have not bought yet, and ' +
@@ -174,18 +180,77 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
 };
 
 /**
+ * What a wizard source may serve ON THIS DEPLOYMENT.
+ *
+ * `accountDomains` is the deployment's own answer for a provider-ACCOUNT
+ * source — `providerAccountDomains('google', env)` on the server, and the same
+ * list fetched from `GET /api/provider-accounts` in the browser. Everything
+ * else is a fact about a protocol or a single-purpose API and takes no
+ * argument: a Gmail credential reads mail whoever deployed it.
+ *
+ * PASSED, NEVER READ FROM THE ENVIRONMENT HERE, and that is not fussiness.
+ * `providerAccountDomains` defaults its `env` to `process.env`, which does not
+ * exist in a browser — a default here would make the wizard's own refusal
+ * throw on the one edition that has a wizard. The deployment's answer travels
+ * over the wire to the client, which is the only way one fact can hold on both
+ * sides of it.
+ *
+ * ABSENT MEANS THE STATIC DEFAULT, which is what an appliance always gets: it
+ * registers its own OAuth client and this table never spoke for it (ADR-0041).
+ */
+export function sourceTypeDomains(
+  sourceType: WizardSourceType,
+  accountDomains?: ReadonlyArray<DiscoveryDomain>,
+): ReadonlyArray<DiscoveryDomain> | undefined {
+  if (sourceType === 'google' && accountDomains !== undefined) return accountDomains;
+  return SOURCE_TYPE_DOMAINS[sourceType];
+}
+
+/**
+ * How a constrained source explains itself, given what it actually serves.
+ *
+ * The Google ACCOUNT is the only entry whose sentence moves, because it is the
+ * only one whose ceiling is a deployment's decision rather than an API's shape.
+ * A deployment carrying the restricted scopes must not be told that mail
+ * "needs a Google security assessment we have not bought yet" — it bought one,
+ * or registered its own application and accepted the tier. Saying otherwise
+ * sends its owner looking for a wall that is not there.
+ */
+function constrainedSourceProse(
+  sourceType: WizardSourceType,
+  allowed: ReadonlyArray<DiscoveryDomain>,
+): { name: string; reads: string } | undefined {
+  const prose = CONSTRAINED_SOURCE_PROSE[sourceType];
+  if (!prose) return undefined;
+  if (sourceType !== 'google') return prose;
+  // The long sentence claims TWO things are missing — mail and files — and it
+  // is false the moment either is served. So it survives only where neither
+  // is, which is the default this product publishes; anything wider means the
+  // deployment registered its own application or bought the assessment, and
+  // the refusal is then only ever about a face nobody ticked. Checked as "is
+  // the claim still true" rather than "is this the restricted list", because
+  // the claim is what a person reads.
+  const stillTrue = !allowed.includes('email') && !allowed.includes('file');
+  return stillTrue ? prose : { ...prose, reads: 'the object types you granted' };
+}
+
+/**
  * The refusal for an incoherent source/domain combination — the source-side
  * sibling of `targetDomainRefusal`, in shared for the same reason: the wizard
  * constrains the choice as it is made, the create API refuses it verbatim for
  * any other client, and one matrix per door is one drift away from the client
  * offering what the server refuses.
+ *
+ * `accountDomains` — see `sourceTypeDomains`. The create API passes what this
+ * deployment declares; the wizard passes what the API told it.
  */
 export function sourceDomainRefusal(
   sourceType: WizardSourceType,
   domains: ReadonlyArray<DiscoveryDomain>,
+  accountDomains?: ReadonlyArray<DiscoveryDomain>,
 ): string | null {
-  const allowed = SOURCE_TYPE_DOMAINS[sourceType];
-  const prose = CONSTRAINED_SOURCE_PROSE[sourceType];
+  const allowed = sourceTypeDomains(sourceType, accountDomains);
+  const prose = allowed ? constrainedSourceProse(sourceType, allowed) : undefined;
   if (!allowed || !prose) return null;
   const bad = domains.filter((d) => !allowed.includes(d));
   if (bad.length === 0) return null;

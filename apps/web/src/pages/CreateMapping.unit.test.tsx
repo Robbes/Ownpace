@@ -32,6 +32,10 @@ vi.mock('../services/mapping-service', () => ({
   // The wizard offers reusable connections (workplan 0064); an empty list is
   // the "nothing to reuse yet" case these walks exercise.
   connectionsApi: { list: vi.fn().mockResolvedValue([]) },
+  // The deployment's own ceiling for a Google ACCOUNT (ADR-0041). Mocked
+  // empty: the wizard falls back to the narrow default, which is what an
+  // appliance and an undeclared managed deployment both get.
+  providerAccountsApi: { get: vi.fn().mockResolvedValue({}) },
 }));
 
 const createMock = vi.mocked(mappingApi.create);

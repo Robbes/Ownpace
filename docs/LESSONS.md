@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 71 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 73 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -62,6 +62,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/index.ts`
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
 
 ### `apps/api/src/middleware/auth-verify.unit.test.ts`
@@ -79,9 +80,22 @@ reading a file drops off its entry by itself.
 
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 
+### `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
+
+- [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
+
 ### `apps/api/src/routes/migrations/index.ts`
 
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
+
+### `apps/api/src/routes/provider-accounts.ts`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
+### `apps/api/src/routes/provider-accounts.unit.test.ts`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
 ### `apps/api/src/routes/ready.ts`
 
@@ -130,6 +144,10 @@ reading a file drops off its entry by itself.
 
 - [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
 
+### `apps/web/src/pages/CreateMapping.tsx`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
 ### `apps/web/src/pages/Login.tsx`
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
@@ -146,6 +164,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/services/idp-console.ts`
 
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
+
+### `apps/web/src/services/mapping-service.ts`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
 ### `apps/web/src/services/oidc.ts`
 
@@ -223,6 +245,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/managed.env.example`
 
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
+- [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -235,9 +258,11 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/managed.yml`
 
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
+- [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -446,6 +471,10 @@ reading a file drops off its entry by itself.
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 
+### `packages/connectors/src/google-token-provider.ts`
+
+- [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
+
 ### `packages/core/src/apply-deletion.ts`
 
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
@@ -478,6 +507,10 @@ reading a file drops off its entry by itself.
 
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 
+### `packages/shared/src/target-domains.unit.test.ts`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
 ### `scripts/a-check-that-was-never-valid.unit.test.ts`
 
 - [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts) — A REFUSAL THAT NAMES NOTHING IS A RUN SOMEBODY HAS TO REPEAT TO LEARN ANYTHING.
@@ -485,6 +518,10 @@ reading a file drops off its entry by itself.
 ### `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 
 - [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts) — A DATABASE YOU CAN ASK, ON A MACHINE WITH NO CONTAINER RUNTIME.
+
+### `scripts/a-scope-class-the-product-does-not-decide.unit.test.ts`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
 ### `scripts/a-sentence-two-files-must-agree-on.unit.test.ts`
 
@@ -597,6 +634,22 @@ Reads:
 - `apps/api/src/index.ts`
 - `apps/web/src/pages/Login.tsx`
 - `deploy/compose/setup-zitadel.sh`
+
+### [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts)
+
+A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
+Reads:
+
+- `apps/api/src/index.ts`
+- `apps/api/src/routes/migrations/index.ts`
+- `apps/api/src/routes/provider-accounts.ts`
+- `apps/api/src/routes/provider-accounts.unit.test.ts`
+- `apps/web/src/pages/CreateMapping.tsx`
+- `apps/web/src/services/mapping-service.ts`
+- `deploy/compose/managed.yml`
+- `packages/shared/src/target-domains.unit.test.ts`
+- `scripts/a-scope-class-the-product-does-not-decide.unit.test.ts`
 
 ### [a-check-that-was-never-valid](../scripts/a-check-that-was-never-valid.unit.test.ts)
 
@@ -753,6 +806,17 @@ Reads:
 - `apps/api/src/scripts/seed-managed.ts`
 - `deploy/compose/seed-managed.sh`
 - `docs/managed-bring-up.md`
+
+### [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts)
+
+A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
+
+Reads:
+
+- `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+- `packages/connectors/src/google-token-provider.ts`
 
 ### [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts)
 

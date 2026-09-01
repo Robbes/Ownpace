@@ -41,7 +41,6 @@ import { schedulingRecorder } from './target-scheduling.ts';
 import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory.ts';
 import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory.ts';
 import {
-  GOOGLE_DRIVE_CONNECTION_KIND,
   STORED_GOOGLE_CREDENTIAL_NAMES,
   buildGoogleDriveSourceFrom,
 } from './drive-source-factory.ts';
@@ -58,6 +57,7 @@ import {
 import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory.ts';
 import {
   googleDavServes,
+  googleDriveServes,
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
   buildGoogleCalendarDavSourceFrom,
   buildGoogleContactsDavSourceFrom,
@@ -307,8 +307,15 @@ export async function buildDepsFromMapping(
   // invented cap. Pg-backed for the same reason as the rate budget above:
   // the ceiling belongs to the tenant's account at the provider, and every
   // runner spends against the one row.
+  //
+  // The ACCOUNT kind's mail face IS Gmail's IMAP endpoint (workplan 0106 T3b),
+  // so it gets the same meter and must: 0090's ceiling belongs to Google's
+  // server, not to the row shape that reached it. Leaving `google` out here
+  // would have been the quiet version of this change — a mail migration that
+  // works, spends against an unmetered budget, and gets the account locked out
+  // exactly where the single-purpose kind would have refused first.
   const imapHost =
-    mappingConfig.source.type === 'gmail'
+    mappingConfig.source.type === 'gmail' || mappingConfig.source.type === 'google'
       ? 'imap.gmail.com'
       : mappingConfig.source.type === 'imap-oauth2'
         ? mappingConfig.source.host
@@ -660,7 +667,16 @@ export function buildFileSourceFromConnection(src: {
       STORED_BOX_CREDENTIAL_NAMES,
     );
   }
-  if (src.kind === GOOGLE_DRIVE_CONNECTION_KIND) {
+  if (googleDriveServes(src.kind)) {
+    // The ACCOUNT kind's file face is Drive (workplan 0106 T3b), reached with
+    // the same OAuth trio under the same stored names — one branch, for
+    // `buildSourceConnectorFromCredentials`'s reason above.
+    //
+    // `parseGoogleDriveSource` reads the blob rather than trusting it and does
+    // NOT require `type`, because a stored connection carries its provider in
+    // its own `kind` column: an account row's `{ type: 'google', user }` comes
+    // back as a Drive source rooted at My Drive, which is what an account with
+    // no folder chosen means.
     return buildGoogleDriveSourceFrom(
       parseGoogleDriveSource(src.config),
       src.creds,
@@ -692,11 +708,28 @@ export function buildSourceConnectorFromCredentials(
     // and inventing one for Graph would be the plan's own warning realised.
     return buildGraphMailSourceFromCredentials(sourceConfig, credentials, throttleLimiter);
   }
-  if (sourceConfig.type === 'gmail') {
+  if (sourceConfig.type === 'gmail' || sourceConfig.type === 'google') {
     // The credential-store half only: name the stored fields and hand off. The
     // refusal for missing ones lives in the shared factory, so both editions
     // refuse in the same words (rule 5) — here in the stored-credential
     // vocabulary a managed operator can act on, not env-var names.
+    //
+    // THE ACCOUNT KIND ARRIVES HERE TOO (workplan 0106 T3b). Its mail face is
+    // Gmail over IMAP with XOAUTH2 — the same endpoint, the same transport,
+    // and the same three stored credentials, because
+    // `STORED_GMAIL_CREDENTIAL_NAMES` and the DAV naming are the same names.
+    // So this is one branch and not two: a second builder differing only in
+    // the string it matched is the #597 defect, and the account row would
+    // drift away from the single-purpose one the first time either changed.
+    //
+    // NOT GATED ON `GOOGLE_ACCOUNT_SCOPE_CLASS`, deliberately. That
+    // declaration decides which consent this deployment is willing to BUILD
+    // and which ticks the create door accepts (ADR-0041) — it is a gate on
+    // making a mapping, not on running one. Reading it here would mean an
+    // operator unsetting a variable silently breaks migrations that already
+    // exist and already hold a grant, which is a worse failure than the one it
+    // would prevent: the grant is the authority, and Google refuses a token
+    // that never carried the scope.
     return buildGmailSourceFrom(
       sourceConfig.user,
       credentials,
@@ -706,7 +739,7 @@ export function buildSourceConnectorFromCredentials(
     );
   }
   if (sourceConfig.type !== 'imap-oauth2') {
-    throw new Error(`buildDepsFromMapping only supports imap-oauth2, graph-mail and gmail mail sources, got: ${sourceConfig.type}`);
+    throw new Error(`buildDepsFromMapping only supports imap-oauth2, graph-mail, gmail and google mail sources, got: ${sourceConfig.type}`);
   }
 
   return buildImapSourceFromCredentials(sourceConfig, credentials, throttleLimiter, byteMeter);

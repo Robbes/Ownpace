@@ -34,7 +34,17 @@ import {
   GOOGLE_CALENDAR_CONNECTION_KIND,
   GOOGLE_CONTACTS_CONNECTION_KIND,
   googleDavServes,
+  googleDriveServes,
 } from './google-dav-source-factory.ts';
+import { buildSourceConnectorFromCredentials } from './build-deps-from-mapping.ts';
+
+/**
+ * The seam file, read as text.
+ *
+ * Module scope because two describes now read it: the DAV/file dispatch and
+ * the byte meter. One read, one fact.
+ */
+const seams = readFileSync(join(import.meta.dirname, 'build-deps-from-mapping.ts'), 'utf-8');
 import { probeSourceConnection } from './probe-connection.ts';
 import { isGoogleGrantKind } from './account-qualification.ts';
 
@@ -123,14 +133,25 @@ describe('the SEAMS read the predicate, not a kind literal', () => {
   // kind — because a comparison that reappeared would silently exclude the
   // account row again, and the symptom would be a credential error naming
   // fields nobody typed, arriving inside a pass.
-  const seams = readFileSync(
-    join(import.meta.dirname, 'build-deps-from-mapping.ts'),
-    'utf-8',
-  );
 
   it('routes both Google DAV faces through googleDavServes', () => {
     expect(seams).toContain("googleDavServes(src.kind, 'calendar')");
     expect(seams).toContain("googleDavServes(src.kind, 'contact')");
+  });
+
+  it('routes the FILE face through googleDriveServes', () => {
+    // The same seam rule, one face later. The account row's file face is
+    // Drive, reached with the same OAuth trio under the same stored names —
+    // and a `src.kind === GOOGLE_DRIVE_CONNECTION_KIND` here is what would
+    // exclude it again.
+    expect(seams).toContain('googleDriveServes(src.kind)');
+  });
+
+  it('compares no kind to a Google DRIVE literal in the file seam either', () => {
+    expect(
+      /src\.kind\s*===\s*GOOGLE_DRIVE_CONNECTION_KIND/.test(seams),
+      'the Drive kind is compared directly — the account row loses its file face',
+    ).toBe(false);
   });
 
   it('compares no kind to a Google DAV literal', () => {
@@ -147,5 +168,61 @@ describe('the SEAMS read the predicate, not a kind literal', () => {
         `${literal} is compared directly — the account row would be excluded again`,
       ).toBe(false);
     }
+  });
+});
+
+describe('the account row wears its mail and file faces too', () => {
+  /**
+   * ONE ACCOUNT, FOUR FACES — the half that was unreachable.
+   *
+   * `GOOGLE_ACCOUNT_SCOPE_CLASS` let a deployment declare that its own Google
+   * application carries the restricted scopes, and the consent route built a
+   * four-scope ask the same afternoon. Nothing downstream knew: a mapping with
+   * `email` on a `google` source would have reached
+   * `buildSourceConnectorFromCredentials` and been told *"only supports
+   * imap-oauth2, graph-mail and gmail mail sources, got: google"* — inside a
+   * pass, weeks after the grant was approved.
+   *
+   * A grant that works and a migration that cannot use it is the worse half of
+   * a half-built feature, because the consent screen already said yes.
+   */
+  it('builds the mail face with the Gmail builder, not a refusal', () => {
+    // Missing credentials on purpose: what is asserted is WHICH builder spoke.
+    // A Gmail refusal naming the stored credential fields means the branch was
+    // reached; the old sentence about unsupported source types means it was
+    // not. No network either way.
+    let reason = '';
+    try {
+      buildSourceConnectorFromCredentials({ type: 'google', user: 'someone@example.invalid' }, {});
+    } catch (err) {
+      reason = err instanceof Error ? err.message : String(err);
+    }
+    expect(reason, 'the google account never reached a mail builder').not.toBe('');
+    expect(reason).not.toContain('only supports');
+    expect(reason).toContain("connection's stored credentials");
+  });
+
+  it('builds the file face with the Drive builder', () => {
+    expect(googleDriveServes(GOOGLE_ACCOUNT_CONNECTION_KIND)).toBe(true);
+    expect(googleDriveServes('google_drive')).toBe(true);
+  });
+
+  it('leaves the file face of everything else alone', () => {
+    // Dropbox and Box have their own builders in the same seam, and a
+    // predicate that swept them in would aim a Google client at a Dropbox row.
+    for (const kind of ['dropbox', 'box', 'webdav', 'nextcloud', 'gmail', 'google_calendar']) {
+      expect(googleDriveServes(kind), `${kind} must not take the Drive builder`).toBe(false);
+    }
+  });
+
+  it("meters the account's mail face against Gmail's own ceiling", () => {
+    // 0090's daily download ceiling belongs to Google's IMAP endpoint, not to
+    // the row shape that reached it. Leaving `google` out of the host
+    // resolution would have been the quiet version of this change: a mail
+    // migration that works, spends against no budget, and gets the account
+    // locked out exactly where the single-purpose kind refuses first.
+    const host = seams.slice(seams.indexOf('const imapHost ='), seams.indexOf('const downloadPlan'));
+    expect(host).toContain("mappingConfig.source.type === 'google'");
+    expect(host).toContain("'imap.gmail.com'");
   });
 });

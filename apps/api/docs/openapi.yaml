@@ -2539,6 +2539,38 @@ paths:
               schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /api/provider-accounts:
+    get:
+      tags: [Discovery]
+      summary: What one account of each provider kind may serve here
+      description: |
+        A ceiling, not a capability and not a measurement: which faces one
+        account row may wear on THIS deployment. `google` answers with two
+        faces by default and with all four where the deployment declares that
+        its own Google application carries the restricted scopes
+        (`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, ADR-0041).
+
+        Unauthenticated for the same reason as the scope manifest: a static
+        fact about the deployment, naming no customer, connection or address.
+        The wizard reads it because the declaration is made at run time and the
+        browser bundle was built before it.
+      security: []
+      responses:
+        '200':
+          description: Provider account kind to the discovery domains it serves.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+                    enum: [email, calendar, contact, file]
+              example:
+                google: [calendar, contact]
+                soverin: [email, calendar, contact]
+
   /api/shared-addresses:
     get:
       tags: [Discovery]
