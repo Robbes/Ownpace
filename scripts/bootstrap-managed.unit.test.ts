@@ -34,6 +34,9 @@ import {
   rmSync,
   chmodSync,
   existsSync,
+  cpSync,
+  mkdirSync,
+  symlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -1064,5 +1067,155 @@ describe('every variable managed.yml refuses to start without can be satisfied',
         'it in ensure-env-secrets.sh — otherwise a new machine cannot bring the\n' +
         'stack up at all, and the error names a variable nobody has heard of.',
     ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('bootstrap-managed.sh — the env it refuses to write into', () => {
+  /**
+   * Found live on the Spark, 2026-09-01. `deploy/compose/.env` there is a
+   * symlink into the gate runner's persist directory — the shape the script
+   * itself recommends — but the file behind it is the DURABLE SET: the seven
+   * values a checkout clean must not destroy, because volumes depend on them.
+   * Everything else is regenerated into the gate's workspace on every run.
+   *
+   * Pointed at that file, the bring-up did exactly what it is written to do:
+   * generated the eight secrets it found missing, wrote them THROUGH the
+   * symlink into the durable set, and then reported `WEB_URL has no value` two
+   * phases later — the last symptom, on a box where the answer was never "fix
+   * WEB_URL" but "you are on the machine that already has a stack".
+   *
+   * These run the real script rather than reading it, because the property is
+   * an ORDERING — refuse before `ensure-env-secrets.sh` writes — and a string
+   * match cannot tell a check that runs first from one that runs second.
+   */
+  const BOOTSTRAP = 'deploy/compose/bootstrap-managed.sh';
+
+  /** A copy of `deploy/compose`, so a run cannot touch the real one. */
+  const compose = (): string => {
+    const to = join(dir, 'compose');
+    cpSync(join(REPO_ROOT, 'deploy/compose'), to, { recursive: true });
+    rmSync(join(to, '.env'), { force: true });
+    return to;
+  };
+
+  /** A `docker` that fails at once, so a run that gets past `env` stops there. */
+  const noDocker = (): string => {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'docker'), '#!/bin/sh\nexit 1\n');
+    chmodSync(join(bin, 'docker'), 0o755);
+    return `${bin}:${process.env.PATH}`;
+  };
+
+  const DURABLE_SET = [
+    'POSTGRES_DB=openmigrate',
+    'POSTGRES_USER=openmigrate',
+    'POSTGRES_PASSWORD=x',
+    'ZITADEL_ADMIN_PASSWORD=Aa1_xxxx',
+    'ZITADEL_DB_PASSWORD=x',
+    'ZITADEL_MASTERKEY=x',
+    'ZITADEL_PORT=3126',
+  ].join('\n');
+
+  it('refuses a durable set behind the symlink, and writes NOTHING into it', () => {
+    const to = compose();
+    const persisted = join(dir, 'persist.env');
+    writeFileSync(persisted, `${DURABLE_SET}\n`);
+    symlinkSync(persisted, join(to, '.env'));
+
+    const r = run(join(to, 'bootstrap-managed.sh'), ['--from', 'env']);
+
+    expect(r.status, 'a refusal, not a wait — 2 is "your turn"').toBe(1);
+    expect(r.stderr).toContain('is not a stack env');
+    expect(r.stderr, 'the counts, so the refusal can be checked').toMatch(/defines 7 keys/);
+    expect(r.stderr, 'it names the file behind the link').toContain(persisted);
+    expect(r.stderr).toContain('NOTHING HAS BEEN WRITTEN');
+
+    // The property that matters more than the message: the durable set is
+    // still seven keys. If `ensure-env-secrets.sh` ran first this is fifteen.
+    const after = readFileSync(persisted, 'utf8');
+    expect(after).toBe(`${DURABLE_SET}\n`);
+  });
+
+  it('says what to do instead, on both machines it could be', () => {
+    const to = compose();
+    const persisted = join(dir, 'persist.env');
+    writeFileSync(persisted, `${DURABLE_SET}\n`);
+    symlinkSync(persisted, join(to, '.env'));
+
+    const { stderr } = run(join(to, 'bootstrap-managed.sh'), ['--from', 'env']);
+    expect(stderr, 'the gate runner: dispatch the workflow').toMatch(/E2E \(managed\)/);
+    expect(stderr, 'a separate stack: give it an env of its own').toContain('unlink');
+  });
+
+  it('does NOT refuse the gate\'s own restored copy — the same content, in the checkout', () => {
+    // The bug this nearly shipped as. The workflow restores that same small
+    // file INTO `deploy/compose/.env` and then runs this script precisely so
+    // it can top the rest up; a refusal on content alone fires there and takes
+    // the nightly with it. What separates the two is not what the file says,
+    // it is WHERE A WRITE LANDS: in CI a plain copy the bring-up owns, on the
+    // gate box a link to the one file it must not own.
+    const to = compose();
+    writeFileSync(join(to, '.env'), `${DURABLE_SET}\n`);
+    const { stdout, stderr } = run(join(to, 'bootstrap-managed.sh'), ['--from', 'env'], {
+      PATH: noDocker(),
+    });
+    expect(stderr).not.toContain('is not a stack env');
+    expect(stdout + stderr, 'and it tops the file up, which is the point of it').toContain(
+      'generated JWT_SECRET',
+    );
+  });
+
+  it('does NOT refuse a fresh install', () => {
+    // No `.env` at all: the script copies the example and carries on. Refusing
+    // here would refuse every first run there has ever been.
+    const to = compose();
+    const { stdout, stderr } = run(join(to, 'bootstrap-managed.sh'), ['--from', 'env'], {
+      PATH: noDocker(),
+    });
+    expect(stdout).toContain('from managed.env.example');
+    expect(stderr).not.toContain('is not a stack env');
+  });
+
+  it('does NOT refuse the edit-and-resume flow', () => {
+    // An established env whose human has not finished filling it in is the
+    // supported middle of this script's own three-stop design. This is why the
+    // discriminator is the KEY COUNT and not "WEB_URL has no value": a real
+    // `.env` starts as a copy of the example and keeps every key name from its
+    // first minute, blank values included.
+    const to = compose();
+    cpSync(join(to, 'managed.env.example'), join(to, '.env'));
+    const { stderr } = run(join(to, 'bootstrap-managed.sh'), ['--from', 'env'], {
+      PATH: noDocker(),
+    });
+    expect(stderr).not.toContain('is not a stack env');
+  });
+
+  it('does NOT refuse an env whose WEB_URL was blanked', () => {
+    // The discriminator must not be "WEB_URL has no value", and this is the
+    // case that says so. MEASURED: the first version of the sibling test above
+    // could not catch that mutation, because the example SHIPS a WEB_URL
+    // (`http://localhost:3123`), so blanking it is a thing a human does rather
+    // than a state the example arrives in. A human halfway through pointing a
+    // stack at a real hostname is exactly who would be in it.
+    const to = compose();
+    const env = readFileSync(join(to, 'managed.env.example'), 'utf8').replace(
+      /^WEB_URL=.*$/m,
+      'WEB_URL=',
+    );
+    writeFileSync(join(to, '.env'), env);
+    const { stderr } = run(join(to, 'bootstrap-managed.sh'), ['--from', 'env'], {
+      PATH: noDocker(),
+    });
+    expect(stderr).not.toContain('is not a stack env');
+  });
+
+  it('scales the threshold with the example rather than hard-coding a number', () => {
+    // A fixed floor stops meaning anything the first time somebody adds
+    // fifteen keys to the example.
+    const script = readFileSync(join(REPO_ROOT, BOOTSTRAP), 'utf8');
+    expect(script).toMatch(/env_keys \* 4/);
+    expect(script).toContain('managed.env.example');
   });
 });
