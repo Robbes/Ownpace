@@ -176,6 +176,33 @@ describe("the brute-force allow-list", () => {
   });
 });
 
+describe("the admin password the volume never heard of", () => {
+  it("realigns the volume from the environment when a 401 proves the drift", () => {
+    // Ten 401s, then the reset lands and the re-poll succeeds.
+    const res = run("401 401 401 401 401 401 401 401 401 401 207");
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain("External DAV ready");
+
+    const reset = calls().find((l) => l.includes("user:resetpassword"));
+    expect(reset).toBeDefined();
+    // Through docker's own environment, forwarded by name. The value must never
+    // reach an argument list, where `ps` on the host would show it.
+    expect(reset).toContain("-e OC_PASS");
+    expect(reset).toContain("--password-from-env");
+    expect(reset).not.toContain("stub-admin-pw");
+  });
+
+  it("does not touch the password when the poll succeeds on its own", () => {
+    expect(run("207").status).toBe(0);
+    expect(calls().some((l) => l.includes("user:resetpassword"))).toBe(false);
+  });
+
+  it("does not reach for it on a 429, which is a different failure entirely", () => {
+    expect(run("429").status).toBe(1);
+    expect(calls().some((l) => l.includes("user:resetpassword"))).toBe(false);
+  });
+});
+
 describe("what the readiness refusal says", () => {
   it("reads a persistent 429 as the previous run throttling this one", () => {
     const res = run("429");
@@ -186,10 +213,12 @@ describe("what the readiness refusal says", () => {
     expect(res.stderr).toContain("security:bruteforce:reset");
   });
 
-  it("reads a 401 as the volume disagreeing with .env, and says so alone", () => {
+  it("refuses a 401 that survives the realignment, and says so alone", () => {
     const res = run("401");
     expect(res.status).toBe(1);
-    expect(res.stderr).toContain("user:resetpassword");
+    // Not the ordinary drift — the script already tried that and it did not
+    // take, so the remedy offered is the next question rather than the last one.
+    expect(res.stderr).toContain("group:list");
     // The two have different causes and different remedies. A refusal that
     // offered both would be a refusal that had not diagnosed anything.
     expect(res.stderr).not.toContain("security:bruteforce:reset");
