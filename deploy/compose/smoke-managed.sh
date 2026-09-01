@@ -2402,6 +2402,95 @@ if [ -n "${STACK_ISSUER:-}" ]; then
           fail=1
         fi
       fi
+
+      # ---------- AND THE REFUSAL THE OPERATOR CAN ANSWER ----------
+      #
+      # The queue's second decision, and the one with a wrong answer that
+      # cannot be taken back. Granting an address that already owns an
+      # organisation creates a SECOND one with that person as owner of both;
+      # `/api/me` then returns two tenants, `resolveTenant` refuses to guess,
+      # and the app has to ask somebody which they meant on every sign-in —
+      # for a person who asked once and pressed twice. The owner found exactly
+      # that in their own queue on 2026-08-31.
+      #
+      # So the route refuses, names what they already own, and says which field
+      # means it anyway. Every part of that was proved against PGlite and in the
+      # browser against a mocked API. Nothing had ever asked the real route, and
+      # the refusal reads through `support_tenant_members` — a view whose whole
+      # protection is one EXISTS against `platform_operator`, on a transaction
+      # scoped to a tenant that does not exist yet. That is not a shape a unit
+      # test can stand up.
+      #
+      # The first knock is granted by now, so migration 0020's index allows
+      # another: it forbids two OPEN at once, never a second ask after a
+      # decision. Those are different things and 0002 was right about the second.
+      gk3="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "${API}/api/access-requests" \
+        -H 'Content-Type: application/json' \
+        -d "$(jq -nc --arg e "$GRANT_EMAIL" '{email:$e, locale:"en"}')" || echo 000)"
+      [ "$gk3" = "201" ] ||
+        { echo "asking again after a decision was refused: HTTP ${gk3} — 0020 forbids two OPEN, not a second ask"; fail=1; }
+
+      r="$(http GET "$API/api/access-requests" "$OP_TOKEN")"; body="${r#* }"
+      again_id="$(jq -r --arg e "$GRANT_EMAIL" '.requests[]? | select(.email == $e and .state == "open") | .id' <<<"$body" 2>/dev/null | head -1)"
+
+      if [ -z "$again_id" ]; then
+        echo "the second ask never reached the queue — nothing to refuse"; fail=1
+      else
+        # IT REFUSES, AND IT NAMES THEM. A bare "already owns one" sends an
+        # operator off to go and look; the names are what they weigh.
+        r="$(http POST "$API/api/access-requests/${again_id}/grant" "$OP_TOKEN" \
+          "$(jq -nc --arg n "$GRANT_ORG 2" '{organisationName:$n}')")"
+        code="${r%% *}"; body="${r#* }"
+        conf="$(jq -r '.confirmWith // empty' <<<"$body" 2>/dev/null || true)"
+        named="$(jq -r --arg o "$GRANT_ORG" '[.organisations[]?] | index($o) // empty' <<<"$body" 2>/dev/null || true)"
+        # Counted BEFORE the override, so the number below means something.
+        before="$(q "SELECT count(*) FROM tenant WHERE name LIKE 'Smoke Grant %'" 2>/dev/null || echo '?')"
+        if [ "$code" = "409" ] && [ "$conf" = "alsoCreateSecondOrganisation" ] && [ -n "$named" ]; then
+          echo "granting a second time is refused, and names what they own: HTTP 409, confirmWith=${conf}"
+        else
+          echo "the already-owns refusal: HTTP ${code}, confirmWith='${conf}', names the first org: '${named}' — ${body:0:240}"
+          echo "    Without it, one address pressed twice becomes an owner of two organisations"
+          echo "    and every later sign-in has to ask them which they meant."
+          fail=1
+        fi
+
+        # AND IT WROTE NOTHING WHILE REFUSING. The check runs before the insert
+        # precisely so nothing half-happens; a refusal that had already made the
+        # tenant would be worse than no refusal at all.
+        during="$(q "SELECT count(*) FROM tenant WHERE name LIKE 'Smoke Grant %'" 2>/dev/null || echo '?')"
+        if [ "$during" = "$before" ]; then
+          echo "the refusal provisioned nothing: organisations before/after = ${before}/${during}"
+        else
+          echo "the refusal PROVISIONED something: organisations before/after = ${before}/${during}"; fail=1
+        fi
+
+        # THE OVERRIDE, WHICH IS THE HALF THAT HAD NO WAY TO BE SENT AT ALL
+        # until the screen grew a button today. `z.literal(true)`, so the field
+        # is present or absent and never `false`: a flag that can say no invites
+        # a client to send it by default and turns a deliberate second press
+        # into a checkbox nobody reads.
+        r="$(http POST "$API/api/access-requests/${again_id}/grant" "$OP_TOKEN" \
+          "$(jq -nc --arg n "$GRANT_ORG 2" '{organisationName:$n, alsoCreateSecondOrganisation:true}')")"
+        code="${r%% *}"; body="${r#* }"
+        second_tenant="$(jq -r '.tenantId // empty' <<<"$body" 2>/dev/null || true)"
+        after="$(q "SELECT count(*) FROM tenant WHERE name LIKE 'Smoke Grant %'" 2>/dev/null || echo '?')"
+        # INTEGERS OR NOTHING. `q` answers '?' when psql could not run, and
+        # `$(( ? + 1 ))` is a bash syntax error that prints noise and leaves the
+        # comparison opaque — an unreadable count would look like a specific
+        # disagreement. Anything non-numeric becomes -1, which fails the test
+        # below and reports the value it actually got.
+        case "$before" in ''|*[!0-9]*) before=-1 ;; esac
+        case "$after"  in ''|*[!0-9]*) after=-1  ;; esac
+        if [ "$code" = "201" ] && [ -n "$second_tenant" ] && [ "$second_tenant" != "$new_tenant" ] &&
+           [ "$before" -ge 0 ] && [ "$after" = "$((before + 1))" ]; then
+          echo "meaning it anyway creates the second organisation: ${second_tenant} (organisations ${before} -> ${after})"
+        else
+          echo "the override: HTTP ${code}, tenantId='${second_tenant}' (first was '${new_tenant}'), organisations ${before} -> ${after}"
+          echo "    The refusal names this field as the way to mean it. If the field does not work,"
+          echo "    the refusal is a dead end and the only way past it is a hand-written POST."
+          fail=1
+        fi
+      fi
     fi
 
     # TAKE IT BACK. Requests first, then tenants — see the header above.
