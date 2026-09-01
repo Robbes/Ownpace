@@ -48,6 +48,35 @@ export interface KnockLimitConfig {
  * Sixty still bounds a runaway to ~1,400 rows a day, which is the job: this is
  * a nuisance gate, and the ingress in front of the service is the real
  * protection. Raise or lower it with `ACCESS_REQUEST_MAX_PER_HOUR`.
+ *
+ * ## WHEN THE FRONT DOOR OPENS, THIS NUMBER IS NO LONGER SIZED FOR IT
+ *
+ * Sixty an hour for the whole service is a sane cap for a door only an
+ * OPERATOR can open (workplan 0093 T0, invite-only, decided 2026-08-22).
+ * Every knock is a row a human then reads and answers, so the binding
+ * constraint is not the database — one insert is nothing — it is the mail each
+ * knock sends to `NOTIFY_TO` and the queue behind it. A rate the operator can
+ * keep up with IS the right rate while asking is a request.
+ *
+ * Self-service ends that, and the owner has said so (2026-09-01): the limit
+ * goes up, sized to what the infrastructure supports rather than to what one
+ * person can read.
+ *
+ * **Raising the number alone would be the wrong half of the change.** The key
+ * is still `req.ip`, which behind an ingress is the ingress: one bucket for
+ * everybody. Six hundred an hour shared globally is one runaway script away
+ * from refusing every real signup on the platform — the same defect the 5/hour
+ * version had, just further along. So the pair is:
+ *
+ *   1. set `TRUST_PROXY` so the key becomes the CALLER (the limiter already
+ *      supports this; `index.ts` reads it, and it is off by default because
+ *      trusting that header when nothing strips it lets anybody claim any
+ *      address), and only then
+ *   2. raise `ACCESS_REQUEST_MAX_PER_HOUR` to a per-caller number measured
+ *      against the relay's send rate and the ingress's own limits.
+ *
+ * A test in `knock-limit.unit.test.ts` pins the premise this number rests on —
+ * that no self-service route exists yet — so the day one does, it says so.
  */
 export const DEFAULT_KNOCK_LIMIT: KnockLimitConfig = {
   windowMs: 60 * 60 * 1000,

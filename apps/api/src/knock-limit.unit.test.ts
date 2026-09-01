@@ -8,6 +8,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { createKnockLimiter, knockLimitFromEnv, DEFAULT_KNOCK_LIMIT } from './knock-limit.ts';
 
 describe('createKnockLimiter', () => {
@@ -99,5 +101,86 @@ describe('knockLimitFromEnv', () => {
     // The sentence an operator reads while choosing a number is the only place
     // that fact reaches them at the moment it matters.
     expect(() => knockLimitFromEnv({ ACCESS_REQUEST_MAX_PER_HOUR: 'x' })).toThrow(/TRUST_PROXY/);
+  });
+});
+
+describe('the premise this number is sized against', () => {
+  /**
+   * Sixty an hour for the whole service is right for a door only an OPERATOR
+   * can open (workplan 0093 T0, invite-only, 2026-08-22). Every knock is a row
+   * a person then reads and answers, so the rate a person can keep up with IS
+   * the right rate — the database is nowhere near being the constraint.
+   *
+   * The owner has said what changes when that ends (2026-09-01): self-service
+   * means the limit goes up, sized to what the infrastructure supports rather
+   * than to what one person can read. This test is where that lands, because a
+   * note in a chat window is not a place a number gets re-derived from.
+   *
+   * It pins the premise rather than the intent: the set of routes anybody on
+   * the internet may WRITE through. A fourth one appearing is the most likely
+   * shape of "the front door opened", and it is worth catching on its own
+   * merits — an unauthenticated write that nobody noticed is the same class of
+   * defect whatever prompted it.
+   */
+  const ROUTES = join(import.meta.dirname, 'routes');
+
+  const walk = (dir: string, out: string[] = []): string[] => {
+    for (const entry of readdirSync(dir)) {
+      const p = join(dir, entry);
+      if (statSync(p).isDirectory()) walk(p, out);
+      else if (entry.endsWith('.ts') && !entry.includes('.test.')) out.push(p);
+    }
+    return out;
+  };
+
+  /**
+   * Every `router.post|put|patch|delete` whose registration does not name an
+   * `authenticate…` middleware. Read from the source rather than from a list,
+   * for the reason `openapi-spec.unit.test.ts` gives about its own table: a
+   * hand-kept inventory does not fail when something is missing from it.
+   */
+  const openWrites = (): string[] => {
+    const found: string[] = [];
+    for (const file of walk(ROUTES)) {
+      const src = readFileSync(file, 'utf8');
+      for (const m of src.matchAll(/router\.(post|put|patch|delete)\(/g)) {
+        const head = src.slice(m.index + m[0].length, m.index + m[0].length + 220);
+        if (head.includes('authenticate')) continue;
+        const path = /^\s*(['"`])(.*?)\1/.exec(head);
+        found.push(
+          `${relative(join(import.meta.dirname), file)} ${m[1]!.toUpperCase()} ${path?.[2] ?? '?'}`,
+        );
+      }
+    }
+    return found.sort();
+  };
+
+  it('is still a door only an operator can open', () => {
+    // Three, and each is deliberate:
+    //
+    //   the knock          — this limit's whole subject, and the only one of
+    //                        the three a stranger is *invited* to use
+    //   the grant link     — 0108: the link itself is the credential, and the
+    //                        route grants nothing without it
+    //   the Mollie webhook — a payment provider calling us, verified by
+    //                        signature rather than by session
+    //
+    // A FOURTH is the question. If it is a self-service signup, this number is
+    // no longer sized for the door in front of it, and raising it is only half
+    // the change: the key is still `req.ip`, which behind an ingress is the
+    // ingress. Set `TRUST_PROXY` so the bucket is per CALLER first, then raise
+    // `ACCESS_REQUEST_MAX_PER_HOUR` to a number measured against the relay and
+    // the ingress — a bigger global cap is one runaway script away from
+    // refusing every real signup, which is the 5/hour defect further along.
+    expect(openWrites()).toEqual([
+      'routes/access-requests.ts POST /',
+      'routes/billing/webhooks.ts POST /mollie',
+      'routes/grant.ts POST /:link/google/authorize',
+    ]);
+  });
+
+  it('still says sixty, so a change to it comes past the note above', () => {
+    expect(DEFAULT_KNOCK_LIMIT.max).toBe(60);
+    expect(DEFAULT_KNOCK_LIMIT.windowMs).toBe(60 * 60 * 1000);
   });
 });
