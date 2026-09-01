@@ -54,8 +54,11 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
 Migration `0009` creates a **non-owner `app_user`** role. RLS is enforced through it:
 
 - `DATABASE_URL` → the DB **owner** (`POSTGRES_USER`). In the postgres image the bootstrap user is a
-  **superuser**, which **bypasses RLS even under FORCE**. Used only for **migrations** and the
-  **demo seed** — never for the request path.
+  **superuser**, which **bypasses RLS even under FORCE**. Never the request path. It is held by the
+  scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh` (the demo
+  tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and `set-task-env.sh` (the
+  tasks' own migration connection). `docs/rls-guide.md` §2 carries the full table, and a guard fails
+  if a script composes an owner URL without appearing in it.
 - `APP_DATABASE_URL` → the **`app_user`** role. The API and the deployed Trigger.dev tasks
   connect through this for all tenant data, so row-level security is always in force (workplan
   0011 T1; `set-task-env.sh` uploads both URLs into the task env). If you ever point the app at
