@@ -1572,12 +1572,20 @@ say "writing the configuration into .env"
 #
 # `{sub}` is substituted by the web app. The route is Zitadel's own
 # `users/:id` (console routing, v4), the same one `users/me` sits beside.
+#
+# IDP_UPSTREAM_CALLBACK_URL is the same address this script prints under
+# "register at each upstream" — where Google, Microsoft and GitHub return the
+# browser during a social sign-in. Written here so the app's Redirect URIs
+# page can SHOW it without composing a Zitadel path in shipped source (the
+# lock-in guard refuses that, correctly). Apple wants the `/form` variant;
+# the printed list carries both.
 "$UPSERT" "$ENV_FILE" \
   "JWT_ISSUER=${ISSUER}" \
   "JWT_AUDIENCE=${PROJECT_ID}" \
   "VITE_OIDC_ISSUER=${ISSUER}" \
   "VITE_OIDC_CLIENT_ID=${CLIENT_ID}" \
-  "VITE_IDP_CONSOLE_USER_URL=${ISSUER}/ui/console/users/{sub}"
+  "VITE_IDP_CONSOLE_USER_URL=${ISSUER}/ui/console/users/{sub}" \
+  "IDP_UPSTREAM_CALLBACK_URL=${ISSUER}/ui/login/login/externalidp/callback"
 
 cat <<EOF
 

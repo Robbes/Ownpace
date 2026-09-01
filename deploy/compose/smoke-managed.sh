@@ -2243,6 +2243,18 @@ report_json "readiness (verdict)" "/api/ready" '.status'
 # make the gate an opinion about somebody's .env. What is pinned is that Google
 # is answered for at all.
 report_json "provider accounts (google)" "/api/provider-accounts" '.google | length'
+# EVERY ADDRESS THIS DEPLOYMENT NEEDS REGISTERED ELSEWHERE (2026-09-01).
+#
+# The owner met `redirect_uri_mismatch` with the correct string nowhere on
+# screen, because API_URL disagreed with what he had registered. This list is
+# the surface that answers it, and it is built from the running stack's own
+# settings — so a stack that serves the app and not this is an operator with no
+# way to check, which is where that evening started.
+#
+# The VALUES are not pinned, only that there are entries: they are this
+# deployment's addresses, and pinning them would make the gate an opinion about
+# somebody's .env.
+report_json "redirect URIs" "/api/redirect-uris" '.entries | length'
 report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
 report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Before you start"
 # A mailbox is required and the demo owner's is the one address this tenant is

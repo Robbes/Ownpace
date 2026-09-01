@@ -781,6 +781,9 @@ services:
       # Changing provider is changing these two values. Nothing else.
       JWT_ISSUER: ${JWT_ISSUER:-}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-}
+      # The identity provider's own upstream callback, for the Redirect URIs
+      # page. setup-zitadel.sh writes it; the API only ever shows it.
+      IDP_UPSTREAM_CALLBACK_URL: ${IDP_UPSTREAM_CALLBACK_URL:-}
       # Only for a provider that publishes no discovery document. Setting it
       # pins a URL that key rotation can move underneath you — see
       # `getJWKS` in apps/api/src/middleware/auth.ts.

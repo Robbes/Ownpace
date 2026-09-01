@@ -2571,6 +2571,50 @@ paths:
                 google: [calendar, contact]
                 soverin: [email, calendar, contact]
 
+  /api/redirect-uris:
+    get:
+      tags: [Discovery]
+      summary: Every address this deployment needs registered elsewhere
+      description: |
+        The redirect URIs this deployment will ask other services to send a
+        browser back to — the Google migration callback, the identity
+        provider's sign-in and post-logout pair, and the upstream address for
+        social sign-in — each with where it is registered and why.
+
+        Every string is DERIVED from the same settings the code uses
+        (`API_URL`, `WEB_URL`, `JWT_ISSUER`), so what this returns is what the
+        product will actually request. An entry with a null `uri` is an answer,
+        not a gap: Dropbox, Box and Microsoft 365 sources authenticate with
+        pasted credentials and redirect nowhere.
+
+        Unauthenticated for the same reason as the scope manifest: every value
+        is an address published to a provider and typed into a browser's
+        location bar. It names no customer, no connection and no secret.
+      security: []
+      responses:
+        '200':
+          description: The addresses, in the order a deployment is set up.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        group:
+                          type: string
+                          enum: [migration, signIn, socialSignIn]
+                        provider: { type: string }
+                        uri:
+                          type: string
+                          nullable: true
+                        why: { type: string }
+                        unconfigured: { type: boolean }
+
   /api/shared-addresses:
     get:
       tags: [Discovery]
