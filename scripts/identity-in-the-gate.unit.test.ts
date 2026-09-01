@@ -679,6 +679,32 @@ describe('the people a dead run leaves behind get taken back', () => {
     expect(takeBack).toContain('could not restore the provisioning user');
   });
 
+  it('takes back its own memberships too, not just its people', () => {
+    // THE TAKE-BACK USED TO STOP AT THE PROVIDER. It deleted the humans and
+    // left the two `tenant_member` rows the sign-in section wrote — swept only
+    // at the START OF THE NEXT RUN, so between two runs this gate left
+    // memberships pointing at accounts it had deleted seconds earlier. The
+    // owner found them from the support screen on 2026-09-01: the console link
+    // opened on a user that no longer existed.
+    expect(takeBack).toContain('DELETE FROM tenant_member');
+    expect(takeBack, "and only this run's own rows").toContain("email LIKE '%-$$@smoke.local'");
+    expect(takeBack, 'a failed take-back is said, never swallowed').toContain(
+      "could not remove this run's smoke memberships",
+    );
+  });
+
+  it('the take-back and the sweep are complements, so no run leaves a membership', () => {
+    // The sweep takes every OTHER run's rows; the take-back takes this one's.
+    // Written as two predicates that must stay opposite: if the sweep ever
+    // stops excluding this run, or the take-back stops matching it, some
+    // membership belongs to neither and lives for ever.
+    const dbSweep = /DELETE FROM tenant_member[\s\S]{0,300}?RETURNING 1/.exec(smoke)?.[0] ?? '';
+    expect(dbSweep, 'the start-of-run membership sweep is gone').not.toBe('');
+    expect(dbSweep).toContain("email LIKE '%@smoke.local'");
+    expect(dbSweep).toContain("email NOT LIKE '%-$$@smoke.local'");
+    expect(takeBack).toContain("email LIKE '%-$$@smoke.local'");
+  });
+
   it('a role that was already there is announced, and never removed', () => {
     expect(smoke).toContain('IAM_LOGIN_CLIENT was already on the provisioning user');
     // The take-back restores roles only when THIS run added the grant.
@@ -798,5 +824,113 @@ describe('the smoke gets its token FROM the provider, not from a secret', () => 
       .replace(/\//g, '_')
       .replace(/=+$/, '');
     expect(got, 'the challenge is not base64url(sha256(verifier)) — the provider will refuse it').toBe(want);
+  });
+});
+
+/**
+ * THE SEED'S SUBJECTS, AND THE THREE FILES THAT HAVE TO AGREE ON THEM.
+ *
+ * `seed-managed.ts` writes the demo owners; `smoke-managed.sh` mints tokens for
+ * them by name; `idp-console.ts` decides whether the support screen offers a
+ * link to the identity provider for a subject. Nothing held those three
+ * together, and each disagreement fails a different silent way:
+ *
+ *   seed vs smoke  — the token is minted for a subject with no `tenant_member`
+ *                    row, the membership gate answers 403 *by design*, and
+ *                    every authenticated assertion in the gate fails for a
+ *                    reason none of them names. E2E (managed) #52 is what a
+ *                    whole run of that reads like.
+ *   seed vs console — the screen offers a link to a user no provider ever had.
+ *                    Zitadel answers an unknown id with its entire user list
+ *                    and an error, which reads as a broken product. Found in
+ *                    live use by the owner on 2026-09-01, on
+ *                    `owner-a@demo.openmigrate.test`.
+ *
+ * The prefix is what fixed the second one and what makes the first one worth
+ * pinning: it is load-bearing config duplicated across a TypeScript literal and
+ * a shell default, which is exactly the shape nothing notices going wrong.
+ */
+describe('the demo subjects the seed writes and the gate signs in as', () => {
+  const repoFile = (path: string): string =>
+    readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8');
+  const seed = repoFile('apps/api/src/scripts/seed-managed.ts');
+  const console_ = repoFile('apps/web/src/services/idp-console.ts');
+
+  /** Every `owner: { userId: … }` the demo seed defines. */
+  const seeded = [...seed.matchAll(/owner: \{ userId: '(?<sub>[^']+)'/g)].map((m) => m.groups!.sub!);
+  /** The subjects `smoke-managed.sh` mints tokens for when there is no provider. */
+  const smoked = [...smoke.matchAll(/SMOKE_(?:VERIFY|APPLY)_SUB:-(?<sub>[^}"]+)\}/g)].map(
+    (m) => m.groups!.sub!,
+  );
+
+  it('found both lists', () => {
+    // Never vacuous: two demo tenants, two subjects, on both sides.
+    expect(seeded.length, 'no demo owners found in seed-managed.ts').toBe(2);
+    expect(smoked.length, 'no subject defaults found in smoke-managed.sh').toBe(2);
+  });
+
+  it('are the same subjects, in the same order', () => {
+    expect(
+      smoked,
+      'the gate mints tokens for subjects the seed does not write.\n\n' +
+        'The membership gate answers 403 for a sub with no `tenant_member` row, ' +
+        'by design,\nand every authenticated check in the smoke then fails for a ' +
+        'reason none of\nthem mentions.',
+    ).toEqual(seeded);
+  });
+
+  it('carry a prefix the support screen recognises as ours', () => {
+    // The prefixes are declared in idp-console.ts and the link is refused for
+    // every one of them, so this is the whole of what makes a seeded person
+    // render without a dead link.
+    const prefixes = [...console_.matchAll(/^ {2}(?<kind>\w+): '(?<prefix>[a-z]+:)',$/gm)].map(
+      (m) => m.groups!.prefix!,
+    );
+    expect(prefixes, 'LOCAL_SUBJECT_PREFIXES is gone or reshaped').toContain('seed:');
+    for (const sub of seeded) {
+      expect(
+        prefixes.some((p) => sub.startsWith(p)),
+        `the seed writes \`${sub}\`, which idp-console.ts does not recognise as one of ours — ` +
+          'so the support\nscreen offers a link to a user the identity provider has never had.',
+      ).toBe(true);
+    }
+  });
+
+  it('removes the owner it used to write, so a changed subject adds no second one', () => {
+    // `onConflictDoNothing` targets `(tenant_id, user_id)`. A CHANGED subject
+    // conflicts with nothing, so the row lands BESIDE the old one and the demo
+    // tenant gains an owner on every volume that ever ran an older copy —
+    // forever, and one more per change. That is the pileup the owner found on
+    // 2026-08-31 ("Demo Tenant A has 31 probe owner users... a bit much!?"),
+    // and `seed:` would have created the seed's own copy of it.
+    const seedTenant = seed.slice(seed.indexOf('async function seedTenant('));
+    const remove = seedTenant.indexOf('.delete(tenantMember)');
+    const insert = seedTenant.indexOf('.insert(tenantMember)');
+    expect(
+      remove,
+      'the seed no longer removes the owner row a PREVIOUS subject left.\n\n' +
+        'Changing a demo subject now adds a second owner to the tenant on every\n' +
+        'volume that has run an older copy, and nothing removes it.',
+    ).toBeGreaterThan(-1);
+    expect(remove, 'the removal must run before the insert').toBeLessThan(insert);
+    // Narrow: this owner's address, on this tenant, under some other subject.
+    // A removal keyed on anything less specific could reach a real person.
+    const where = seedTenant.slice(remove, insert);
+    expect(where).toContain('eq(tenantMember.tenantId, t.tenantId)');
+    expect(where).toContain('eq(tenantMember.email, t.owner.email)');
+    expect(where).toContain('ne(tenantMember.userId, t.owner.userId)');
+  });
+
+  it('is not the address, which is a different fixture', () => {
+    // The permissions report used to build a mailbox as `${APPLY_SUB}@demo…`,
+    // producing `demo-owner-b@…` while the seed's owner email has always been
+    // `owner-b@…`. It passed because the report renders for any address — a
+    // check that proved nothing, in the line whose comment claims it is the one
+    // address the tenant is certain to have.
+    expect(smoke).not.toMatch(/mailbox=\$\{APPLY_SUB\}/);
+    expect(smoke).toContain('mailbox=${APPLY_EMAIL}');
+    expect(seed, "and the address the smoke uses is the seed's").toContain(
+      "email: 'owner-b@demo.openmigrate.test'",
+    );
   });
 });

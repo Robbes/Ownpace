@@ -104,12 +104,22 @@ PREP_POLLS="${SMOKE_PREPARE_POLLS:-60}"
 OUT="${SMOKE_OUT:-/tmp/openmig-smoke-managed-$(date -u +%Y%m%dT%H%M%SZ).txt}"
 
 # Demo-seed fixtures (apps/api/src/scripts/seed-managed.ts).
+#
+# The `seed:` prefix is load-bearing and must match that file exactly: it is how
+# the support screen knows these subjects were written by the seed rather than
+# minted by an identity provider, and so renders them without a console link
+# (apps/web/src/services/idp-console.ts, LOCAL_SUBJECT_PREFIXES). A mismatch
+# here does not fail loudly — the token is minted for a subject with no
+# `tenant_member` row, and every authenticated assertion below comes back 403
+# with nothing saying why.
 VERIFY_TENANT="${SMOKE_VERIFY_TENANT:-a0000000-0000-4000-8000-000000000001}"
-VERIFY_SUB="${SMOKE_VERIFY_SUB:-demo-owner-a}"
+VERIFY_SUB="${SMOKE_VERIFY_SUB:-seed:demo-owner-a}"
 VERIFY_MAPPING="${SMOKE_VERIFY_MAPPING:-a0000000-0000-4000-8000-0000000000d1}"
 APPLY_TENANT="${SMOKE_APPLY_TENANT:-b0000000-0000-4000-8000-000000000002}"
-APPLY_SUB="${SMOKE_APPLY_SUB:-demo-owner-b}"
+APPLY_SUB="${SMOKE_APPLY_SUB:-seed:demo-owner-b}"
 APPLY_MAPPING="${SMOKE_APPLY_MAPPING:-b0000000-0000-4000-8000-0000000000d1}"
+# The address, which is a different fixture from the subject and always was.
+APPLY_EMAIL="${SMOKE_APPLY_EMAIL:-owner-b@demo.openmigrate.test}"
 # Tenant B's TARGET account — the other end of the mapping above, and the half
 # the balance section takes back. Same source: seed-managed.ts.
 TARGET_DAV_USER="${SMOKE_TARGET_DAV_USER:-tenant-b-target}"
@@ -402,12 +412,35 @@ sign_in_as() {
 # fires in the EXIT trap, after the verdict — but `|| true` was hiding the one
 # fact the next reader needs: that the take-back this comment promises did not
 # actually happen.
+#
+# AND IT NO LONGER STOPS AT THE PROVIDER, which is the third time that lesson
+# has been paid for. Run #68 found eighteen abandoned people AT the provider
+# and the database was never looked at; 2026-08-31 found thirty-one probe
+# owners on one demo tenant and the sweep below was written for them — but the
+# sweep runs at the START OF THE NEXT RUN, so between two runs this gate left
+# `tenant_member` rows pointing at people the provider had already deleted
+# seconds earlier.
+#
+# The owner found the third instance on 2026-09-01, from the support screen:
+# clicking `smoke-verify-…@smoke.local` opened the identity provider's console
+# on a user that no longer existed, and the console answered with its whole
+# user list. A membership outliving its account by exactly one run's gap is
+# residue with a UI.
+#
+# So this removes THIS run's own rows, here, in the same trap that removes this
+# run's own people. The sweep stays: it is the backstop for a run hard-killed
+# before its trap, which is the case it was written for.
 idp_take_back() {
   local u
   for u in ${IDP_USERS+"${IDP_USERS[@]}"}; do
     idp_api DELETE "/v2/users/${u}" >/dev/null 2>&1 ||
       echo "[take-back] could not delete user ${u} — the next run's sweep will get them" >&2
   done
+  # `%-$$@smoke.local` is exactly the complement of the sweep's own predicate:
+  # it takes this run's rows, the sweep takes every other run's. Between them
+  # no @smoke.local membership survives a run that reached either.
+  q "DELETE FROM tenant_member WHERE email LIKE '%-$$@smoke.local'" >/dev/null 2>&1 ||
+    echo "[take-back] could not remove this run's smoke memberships — the next run's sweep will get them" >&2
   if [ -n "${IDP_SIGNIN_APP:-}" ] && [ -n "${IDP_PROJECT:-}" ]; then
     idp_api DELETE "/management/v1/projects/${IDP_PROJECT}/apps/${IDP_SIGNIN_APP}" >/dev/null 2>&1 ||
       echo "[take-back] could not delete the gate's sign-in client ${IDP_SIGNIN_APP} — the next run's sweep will get it" >&2
@@ -2202,8 +2235,16 @@ report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Bef
 # A mailbox is required and the demo owner's is the one address this tenant is
 # certain to have. The report renders whether or not a scan can read anything —
 # it says which categories it could NOT inventory, which is the point of it.
+#
+# THE OWNER'S ADDRESS, not their subject with a domain glued on. This used to
+# read `${APPLY_SUB}@demo.openmigrate.test`, which built `demo-owner-b@…` while
+# the seed's owner email has always been `owner-b@…` — a mailbox this tenant is
+# NOT certain to have, in the line whose comment says it is. It passed because
+# the report renders for any address, so the mismatch cost nothing and proved
+# nothing. It would have started costing the moment the subject gained its
+# `seed:` prefix and the query carried a colon.
 report_markdown "permissions report" \
-  "/api/permissions/report?mailbox=${APPLY_SUB}@demo.openmigrate.test" \
+  "/api/permissions/report?mailbox=${APPLY_EMAIL}" \
   "# Who can see what, and what happens to it"
 report_json "billing usage" "/api/billing/usage" '.period'
 report_json "invoices" "/api/billing/invoices" '.invoices | length'

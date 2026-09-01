@@ -578,6 +578,37 @@ describe('the people on an organisation', () => {
     );
   });
 
+  it('will not link a seeded demo fixture, and says a different why', async () => {
+    // FOUND IN LIVE USE, 2026-09-01, one row below the `pending:` one above and
+    // by the same person: the owner clicked `owner-a@demo.openmigrate.test` on
+    // this screen and landed on the identity provider's whole user list. The
+    // demo seed writes its owners straight into `tenant_member`, so no provider
+    // has ever had them and none ever will.
+    //
+    // A DIFFERENT SENTENCE, not the same one. "Has not signed in yet" is true
+    // of an invitation and false of a fixture, and reading it here would send
+    // somebody waiting for an account that was never going to arrive.
+    consoleUrl.value = 'https://id.example.test/ui/console/users/{sub}';
+    await withMembers([
+      {
+        user_id: 'seed:demo-owner-a',
+        email: 'owner-a@demo.openmigrate.test',
+        role: 'owner',
+        status: 'active',
+        invited_at: null,
+        joined_at: '2026-09-01T09:00:00.000Z',
+      },
+    ]);
+
+    expect(
+      screen.queryByRole('link', { name: 'owner-a@demo.openmigrate.test' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('owner-a@demo.openmigrate.test')).toHaveAttribute(
+      'title',
+      STRINGS.en['support.seededDemoAccount'],
+    );
+  });
+
   it('still links the person once they have arrived', async () => {
     // The control. A refusal that also caught real accounts would remove the
     // feature rather than fix it — and `388706935093854213` is the shape a

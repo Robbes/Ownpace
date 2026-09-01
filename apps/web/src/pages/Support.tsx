@@ -62,7 +62,7 @@ import {
   type SupportMigrationDomain,
   type SupportRetainedInvoice,
 } from '../services/support.ts';
-import { idpConsoleUserUrl, isPendingSubject } from '../services/idp-console.ts';
+import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
 import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
@@ -475,16 +475,22 @@ const PersonLink: React.FC<{ tenantId: string; userId: string; email: string }> 
   const t = useT();
   const href = idpConsoleUserUrl(userId);
   if (!href) {
-    // Two reasons there is no link, and they are not the same answer. A
-    // deployment with no console configured is a SETTING; somebody who has not
-    // signed in yet is a fact about a person that changes by itself when they
-    // arrive. Both render as plain text — there is nowhere to send anybody —
-    // but only one of them is worth explaining, and an operator who reads
-    // "invited" beside an address they cannot click should not have to guess
-    // whether the product is broken.
-    if (isPendingSubject(userId)) {
+    // THREE reasons there is no link, and they are not the same answer. A
+    // deployment with no console configured is a SETTING and says nothing here,
+    // because there is nothing about the PERSON to say. Somebody who has not
+    // signed in yet is a fact that changes by itself when they arrive. A demo
+    // fixture is a fact that never changes, because there is no person. All
+    // three render as plain text — there is nowhere to send anybody — but an
+    // operator who reads an address they cannot click should not have to guess
+    // whether the product is broken, and "not yet" beside a seeded row would be
+    // the wrong answer rather than no answer.
+    const local = localSubjectKind(userId);
+    if (local !== null) {
       return (
-        <span className="text-gray-500" title={t('support.notArrivedYet')}>
+        <span
+          className="text-gray-500"
+          title={t(local === 'pending' ? 'support.notArrivedYet' : 'support.seededDemoAccount')}
+        >
           {email}
         </span>
       );

@@ -803,6 +803,14 @@ const en = {
   'support.notArrivedYet':
     'Has not signed in yet, so there is no account at the identity provider to open. ' +
     'The invitation is waiting; this becomes a link once they arrive.',
+  // And the other reason a person has no account to open: there is no person.
+  // Demo fixtures are written straight into the database, so the provider has
+  // never heard of them and never will — which is a different sentence from
+  // "not yet", and reading the wrong one sends somebody looking for an account
+  // that was never going to exist.
+  'support.seededDemoAccount':
+    'A demo fixture, written by the seed rather than by anybody signing in. ' +
+    'There is no account at the identity provider to open, and there will not be.',
   'support.openAtProvider': 'Open this account at the identity provider',
   'support.connections': 'Connections',
   'support.migrations': 'Migrations',
@@ -1426,6 +1434,9 @@ const nl: Record<keyof typeof en, string> = {
   'support.notArrivedYet':
     'Heeft zich nog niet aangemeld, dus er is nog geen account bij de identiteitsprovider ' +
     'om te openen. De uitnodiging staat klaar; zodra zij zich aanmelden wordt dit een link.',
+  'support.seededDemoAccount':
+    'Een demovoorbeeld, aangemaakt door het seed-script en niet door iemand die zich ' +
+    'aanmeldt. Er is geen account bij de identiteitsprovider om te openen, en dat komt er ook niet.',
   'support.openAtProvider': 'Dit account openen bij de identiteitsprovider',
   'support.connections': 'Verbindingen',
   'support.migrations': 'Migraties',

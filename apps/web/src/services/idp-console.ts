@@ -58,24 +58,62 @@ const buildEnv = (): ConsoleEnv =>
 export const SUBJECT_PLACEHOLDER = '{sub}';
 
 /**
- * The placeholder user id this system writes before somebody has ever signed
- * in. In step with `members.ts` and the access-request grant, which both write
- * `pending:${randomUUID()}` into a NOT NULL column with no real subject to put
- * there yet.
+ * The subjects THIS SYSTEM writes, which no identity provider ever minted.
+ *
+ * ONE LIST, and the link is refused for every entry in it — so adding a third
+ * kind cannot accidentally ship a link to a user that does not exist. That is
+ * the failure going the safe way round, which matters because the failure is
+ * invisible from here: the console answers an unknown id with its whole user
+ * list and an error, which reads as a broken product rather than as a subject
+ * nobody has.
+ *
+ *   pending — granted but not yet claimed. `members.ts` and the access-request
+ *             grant both write `pending:${randomUUID()}` into a NOT NULL column
+ *             because the person has not signed in and there is no subject to
+ *             bind to; claiming replaces it with the real one. Found in live
+ *             use on 2026-08-31.
+ *   seed    — the demo fixtures `seed-managed.ts` writes. There is no person
+ *             behind them at all and there never will be. Found in live use on
+ *             2026-09-01, the same way and by the same person: the owner
+ *             clicked `owner-a@demo.openmigrate.test` on the support screen and
+ *             landed on the provider's user list.
  */
-const PENDING_PREFIX = 'pending:';
+export const LOCAL_SUBJECT_PREFIXES = {
+  pending: 'pending:',
+  seed: 'seed:',
+} as const;
+
+/** Which kind of ours-not-theirs a subject is, or null when it is a real one. */
+export type LocalSubjectKind = keyof typeof LOCAL_SUBJECT_PREFIXES;
+
+/**
+ * Is this one of ours, and which?
+ *
+ * Exported so the screen can say WHICH kind of "no link" this is. Absent
+ * because a deployment never configured a console, absent because the person
+ * has not signed in, and absent because there is no person, look identical on
+ * the page and mean three different things: one is a setting, one is a fact
+ * about somebody that changes by itself the moment they arrive, and one never
+ * changes at all.
+ */
+export function localSubjectKind(subject: string): LocalSubjectKind | null {
+  const sub = subject.trim();
+  for (const [kind, prefix] of Object.entries(LOCAL_SUBJECT_PREFIXES)) {
+    if (sub.startsWith(prefix)) return kind as LocalSubjectKind;
+  }
+  return null;
+}
 
 /**
  * Is this an invitation nobody has answered yet, rather than an account?
  *
- * Exported so the screen can say WHICH kind of "no link" this is. Absent
- * because a deployment never configured a console, and absent because the
- * person has not signed in, look identical on the page and mean completely
- * different things: one is a setting, the other is a fact about a person that
- * will change by itself the moment they arrive.
+ * Kept as its own name because it is the one the screen has a sentence for —
+ * "has not signed in yet" is true of a `pending:` subject and false of a
+ * seeded one, and collapsing them would put the wrong sentence beside a demo
+ * fixture.
  */
 export function isPendingSubject(subject: string): boolean {
-  return subject.trim().startsWith(PENDING_PREFIX);
+  return localSubjectKind(subject) === 'pending';
 }
 
 /**
@@ -90,15 +128,13 @@ export function isPendingSubject(subject: string): boolean {
  *    `javascript:` one would run in the operator's session. Build-time config
  *    is not user input, but a refusal here costs nothing and closes it;
  *  - an empty subject — a link to the console's own idea of "no user";
- *  - a `pending:` subject, which is OURS and never the provider's. Granting
- *    writes `pending:<uuid>` into `tenant_member.user_id` because the person
- *    has not signed in yet and has no subject to bind to; claiming the
- *    invitation replaces it with the real one on first sign-in. So every
- *    granted-but-not-yet-arrived owner carries one, and a console link for it
- *    necessarily lands on a page about a user that does not exist. Found in
- *    live use on 2026-08-31: the console answered with its full user list and
- *    an error, which reads like a broken link rather than like a person who
- *    has simply not arrived.
+ *  - a LOCAL subject — one of ours, which no provider ever minted. A console
+ *    link for one necessarily lands on a page about a user that does not
+ *    exist, and the console answers that with its full user list and an error,
+ *    which reads like a broken link rather than like a person who has simply
+ *    not arrived (`pending:`) or was never a person at all (`seed:`). Both
+ *    were found in live use, on 2026-08-31 and 2026-09-01. See
+ *    LOCAL_SUBJECT_PREFIXES.
  */
 export function idpConsoleUserUrl(
   subject: string,
@@ -108,10 +144,12 @@ export function idpConsoleUserUrl(
   if (!template || !template.includes(SUBJECT_PLACEHOLDER)) return null;
   const sub = subject.trim();
   if (!sub) return null;
-  // Ours, not the provider's — see the header. Both places that mint one are
-  // in this repository, so the prefix is a fact about this system rather than
-  // a guess about somebody else's identity provider.
-  if (isPendingSubject(sub)) return null;
+  // Ours, not the provider's — see LOCAL_SUBJECT_PREFIXES. Every place that
+  // mints one is in this repository, so the prefix is a fact about this system
+  // rather than a guess about somebody else's identity provider. Asked as
+  // "is it any of ours" rather than "is it pending", so a prefix added later
+  // is refused a link by default instead of by remembering.
+  if (localSubjectKind(sub) !== null) return null;
 
   // `split`/`join` rather than `replaceAll`: the web build's lib target is
   // below es2021, and the convenient method typechecks nowhere here.
