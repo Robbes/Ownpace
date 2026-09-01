@@ -60,12 +60,79 @@ PGPORT_HOST="${hostport##*:}"
 
 DIRECT="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@localhost:${PGPORT_HOST}/${POSTGRES_DB:-openmigrate}"
 
+# THE PASSWORD THE VOLUME NEVER HEARD OF.
+#
+# Postgres reads POSTGRES_PASSWORD once, when initdb creates the cluster.
+# Change it afterwards and compose keeps handing the container a value the
+# volume has never heard of: the role keeps the password it was created with,
+# and nothing anywhere announces the divergence. This seed is usually the first
+# thing to find out, and what it said was
+#
+#   Seed failed: password authentication failed for user "openmigrate"
+#
+# which reads like a typo in .env rather than two halves that have drifted
+# apart, and says nothing about which of them to move. E2E (managed) #120 died
+# exactly there (2026-09-01), after the same shape had already cost #117 and
+# #118 on the demo Nextcloud's admin account.
+#
+# THE CHECK IS THE SEED'S OWN CONNECTION, not a probe beside it — and that is a
+# correction, not a shortcut. A probe would have to reach Postgres the way this
+# seed does, from the host through the published port, because the tempting
+# `docker exec ownpace-db psql -h 127.0.0.1` is answered by pg_hba's `trust`
+# line and succeeds with ANY password, wrong ones included. That vacuous check
+# has been shipped here once already; the first draft of this block wrote it
+# again, and scripts/the-check-postgres-never-made.unit.test.ts refused it.
+# Reading the real attempt's own answer cannot be vacuous, because the attempt
+# is the thing whose success we are reporting on (hard rule 10).
+PGUSER_NAME="${POSTGRES_USER:-openmigrate}"
+
 echo "[seed-managed] seeding ${POSTGRES_DB:-openmigrate} via localhost:${PGPORT_HOST} (the port compose reports)"
 
-DATABASE_URL="$DIRECT" \
+# Captured rather than streamed, so the failure can be read and named. The
+# whole output is printed either way, unchanged and in order — nothing is
+# swallowed, it just arrives at the end.
+set +e
+seed_out="$(DATABASE_URL="$DIRECT" \
   DIRECT_DATABASE_URL="$DIRECT" \
   JWT_SECRET="$JWT_SECRET" \
   SECRET_ENCRYPTION_KEY="$SECRET_ENCRYPTION_KEY" \
-  pnpm --dir "$REPO_ROOT" --filter @openmig/api seed:managed
+  pnpm --dir "$REPO_ROOT" --filter @openmig/api seed:managed 2>&1)"
+seed_rc=$?
+set -e
+printf '%s\n' "$seed_out"
+
+if [ "$seed_rc" -ne 0 ]; then
+  case "$seed_out" in
+  *"password authentication failed"*)
+    {
+      echo "FATAL: POSTGRES_PASSWORD in ${ENV_FILE} is not the password the role"
+      echo "       '${PGUSER_NAME}' has inside the postgres volume."
+      echo
+      echo "       Postgres reads that variable once, when the volume is first created."
+      echo "       Changing it afterwards changes what the container is TOLD, never what"
+      echo "       the volume HOLDS."
+      echo
+      echo "       .env is the declaration everything else reads — the API, the pooler's"
+      echo "       auth_query, Zitadel's admin connection — so move the database to it."
+      echo "       From ${SCRIPT_DIR}:"
+      echo
+      cat <<'REMEDY'
+export NEWPG="$(sed -n 's/^POSTGRES_PASSWORD=//p' .env | head -1)"
+docker exec -i -e NEWPG ownpace-db psql -U openmigrate -d openmigrate <<'SQL'
+\set pw `printf '%s' "$NEWPG"`
+ALTER ROLE openmigrate PASSWORD :'pw';
+SQL
+unset NEWPG
+REMEDY
+      echo
+      echo "       The local socket inside the container is trusted, which is why that"
+      echo "       works without the password you no longer have. Nothing else needs"
+      echo "       changing: pgbouncer/userlist.txt holds only the powerless lookup role"
+      echo "       and reads every other verifier from Postgres through auth_query."
+    } >&2
+    ;;
+  esac
+  exit "$seed_rc"
+fi
 
 echo "[seed-managed] done. The tokens above expire in 7 days — re-run this to mint fresh ones."
