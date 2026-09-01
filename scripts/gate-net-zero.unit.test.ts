@@ -181,10 +181,15 @@ describe('and the organisation it grants itself, in the order the schema allows'
    * tenants.
    */
   const opBlock = (): string => {
-    const at = smoke.indexOf('THE QUEUE THEY CAME FOR');
-    const end = smoke.indexOf("DELETE FROM platform_operator WHERE user_id", at);
+    // Banner to banner. Running this to the operator take-back instead reached
+    // over every sibling block added since, so an "unanchored tenant delete"
+    // assertion here went red on the NEXT block's correctly anchored one. The
+    // grant's own take-back sits inside this region, which is why the end is
+    // the decline banner and not the next line after the grant.
+    const at = smoke.indexOf('# ---------- THE QUEUE THEY CAME FOR');
+    const end = smoke.indexOf('# ---------- THE OTHER DECISION', at);
     expect(at, 'the operator grant block is gone').toBeGreaterThan(-1);
-    expect(end, 'the take-back of the appointment moved').toBeGreaterThan(at);
+    expect(end, 'the decline block no longer follows the grant block').toBeGreaterThan(at);
     return smoke.slice(at, end);
   };
 
@@ -341,5 +346,66 @@ describe('and the knock the boundary block files to have something to refuse', (
     expect(block).not.toMatch(/INSERT INTO tenant\b/);
     expect(block).not.toMatch(/INSERT INTO platform_operator/);
     expect(block).not.toMatch(/INSERT INTO tenant_member/);
+  });
+});
+
+describe('and the two requests it decides twice', () => {
+  /**
+   * One knock is declined and then pressed again; the other is granted and
+   * then pressed the other way. The second creates an ORGANISATION, so this
+   * block has the same ordering obligation as the grant block above —
+   * `access_request.tenant_id` is ON DELETE RESTRICT, so requests go first —
+   * and the same reason to be anchored: the sweep runs as the gate's own
+   * database user, which is the one hand that can delete a refusal.
+   */
+  const decidedBlock = (): string => {
+    const banner = '# ---------- THE DECISION THAT WAS ALREADY MADE';
+    const at = smoke.indexOf(banner);
+    expect(at, 'the twice-decided block is gone').toBeGreaterThan(-1);
+    const revoked = smoke.indexOf('DELETE FROM platform_operator WHERE user_id', at);
+    const next = smoke.indexOf('# ---------- ', at + banner.length);
+    return smoke.slice(at, next > -1 && next < revoked ? next : revoked);
+  };
+
+  it('deletes the requests BEFORE the tenants, both times', () => {
+    const block = decidedBlock();
+    const reqs = [...block.matchAll(/DELETE FROM access_request WHERE email LIKE 'smoke-decided-/g)];
+    const tens = [...block.matchAll(/DELETE FROM tenant WHERE name LIKE 'Smoke Decided /g)];
+    expect(reqs, 'a stale sweep at the top and a take-back at the bottom').toHaveLength(2);
+    expect(tens).toHaveLength(2);
+    for (let i = 0; i < 2; i += 1) {
+      expect(
+        reqs[i]!.index,
+        'a tenant is deleted before the request pointing at it — ON DELETE RESTRICT refuses that',
+      ).toBeLessThan(tens[i]!.index!);
+    }
+  });
+
+  it('anchors both sweeps to names this block owns', () => {
+    const block = decidedBlock();
+    expect(block).toContain('DECIDED_NO="smoke-decided-no-${SMOKE_MAIL_RUN}@smoke.local"');
+    expect(block).toContain('DECIDED_YES="smoke-decided-yes-${SMOKE_MAIL_RUN}@smoke.local"');
+    expect(block).toContain('DECIDED_ORG="Smoke Decided ${SMOKE_MAIL_RUN}"');
+    expect(block, 'an unanchored tenant delete').not.toMatch(
+      /DELETE FROM tenant(?! WHERE name LIKE 'Smoke Decided )/,
+    );
+    expect(block, 'an access_request delete this block does not own').not.toMatch(
+      /DELETE FROM access_request(?! WHERE email LIKE 'smoke-decided-)/,
+    );
+  });
+
+  it('asserts the balance rather than reporting it', () => {
+    const block = decidedBlock();
+    expect(block).toContain('dd_left');
+    expect(block).toMatch(/\[ "\$dd_left" = "0\/0" \]/);
+    expect(block, 'a residue count that cannot fail the run').toMatch(/NOT taken back[\s\S]{0,200}fail=1/);
+  });
+
+  it('sweeps a previous run before it knocks, not only after it ends', () => {
+    const block = decidedBlock();
+    const firstSweep = block.indexOf('DELETE FROM access_request');
+    const knock = block.indexOf('knock_open "$DECIDED_NO"');
+    expect(firstSweep).toBeGreaterThan(-1);
+    expect(firstSweep, 'the stale sweep runs after the gate has knocked').toBeLessThan(knock);
   });
 });

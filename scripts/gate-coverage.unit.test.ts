@@ -658,3 +658,98 @@ describe('the same buttons, pressed by somebody who is not an operator', () => {
     expect(block).toMatch(/\[ "\$b_after" = "open" \]/);
   });
 });
+
+describe('the decision that was already made', () => {
+  /**
+   * Two operators on the same queue, or one who clicked twice on a slow
+   * connection. Both routes check `state != 'open'` inside the transaction
+   * that would otherwise write — the only place the check means anything —
+   * and both answer 409.
+   *
+   * The status code is the least of it. Granting twice makes a second
+   * organisation with one person owning both; declining twice mails somebody a
+   * refusal they have already read; granting something declined turns a no
+   * into an organisation. And a decision is a RECORD, not a state:
+   * `decided_by`, `decided_at` and `decision_note` say who said it and why. A
+   * second press that quietly re-stamped them would write the first operator
+   * out of the queue's history while the state stayed exactly right.
+   */
+  const block = operatorBlock('THE DECISION THAT WAS ALREADY MADE');
+
+  it('found the block', () => {
+    expect(block.length).toBeGreaterThan(500);
+  });
+
+  it('presses both buttons on a decided row, in both directions', () => {
+    // Four presses, not two. A route that guarded only its own repeat would
+    // pass a test that only pressed the same button twice.
+    expect(block).toMatch(/\$\{dn_id\}\/decline/);
+    expect(block).toMatch(/\$\{dn_id\}\/grant/);
+    expect(block).toMatch(/\$\{dy_id\}\/grant/);
+    expect(block).toMatch(/\$\{dy_id\}\/decline/);
+  });
+
+  it('proves the RECORD did not move, not only the state', () => {
+    // Read before and compared after, as one string. Asserting the state alone
+    // passes a second press that re-stamps who decided it — the state was
+    // already right, and stays right.
+    expect(block).toContain('dn_was');
+    expect(block).toContain('dn_now');
+    expect(block).toContain('decided_by');
+    expect(block).toContain('decision_note');
+    expect(block).toContain('decided_at');
+    expect(block).toMatch(/\[ "\$dn_now" = "\$dn_was" \]/);
+  });
+
+  it('counts the second mail rather than trusting the 409', () => {
+    // The 409 says the route refused. It does not say the mailer was never
+    // reached — and being told twice that you were refused is the part the
+    // applicant experiences.
+    expect(block).toContain('mail_to_count "$DECIDED_NO"');
+    expect(block).toMatch(/\[ "\$dn_mail2" = "\$dn_mail" \]/);
+    expect(block).toMatch(/\[ "\$dy_mail2" = "\$dy_mail" \]/);
+  });
+
+  it('waits for the FIRST mail, so the second one\'s absence means something', () => {
+    // Same shape as the decline block: a "no further mail" assertion passes on
+    // a dead pipe unless a mail demonstrably went through the same pipe first.
+    const firstWait = block.indexOf('mail_to_count "$DECIDED_NO"');
+    const secondRead = block.indexOf('dn_mail2="$(mail_to_count');
+    expect(firstWait).toBeGreaterThan(-1);
+    expect(secondRead, 'the second count is read before the first has landed').toBeGreaterThan(
+      firstWait,
+    );
+    expect(block, 'nothing waits for the first mail at all').toMatch(
+      /for _ in \$\(seq 1 20\); do[\s\S]{0,200}mail_to_count "\$DECIDED_NO"/,
+    );
+  });
+
+  it('proves no organisation appeared behind the refused grant', () => {
+    // The 409 the route gives here names exactly this: "either create a second
+    // organisation or lose the first". Counting is what checks it.
+    expect(block).toContain('dn_tenants_before');
+    expect(block).toContain('dn_tenants_after');
+    expect(block).toMatch(/\[ "\$dn_tenants_after" = "\$dn_tenants_before" \]/);
+  });
+
+  it('proves the granted organisation SURVIVED the refused decline', () => {
+    // The opposite failure, and the worse one: a decline that landed on a
+    // granted request leaves an organisation with nobody as its owner, or
+    // tells somebody their access was refused after they were let in.
+    expect(block).toContain('dy_still');
+    expect(block).toMatch(/role = 'owner' AND status = 'invited'/);
+    expect(block).toMatch(/\[ "\$dy_still" = "1\/1" \]/);
+    expect(block).toMatch(/\[ "\$dy_state" = "granted" \]/);
+  });
+
+  it('names its dependency on the decline block instead of assuming it', () => {
+    // `mail_to_count` is defined in a sibling block. A missing function in
+    // bash is an empty answer, and an empty answer is exactly what this block
+    // would read as "no second mail was sent" — the failure direction that
+    // passes.
+    expect(block).toContain('declare -F mail_to_count');
+    expect(block, 'a missing helper that cannot fail the run').toMatch(
+      /declare -F mail_to_count[\s\S]{0,200}fail=1/,
+    );
+  });
+});
