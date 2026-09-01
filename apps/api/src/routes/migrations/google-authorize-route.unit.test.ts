@@ -18,7 +18,7 @@
  * and the scope table are the product's.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
@@ -149,5 +149,98 @@ describe('the single-purpose ask is untouched', () => {
     const res = await authorize({ sourceType: 'outlook' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_body');
+  });
+});
+
+/**
+ * WHOSE CLIENT THE CONSENT RUNS AGAINST (ADR-0041, owner decision 2026-09-01 —
+ * option B).
+ *
+ * Every Google connection demanded a client id and a client secret typed into
+ * a wizard. They are the DEPLOYMENT'S — the same values on every connection on
+ * the box, the owner's own registered application — and only the refresh token
+ * is per-account. So a deployment may configure the pair once and the wizard
+ * stops asking.
+ *
+ * The property that must not erode is the other direction: a caller who SENDS
+ * a pair still wins. ADR-0041's point is that owning a client is a real
+ * choice, and a deployment-wide default that quietly replaced somebody's own
+ * would take it away — they would discover it when Google's consent screen
+ * showed the wrong application name.
+ */
+describe('the client this consent runs against', () => {
+  const CONFIGURED_ID = 'deployment.apps.googleusercontent.com';
+  const before = {
+    id: process.env.GOOGLE_OAUTH_CLIENT_ID,
+    secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+  };
+  const configure = (id?: string, secret?: string) => {
+    if (id === undefined) delete process.env.GOOGLE_OAUTH_CLIENT_ID;
+    else process.env.GOOGLE_OAUTH_CLIENT_ID = id;
+    if (secret === undefined) delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+    else process.env.GOOGLE_OAUTH_CLIENT_SECRET = secret;
+  };
+  const bare = (body: Record<string, unknown>) =>
+    request(app).post('/api/migrations/google/authorize').send(body);
+
+  beforeEach(() => configure(undefined, undefined));
+  afterEach(() => configure(before.id, before.secret));
+
+  const clientIdInUrl = (url: string): string | null =>
+    new URL(url).searchParams.get('client_id');
+
+  it("uses the deployment's own when the caller sends none", async () => {
+    configure(CONFIGURED_ID, 'deployment-secret');
+    const res = await bare({ sourceType: 'gmail' });
+    expect(res.status).toBe(200);
+    expect(clientIdInUrl(res.body.url)).toBe(CONFIGURED_ID);
+  });
+
+  it("uses the CALLER'S where they sent one, because owning a client is a choice", async () => {
+    configure(CONFIGURED_ID, 'deployment-secret');
+    const res = await authorize({ sourceType: 'gmail' });
+    expect(res.status).toBe(200);
+    expect(clientIdInUrl(res.body.url)).toBe(CLIENT.clientId);
+  });
+
+  it('refuses when there is neither, and names BOTH ways forward', async () => {
+    // Either is legitimate, and somebody meeting this cannot tell which their
+    // deployment expects — so the refusal has to carry both.
+    const res = await bare({ sourceType: 'gmail' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('no_google_client');
+    expect(res.body.reason).toContain('clientId');
+    expect(res.body.reason).toContain('GOOGLE_OAUTH_CLIENT_ID');
+  });
+
+  it('names the missing half of a HALF-configured deployment', async () => {
+    // Somebody who set one of the two has plainly tried. Answering them with
+    // the same sentence as somebody who set neither hides a typo behind a
+    // feature that merely looks absent.
+    configure(CONFIGURED_ID, undefined);
+    const res = await bare({ sourceType: 'gmail' });
+    expect(res.status).toBe(400);
+    expect(res.body.reason).toContain('GOOGLE_OAUTH_CLIENT_SECRET');
+  });
+
+  it('never puts the secret in the URL it answers with', async () => {
+    // The consent URL is a redirect a browser follows and a log records. The
+    // client secret belongs to the token exchange, which happens server-side.
+    configure(CONFIGURED_ID, 'deployment-secret');
+    const res = await bare({ sourceType: 'gmail' });
+    expect(res.body.url).not.toContain('deployment-secret');
+    expect(JSON.stringify(res.body)).not.toContain('deployment-secret');
+  });
+
+  it('refuses half a pair from the CALLER rather than mixing it with the deployment’s', async () => {
+    // Half of one client and half of another cannot exchange a code, and the
+    // failure would arrive at Google with nothing on this side to explain it.
+    // `.min(1).optional()` also means a cleared field is a cleared field.
+    configure(CONFIGURED_ID, 'deployment-secret');
+    const res = await bare({ sourceType: 'gmail', clientId: CLIENT.clientId });
+    expect(res.status).toBe(200);
+    expect(clientIdInUrl(res.body.url), 'a lone clientId must not be half-used').toBe(
+      CONFIGURED_ID,
+    );
   });
 });

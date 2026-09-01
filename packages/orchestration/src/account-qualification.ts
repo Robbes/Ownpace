@@ -31,6 +31,7 @@
  */
 
 import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
+import { withDeploymentGoogleClient } from '@openmig/shared';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import { davEndpointFromCreds } from './dav-endpoint.ts';
 import { measureTargetScheduling } from './target-scheduling.ts';
@@ -438,10 +439,17 @@ function allUnknown(why: string): AccountQualification {
  */
 export async function qualifyGoogleGrant(
   kind: string,
-  creds: Record<string, string>,
+  rawCreds: Record<string, string>,
   tokenEndpoint: string = GOOGLE_TOKEN_ENDPOINT,
 ): Promise<AccountQualification | undefined> {
   if (!isGoogleGrantKind(kind)) return undefined;
+  // THE DEPLOYMENT'S OWN CLIENT, where it configured one (ADR-0041, owner
+  // decision 2026-09-01). Without this the measurement is the one that goes
+  // quiet: a connection whose client lives in the deployment rather than in
+  // its own credentials would answer "Unmeasured — the stored credentials
+  // carry no clientId/refreshToken pair", which reads as a broken grant and is
+  // a missing exchange. Already kind-gated by the guard above.
+  const creds = withDeploymentGoogleClient(true, rawCreds);
   if (creds.serviceAccountKey) return allUnknown(DWD_UNMEASURED);
   const clientId = creds.clientId;
   const refreshToken = creds.refreshToken;

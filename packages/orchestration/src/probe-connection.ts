@@ -22,7 +22,8 @@
  * nothing anywhere.
  */
 
-import { isCredentialRefusal } from '@openmig/shared';
+import { isCredentialRefusal, withDeploymentGoogleClient } from '@openmig/shared';
+import { isGoogleGrantKind } from './account-qualification.ts';
 import type { SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
 import { measureTargetScheduling } from './target-scheduling.ts';
@@ -145,8 +146,24 @@ async function probeListable(build: () => Listable, unit: ProbeUnit): Promise<Pr
 export async function probeSourceConnection(
   kind: string,
   config: Record<string, unknown>,
-  creds: Record<string, string>,
+  rawCreds: Record<string, string>,
 ): Promise<ProbeResult> {
+  /**
+   * THE DEPLOYMENT'S OWN GOOGLE CLIENT, where it has one and this row is a
+   * Google one (ADR-0041, owner decision 2026-09-01 — option B).
+   *
+   * Here rather than at the four call sites in `apps/api`, for the reason this
+   * whole file exists: **the probe must build exactly what a pass builds.** A
+   * fallback applied on the run path and not on the probe means Test refuses a
+   * connection the migration would have accepted — "test failed, create
+   * worked", which is the same lie as its more famous twin and reads as a
+   * broken product rather than as a missing field.
+   *
+   * The kind gate is not tidiness: Dropbox and Box store their own app key and
+   * secret under the same `clientId`/`clientSecret` names, and handing them
+   * Google's application would fail at their provider naming nothing useful.
+   */
+  const creds = withDeploymentGoogleClient(isGoogleGrantKind(kind), rawCreds);
   const user = String(config.user ?? '');
   switch (kind) {
     case GMAIL_CONNECTION_KIND:

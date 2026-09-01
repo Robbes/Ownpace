@@ -49,6 +49,7 @@ import {
   parseThrottleConfig,
   sourceDomainRefusal,
   providerAccountDomains,
+  googleDeploymentClient,
   parseGoogleDriveSource,
   ConfigError,
   describeCronScheduleProblem,
@@ -196,6 +197,41 @@ export function sourceConnectionConfig(
  * imap-dav). The DAV targets keep the plain shape: their domain path builds
  * its URL from host/port/useSsl via `davUrl()` and never reads a `type`.
  */
+/**
+ * The credential keys a GOOGLE source must carry, given what this deployment
+ * already has (ADR-0041, owner decision 2026-09-01 — option B).
+ *
+ * A deployment that registered its own Google application configures it once
+ * (`GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET`) and the connection
+ * stores NEITHER — the client is read at the moment a token is minted, so
+ * rotating it is one `.env` edit rather than an edit per connection. So the
+ * create door stops demanding what nobody has to type.
+ *
+ * THE REFRESH TOKEN IS NEVER OPTIONAL. It is the per-account half — the thing
+ * that says whose data this is and what they consented to — and no
+ * deployment-wide value can stand in for it.
+ *
+ * A CALLER MAY STILL SEND BOTH, and their values win everywhere downstream:
+ * owning a client is a real choice and this must not take it away. What is
+ * dropped is only the DEMAND.
+ *
+ * `google-drive`, `gmail`, `google-calendar`, `google-contacts` and the
+ * `google` account share this one list, because four demands that could
+ * disagree are four chances to refuse a connection the run path would have
+ * accepted. Dropbox and Box are deliberately NOT here: they store their own
+ * app key and secret under the same two key names, and a Google application is
+ * not a Dropbox app.
+ *
+ * READ PER REQUEST, not at import: an operator who sets the variables and
+ * restarts the API gets the new answer, and nothing caches one from a process
+ * that started without them.
+ */
+function googleCredentialKeysRequired(): ReadonlyArray<'clientId' | 'clientSecret' | 'refreshToken'> {
+  return googleDeploymentClient() === null
+    ? (['clientId', 'clientSecret', 'refreshToken'] as const)
+    : (['refreshToken'] as const);
+}
+
 /**
  * What a stored connection ALREADY KNOWS, keyed the way the FORM keys it
  * (workplan 0078, owner decision 2026-08-18).
@@ -690,11 +726,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           'the credential).',
       });
     }
-    const missing = dwd
-      ? []
-      : (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
-          (k) => !body.sourceConfig[k],
-        );
+    const missing = dwd ? [] : googleCredentialKeysRequired().filter((k) => !body.sourceConfig[k]);
     if (missing.length > 0) {
       ctx.addIssue({
         code: 'custom',
@@ -752,9 +784,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     // subject is the username these sources already require.
     const missing = body.sourceConfig.serviceAccountKey
       ? []
-      : (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
-          (k) => !body.sourceConfig[k],
-        );
+      : googleCredentialKeysRequired().filter((k) => !body.sourceConfig[k]);
     if (missing.length > 0) {
       ctx.addIssue({
         code: 'custom',
@@ -836,9 +866,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     const missing =
       body.sourceConfig.serviceAccountKey || body.sourceConfig.appPassword?.trim()
         ? []
-        : (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
-            (k) => !body.sourceConfig[k],
-          );
+        : googleCredentialKeysRequired().filter((k) => !body.sourceConfig[k]);
     if (missing.length > 0) {
       ctx.addIssue({
         code: 'custom',

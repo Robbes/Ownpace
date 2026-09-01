@@ -166,6 +166,8 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   OAUTH2_CLIENT_SECRET="${OAUTH2_CLIENT_SECRET:-}" \
   OAUTH2_REFRESH_TOKEN="${OAUTH2_REFRESH_TOKEN:-}" \
   OAUTH2_TENANT_ID="${OAUTH2_TENANT_ID:-}" \
+  GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-}" \
+  GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-}" \
   SMTP_HOST="${SMTP_HOST:-}" \
   SMTP_PORT="${SMTP_PORT:-}" \
   SMTP_SECURE="${SMTP_SECURE:-}" \
@@ -208,6 +210,12 @@ const { envvars } = require("@trigger.dev/sdk");
   //   LOG_LEVEL                   raising the log level on a task was impossible.
   for (const name of [
     "OAUTH2_CLIENT_ID", "OAUTH2_CLIENT_SECRET", "OAUTH2_REFRESH_TOKEN", "OAUTH2_TENANT_ID",
+    // The Google OAuth client this deployment owns (ADR-0041). A task
+    // container inherits nothing from compose, so a value present only in
+    // .env and managed.yml is one every SYNC PASS would find missing: the API
+    // would consent happily and the migration would then fail to mint a
+    // token, which is the worst of the possible splits.
+    "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
     "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD",
     "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
     "LEDGER_RETENTION_DAYS", "TRIGGER_API_URL_IN_NETWORK", "LOG_LEVEL",

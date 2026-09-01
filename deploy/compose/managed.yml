@@ -817,6 +817,16 @@ services:
       # every deployment that has not answered gets. managed.env.example
       # carries the full note, including what it costs in Testing status.
       GOOGLE_ACCOUNT_SCOPE_CLASS: ${GOOGLE_ACCOUNT_SCOPE_CLASS:-}
+      # The deployment's OWN Google OAuth client (ADR-0041, owner decision
+      # 2026-09-01 — option B): configured once here, so nobody types a client
+      # secret into a wizard and rotating it is one edit rather than one per
+      # connection. A connection that carries its own pair still wins.
+      #
+      # The WORKER needs them too, and gets them from set-task-env.sh — a task
+      # container inherits nothing from compose, which is why they are in both
+      # places and why that script names them.
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
       API_URL: ${API_URL:-http://localhost:3001}
       # How long a backup of this database is kept. Not a schedule — it is what
       # the close endpoint TELLS a customer about when their erasure actually

@@ -92,6 +92,24 @@
   wrong answer costs a refusal at Google with the scope in hand, never a silent narrowing.
   And in **External + Testing** it costs one more thing, which the setting's own documentation
   must say: refresh tokens die after seven days (see the publishing-status bullet below).
+- **A DEPLOYMENT MAY CARRY ITS OWN CLIENT, AND THE CONNECTION THEN STORES NEITHER HALF OF IT**
+  (owner decision, 2026-09-01 — option B). `GOOGLE_OAUTH_CLIENT_ID` and
+  `GOOGLE_OAUTH_CLIENT_SECRET` are configured once, so nobody types a client secret into a
+  wizard: the connection keeps only the refresh token, which is the per-account half, and the
+  client is read at the moment a token is minted. The alternative — copying the pair into every
+  connection's encrypted store — works today and makes rotation a migration. This makes it one
+  `.env` edit and a restart. The cost, named because it is real: a connection is no longer
+  self-describing, and moving one to another deployment means that deployment needs a client
+  too. **A connection carrying its own pair always wins** — this is a fallback, never an
+  override, or owning a client would stop being a choice. **Both variables or neither**: half a
+  pair is refused with the missing name, never mixed with the other half. And the fallback is
+  gated on a GOOGLE connection kind, because `clientId`/`clientSecret` are shared key names —
+  Dropbox stores its App key and App secret under exactly those.
+- **The API and the WORKER are supplied by different mechanisms, and both must be.** `managed.yml`
+  names the two variables on the API service; `set-task-env.sh` uploads them to the worker,
+  because a Trigger.dev task container inherits nothing from compose. Wiring only the first is
+  the worst available split: the consent is built, Google approves it, the connection tests
+  green, and every sync pass then fails to mint a token in a log nobody is watching.
 - **THE DECLARATION IS SERVED, NEVER MIRRORED INTO A BUILD.** It is read at run time by the API
   and answered to clients at `GET /api/provider-accounts`; the browser bundle asks. There is
   deliberately no `VITE_` twin — that would be two separately settable copies of one fact, which
