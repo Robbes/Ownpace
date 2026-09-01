@@ -184,6 +184,80 @@ export async function beginSignIn(config: OidcConfig | null = oidcConfig()): Pro
 }
 
 /**
+ * Where to send the browser so the ISSUER'S session ends too, or null.
+ *
+ * ## The defect this exists for
+ *
+ * "Sign out" cleared `localStorage` and the store and sent the browser to
+ * `/login`, which ends the APP's session and nothing else. The issuer's own
+ * cookie survived, so pressing "Sign in" completed the whole
+ * authorization-code round trip without a single prompt and put the same person
+ * straight back in. The owner found it on 2026-09-01, one press after signing
+ * out: *"pressing sign in then didn't ask me anything again, it just rolled
+ * through, without any new signin, why not ask again?"*
+ *
+ * It reads like a cosmetic annoyance and it is not one. On a borrowed laptop or
+ * a shared desk, "sign out" that leaves the issuer signed in means the next
+ * person to press "Sign in" is in your account, having proved nothing. The word
+ * on the button is a promise about the whole session, not about this tab's copy
+ * of a token.
+ *
+ * ## What this builds
+ *
+ * RP-initiated logout (OIDC RP-Initiated Logout 1.0): the issuer publishes
+ * `end_session_endpoint` in its discovery document, and a browser sent there
+ * with `id_token_hint` ends the session and returns to
+ * `post_logout_redirect_uri`.
+ *
+ * **`id_token_hint` is what makes it silent AND safe.** It names the session to
+ * end, so the issuer neither asks "log out of what?" nor takes an unauthenticated
+ * caller's word for which redirect is allowed. It is also why the app keeps the
+ * ID token rather than the access token (see `completeSignIn` above) — the hint
+ * has to be an ID token issued to this client.
+ *
+ * **The redirect must already be registered**, and it is: `setup-zitadel.sh`
+ * writes `postLogoutRedirectUris: ["${WEB_URL}/login"]` when it provisions the
+ * application, and reconciles it on every re-run. An unregistered value is
+ * refused by the issuer rather than followed, which is the whole point of
+ * registering it — so this sends exactly that URL and does not invent one from
+ * wherever the browser happens to be.
+ *
+ * ## Null, and why the caller must handle it rather than this throwing
+ *
+ * Three ordinary cases answer null: a deployment with no issuer at all (the
+ * paste-a-token door, which has no remote session to end), an issuer whose
+ * discovery document publishes no `end_session_endpoint`, and a caller with no
+ * ID token to hint with. None is an error and none should stop a sign-out: the
+ * local half must still happen. The caller signs out locally either way and
+ * only ADDS this leg when there is one — which also means an issuer that cannot
+ * be reached leaves somebody signed out here rather than stuck.
+ */
+export async function signOutUrl(
+  idToken: string | null | undefined,
+  config: OidcConfig | null = oidcConfig(),
+): Promise<string | null> {
+  if (!config || !idToken) return null;
+
+  let endpoints: Endpoints;
+  try {
+    endpoints = await discover(config.issuer);
+  } catch {
+    // An unreachable issuer must not trap somebody in a half-signed-out state.
+    // The local half has already happened; this leg is the one we can lose.
+    return null;
+  }
+  const endpoint = endpoints.end_session_endpoint;
+  if (!endpoint) return null;
+
+  const params = new URLSearchParams({
+    id_token_hint: idToken,
+    post_logout_redirect_uri: `${browser.location.origin}/login`,
+    client_id: config.clientId,
+  });
+  return `${endpoint}?${params.toString()}`;
+}
+
+/**
  * Finish sign-in: check the state, exchange the code, return the ID token.
  *
  * **THE ID TOKEN, NOT THE ACCESS TOKEN, AND THAT IS NOT A SLIP.** The API needs

@@ -371,16 +371,26 @@ describe('the operator half of /api/access-requests', () => {
     expect(rows[0]?.state).toBe('open');
   });
 
-  it('OFFERS the granted person their organisation, and only with a verified email', async () => {
-    // The case the whole feature exists for, end to end — and its premise
-    // CHANGED in workplan 0099. This used to assert that signing in BOUND the
-    // invitation: `/api/me` claimed every one addressed to a verified address,
-    // silently, so reading your own account joined you to things.
+  it('GIVES the granted person the organisation they asked for, on a verified address', async () => {
+    // The case the whole feature exists for, end to end — and its premise has
+    // now changed TWICE, which is worth having written down.
     //
-    // That is gone, because it left no moment at which anybody could decline.
-    // What survives is the half that always mattered and is now asserted more
-    // precisely: an unverified address gets NOTHING, a verified one gets an
-    // OFFER, and only an explicit answer creates a membership.
+    // Originally `/api/me` bound every invitation addressed to a verified
+    // address, silently, so reading your own account joined you to things.
+    // Workplan 0099 replaced that with a question, and was right about the
+    // event it was looking at: `members.ts` lets anybody inside an
+    // organisation add any address to it.
+    //
+    // A GRANTED ACCESS REQUEST IS NOT THAT EVENT (migration 0021, owner
+    // decision 2026-09-01). The person asked, an operator read the ask and
+    // said yes, and this organisation was created FOR THEM with them as its
+    // only owner. The owner walked it himself on 2026-09-01 and met "You have
+    // been invited… Joining is your choice" over the thing he had asked for
+    // and granted: the same question, asked twice, the second time in somebody
+    // else's words.
+    //
+    // So it binds again — and the half that always mattered is unchanged and
+    // still asserted first: an unverified address gets NOTHING.
     const email = `${MARK}-newcomer@example.test`;
     const asked = await knock(email);
     const granted = await request
@@ -389,6 +399,14 @@ describe('the operator half of /api/access-requests', () => {
       .send({});
     expect(granted.status).toBe(201);
     provisioned.push(granted.body.tenantId);
+
+    // The grant records WHERE the row came from, which is the whole mechanism:
+    // without it this membership is indistinguishable from one a stranger made.
+    const origin = await pool.query<{ origin: string }>(
+      `SELECT origin FROM tenant_member WHERE tenant_id = $1`,
+      [granted.body.tenantId],
+    );
+    expect(origin.rows[0]?.origin).toBe('requested');
 
     const signIn = (verified: boolean) =>
       request.get('/api/me').set(
@@ -399,63 +417,91 @@ describe('the operator half of /api/access-requests', () => {
         )}`,
       );
 
-    // First: the issuer does NOT say the address is verified. Nothing is even
-    // OFFERED — otherwise whoever registers an address learns what was sent to
-    // it, which is a smaller leak than inheriting it and still a leak.
+    // First: the issuer does NOT say the address is verified. Nothing happens
+    // at all — otherwise whoever registers an address inherits what was granted
+    // to it, which is the one way this could become somebody else's
+    // organisation.
     const unverified = await signIn(false);
     expect(unverified.status).toBe(200);
     expect(unverified.body.tenants).toEqual([]);
     expect(unverified.body.invitations).toEqual([]);
+    const untouched = await pool.query<{ user_id: string; status: string }>(
+      `SELECT user_id, status FROM tenant_member WHERE tenant_id = $1`,
+      [granted.body.tenantId],
+    );
+    expect(untouched.rows[0]?.status).toBe('invited');
+    expect(untouched.rows[0]?.user_id.startsWith('pending:')).toBe(true);
 
     // Then: the same person, with the claim the issuer is supposed to make.
+    // One request, and they own the organisation they asked for.
     const verified = await signIn(true);
     expect(verified.status).toBe(200);
-    // Offered, NOT joined. Both halves matter: the organisation is named so a
-    // person can decide about it, and they are still in nothing.
-    expect(verified.body.tenants).toEqual([]);
-    expect(verified.body.tenantId).toBeUndefined();
-    expect(verified.body.invitations).toHaveLength(1);
-    expect(verified.body.invitations[0]).toMatchObject({
+    expect(verified.body.tenantId).toBe(granted.body.tenantId);
+    expect(verified.body.role).toBe('owner');
+    expect(verified.body.tenants).toHaveLength(1);
+    // And NOT offered as an invitation, which is the screen the owner met.
+    expect(verified.body.invitations).toEqual([]);
+
+    const { rows } = await pool.query<{ user_id: string; status: string; origin: string }>(
+      `SELECT user_id, status, origin FROM tenant_member WHERE tenant_id = $1`,
+      [granted.body.tenantId],
+    );
+    expect(rows[0]).toMatchObject({ user_id: 'newcomer-sub', status: 'active' });
+    // The origin is never rewritten by the claim: how the row came to exist is
+    // a fact about the past, and the statement that binds it says nothing
+    // about it.
+    expect(rows[0]?.origin).toBe('requested');
+
+    // Idempotent, because `/api/me` runs on every request this client makes.
+    // A second pass must converge rather than write again.
+    const again = await signIn(true);
+    expect(again.body.tenantId).toBe(granted.body.tenantId);
+    expect(again.body.tenants).toHaveLength(1);
+  });
+
+  it('still ASKS about an organisation somebody else put this address in', async () => {
+    // The other half of the same column, and the reason it exists rather than
+    // "just bind everything again": workplan 0099's decision is untouched. A
+    // row somebody else made is still a question with an answer, and being
+    // joined to a stranger's organisation by reading your own account is still
+    // the defect it always was.
+    const email = `${MARK}-invitee@example.test`;
+    const asked = await knock(email);
+    const granted = await request
+      .post(`/api/access-requests/${asked.id}/grant`)
+      .set('Authorization', `Bearer ${token(OPERATOR)}`)
+      .send({});
+    expect(granted.status).toBe(201);
+    provisioned.push(granted.body.tenantId);
+
+    // Re-labelled as what `members.ts` writes — the same row shape, a different
+    // origin. Cheaper than standing up a second organisation with a member in
+    // it, and it isolates the ONE field this behaviour turns on.
+    await pool.query(`UPDATE tenant_member SET origin = 'invited' WHERE tenant_id = $1`, [
+      granted.body.tenantId,
+    ]);
+
+    const me = await request.get('/api/me').set(
+      'Authorization',
+      `Bearer ${jwt.sign(
+        { sub: 'invitee-sub', email, email_verified: true },
+        process.env.JWT_SECRET!,
+      )}`,
+    );
+    expect(me.status).toBe(200);
+    expect(me.body.tenants).toEqual([]);
+    expect(me.body.invitations).toHaveLength(1);
+    expect(me.body.invitations[0]).toMatchObject({
       tenantId: granted.body.tenantId,
       role: 'owner',
     });
-    // The name, read across a join the invitee has no tenant scope for — which
-    // works only because managed 0008 gave them a policy and ledger 0028 kept
-    // `tenant_isolation_select` from raising on the empty string.
-    expect(verified.body.invitations[0].name).toBeTruthy();
 
-    // SKIP is the absence of a call, so this is what skipping looks like: ask
-    // again, and it is still offered.
-    const skipped = await signIn(true);
-    expect(skipped.body.invitations).toHaveLength(1);
     const stillOpen = await pool.query<{ user_id: string; status: string }>(
       `SELECT user_id, status FROM tenant_member WHERE tenant_id = $1`,
       [granted.body.tenantId],
     );
     expect(stillOpen.rows[0]?.status).toBe('invited');
     expect(stillOpen.rows[0]?.user_id.startsWith('pending:')).toBe(true);
-
-    // And now the answer.
-    const accepted = await request
-      .post(`/api/invitations/${granted.body.tenantId}/accept`)
-      .set(
-        'Authorization',
-        `Bearer ${jwt.sign({ sub: 'newcomer-sub', email, email_verified: true }, process.env.JWT_SECRET!)}`,
-      )
-      .send({});
-    expect(accepted.status).toBe(200);
-    expect(accepted.body.outcome).toBe('accepted');
-
-    const after = await signIn(true);
-    expect(after.body.tenantId).toBe(granted.body.tenantId);
-    expect(after.body.role).toBe('owner');
-    expect(after.body.invitations).toEqual([]);
-
-    const { rows } = await pool.query<{ user_id: string; status: string }>(
-      `SELECT user_id, status FROM tenant_member WHERE tenant_id = $1`,
-      [granted.body.tenantId],
-    );
-    expect(rows[0]).toMatchObject({ user_id: 'newcomer-sub', status: 'active' });
   });
 
   it('records a REFUSAL that names nobody, and stops offering it', async () => {
@@ -471,6 +517,15 @@ describe('the operator half of /api/access-requests', () => {
       .send({});
     expect(granted.status).toBe(201);
     provisioned.push(granted.body.tenantId);
+
+    // Re-labelled as somebody else's invitation (migration 0021): since a
+    // `requested` row binds on first sign-in, an invitation to DECLINE is by
+    // definition one this person did not ask for. The property under test is
+    // unchanged — it is about `declineInvitation` and 0008's WITH CHECK — but
+    // the fixture now describes a situation that can actually happen.
+    await pool.query(`UPDATE tenant_member SET origin = 'invited' WHERE tenant_id = $1`, [
+      granted.body.tenantId,
+    ]);
 
     const bearer = `Bearer ${jwt.sign(
       { sub: 'refuser-sub', email, email_verified: true },

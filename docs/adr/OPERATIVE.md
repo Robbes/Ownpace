@@ -573,6 +573,25 @@ live in [README.md](./README.md), the register.
   accepting it.
 - **The appliance never gains an issuer dependency**, enforced by
   `apps/selfhost/src/no-managed-leakage.unit.test.ts`.
+- **Signing out ends the ISSUER'S session, not only this tab's** (2026-09-01). `logout()`
+  cleared the store and `localStorage`, which left the issuer's cookie alive: pressing
+  "Sign in" afterwards completed the whole authorization-code round trip with no prompt
+  and put the same person straight back in. On a shared or borrowed machine that is an
+  account handover. The web app now follows `end_session_endpoint` from the discovery
+  document with `id_token_hint` and the registered `post_logout_redirect_uri` — plain
+  RP-Initiated Logout 1.0, no issuer-specific call, so the replaceability rule above
+  holds. The local half happens first and unconditionally: an issuer that publishes no
+  such endpoint, or cannot be reached, leaves somebody signed out here rather than stuck.
+- **The answer to a question you asked is not an invitation** (owner decision,
+  2026-09-01). Workplan 0099 made joining a question because `members.ts` lets anybody
+  inside an organisation add any address to it, and binding on sight meant reading your
+  own account joined you to a stranger's organisation. That stands. But a GRANTED ACCESS
+  REQUEST is a different event — the person asked, an operator said yes, and the
+  organisation was created for them with them as its only owner — and asking again is
+  asking the same question twice. `tenant_member.origin` (managed 0021) records which
+  event wrote the row: `requested` binds on the first sign-in with a VERIFIED address,
+  `invited` still asks. The default is `invited`, so an unrecorded origin fails towards
+  asking.
 
 ### Amended 2026-08-25 — `sub` is the identity, email is a label
 

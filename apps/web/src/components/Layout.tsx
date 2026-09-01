@@ -18,6 +18,7 @@ import {
   Flag, Plug, BookOpen, DoorOpen, LifeBuoy } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { isSelfHost } from '../services/edition.ts';
+import { signOutUrl } from '../services/oidc.ts';
 import { useLocale } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { LOCALES } from '../i18n/strings.ts';
@@ -42,6 +43,35 @@ const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const location = useLocation();
   const { user, logout, operator, tenantCount } = useAuthStore();
+  const token = useAuthStore((s) => s.token);
+
+  /**
+   * SIGN OUT OF THE ISSUER TOO, not just of this tab (2026-09-01).
+   *
+   * `logout()` clears the store and `localStorage`, which ends the APP's
+   * session and nothing else. The issuer's own cookie survived it, so pressing
+   * "Sign in" afterwards completed the whole authorization-code round trip
+   * with no prompt at all and put the same person straight back in — found by
+   * the owner one press after signing out.
+   *
+   * On a shared or borrowed machine that is not cosmetic: "sign out" that
+   * leaves the issuer signed in means the next person to press "Sign in" is in
+   * your account having proved nothing.
+   *
+   * THE LOCAL HALF HAPPENS FIRST AND UNCONDITIONALLY. The remote leg can be
+   * absent (no issuer configured — the paste-a-token door has no remote
+   * session), unsupported (no `end_session_endpoint` published) or unreachable,
+   * and none of those may leave somebody still signed in HERE. So the URL is
+   * asked for before the state is cleared — it needs the ID token — and
+   * followed after, if there is one.
+   */
+  const signOut = React.useCallback(() => {
+    void (async () => {
+      const url = await signOutUrl(token);
+      logout();
+      if (url) globalThis.location.assign(url);
+    })();
+  }, [token, logout]);
   const { locale, setLocale, t } = useLocale();
 
   // Tenants and Billing are managed-edition concepts: the appliance is
@@ -246,7 +276,7 @@ const Layout: React.FC = () => {
             </div>
             {!selfHost && (
               <button
-                onClick={logout}
+                onClick={signOut}
                 className="w-full flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <LogOut className="w-5 h-5 mr-3" />
