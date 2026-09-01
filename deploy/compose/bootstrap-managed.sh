@@ -122,7 +122,7 @@ env_get() { # env_get NAME — the value in force, i.e. the last one
   # `|| true` for the same reason as in ensure-env-secrets.sh: under
   # `set -o pipefail` a grep that finds nothing fails the whole pipeline, and
   # "this key is not set" is a normal answer, not an error.
-  grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true
+  grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true
 }
 
 # env_or NAME DEFAULT — the value in force, or DEFAULT when unset OR EMPTY.
@@ -243,8 +243,8 @@ note_env_divergence() {
   # subshell and the appends are thrown away at the end of it (0099).
   while IFS= read -r k; do
     [ -n "$k" ] || continue
-    a="$(grep -E "^${k}=" "$persisted" | tail -1 | cut -d= -f2- || true)"
-    b="$(grep -E "^${k}=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+    a="$(grep -E "^${k}=" "$persisted" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+    b="$(grep -E "^${k}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
     [ "$a" = "$b" ] || differing+=("$k")
   done <<<"$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$persisted" | sort -u)"
 
@@ -599,7 +599,17 @@ explain_failure() { # explain_failure <service> [service...]
         # expansion to the container, which HAS the variable. IF EXISTS so a
         # second paste is not an error.
         echo "!!!   docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'" >&2
+        # THE DELETION AND THE REBUILD ARE PRINTED TOGETHER, and the second one
+        # is not optional. Deleting the volume leaves Docker to recreate it
+        # owned by root, while this image declares a USER — so first init dies
+        # on `open /machinekey/pat.txt: permission denied`, having ALREADY
+        # registered the instance domain, and every restart after that reports
+        # its own leftover (Errors.Instance.Domain.AlreadyExists) rather than
+        # the cause. prepare_machinekey_volume, in phase_app, is the only thing
+        # in this repository that chowns it. Found 2026-09-01, on a recipe that
+        # stopped one line short of working.
         echo "!!!   docker volume rm ownpace-managed_zitadel_machinekey" >&2
+        echo "!!!   ./deploy/compose/bootstrap-managed.sh --only app" >&2
         ;;
     esac
   done

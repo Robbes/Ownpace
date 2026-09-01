@@ -56,7 +56,7 @@ say "generating any missing secrets"
 
 read_env() { # read_env <key> [default]
   local v
-  v="$(grep -E "^${1}=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+  v="$(grep -E "^${1}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
   [ -n "$v" ] && printf '%s' "$v" || printf '%s' "${2:-}"
 }
 
@@ -152,8 +152,7 @@ rebuilds the project, the application and the client id on the next run:
     docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
     docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
     docker volume rm -f ownpace-managed_zitadel_machinekey
-    docker compose -f ${SCRIPT_DIR}/managed.yml up -d zitadel
-    ${SCRIPT_DIR}/setup-zitadel.sh" ;;
+    ${SCRIPT_DIR}/bootstrap-managed.sh --only app" ;;
 esac
 
 # THIS SCRIPT RUNS ON THE HOST, AND THE ORIGIN IS NOT THE HOST'S TO RESOLVE.
@@ -433,8 +432,7 @@ id from scratch afterwards:
     docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
     docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
     docker volume rm -f ownpace-managed_zitadel_machinekey
-    docker compose -f ${SCRIPT_DIR}/managed.yml up -d zitadel
-    ${SCRIPT_DIR}/setup-zitadel.sh" ;;
+    ${SCRIPT_DIR}/bootstrap-managed.sh --only app" ;;
         *) die "${method} ${path} answered HTTP 404:
     ${out}" ;;
       esac ;;
@@ -1621,7 +1619,33 @@ EOF
 #     docker compose -f deploy/compose/managed.yml rm -sf zitadel
 #     docker exec -i ownpace-db sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'
 #     docker volume rm ownpace-managed_zitadel_machinekey
-#     ./deploy/compose/setup-zitadel.sh
+#     ./deploy/compose/bootstrap-managed.sh --only app
+#
+#   THE LAST LINE IS NOT `setup-zitadel.sh`, AND THAT IS THE WHOLE POINT OF IT.
+#   A volume Docker has just recreated is owned by root, and this provider's
+#   image declares a USER — `ghcr.io/zitadel/zitadel` runs as uid 1000. First
+#   init therefore cannot write its own token:
+#
+#     migration failed  name=03_default_instance
+#       err.parent="open /machinekey/pat.txt: permission denied"
+#
+#   `bootstrap-managed.sh`'s phase_app calls prepare_machinekey_volume, which
+#   reads the image's own Config.User, resolves a name to a uid through the
+#   image's passwd, and chowns the volume before anything starts. Nothing else
+#   in this repository does that, so a recipe ending at setup-zitadel.sh cannot
+#   succeed on the volume it just told you to delete.
+#
+#   WORSE, IT FAILS TWICE AND ONLY THE SECOND ONE IS VISIBLE. Init registers the
+#   instance domain, hits the permission error, and exits saying `setup failed,
+#   skipping cleanup` — leaving the domain behind. `restart: unless-stopped`
+#   then brings the container back, and every attempt after the first reports
+#
+#     Errors.Instance.Domain.AlreadyExists
+#     Key (instance_id, unique_type, unique_field)=(, instance_domain, …)
+#
+#   which is its own leftover, not a cause. The first attempt is at the HEAD of
+#   `docker compose logs zitadel`, not the tail. Found 2026-09-01, by running
+#   this very block.
 #
 #   The `zitadel` ROLE can stay — setup reuses it with the unchanged
 #   ZITADEL_DB_PASSWORD. Only reasonable before there are real customers in it.

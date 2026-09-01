@@ -93,7 +93,7 @@ read_env() { # read_env <key> [default]
   local v
   # `|| true` because a missing key is a normal answer, and `set -o pipefail`
   # would otherwise make grep's empty result fail the script.
-  v="$(grep -E "^${1}=" "$ENV_FILE" | tail -1 | cut -d= -f2- || true)"
+  v="$(grep -E "^${1}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
   [ -n "$v" ] && printf '%s' "$v" || printf '%s' "${2:-}"
 }
 

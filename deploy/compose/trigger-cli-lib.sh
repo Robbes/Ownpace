@@ -51,8 +51,8 @@ trigger_env() {
     # `|| true`: under `set -o pipefail` a grep that finds nothing fails the
     # pipeline, and "this key is not set" is a normal answer (bootstrap's
     # env_get says the same thing for the same reason).
-    from_file="$(grep -E '^TRIGGER_ENV=' "$file" | tail -1 | cut -d= -f2- || true)"
-    legacy_file="$(grep -E '^TRIGGER_ENV_SLUG=' "$file" | tail -1 | cut -d= -f2- || true)"
+    from_file="$(grep -E '^TRIGGER_ENV=' "$file" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+    legacy_file="$(grep -E '^TRIGGER_ENV_SLUG=' "$file" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
   fi
   want="${TRIGGER_ENV:-$from_file}"
   legacy="${TRIGGER_ENV_SLUG:-$legacy_file}"

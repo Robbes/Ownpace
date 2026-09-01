@@ -68,7 +68,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 COMPOSE_ENV_FILE="${REPO_ROOT}/deploy/compose/.env"
 if [ -z "${NEXTCLOUD_ADMIN_PASSWORD:-}" ] && [ -f "$COMPOSE_ENV_FILE" ]; then
-  NEXTCLOUD_ADMIN_PASSWORD="$(grep -E '^NEXTCLOUD_ADMIN_PASSWORD=' "$COMPOSE_ENV_FILE" | tail -1 | cut -d= -f2-)"
+  NEXTCLOUD_ADMIN_PASSWORD="$(grep -E '^NEXTCLOUD_ADMIN_PASSWORD=' "$COMPOSE_ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//')"
 fi
 
 # Must match the ACTUAL Docker network name docker compose creates for managed.yml's
