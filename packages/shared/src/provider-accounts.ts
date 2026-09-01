@@ -65,8 +65,12 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   Record<ProviderAccountKind, ReadonlyArray<DiscoveryDomain>>
 > = {
   // Mail and files are absent because of Google's restricted-scope assessment,
-  // not because they do not work. When it is bought, they are added HERE —
-  // and `gmail`/`google_drive` become a migration path rather than the shape.
+  // not because they do not work. This is the DEFAULT — the answer for a
+  // deployment that has not declared otherwise, and the only answer the
+  // appliance can have, since it has no application of its own at all
+  // (ADR-0041). A deployment whose own Google application carries the
+  // restricted scopes says so, and `providerAccountDomains` below is what
+  // reads that. `gmail`/`google_drive` remain their own kinds either way.
   google: ['calendar', 'contact'],
   // Soverin's Nextcloud for files is expected later in 2026 (the owner,
   // 2026-08-27). When it lands and has been MEASURED against the live
@@ -75,20 +79,74 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   soverin: ['email', 'calendar', 'contact'],
 };
 
+/**
+ * The faces a `google` account serves when the deployment's own application
+ * carries Google's RESTRICTED scopes as well as its sensitive ones.
+ *
+ * Not a wish list: `https://mail.google.com/` and `drive.readonly` are
+ * restricted, and Google grants them only to an application that registered
+ * them and passed the review its publishing status demands.
+ */
+export const GOOGLE_RESTRICTED_ACCOUNT_DOMAINS: ReadonlyArray<DiscoveryDomain> = [
+  'email',
+  'calendar',
+  'contact',
+  'file',
+];
+
+/** What a deployment may declare about the scope class its application holds. */
+export const GOOGLE_ACCOUNT_SCOPE_CLASSES = ['sensitive', 'restricted'] as const;
+export type GoogleAccountScopeClass = (typeof GOOGLE_ACCOUNT_SCOPE_CLASSES)[number];
+
+export interface ProviderAccountEnv {
+  readonly GOOGLE_ACCOUNT_SCOPE_CLASS?: string | undefined;
+}
+
 /** Is this kind an account that can wear several faces? */
 export function isProviderAccountKind(kind: string): kind is ProviderAccountKind {
   return (PROVIDER_ACCOUNT_KINDS as ReadonlyArray<string>).includes(kind);
 }
 
 /**
- * The faces this provider account can serve, or an empty list for a kind that
- * is not one. Empty rather than a throw: callers ask about arbitrary kinds,
- * and "this is not a provider account" is an answer, not an error.
+ * The faces this provider account can serve ON THIS DEPLOYMENT, or an empty
+ * list for a kind that is not one. Empty rather than a throw: callers ask
+ * about arbitrary kinds, and "this is not a provider account" is an answer,
+ * not an error.
+ *
+ * WHAT AN APPLICATION CARRIES IS A FACT ABOUT A DEPLOYMENT, NOT ABOUT THE
+ * PRODUCT (ADR-0041, owner decision 2026-09-01). `PROVIDER_ACCOUNT_DOMAINS`
+ * was written when there was one Google client and it reads as a law; it was
+ * a law about that client, and it still governs the one Ownpace publishes to
+ * strangers. A deployment running its OWN application — registered by its own
+ * owner, who accepts the restricted tier's consequences — answers for itself
+ * in `GOOGLE_ACCOUNT_SCOPE_CLASS`.
+ *
+ * DEFAULTS TO THE NARROW ANSWER, and every unrecognised value defaults with
+ * it. Unset, mistyped, or never heard of all mean "sensitive only" — the
+ * answer that cannot over-ask. The appliance has no application at all, so
+ * this never widens it (hard rule 5).
+ *
+ * A DECLARATION IS NOT A CAPABILITY. Setting it does not make Google grant
+ * anything. It changes which consent this product is willing to BUILD, so a
+ * deployment that declares `restricted` without having registered the scopes
+ * gets a refusal at Google's own screen with the scope string in hand —
+ * never a consent silently narrowed to two faces and a migration that turns
+ * out weeks later to have never included mail.
+ *
+ * AND IN "EXTERNAL + TESTING" IT COSTS ONE MORE THING, which the operator
+ * documentation says beside the setting: Google expires refresh tokens after
+ * seven days in that publishing status. `google-token-provider.ts`'s
+ * `invalid_grant` hint names that cause first, and it is the same fact.
  */
 export function providerAccountDomains(
   kind: string,
+  env: ProviderAccountEnv = process.env,
 ): ReadonlyArray<DiscoveryDomain> {
-  return isProviderAccountKind(kind) ? PROVIDER_ACCOUNT_DOMAINS[kind] : [];
+  if (!isProviderAccountKind(kind)) return [];
+  if (kind === 'google' && env.GOOGLE_ACCOUNT_SCOPE_CLASS?.trim() === 'restricted') {
+    return GOOGLE_RESTRICTED_ACCOUNT_DOMAINS;
+  }
+  return PROVIDER_ACCOUNT_DOMAINS[kind];
 }
 
 /**
@@ -97,6 +155,10 @@ export function providerAccountDomains(
  * The question a domain tick asks. It is the CEILING — an account's own
  * measured record still decides what is true for it.
  */
-export function providerAccountServes(kind: string, domain: DiscoveryDomain): boolean {
-  return providerAccountDomains(kind).includes(domain);
+export function providerAccountServes(
+  kind: string,
+  domain: DiscoveryDomain,
+  env: ProviderAccountEnv = process.env,
+): boolean {
+  return providerAccountDomains(kind, env).includes(domain);
 }

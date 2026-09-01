@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 71 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 72 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -78,6 +78,10 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`
 
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+
+### `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
+
+- [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
 ### `apps/api/src/routes/migrations/index.ts`
 
@@ -223,6 +227,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/managed.env.example`
 
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
+- [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -238,6 +243,7 @@ reading a file drops off its entry by itself.
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
+- [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -445,6 +451,10 @@ reading a file drops off its entry by itself.
 ### `docs/windows-appliance-runbook.md`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+
+### `packages/connectors/src/google-token-provider.ts`
+
+- [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
 ### `packages/core/src/apply-deletion.ts`
 
@@ -753,6 +763,17 @@ Reads:
 - `apps/api/src/scripts/seed-managed.ts`
 - `deploy/compose/seed-managed.sh`
 - `docs/managed-bring-up.md`
+
+### [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts)
+
+A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
+
+Reads:
+
+- `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+- `packages/connectors/src/google-token-provider.ts`
 
 ### [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts)
 

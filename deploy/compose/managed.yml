@@ -812,6 +812,11 @@ services:
       VAT_OSS_ACTIVE: ${VAT_OSS_ACTIVE:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3123}
       WEB_URL: ${WEB_URL:-http://localhost:3123}
+      # Which scope class this deployment's own Google application carries
+      # (ADR-0041). Empty means `sensitive`, which is what the appliance and
+      # every deployment that has not answered gets. managed.env.example
+      # carries the full note, including what it costs in Testing status.
+      GOOGLE_ACCOUNT_SCOPE_CLASS: ${GOOGLE_ACCOUNT_SCOPE_CLASS:-}
       API_URL: ${API_URL:-http://localhost:3001}
       # How long a backup of this database is kept. Not a schedule — it is what
       # the close endpoint TELLS a customer about when their erasure actually

@@ -45,7 +45,11 @@
  * decision here is a function of its arguments, and the route below is thin.
  */
 
-import { PROVIDER_ACCOUNT_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
+import {
+  providerAccountDomains,
+  type DiscoveryDomain,
+  type ProviderAccountEnv,
+} from '@openmig/shared';
 import {
   domainsToScopes,
   GOOGLE_SCOPES_ASKED_BY_DOMAIN,
@@ -111,6 +115,7 @@ const isDiscoveryDomain = (value: string): value is DiscoveryDomain =>
  */
 export function googleAccountConsent(
   ticked: ReadonlyArray<string>,
+  env: ProviderAccountEnv = process.env,
 ): AccountConsentAsk | AccountConsentRefusal {
   const unknown = ticked.filter((d) => !isDiscoveryDomain(d));
   if (unknown.length > 0) {
@@ -135,7 +140,12 @@ export function googleAccountConsent(
     };
   }
 
-  const served = PROVIDER_ACCOUNT_DOMAINS.google;
+  // ASKED OF THE DEPLOYMENT, not read off a constant (ADR-0041, owner decision
+  // 2026-09-01). The header above explains why two faces and not four; that
+  // reasoning is about the client Ownpace publishes to strangers, and it holds
+  // there. A deployment whose own application registered the restricted scopes
+  // answers differently, and this follows its answer.
+  const served = providerAccountDomains('google', env);
   const beyond = domains.filter((d) => !served.includes(d));
   if (beyond.length > 0) {
     const ways = beyond
@@ -177,10 +187,15 @@ export function googleAccountConsent(
  * the kind can carry, which is the useful thing to say beside a missing
  * credential.
  */
-export function googleAccountScopeSentence(ticked: ReadonlyArray<string>): string {
-  const consent = googleAccountConsent(ticked);
+export function googleAccountScopeSentence(
+  ticked: ReadonlyArray<string>,
+  env: ProviderAccountEnv = process.env,
+): string {
+  const consent = googleAccountConsent(ticked, env);
   if (!isRefusal(consent)) return consent.scope;
-  return PROVIDER_ACCOUNT_DOMAINS.google
+  // The same deployment answer as the gate above, or this sentence would name
+  // scopes the consent would then refuse to ask for — a fallback that lies.
+  return providerAccountDomains('google', env)
     .map((d) => GOOGLE_SCOPES_ASKED_BY_DOMAIN[GRANT_DOMAIN[d]])
     .join(' ');
 }
