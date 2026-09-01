@@ -351,7 +351,7 @@ sign_in_as() {
   challenge="$(printf '%s' "$verifier" | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '=\n')"
   loc="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - \
     "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_SIGNIN_CLIENT}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email%20profile&code_challenge=${challenge}&code_challenge_method=S256" \
-    2>/dev/null | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | head -1)"
+    2>/dev/null | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | awk 'NR==1')"
   ar="$(sed -n 's/.*[?&]authRequest=\([^&]*\).*/\1/p' <<<"$loc")"
   if [ -z "$ar" ]; then
     # THE TWO FAILURES LOOK THE SAME AND ARE NOT. A login v1 redirect carries
@@ -844,7 +844,7 @@ else
   # redirect URI it will actually accept.
   IDP_PROJECT="$(docker exec "$API_CONTAINER" printenv JWT_AUDIENCE 2>/dev/null || true)"
   IDP_APP="$(idp_api POST "/management/v1/projects/${IDP_PROJECT}/apps/_search" '{"queries":[]}' \
-    | jq -r '.result[]? | select(.name=="Ownpace Web") | .id' | head -1)"
+    | jq -r '.result[]? | select(.name=="Ownpace Web") | .id' | awk 'NR==1')"
   IDP_APP_CFG="$(idp_api GET "/management/v1/projects/${IDP_PROJECT}/apps/${IDP_APP}" || true)"
   IDP_CLIENT_ID="$(jq -r '.app.oidcConfig.clientId // empty' <<<"$IDP_APP_CFG")"
   IDP_REDIRECT="$(jq -r '.app.oidcConfig.redirectUris[0] // empty' <<<"$IDP_APP_CFG")"
@@ -888,7 +888,7 @@ else
   login_head="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -D - -c "$login_jar" \
     "${STACK_ISSUER%/}/oauth/v2/authorize?client_id=${IDP_CLIENT_ID}&redirect_uri=${IDP_REDIRECT}&response_type=code&scope=openid%20email&code_challenge=${login_challenge}&code_challenge_method=S256" \
     2>/dev/null | tr -d '\r')"
-  login_loc="$(sed -n 's/^[Ll]ocation: //p' <<<"$login_head" | head -1)"
+  login_loc="$(sed -n 's/^[Ll]ocation: //p' <<<"$login_head" | awk 'NR==1')"
 
   # ---- the Host header the thing in front of us forwarded ----
   #
@@ -913,7 +913,7 @@ else
   # SILENT WHEN THERE IS NO DOMAIN AT ALL. A `__Host-` prefixed cookie carries
   # none by definition, and that is the healthy shape — there is nothing for a
   # proxy to get wrong.
-  login_cookie_domain="$(sed -n 's/^[Ss]et-[Cc]ookie:.*[Dd]omain=\([^;]*\).*/\1/p' <<<"$login_head" | head -1)"
+  login_cookie_domain="$(sed -n 's/^[Ss]et-[Cc]ookie:.*[Dd]omain=\([^;]*\).*/\1/p' <<<"$login_head" | awk 'NR==1')"
   login_cookie_domain="${login_cookie_domain# }"
   login_cookie_domain="${login_cookie_domain#.}"
   login_issuer_host="${STACK_ISSUER#*://}"
@@ -957,7 +957,7 @@ else
       # So the tags come off and the visible text goes in the message. `<body`
       # onwards, because everything before it is machinery.
       login_text="$(tr '\n' ' ' <<<"$login_page" | sed 's/.*<body[^>]*>//; s/<[^>]*>/ /g; s/  */ /g; s/^ *//')"
-      login_title="$(sed -n 's/.*<title>\([^<]*\)<\/title>.*/\1/p' <<<"$login_page" | head -1)"
+      login_title="$(sed -n 's/.*<title>\([^<]*\)<\/title>.*/\1/p' <<<"$login_page" | awk 'NR==1')"
 
       if [ "$login_code" != "200" ]; then
         echo "the login page answered HTTP ${login_code} at ${login_url}: ${login_page:0:200}"
@@ -2358,7 +2358,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     # database: the row being there proves the knock, and this proves the
     # decision surface — `operator_may_read` on a connection with no tenant.
     r="$(http GET "$API/api/access-requests" "$OP_TOKEN")"; code="${r%% *}"; body="${r#* }"
-    req_id="$(jq -r --arg e "$GRANT_EMAIL" '.requests[]? | select(.email == $e and .state == "open") | .id' <<<"$body" 2>/dev/null | head -1)"
+    req_id="$(jq -r --arg e "$GRANT_EMAIL" '.requests[]? | select(.email == $e and .state == "open") | .id' <<<"$body" 2>/dev/null | awk 'NR==1')"
     if [ "$code" = "200" ] && [ -n "$req_id" ]; then
       echo "the access queue answers an operator, and carries the knock: ${req_id}"
     else
@@ -2431,7 +2431,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         { echo "asking again after a decision was refused: HTTP ${gk3} — 0020 forbids two OPEN, not a second ask"; fail=1; }
 
       r="$(http GET "$API/api/access-requests" "$OP_TOKEN")"; body="${r#* }"
-      again_id="$(jq -r --arg e "$GRANT_EMAIL" '.requests[]? | select(.email == $e and .state == "open") | .id' <<<"$body" 2>/dev/null | head -1)"
+      again_id="$(jq -r --arg e "$GRANT_EMAIL" '.requests[]? | select(.email == $e and .state == "open") | .id' <<<"$body" 2>/dev/null | awk 'NR==1')"
 
       if [ -z "$again_id" ]; then
         echo "the second ask never reached the queue — nothing to refuse"; fail=1
@@ -2574,7 +2574,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         # AND OPENING ONE IS ITS OWN READ. A different view_name, scoped to the
         # tenant, because "searched for an address" and "opened that account"
         # are different things to anybody reading the log afterwards.
-        found_user="$(jq -r --arg e "$GRANT_EMAIL" '.people[]? | select(.email == $e) | .user_id' <<<"$body" 2>/dev/null | head -1)"
+        found_user="$(jq -r --arg e "$GRANT_EMAIL" '.people[]? | select(.email == $e) | .user_id' <<<"$body" 2>/dev/null | awk 'NR==1')"
         if [ -n "$found_user" ]; then
           r="$(http POST "$API/api/support/people/${new_tenant}/${found_user}/opened" "$OP_TOKEN" '{}')"
           code="${r%% *}"

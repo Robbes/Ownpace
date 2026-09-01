@@ -118,6 +118,34 @@ export interface PipeFinding {
   why: string;
 }
 
+/**
+ * The index of the `)` that closes the `(` at `open`, or -1.
+ *
+ * Quotes are tracked because a paren inside one is a character, not a nesting
+ * level — `$(grep -c ")" f)` balances only if the quoted one is skipped. A
+ * single quote inside a double-quoted run is literal and vice versa, which is
+ * why the state is one variable rather than two flags.
+ */
+function matchingParen(src: string, open: number): number {
+  let depth = 0;
+  let q: "'" | '"' | null = null;
+  for (let i = open; i < src.length; i++) {
+    const ch = src[i];
+    if (q) {
+      if (q === '"' && ch === '\\') i++;
+      else if (ch === q) q = null;
+      continue;
+    }
+    if (ch === '\\') i++;
+    else if (ch === "'" || ch === '"') q = ch as "'" | '"';
+    else if (ch === '(') depth++;
+    else if (ch === ')' && --depth === 0) return i;
+  }
+  return -1;
+}
+
+const countNewlines = (text: string): number => text.split('\n').length - 1;
+
 export function findEarlyExitConsumers(script: string): PipeFinding[] {
   const found: PipeFinding[] = [];
 
@@ -138,11 +166,57 @@ export function findEarlyExitConsumers(script: string): PipeFinding[] {
       }
     }
     segment = '';
+    // The next segment starts HERE, not where the last one did. Without this
+    // a pipeline continued across a `\` newline reported the line it opened
+    // on rather than the line the consumer is on — a finding that points at
+    // the wrong line is a finding somebody has to re-derive by hand.
+    segmentLine = line;
     pipeFed = nextIsPipeFed;
   };
 
   for (let c = 0; c < script.length; c++) {
     const ch = script[c];
+
+    // ---- A COMMAND SUBSTITUTION IS CODE, EVEN INSIDE DOUBLE QUOTES ----
+    //
+    // This is where the scanner used to lose the shape it exists to find.
+    // `x="$(cmd | head -1)"` is a real pipeline: `"` suppresses word splitting
+    // around the RESULT, it does not stop `$( )` from being parsed as
+    // commands. The old reading swallowed everything between the quotes, so
+    // that line was invisible while the identical unquoted one was caught.
+    //
+    // Worse than "missed": UNPREDICTABLE. Quote state was a single toggle, so
+    // `x="$(echo "$(cmd | head -1)")"` came back FOUND — the inner `"` flipped
+    // the toggle off and exposed the code by accident. Whether a pipeline was
+    // seen depended on how many double quotes happened to sit before it.
+    //
+    // The substitution is scanned as its own script, which is what the shell
+    // does: a fresh command context, so nothing outside it is pipe-fed by it,
+    // and its findings are reported at their real line.
+    //
+    // NOT handled, deliberately, because the repository contains none and
+    // machinery with no caller rots: backtick substitution, and expansion
+    // inside an unquoted heredoc body. A test below pins that this file's own
+    // scan of the tree stays the authority on what exists.
+    if (quote !== "'" && heredocTag === null && ch === '$' && script[c + 1] === '(') {
+      const arithmetic = script[c + 2] === '(';
+      const close = matchingParen(script, c + 1);
+      if (close !== -1) {
+        if (!arithmetic) {
+          // `$(( a | b ))` is a BITWISE OR, not a pipe, which is the whole
+          // reason arithmetic is skipped rather than scanned.
+          for (const f of findEarlyExitConsumers(script.slice(c + 2, close))) {
+            found.push({ ...f, line: line + f.line - 1 });
+          }
+        }
+        line += countNewlines(script.slice(c, close + 1));
+        // The substitution's VALUE stands where it was: one word, and never a
+        // consumer name this rule can resolve.
+        segment += ' ';
+        c = close;
+        continue;
+      }
+    }
 
     if (ch === '\n') {
       // A heredoc body ends at its tag and is data until then.
@@ -288,6 +362,63 @@ describe('the scanner reads shell the way the shell does', () => {
     expect(findEarlyExitConsumers('some_command |\n  head -1')).toHaveLength(1);
   });
 
+  it('reads inside a command substitution, quoted or not', () => {
+    // The gap this scanner had until 2026-09-01, and the reason eight real
+    // pipelines in `smoke-managed.sh` were invisible. `"` suppresses word
+    // splitting around the RESULT of `$( )`; it does not stop the shell
+    // parsing what is inside as commands.
+    expect(findEarlyExitConsumers(`x=$(cmd | head -1)`)).toHaveLength(1);
+    expect(findEarlyExitConsumers(`x="$(cmd | head -1)"`)).toHaveLength(1);
+  });
+
+  it('is not thrown by quotes nested inside the substitution', () => {
+    // The real shape: a double-quoted argument inside a double-quoted
+    // substitution. Quote state used to be one toggle, so the inner `"` turned
+    // it OFF and everything after was read as code — or as data, depending on
+    // how many quotes came before. Unpredictable rather than merely blind.
+    expect(
+      findEarlyExitConsumers(`x="$(q "SELECT a FROM t" 2>/dev/null | head -1)"`),
+    ).toHaveLength(1);
+    expect(findEarlyExitConsumers(`x="$(jq -r '.a' <<<"$b" | head -1)"`)).toHaveLength(1);
+  });
+
+  it('reads a substitution nested inside a substitution', () => {
+    expect(findEarlyExitConsumers(`x="$(echo "$(cmd | head -1)")"`)).toHaveLength(1);
+  });
+
+  it('reports the line inside the substitution, not the line it opens on', () => {
+    const found = findEarlyExitConsumers('a=1\nx="$(cmd \\\n  | head -1)"\nb=2');
+    expect(found).toHaveLength(1);
+    expect(found[0]!.line, 'the finding points at the line that opened it').toBe(3);
+  });
+
+  it('does not mistake arithmetic for a pipeline', () => {
+    // `|` inside `$(( ))` is a BITWISE OR, and the operand after it is a
+    // variable — which may perfectly well be called `head`. Scanned as code
+    // that reads as a pipe into an early-exit consumer, so arithmetic is
+    // skipped rather than descended into. The name collision is contrived; the
+    // shape it stands for is not, and a guard that cannot fail is not a guard.
+    expect(findEarlyExitConsumers(`n=$(( mask | head ))`)).toEqual([]);
+    expect(findEarlyExitConsumers(`n="$(( 1 | head ))"`)).toEqual([]);
+    // And the limit that follows from skipping: a substitution nested INSIDE
+    // arithmetic is not read either. There are none in this repository, and
+    // `tail -n +$(( BACKUP_KEEP + 1 ))` is the shape that actually occurs.
+    expect(findEarlyExitConsumers(`n=$(( $(f | head -1) + 1 ))`)).toEqual([]);
+  });
+
+  it('still treats a pipe inside single quotes as data, inside a substitution too', () => {
+    // The negative that has to survive the change: a jq program is not a
+    // pipeline, and neither is a string that happens to contain one.
+    expect(findEarlyExitConsumers(`x="$(jq -r '.a | .b' <<<"$y")"`)).toEqual([]);
+    expect(findEarlyExitConsumers(`x="$(printf '%s' 'a | head -1')"`)).toEqual([]);
+  });
+
+  it('does not hang or throw on an unterminated substitution', () => {
+    // A half-written script must fail the run's other gates, not this one's
+    // scanner. `bash -n` is what says the file is broken.
+    expect(() => findEarlyExitConsumers(`x="$(cmd | head -1`)).not.toThrow();
+  });
+
   it('stops at the end of the piped command, not the end of the line', () => {
     // The first draft of this scanner read the rest of the LINE as the
     // consumer's arguments, so on
@@ -334,6 +465,35 @@ describe('no pipeline in this repository can be killed by its own consumer', () 
     // below passes on an empty list and this guard silently stops guarding.
     expect(shellScripts.length, 'no pipefail shell scripts found').toBeGreaterThan(10);
     expect(workflowRunBlocks.length, 'no workflow run: blocks found').toBeGreaterThan(20);
+  });
+
+  it('has no backtick substitution, which is why the scanner does not read one', () => {
+    // The scanner descends into `$( )` and NOT into backticks. That is a
+    // deliberate limit — machinery with no caller rots — but a limit is only
+    // safe while the thing it excludes is absent, and "absent today" is not a
+    // property that keeps itself.
+    //
+    // So the limit is pinned from the other side: nothing in the tree may
+    // write a backtick substitution that pipes into a consumer this rule cares
+    // about. Add one and this goes red, naming the file, and whoever added it
+    // can either use `$( )` or teach the scanner.
+    // COMMENT LINES ARE SKIPPED, and the first run of this check is why: it
+    // went red on `bootstrap-managed.sh` quoting `docker compose logs "$svc" |
+    // head -20` in prose — this repository documents the hazard in backticks,
+    // markdown-style. Prose naming the shape is not the shape.
+    const BACKTICK_PIPELINE = /`[^`\n]*\|[^`\n]*`/g;
+    const offenders: string[] = [];
+    for (const { file, text } of shellScripts) {
+      text.split('\n').forEach((src, i) => {
+        if (/^\s*#/.test(src)) return;
+        for (const m of src.matchAll(BACKTICK_PIPELINE)) {
+          const consumer = m[0].slice(1, -1).split('|').pop() ?? '';
+          const why = exitsEarly(consumer);
+          if (why) offenders.push(`${file}:${i + 1}: ${m[0]} — ${why}`);
+        }
+      });
+    }
+    expect(offenders, offenders.join('\n')).toEqual([]);
   });
 
   it.each(shellScripts.map(({ file, text }) => [file, text] as const))(
