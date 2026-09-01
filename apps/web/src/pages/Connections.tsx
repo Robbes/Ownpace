@@ -19,13 +19,12 @@ import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
 import {
-  connectableTypes,
   credentialFieldsFor,
-  partitionFrontDoor,
-  providerDisplayName,
   wizardTypeForConnectionKind,
   type CredentialField,
 } from '@openmig/shared';
+import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
+import { frontDoorCards } from '../components/front-door-cards.ts';
 import {
   connectionsApi,
   type ConnectionSummary,
@@ -350,7 +349,9 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const { t, locale } = useLocale();
   const [open, setOpen] = React.useState(false);
   const [role, setRole] = React.useState<'source' | 'target'>('source');
-  const [type, setType] = React.useState('box');
+  // The first card of the side, the same one the role switch below lands on —
+  // so opening the form and switching the role read as the same door.
+  const [type, setType] = React.useState(frontDoorCards('source')[0]?.id ?? '');
   const [displayName, setDisplayName] = React.useState('');
   const [values, setValues] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
@@ -392,66 +393,54 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     <div className="mt-4 border border-gray-200 rounded-lg p-4">
       <h3 className="font-medium text-gray-900">{t('connections.add')}</h3>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
-          <span className="block text-gray-700 mb-1">{t('connections.role')}</span>
-          <select
-            className="input w-full"
-            value={role}
-            onChange={(e) => {
-              const next = e.target.value as 'source' | 'target';
-              setRole(next);
-              setType(connectableTypes(next)[0] ?? '');
-              setValues({});
-            }}
-          >
-            <option value="source">{t('connections.sources')}</option>
-            <option value="target">{t('connections.targets')}</option>
-          </select>
-        </label>
+      {/* THE SAME DOOR THE WIZARD DRAWS (workplan 0107; owner remark
+          2026-09-01). This used to be two drop-downs — role, then a
+          `<select>` of raw ids in `<optgroup>`s — which was "the same
+          authority, rendered plainly" and read, next to the wizard's cards,
+          as a different product. Now the role is a two-way switch and the
+          provider is the wizard's own chooser: icons, names, hints, family
+          headings, from the one component. Presentation only — every id,
+          field and stored kind is exactly what it was. */}
+      <div className="mt-3">
+        <span className="block text-sm text-gray-700 mb-1">{t('connections.role')}</span>
+        <div role="radiogroup" aria-label={t('connections.role')} className="inline-flex rounded-md border border-gray-300 overflow-hidden">
+          {(['source', 'target'] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              role="radio"
+              aria-checked={role === r}
+              onClick={() => {
+                setRole(r);
+                setType(frontDoorCards(r)[0]?.id ?? '');
+                setValues({});
+                setResult(null);
+              }}
+              className={`px-4 py-1.5 text-sm font-medium ${
+                role === r ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {r === 'source' ? t('connections.sources') : t('connections.targets')}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        <label className="text-sm">
-          <span className="block text-gray-700 mb-1">{t('connections.type')}</span>
-          <select
-            className="input w-full"
-            value={type}
-            onChange={(e) => {
-              setType(e.target.value);
-              setValues({});
-            }}
-          >
-            {/* The SAME grouping the wizard renders (0107 T1) — one shared
-                partition, so the two doors can never disagree — with the
-                provider's display name instead of the raw id. */}
-            {(() => {
-              const grouped = partitionFrontDoor(connectableTypes(role), (id) => id);
-              const asOption = (id: string) => (
-                <option key={id} value={id}>
-                  {providerDisplayName(id)}
-                </option>
-              );
-              const providerIds = [
-                ...grouped.families.flatMap((f) => f.members),
-                ...grouped.providers,
-              ];
-              return (
-                <>
-                  {providerIds.length > 0 && (
-                    <optgroup label={t('wizard.group.provider')}>
-                      {providerIds.map(asOption)}
-                    </optgroup>
-                  )}
-                  {grouped.protocols.length > 0 && (
-                    <optgroup label={t('wizard.group.protocol')}>
-                      {grouped.protocols.map(asOption)}
-                    </optgroup>
-                  )}
-                </>
-              );
-            })()}
-          </select>
-        </label>
+      <div className="mt-4">
+        <span className="block text-sm text-gray-700 mb-2">{t('connections.type')}</span>
+        <FrontDoorChooser
+          cards={frontDoorCards(role)}
+          selectedId={type}
+          onPick={(card) => {
+            setType(card.id);
+            setValues({});
+            setResult(null);
+          }}
+          gridClass={role === 'source' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}
+        />
+      </div>
 
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-sm sm:col-span-2">
           <span className="block text-gray-700 mb-1">{t('connections.name')}</span>
           <input
