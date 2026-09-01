@@ -692,6 +692,37 @@ it a route would mean an operator could appoint another one — and then the own
 is no longer the one deciding who decides. It is three steps because each of the
 shorter versions gives something away.
 
+**Being an operator and belonging to an organisation are two facts.**
+`platform_operator` says who may answer the door; `tenant_member` says whose
+organisation somebody is in. An operator who joins one to look at something —
+or who presses the enrolment button on their own deployment — acquires a
+membership the product will not let them drop, and correctly so: it refuses
+`Cannot remove yourself from the tenant`, then `Cannot remove the last owner`.
+Three more sub-commands answer that at the machine, where the removal is a
+platform act rather than a customer one:
+
+```bash
+./deploy/compose/operator.sh memberships <userId>            # what am I in, and could I leave it
+./deploy/compose/operator.sh leave <userId> <tenant-id>      # one organisation
+./deploy/compose/operator.sh leave <userId> --all            # stay operator, belong to nothing
+```
+
+`leave` refuses on the two things a departure can strand, and names which: an
+organisation with **other people in it** and no other owner, and an organisation
+with an **unfinished migration** — whose schedule keeps firing whether or not
+anybody is left to read the failures. It removes each membership and writes
+`audit_log` in the same transaction, so a removal made over the owner connection
+cannot happen quietly. It **never touches `platform_operator`**: after
+`leave --all` you are still an operator and belong to nothing, which is the
+whole point. And it works only on somebody who **is** an operator — a customer's
+membership is their organisation owner's to end, through
+`DELETE /api/tenants/:tenantId/members/:memberId`.
+
+An organisation left with no members at all is allowed (nobody is stranded) and
+is **not** reachable through the product afterwards, because every route
+resolves the tenant from a membership. The command prints the statement that
+puts you back, so that is a decision rather than a discovery.
+
 **Verify** — the queue answers, and answers only for them:
 
 ```bash
