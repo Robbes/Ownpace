@@ -213,6 +213,12 @@ PAT_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")" ||
 
 # ------------------------------------------------------------------- bring up --
 
+# The alias this container answers to on the network is decided from the same
+# three values the issuer above is built from, and it has to be written before
+# the container joins the network. Called here as well as from
+# bootstrap-managed.sh because this script is also run on its own.
+"${SCRIPT_DIR}/zitadel-network-alias.sh"
+
 say "starting the identity provider (issuer will be ${ISSUER})"
 "${COMPOSE[@]}" up -d zitadel
 

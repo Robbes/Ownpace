@@ -534,19 +534,33 @@ describe('one origin, and every side of the stack can present it', () => {
     expect(value, 'nor any other loopback spelling').not.toMatch(/^(127\.|::1|localhost)/);
   });
 
-  it('registers that very domain as a network alias, as the same expression', () => {
-    // Written as the same `${VAR:-default}` string in both places so the name
-    // the provider answers for and the name that resolves to it cannot drift.
-    // Whatever origin an operator configures, that is the name the API reaches
-    // it by — including a real hostname on a real deployment.
-    const domain = /ZITADEL_EXTERNALDOMAIN: (\$\{ZITADEL_EXTERNALDOMAIN:-[^}]+\})/.exec(
-      COMPOSE,
-    )?.[1];
-    expect(domain).toBeDefined();
+  it('resolves that domain to the provider on this network, through a derived alias', () => {
+    // This asserted the alias was `${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}`
+    // written out verbatim, so the name the provider answers for and the name
+    // that resolves to it could not drift. That is still the rule for a stack
+    // where the provider IS the address.
+    //
+    // It is the wrong rule when something fronts it. The alias then shadows the
+    // front network-wide, and the API — which must present the same origin
+    // because `iss` matches byte for byte — follows it to the container and
+    // connects to a port nothing there listens on. Same 500 as the bug the
+    // alias was added to fix, opposite cause (Spark, 2026-09-01).
+    //
+    // So the alias is DERIVED from the same three values the issuer is built
+    // from, and the derivation is pinned by
+    // scripts/the-alias-that-shadowed-the-front.unit.test.ts.
     const zitadel = /\n {2}zitadel:\n([\s\S]*?)\n {2}[a-z][a-z-]*:\n/.exec(COMPOSE)?.[1] ?? '';
-    expect(zitadel, 'the zitadel service block must be readable').toContain('ZITADEL_EXTERNALDOMAIN');
-    expect(zitadel, 'the alias must be the external domain itself').toMatch(
-      new RegExp(`aliases:\\s*\\n\\s*- ${domain!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    expect(zitadel, 'the zitadel service block must be readable').toContain(
+      'ZITADEL_EXTERNALDOMAIN',
+    );
+    expect(zitadel, 'the alias must come from the derived value').toMatch(
+      /aliases:\s*\n\s*- \$\{ZITADEL_NETWORK_ALIAS:-ownpace-idp\}/,
+    );
+    // And never a bare container name: on a direct stack the API reaches the
+    // issuer by the operator's own hostname, and hardcoding it here would put
+    // back the very 500 the alias exists to prevent.
+    expect(zitadel, 'the alias must not be hardcoded to the container').not.toMatch(
+      /aliases:\s*\n\s*- ownpace-idp\s*\n/,
     );
   });
 

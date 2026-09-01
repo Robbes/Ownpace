@@ -1419,6 +1419,9 @@ phase_app() {
   # more, for the reason wait_for_idp_ready's header sets out. Readiness is
   # asked from the host immediately below, and a timeout there still lands in
   # `explain_failure` — so the diagnosis path is unchanged, only the asker is.
+  # BEFORE THE PROVIDER STARTS, because a network alias is fixed when the
+  # container joins the network — changing it afterwards means recreating it.
+  "${SCRIPT_DIR}/zitadel-network-alias.sh"
   "${COMPOSE[@]}" up -d zitadel || explain_failure zitadel
   wait_for_idp_ready
   check_idp_console_config

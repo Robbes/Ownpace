@@ -659,13 +659,31 @@ services:
     # somebody in a position to hear the answer.
     networks:
       ownpace-network:
-        # THE ALIAS IS THE EXTERNAL DOMAIN, and it is written as the same
-        # expression so the two cannot drift. Whatever origin Zitadel is told to
-        # answer for, that name resolves to this container from everywhere on
-        # this network — which is what lets the API present the very origin the
-        # instance was initialised with.
+        # THE ALIAS IS DERIVED, NOT ASSUMED — see zitadel-network-alias.sh,
+        # which writes ZITADEL_NETWORK_ALIAS before anything here starts.
+        #
+        # It used to be `${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}` outright, so
+        # that whatever origin Zitadel was told to answer for resolved to this
+        # container from everywhere on this network. That is exactly right when
+        # the provider IS the address, and it is what let the API present the
+        # very origin the instance was initialised with (#1f6a699).
+        #
+        # It is exactly wrong when something fronts the provider. Then the
+        # browser reaches `https://name` on 443, a reverse proxy terminates TLS
+        # and forwards to this container's own port — and the API, which has to
+        # present the same origin because `iss` matches byte for byte, follows
+        # the alias to this container instead of to the front, and connects to a
+        # port nothing here listens on:
+        #
+        #     [ready] the issuer's key source at
+        #     https://id.ota.ownpace.eu/.well-known/openid-configuration
+        #     is unreachable: connect ECONNREFUSED 172.23.0.21:443
+        #
+        # Same 500 as the bug the alias was added to fix, opposite cause. The
+        # alias now names this container unless the external origin is one this
+        # container actually serves.
         aliases:
-          - ${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}
+          - ${ZITADEL_NETWORK_ALIAS:-ownpace-idp}
 
   # MAKES THE PROVISIONING TOKEN'S DIRECTORY WRITABLE BY THE IDENTITY PROVIDER.
   #
