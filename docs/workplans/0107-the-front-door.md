@@ -1,12 +1,13 @@
 # Workplan 0107 — the front door
 
-## Status — 2026-08-26 (update this block at the end of every session)
+## Status — 2026-09-01 (update this block at the end of every session)
 
 | Task | Status | Evidence |
 |---|---|---|
 | Research | ✅ **Done 2026-08-26** | This document. The owner's question (*"reason on how people can best be supported in adding connections… among what to consider: icons, groups, pickers, search, sources and targets separate or as one (it's just a connection), other creative way?"*) and the owner's scoping decision on the answer: **do the regrouping/renaming and the icons now**; the address-first door, the merged source/target directory, and the `connection.role` question are *"not yet. perhaps someday later"* — recorded below so they stay decisions, not drift. |
 | T1 Regroup and rename | ✅ **Done 2026-08-26** | Two honest groups in every chooser — **"Your provider"** and **"Any server, by protocol"** — with provider sub-groups collecting the cards that are one account to the person (Microsoft 365: `oauth2`+`graph`; Google: `gmail`+`google-calendar`+`google-contacts`+`google-drive`), and renames into the user's vocabulary ("OAuth2" stops being a card name). Presentation ONLY: every id, schema, stored kind and card stays; the grouping lives in shared beside `PROVIDER_DISPLAY_NAMES` so the wizard and the connections add-form read ONE authority; a drift lock pins every connectable id into exactly one group, proved by breaking — a new kind (`proton`, when it wakes) must be PLACED, never orphaned. |
 | T2 Icons | ✅ **Done 2026-08-26** | An icon slot on every chooser card and `<option>`-adjacent row, fed by ONE registry keyed by the same type ids, in the same shared module as the grouping. Ships with the zero-trademark floor — a brand-colored tile carrying the provider's initial — so recognition lands without a legal question; real brand SVGs are per-provider content swaps behind the owner's nod. Protocol cards get one generic glyph each from the icon set the web already uses. Wanted now because more provider-named kinds are coming (`soverin` landed with 0106 T4; `nextcloud` precedes it; `proton` sits dormant in the baseline CHECK). |
+| T1, amended — one chooser for both doors | ✅ **Done 2026-09-01** | The owner, seeing the two doors side by side: *"the connections page is less clean and nice than the migration page, while both show ways to register connections."* T1's "same authority, rendered plainly" — the add-form as `<optgroup>`s over the shared grouping — was the drift it had guarded against, one level up: one grouping, two products. The wizard's chooser moved out VERBATIM into `FrontDoorChooser` (same markup, classes and text nodes) with the cards beside it in `front-door-cards.ts`; the wizard renders it and looks exactly as it did, the connections add-form renders the SAME component under a Sources/Targets switch instead of a second drop-down. Still presentation only: every id, field and stored kind is what it was, and `front-door-cards.unit.test.ts` pins that the cards and `connectableTypes()` are one set per side — a kind cannot arrive without a card, or a card without a kind. |
 
 ## The problem, in the door's own words
 
@@ -53,6 +54,9 @@ and let search wait until the list is long enough to need it.
   `TARGET_TYPE_DOMAINS` in shared). The add-form's bare `<select>` becomes
   `<optgroup>`s with display names instead of raw ids — the same authority,
   rendered plainly.
+  *(Superseded 2026-09-01: the add-form renders the wizard's own chooser —
+  see the Status block. The authority stayed in shared; the rendering stopped
+  being two.)*
 - **The drift lock, proved by breaking:** a test pins that every id
   `connectableTypes()` offers appears in EXACTLY one group — so adding a kind
   without placing it turns the suite red, the way the feature-matrix lock

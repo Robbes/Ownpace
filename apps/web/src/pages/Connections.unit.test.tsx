@@ -398,3 +398,52 @@ describe('deleting a connection', () => {
     await waitFor(() => expect(remove).toHaveBeenCalledWith('c1'));
   });
 });
+
+/**
+ * THE SAME DOOR THE WIZARD DRAWS (workplan 0107; owner remark 2026-09-01).
+ *
+ * The add-form used to be two drop-downs — "the same authority, rendered
+ * plainly" — which, beside the wizard's cards, read as a different product. It
+ * now renders the wizard's own chooser. What is pinned here is that picking a
+ * card does what picking the option did: the chosen provider's OWN fields
+ * appear, read from the same descriptor the server reads, and switching the
+ * side switches the cards.
+ */
+describe('adding a connection through the front door', () => {
+  const open = async () => {
+    list.mockResolvedValue([]);
+    renderPage();
+    fireEvent.click(await screen.findByText('Add a connection'));
+  };
+
+  it('offers the wizard’s cards, grouped the wizard’s way', async () => {
+    await open();
+    // A family heading, a provider card and a protocol card — the three
+    // shapes the wizard's chooser draws, and a `<select>` has none of them.
+    expect(screen.getByText('Your provider')).toBeTruthy();
+    expect(screen.getByText('Any server, by protocol')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Google account/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^IMAP/ })).toBeTruthy();
+  });
+
+  it('picking a card asks for that provider’s own fields', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    // Exactly the server's rule, from the same descriptor — not a list copied
+    // into this test to agree by hand.
+    for (const field of credentialFieldsFor('source', 'gmail').filter((f) => f.required)) {
+      expect(
+        screen.queryAllByText(STRINGS.en[field.labelKey as keyof typeof STRINGS.en]).length,
+        `gmail's '${field.key}' is not asked for after picking its card`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it('switching the side switches the cards', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('radio', { name: 'Targets' }));
+    expect(screen.getByRole('button', { name: /^JMAP/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Soverin/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Gmail/ })).toBeNull();
+  });
+});

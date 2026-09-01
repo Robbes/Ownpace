@@ -28,7 +28,6 @@ import {
   targetDomainRefusal,
   describeCronScheduleProblem,
   credentialFieldsFor,
-  partitionFrontDoor,
   qualifiedAnswerFor,
   type CredentialField,
 } from '@openmig/shared';
@@ -44,7 +43,8 @@ import {
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage } from '../services/api.ts';
-import { FamilyIcon, FrontDoorIcon } from '../components/FrontDoorIcon.tsx';
+import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
+import { SOURCE_CARDS, TARGET_CARDS } from '../components/front-door-cards.ts';
 import { useMutation } from '@tanstack/react-query';
 
 type Step = 'source' | 'target' | 'migration' | 'review';
@@ -194,32 +194,6 @@ const dataTypes: {
   { id: 'file', nameKey: 'domain.file', icon: Folder, hintKey: 'wizard.domain.file.hint' },
 ];
 
-/**
- * The two choosers' cards, grouped through the SHARED front-door placement
- * (workplan 0107 T1): "Your provider" first — the level people arrive
- * thinking in — then "Any server, by protocol", the honest fallback lane and
- * the self-hoster's first language. Every id stays (contract vocabulary);
- * only the two Microsoft 365 entries are RENAMED, because "OAuth2" was an
- * auth mechanism wearing a card and said neither "Microsoft" nor "365" —
- * under the family heading each card now names its connection method, and
- * the hint says which to pick.
- */
-const SOURCE_CARDS = [
-  { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
-  { id: 'oauth2', nameKey: 'wizard.m365.viaImap', hintKey: 'wizard.proto.oauth2.hint' },
-  { id: 'graph', nameKey: 'wizard.m365.viaGraph', hintKey: 'wizard.proto.graph.hint' },
-  // The ACCOUNT (workplan 0106 T3b), first among the Google cards because
-  // `FRONT_DOOR_FAMILIES` puts it first — "the usual choice first". The four
-  // product cards stay beside it and are the only way to mail and files.
-  { id: 'google', name: 'Google account', hintKey: 'wizard.proto.google.hint' },
-  { id: 'google-drive', name: 'Google Drive', hintKey: 'wizard.proto.googleDrive.hint' },
-  { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint' },
-  { id: 'google-calendar', name: 'Google Calendar', hintKey: 'wizard.proto.googleCalendar.hint' },
-  { id: 'google-contacts', name: 'Google Contacts', hintKey: 'wizard.proto.googleContacts.hint' },
-  { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint' },
-  { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint' },
-] as const;
-
 /** The sources whose credentials can be minted by the clickable consent
  *  (0089 T1) — exactly the four that authenticate with a Google OAuth
  *  client, spelled out rather than derived: `isGoogleSource` includes
@@ -236,15 +210,6 @@ const GOOGLE_CONSENT_SOURCES: ReadonlyArray<string> = [
   // server would refuse.
   'google',
 ];
-
-const TARGET_CARDS = [
-  { id: 'jmap', name: 'JMAP', hintKey: 'wizard.proto.jmap.hint' },
-  { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
-  { id: 'caldav', name: 'CalDAV', hintKey: 'wizard.proto.caldav.hint' },
-  { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint' },
-  { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint' },
-  { id: 'soverin', name: 'Soverin', hintKey: 'wizard.proto.soverin.hint' },
-] as const;
 
 const isValidPort = (raw: string): boolean => {
   if (!/^\d+$/.test(raw)) return false;
@@ -1543,29 +1508,6 @@ const CreateMapping: React.FC = () => {
     );
   };
 
-  /** One chooser card — the body every group renders identically. */
-  const chooserCard = (
-    card: { id: string; name?: string; nameKey?: StringKey; hintKey: StringKey },
-    selected: boolean,
-    onPick: () => void,
-  ) => (
-    <button
-      key={card.id}
-      onClick={onPick}
-      className={`p-4 border-2 rounded-lg text-left transition-colors ${
-        selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <FrontDoorIcon type={card.id} />
-        <div>
-          <p className="font-medium text-gray-900">{card.nameKey ? t(card.nameKey) : card.name}</p>
-          <p className="text-sm text-gray-500 mt-1">{t(card.hintKey)}</p>
-        </div>
-      </div>
-    </button>
-  );
-
   /**
    * The Google ACCOUNT card's hint follows what this deployment's application
    * carries (ADR-0041).
@@ -1587,8 +1529,7 @@ const CreateMapping: React.FC = () => {
       ? { ...card, hintKey: RESTRICTED_GOOGLE_HINT }
       : card;
 
-  const renderSourceCard = (type: (typeof SOURCE_CARDS)[number]) =>
-    chooserCard(sourceCardFor(type), formData.sourceType === type.id, () => {
+  const onPickSource = (type: (typeof SOURCE_CARDS)[number]) => {
       // A verdict about the OLD provider must not survive the
       // switch (0073) — it is a statement about a credential
       // this screen no longer asks for.
@@ -1668,63 +1609,12 @@ const CreateMapping: React.FC = () => {
                       : 'carddav',
                 }))
               : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id })));
-    });
+  };
 
-  const renderTargetCard = (type: (typeof TARGET_CARDS)[number]) =>
-    chooserCard(type, formData.targetType === type.id, () => {
-      forgetProbe('target');
-      updateField('targetType', type.id);
-    });
-
-  /**
-   * Both choosers render through the ONE shared partition (0107 T1):
-   * "Your provider" first — the level people arrive thinking in, families
-   * as headings so Microsoft 365's two methods and Google's four products
-   * read as one account each — then "Any server, by protocol", the honest
-   * fallback lane. The wizard can never group differently from the
-   * connections add-form, because neither owns the algorithm.
-   */
-  function renderGroupedChooser<C extends { readonly id: string }>(
-    cards: ReadonlyArray<C>,
-    gridClass: string,
-    renderCard: (card: C) => React.ReactElement,
-  ) {
-    const grouped = partitionFrontDoor(cards, (c) => c.id);
-    const grid = `grid grid-cols-1 gap-4 ${gridClass}`;
-    return (
-      <div className="space-y-5">
-        {(grouped.families.length > 0 || grouped.providers.length > 0) && (
-          <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">
-              {t('wizard.group.provider')}
-            </h4>
-            <div className="space-y-3">
-              {grouped.families.map((family) => (
-                <div key={family.id}>
-                  <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">
-                    <FamilyIcon family={family.id} />
-                    {family.label}
-                  </p>
-                  <div className={grid}>{family.members.map(renderCard)}</div>
-                </div>
-              ))}
-              {grouped.providers.length > 0 && (
-                <div className={grid}>{grouped.providers.map(renderCard)}</div>
-              )}
-            </div>
-          </div>
-        )}
-        {grouped.protocols.length > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">
-              {t('wizard.group.protocol')}
-            </h4>
-            <div className={grid}>{grouped.protocols.map(renderCard)}</div>
-          </div>
-        )}
-      </div>
-    );
-  }
+  const onPickTarget = (type: (typeof TARGET_CARDS)[number]) => {
+    forgetProbe('target');
+    updateField('targetType', type.id);
+  };
 
   const renderStep = () => {
     switch (steps[currentStep].id) {
@@ -1733,7 +1623,13 @@ const CreateMapping: React.FC = () => {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectSource')}</h3>
-              {renderGroupedChooser(SOURCE_CARDS, 'sm:grid-cols-2', renderSourceCard)}
+              <FrontDoorChooser
+                cards={SOURCE_CARDS}
+                selectedId={formData.sourceType}
+                onPick={onPickSource}
+                gridClass="sm:grid-cols-2"
+                cardFor={sourceCardFor}
+              />
               {/* 0037 T6, answered 2026-08-10: oauth2/graph use the
                   per-customer Entra app registration (ADR-0006's row-14
                   model) — say what these fields ARE and where the rest of
@@ -1877,7 +1773,12 @@ const CreateMapping: React.FC = () => {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectTarget')}</h3>
-              {renderGroupedChooser(TARGET_CARDS, 'sm:grid-cols-3', renderTargetCard)}
+              <FrontDoorChooser
+                cards={TARGET_CARDS}
+                selectedId={formData.targetType}
+                onPick={onPickTarget}
+                gridClass="sm:grid-cols-3"
+              />
               {/* ADR-0011's consequence, on the step where the destination is
                   chosen (owner decision 2026-08-10 — it previously rendered on
                   the SOURCE step): whatever server the owner points this at is
