@@ -13,9 +13,10 @@
  * "it did not work, here is what the service said".
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { completeSignIn } from '../services/oidc.ts';
 import { fetchMe } from '../services/session.ts';
+import { requestAccessHref } from '../services/no-organisation.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT } from '../i18n/index.tsx';
 
@@ -24,6 +25,18 @@ const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const loginToStore = useAuthStore((s) => s.login);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * NOT an error, and it used to be drawn as one.
+   *
+   * A sign-in that completes and finds no membership is an ANSWER, and the
+   * screen said "That sign-in did not complete" over it — on 2026-09-01, to
+   * the owner, about his own working Google button. Its own state so it gets
+   * its own heading, no `role="alert"`, and the way out (see
+   * `services/no-organisation.ts` for why the app cannot say more than this).
+   *
+   * Holds the verified address, or null where the issuer asserted none.
+   */
+  const [noOrganisation, setNoOrganisation] = useState<{ email: string | null } | null>(null);
 
   // React 18's StrictMode mounts effects twice in development, and an
   // authorization code is single-use — the second exchange would fail and show
@@ -83,7 +96,7 @@ const AuthCallback: React.FC = () => {
             void navigate('/access-requests', { replace: true });
             return;
           }
-          setError(t('login.noOrganisation'));
+          setNoOrganisation({ email: me.email ?? null });
           return;
         }
         void navigate('/dashboard', { replace: true });
@@ -99,7 +112,27 @@ const AuthCallback: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full text-center space-y-4">
-        {error === null ? (
+        {noOrganisation !== null ? (
+          <>
+            <h2 className="text-xl font-semibold text-gray-900">{t('login.noOrganisation')}</h2>
+            {/* WHICH IDENTITY ARRIVED. A social button can sign somebody in as
+                an account they did not mean to use, and a screen that names no
+                address makes that invisible — which is exactly how an hour
+                goes into wondering why the app cannot see you. */}
+            {noOrganisation.email !== null && (
+              <p className="text-sm text-gray-600">
+                {t('login.noOrganisation.signedInAs', { email: noOrganisation.email })}
+              </p>
+            )}
+            <Link
+              to={requestAccessHref(noOrganisation.email)}
+              className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              {t('login.noOrganisation.ask')}
+            </Link>
+            <p className="text-sm text-gray-500">{t('login.noOrganisation.already')}</p>
+          </>
+        ) : error === null ? (
           <p className="text-sm text-gray-600">{t('login.callback.working')}</p>
         ) : (
           <>

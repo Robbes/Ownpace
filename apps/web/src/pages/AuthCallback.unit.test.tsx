@@ -158,12 +158,96 @@ describe('AuthCallback', () => {
     // the issuer never verified their address. Either way a dashboard that
     // cannot load is the version of this that becomes a support ticket.
     completeSignInMock.mockResolvedValue('the-token');
+    fetchMeMock.mockResolvedValue({
+      userId: 'nobody-1',
+      email: 'rh+tagged@example.test',
+      tenants: [],
+      operator: false,
+    });
+
+    renderCallback();
+
+    expect(
+      await screen.findByRole('heading', { name: /not part of an organisation yet/i }),
+    ).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('is not drawn as a failure, because the sign-in did not fail', async () => {
+    // THE SCREEN THE OWNER MET on 2026-09-01: a Google round trip that worked
+    // perfectly, under the heading "That sign-in did not complete". The token
+    // verified and there is no membership — an ANSWER, not an error, and the
+    // difference is the difference between "try again" and "ask for access".
+    completeSignInMock.mockResolvedValue('the-token');
+    fetchMeMock.mockResolvedValue({
+      userId: 'nobody-1',
+      email: 'someone@example.test',
+      tenants: [],
+      operator: false,
+    });
+
+    renderCallback();
+
+    await screen.findByRole('heading', { name: /not part of an organisation yet/i });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(/did not complete/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /try again/i })).toBeNull();
+  });
+
+  it('names the address that arrived, and carries it to the form', async () => {
+    // A social button can sign somebody in as an identity they did not mean to
+    // use, which is invisible on a screen that names no address. The `+` is
+    // the point of the encoding: unescaped it reads back as a space.
+    completeSignInMock.mockResolvedValue('the-token');
+    fetchMeMock.mockResolvedValue({
+      userId: 'nobody-1',
+      email: 'rh+tagged@example.test',
+      tenants: [],
+      operator: false,
+    });
+
+    renderCallback();
+
+    expect(await screen.findByText(/rh\+tagged@example\.test/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /ask for access/i })).toHaveAttribute(
+      'href',
+      '/request-access?email=rh%2Btagged%40example.test',
+    );
+  });
+
+  it('still offers the way out when the issuer asserted no address', async () => {
+    // An issuer that will not assert `email` is an ordinary case (email is not
+    // identity — see /api/me). The form is still where this person needs to
+    // go; they just type the address themselves.
+    completeSignInMock.mockResolvedValue('the-token');
     fetchMeMock.mockResolvedValue({ userId: 'nobody-1', tenants: [], operator: false });
 
     renderCallback();
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/not part of an organisation yet/i);
-    expect(navigateMock).not.toHaveBeenCalled();
+    expect(await screen.findByRole('link', { name: /ask for access/i })).toHaveAttribute(
+      'href',
+      '/request-access',
+    );
+    expect(screen.queryByText(/you signed in as/i)).toBeNull();
+  });
+
+  it('does not claim a request exists, because nothing here can know', async () => {
+    // `access_request` has no SELECT policy for the asker and the public POST
+    // answers every caller identically on purpose. The old sentence — "If you
+    // asked for access, we will email you when it is ready" — read as though
+    // something were in motion when nothing was.
+    completeSignInMock.mockResolvedValue('the-token');
+    fetchMeMock.mockResolvedValue({
+      userId: 'nobody-1',
+      email: 'someone@example.test',
+      tenants: [],
+      operator: false,
+    });
+
+    renderCallback();
+
+    await screen.findByRole('heading', { name: /not part of an organisation yet/i });
+    expect(screen.queryByText(/we will email you when it is ready/i)).toBeNull();
   });
 
   it("shows the service's own sentence, and creates no session", async () => {

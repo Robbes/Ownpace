@@ -46,7 +46,18 @@ const RequestAccess: React.FC = () => {
   const t = useT();
   const { locale } = useLocale();
   const [search] = useSearchParams();
-  const [email, setEmail] = useState('');
+  /**
+   * Pre-filled from `?email=` when somebody arrived from the dead end at the
+   * end of a good sign-in — see `services/no-organisation.ts`.
+   *
+   * NOT matched against a list, the way `tier` below is, because there is no
+   * list an address could be matched against. What makes that safe is that
+   * this is a visible text field the person reads and edits before sending,
+   * `type="email"` refuses an obvious non-address, and the server validates it
+   * again on arrival. What it BUYS is more than a saved retype: it shows which
+   * identity signed in, which a social button can get wrong silently.
+   */
+  const [email, setEmail] = useState(() => search.get('email')?.trim() ?? '');
   const [name, setName] = useState('');
   const [organisation, setOrganisation] = useState('');
   const [note, setNote] = useState('');

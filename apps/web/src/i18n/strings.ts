@@ -130,8 +130,29 @@ const en = {
   'login.callback.working': 'Signing you in…',
   'login.callback.failed': 'That sign-in did not complete.',
   'login.callback.again': 'Try again',
-  'login.noOrganisation':
-    'Your account is not part of an organisation yet. If you asked for access, we will email you when it is ready.',
+  // ---- The dead end at the end of a sign-in that WORKED (2026-09-01). ----
+  //
+  // The token verified, the issuer is fine, and there is no membership. That
+  // is not an error, and the old single sentence drew it as one — under the
+  // heading "That sign-in did not complete", which was false.
+  //
+  // It also ASSERTED something nothing here had checked: *"If you asked for
+  // access, we will email you when it is ready."* Nothing on this side can
+  // know whether a request exists. `access_request` has no SELECT policy for
+  // the person who made it (managed 0002/0005 — knocking is allowed, reading
+  // the queue is not), and the public POST answers every caller identically on
+  // purpose, because a different answer for an address that has already asked
+  // is how somebody finds out which addresses have. So the app cannot tell,
+  // and must not imply, that anything is in motion.
+  //
+  // Say what is true; NAME THE ADDRESS THAT ARRIVED, because a social button
+  // can sign somebody in as an identity they did not mean to use; and offer
+  // the one action that changes anything.
+  'login.noOrganisation': 'Your account is not part of an organisation yet.',
+  'login.noOrganisation.signedInAs': 'You signed in as {email}.',
+  'login.noOrganisation.ask': 'Ask for access',
+  'login.noOrganisation.already':
+    'Already asked? Then it is waiting for an answer and you will hear by email. Asking again does no harm — a second request while the first is open is not recorded twice.',
   // ---- The access QUEUE, which an operator reads (workplan 0093 T7). The
   // `access.*` keys further down are the PUBLIC page somebody asks on (T3);
   // these are the screen where somebody answers, hence a separate prefix.
@@ -1579,8 +1600,12 @@ const nl: Record<keyof typeof en, string> = {
   'login.callback.working': 'U wordt aangemeld…',
   'login.callback.failed': 'Die aanmelding is niet voltooid.',
   'login.callback.again': 'Opnieuw proberen',
-  'login.noOrganisation':
-    'Uw account hoort nog niet bij een organisatie. Heeft u toegang aangevraagd, dan mailen wij u zodra het klaarstaat.',
+  // ---- Het doodlopende eind van een GESLAAGDE aanmelding — zie het Engelse blok. ----
+  'login.noOrganisation': 'Uw account hoort nog niet bij een organisatie.',
+  'login.noOrganisation.signedInAs': 'U bent aangemeld als {email}.',
+  'login.noOrganisation.ask': 'Toegang aanvragen',
+  'login.noOrganisation.already':
+    'Al aangevraagd? Dan wacht het op een antwoord en hoort u het per e-mail. Nogmaals aanvragen kan geen kwaad — een tweede aanvraag terwijl de eerste openstaat wordt niet twee keer vastgelegd.',
   // ---- The access QUEUE (workplan 0093 T7) — see the English block. ----
   'nav.accessRequests': 'Toegangsverzoeken',
   'nav.support': 'Support',
