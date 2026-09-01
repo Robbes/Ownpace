@@ -230,6 +230,22 @@ export const tenantMember = pgTable(
     status: text('status', { enum: ['active', 'invited', 'declined', 'suspended', 'removed'] })
       .notNull()
       .default('active'),
+    /**
+     * Where this membership came from (migration 0021, owner decision
+     * 2026-09-01).
+     *
+     * `invited` — somebody inside an organisation added this address to it.
+     * Workplan 0099 says ask, and it is right: being joined to a stranger's
+     * organisation by reading your own account is a real defect.
+     *
+     * `requested` — this address asked for an organisation and an operator
+     * granted it. Nobody pulled anybody anywhere, so asking again is asking
+     * the same question twice, in somebody else's words.
+     *
+     * Defaults to `invited`, which is the safe direction: a row whose origin
+     * nobody recorded still asks.
+     */
+    origin: text('origin', { enum: ['invited', 'requested'] }).notNull().default('invited'),
     invitedAt: timestamp('invited_at', { withTimezone: true }),
     joinedAt: timestamp('joined_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

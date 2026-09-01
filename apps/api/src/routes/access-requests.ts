@@ -506,6 +506,13 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
         email: request.email,
         role: 'owner',
         status: 'invited',
+        // WHERE THIS ROW CAME FROM (migration 0021, owner decision
+        // 2026-09-01). The person asked, a human read the ask and said yes,
+        // and this organisation was created for them with them as its only
+        // owner. `claimRequestedMembership` binds it on their first verified
+        // sign-in instead of showing them "You have been invited" and asking
+        // whether they want the thing they asked for.
+        origin: 'requested',
         invitedAt: new Date(),
       });
 

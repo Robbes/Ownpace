@@ -27,6 +27,7 @@ import {
   discover,
   oidcConfig,
   redirectUri,
+  signOutUrl,
   __resetDiscoveryForTests,
 } from './oidc.ts';
 
@@ -289,5 +290,79 @@ describe('completeSignIn', () => {
   it('refuses a callback carrying a state but no code', async () => {
     const state = await startFlow();
     await expect(completeSignIn(`?state=${state}`, CONFIG)).rejects.toThrow(/no authorization code/);
+  });
+});
+
+/**
+ * SIGNING OUT OF THE APP IS NOT SIGNING OUT.
+ *
+ * `logout()` cleared the store and `localStorage` and sent the browser to
+ * `/login`. The ISSUER'S cookie survived it, so pressing "Sign in" completed
+ * the whole authorization-code round trip with no prompt and put the same
+ * person straight back in. Found by the owner on 2026-09-01, one press after
+ * signing out.
+ *
+ * On a shared or borrowed machine that is an account handover: the next person
+ * to press "Sign in" is in your account, having proved nothing.
+ *
+ * The null cases matter as much as the URL. A sign-out must never be BLOCKED by
+ * this leg — an unreachable issuer, one that publishes no end-session endpoint,
+ * or a deployment with no issuer at all must each leave somebody signed out
+ * here rather than stuck.
+ */
+describe('signing out of the issuer, not just of this tab', () => {
+  const WITH_LOGOUT = {
+    ...DOCUMENT,
+    end_session_endpoint: `${ISSUER}/oidc/v1/end_session`,
+  };
+
+  it('sends the browser to the end-session endpoint, hinting which session', async () => {
+    stubFetch(WITH_LOGOUT);
+    const url = await signOutUrl('the-id-token', CONFIG);
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(`${parsed.origin}${parsed.pathname}`).toBe(`${ISSUER}/oidc/v1/end_session`);
+    // The hint is what makes it silent AND safe: it names the session to end,
+    // so the issuer neither asks "log out of what?" nor takes an
+    // unauthenticated caller's word for the redirect.
+    expect(parsed.searchParams.get('id_token_hint')).toBe('the-id-token');
+    expect(parsed.searchParams.get('client_id')).toBe(CLIENT);
+  });
+
+  it('returns to the REGISTERED redirect, not to wherever the browser is', async () => {
+    // `setup-zitadel.sh` registers `${WEB_URL}/login` and reconciles it on
+    // every re-run. An unregistered value is refused by the issuer rather than
+    // followed — which is the point of registering it, and the reason this
+    // must not be built from the current path.
+    stubFetch(WITH_LOGOUT);
+    const url = await signOutUrl('the-id-token', CONFIG);
+    expect(new URL(url!).searchParams.get('post_logout_redirect_uri')).toBe(
+      'https://app.example.test/login',
+    );
+  });
+
+  it('is null when the issuer publishes no end-session endpoint', async () => {
+    // Not every issuer supports RP-initiated logout. The caller signs out
+    // locally either way and simply has no second leg to follow.
+    stubFetch(DOCUMENT);
+    expect(await signOutUrl('the-id-token', CONFIG)).toBeNull();
+  });
+
+  it('is null when the issuer cannot be reached, rather than throwing', async () => {
+    // THE ONE THAT WOULD HAVE TRAPPED SOMEBODY. The local half has already
+    // happened by the time this is followed; a throw here would leave a person
+    // looking at a screen that failed to sign them out of anything.
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
+    await expect(signOutUrl('the-id-token', CONFIG)).resolves.toBeNull();
+  });
+
+  it('is null with no issuer and null with no token', async () => {
+    // The paste-a-token door has no remote session to end, and a caller
+    // holding no ID token has nothing to hint with.
+    stubFetch(WITH_LOGOUT);
+    expect(await signOutUrl('the-id-token', null)).toBeNull();
+    expect(await signOutUrl(null, CONFIG)).toBeNull();
+    expect(await signOutUrl(undefined, CONFIG)).toBeNull();
+    expect(await signOutUrl('', CONFIG)).toBeNull();
   });
 });

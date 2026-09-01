@@ -37,6 +37,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import {
   authenticateSubject,
+  claimRequestedMembership,
   pendingInvitations,
   isPlatformOperator,
   membershipsForSubject,
@@ -54,6 +55,35 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized', message: 'No subject on this request' });
       return;
+    }
+
+    /**
+     * TAKE UP THE ORGANISATION YOU ASKED FOR, before anything is reported
+     * (migration 0021, owner decision 2026-09-01).
+     *
+     * Granting an access request creates an organisation with the asker as its
+     * only owner and a `pending:` placeholder where their subject will go. This
+     * is the moment the subject exists, and it is the first request they make.
+     *
+     * Binding here rather than showing them "You have been invited" is the
+     * owner's own correction: he asked, granted it himself, signed in, and was
+     * asked whether he wanted to join the thing he had asked for. An
+     * `invited` row — somebody else adding an address to THEIR organisation —
+     * is untouched by this and still asks (workplan 0099).
+     *
+     * BEFORE the memberships are read, so the answer already includes it and
+     * the client lands where it should rather than on a screen about a state
+     * that ended a moment ago.
+     *
+     * REPORTED, NOT MASKED, IF IT FAILS — the same rule the label reconcile
+     * below follows, and the same reason: this is a side effect of answering
+     * "who am I", and refusing to answer that because a binding failed would
+     * trade one wrong screen for none at all.
+     */
+    try {
+      await claimRequestedMembership(userId, req.userEmail, req.emailVerified);
+    } catch (error) {
+      log.error(`[me] could not take up the requested organisation for ${userId}:`, error);
     }
 
     const tenants = await membershipsForSubject(userId);

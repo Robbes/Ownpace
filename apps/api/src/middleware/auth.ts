@@ -529,7 +529,18 @@ export async function pendingInvitations(
         })
         .from(tenantMember)
         .innerJoin(tenantTable, eq(tenantTable.id, tenantMember.tenantId))
-        .where(and(eq(tenantMember.email, email), eq(tenantMember.status, 'invited')));
+        .where(
+          and(
+            eq(tenantMember.email, email),
+            eq(tenantMember.status, 'invited'),
+            // ONLY WHAT SOMEBODY ELSE STARTED (migration 0021, owner decision
+            // 2026-09-01). A `requested` row is the answer to this person's own
+            // ask — `claimRequestedMembership` below binds it, and listing it
+            // here would put "You have been invited" over an organisation they
+            // asked for and were granted.
+            eq(tenantMember.origin, 'invited'),
+          ),
+        );
       return rows.map((r) => ({
         tenantId: r.tenantId,
         name: r.name,
@@ -539,6 +550,77 @@ export async function pendingInvitations(
     },
     { verifiedEmail: email },
   );
+}
+
+/**
+ * Bind the organisation this person ASKED FOR (migration 0021, owner decision
+ * 2026-09-01).
+ *
+ * ## Why this is a write where `pendingInvitations` is a read
+ *
+ * Workplan 0099 turned invitation-claiming from a silent write into a question,
+ * and was right: `members.ts` lets anybody inside an organisation add any
+ * address to it, so binding on sight meant reading your own account joined you
+ * to a stranger's organisation with nobody ever asked. That decision stands for
+ * every `invited` row and this function cannot touch one.
+ *
+ * A `requested` row is the other event. The person filled in the public form,
+ * a human operator read it and said yes, and `access-requests.ts` created an
+ * organisation FOR THEM with them as its only owner. There is no third party
+ * and nothing to consent to. The owner met the screen himself on 2026-09-01 —
+ * ask, grant, sign in, and then "You have been invited… Joining is your choice"
+ * — and called it what it is: the same question, asked twice.
+ *
+ * ## What still guards it
+ *
+ * A VERIFIED address, or nothing happens. Email is not identity, and a grant to
+ * an address does not become somebody's organisation because they typed it into
+ * a provider.
+ *
+ * The POLICY authorises, not this function (migration 0006's
+ * `claim_own_invitation`): open invitation to `app.current_email`, and the
+ * result must be active and name this subject. All this adds is the narrowing
+ * `origin = 'requested'` — it cannot widen what the policy allows, and it never
+ * writes `origin`.
+ *
+ * ## Called at ONE moment
+ *
+ * `GET /api/me`, before the memberships are read. That is the one call every
+ * sign-in makes, and the state this exists for — granted, never signed in — is
+ * exactly the state somebody is in the first time they arrive.
+ *
+ * Returns how many rows bound, so the caller knows whether re-reading the
+ * memberships is worth a second round trip. Zero is the ordinary answer.
+ */
+export async function claimRequestedMembership(
+  userId: string,
+  email: string | undefined,
+  emailVerified: boolean | undefined,
+): Promise<number> {
+  if (emailVerified !== true || !email) return 0;
+
+  const bound = await ledgerWithSubject(
+    getAuthPool(),
+    userId,
+    async (db) =>
+      await db
+        .update(tenantMember)
+        .set({ userId, status: 'active', joinedAt: new Date() })
+        .where(
+          and(
+            eq(tenantMember.email, email),
+            eq(tenantMember.status, 'invited'),
+            eq(tenantMember.origin, 'requested'),
+          ),
+        )
+        .returning({ tenantId: tenantMember.tenantId }),
+    { verifiedEmail: email },
+  );
+
+  for (const row of bound) {
+    log.info(`[auth] ${userId} took up the organisation they asked for (${row.tenantId})`);
+  }
+  return bound.length;
 }
 
 /** What became of an answer. `notFound` covers invisible and absent alike. */
