@@ -27,7 +27,6 @@ import {
   writeFileSync,
   readFileSync,
   copyFileSync,
-  existsSync,
   rmSync,
   chmodSync,
 } from "node:fs";
