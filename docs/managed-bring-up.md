@@ -1007,7 +1007,22 @@ So at Google, once, for the client this deployment uses:
    carry `https://<your API host>/api/migrations/google/callback` — the exact
    string, which `POST /api/migrations/google/authorize` also returns so the
    wizard can show it.
-3. **Publishing status.** See the warning below before choosing.
+3. **`API_URL` must be the address the API is reached at from OUTSIDE**, because the
+   redirect is built from it. The example ships `API_URL=http://localhost:3001`,
+   and with the default `VITE_API_URL=/api` the API is actually reached on the
+   same origin as the app — so on a real deployment it is your app's address:
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env API_URL=https://app.example.eu
+   ./deploy/compose/bootstrap-managed.sh --only app
+   ```
+
+   Leave it at localhost and Google answers `redirect_uri_mismatch`. Registering
+   the loopback address instead does not help: the redirect is followed by the
+   **person's own browser**, so it would send them to port 3001 of whatever
+   machine they are sitting at. The consent route refuses this combination up
+   front now, naming the exact string to register — but the fix is here.
+4. **Publishing status.** See the warning below before choosing.
 
 #### The seven days, which is the one that bites later
 

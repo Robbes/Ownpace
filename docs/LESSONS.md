@@ -139,6 +139,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/web/src/i18n/strings.ts`
 
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 
 ### `apps/web/src/pages/Billing.tsx`
@@ -665,6 +666,7 @@ Reads:
 - `apps/api/src/routes/migrations/index.ts`
 - `apps/api/src/routes/provider-accounts.ts`
 - `apps/api/src/routes/provider-accounts.unit.test.ts`
+- `apps/web/src/i18n/strings.ts`
 - `apps/web/src/pages/CreateMapping.tsx`
 - `apps/web/src/services/mapping-service.ts`
 - `deploy/compose/managed.yml`

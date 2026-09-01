@@ -28,6 +28,7 @@ import {
   exchangeCode,
   grantResultPage,
   rawIpCallbackRefusal,
+  unreachableCallbackRefusal,
   type GoogleConsentSourceType,
 } from './google-consent.ts';
 // The SHARED store: this file holds the owner's beginning and the one ending,
@@ -178,6 +179,14 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
   const ipRefusal = rawIpCallbackRefusal(redirectUri);
   if (ipRefusal) {
     return void res.status(400).json({ error: 'raw_ip_callback', reason: ipRefusal });
+  }
+  // AND THE CASE THE RAW-IP REFUSAL CANNOT SEE (2026-09-01): loopback is a
+  // legitimate SHAPE and the wrong address for a deployment served at a real
+  // name. The owner met it as Google's `redirect_uri_mismatch` with the correct
+  // string nowhere on screen. Refused here, with that string in the sentence.
+  const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
+  if (unreachable) {
+    return void res.status(400).json({ error: 'unreachable_callback', reason: unreachable });
   }
   const state = flows.begin({ clientId, clientSecret, scope, redirectUri });
   res.json({

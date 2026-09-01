@@ -880,6 +880,8 @@ const CreateMapping: React.FC = () => {
    * does — storage, probing and create see no difference (ADR-0037).
    */
   const [googleConsent, setGoogleConsent] = React.useState<string | null>(null);
+  /** The callback address the last consent asked Google to return to. */
+  const [googleRedirect, setGoogleRedirect] = React.useState<string | null>(null);
   React.useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { type?: string; refreshToken?: string } | null;
@@ -902,7 +904,7 @@ const CreateMapping: React.FC = () => {
       // and the ticks cannot disagree — and the server refuses an empty set
       // rather than substituting a default, which is why the button is
       // disabled until something is ticked.
-      const { url } = await mappingApi.googleAuthorize(
+      const { url, redirectUri } = await mappingApi.googleAuthorize(
         isGoogleAccountSource
           ? {
               domains: formData.domains,
@@ -919,6 +921,24 @@ const CreateMapping: React.FC = () => {
               clientSecret: formData.sourceClientSecret,
             },
       );
+      /**
+       * THE ADDRESS THIS CONSENT USED, kept rather than discarded.
+       *
+       * The route has always answered with `redirectUri` — the exact string
+       * Google matches against the client's registered list — and this handler
+       * destructured only `url` and threw it away. So the one value somebody
+       * needs in order to register the callback was computed, returned, and
+       * never shown.
+       *
+       * The owner met the consequence on 2026-09-01: Google answered
+       * `Fout 400: redirect_uri_mismatch`, which says a string did not match
+       * and does not say what the string was. Registering the right one meant
+       * reading a route's source.
+       *
+       * Shown on every attempt, not only on failure, because it has to be
+       * registered BEFORE the first one can work.
+       */
+      setGoogleRedirect(redirectUri ?? null);
       window.open(url, 'ownpace-google-consent', 'popup,width=520,height=640');
     } catch (error) {
       setGoogleConsent(serverMessage(error));
@@ -1838,6 +1858,12 @@ const CreateMapping: React.FC = () => {
                       }`}
                     >
                       {googleConsent === 'received' ? t('wizard.google.received') : googleConsent}
+                    </p>
+                  )}
+                  {googleRedirect && googleConsent !== 'received' && (
+                    <p className="mt-1 text-sm text-gray-500">
+                      {t('wizard.google.redirectUri')}{' '}
+                      <code className="break-all font-mono text-xs">{googleRedirect}</code>
                     </p>
                   )}
                 </div>

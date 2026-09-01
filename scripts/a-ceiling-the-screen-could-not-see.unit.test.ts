@@ -35,6 +35,19 @@
  * checked here is that the route exists, that the client asks it, and that no
  * `VITE_` twin has appeared beside it.
  *
+ * ## The same family, found again the same evening
+ *
+ * `POST /api/migrations/google/authorize` has always answered with
+ * `redirectUri` — the exact string Google matches against the client's
+ * registered list — and its own client doc says it is returned "so a mismatch
+ * is shown before Google shows it". The wizard destructured `{ url }` and threw
+ * the other half away.
+ *
+ * So the owner met `Fout 400: redirect_uri_mismatch`, which says a string did
+ * not match and does not say what the string was, and finding the right one
+ * meant reading a route's source. Computed, returned, never rendered: the same
+ * shape as the ceiling above, one field instead of one env var.
+ *
  * ROOT-LEVEL, SO VITEST AND NODE BUILTINS ONLY. A test in `scripts/` cannot
  * import `@openmig/shared` — the workspace aliases are not a substitute for a
  * declared dependency (AGENTS.md). The BEHAVIOUR halves live beside their code:
@@ -117,6 +130,40 @@ describe('the deployment answers once, and the screen asks', () => {
     // would refuse them at the create door a minute later.
     expect(read(WIZARD)).toContain(
       'accountDomainsByKind?.google ?? PROVIDER_ACCOUNT_DOMAINS.google',
+    );
+  });
+});
+
+describe('a fact the server computed and the screen must show', () => {
+  it('the wizard KEEPS the redirect address, instead of destructuring past it', () => {
+    // `const { url } = await mappingApi.googleAuthorize(…)` is what was there,
+    // and it is what a later edit would most naturally write back — the URL is
+    // the thing you obviously need, and the other field is the one you need
+    // only when it has already gone wrong.
+    const wizard = read(WIZARD);
+    expect(wizard, 'the authorize answer is being destructured without its redirect').toContain(
+      'const { url, redirectUri } = await mappingApi.googleAuthorize(',
+    );
+    expect(wizard, 'kept but never stored').toContain('setGoogleRedirect(');
+  });
+
+  it('and RENDERS it, because a value in state nobody can read is the same defect', () => {
+    const wizard = read(WIZARD);
+    expect(wizard).toContain("t('wizard.google.redirectUri')");
+    expect(wizard, 'the address itself, not only the label').toContain('{googleRedirect}');
+  });
+
+  it('the sentence beside it tells somebody what to DO with the address', () => {
+    // "Redirect URI: https://…" is a fact. What a person needs is the
+    // instruction, because the address is useless until it is registered in
+    // the right box of somebody else's console.
+    const strings = read('apps/web/src/i18n/strings.ts');
+    const at = strings.indexOf("'wizard.google.redirectUri':");
+    expect(at, 'the string is gone').toBeGreaterThan(-1);
+    const sentence = strings.slice(at, at + 400);
+    expect(sentence).toContain('Register this exact address');
+    expect(sentence, 'and where — Google calls it Authorised redirect URIs').toContain(
+      'Authorised redirect URIs',
     );
   });
 });
