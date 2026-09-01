@@ -187,6 +187,78 @@ export function rawIpCallbackRefusal(redirectUri: string): string | null {
   );
 }
 
+/**
+ * A callback this deployment cannot actually be reached at.
+ *
+ * ## The failure this exists for, and why the raw-IP refusal beside it missed
+ *
+ * `rawIpCallbackRefusal` returns null for loopback, correctly: Google permits a
+ * loopback redirect over plain http, and on a laptop the whole flow works. What
+ * it cannot see is the case where loopback is right for the SHAPE and wrong for
+ * the DEPLOYMENT.
+ *
+ * On 2026-09-01 the owner pressed Connect with Google on a stack served at
+ * `https://app.ota.ownpace.eu`, with `API_URL` still at the example's
+ * `http://localhost:3001`. The consent asked Google to redirect to
+ * `http://localhost:3001/api/migrations/google/callback`. Google answered
+ * *"Toegang geblokkeerd: het verzoek van deze app is ongeldig — Fout 400:
+ * redirect_uri_mismatch"*, and the correct address was never on screen — it
+ * was in the route's own response, which the wizard discarded.
+ *
+ * Registering that loopback URI at Google would not have fixed it either. The
+ * redirect is followed by the PERSON'S BROWSER, so it would send them to port
+ * 3001 of whatever machine they are sitting at, which is not this deployment.
+ *
+ * ## What makes it checkable rather than a guess
+ *
+ * `WEB_URL` is the address the deployment is browsed at, and every managed
+ * stack has one — `managed.yml` requires it and the sign-in flow is built from
+ * it. If the app is served at a real name and the API's callback derives to
+ * loopback, the two cannot both be right, and the disagreement is decidable
+ * here rather than at Google's screen.
+ *
+ * Both loopback (a developer on a laptop) is fine and returns null. So is both
+ * public. Only the split is refused, and the refusal names the exact string to
+ * register — the thing the owner spent an evening not being told.
+ */
+export function unreachableCallbackRefusal(
+  redirectUri: string,
+  webUrl: string | undefined,
+): string | null {
+  const hostOf = (raw: string | undefined): string | null => {
+    if (!raw) return null;
+    try {
+      const host = new URL(raw).hostname;
+      return host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+    } catch {
+      return null;
+    }
+  };
+  const loopback = (host: string | null): boolean =>
+    host !== null && (host === 'localhost' || host === '::1' || /^127\./.test(host));
+
+  const callbackHost = hostOf(redirectUri);
+  const webHost = hostOf(webUrl);
+  // No WEB_URL to compare against is not a finding: an appliance or a bare
+  // dev run has nothing to disagree with, and inventing a complaint from one
+  // value is how a guard starts refusing correct configurations.
+  if (webHost === null || !webUrl || !loopback(callbackHost) || loopback(webHost)) return null;
+  const app = webUrl.replace(/\/+$/, '');
+
+  return (
+    `This deployment is served at ${app}, but the address it asked Google to redirect ` +
+    `back to is ${redirectUri} — a loopback address, which is this API's default and not ` +
+    "where anybody can reach it. Google answers that with `redirect_uri_mismatch`, and " +
+    'registering the loopback address instead would not help: the redirect is followed by ' +
+    "the person's own browser, so it would send them to their own machine.\n\n" +
+    'Set `API_URL` in `deploy/compose/.env` to the address this API is reached at from ' +
+    'outside — with the default `VITE_API_URL=/api` that is the same origin as the app ' +
+    `(${app}) — then restart the API and register exactly:\n\n` +
+    `  ${app}/api/migrations/google/callback\n\n` +
+    "in your Google client's Authorised redirect URIs."
+  );
+}
+
 /** Google's consent URL, with the two parameters that must never be forgotten. */
 export function consentUrl(p: {
   clientId: string;

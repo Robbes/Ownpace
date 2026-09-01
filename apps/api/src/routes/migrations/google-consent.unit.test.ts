@@ -18,6 +18,7 @@ import {
   consentUrl,
   exchangeCode,
   rawIpCallbackRefusal,
+  unreachableCallbackRefusal,
 } from './google-consent.ts';
 
 const PENDING = {
@@ -219,6 +220,87 @@ describe('a raw-IP callback refuses with the two ways out named (0089 T6)', () =
 
   it('permits a hostname — the objection is to the IP literal, not the network', () => {
     expect(rawIpCallbackRefusal(cb('app.example.nl'))).toBeNull();
+  });
+});
+
+/**
+ * THE CASE THE RAW-IP REFUSAL CANNOT SEE, and the evening it cost.
+ *
+ * Loopback is a legitimate SHAPE — Google permits it, and the port-forward
+ * remedy above depends on that. What the shape check cannot see is loopback
+ * being right for the shape and wrong for the deployment.
+ *
+ * On 2026-09-01 the owner pressed Connect with Google on a stack served at
+ * `https://app.ota.ownpace.eu` with `API_URL` still at the example's
+ * `http://localhost:3001`. Google answered `Fout 400: redirect_uri_mismatch`,
+ * and the address that would have worked was never on screen.
+ *
+ * Registering the loopback URI would not have fixed it either: the redirect is
+ * followed by the PERSON'S BROWSER, so it would send them to port 3001 of
+ * whatever machine they are sitting at.
+ *
+ * The comparison is decidable and not a guess: `WEB_URL` is the address the
+ * deployment is browsed at, and every managed stack has one.
+ */
+describe('a callback this deployment cannot be reached at', () => {
+  const PUBLIC_APP = 'https://app.ota.ownpace.eu';
+  const LOOPBACK_CB = 'http://localhost:3001/api/migrations/google/callback';
+
+  it('refuses a loopback callback on a publicly-served deployment', () => {
+    const refusal = unreachableCallbackRefusal(LOOPBACK_CB, PUBLIC_APP);
+    expect(refusal).not.toBeNull();
+    expect(refusal).toContain('redirect_uri_mismatch');
+    expect(refusal, 'and why registering the loopback address is not the fix').toContain(
+      "person's own browser",
+    );
+  });
+
+  it('names the variable AND the exact string to register', () => {
+    // The whole point. `redirect_uri_mismatch` says a string did not match and
+    // does not say what the string was; a refusal that repeated that would be
+    // Google's unhelpfulness with our name on it.
+    const refusal = unreachableCallbackRefusal(LOOPBACK_CB, PUBLIC_APP) ?? '';
+    expect(refusal).toContain('API_URL');
+    expect(refusal).toContain('https://app.ota.ownpace.eu/api/migrations/google/callback');
+  });
+
+  it('says nothing when BOTH are loopback — a laptop is not misconfigured', () => {
+    expect(unreachableCallbackRefusal(LOOPBACK_CB, 'http://localhost:3123')).toBeNull();
+    expect(unreachableCallbackRefusal(LOOPBACK_CB, 'http://127.0.0.1:3123')).toBeNull();
+  });
+
+  it('says nothing when both are public, which is the configured case', () => {
+    expect(
+      unreachableCallbackRefusal(`${PUBLIC_APP}/api/migrations/google/callback`, PUBLIC_APP),
+    ).toBeNull();
+  });
+
+  it('says nothing with no WEB_URL to compare against', () => {
+    // An appliance or a bare dev run has nothing to disagree with, and
+    // inventing a complaint from one value is how a guard starts refusing
+    // correct configurations.
+    expect(unreachableCallbackRefusal(LOOPBACK_CB, undefined)).toBeNull();
+    expect(unreachableCallbackRefusal(LOOPBACK_CB, 'not a url')).toBeNull();
+  });
+
+  it('trims a trailing slash off the address it tells somebody to register', () => {
+    // `WEB_URL=https://app.example.test/` is an ordinary thing to write, and
+    // `…test//api/migrations/…` is not a string Google would ever match.
+    const refusal = unreachableCallbackRefusal(LOOPBACK_CB, 'https://app.example.test/') ?? '';
+    expect(refusal).toContain('https://app.example.test/api/migrations/google/callback');
+    expect(refusal).not.toContain('test//api');
+  });
+
+  it('leaves the raw-IP case to the refusal that already covers it', () => {
+    // Two guards, two questions. A raw IP is refused by shape whatever WEB_URL
+    // says, and this one must not answer for it as well — a person meeting two
+    // sentences about one problem reads neither.
+    expect(
+      unreachableCallbackRefusal(
+        'https://100.97.25.131:3123/api/migrations/google/callback',
+        PUBLIC_APP,
+      ),
+    ).toBeNull();
   });
 });
 

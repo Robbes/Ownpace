@@ -39,6 +39,7 @@ export * from './rate-budget.ts';
 export * from './credential-refusals.ts';
 export * from './failure-category.ts';
 export * from './provider-accounts.ts';
+export * from './google-deployment-client.ts';
 export * from './standing-grants.ts';
 export * from './erasure-timeline.ts';
 export * from './erasure-scope.ts';

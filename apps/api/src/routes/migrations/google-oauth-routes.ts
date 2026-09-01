@@ -20,7 +20,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import { log } from '@openmig/shared';
+import { log, googleDeploymentClient, googleDeploymentClientProblem } from '@openmig/shared';
 import {
   GOOGLE_SOURCE_SCOPES,
   consentResultPage,
@@ -28,6 +28,7 @@ import {
   exchangeCode,
   grantResultPage,
   rawIpCallbackRefusal,
+  unreachableCallbackRefusal,
   type GoogleConsentSourceType,
 } from './google-consent.ts';
 // The SHARED store: this file holds the owner's beginning and the one ending,
@@ -57,8 +58,18 @@ const router = Router();
  */
 const AuthorizeSchema = z.intersection(
   z.object({
-    clientId: z.string().min(1),
-    clientSecret: z.string().min(1),
+    // OPTIONAL SINCE 2026-09-01 (ADR-0041, owner decision — option B). A
+    // deployment that registered its own Google application configures it once
+    // in `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET`, and nobody
+    // types a client secret into a wizard again. A caller that SENDS the pair
+    // still wins: owning a client is a real choice and a deployment-wide
+    // default that replaced somebody's own would take it away.
+    //
+    // `.min(1)` is kept on the optional values rather than dropped: an empty
+    // string is a field somebody cleared, not a decision to fall back, and
+    // letting it through would build a consent URL with `client_id=`.
+    clientId: z.string().min(1).optional(),
+    clientSecret: z.string().min(1).optional(),
   }),
   z.union([
     z.object({
@@ -100,11 +111,48 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
     return void res.status(400).json({
       error: 'invalid_body',
       reason:
-        'Send { sourceType, clientId, clientSecret } — the consent runs against your own ' +
-        'Google client, and which source you are connecting decides the one scope asked for.',
+        'Send { sourceType } and, unless this deployment has its own Google client ' +
+        'configured, { clientId, clientSecret } as well — which source you are connecting ' +
+        'decides the one scope asked for.',
     });
   }
-  const { clientId, clientSecret } = parsed.data;
+
+  /**
+   * WHOSE CLIENT THIS CONSENT RUNS AGAINST.
+   *
+   * The caller's pair first, because owning a client is a real choice
+   * (ADR-0041) and a deployment-wide default that replaced it would take that
+   * choice away. Only both together: a client id with no secret cannot
+   * exchange the code, and half of one pair mixed with half of another is a
+   * failure at Google's token endpoint with nothing on this side to explain
+   * it.
+   *
+   * Then the deployment's own, if it configured one. Then a refusal that names
+   * BOTH ways forward, because either is legitimate and somebody hitting this
+   * cannot tell which their deployment expects.
+   */
+  const sent =
+    parsed.data.clientId && parsed.data.clientSecret
+      ? { clientId: parsed.data.clientId, clientSecret: parsed.data.clientSecret }
+      : null;
+  const client = sent ?? googleDeploymentClient();
+  if (!client) {
+    // A HALF-CONFIGURED DEPLOYMENT SAYS SO, rather than reading as one that
+    // configured nothing: somebody who set one of the two has plainly tried,
+    // and the same silence for both cases hides a typo behind a feature that
+    // merely looks absent. The sentence never carries either value.
+    const halfConfigured = googleDeploymentClientProblem();
+    return void res.status(400).json({
+      error: 'no_google_client',
+      reason:
+        halfConfigured ??
+        'This consent needs a Google OAuth client and there is none: send clientId and ' +
+          'clientSecret with the request, or set GOOGLE_OAUTH_CLIENT_ID and ' +
+          'GOOGLE_OAUTH_CLIENT_SECRET on this deployment so every connection can share ' +
+          "the owner's own application (docs/google-workspace-setup.md).",
+    });
+  }
+  const { clientId, clientSecret } = client;
 
   // The account ask, when the caller sent ticks. Refusals are the decision
   // function's own words, verbatim: it is the one place that knows why mail
@@ -131,6 +179,14 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
   const ipRefusal = rawIpCallbackRefusal(redirectUri);
   if (ipRefusal) {
     return void res.status(400).json({ error: 'raw_ip_callback', reason: ipRefusal });
+  }
+  // AND THE CASE THE RAW-IP REFUSAL CANNOT SEE (2026-09-01): loopback is a
+  // legitimate SHAPE and the wrong address for a deployment served at a real
+  // name. The owner met it as Google's `redirect_uri_mismatch` with the correct
+  // string nowhere on screen. Refused here, with that string in the sentence.
+  const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
+  if (unreachable) {
+    return void res.status(400).json({ error: 'unreachable_callback', reason: unreachable });
   }
   const state = flows.begin({ clientId, clientSecret, scope, redirectUri });
   res.json({

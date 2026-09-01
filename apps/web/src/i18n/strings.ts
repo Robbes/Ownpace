@@ -233,6 +233,11 @@ const en = {
   'wizard.google.connect.needsClient':
     'Enter the Client ID and client secret first — the consent runs against your own Google client.',
   'wizard.google.received': 'Consent received — the refresh token has been filled in below.',
+  // The string Google matches against the client's registered list. It was
+  // always in the route's answer and the wizard threw it away, so
+  // `redirect_uri_mismatch` arrived naming no address (2026-09-01).
+  'wizard.google.redirectUri':
+    'Register this exact address in your Google client, under Authorised redirect URIs:',
   // The two Microsoft 365 connection methods (0107 T1): the family heading
   // says WHO, the card says HOW — "OAuth2" as a card name said neither.
   'wizard.group.provider': 'Your provider',
@@ -1683,6 +1688,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.google.connect.needsClient':
     'Vul eerst de Client-ID en het clientgeheim in — de toestemming loopt via uw eigen Google-client.',
   'wizard.google.received': 'Toestemming ontvangen — het vernieuwingstoken is hieronder ingevuld.',
+  // Zie het Engelse blok.
+  'wizard.google.redirectUri':
+    'Registreer dit exacte adres in uw Google-client, onder Geautoriseerde omleidings-URI\u2019s:',
   'wizard.group.provider': 'Uw aanbieder',
   'wizard.group.protocol': 'Elke server, via protocol',
   'wizard.m365.viaImap': 'Via IMAP',

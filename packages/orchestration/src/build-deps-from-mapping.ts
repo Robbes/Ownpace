@@ -22,8 +22,10 @@ import {
   type FileSource,
   DEFAULT_CONCURRENCY,
   parseGoogleDriveSource,
+  withDeploymentGoogleClient,
   log,
 } from '@openmig/shared';
+import { isGoogleGrantKind } from './account-qualification.ts';
 import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget } from '@openmig/ledger';
 import {
   createTokenProvider,
@@ -102,6 +104,49 @@ function mergeMappingCredentials(
 ): Record<string, string> {
   if (role !== 'source' || !mappingSecretRef) return connectionCreds;
   return { ...connectionCreds, ...SecretStore.decryptCredentials(mappingSecretRef) };
+}
+
+/**
+ * Every credential a SOURCE has, in priority order (ADR-0041, owner decision
+ * 2026-09-01 — option B).
+ *
+ * Three layers now, lowest first:
+ *
+ *   1. the DEPLOYMENT'S own Google client, where it configured one and this
+ *      connection is a Google one;
+ *   2. the connection's stored credentials;
+ *   3. the migrator's own grant for this mapping (0108 T4).
+ *
+ * The new layer is the bottom one, and it is a FALLBACK rather than an
+ * override for the reason ADR-0041 exists: a customer who registered their own
+ * Google application and typed its credentials keeps using it, and a
+ * deployment-wide default that quietly replaced theirs would take that choice
+ * away.
+ *
+ * **THE KIND GATE IS LOAD-BEARING, not tidiness.** `clientId` and
+ * `clientSecret` are shared key names: Dropbox stores its App key and App
+ * secret under exactly those, and Box its own client pair. Filling them in for
+ * any connection that lacked them would hand Google's application credentials
+ * to a Dropbox row, which then fails at Dropbox with an error naming nothing
+ * useful. `isGoogleGrantKind` already enumerates the kinds whose credentials
+ * are a Google OAuth client — the same list the qualification exchanges tokens
+ * for — so this reads it rather than keeping a second one.
+ *
+ * ONE FUNCTION FOR BOTH PATHS, like the merge it wraps: the mail path and
+ * `loadDomainConnections` both come through here, and a client that worked for
+ * somebody's calendar and not their mail is a bug a customer finds.
+ */
+function sourceCredentialsFor(
+  kind: string,
+  role: 'source' | 'target',
+  connectionCreds: Record<string, string>,
+  mappingSecretRef: string | null | undefined,
+): Record<string, string> {
+  return mergeMappingCredentials(
+    role,
+    withDeploymentGoogleClient(isGoogleGrantKind(kind), connectionCreds),
+    mappingSecretRef,
+  );
 }
 
 /**
@@ -219,7 +264,8 @@ export async function buildDepsFromMapping(
     // The migrator's own grant wins, key by key (workplan 0108 T4). Same
     // function the per-domain path uses, so a grant cannot work for somebody's
     // mail and not their calendar.
-    sourceCredentials = mergeMappingCredentials(
+    sourceCredentials = sourceCredentialsFor(
+      sourceConnection.kind,
       'source',
       sourceCredentials,
       mapping.sourceSecretRef,
@@ -476,7 +522,7 @@ async function loadDomainConnections(
       }
       return {
         config,
-        creds: mergeMappingCredentials(role, creds, mapping.sourceSecretRef),
+        creds: sourceCredentialsFor(conn.kind, role, creds, mapping.sourceSecretRef),
         kind: conn.kind,
       };
     };

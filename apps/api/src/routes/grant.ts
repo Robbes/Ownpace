@@ -51,6 +51,7 @@ import {
   GOOGLE_SOURCE_SCOPES,
   consentUrl,
   rawIpCallbackRefusal,
+  unreachableCallbackRefusal,
 } from './migrations/google-consent.ts';
 import { consentFlows } from './migrations/consent-flows.ts';
 import { GOOGLE_CONSENT_KIND_TO_SOURCE } from './migrations/grant-link-readiness.ts';
@@ -230,6 +231,19 @@ router.post(
           reason:
             'This migration cannot use a Google sign-in yet, because of how the server is ' +
             `reached. Please forward this to the person who sent you the link: ${ipRefusal}`,
+        });
+      }
+      // The same wrapping for the loopback split (2026-09-01). The migrator can
+      // act on this even less than on the raw-IP one — it is an `.env` value on
+      // somebody else's box — so it travels the same way: their sentence,
+      // addressed to the person who can fix it.
+      const unreachable = unreachableCallbackRefusal(redirectUri, process.env.WEB_URL);
+      if (unreachable) {
+        return void res.status(409).json({
+          error: 'unreachable_callback',
+          reason:
+            'This migration cannot use a Google sign-in yet, because of how the server is ' +
+            `reached. Please forward this to the person who sent you the link: ${unreachable}`,
         });
       }
 

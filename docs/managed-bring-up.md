@@ -952,6 +952,44 @@ account card and its tick boxes follow the setting on the next page load.
 There is deliberately no `VITE_` twin: two separately settable copies of one
 fact is how a screen comes to offer what the server then refuses.
 
+#### Nobody has to paste a client secret
+
+Registering the client is one job; typing it into a wizard once per connection
+is another, and the second one is transcription work with a secret in it. Set
+the pair once and the wizard stops asking:
+
+```bash
+# in deploy/compose/.env
+GOOGLE_OAUTH_CLIENT_ID=…apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=…
+```
+
+**The connection then stores neither** (owner decision, 2026-09-01). It keeps
+only the refresh token — the per-account half, the one that says whose data
+this is — and the client is read at the moment a token is minted. Rotating the
+secret at Google is therefore this one edit and a restart, not an edit per
+connection.
+
+**A connection that carries its own pair still wins.** A customer who
+registered their own Google application keeps using it; this is a fallback,
+never an override ([ADR-0041](./adr/0041-who-owns-the-oauth-client.md)).
+
+**Both or neither.** A client id with no secret cannot exchange an
+authorization code, so half of it is refused with the missing name rather than
+failing at Google's token endpoint hours later.
+
+**Two places, and the second is the one that bites.** `managed.yml` passes
+them to the API; **`set-task-env.sh` uploads them to the worker**, because a
+Trigger.dev task container inherits nothing from compose. Wire only the first
+and everything visible works — the consent is built, Google approves it, the
+connection tests green — while every sync pass fails to mint a token in a log
+nobody is watching. So after changing either value:
+
+```bash
+./deploy/compose/set-task-env.sh
+./deploy/compose/deploy-tasks.sh
+```
+
 #### A declaration is not a capability
 
 Setting it does not make Google grant anything. If the application has not
@@ -969,7 +1007,22 @@ So at Google, once, for the client this deployment uses:
    carry `https://<your API host>/api/migrations/google/callback` — the exact
    string, which `POST /api/migrations/google/authorize` also returns so the
    wizard can show it.
-3. **Publishing status.** See the warning below before choosing.
+3. **`API_URL` must be the address the API is reached at from OUTSIDE**, because the
+   redirect is built from it. The example ships `API_URL=http://localhost:3001`,
+   and with the default `VITE_API_URL=/api` the API is actually reached on the
+   same origin as the app — so on a real deployment it is your app's address:
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env API_URL=https://app.example.eu
+   ./deploy/compose/bootstrap-managed.sh --only app
+   ```
+
+   Leave it at localhost and Google answers `redirect_uri_mismatch`. Registering
+   the loopback address instead does not help: the redirect is followed by the
+   **person's own browser**, so it would send them to port 3001 of whatever
+   machine they are sitting at. The consent route refuses this combination up
+   front now, naming the exact string to register — but the fix is here.
+4. **Publishing status.** See the warning below before choosing.
 
 #### The seven days, which is the one that bites later
 
