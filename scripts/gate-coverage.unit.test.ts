@@ -39,6 +39,29 @@ const smoke = read('deploy/compose/smoke-managed.sh');
 const index = read('apps/api/src/index.ts');
 
 /**
+ * One block of the operator section, ending where the NEXT one begins.
+ *
+ * Slicing to the operator take-back instead looks equivalent and is not: these
+ * blocks are siblings under one `if`, so the last slice quietly grows to
+ * swallow whatever is added after it. Not hypothetical — the boundary block
+ * landing behind the decline block turned an anchored-sweep assertion red on
+ * somebody else's correctly anchored sweep, and a test that goes red for a
+ * reason its message does not describe is worse than one that never ran.
+ */
+const operatorBlock = (marker: string): string => {
+  // The BANNER, not the words. A bare `indexOf` on the title finds the
+  // sentence in the block's own prose 895 characters earlier, which was
+  // harmless while every slice ran to the take-back and stopped being harmless
+  // the moment one of them ended at the next banner instead.
+  const banner = `# ---------- ${marker}`;
+  const at = smoke.indexOf(banner);
+  if (at < 0) return '';
+  const revoked = smoke.indexOf('DELETE FROM platform_operator WHERE user_id', at);
+  const next = smoke.indexOf('# ---------- ', at + banner.length);
+  return smoke.slice(at, next > -1 && next < revoked ? next : revoked);
+};
+
+/**
  * Route families the smoke deliberately does NOT ask for, and why. A reason is
  * required: "not covered" with no sentence beside it is how a gap becomes
  * permanent by nobody noticing it.
@@ -205,10 +228,7 @@ describe('the decision the operator role exists for', () => {
    * with a subject a real issuer minted. Every one of those seams is exactly
    * where this system's defects have actually lived.
    */
-  const block = smoke.slice(
-    smoke.indexOf('THE QUEUE THEY CAME FOR'),
-    smoke.indexOf("DELETE FROM platform_operator WHERE user_id"),
-  );
+  const block = operatorBlock('THE QUEUE THEY CAME FOR');
 
   it('found the block, so the rest of this file is not vacuous', () => {
     expect(block.length).toBeGreaterThan(500);
@@ -448,10 +468,7 @@ describe('the other decision, and the mail that does or does not go', () => {
    * step. Collapsing them would tell an operator to go and email somebody they
    * deliberately ignored.
    */
-  const block = smoke.slice(
-    smoke.indexOf('THE OTHER DECISION, AND THE MAIL THAT DOES OR DOES NOT GO'),
-    smoke.indexOf("DELETE FROM platform_operator WHERE user_id"),
-  );
+  const block = operatorBlock('THE OTHER DECISION, AND THE MAIL THAT DOES OR DOES NOT GO');
 
   it('found the block', () => {
     expect(block.length).toBeGreaterThan(500);
@@ -538,5 +555,106 @@ describe('the other decision, and the mail that does or does not go', () => {
     // here — a DELETE FROM tenant in this block would be reaching for
     // something it never created.
     expect(block).not.toMatch(/DELETE FROM tenant/);
+  });
+});
+
+describe('the same buttons, pressed by somebody who is not an operator', () => {
+  /**
+   * Every other block in this file is a positive: an operator presses, the
+   * product answers, the gate reads the answer. The property all of them rest
+   * on is the negative — and the support views make it a single point of
+   * failure on purpose.
+   *
+   * They bypass row security, because an operator has no tenant and a view
+   * honouring the tenant policy would be useless to them. So there is no
+   * second net: one `EXISTS (SELECT 1 FROM platform_operator WHERE user_id =
+   * app.current_user)` per view is the whole boundary. Drop it, re-create a
+   * view without it, or own it wrongly, and every customer's metadata is
+   * served to anybody who can sign in — with every positive above still green.
+   *
+   * `support-views.unit.test.ts` proves this against PGlite. What it cannot
+   * prove is that THE DEPLOYMENT matches the fixture, which is the only thing
+   * this block is for.
+   */
+  const block = operatorBlock('THE SAME BUTTONS, PRESSED BY SOMEBODY WHO IS NOT AN OPERATOR');
+
+  it('found the block', () => {
+    expect(block.length).toBeGreaterThan(500);
+  });
+
+  it('asks with a MEMBER of the organisation, not a stranger', () => {
+    // The strongest available instrument, and the choice is the test. A
+    // support route that quietly fell back to tenant scope answers 200 to a
+    // member — and a gate that only ever asked about organisations the caller
+    // has nothing to do with would call that a boundary holding.
+    expect(block).toContain('$API/api/support/tenants/${APPLY_TENANT}" "$TOK_R"');
+    expect(block).toContain('FROM tenant_member');
+    expect(block).toContain('$b_member" = "1"');
+    expect(block).toContain('$b_isop" = "0"');
+  });
+
+  it('refuses to draw any conclusion when the instrument is wrong', () => {
+    // Every refusal below reads as a pass if the caller were an operator with
+    // no membership: 404 everywhere, nothing written. So the precondition
+    // gates the body rather than merely reporting beside it.
+    const asked = [
+      ...block.matchAll(/if \[ "\$b_isop" = "0" \] && \[ "\$b_member" = "1" \]; then/g),
+    ];
+    // Twice: once to say what it found, once to decide whether to go on. One
+    // occurrence means the precondition is a print statement.
+    expect(asked, 'the precondition is reported and then not acted on').toHaveLength(2);
+    const body = block.indexOf('gen_random_uuid()');
+    expect(body, 'the body runs whatever the precondition said').toBeGreaterThan(asked[1]!.index!);
+  });
+
+  it('puts a positive control in front of the refusals', () => {
+    // A 404 proves nothing if the route answers 404 to everybody. A mis-typed
+    // path, a dropped view, a stack that never wired this surface at all would
+    // each read as a boundary holding.
+    const control = block.indexOf('"$OP_TOKEN")');
+    const refusal = block.indexOf('"$TOK_R")');
+    expect(control, 'nothing establishes the route works at all').toBeGreaterThan(-1);
+    expect(refusal, 'the refusal is measured before its control').toBeGreaterThan(control);
+  });
+
+  it('compares the two refusals, not just their status codes', () => {
+    // The route's own comment promises a non-operator cannot tell whether an
+    // id exists. That promise is kept by two answers being indistinguishable,
+    // which is a comparison — a pair of 404s says nothing about the bodies.
+    expect(block).toContain('gen_random_uuid()');
+    expect(block, 'an invented id nobody proved was invented').toContain('FROM tenant WHERE id =');
+    expect(block).toMatch(/\[ "\$b_real_body" = "\$b_fake_body" \]/);
+  });
+
+  it('proves the audit log was not written, not merely that the route said no', () => {
+    // `/opened` exists to write a row, and it is asked here about a membership
+    // that genuinely exists. A route that recorded first and checked afterwards
+    // would leave a row claiming a non-operator read somebody's account — and
+    // the 404 in the reply would look exactly the same.
+    expect(block).toContain('b_reads_before');
+    expect(block).toContain('b_reads_after');
+    expect(block).toMatch(/\[ "\$b_reads_after" = "\$b_reads_before" \]/);
+  });
+
+  it('asks the queue while there is something in it', () => {
+    // "No rows" and "no such row" are the same answer to somebody who cannot
+    // see any. The knock therefore comes first, and the operator's own count
+    // is read at the same moment as the refusal.
+    const knock = block.indexOf('POST "${API}/api/access-requests"');
+    const theirs = block.indexOf('b_sees="$(queue_len "$TOK_R")"');
+    expect(knock, 'nothing is knocked, so an empty queue would pass').toBeGreaterThan(-1);
+    expect(theirs).toBeGreaterThan(knock);
+    expect(block, 'the operator is not asked, so an empty queue still passes').toMatch(
+      /\[ "\$b_op_sees" -ge 1 \]/,
+    );
+  });
+
+  it('reads the refused decision back out of the DATABASE', () => {
+    // The one failure a reply cannot show. A decline that went through and
+    // then answered 404 tells an applicant no, in the name of somebody who was
+    // never given that button — and the status code would be the expected one.
+    expect(block).toContain('/decline" "$TOK_R"');
+    expect(block).toContain('SELECT state FROM access_request');
+    expect(block).toMatch(/\[ "\$b_after" = "open" \]/);
   });
 });

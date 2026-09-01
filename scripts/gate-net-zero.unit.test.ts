@@ -249,9 +249,17 @@ describe('and the refusals it files, which no grant deletes for it', () => {
    * cannot match a real applicant.
    */
   const declineBlock = (): string => {
-    const at = smoke.indexOf('THE OTHER DECISION');
-    const end = smoke.indexOf('DELETE FROM platform_operator WHERE user_id', at);
+    // Ends at the NEXT banner, not at the operator take-back. These blocks are
+    // siblings under one `if`, so a slice running to the take-back grows to
+    // swallow whatever is added after it — and the anchored-sweep assertion
+    // below then goes red on somebody else's correctly anchored sweep, with a
+    // message describing a defect that is not there.
+    const banner = '# ---------- THE OTHER DECISION';
+    const at = smoke.indexOf(banner);
     expect(at, 'the decline block is gone').toBeGreaterThan(-1);
+    const revoked = smoke.indexOf('DELETE FROM platform_operator WHERE user_id', at);
+    const next = smoke.indexOf('# ---------- ', at + banner.length);
+    const end = next > -1 && next < revoked ? next : revoked;
     expect(end, 'the operator take-back moved above the decline block').toBeGreaterThan(at);
     return smoke.slice(at, end);
   };
@@ -281,5 +289,57 @@ describe('and the refusals it files, which no grant deletes for it', () => {
     expect(block).toContain('d_left');
     expect(block).toMatch(/\[ "\$d_left" = "0" \]/);
     expect(block, 'a residue count that cannot fail the run').toMatch(/NOT taken back[\s\S]{0,200}fail=1/);
+  });
+});
+
+describe('and the knock the boundary block files to have something to refuse', () => {
+  /**
+   * One request per run, created only so the refusals have a real open row to
+   * be refused about — "no rows" and "no such row" are the same answer to
+   * somebody who cannot see any. It lands in the same queue an operator reads,
+   * and the product will not remove it for them: `access_request` has no
+   * DELETE grant for any application role, on purpose.
+   */
+  const boundaryBlock = (): string => {
+    const banner = '# ---------- THE SAME BUTTONS';
+    const at = smoke.indexOf(banner);
+    expect(at, 'the boundary block is gone').toBeGreaterThan(-1);
+    const revoked = smoke.indexOf('DELETE FROM platform_operator WHERE user_id', at);
+    const next = smoke.indexOf('# ---------- ', at + banner.length);
+    return smoke.slice(at, next > -1 && next < revoked ? next : revoked);
+  };
+
+  it('sweeps before it knocks and again after it is done', () => {
+    const block = boundaryBlock();
+    const sweeps = [...block.matchAll(/DELETE FROM access_request WHERE email LIKE 'smoke-boundary-%/g)];
+    expect(sweeps, 'a stale sweep at the top and a take-back at the bottom').toHaveLength(2);
+    const knock = block.indexOf('POST "${API}/api/access-requests"');
+    expect(sweeps[0]!.index, 'the stale sweep runs after the gate has knocked').toBeLessThan(knock);
+  });
+
+  it('anchors the sweep to a prefix a real applicant cannot have', () => {
+    const block = boundaryBlock();
+    expect(block).toContain('BOUNDARY_EMAIL="smoke-boundary-${SMOKE_MAIL_RUN}@smoke.local"');
+    expect(
+      block,
+      'an access_request delete this block does not own',
+    ).not.toMatch(/DELETE FROM access_request(?! WHERE email LIKE 'smoke-boundary-%)/);
+  });
+
+  it('asserts the balance rather than reporting it', () => {
+    const block = boundaryBlock();
+    expect(block).toContain('b_left');
+    expect(block).toMatch(/\[ "\$b_left" = "0" \]/);
+    expect(block, 'a residue count that cannot fail the run').toMatch(/NOT taken back[\s\S]{0,200}fail=1/);
+  });
+
+  it('creates nothing else — no tenant, no operator, no membership', () => {
+    // The boundary block asks what a non-operator CANNOT do. If any of it
+    // succeeded it would leave exactly these behind, so their absence here is
+    // both a cleanliness property and a second reading of the same assertions.
+    const block = boundaryBlock();
+    expect(block).not.toMatch(/INSERT INTO tenant\b/);
+    expect(block).not.toMatch(/INSERT INTO platform_operator/);
+    expect(block).not.toMatch(/INSERT INTO tenant_member/);
   });
 });
