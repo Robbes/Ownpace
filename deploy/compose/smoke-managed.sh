@@ -3216,6 +3216,68 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "the gate's operator was NOT taken back (count=${left}) — a standing reader of every tenant"
       fail=1
     fi
+
+    # ---------- AND WHEN THE APPOINTMENT ENDS, SO DOES THE SESSION ----------
+    #
+    # The row above has just been deleted. The TOKEN has not: it is the same
+    # unexpired JWT that read every organisation on this stack a few seconds
+    # ago, and nothing about it changed.
+    #
+    # That is the whole question. Being an operator is a row in a table, not a
+    # claim in a token — a deliberate choice (0093 T6), and the reason for it is
+    # exactly this moment: an appointment can be ended, and the person who ended
+    # it needs that to be true NOW, not when a token expires an hour later or a
+    # cache happens to turn over. Anything that read the flag once and kept it —
+    # a memoised `isPlatformOperator`, a per-connection GUC set at sign-in, a
+    # view materialised anywhere — would serve every customer's metadata to
+    # somebody whose access was revoked, and would do it silently.
+    #
+    # Only a real stack can answer this. A unit test with a fresh fixture per
+    # case cannot even ask it: there is no "before" for the caching to survive.
+    if [ "$left" = "0" ]; then
+      rv_reads_before="$(q "SELECT count(*) FROM support_read WHERE operator_user_id = '${OP_SUBJECT}'" 2>/dev/null || echo '?')"
+
+      # THE CONTROL, and it has to come first. Four refusals in a row prove
+      # nothing if the token simply stopped working — an expired or rejected
+      # bearer produces the same shape of silence. `/api/me` answers 200 for
+      # anybody signed in, so a 200 here says the session is alive, and
+      # `operator=false` on the same reply says the ONE thing that changed is
+      # the thing that was deleted.
+      rv_me="$(http GET "$API/api/me" "$OP_TOKEN")"
+      rv_flag="$(jq -r '.operator // false' <<<"${rv_me#* }" 2>/dev/null || echo '?')"
+      if [ "${rv_me%% *}" = "200" ] && [ "$rv_flag" = "false" ]; then
+        echo "the session outlives the appointment, and knows it: HTTP 200, operator=false"
+      else
+        echo "after the take-back /api/me answered HTTP ${rv_me%% *}, operator=${rv_flag} (expected 200/false)"
+        echo "    A token that stopped working would make every refusal below meaningless, and a"
+        echo "    flag still reading true is the cached-permission defect this block is here for."
+        fail=1
+      fi
+
+      rv_list="$(http GET "$API/api/support/tenants" "$OP_TOKEN")"
+      rv_seen="$(jq -r '.tenants | length' <<<"${rv_list#* }" 2>/dev/null || echo '?')"
+      rv_one="$(http GET "$API/api/support/tenants/${APPLY_TENANT}" "$OP_TOKEN")"
+      rv_queue="$(http GET "$API/api/access-requests" "$OP_TOKEN")"
+      rv_q_seen="$(jq -r '.requests | length' <<<"${rv_queue#* }" 2>/dev/null || echo '?')"
+      rv_reads_after="$(q "SELECT count(*) FROM support_read WHERE operator_user_id = '${OP_SUBJECT}'" 2>/dev/null || echo '??')"
+
+      # The SAME organisation the three-levels block read with this token, and
+      # the same 404 a stranger gets: invisible and absent are one answer here.
+      if [ "$rv_seen" = "0" ] && [ "${rv_one%% *}" = "404" ] && [ "$rv_q_seen" = "0" ] &&
+         [ "$rv_reads_after" = "$rv_reads_before" ]; then
+        echo "and it can no longer read anything: organisations 0, that organisation 404, queue 0, nothing logged"
+      else
+        echo "after the take-back: organisations=${rv_seen}, that organisation HTTP ${rv_one%% *},"
+        echo "                    queue=${rv_q_seen}, support_read ${rv_reads_before} -> ${rv_reads_after}"
+        echo "    Each of these answered for this exact token minutes ago. Revocation that waits"
+        echo "    for a token to expire is not revocation, and a row written now would record a"
+        echo "    read by somebody who is no longer an operator."
+        fail=1
+      fi
+    else
+      echo "the appointment was not taken back, so what a revoked session can still do was not asked"
+      fail=1
+    fi
   fi
 fi
 

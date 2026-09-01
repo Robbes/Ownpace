@@ -848,3 +848,78 @@ describe('how far an operator can walk, and what the log says at each step', () 
     expect(block).toContain('reads_of migration "tenant_id = \'${APPLY_TENANT}\'"');
   });
 });
+
+describe('and when the appointment ends, so does the session', () => {
+  /**
+   * Being an operator is a row in a table, not a claim in a token — a
+   * deliberate choice (0093 T6), and this is the moment it exists for. An
+   * appointment can be ended, and the person who ended it needs that to be
+   * true NOW: not when a token expires an hour later, not when a cache turns
+   * over.
+   *
+   * Anything that read the flag once and kept it — a memoised
+   * `isPlatformOperator`, a per-connection GUC set at sign-in, a view
+   * materialised anywhere — would keep serving every customer's metadata to
+   * somebody whose access was revoked, silently. A unit test with a fresh
+   * fixture per case cannot even ask this: there is no "before" for the
+   * caching to survive.
+   */
+  const banner = '# ---------- AND WHEN THE APPOINTMENT ENDS';
+  const block = (() => {
+    const at = smoke.indexOf(banner);
+    if (at < 0) return '';
+    const next = smoke.indexOf('# ---------- ', at + banner.length);
+    return smoke.slice(at, next > -1 ? next : smoke.length);
+  })();
+
+  it('found the block', () => {
+    expect(block.length).toBeGreaterThan(500);
+  });
+
+  it('runs AFTER the row is deleted, which is the entire question', () => {
+    const revoked = smoke.indexOf('DELETE FROM platform_operator WHERE user_id');
+    const at = smoke.indexOf(banner);
+    expect(revoked, 'the take-back is gone').toBeGreaterThan(-1);
+    expect(at, 'asked while the appointment still stood').toBeGreaterThan(revoked);
+  });
+
+  it('reuses the SAME token rather than signing in again', () => {
+    // A fresh token would test the sign-in path. The point is the one that was
+    // already minted and is still valid: nothing about it changed.
+    expect(block).not.toContain('sign_in_as');
+    expect(block).toContain('"$OP_TOKEN"');
+  });
+
+  it('proves the session is still alive before reading anything into the silence', () => {
+    // Four refusals in a row prove nothing if the token simply stopped
+    // working: an expired bearer produces the same shape of silence. `/api/me`
+    // answers 200 for anybody signed in, so the 200 says the session lives and
+    // `operator=false` says the one thing that changed is the row.
+    const control = block.indexOf('$API/api/me');
+    const refusal = block.indexOf('$API/api/support/tenants"');
+    expect(control, 'nothing establishes the token still works').toBeGreaterThan(-1);
+    expect(refusal, 'the refusals are read before their control').toBeGreaterThan(control);
+    expect(block).toMatch(/\[ "\$rv_flag" = "false" \]/);
+  });
+
+  it('asks for the same things that answered a moment ago', () => {
+    // Not a route nobody used: this exact organisation was read through this
+    // exact token by the three-levels block above.
+    expect(block).toContain('$API/api/support/tenants/${APPLY_TENANT}');
+    expect(block).toMatch(/\[ "\$\{rv_one%% \*\}" = "404" \]/);
+    expect(block).toMatch(/\[ "\$rv_seen" = "0" \]/);
+    expect(block).toMatch(/\[ "\$rv_q_seen" = "0" \]/);
+  });
+
+  it('proves a revoked read is not logged as an operator read either', () => {
+    expect(block).toContain('rv_reads_before');
+    expect(block).toMatch(/\[ "\$rv_reads_after" = "\$rv_reads_before" \]/);
+  });
+
+  it('fails rather than skipping when the take-back did not happen', () => {
+    // The block is meaningless if the row is still there, and "meaningless"
+    // must not read as "passed".
+    expect(block).toMatch(/if \[ "\$left" = "0" \]; then/);
+    expect(block).toMatch(/was not taken back[\s\S]{0,200}fail=1/);
+  });
+});
