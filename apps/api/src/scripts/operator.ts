@@ -73,6 +73,16 @@ import { Pool } from 'pg';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '@openmig/shared';
+import {
+  checkByKind,
+  HOUSEKEEPING_CHECKS,
+  HOUSEKEEPING_KINDS,
+  notCleanableRefusal,
+  unknownKindRefusal,
+  type HousekeepingCheck,
+  type HousekeepingClean,
+  type HousekeepingRow,
+} from './operator-housekeeping.ts';
 
 const USAGE = `Usage:
   operator:list
@@ -81,6 +91,8 @@ const USAGE = `Usage:
   operator:memberships <subject>
   operator:leave <subject> <tenant-id>
   operator:leave <subject> --all
+  operator:check [kind]
+  operator:clean <kind> [--confirm]
 
 DATABASE_URL must be the OWNER connection — app_user cannot write this table,
 which is the point of it.`;
@@ -565,6 +577,74 @@ async function removeMembership(
   }
 }
 
+/**
+ * Run one check and hand back what it found.
+ *
+ * The column names are the contract `HousekeepingCheck.find` documents, and the
+ * mapping is here rather than in each query so a check is a question and not
+ * also a serialisation format. `::int` is applied inside every query for the
+ * reason `loadMemberships` gives: node-pg returns `bigint` as a string, and
+ * `'1' === 1` is false in every plural this prints.
+ */
+async function runHousekeeping(
+  pool: Pool,
+  check: HousekeepingCheck,
+): Promise<HousekeepingRow[]> {
+  const { rows } = await pool.query<{
+    id: string;
+    label: string;
+    note: string;
+    count: number;
+    other_count: number;
+    age_days: number;
+  }>(check.find);
+  return rows.map((row) => ({
+    id: row.id,
+    label: row.label,
+    note: row.note,
+    count: row.count,
+    otherCount: row.other_count,
+    ageDays: row.age_days,
+  }));
+}
+
+/**
+ * Resolve one finding, in a transaction, and prove it did.
+ *
+ * `rowCount !== 1` rolls back for `removeMembership`'s reason: a clean that
+ * reports having cleaned something it did not is the failure this whole file
+ * keeps finding, and a statement that matches nothing is what row level
+ * security looks like from the inside.
+ */
+async function applyClean(
+  pool: Pool,
+  clean: HousekeepingClean,
+  row: HousekeepingRow,
+): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (clean.tenantScoped) {
+      await client.query(`SELECT set_config('app.current_tenant', $1, true)`, [row.id]);
+    }
+    const { rowCount } = await client.query(clean.sql, [row.id]);
+    if (rowCount !== 1) {
+      throw new Error(
+        `matched ${rowCount ?? 0} rows, not 1 — rolled back, and nothing else was touched.\n\n` +
+          'Either something changed between the check and the clean (harmless: run\n' +
+          'the check again) or this connection cannot see what it is acting on,\n' +
+          'which is what row level security looks like from the inside.',
+      );
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
   const pool = new Pool({ connectionString: connectionString() });
@@ -740,6 +820,124 @@ async function main(): Promise<void> {
               refused.map((name) => `    ${name}`).join('\n'),
           );
         }
+        break;
+      }
+
+      case 'check': {
+        await requireCrossTenantSight(pool);
+        const [kind] = rest;
+        const one = kind === undefined ? null : checkByKind(kind);
+        if (kind !== undefined && one === null) throw new Error(unknownKindRefusal(kind));
+        const checks = one === null ? HOUSEKEEPING_CHECKS : [one];
+
+        let total = 0;
+        for (const check of checks) {
+          const rows = await runHousekeeping(pool, check);
+          total += rows.length;
+          if (rows.length === 0) {
+            // SAID, not omitted. A report that lists only problems cannot be
+            // told apart from a report that did not run, and "nothing found"
+            // is the answer an operator is actually hoping for.
+            log.info(`\n${check.kind}: none — ${check.title}`);
+            continue;
+          }
+          log.info(`\n${check.kind}: ${rows.length} — ${check.title}`);
+          // The `why` only when asked about one kind. In the full report it
+          // would be forty lines of prose between the operator and the list.
+          if (kind !== undefined) log.info(`\n${check.why}\n`);
+          for (const row of rows) {
+            log.info(`  ${check.describe(row)}`);
+            log.info(`      → ${check.remedy(row)}`);
+          }
+        }
+        log.info(
+          total === 0
+            ? '\nNothing to clean up.'
+            : `\n${total} finding(s). Each line above carries what resolves it; the ones\n` +
+                `\`clean\` can do for you are marked with a clean command.`,
+        );
+        break;
+      }
+
+      case 'clean': {
+        await requireCrossTenantSight(pool);
+        const [kind, ...flags] = rest;
+        if (!kind) {
+          // NEVER "clean everything". `clean` writes, and a verb that wrote
+          // across five unrelated kinds because somebody left an argument off
+          // is the one shape this must not have — the argument is the consent.
+          throw new Error(
+            'clean needs a kind, and there is deliberately no way to clean them all.\n\n' +
+              'The kinds that can be cleaned automatically:\n' +
+              HOUSEKEEPING_CHECKS.filter((c) => c.clean !== null)
+                .map((c) => `    ${c.kind}  — ${c.title}`)
+                .join('\n') +
+              '\n\nThe rest are reported and resolved by hand:\n' +
+              HOUSEKEEPING_CHECKS.filter((c) => c.clean === null)
+                .map((c) => `    ${c.kind}  — ${c.title}`)
+                .join('\n') +
+              `\n\nAll of them: ${HOUSEKEEPING_KINDS.join(', ')}.\n` +
+              'Start with `./deploy/compose/operator.sh check`.',
+          );
+        }
+        const check = checkByKind(kind);
+        if (!check) throw new Error(unknownKindRefusal(kind));
+        if (!check.clean) throw new Error(notCleanableRefusal(check));
+        const clean: HousekeepingClean = check.clean;
+
+        // THE DEFAULT IS TO WRITE NOTHING, and the dry run is the whole output
+        // rather than a summary of it: what an operator needs before agreeing
+        // to a destructive act is the list of what would actually go, not a
+        // count. Hard rule 2 as a command-line default.
+        const confirmed = flags.includes('--confirm');
+        const rows = await runHousekeeping(pool, check);
+        if (rows.length === 0) {
+          log.info(`${check.kind}: nothing found. Nothing to do.`);
+          break;
+        }
+
+        const doable: HousekeepingRow[] = [];
+        for (const row of rows) {
+          const why = clean.can(row);
+          if (why) {
+            log.warn(`  KEPT  ${check.describe(row)}\n        ${why}`);
+            continue;
+          }
+          doable.push(row);
+        }
+
+        if (doable.length === 0) {
+          throw new Error(
+            `${rows.length} finding(s), and none of them may be cleaned automatically — ` +
+              'every reason is above.\n\n' +
+              `Run \`./deploy/compose/operator.sh check ${check.kind}\` for the statement that\n` +
+              'resolves each one by hand.',
+          );
+        }
+
+        if (!confirmed) {
+          for (const row of doable) {
+            log.info(`  WOULD  ${check.describe(row)}`);
+          }
+          log.info(
+            `\n${doable.length} of ${rows.length} finding(s) can be cleaned. NOTHING WAS WRITTEN.\n` +
+              `To do it:\n    ./deploy/compose/operator.sh clean ${check.kind} --confirm`,
+          );
+          break;
+        }
+
+        for (const row of doable) {
+          await applyClean(pool, clean, row);
+          log.info(`  DONE  ${check.describe(row)}\n        ${clean.did(row)}`);
+        }
+        // NO audit_log ROW, and the module header says why rather than leaving
+        // it to be discovered: that table's tenant_id is NOT NULL, and these
+        // acts are about no tenant or about one that is going. This line is the
+        // record, which is worth saying out loud to whoever is reading it.
+        log.info(
+          `\n${doable.length} cleaned. This is not written to audit_log — there is no tenant\n` +
+            'to attribute it to; what you are reading is the record.',
+        );
         break;
       }
 

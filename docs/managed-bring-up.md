@@ -723,6 +723,39 @@ is **not** reachable through the product afterwards, because every route
 resolves the tenant from a membership. The command prints the statement that
 puts you back, so that is a decision rather than a discovery.
 
+**What has drifted, and what to do about it.** A managed deployment accumulates
+states nothing surfaces: an organisation whose only owner was removed, an
+invitation nobody answered, an operator row written before `subjectRefusal`
+existed and holding a token where an address belongs. Every one of those was
+found by somebody eventually reading the right table by hand.
+
+```bash
+./deploy/compose/operator.sh check                       # every question at once
+./deploy/compose/operator.sh check ownerless-tenant      # one, with why it matters
+./deploy/compose/operator.sh clean <kind>                # what it WOULD do — writes nothing
+./deploy/compose/operator.sh clean <kind> --confirm      # do it
+```
+
+`check` writes nothing and each finding is printed with the statement or command
+that resolves it. Most kinds are **report-only**: choosing who owns a customer's
+organisation, or withdrawing somebody's invitation, is a decision the script must
+not make, and `clean` refuses those by name. The kinds it will do — an
+organisation holding nothing at all, an operator row matching no subject any
+issuer can mint, a credential sitting in an email column — still write nothing
+without `--confirm`, and print exactly which rows they would touch first.
+
+Two things worth knowing before you run `clean`. It **cannot write `audit_log`**
+(that table's `tenant_id` is NOT NULL, and these acts are about no tenant, or
+about one that is going) — the terminal is the record, so keep the output. And
+the two operator checks **never print the value they found**: the row is
+identified and acted on by id, and the id is never displayed, because moving a
+credential out of a table and into a scrollback is not a cleanup.
+
+`apps/api/src/scripts/operator-housekeeping.ts` carries a paragraph per check on
+why it is a question worth asking; `operator-housekeeping.integration.test.ts`
+runs all of them against a real database, because SQL nobody has executed is SQL
+nobody has checked.
+
 **Verify** — the queue answers, and answers only for them:
 
 ```bash
