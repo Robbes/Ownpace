@@ -2614,6 +2614,115 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       fail=1
     fi
 
+
+    # ---------- THE OTHER DECISION, AND THE MAIL THAT DOES OR DOES NOT GO ----------
+    #
+    # Granting is covered above. Declining was not, and it is the decision an
+    # operator makes far more often: the front door is public and rate-limited
+    # but still public, so junk reaches this queue and most of what arrives
+    # there is answered `no`.
+    #
+    # It carries the only outward-facing act on this surface. A grant's mail is
+    # a courtesy to somebody who asked; a DECLINE's mail goes to an address a
+    # stranger typed, and mailing a forged one means mailing an uninvolved
+    # person. That is why `notify` exists, why it is EXPLICIT rather than
+    # defaulted, and why `skipped` and `off` are different words: one is a
+    # choice a human made, the other is a deployment that cannot send and hands
+    # them a manual step. A gate that collapsed those would tell an operator to
+    # go and email somebody they deliberately ignored.
+    #
+    # Both halves are asked here, and the quiet one is asked as a NEGATIVE:
+    # not "the API said skipped" but "no mail reached the catcher". The API's
+    # own word for what it did is exactly what a broken send would also say.
+    DECLINE_LOUD="smoke-decline-loud-${SMOKE_MAIL_RUN}@smoke.local"
+    DECLINE_QUIET="smoke-decline-quiet-${SMOKE_MAIL_RUN}@smoke.local"
+
+    q "DELETE FROM access_request WHERE email LIKE 'smoke-decline-%@smoke.local'" >/dev/null 2>&1 || true
+
+    decline_one() { # decline_one <email> <notify true|false> -> prints "<code> <notified> <state>"
+      local email="$1" notify="$2" id code body notified state
+      curl -sS -o /dev/null -X POST "${API}/api/access-requests" -H 'Content-Type: application/json' \
+        -d "$(jq -nc --arg e "$email" '{email:$e, locale:"en"}')" || true
+      id="$(q "SELECT id FROM access_request WHERE email = '${email}' AND state = 'open'" 2>/dev/null | head -1)"
+      [ -n "$id" ] || { printf '%s %s %s\n' "no-request" "-" "-"; return 0; }
+      body="$(http POST "$API/api/access-requests/${id}/decline" "$OP_TOKEN" \
+        "$(jq -nc --argjson n "$notify" '{note:"smoke: not a real applicant", notify:$n}')")"
+      code="${body%% *}"; body="${body#* }"
+      notified="$(jq -r '.notified // empty' <<<"$body" 2>/dev/null || true)"
+      state="$(q "SELECT state FROM access_request WHERE id = '${id}'" 2>/dev/null || echo '?')"
+      printf '%s %s %s\n' "$code" "${notified:--}" "$state"
+    }
+
+    # HOW THE MAIL IS COUNTED, which E2E (managed) #105 had to teach this block.
+    # A Mailpit search on an address matches every message that MENTIONS it, and
+    # the knock above sends the operator a mail naming the applicant — so
+    # `messages_count` for a quiet decline came back 1 with nothing whatsoever
+    # having been sent to that person. Counting by RECIPIENT is the only count
+    # that answers the question this block is asking.
+    mail_to_count() { # mail_to_count <address> -> caught messages ADDRESSED to it
+      curl -fsS --get "${MAILPIT}/api/v1/search" --data-urlencode "query=$1" \
+        | jq -r --arg a "$1" '[.messages[]? | select([.To[]?.Address] | index($a))] | length' \
+        2>/dev/null || echo '?'
+    }
+
+    # THE QUIET ONE GOES FIRST, and that ordering IS part of the assertion.
+    # "No mail arrived" is worth nothing unless a mail could have arrived in the
+    # same window: asked on its own it passes just as happily on a dead SMTP
+    # pipe. Declining quietly first and reading the answer only once the loud
+    # one's mail has landed makes that arrival the positive control for this
+    # negative — the same shape as the canary check further down.
+    read -r qd_code qd_notified qd_state <<<"$(decline_one "$DECLINE_QUIET" false)"
+    if [ "$qd_code" = "200" ] && [ "$qd_notified" = "skipped" ] && [ "$qd_state" = "declined" ]; then
+      echo "a quiet decline is recorded: HTTP 200, notified=skipped, state=declined"
+    else
+      echo "declining quietly: HTTP ${qd_code}, notified=${qd_notified}, state=${qd_state} (expected 200/skipped/declined)"
+      fail=1
+    fi
+
+    read -r d_code d_notified d_state <<<"$(decline_one "$DECLINE_LOUD" true)"
+    if [ "$d_code" = "200" ] && [ "$d_notified" = "sent" ] && [ "$d_state" = "declined" ]; then
+      echo "a decline is recorded and the applicant is told: HTTP 200, notified=sent, state=declined"
+    else
+      echo "declining loudly: HTTP ${d_code}, notified=${d_notified}, state=${d_state} (expected 200/sent/declined)"
+      echo "    'off' or 'failed' here means this deployment could not send and the operator is"
+      echo "    now the only person who can tell them — which is a different problem from a refusal."
+      fail=1
+    fi
+
+    # AND IT REACHED THE APPLICANT, not the operator's own channel. The knock
+    # mail goes to NOTIFY_TO and must never go to the person; this one is the
+    # exact opposite, and the two are easy to wire the wrong way round.
+    d_to=0
+    for _ in $(seq 1 20); do
+      d_to="$(mail_to_count "$DECLINE_LOUD")"
+      [ "${d_to:-0}" != "0" ] && break
+      sleep 1
+    done
+    if [ "${d_to:-0}" != "0" ] && [ "${d_to}" != "?" ]; then
+      echo "the refusal was addressed to the applicant, as a refusal must be (${d_to} mail)"
+    else
+      echo "nobody told ${DECLINE_LOUD} they were declined: ${d_to} addressed to them within 20s"
+      echo "    A message that merely MENTIONS them is the operator's copy of the knock, not"
+      echo "    their refusal — which is why this counts recipients."
+      fail=1
+    fi
+
+    # AND NOW the negative, standing on that arrival.
+    qd_seen="$(mail_to_count "$DECLINE_QUIET")"
+    if [ "${qd_seen:-1}" = "0" ]; then
+      echo "and the quiet one was left alone: 0 addressed to them, in the window that delivered the other"
+    else
+      echo "a quiet decline still mailed ${DECLINE_QUIET}: ${qd_seen} message(s) addressed to them"
+      echo "    Unticking the box is a decision about a person who may not exist. A mail sent"
+      echo "    anyway reaches whoever really owns that address."
+      fail=1
+    fi
+
+    q "DELETE FROM access_request WHERE email LIKE 'smoke-decline-%@smoke.local'" >/dev/null 2>&1 || true
+    d_left="$(q "SELECT count(*) FROM access_request WHERE email LIKE 'smoke-decline-%@smoke.local'" 2>/dev/null || echo '?')"
+    [ "$d_left" = "0" ] ||
+      { echo "the gate's declined requests were NOT taken back: ${d_left} left"; fail=1; }
+
     q "DELETE FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" >/dev/null
     left="$(q "SELECT count(*) FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" 2>/dev/null || echo '?')"
     if [ "$left" = "0" ]; then
