@@ -346,3 +346,88 @@ describe('the refusal the operator can answer', () => {
     );
   });
 });
+
+describe('finding a person, and the log that says you did', () => {
+  /**
+   * `GET /api/support/people` crosses every organisation at once — the one
+   * read on this surface not scoped to a tenant the operator already chose,
+   * and so the widest question this product can be asked.
+   *
+   * Which makes the accountability half load-bearing rather than decorative.
+   * A regression in `support_read` is invisible by construction: the screen
+   * still works, the operator still sees the person, and the only thing
+   * missing is the record that they looked. Nothing anywhere checked the row
+   * appears.
+   */
+  const block = smoke.slice(
+    smoke.indexOf('FINDING A PERSON, AND THE LOG THAT SAYS YOU DID'),
+    smoke.indexOf('TAKE IT BACK. Requests first'),
+  );
+
+  it('found the block', () => {
+    expect(block.length).toBeGreaterThan(500);
+  });
+
+  it('asks about the person this run created, not about the seed', () => {
+    // Not the demo seed: the address is one this block chose, so the answer
+    // comes from rows that did not exist a minute earlier — the part a fixture
+    // cannot prove.
+    expect(block).toContain('q=${GRANT_EMAIL}');
+  });
+
+  it('requires EVERY organisation this run created, not a count', () => {
+    // MEASURED, not reasoned: this first asserted `matches = 1` and E2E
+    // (managed) #104 answered `matches=2`. The block above deliberately makes
+    // a SECOND organisation for the same address — that is what the override
+    // is — so the person owns two by then, and the test was wrong about the
+    // product rather than the other way round.
+    //
+    // Asking for both is stronger than asking for a number: a search that
+    // returned one of them would be failing at the only job this route has,
+    // and this does not go red when the block above changes how many it makes.
+    expect(block).toContain('in_first');
+    expect(block).toContain('in_second');
+    expect(block).toContain('"$in_first" = "1"');
+    expect(block).toContain('"$in_second" = "1"');
+    expect(block, 'a bare count would drift with the block above it').not.toContain('"$found" = "1"');
+  });
+
+  it('checks the floor, because a blank box is not a question', () => {
+    expect(block).toContain('q=a');
+    expect(block).toContain('a one-character search is refused');
+  });
+
+  it('reads the LOG, with the query and the count, not just view_name', () => {
+    // `view_name` alone cannot tell an operator who searched one address from
+    // one who listed everybody. Keeping the query is the whole point of 0019,
+    // and a check that ignored it would pass a route that logged neither.
+    expect(block).toContain("view_name = 'people'");
+    expect(block).toContain('query = ');
+    // Against what CAME BACK, not against a constant. The column records what
+    // the operator actually saw, so comparing it to the answer is the
+    // assertion — and it catches a route that logs a fixed number, which a
+    // hardcoded expectation here could not.
+    expect(block).toContain('result_count = ${found}');
+    expect(block, 'a constant would pass a route that logs a constant').not.toMatch(
+      /result_count = \d/,
+    );
+  });
+
+  it('treats opening a person as its own read', () => {
+    // A different view_name, scoped to the tenant: "searched for an address"
+    // and "opened that account" are different things to anybody reading the
+    // log afterwards.
+    expect(block).toContain('/opened');
+    expect(block).toContain("view_name = 'person'");
+    expect(block).toContain('"$code" = "204"');
+  });
+
+  it('does NOT sweep support_read, and says why', () => {
+    // A gate that erased its own audit trail would be demonstrating the
+    // failure the table exists to catch. The rows outlive the tenant because
+    // `tenant_id` carries no foreign key (migration 0009), so the take-back
+    // cannot be blocked by them either.
+    expect(block, 'the gate deletes its own audit rows').not.toMatch(/DELETE FROM support_read/);
+    expect(block).toContain('NOTHING SWEEPS support_read, DELIBERATELY');
+  });
+});
