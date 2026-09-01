@@ -30,6 +30,7 @@ import permissionRoutes from './routes/permissions.ts';
 import billingRoutes from './routes/billing/index.ts';
 import billingWebhookRoutes from './routes/billing/webhooks.ts';
 import scopeManifestRoutes from './routes/scope-manifest.ts';
+import providerAccountRoutes from './routes/provider-accounts.ts';
 import setupRoutes from './routes/setup.ts';
 import connectionRoutes from './routes/connections.ts';
 import accessRequestRoutes from './routes/access-requests.ts';
@@ -187,6 +188,15 @@ app.use('/api/invitations', invitationRoutes);
 // API Routes
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/scope-manifest', scopeManifestRoutes);
+/**
+ * What one account of each provider kind may serve HERE (ADR-0041).
+ *
+ * Beside the scope manifest and unauthenticated for its reason: a static fact
+ * about the deployment, naming no customer and no data. The wizard asks it
+ * because `GOOGLE_ACCOUNT_SCOPE_CLASS` is read at run time and the browser
+ * bundle was built before anybody set it — see the route's own header.
+ */
+app.use('/api/provider-accounts', providerAccountRoutes);
 app.use('/api/setup', setupRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/migrations', mappingRoutes);

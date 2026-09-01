@@ -387,6 +387,36 @@ export const scopeManifestApi = {
   },
 };
 
+/**
+ * What one account of each provider kind may serve ON THIS DEPLOYMENT
+ * (ADR-0041, owner decision 2026-09-01).
+ *
+ * ASKED RATHER THAN COMPILED IN. `PROVIDER_ACCOUNT_DOMAINS` is a constant this
+ * bundle could import — and did, until the answer stopped being a property of
+ * the product. `GOOGLE_ACCOUNT_SCOPE_CLASS` is read by the API at run time and
+ * this bundle was built before anybody set it, so a compiled-in answer meant a
+ * wizard offering two ticks on a deployment whose consent route would happily
+ * ask for four. The alternative — a `VITE_` mirror — is the same fact in two
+ * separately settable places, which is how a client comes to offer what the
+ * server refuses.
+ *
+ * The domains are the discovery vocabulary (`email`, not `mail`), and unknown
+ * ones are dropped rather than trusted: a value this build has never heard of
+ * cannot be rendered as a tick and must not become one.
+ */
+export const ProviderAccountDomainsSchema = z.record(
+  z.string(),
+  z.array(z.enum(['email', 'calendar', 'contact', 'file'])),
+);
+export type ProviderAccountDomains = z.infer<typeof ProviderAccountDomainsSchema>;
+
+export const providerAccountsApi = {
+  get: async (): Promise<ProviderAccountDomains> => {
+    const response = await apiClient.get('/provider-accounts');
+    return ProviderAccountDomainsSchema.parse(response.data);
+  },
+};
+
 /** One probe's outcome (workplan 0046) — the refusal arrives verbatim. */
 export interface TestConnectionResult {
   ok: boolean;

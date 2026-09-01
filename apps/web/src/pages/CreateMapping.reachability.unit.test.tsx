@@ -39,6 +39,10 @@ import { connectionsApi, mappingApi } from '../services/mapping-service.ts';
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { create: vi.fn(), testConnection: vi.fn(), googleAuthorize: vi.fn() },
   connectionsApi: { list: vi.fn().mockResolvedValue([]), test: vi.fn(), add: vi.fn(), rotate: vi.fn() },
+  // The deployment's own ceiling for a Google ACCOUNT (ADR-0041). Mocked
+  // empty: the wizard falls back to the narrow default, which is what an
+  // appliance and an undeclared managed deployment both get.
+  providerAccountsApi: { get: vi.fn().mockResolvedValue({}) },
 }));
 
 const listMock = vi.mocked(connectionsApi.list);

@@ -11,6 +11,7 @@ import {
   TARGET_TYPE_DOMAINS,
   incoherentTargetDomains,
   sourceDomainRefusal,
+  sourceTypeDomains,
   targetDomainRefusal,
 } from './target-domains.ts';
 
@@ -105,6 +106,54 @@ describe('sourceDomainRefusal — the source-side matrix', () => {
     expect(msg).toContain('Google Drive');
     expect(msg).toContain('Drive API only');
     expect(msg).toContain('separate mapping');
+  });
+
+  it("the account's ceiling is the DEPLOYMENT'S, and the default is narrow", () => {
+    // ADR-0041, owner decision 2026-09-01. Absent means the static table,
+    // which is what an appliance always gets — it registers its own OAuth
+    // client and this table never spoke for it.
+    expect(sourceTypeDomains('google')).toEqual(['calendar', 'contact']);
+    expect(sourceDomainRefusal('google', ['calendar', 'contact'])).toBeNull();
+
+    const refused = sourceDomainRefusal('google', ['calendar', 'email']);
+    expect(refused).toContain('Google');
+    expect(refused).toContain("'email'");
+    // The narrow deployment's sentence names WHY, and names the way through.
+    expect(refused).toContain('security assessment');
+  });
+
+  it('accepts all four where the deployment declared its own application does', () => {
+    const four = ['email', 'calendar', 'contact', 'file'] as const;
+    expect(sourceTypeDomains('google', four)).toEqual(four);
+    expect(sourceDomainRefusal('google', [...four], four)).toBeNull();
+    expect(sourceDomainRefusal('google', ['email'], four)).toBeNull();
+    expect(sourceDomainRefusal('google', ['file'], four)).toBeNull();
+  });
+
+  it('stops naming a wall that is not there on such a deployment', () => {
+    // The sentence is the point: an installation whose owner registered their
+    // own application and accepted the restricted tier must not be told that
+    // mail "needs a Google security assessment we have not bought yet". It
+    // sends them looking for the wrong problem.
+    //
+    // There is still a refusal to make — a domain no ACCOUNT serves — and it
+    // has to be about the ticks, not about a purchase.
+    const three = ['email', 'calendar', 'contact'] as const;
+    const msg = sourceDomainRefusal('google', ['email', 'file'], three);
+    expect(msg).toContain("'file'");
+    expect(msg).not.toContain('security assessment');
+    expect(msg).toContain('the object types you granted');
+  });
+
+  it('leaves every OTHER source alone, declaration or not', () => {
+    // The declaration is about one account kind's scope tiers. A Gmail
+    // credential reads mail whoever deployed it, and widening these would be
+    // the change facing the wrong way — a client offering what the server
+    // refuses.
+    const four = ['email', 'calendar', 'contact', 'file'] as const;
+    expect(sourceTypeDomains('gmail', four)).toEqual(['email']);
+    expect(sourceDomainRefusal('gmail', ['email', 'file'], four)).toContain('Gmail');
+    expect(sourceDomainRefusal('google-drive', ['file', 'email'], four)).toContain('Google Drive');
   });
 
   it('gmail + file names the mail scope, in its own honest sentence (workplan 0044)', () => {

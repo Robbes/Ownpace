@@ -29,7 +29,11 @@ import {
 } from '@openmig/shared';
 import type { CalendarSource, ContactSource, TokenProvider } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, GoogleTokenProvider } from '@openmig/connectors';
-import type { GoogleCredentialNaming, GoogleCredentialsAsFound } from './drive-source-factory.ts';
+import {
+  GOOGLE_DRIVE_CONNECTION_KIND,
+  type GoogleCredentialNaming,
+  type GoogleCredentialsAsFound,
+} from './drive-source-factory.ts';
 import {
   ENV_GOOGLE_DWD_KEY_NAME,
   STORED_GOOGLE_DWD_KEY_NAME,
@@ -127,6 +131,29 @@ export function googleDavServes(kind: string, domain: 'calendar' | 'contact'): b
   return domain === 'calendar'
     ? kind === GOOGLE_CALENDAR_CONNECTION_KIND
     : kind === GOOGLE_CONTACTS_CONNECTION_KIND;
+}
+
+/**
+ * Does this source connection serve its FILE face with the Drive builder?
+ *
+ * The sibling of `googleDavServes`, and it exists for the same reason: the
+ * file seam in `build-deps-from-mapping.ts` must not compare `src.kind` to a
+ * Google literal. A comparison there is what excluded the account row from the
+ * DAV branches before workplan 0106 T3b, and the symptom was a credential
+ * error naming fields nobody typed, arriving inside a pass.
+ *
+ * HERE RATHER THAN IN `drive-source-factory.ts`, which is where the Drive
+ * constants live and would be the obvious home. That file is the lower layer —
+ * this one imports it — and making it import back to learn about the ACCOUNT
+ * kind would be a cycle for a two-line predicate. The account kind's faces
+ * belonging together also reads better: one place says what a `google` row
+ * covers.
+ *
+ * NO DOMAIN ARGUMENT because there is one file face and no ambiguity: unlike
+ * the DAV pair, nothing else could be meant.
+ */
+export function googleDriveServes(kind: string): boolean {
+  return kind === GOOGLE_ACCOUNT_CONNECTION_KIND || kind === GOOGLE_DRIVE_CONNECTION_KIND;
 }
 
 /** Test seam, same shape as the Gmail factory's. */

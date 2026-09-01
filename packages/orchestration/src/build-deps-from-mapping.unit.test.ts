@@ -140,7 +140,12 @@ describe('buildSourceConnectorFromCredentials', () => {
 
   it('rejects a non-mail source type with an honest error', () => {
     const caldav = { type: 'caldav', url: 'https://dav.example.net', user: 'u', auth: { kind: 'login', passwordFromEnv: 'X' } } as unknown as SourceConfig;
-    expect(() => buildSourceConnectorFromCredentials(caldav, {})).toThrow(/imap-oauth2, graph-mail and gmail/);
+    // `google` joined the list when the ACCOUNT kind grew its mail face
+    // (2026-09-01): the refusal must keep NAMING what it does support, which
+    // is the whole of its value to somebody reading a task log.
+    expect(() => buildSourceConnectorFromCredentials(caldav, {})).toThrow(
+      /imap-oauth2, graph-mail, gmail and google/,
+    );
   });
 });
 

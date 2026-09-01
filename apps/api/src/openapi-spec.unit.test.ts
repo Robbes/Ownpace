@@ -64,6 +64,7 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   { prefix: '/api/invitations', files: ['src/routes/invitations.ts'] },
   { prefix: '/api/access-requests', files: ['src/routes/access-requests.ts'] },
   { prefix: '/api/scope-manifest', files: ['src/routes/scope-manifest.ts'] },
+  { prefix: '/api/provider-accounts', files: ['src/routes/provider-accounts.ts'] },
   { prefix: '/api/setup', files: ['src/routes/setup.ts'] },
   { prefix: '/api/connections', files: ['src/routes/connections.ts'] },
   // Four files, not one: `migrations/index.ts` mounts three SUB-routers on

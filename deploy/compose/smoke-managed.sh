@@ -2230,6 +2230,19 @@ report_markdown() { # report_markdown <label> <path> <heading it must carry>
 # outage twice. The database half has no such excuse.
 report_json "readiness (database)" "/api/ready" '.database' up
 report_json "readiness (verdict)" "/api/ready" '.status'
+# WHAT THIS DEPLOYMENT SAYS ITS OWN GOOGLE APPLICATION CARRIES (ADR-0041).
+#
+# The wizard reads this route rather than a compiled-in constant, because
+# `GOOGLE_ACCOUNT_SCOPE_CLASS` is set on a running stack and the browser bundle
+# was built before anybody set it. So a stack that serves the app and not this
+# is a wizard falling back to two ticks for a reason nobody can see — the
+# quietest possible failure, and exactly the family this gate exists for.
+#
+# The ANSWER is not pinned, only that there is one: a stack declaring
+# `restricted` and one that has not are both correct, and pinning either would
+# make the gate an opinion about somebody's .env. What is pinned is that Google
+# is answered for at all.
+report_json "provider accounts (google)" "/api/provider-accounts" '.google | length'
 report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
 report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Before you start"
 # A mailbox is required and the demo owner's is the one address this tenant is

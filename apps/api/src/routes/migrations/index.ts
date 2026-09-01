@@ -48,6 +48,7 @@ import {
   parseTargetFolderPrefix,
   parseThrottleConfig,
   sourceDomainRefusal,
+  providerAccountDomains,
   parseGoogleDriveSource,
   ConfigError,
   describeCronScheduleProblem,
@@ -764,7 +765,18 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           `${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
       });
     }
-    const sourceRefusal = sourceDomainRefusal(body.sourceType, body.syncConfig.domains);
+    // The ACCOUNT's ceiling is THIS DEPLOYMENT'S, not the product's (ADR-0041,
+    // owner decision 2026-09-01): an installation whose own Google application
+    // carries the restricted scopes may tick mail and files. Passed rather
+    // than read inside, because the same function runs in a browser where
+    // `process.env` does not exist — the wizard gets the same list from
+    // `GET /api/provider-accounts`. The single-purpose kinds take no argument
+    // and are unaffected: a Gmail credential reads mail whoever deployed it.
+    const sourceRefusal = sourceDomainRefusal(
+      body.sourceType,
+      body.syncConfig.domains,
+      providerAccountDomains('google'),
+    );
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
     }

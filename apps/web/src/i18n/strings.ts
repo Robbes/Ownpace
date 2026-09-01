@@ -248,6 +248,16 @@ const en = {
     'One Google account, one sign-in \u2014 calendars and contacts, whichever you tick. '
     + 'Gmail and Drive stay separate cards for now: they need a Google security review '
     + 'we have not bought yet.',
+  // The same card where the DEPLOYMENT'S own Google application carries the
+  // restricted scopes (ADR-0041, owner decision 2026-09-01). The sentence
+  // above names a wall that is not there on such an installation, and a card
+  // that does that sends somebody looking for the wrong problem. The
+  // single-purpose cards stay: an existing mapping keeps working, and one
+  // account per face is still a reasonable thing to want.
+  'wizard.proto.google.hint.restricted':
+    'One Google account, one sign-in \u2014 mail, calendars, contacts and files, '
+    + 'whichever you tick. Gmail and Google Drive stay as their own cards for a '
+    + 'migration that wants only one of them.',
   'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
   'wizard.proto.dropbox.hint': 'Files from a Dropbox (read-only OAuth app)',
   'wizard.proto.box.hint': 'Files from a Box account (read-only platform app)',
@@ -1683,6 +1693,12 @@ const nl: Record<keyof typeof en, string> = {
     '\u00c9\u00e9n Google-account, \u00e9\u00e9n aanmelding \u2014 agenda\u2019s en contacten, '
     + 'wat u aanvinkt. Gmail en Drive blijven voorlopig aparte kaarten: die vragen een '
     + 'beveiligingsbeoordeling van Google die wij nog niet hebben aangeschaft.',
+  // Dezelfde kaart waar de EIGEN Google-applicatie van deze omgeving de
+  // restricted scopes draagt — zie het Engelse blok.
+  'wizard.proto.google.hint.restricted':
+    '\u00c9\u00e9n Google-account, \u00e9\u00e9n aanmelding \u2014 e-mail, agenda\u2019s, '
+    + 'contacten en bestanden, wat u aanvinkt. Gmail en Google Drive blijven eigen kaarten '
+    + 'voor een migratie die er maar \u00e9\u00e9n van wil.',
   'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
   'wizard.proto.dropbox.hint': 'Bestanden uit een Dropbox (alleen-lezen OAuth-app)',
   'wizard.proto.box.hint': 'Bestanden uit een Box-account (alleen-lezen platform-app)',

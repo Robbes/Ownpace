@@ -494,6 +494,17 @@ live in [README.md](./README.md), the register.
   wrong answer costs a refusal at Google with the scope in hand, never a silent narrowing.
   And in **External + Testing** it costs one more thing, which the setting's own documentation
   must say: refresh tokens die after seven days (see the publishing-status bullet below).
+- **THE DECLARATION IS SERVED, NEVER MIRRORED INTO A BUILD.** It is read at run time by the API
+  and answered to clients at `GET /api/provider-accounts`; the browser bundle asks. There is
+  deliberately no `VITE_` twin — that would be two separately settable copies of one fact, which
+  is how a screen comes to offer what the server refuses, and worse, how a consent comes to ask
+  for scopes no mapping can carry. Every failure to ask falls back to the narrow answer, the one
+  that cannot over-ask.
+- **The declaration gates MAKING a mapping, never RUNNING one.** The consent this product
+  builds and the ticks the create door accepts follow it; the source builders do not. A grant is
+  the authority once it exists, so unsetting the variable must not break migrations that already
+  hold one — and a token that never carried the scope is refused by Google, which is the check
+  that actually matters.
 - **Owning a client never widens a grant.** Same scopes, same per-user consent, same read-only
   posture, same revocation by the account holder in their own Google settings. What changes is
   who registered the client, not what the token can read — and the consent screen must show the
