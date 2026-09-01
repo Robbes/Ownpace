@@ -3,6 +3,10 @@
 All project documentation lives here.
 
 - **`architecture/solution-architecture.md`** — the source of truth. Read this first.
+- **`LESSONS.md`** — GENERATED (`node scripts/lessons.mjs --write`). Every cross-cutting guard in
+  `scripts/`, indexed **by the file it constrains**, with the one sentence its header opens with.
+  Grep it for a path before editing that path: the guards record defects that actually happened,
+  and until this existed they could only be found by already knowing their names.
 - **`adr/`** — Architecture Decision Records. `0000-template.md` is the template; decisions are
   numbered and append-only (supersede, don't delete).
 - **`workplans/`** — numbered build slices (one vertical slice per plan). Each workplan carries a

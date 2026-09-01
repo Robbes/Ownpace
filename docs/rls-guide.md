@@ -46,11 +46,28 @@ migration creates it explicitly) with table grants but no ownership and no
 superuser bit. The deployment contract (see `operator-runbook.md`, "The two
 database roles"):
 
-- `DATABASE_URL` → the DB owner. **Migrations and the demo seed only.**
-- `APP_DATABASE_URL` → `app_user`. The API and the deployed Trigger.dev
-  tasks connect through this for all tenant data.
+- `APP_DATABASE_URL` → `app_user`. **The request path, always.** The API and
+  the deployed Trigger.dev tasks read and write tenant data through this, so
+  row security is in force on every query that serves somebody.
+- `DATABASE_URL` → the DB owner. **Never the request path.** It is for the acts
+  performed AT THE MACHINE by whoever runs the deployment — the ones that by
+  their nature span tenants, or precede one existing:
 
-Point the app at the owner URL and tenant isolation silently disappears.
+| who holds it | what for |
+| --- | --- |
+| `deploy/compose/bootstrap-managed.sh` | applies the migrations, and creates the `pgbouncer_auth` role |
+| `deploy/compose/seed-managed.sh` | writes the demo tenants |
+| `deploy/compose/operator.sh` | appoints operators, manages their memberships, and runs `check` / `clean` — all of which ask questions that span every tenant, which is why they are scripts and not routes (see `apps/api/src/scripts/operator.ts`) |
+| `deploy/compose/set-task-env.sh` | uploads `TASK_DIRECT_DATABASE_URL` into the Trigger.dev task environment, because the tasks run migrations at boot and `pg_advisory_lock` is session-scoped, so it must bypass the pooler (`packages/ledger/src/direct-url.ts`). The same upload carries `TASK_APP_DATABASE_URL`, which is what the tasks use for tenant data |
+
+**That list is checked, not maintained by hand.**
+`scripts/a-connection-the-docs-did-not-know-about.unit.test.ts` fails if a
+script under `deploy/compose/` composes an owner URL and is not named above.
+It used to read *"migrations and the demo seed only"*, which stopped being true
+the day `operator.sh` was written (workplan 0093 T6) and stayed wrong because a
+sentence in a document has nothing checking it.
+
+Point the APP at the owner URL and tenant isolation silently disappears.
 
 ### 3. `LedgerDriver.role` + `withTenant()` — the gate on the shipped path
 

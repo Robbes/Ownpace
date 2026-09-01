@@ -6,6 +6,7 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
 
 ## Session protocol (mandatory)
 1. **Start:** read the arch doc, then the active workplan in `docs/workplans/` — its top **Status block** is ground truth for done/open. Trust it; never redo completed tasks.
+   **Then grep [`docs/LESSONS.md`](docs/LESSONS.md) for every file you are about to edit.** It is generated from the guards in `scripts/`, indexed BY PATH, and each entry is a defect that actually happened to this repository. The knowledge was always in those headers; what was missing was a route from "I am about to touch this file" to "here is what is already known about it" — on 2026-09-01 an agent reconstructed `docs/rls-guide.md` §1–2 from the migrations without ever finding the guide, and was saved from shipping a vacuous Postgres probe only because `the-check-postgres-never-made` happened to be adjacent to something else it was reading.
 2. **Plan:** create a task-tracker list before coding; keep it updated. Parallel subagents may do read-only audits; conclusions still need quoted evidence.
 3. **Evidence-first:** never claim something works without pasting proof (test run, logs, wire dialogue). Quote errors verbatim before proposing fixes.
 4. **Docker hygiene:** manual debug `docker run` uses `--rm` or is removed before session end.
@@ -52,6 +53,15 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
   as `pnpm exec tsx scripts/x.ts` import `@openmig/*` from a directory where
   nothing declares those as dependencies. Keep using tsx for those; do not use
   it for anything that ships.
+- **A real database without a container runtime:** `./scripts/local-pg.sh up` initdbs a throwaway
+  cluster, applies **both** migration chains and prints `TEST_DATABASE_URL`; `down` removes it.
+  For when Testcontainers cannot run (a remote agent session has `docker` on the PATH and no
+  daemon behind it) and for the ordinary case of wanting to WATCH a query answer rather than
+  believe it. Not a replacement for `pnpm test:integration`, which CI still runs and which pins
+  the server version.
+- **Regenerating the two indexes:** `node scripts/adr-operative.mjs --write` (ADR rules) and
+  `node scripts/lessons.mjs --write` (the guard index). Both are build output with a drift test;
+  edit the source section or header, never the generated file.
 - Unit: `pnpm test` · Integration: `pnpm test:integration` (self-manages its stack via Testcontainers) · UI smoke: `pnpm test:ui` (real Chromium over the built bundle; runs on every PR) · E2E: `pnpm test:e2e`
 - Optional dev stack: `docker compose -f deploy/compose/dev.yml up -d` (Postgres + Nextcloud).
   Stalwart isn't part of it — its two-phase startup can't be expressed as one compose service —
