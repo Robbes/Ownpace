@@ -477,6 +477,23 @@ live in [README.md](./README.md), the register.
   intent is not a purchase: nothing may be offered on the managed client until the assessment
   actually exists. Whatever is not yet covered says so on the page rather than failing at the
   consent screen.
+- **WHAT A DEPLOYMENT'S OWN APPLICATION CARRIES IS A FACT ABOUT THAT DEPLOYMENT, AND IT IS
+  DECLARED** (owner decision, 2026-09-01). The bullet above reads as a law about the product;
+  it was a law about *one* client, written when there was one. A deployment whose Google
+  application genuinely carries restricted scopes — because its owner registered them and
+  accepts the consequences — may offer all four faces on the account consent, and says so in
+  `GOOGLE_ACCOUNT_SCOPE_CLASS`. The default is `sensitive`, so nothing changes for a
+  deployment that does not answer, and the appliance never has an application at all.
+  **The bullet above still holds for the client Ownpace publishes to strangers**: that one
+  offers contacts and calendar until the assessment is paid for. What is now separable is the
+  reference deployment's own client, in Testing status with listed users, where the population
+  the restricted tier would be imposed on is the owner and people they named.
+- **A DECLARATION IS NOT A CAPABILITY.** Setting it does not make Google grant anything: the
+  application must actually carry the scopes, and Google refuses at its own screen if it does
+  not. What the declaration changes is which consent this product is willing to BUILD — so a
+  wrong answer costs a refusal at Google with the scope in hand, never a silent narrowing.
+  And in **External + Testing** it costs one more thing, which the setting's own documentation
+  must say: refresh tokens die after seven days (see the publishing-status bullet below).
 - **Owning a client never widens a grant.** Same scopes, same per-user consent, same read-only
   posture, same revocation by the account holder in their own Google settings. What changes is
   who registered the client, not what the token can read — and the consent screen must show the
