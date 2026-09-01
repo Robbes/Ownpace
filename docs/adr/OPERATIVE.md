@@ -504,9 +504,13 @@ live in [README.md](./README.md), the register.
   self-describing, and moving one to another deployment means that deployment needs a client
   too. **A connection carrying its own pair always wins** — this is a fallback, never an
   override, or owning a client would stop being a choice. **Both variables or neither**: half a
-  pair is refused with the missing name, never mixed with the other half. And the fallback is
-  gated on a GOOGLE connection kind, because `clientId`/`clientSecret` are shared key names —
-  Dropbox stores its App key and App secret under exactly those.
+  pair is refused with the missing name, never mixed with the other half. A connection's *own*
+  pair obeys the same rule at every door — wizard, API, add-form and rotation alike: half of one
+  is refused where it is sent, never completed with the deployment's other half, because the
+  fallback fills only the missing key and a mixed pair fails at Google's token endpoint hours
+  later, from a sync log. And the fallback is gated on a GOOGLE connection kind, because
+  `clientId`/`clientSecret` are shared key names — Dropbox stores its App key and App secret
+  under exactly those.
 - **The API and the WORKER are supplied by different mechanisms, and both must be.** `managed.yml`
   names the two variables on the API service; `set-task-env.sh` uploads them to the worker,
   because a Trigger.dev task container inherits nothing from compose. Wiring only the first is
