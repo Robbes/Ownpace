@@ -29,6 +29,7 @@ import {
   googleDeploymentClient,
   googleDeploymentClientProblem,
   withDeploymentGoogleClient,
+  halfGoogleClientPairProblem,
 } from './google-deployment-client.ts';
 
 const CONFIGURED = {
@@ -121,5 +122,45 @@ describe('filling it in, and refusing to', () => {
     const given = { refreshToken: 'rt' };
     withDeploymentGoogleClient(true, given, CONFIGURED);
     expect(given).toEqual({ refreshToken: 'rt' });
+  });
+});
+
+describe("half a pair on a connection, where the deployment would complete it with the wrong half", () => {
+  const OWN = { clientId: 'own.apps.googleusercontent.com', clientSecret: 'own-secret' };
+
+  it('is nothing to say without a deployment client — the missing-key refusals already speak', () => {
+    expect(halfGoogleClientPairProblem({ clientId: OWN.clientId }, {})).toBeNull();
+    expect(halfGoogleClientPairProblem({ clientSecret: OWN.clientSecret }, {})).toBeNull();
+  });
+
+  it('is nothing to say for a whole pair, or for none', () => {
+    expect(halfGoogleClientPairProblem(OWN, CONFIGURED)).toBeNull();
+    expect(halfGoogleClientPairProblem({}, CONFIGURED)).toBeNull();
+    expect(halfGoogleClientPairProblem({ clientId: '', clientSecret: '  ' }, CONFIGURED)).toBeNull();
+  });
+
+  it('names the half that was sent, the half that was not, and both ways forward', () => {
+    const idOnly = halfGoogleClientPairProblem({ clientId: OWN.clientId }, CONFIGURED) ?? '';
+    expect(idOnly).toContain('clientId was sent without clientSecret');
+    expect(idOnly).toContain('send both');
+    expect(idOnly).toContain("neither to use this deployment's");
+
+    const secretOnly =
+      halfGoogleClientPairProblem({ clientSecret: OWN.clientSecret }, CONFIGURED) ?? '';
+    expect(secretOnly).toContain('clientSecret was sent without clientId');
+  });
+
+  it('says WHY, because "send both" alone reads as pedantry', () => {
+    // The failure this prevents happens at Google, later, out of sight. A
+    // refusal that does not say so gets worked around.
+    const said = halfGoogleClientPairProblem({ clientId: OWN.clientId }, CONFIGURED) ?? '';
+    expect(said).toContain('token endpoint');
+  });
+
+  it('never prints a value — not the one sent, not the deployment\'s', () => {
+    const said = halfGoogleClientPairProblem({ clientSecret: 'the-secret' }, CONFIGURED) ?? '';
+    expect(said).not.toContain('the-secret');
+    expect(said).not.toContain('deployment-secret');
+    expect(said).not.toContain('deployment.apps.googleusercontent.com');
   });
 });

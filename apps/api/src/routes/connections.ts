@@ -39,7 +39,12 @@ import {
   type AccountQualification,
 } from '@openmig/orchestration/account-qualification';
 import { z } from 'zod';
-import { credentialFieldsFor, log, wizardTypeForConnectionKind } from '@openmig/shared';
+import {
+  credentialFieldsFor,
+  halfGoogleClientPairProblem,
+  log,
+  wizardTypeForConnectionKind,
+} from '@openmig/shared';
 import type { TenantId } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
@@ -310,6 +315,17 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         ...invalidValuesRefusal(checked.error),
       });
     }
+    // Half a Google client pair is refused here as at the create door
+    // (ADR-0041): with the deployment carrying a client, the run path would
+    // complete the half with the WRONG other half, and the probe below would
+    // then blame Google for it. Same sentence, same rule, before anything is
+    // probed or stored.
+    if (role === 'source' && isGoogleGrantKind(sourceKindFor(type as never))) {
+      const halfPair = halfGoogleClientPairProblem(values);
+      if (halfPair) {
+        return void res.status(400).json({ error: 'half_client_pair', reason: halfPair });
+      }
+    }
 
     const half = checked.data as never;
     const config =
@@ -506,6 +522,16 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       return void res.status(400).json({
         ...invalidValuesRefusal(checked.error),
       });
+    }
+    // Rotation REPLACES the stored credential (see below), so half a pair sent
+    // here would be stored as half a pair and completed with the deployment's
+    // other half at mint time — the same hole as at the create door, refused
+    // the same way (ADR-0041).
+    if (row.role === 'source' && isGoogleGrantKind(row.kind)) {
+      const halfPair = halfGoogleClientPairProblem(values);
+      if (halfPair) {
+        return void res.status(400).json({ error: 'half_client_pair', reason: halfPair });
+      }
     }
 
     const half = checked.data as never;

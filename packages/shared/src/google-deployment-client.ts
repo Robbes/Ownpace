@@ -128,3 +128,38 @@ export function withDeploymentGoogleClient(
   if (!trimmed(filled.clientSecret)) filled.clientSecret = configured.clientSecret;
   return filled;
 }
+
+/**
+ * The sentence for HALF a client pair on a GOOGLE connection, or null.
+ *
+ * Only where this deployment carries a client of its own. Without one, half
+ * a pair already fails loudly and early: the create door demands all three
+ * keys and names the missing one. With one, `withDeploymentGoogleClient`
+ * above fills only the missing half — so a customer's id would be paired with
+ * the deployment's secret, every screen would pass, and Google would refuse
+ * the pair at its token endpoint hours later, from a sync log nobody is
+ * watching. Refused at the door instead, naming both ways forward.
+ *
+ * The caller decides whether the connection is a Google one, as with the
+ * filler above. Never prints either value.
+ */
+export function halfGoogleClientPairProblem(
+  credentials: {
+    readonly clientId?: string | undefined;
+    readonly clientSecret?: string | undefined;
+  },
+  env: GoogleClientEnv = process.env,
+): string | null {
+  if (googleDeploymentClient(env) === null) return null;
+  const hasId = trimmed(credentials.clientId) !== '';
+  const hasSecret = trimmed(credentials.clientSecret) !== '';
+  if (hasId === hasSecret) return null;
+  const sent = hasId ? 'clientId' : 'clientSecret';
+  const missing = hasId ? 'clientSecret' : 'clientId';
+  return (
+    `${sent} was sent without ${missing}. A Google client is both halves or neither: send ` +
+    "both to use your own application, or neither to use this deployment's. The " +
+    `deployment's ${missing} does not belong to the ${sent} you sent, and Google would ` +
+    'refuse the pair at its token endpoint — hours later, from a sync pass.'
+  );
+}
