@@ -43,6 +43,7 @@
  */
 
 import type { DiscoveryDomain } from './discovery.ts';
+import { googleDeploymentClient, type GoogleClientEnv } from './google-deployment-client.ts';
 
 /**
  * Connection kinds that hold ONE account and can serve several of its faces.
@@ -147,6 +148,41 @@ export function providerAccountDomains(
     return GOOGLE_RESTRICTED_ACCOUNT_DOMAINS;
   }
   return PROVIDER_ACCOUNT_DOMAINS[kind];
+}
+
+/** Where a Google connection's OAuth client comes from on this deployment. */
+export type ProviderClientSource = 'deployment' | 'connection';
+
+/**
+ * Every deployment-level fact about one provider account kind, in ONE answer.
+ *
+ * `domains` is the ceiling above. `client` is the second fact the screen could
+ * not see (ADR-0041, owner decision 2026-09-01): whether this deployment
+ * carries its own Google OAuth client, so a wizard can stop demanding a client
+ * id and secret the deployment already has. The server had accepted a consent
+ * and a create without the pair since it became configurable; the screen kept
+ * refusing to press the button, because nothing had told it.
+ *
+ * Present for `google` only. Soverin has no OAuth client to speak of, and a
+ * `'connection'` there would be a claim about a thing that does not exist.
+ *
+ * `'deployment'` is answered only for a COMPLETE pair — the rule
+ * `googleDeploymentClient` already follows. Half a pair is no client, and
+ * telling a screen otherwise would have it drop two required fields on the
+ * strength of a typo. The values themselves are never part of the answer.
+ */
+export interface ProviderAccountFacts {
+  readonly domains: ReadonlyArray<DiscoveryDomain>;
+  readonly client?: ProviderClientSource;
+}
+
+export function providerAccountFacts(
+  kind: string,
+  env: ProviderAccountEnv & GoogleClientEnv = process.env,
+): ProviderAccountFacts {
+  const domains = providerAccountDomains(kind, env);
+  if (kind !== 'google') return { domains };
+  return { domains, client: googleDeploymentClient(env) ? 'deployment' : 'connection' };
 }
 
 /**

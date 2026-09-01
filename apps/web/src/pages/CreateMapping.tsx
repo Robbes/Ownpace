@@ -439,13 +439,22 @@ const CreateMapping: React.FC = () => {
    * in flight. Over-offering is the one direction that costs something — a
    * tick the create door then refuses — so the default is the one that cannot.
    */
-  const { data: accountDomainsByKind } = useQuery({
+  const { data: providerAccounts } = useQuery({
     queryKey: ['provider-accounts'],
     queryFn: providerAccountsApi.get,
     retry: false,
     staleTime: Infinity,
   });
-  const googleAccountDomains = accountDomainsByKind?.google ?? PROVIDER_ACCOUNT_DOMAINS.google;
+  const googleAccountDomains = providerAccounts?.google?.domains ?? PROVIDER_ACCOUNT_DOMAINS.google;
+  /**
+   * Does this deployment carry its own Google OAuth client (ADR-0041, owner
+   * decision 2026-09-01)? The server has accepted a consent and a create
+   * without a client id and secret since the pair became configurable; this
+   * screen kept demanding both, because nothing had told it. Same fact, same
+   * route, same default as the domains above: until the answer arrives the
+   * pair is asked for — the direction that cannot under-ask.
+   */
+  const deploymentGoogleClient = providerAccounts?.google?.client === 'deployment';
 
   const reusableSources = (existingConnections ?? []).filter(
     (c) => c.role === 'source' && c.kind === sourceKindOf(formData.sourceType),
@@ -862,6 +871,13 @@ const CreateMapping: React.FC = () => {
 
   const startGoogleConsent = async () => {
     setGoogleConsent(null);
+    // The pair goes as a whole or not at all; absent, the server uses the
+    // deployment's own client (ADR-0041). Never as empty strings — the
+    // route's schema refuses those, and half a pair is refused by the button.
+    const ownGoogleClient =
+      formData.sourceClientId.trim() && formData.sourceClientSecret.trim()
+        ? { clientId: formData.sourceClientId.trim(), clientSecret: formData.sourceClientSecret }
+        : {};
     try {
       // The ACCOUNT asks for exactly the faces ticked (workplan 0106 T3b);
       // the four single-purpose sources ask for their own one scope. The
@@ -873,8 +889,7 @@ const CreateMapping: React.FC = () => {
         isGoogleAccountSource
           ? {
               domains: formData.domains,
-              clientId: formData.sourceClientId,
-              clientSecret: formData.sourceClientSecret,
+              ...ownGoogleClient,
             }
           : {
               sourceType: formData.sourceType as
@@ -882,8 +897,7 @@ const CreateMapping: React.FC = () => {
                 | 'google-calendar'
                 | 'google-contacts'
                 | 'google-drive',
-              clientId: formData.sourceClientId,
-              clientSecret: formData.sourceClientSecret,
+              ...ownGoogleClient,
             },
       );
       /**
@@ -969,6 +983,18 @@ const CreateMapping: React.FC = () => {
   // uses the Client Credentials Grant (Box rotates refresh tokens, so none is
   // stored) — client id + secret plus the numeric subject user id.
   const isBoxSource = formData.sourceType === 'box';
+  // The kinds the deployment's client can stand in for: Google's own, and NOT
+  // Dropbox, which rides the same three field names with its own app pair.
+  const isGoogleGrantSource =
+    isDriveSource || isGmailSource || isGoogleDavSource || isGoogleAccountSource;
+  // One half of a pair typed is a pair being typed, not a pair left to the
+  // deployment: the server fills only what is missing, key by key, and a
+  // customer's id with the deployment's secret fails at Google's token
+  // endpoint hours later. So the pair is optional as a WHOLE, never by half.
+  const googleClientHalfTyped =
+    (formData.sourceClientId.trim() !== '') !== (formData.sourceClientSecret.trim() !== '');
+  const googleClientPairRequired =
+    !(deploymentGoogleClient && isGoogleGrantSource) || googleClientHalfTyped;
 
   /** The problem with a non-empty custom cron, or null (empty = default). */
   const cronProblem = (): string | null =>
@@ -1024,10 +1050,14 @@ const CreateMapping: React.FC = () => {
       if (formData.sourceBoxUserId.trim() === '') out.push(t('wizard.boxUserId'));
       if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
     } else if (isGoogleSource) {
-      // Either flow (ADR-0033): a service-account key, or the OAuth trio.
+      // Either flow (ADR-0033): a service-account key, or the OAuth trio —
+      // of which the client pair is the deployment's to supply where it has
+      // one (ADR-0041), and the refresh token never is: it says whose data.
       if (formData.sourceServiceAccountKey.trim() === '') {
-        if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
-        if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
+        if (googleClientPairRequired) {
+          if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
+          if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
+        }
         if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
       }
     } else if (isO365Source) {
@@ -1169,7 +1199,10 @@ const CreateMapping: React.FC = () => {
    */
   const sourceFieldRequiredNow = (field: CredentialField): boolean => {
     if (isGoogleSource && ['clientId', 'clientSecret', 'refreshToken'].includes(field.key)) {
-      return formData.sourceServiceAccountKey.trim() === '';
+      if (formData.sourceServiceAccountKey.trim() !== '') return false;
+      // The pair is the deployment's where it has one (ADR-0041); the token
+      // is always this account's.
+      return field.key === 'refreshToken' || googleClientPairRequired;
     }
     return field.required === true;
   };
@@ -1328,6 +1361,9 @@ const CreateMapping: React.FC = () => {
             <React.Fragment key={field.key}>
               {isSource && field.key === 'rootFolderId' && isDriveSource && renderDriveBrowse()}
               {isSource && field.key === 'rootPath' && isDropboxSource && renderDropboxBrowse()}
+              {isSource && field.key === 'clientId' && isGoogleGrantSource && deploymentGoogleClient && (
+                <p className="text-sm text-gray-500">{t('wizard.google.deploymentClient')}</p>
+              )}
               <div>
                 <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
                   {t(field.labelKey as StringKey)}
@@ -1726,8 +1762,8 @@ const CreateMapping: React.FC = () => {
                     type="button"
                     onClick={startGoogleConsent}
                     disabled={
-                      !formData.sourceClientId.trim() ||
-                      !formData.sourceClientSecret.trim() ||
+                      (googleClientPairRequired &&
+                        (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())) ||
                       // The account consent asks for the ticked faces and
                       // nothing else, so with nothing ticked there is nothing
                       // to ask for. The server refuses that with a sentence;
@@ -1737,8 +1773,11 @@ const CreateMapping: React.FC = () => {
                     }
                     className="btn btn-secondary"
                     title={
-                      !formData.sourceClientId.trim() || !formData.sourceClientSecret.trim()
-                        ? t('wizard.google.connect.needsClient')
+                      googleClientPairRequired &&
+                      (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())
+                        ? deploymentGoogleClient
+                          ? t('wizard.google.connect.halfClient')
+                          : t('wizard.google.connect.needsClient')
                         : isGoogleAccountSource && formData.domains.length === 0
                           ? t('wizard.google.connect.needsDomains')
                           : undefined

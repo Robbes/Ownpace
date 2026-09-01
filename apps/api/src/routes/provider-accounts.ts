@@ -35,6 +35,17 @@
  * are already served by the same origin, so "this deployment can migrate
  * Google mail" is not a secret it was keeping.
  *
+ * ## The second fact, for the same reason (owner decision 2026-09-01)
+ *
+ * Whether this deployment carries its own Google OAuth client
+ * (`GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`, ADR-0041) is read at run time too, and
+ * it left the same half-reachable shape behind: the consent route and the
+ * create door accepted a request without a client id and secret, and the
+ * wizard went on demanding both, because it could not know. `client` beside
+ * `domains` is that answer — `'deployment'` for a complete pair, `'connection'`
+ * otherwise. The VALUES are never here: this route is unauthenticated, and a
+ * secret is a secret.
+ *
  * ## What it is NOT
  *
  * Not a capability, not a promise, and not a measurement. It is a CEILING —
@@ -45,18 +56,19 @@
 
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { PROVIDER_ACCOUNT_KINDS, providerAccountDomains } from '@openmig/shared';
+import { PROVIDER_ACCOUNT_KINDS, providerAccountFacts } from '@openmig/shared';
 
 const router = Router();
 
 router.get('/', (_req: Request, res: Response) => {
   // Built from the kinds table rather than written out: a provider gaining a
   // face — or a kind arriving at all — is a row edit in shared, and this
-  // follows it. Reading the env on every request, not once at import: an
+  // follows it. One object per kind, so a third fact has somewhere to go
+  // without a third shape. Reading the env on every request, not once at import: an
   // operator who sets the variable and restarts the API gets the new answer,
   // and nothing here caches a value the process was started without.
   res.json(
-    Object.fromEntries(PROVIDER_ACCOUNT_KINDS.map((kind) => [kind, providerAccountDomains(kind)])),
+    Object.fromEntries(PROVIDER_ACCOUNT_KINDS.map((kind) => [kind, providerAccountFacts(kind)])),
   );
 });
 

@@ -75,7 +75,13 @@ describe('the deployment answers once, and the screen asks', () => {
     );
     // And it is built from the kinds table, not from a list written twice.
     expect(read(ROUTE)).toContain('PROVIDER_ACCOUNT_KINDS');
-    expect(read(ROUTE), 'the route ignores the declaration').toContain('providerAccountDomains');
+    // Through shared's one answer per kind — which is where the declaration
+    // is read, so the route cannot ignore it without shared ignoring it too.
+    expect(read(ROUTE), 'the route ignores the declaration').toContain('providerAccountFacts');
+    expect(
+      read('packages/shared/src/provider-accounts.ts'),
+      'providerAccountFacts no longer reads the declared ceiling',
+    ).toMatch(/providerAccountFacts[\s\S]*providerAccountDomains\(kind, env\)/);
   });
 
   it('the wizard asks it rather than compiling the answer in', () => {
@@ -129,7 +135,37 @@ describe('the deployment answers once, and the screen asks', () => {
     // all — a wizard that offered four ticks while the request was pending
     // would refuse them at the create door a minute later.
     expect(read(WIZARD)).toContain(
-      'accountDomainsByKind?.google ?? PROVIDER_ACCOUNT_DOMAINS.google',
+      'providerAccounts?.google?.domains ?? PROVIDER_ACCOUNT_DOMAINS.google',
+    );
+  });
+});
+
+describe('the second fact the screen could not see (ADR-0041, owner decision 2026-09-01)', () => {
+  // The same shape a day later: the server accepted a consent and a create
+  // without a client id and secret once GOOGLE_OAUTH_CLIENT_* was set, and
+  // the wizard went on demanding both. Same route, same rule.
+  it('the answer carries where the client comes from, and the wizard reads it', () => {
+    expect(read('packages/shared/src/provider-accounts.ts')).toContain(
+      "client: googleDeploymentClient(env) ? 'deployment' : 'connection'",
+    );
+    expect(read('apps/web/src/services/mapping-service.ts')).toContain(
+      "client: z.enum(['deployment', 'connection']).optional()",
+    );
+    // Compared against 'deployment', never against 'connection': an absent,
+    // unparsable or still-pending answer must keep demanding the pair.
+    expect(read(WIZARD)).toContain("providerAccounts?.google?.client === 'deployment'");
+  });
+
+  it('the pair travels whole or not at all — never as empty strings', () => {
+    // The authorize route's schema is `.min(1).optional()`: an empty string
+    // is refused, an absent key means "the deployment's". A wizard that sent
+    // `clientId: ''` would be refused by the very route that no longer needs
+    // the value.
+    const wizard = read(WIZARD);
+    const consent = wizard.slice(wizard.indexOf('const startGoogleConsent'));
+    expect(consent).toContain('...ownGoogleClient');
+    expect(consent.slice(0, consent.indexOf('mappingApi.googleAuthorize('))).not.toContain(
+      'clientId: formData.sourceClientId,',
     );
   });
 });

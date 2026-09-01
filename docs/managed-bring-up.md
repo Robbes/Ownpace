@@ -978,6 +978,12 @@ this is — and the client is read at the moment a token is minted. Rotating the
 secret at Google is therefore this one edit and a restart, not an edit per
 connection.
 
+**And the wizard knows.** `GET /api/provider-accounts` answers
+`client: deployment` once both halves are set, so the wizard shows the Client
+ID and client secret as optional, enables *Connect with Google* without them,
+and says so beside the fields. Enter both to use your own client instead; enter
+one and it asks for the other rather than pairing it with the deployment's.
+
 **A connection that carries its own pair still wins.** A customer who
 registered their own Google application keeps using it; this is a fallback,
 never an override ([ADR-0041](./adr/0041-who-owns-the-oauth-client.md)).

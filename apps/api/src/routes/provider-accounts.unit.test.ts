@@ -30,13 +30,20 @@ import { PROVIDER_ACCOUNT_DOMAINS, PROVIDER_ACCOUNT_KINDS } from '@openmig/share
 const app = express();
 app.use('/api/provider-accounts', providerAccountRoutes);
 
-const before = process.env.GOOGLE_ACCOUNT_SCOPE_CLASS;
+const WATCHED = [
+  'GOOGLE_ACCOUNT_SCOPE_CLASS',
+  'GOOGLE_OAUTH_CLIENT_ID',
+  'GOOGLE_OAUTH_CLIENT_SECRET',
+] as const;
+const before = Object.fromEntries(WATCHED.map((k) => [k, process.env[k]]));
 beforeEach(() => {
-  delete process.env.GOOGLE_ACCOUNT_SCOPE_CLASS;
+  for (const k of WATCHED) delete process.env[k];
 });
 afterEach(() => {
-  if (before === undefined) delete process.env.GOOGLE_ACCOUNT_SCOPE_CLASS;
-  else process.env.GOOGLE_ACCOUNT_SCOPE_CLASS = before;
+  for (const k of WATCHED) {
+    if (before[k] === undefined) delete process.env[k];
+    else process.env[k] = before[k];
+  }
 });
 
 describe('GET /api/provider-accounts', () => {
@@ -50,9 +57,9 @@ describe('GET /api/provider-accounts', () => {
 
   it('is the narrow answer when nothing is declared', async () => {
     const res = await request(app).get('/api/provider-accounts');
-    expect(res.body.google).toEqual(PROVIDER_ACCOUNT_DOMAINS.google);
-    expect(res.body.google).not.toContain('email');
-    expect(res.body.google).not.toContain('file');
+    expect(res.body.google.domains).toEqual(PROVIDER_ACCOUNT_DOMAINS.google);
+    expect(res.body.google.domains).not.toContain('email');
+    expect(res.body.google.domains).not.toContain('file');
   });
 
   it('follows the declaration, on the SAME app the last case asked', async () => {
@@ -65,8 +72,8 @@ describe('GET /api/provider-accounts', () => {
     process.env.GOOGLE_ACCOUNT_SCOPE_CLASS = 'restricted';
     const wide = await request(app).get('/api/provider-accounts');
 
-    expect(narrow.body.google).toEqual(['calendar', 'contact']);
-    expect(wide.body.google).toEqual(['email', 'calendar', 'contact', 'file']);
+    expect(narrow.body.google.domains).toEqual(['calendar', 'contact']);
+    expect(wide.body.google.domains).toEqual(['email', 'calendar', 'contact', 'file']);
   });
 
   it('defaults narrow for a value nobody recognises', async () => {
@@ -75,7 +82,7 @@ describe('GET /api/provider-accounts', () => {
     for (const typo of ['Restricted', 'restrictd', 'true', '']) {
       process.env.GOOGLE_ACCOUNT_SCOPE_CLASS = typo;
       const res = await request(app).get('/api/provider-accounts');
-      expect(res.body.google, `'${typo}' widened the ceiling`).toEqual(['calendar', 'contact']);
+      expect(res.body.google.domains, `'${typo}' widened the ceiling`).toEqual(['calendar', 'contact']);
     }
   });
 
@@ -85,7 +92,7 @@ describe('GET /api/provider-accounts', () => {
     // has measured (0105's never-guess rule).
     process.env.GOOGLE_ACCOUNT_SCOPE_CLASS = 'restricted';
     const res = await request(app).get('/api/provider-accounts');
-    expect(res.body.soverin).toEqual(PROVIDER_ACCOUNT_DOMAINS.soverin);
+    expect(res.body.soverin.domains).toEqual(PROVIDER_ACCOUNT_DOMAINS.soverin);
   });
 
   it('needs no token, like the scope manifest beside it', async () => {
@@ -94,5 +101,49 @@ describe('GET /api/provider-accounts', () => {
     // would be a capability nobody could discover.
     const res = await request(app).get('/api/provider-accounts').set('Authorization', '');
     expect(res.status).toBe(200);
+  });
+});
+
+describe('the client fact beside the domains (ADR-0041, owner decision 2026-09-01)', () => {
+  it('says each connection brings its own client when the deployment has none', async () => {
+    const res = await request(app).get('/api/provider-accounts');
+    expect(res.body.google.client).toBe('connection');
+    // Soverin has no OAuth client to speak of; a `'connection'` there would
+    // be a claim about a thing that does not exist.
+    expect(res.body.soverin).not.toHaveProperty('client');
+  });
+
+  it('says the deployment carries it once both halves are set — on the SAME app', async () => {
+    // The same cached-at-import failure the domains case guards against: an
+    // operator sets the pair, restarts, and the wizard must stop asking.
+    const none = await request(app).get('/api/provider-accounts');
+    process.env.GOOGLE_OAUTH_CLIENT_ID = 'cid.apps.googleusercontent.com';
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'not-a-real-secret';
+    const set = await request(app).get('/api/provider-accounts');
+    expect(none.body.google.client).toBe('connection');
+    expect(set.body.google.client).toBe('deployment');
+  });
+
+  it('treats half a pair as no client', async () => {
+    // A screen told 'deployment' drops two required fields; told so on the
+    // strength of a typo, it sends people to a token endpoint that will
+    // refuse them hours later. Same rule as `googleDeploymentClient`.
+    process.env.GOOGLE_OAUTH_CLIENT_ID = 'cid.apps.googleusercontent.com';
+    const idOnly = await request(app).get('/api/provider-accounts');
+    delete process.env.GOOGLE_OAUTH_CLIENT_ID;
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'not-a-real-secret';
+    const secretOnly = await request(app).get('/api/provider-accounts');
+    expect(idOnly.body.google.client).toBe('connection');
+    expect(secretOnly.body.google.client).toBe('connection');
+  });
+
+  it('never carries either value', async () => {
+    // Unauthenticated, so this is the whole point: the fact travels, the
+    // secret does not, and neither does the id.
+    process.env.GOOGLE_OAUTH_CLIENT_ID = 'SENTINEL-CLIENT-ID.apps.googleusercontent.com';
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'SENTINEL-CLIENT-SECRET';
+    const res = await request(app).get('/api/provider-accounts');
+    expect(res.body.google.client).toBe('deployment');
+    expect(JSON.stringify(res.body)).not.toContain('SENTINEL');
   });
 });

@@ -19,6 +19,7 @@ import {
   isProviderAccountKind,
   providerAccountDomains,
   providerAccountServes,
+  providerAccountFacts,
 } from './provider-accounts.ts';
 import { SOURCE_TYPE_DOMAINS } from './target-domains.ts';
 
@@ -103,5 +104,40 @@ describe('the vocabulary itself', () => {
       const domains = PROVIDER_ACCOUNT_DOMAINS[kind];
       expect(new Set(domains).size, `${kind} lists a face twice`).toBe(domains.length);
     }
+  });
+});
+
+describe('the client fact beside the domains (ADR-0041, owner decision 2026-09-01)', () => {
+  const none = {};
+  const pair = { GOOGLE_OAUTH_CLIENT_ID: 'cid', GOOGLE_OAUTH_CLIENT_SECRET: 'not-a-real-secret' };
+
+  it('google answers where its client comes from; soverin has no such thing to answer', () => {
+    expect(providerAccountFacts('google', none)).toEqual({
+      domains: ['calendar', 'contact'],
+      client: 'connection',
+    });
+    expect(providerAccountFacts('google', pair)).toEqual({
+      domains: ['calendar', 'contact'],
+      client: 'deployment',
+    });
+    expect(providerAccountFacts('soverin', pair)).not.toHaveProperty('client');
+  });
+
+  it('carries the domains ceiling unchanged — one answer, not two routes', () => {
+    expect(providerAccountFacts('google', { ...pair, GOOGLE_ACCOUNT_SCOPE_CLASS: 'restricted' })).toEqual(
+      { domains: ['email', 'calendar', 'contact', 'file'], client: 'deployment' },
+    );
+  });
+
+  it('half a pair is no client', () => {
+    // `googleDeploymentClient`'s rule, seen from the screen's side: a wizard
+    // told 'deployment' drops two required fields, and must not on a typo.
+    expect(providerAccountFacts('google', { GOOGLE_OAUTH_CLIENT_ID: 'cid' }).client).toBe('connection');
+    expect(providerAccountFacts('google', { GOOGLE_OAUTH_CLIENT_SECRET: 's' }).client).toBe('connection');
+    expect(providerAccountFacts('google', { GOOGLE_OAUTH_CLIENT_ID: '  ', GOOGLE_OAUTH_CLIENT_SECRET: 's' }).client).toBe('connection');
+  });
+
+  it('answers "not a provider account" with no client either', () => {
+    expect(providerAccountFacts('imap', pair)).toEqual({ domains: [] });
   });
 });

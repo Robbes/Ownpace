@@ -19,13 +19,14 @@
  *  7. A dirty wizard prompts before unload and before Cancel (0037 T5).
  *  8. oauth2/graph sources say on screen what the fields actually do (T6).
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import CreateMapping from './CreateMapping.tsx';
-import { mappingApi } from '../services/mapping-service.ts';
+import { mappingApi, providerAccountsApi } from '../services/mapping-service.ts';
+import type { ProviderAccountFacts } from '../services/mapping-service.ts';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { create: vi.fn(), googleAuthorize: vi.fn() },
@@ -858,5 +859,108 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
       expect.stringContaining('Tick what to migrate first'),
     );
     expect(authorizeMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('CreateMapping — the deployment carries its own Google client (ADR-0041)', () => {
+  // The fact the screen could not see: #703 made the server accept a consent
+  // and a create without a client id and secret when GOOGLE_OAUTH_CLIENT_* is
+  // set, and left the wizard demanding both. It reads the answer from the
+  // same route as the domains, and the same default applies until it
+  // arrives: ask for the pair, the direction that cannot under-ask.
+  const consentAnswer = {
+    url: 'https://accounts.google.com/o/oauth2/v2/auth?scope=x',
+    redirectUri: 'https://app.example.test/api/migrations/google/callback',
+    scope: 'x',
+  };
+  const facts = (client: 'deployment' | 'connection'): ProviderAccountFacts => ({
+    google: { domains: ['calendar', 'contact'], client },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authorizeMock.mockResolvedValue(consentAnswer as never);
+    vi.mocked(providerAccountsApi.get).mockResolvedValue(facts('deployment'));
+  });
+  afterEach(() => {
+    // `clearAllMocks` keeps implementations; put the module default back so
+    // the describes after this one see a deployment that answers nothing.
+    vi.mocked(providerAccountsApi.get).mockResolvedValue({});
+  });
+
+  const pickGmail = () => fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+  const connectButton = () => screen.getByRole('button', { name: /Connect with Google/i });
+
+  it('stops asking for the pair: the consent works with both fields empty, and Next needs only the account and its token', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      renderWizard();
+      pickGmail();
+      // The answer comes over the wire; until it does the pair is demanded.
+      await waitFor(() => expect(connectButton()).toBeEnabled());
+      expect(screen.getByText(/has its own Google client/)).toBeInTheDocument();
+
+      fireEvent.click(connectButton());
+      await waitFor(() => expect(authorizeMock).toHaveBeenCalled());
+      const sent = authorizeMock.mock.calls[0]![0] as Record<string, unknown>;
+      // ABSENT, not empty strings — the route's schema refuses an empty one.
+      expect(sent).not.toHaveProperty('clientId');
+      expect(sent).not.toHaveProperty('clientSecret');
+      expect(sent.sourceType).toBe('gmail');
+
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@gmail.com' },
+      });
+      // The token is still this account's to give — it says whose mail.
+      expect(nextButton()).toBeDisabled();
+      fireEvent.change(screen.getByPlaceholderText('1//…'), {
+        target: { value: '1//mail-refresh' },
+      });
+      expect(nextButton()).toBeEnabled();
+    } finally {
+      open.mockRestore();
+    }
+  });
+
+  it('takes the pair only as a whole: one half typed asks for the other, never for the deployment to complete it', async () => {
+    renderWizard();
+    pickGmail();
+    await waitFor(() => expect(connectButton()).toBeEnabled());
+
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid.apps.googleusercontent.com' },
+    });
+    expect(connectButton()).toBeDisabled();
+    expect(connectButton()).toHaveAttribute('title', expect.stringContaining('or neither'));
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@gmail.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('1//…'), {
+      target: { value: '1//mail-refresh' },
+    });
+    // Half a pair gates Next too: the secret completes it, or the id goes.
+    expect(nextButton()).toBeDisabled();
+
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'client-secret' },
+    });
+    expect(connectButton()).toBeEnabled();
+    expect(nextButton()).toBeEnabled();
+  });
+
+  it('keeps demanding the pair where the deployment says each connection brings its own', async () => {
+    vi.mocked(providerAccountsApi.get).mockResolvedValue(facts('connection'));
+    renderWizard();
+    pickGmail();
+    await waitFor(() => expect(providerAccountsApi.get).toHaveBeenCalled());
+    // Let the resolved answer land before asserting on what it did not change.
+    await act(async () => {});
+
+    expect(connectButton()).toBeDisabled();
+    expect(connectButton()).toHaveAttribute(
+      'title',
+      expect.stringContaining('Enter the Client ID and client secret first'),
+    );
+    expect(screen.queryByText(/has its own Google client/)).not.toBeInTheDocument();
   });
 });
