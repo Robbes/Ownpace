@@ -791,6 +791,19 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     await waitFor(() => expect(createMock).toHaveBeenCalled());
     const posted = createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
     expect(posted.sourceType).toBe('google');
+    // THE TRIO TRAVELS, AND NOTHING SERVER-SHAPED DOES. Until 2026-09-02 the
+    // account kind fell through to the host/port/password default, so the
+    // owner's first consented account was stored without its token and the
+    // first test said "missing refreshToken" about a token the consent had
+    // just handed over.
+    expect(posted.sourceConfig).toMatchObject({
+      username: 'owner@example.invalid',
+      clientId: 'cid.apps.googleusercontent.com',
+      clientSecret: 'client-secret',
+      refreshToken: '1//granted',
+    });
+    expect(posted.sourceConfig).not.toHaveProperty('host');
+    expect(posted.sourceConfig).not.toHaveProperty('password');
     const domains = (posted.syncConfig as { domains: string[] }).domains;
     expect(domains).toEqual(['calendar', 'contact']);
     // The two Google prices differently, and the refusal for them lives on
