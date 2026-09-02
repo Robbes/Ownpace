@@ -44,7 +44,7 @@ const axios400 = (data: unknown): AxiosError => {
   return err;
 };
 
-const { list, test: testConnection, rotate, remove, providerAccounts } = vi.hoisted(() => ({
+const { list, test: testConnection, rotate, remove, providerAccounts, googleAuthorize } = vi.hoisted(() => ({
   list: vi.fn(),
   test: vi.fn(),
   rotate: vi.fn(),
@@ -52,11 +52,13 @@ const { list, test: testConnection, rotate, remove, providerAccounts } = vi.hois
   // The deployment's own Google client (ADR-0041), as the add-form reads it.
   // Empty by default: the pair stays in plain view, as on an appliance.
   providerAccounts: vi.fn(),
+  googleAuthorize: vi.fn(),
 }));
 
 vi.mock('../services/mapping-service', () => ({
   connectionsApi: { list, test: testConnection, rotate, remove },
   providerAccountsApi: { get: providerAccounts },
+  mappingApi: { googleAuthorize },
 }));
 
 import Connections from './Connections.tsx';
@@ -88,6 +90,7 @@ beforeEach(() => {
   testConnection.mockReset();
   rotate.mockReset();
   providerAccounts.mockReset().mockResolvedValue({});
+  googleAuthorize.mockReset();
   remove.mockReset();
 });
 
@@ -476,6 +479,96 @@ describe('adding a connection through the front door', () => {
     expect(fold).toContainElement(screen.getByPlaceholderText('••••••••'));
     // The address stays in plain view — it is what the fold is not about.
     expect(screen.getByPlaceholderText('user@example.com').closest('details')).toBeNull();
+  });
+
+  it('offers Connect with Google where the deployment carries the client, and the token it hands back lands inside the fold', async () => {
+    // Owner step 4, 2026-09-02: the fold took the pair away (#709) and left
+    // no way to obtain the token — on a managed deployment this door's Gmail
+    // and Drive paths were dead ends. The wizard's consent, on this door.
+    providerAccounts.mockResolvedValue({ google: { domains: ['email'], client: 'deployment' } });
+    googleAuthorize.mockResolvedValue({
+      url: 'https://accounts.google.com/o/oauth2/v2/auth?scope=x',
+      redirectUri: 'https://app.example.test/api/migrations/google/callback',
+      scope: 'x',
+    });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+      const button = await screen.findByRole('button', { name: /Connect with Google/ });
+      await waitFor(() => expect(button).toBeEnabled());
+      // The token box is inside the fold, with the pair — not above it with
+      // an asterisk, asking for what the button supplies.
+      const fold = screen.getByText('Use your own Google application instead').closest('details');
+      expect(fold).toContainElement(screen.getByPlaceholderText('1//…'));
+
+      fireEvent.click(button);
+      await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
+      // The deployment's client: no pair sent, not even empty strings.
+      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ sourceType: 'gmail' });
+      expect(opened).toHaveBeenCalled();
+
+      // The popup hands the token back; same origin, the flow's own shape.
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'ownpace-google-consent', refreshToken: '1//granted' },
+          origin: window.location.origin,
+        }),
+      );
+      await screen.findByText(/Consent received/);
+      expect((screen.getByPlaceholderText('1//…') as HTMLInputElement).value).toBe('1//granted');
+    } finally {
+      opened.mockRestore();
+    }
+  });
+
+  it('the account kind asks for the faces ticked, and nothing with none ticked', async () => {
+    providerAccounts.mockResolvedValue({ google: { domains: ['calendar', 'contact'], client: 'deployment' } });
+    googleAuthorize.mockResolvedValue({ url: 'https://accounts.google.com/x', redirectUri: 'r', scope: 'x' });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+      const button = await screen.findByRole('button', { name: /Connect with Google/ });
+      // A connection has no mapping to read the faces from, so it asks; with
+      // none ticked there is nothing to ask Google for.
+      await screen.findByText('What this account will serve');
+      expect(button).toBeDisabled();
+      fireEvent.click(screen.getByLabelText('Calendar'));
+      await waitFor(() => expect(button).toBeEnabled());
+      fireEvent.click(button);
+      await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
+      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar'] });
+    } finally {
+      opened.mockRestore();
+    }
+  });
+
+  it('where each connection brings its own client, the button waits for the whole pair', async () => {
+    googleAuthorize.mockResolvedValue({ url: 'https://accounts.google.com/x', redirectUri: 'r', scope: 'x' });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+      const button = screen.getByRole('button', { name: /Connect with Google/ });
+      expect(button).toBeDisabled();
+      fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+        target: { value: 'cid.apps.googleusercontent.com' },
+      });
+      // Half a pair is still no pair (ADR-0041).
+      expect(button).toBeDisabled();
+      fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'shh' } });
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
+      expect(googleAuthorize.mock.calls[0]![0]).toEqual({
+        sourceType: 'gmail',
+        clientId: 'cid.apps.googleusercontent.com',
+        clientSecret: 'shh',
+      });
+    } finally {
+      opened.mockRestore();
+    }
   });
 
   it('keeps the pair in plain view where each connection brings its own', async () => {
