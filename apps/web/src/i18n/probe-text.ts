@@ -171,7 +171,17 @@ export function qualificationEvidence(
     | {
         domains: Record<
           'mail' | 'calendar' | 'contact' | 'file',
-          { answer: 'yes' | 'no' | 'unknown'; detail: string }
+          {
+            answer: 'yes' | 'no' | 'unknown';
+            detail: string;
+            volume?: {
+              items?: number;
+              bytes?: number;
+              estimated?: boolean;
+              nativeFilesExcluded?: boolean;
+              failed?: string;
+            };
+          }
         >;
       }
     | undefined,
@@ -183,9 +193,18 @@ export function qualificationEvidence(
     contact: 'domain.contact',
     file: 'domain.file',
   };
-  return (['mail', 'calendar', 'contact', 'file'] as const)
-    .filter((domain) => qualification.domains[domain].answer === 'unknown')
-    .map((domain) => `${t(label[domain])} ?: ${qualification.domains[domain].detail}`);
+  const lines: string[] = [];
+  for (const domain of ['mail', 'calendar', 'contact', 'file'] as const) {
+    const d = qualification.domains[domain];
+    if (d.answer === 'unknown') lines.push(`${t(label[domain])} ?: ${d.detail}`);
+    // A face that answered but could not be MEASURED (2026-09-02): the
+    // reason on screen too, or the Measured line simply lacks a face and
+    // nobody learns why.
+    else if (d.volume?.failed) {
+      lines.push(`${t(label[domain])} ✓, ${t('probe.measured.failed')}: ${d.volume.failed}`);
+    }
+  }
+  return lines;
 }
 
 type Measured = {
@@ -193,7 +212,13 @@ type Measured = {
     'mail' | 'calendar' | 'contact' | 'file',
     {
       answer: 'yes' | 'no' | 'unknown';
-      volume?: { items?: number; bytes?: number; estimated?: boolean; nativeFilesExcluded?: boolean };
+      volume?: {
+        items?: number;
+        bytes?: number;
+        estimated?: boolean;
+        nativeFilesExcluded?: boolean;
+        failed?: string;
+      };
     }
   >;
 };
@@ -223,7 +248,7 @@ export function measuredText(
   const parts: string[] = [];
   for (const domain of ['mail', 'calendar', 'contact', 'file'] as const) {
     const v = qualification.domains[domain].volume;
-    if (!v) continue;
+    if (!v || v.failed) continue;
     const bits: string[] = [];
     if (v.items !== undefined) {
       const key: StringKey =

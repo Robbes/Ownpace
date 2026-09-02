@@ -647,6 +647,20 @@ describe('measureMailbox — how much mail, cheaply and honestly (2026-09-02)', 
     expect(m.estimated).toBe(true);
   });
 
+  it('measures the folders it is GIVEN, without listing — a view over the mailbox decides what counts', async () => {
+    boxState = { uidValidity: 42n, uidNext: 10, exists: 2 };
+    messages = [
+      { uid: 1, size: 10 },
+      { uid: 2, size: 20 },
+    ];
+    const m = await source().measureMailbox({
+      folders: [{ path: 'Only/This', name: 'This' } as MailFolder],
+    });
+    expect(m).toEqual({ folders: 1, messages: 2, bytes: 30, estimated: false });
+    expect(calls).toContain('lock(Only/This)');
+    expect(calls).not.toContain('list');
+  });
+
   it('an empty folder counts as nothing and is never fetched', async () => {
     boxState = { uidValidity: 42n, uidNext: 1, exists: 0 };
     const m = await source().measureMailbox();

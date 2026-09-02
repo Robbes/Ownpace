@@ -262,10 +262,16 @@ export class ImapFlowSource implements SourceConnector {
    *
    * Read-only: SELECT and FETCH of sizes, no flags touched.
    */
-  async measureMailbox(options: { readonly sampleSize?: number } = {}): Promise<MailboxMeasure> {
+  async measureMailbox(
+    options: { readonly sampleSize?: number; readonly folders?: ReadonlyArray<MailFolder> } = {},
+  ): Promise<MailboxMeasure> {
     const sampleSize = Math.max(1, options.sampleSize ?? 200);
     return this.withConnection(async (client) => {
-      const folders = await this.listFoldersInternal(client);
+      // The caller's folder list when it has one — a VIEW over this mailbox
+      // (Gmail's, which hides "All Mail" and the other label views) measures
+      // what it shows, not what the server lists, or every message would be
+      // counted twice: once in its folder and once in All Mail.
+      const folders = options.folders ?? (await this.listFoldersInternal(client));
       let messages = 0;
       let bytes = 0;
       let estimated = false;

@@ -1274,6 +1274,7 @@ const en = {
   'probe.measured.item.one': '{count} item',
   'probe.measured.item.many': '{count} items',
   'probe.measured.driveNote': 'Docs, Sheets and Slides not counted',
+  'probe.measured.failed': 'not measured',
 
   'connections.ok': 'Reached it. The credentials still work.',
   'connections.failed': 'Could not reach it.',
@@ -2577,6 +2578,7 @@ const nl: Record<keyof typeof en, string> = {
   'probe.measured.item.one': '{count} item',
   'probe.measured.item.many': '{count} items',
   'probe.measured.driveNote': 'Documenten, Spreadsheets en Presentaties niet meegeteld',
+  'probe.measured.failed': 'niet gemeten',
 
   'connections.ok': 'Bereikt. De inloggegevens werken nog.',
   'connections.failed': 'Kon deze niet bereiken.',

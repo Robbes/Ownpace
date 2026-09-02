@@ -502,6 +502,8 @@ export interface TestConnectionResult {
           estimated?: boolean;
           /** Drive: Docs, Sheets and Slides weigh nothing here. */
           nativeFilesExcluded?: boolean;
+          /** Why the face answered but could not be measured. */
+          failed?: string;
         };
       }
     >;

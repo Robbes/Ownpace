@@ -88,6 +88,14 @@ export interface MeasuredVolume {
   /** Drive: native editor files (Docs, Sheets, Slides) weigh nothing in `bytes`
    *  and are exported on migration, so the target ends up larger. */
   readonly nativeFilesExcluded?: boolean;
+  /**
+   * Why the face could NOT be measured, when the face answered and the
+   * measure did not (2026-09-02). Data rather than a clause in `detail`, so
+   * a screen can show it beside the line on a phone — the owner's second
+   * measured Test showed Drive and nothing for mail or contacts, and the
+   * reason sat in a hover nobody's phone has.
+   */
+  readonly failed?: string;
 }
 
 export interface AccountQualification {
@@ -353,6 +361,7 @@ export function volumeSentence(
   domain: 'mail' | 'calendar' | 'contact' | 'file',
   volume: MeasuredVolume,
 ): string {
+  if (volume.failed) return `not measured — ${volume.failed}`;
   const parts: string[] = [];
   if (volume.items !== undefined) {
     const noun = domain === 'mail' ? 'message' : domain === 'contact' ? 'card' : 'item';
@@ -723,9 +732,7 @@ export async function qualifyGoogleGrant(
       } catch (err) {
         return {
           ...answered,
-          detail: `${answered.detail} Volume not measured — ${
-            err instanceof Error ? err.message : String(err)
-          }`,
+          volume: { failed: err instanceof Error ? err.message : String(err) },
         };
       }
     } catch (err) {

@@ -284,3 +284,41 @@ describe('the wrapper delegates, explicitly', () => {
     expect(innerCalls).toEqual(['listFolders', 'listSince:INBOX:c-1', `fetch:<m1@x>`]);
   });
 });
+
+describe('GmailFolderView measures what it SHOWS (2026-09-02)', () => {
+  it('delegates measureMailbox to the inner source over the visible folders only — All Mail is not counted twice', async () => {
+    const given: Array<ReadonlyArray<{ path: string }> | undefined> = [];
+    const inner = {
+      listFolders: async () => [
+        { path: 'INBOX', name: 'INBOX', listAttributes: ['\\HasNoChildren'] },
+        { path: '[Gmail]/All Mail', name: 'All Mail', listAttributes: ['\\All', '\\HasNoChildren'] },
+        { path: 'Work', name: 'Work', listAttributes: [] },
+      ],
+      listSince: async () => ({ items: [], nextCursor: { value: '' } }),
+      fetch: async () => {
+        throw new Error('not in this test');
+      },
+      measureMailbox: async (o: { folders?: ReadonlyArray<{ path: string }> }) => {
+        given.push(o.folders);
+        return { folders: o.folders?.length ?? 0, messages: 7, bytes: 700, estimated: false };
+      },
+    };
+    const view = new GmailFolderView(inner as never);
+    const m = await view.measureMailbox();
+    expect(m).toEqual({ folders: 2, messages: 7, bytes: 700, estimated: false });
+    expect(given[0]?.map((f) => f.path)).toEqual(['INBOX', 'Work']);
+  });
+
+  it('says so when the inner source cannot measure, rather than answering nothing', async () => {
+    const inner = {
+      listFolders: async () => [],
+      listSince: async () => ({ items: [], nextCursor: { value: '' } }),
+      fetch: async () => {
+        throw new Error('not in this test');
+      },
+    };
+    await expect(new GmailFolderView(inner as never).measureMailbox()).rejects.toThrow(
+      'cannot measure its mailbox',
+    );
+  });
+});
