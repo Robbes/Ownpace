@@ -101,6 +101,17 @@ export function isNativeEditorFile(mimeType: string): boolean {
 const LIST_ALL_DRIVES = 'supportsAllDrives=true&includeItemsFromAllDrives=true';
 const GET_ALL_DRIVES = 'supportsAllDrives=true';
 
+/** What `storageUsage` answers — Google's own quota figures for this account. */
+export interface DriveStorageUsage {
+  /** My Drive, bin excluded. */
+  readonly bytes: number;
+  readonly trashBytes: number;
+  /** The account's storage limit, when Google states one. */
+  readonly limitBytes?: number;
+  /** Always true for Drive: native editor files weigh nothing here. */
+  readonly nativeFilesExcluded: true;
+}
+
 export class GoogleDriveSource implements FileSource {
   private readonly baseUrl: string;
   private readonly rootFolderId: string;
@@ -145,6 +156,35 @@ export class GoogleDriveSource implements FileSource {
       throw new Error(`Drive API ${response.status} for ${url}: ${await safeText(response)}`);
     }
     return response.json();
+  }
+
+  /**
+   * How much the account's Drive holds, as Google reports it (2026-09-02):
+   * one `about` request, no walk. `usageInDrive` is My Drive without the
+   * bin; the bin is reported apart so it can be named. Google-native files
+   * (Docs, Sheets, Slides) count for nothing in this figure and are exported
+   * on migration, so the target ends up larger than this says — the caller
+   * says so beside the number rather than pretending precision.
+   *
+   * The whole of My Drive, not the configured root: a per-root total would be
+   * a walk over every file's size, which is what this exists to avoid.
+   */
+  async storageUsage(): Promise<DriveStorageUsage> {
+    const about = (await this.getJson(`${this.baseUrl}/about?fields=storageQuota`)) as {
+      storageQuota?: { usage?: string; usageInDrive?: string; usageInDriveTrash?: string; limit?: string };
+    };
+    const n = (v: string | undefined): number | undefined => {
+      if (v === undefined) return undefined;
+      const parsed = Number(v);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+    const q = about.storageQuota ?? {};
+    return {
+      bytes: n(q.usageInDrive) ?? 0,
+      trashBytes: n(q.usageInDriveTrash) ?? 0,
+      ...(n(q.limit) !== undefined ? { limitBytes: n(q.limit) } : {}),
+      nativeFilesExcluded: true,
+    };
   }
 
   /**

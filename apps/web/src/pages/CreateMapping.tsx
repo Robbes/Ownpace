@@ -1,7 +1,13 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import React, { useState } from 'react';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
-import { probeText, qualificationEvidence, qualificationText, schedulingText } from '../i18n/probe-text.ts';
+import {
+  measuredText,
+  probeText,
+  qualificationEvidence,
+  qualificationText,
+  schedulingText,
+} from '../i18n/probe-text.ts';
 import type { StringKey } from '../i18n/index.tsx';
 import { useNavigate, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1594,6 +1600,10 @@ const CreateMapping: React.FC = () => {
               {r.qualification && (
                 /* What this account CAN CARRY (0106 T0). */
                 <span className="block mt-1">{qualificationText(t, r.qualification)}</span>
+              )}
+              {r.qualification && measuredText(t, r.qualification, locale) && (
+                /* How MUCH each reached face holds (2026-09-02). */
+                <span className="block mt-1">{measuredText(t, r.qualification, locale)}</span>
               )}
               {qualificationEvidence(t, r.qualification).map((line) => (
                 /* Why a face is `?` — on screen, since a phone has no hover. */

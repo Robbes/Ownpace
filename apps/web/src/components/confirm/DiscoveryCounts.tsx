@@ -20,6 +20,7 @@ import React from 'react';
 import type { DiscoveryDomain, DiscoveryRecord } from '@openmig/shared';
 import { useT } from '../../i18n/index.tsx';
 import type { StringKey } from '../../i18n/index.tsx';
+import { formatBytes } from '../../i18n/bytes.ts';
 
 // The dictionary's own domain words — the old local map silently bypassed
 // them, so the table said "Email" beside screens saying the translated word.
@@ -30,17 +31,9 @@ const DOMAIN_KEY: Record<DiscoveryDomain, StringKey> = {
   file: 'domain.file',
 };
 
-export function formatBytes(bytes?: number): string {
-  if (bytes === undefined) return '—';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let n = bytes;
-  let u = 0;
-  while (n >= 1024 && u < units.length - 1) {
-    n /= 1024;
-    u += 1;
-  }
-  return `${n.toFixed(u === 0 ? 0 : 1)} ${units[u]}`;
-}
+// Moved to `i18n/bytes.ts` (2026-09-02) so the measured-volume line can share
+// it; re-exported here for the importers this file already has.
+export { formatBytes };
 
 export const DiscoveryCounts: React.FC<{
   domains: ReadonlyArray<DiscoveryRecord>;

@@ -97,6 +97,15 @@ const FETCH_RETRY_MS = 50;
  * harness can build both from one set of credentials and so a future cutover
  * is a changed `new`, not a changed call site.
  */
+/** What `measureMailbox` answers: counts exact, bytes exact or extrapolated. */
+export interface MailboxMeasure {
+  readonly folders: number;
+  readonly messages: number;
+  readonly bytes: number;
+  /** True when any folder's bytes were extrapolated from a sample. */
+  readonly estimated: boolean;
+}
+
 export class ImapFlowSource implements SourceConnector {
   private readonly config: ImapSourceConfigWithTokenProvider;
   private readonly tokenProvider?: TokenProvider;
@@ -233,6 +242,59 @@ export class ImapFlowSource implements SourceConnector {
       // of the six roles — see MailFolder.listAttributes.
       listAttributes: [...(box.flags ?? [])],
     }));
+  }
+
+  // ---------------------------------------------------------------------
+  // Measuring (2026-09-02): how much mail, before anything is copied
+  // ---------------------------------------------------------------------
+
+  /**
+   * The mailbox's volume, cheaply and honestly: every folder's message count
+   * (one SELECT each, no listing), and its bytes SUMMED where the folder is
+   * small and ESTIMATED from a sample of the newest messages where it is not.
+   *
+   * The owner asked for "GB of mail" beside the folder count at Test. Gmail
+   * has no folder size over IMAP, and the exact figure means one RFC822.SIZE
+   * per message — minutes on a large mailbox, which is a preflight's job and
+   * not a Test button's. So: up to `sampleSize` sizes per folder (default
+   * 200), the newest ones, and `estimated: true` the moment any folder was
+   * sampled rather than summed, so a screen can say ≈ rather than =.
+   *
+   * Read-only: SELECT and FETCH of sizes, no flags touched.
+   */
+  async measureMailbox(options: { readonly sampleSize?: number } = {}): Promise<MailboxMeasure> {
+    const sampleSize = Math.max(1, options.sampleSize ?? 200);
+    return this.withConnection(async (client) => {
+      const folders = await this.listFoldersInternal(client);
+      let messages = 0;
+      let bytes = 0;
+      let estimated = false;
+      for (const folder of folders) {
+        const lock = await client.getMailboxLock(folder.path);
+        try {
+          const box = client.mailbox;
+          const exists = box && typeof box !== 'boolean' ? Number(box.exists ?? 0) : 0;
+          messages += exists;
+          if (exists === 0) continue;
+          const sampled = Math.min(exists, sampleSize);
+          // The NEWEST messages, by sequence: the tail of the mailbox is the
+          // mail a person is most likely to still be receiving, and the size
+          // of what arrives lately is the better guess for the whole.
+          const range = sampled === exists ? '1:*' : `${exists - sampled + 1}:*`;
+          const sizes = await client.fetchAll(range, { size: true });
+          const sum = sizes.reduce((acc, m) => acc + (typeof m.size === 'number' ? m.size : 0), 0);
+          if (sampled === exists) {
+            bytes += sum;
+          } else {
+            estimated = true;
+            bytes += Math.round((sum / Math.max(1, sizes.length)) * exists);
+          }
+        } finally {
+          lock.release();
+        }
+      }
+      return { folders: folders.length, messages, bytes, estimated };
+    });
   }
 
   // ---------------------------------------------------------------------

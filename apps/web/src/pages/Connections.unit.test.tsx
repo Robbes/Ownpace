@@ -641,3 +641,30 @@ describe('why a face is `?` is on screen, not in a hover (owner 2026-09-02)', ()
     expect(await screen.findByText(/^Contacts \?: .*carddav\.googleapis\.com/)).toBeTruthy();
   });
 });
+
+describe('the measured-volume line (2026-09-02)', () => {
+  it('the test panel says how much each reached face holds, beside what it can carry', async () => {
+    list.mockResolvedValue([conn({ kind: 'google', role: 'source' })]);
+    testConnection.mockResolvedValue({
+      ok: true,
+      detail: 'Connected. 5 calendars visible.',
+      qualification: {
+        domains: {
+          mail: { answer: 'yes', detail: 'x', count: 29, unit: 'folder', volume: { items: 12400, bytes: 3_400_000_000, estimated: true } },
+          calendar: { answer: 'yes', detail: 'x', count: 5, unit: 'calendar' },
+          contact: { answer: 'yes', detail: 'x', count: 1, unit: 'addressBook', volume: { items: 412 } },
+          file: { answer: 'yes', detail: 'x', count: 6, unit: 'folder', volume: { bytes: 1_900_000_000, nativeFilesExcluded: true } },
+        },
+      },
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Test'));
+
+    expect(await screen.findByText(/Measured: Email 12,400 messages ≈ 3.2 GB/)).toBeTruthy();
+    expect(screen.getByText(/Contacts 412 cards/)).toBeTruthy();
+    expect(screen.getByText(/Files 1.8 GB \(Docs, Sheets and Slides not counted\)/)).toBeTruthy();
+    // The capability line is still its own line.
+    expect(screen.getByText(/Can carry: Email ✓ 29 folders/)).toBeTruthy();
+  });
+});

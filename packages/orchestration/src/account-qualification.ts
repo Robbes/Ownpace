@@ -67,6 +67,27 @@ export interface QualifiedDomain {
    */
   readonly count?: number;
   readonly unit?: ProbeUnit;
+  /**
+   * How MUCH the face holds, measured when it answered (2026-09-02, the
+   * owner's "GB in Drive, number of contacts, GB of mail"): a sizing answer
+   * beside the capability one, never instead of it. Absent when the face
+   * has no cheap measure, when it was not reached, or when measuring failed
+   * (then `detail` says so).
+   */
+  readonly volume?: MeasuredVolume;
+}
+
+/** A face's volume, as data — a screen words and formats it. */
+export interface MeasuredVolume {
+  /** Items: messages, cards, files. */
+  readonly items?: number;
+  /** Bytes, where the face can say: mail's sizes, Drive's usage. */
+  readonly bytes?: number;
+  /** True when `bytes` was extrapolated from a sample rather than summed. */
+  readonly estimated?: boolean;
+  /** Drive: native editor files (Docs, Sheets, Slides) weigh nothing in `bytes`
+   *  and are exported on migration, so the target ends up larger. */
+  readonly nativeFilesExcluded?: boolean;
 }
 
 export interface AccountQualification {
@@ -315,6 +336,35 @@ async function qualifyJmap(
   };
 }
 
+/** Bytes for an English report line: the nearest unit, one decimal past KB. */
+export function bytesText(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let n = bytes;
+  let u = 0;
+  while (n >= 1024 && u < units.length - 1) {
+    n /= 1024;
+    u += 1;
+  }
+  return `${n.toFixed(u === 0 ? 0 : 1)} ${units[u]}`;
+}
+
+/** The English sentence for a measured volume — the report's, not the screen's. */
+export function volumeSentence(
+  domain: 'mail' | 'calendar' | 'contact' | 'file',
+  volume: MeasuredVolume,
+): string {
+  const parts: string[] = [];
+  if (volume.items !== undefined) {
+    const noun = domain === 'mail' ? 'message' : domain === 'contact' ? 'card' : 'item';
+    parts.push(`${volume.items} ${noun}${volume.items === 1 ? '' : 's'}`);
+  }
+  if (volume.bytes !== undefined) {
+    parts.push(`${volume.estimated ? '≈ ' : ''}${bytesText(volume.bytes)}`);
+  }
+  if (volume.nativeFilesExcluded) parts.push('Docs, Sheets and Slides not counted');
+  return parts.join(', ');
+}
+
 /**
  * The qualification as §14.2 report lines: mark + evidence per domain, the
  * scheduling sentence riding along. English-only, like the report it lands
@@ -324,12 +374,11 @@ export function qualificationReportLines(qualification: AccountQualification): r
   const mark = (answer: DomainAnswer): string =>
     answer === 'yes' ? '✓' : answer === 'no' ? '✗' : '?';
   const label = { mail: 'Email', calendar: 'Calendar', contact: 'Contacts', file: 'Files' } as const;
-  const lines = (['mail', 'calendar', 'contact', 'file'] as const).map(
-    (domain) =>
-      `${label[domain]} ${mark(qualification.domains[domain].answer)}: ${
-        qualification.domains[domain].detail
-      }`,
-  );
+  const lines = (['mail', 'calendar', 'contact', 'file'] as const).map((domain) => {
+    const d = qualification.domains[domain];
+    const measured = d.volume ? ` Measured: ${volumeSentence(domain, d.volume)}.` : '';
+    return `${label[domain]} ${mark(d.answer)}: ${d.detail}${measured}`;
+  });
   if (qualification.scheduling) lines.push(qualification.scheduling.sentence);
   return lines;
 }
@@ -502,6 +551,58 @@ export interface QualifyGoogleGrantOptions {
   readonly reach?: GoogleReach;
 }
 
+/**
+ * The measures a face may offer beyond listing, asked for by shape rather
+ * than by class: the reach holds whatever the builder returned, and the test
+ * seam returns plain objects. A source without the method is simply not
+ * measured — the yes stands on the listing, and no volume is claimed.
+ */
+interface MailMeasurable {
+  measureMailbox(): Promise<{ messages: number; bytes: number; estimated: boolean }>;
+}
+interface UsageMeasurable {
+  storageUsage(): Promise<{ bytes: number; nativeFilesExcluded?: boolean }>;
+}
+interface CardListable {
+  listSince(folder: unknown): Promise<{ items: ReadonlyArray<unknown> }>;
+}
+const offers = <T>(source: unknown, method: keyof T & string): source is T =>
+  typeof source === 'object' && source !== null && typeof (source as Record<string, unknown>)[method] === 'function';
+
+/**
+ * How much the face holds, in the cheapest honest way each face allows.
+ * Bounded by construction: mail samples sizes (see `measureMailbox`), Drive
+ * is one `about` request, contacts are one listing per address book —
+ * the same listing a pass makes, metadata only. Calendar offers no cheap
+ * measure and claims none.
+ */
+async function measureGoogleFace(
+  domain: GoogleGrantDomain,
+  source: unknown,
+  listed: ReadonlyArray<unknown>,
+): Promise<MeasuredVolume | undefined> {
+  switch (domain) {
+    case 'mail': {
+      if (!offers<MailMeasurable>(source, 'measureMailbox')) return undefined;
+      const m = await source.measureMailbox();
+      return { items: m.messages, bytes: m.bytes, estimated: m.estimated };
+    }
+    case 'contact': {
+      if (!offers<CardListable>(source, 'listSince')) return undefined;
+      let items = 0;
+      for (const folder of listed) items += (await source.listSince(folder)).items.length;
+      return { items };
+    }
+    case 'file': {
+      if (!offers<UsageMeasurable>(source, 'storageUsage')) return undefined;
+      const usage = await source.storageUsage();
+      return { bytes: usage.bytes, ...(usage.nativeFilesExcluded ? { nativeFilesExcluded: true } : {}) };
+    }
+    case 'calendar':
+      return undefined;
+  }
+}
+
 /** What each face counts, in the unit a screen words. */
 const GOOGLE_FACE_UNIT: Readonly<Record<GoogleGrantDomain, ProbeUnit>> = {
   mail: 'folder',
@@ -598,19 +699,35 @@ export async function qualifyGoogleGrant(
     // asking would be a request Google refuses by design, and the no above
     // already names the remedy.
     try {
-      const listed = await (reach.listable ?? googleFaceListable)(
+      const source = (reach.listable ?? googleFaceListable)(
         domain,
         reach.user,
         creds,
         reach.config ?? {},
-      ).listFolders();
+      );
+      const listed = await source.listFolders();
       const unit = GOOGLE_FACE_UNIT[domain];
-      return {
+      const answered: QualifiedDomain = {
         answer: 'yes',
         detail: `The grant carries ${carried}; ${counted(listed.length, unit)} visible.`,
         count: listed.length,
         unit,
       };
+      // MEASURED, once the face has answered — and a measure that fails does
+      // not take the yes away: the listing is the capability evidence, the
+      // volume is a second fact. It fails aloud, in the evidence sentence,
+      // rather than as a missing number nobody explains (rule 9).
+      try {
+        const volume = await measureGoogleFace(domain, source, listed);
+        return volume ? { ...answered, volume } : answered;
+      } catch (err) {
+        return {
+          ...answered,
+          detail: `${answered.detail} Volume not measured — ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        };
+      }
     } catch (err) {
       // The three-state rule: a refusal is NOT a no. The scope is carried, so
       // "cannot carry" would be false; and it is not a yes either, since

@@ -617,3 +617,42 @@ describe('socket-level errors', () => {
     await expect(s.listFolders()).resolves.toHaveLength(2);
   });
 });
+
+describe('measureMailbox — how much mail, cheaply and honestly (2026-09-02)', () => {
+  it('sums every size when the folder fits the sample: exact, and said so', async () => {
+    boxState = { uidValidity: 42n, uidNext: 10, exists: 3 };
+    messages = [
+      { uid: 1, size: 100 },
+      { uid: 2, size: 200 },
+      { uid: 3, size: 300 },
+    ];
+    const m = await source().measureMailbox();
+    expect(m).toEqual({ folders: mailboxes.length, messages: 3 * mailboxes.length, bytes: 600 * mailboxes.length, estimated: false });
+    // The whole folder, by sequence, sizes only — no envelope, no flags.
+    expect(calls).toContain('fetchAll(1:*,size)');
+  });
+
+  it('samples the NEWEST messages when the folder is larger than the sample, and marks the bytes as estimated', async () => {
+    boxState = { uidValidity: 42n, uidNext: 10, exists: 1000 };
+    messages = [
+      { uid: 998, size: 1000 },
+      { uid: 999, size: 3000 },
+    ];
+    const m = await source().measureMailbox({ sampleSize: 2 });
+    // The tail of the mailbox: 999:* on 1000 messages.
+    expect(calls).toContain('fetchAll(999:*,size)');
+    // Average of the sample (2000) times what exists (1000), per folder.
+    expect(m.bytes).toBe(2_000_000 * mailboxes.length);
+    expect(m.messages).toBe(1000 * mailboxes.length);
+    expect(m.estimated).toBe(true);
+  });
+
+  it('an empty folder counts as nothing and is never fetched', async () => {
+    boxState = { uidValidity: 42n, uidNext: 1, exists: 0 };
+    const m = await source().measureMailbox();
+    expect(m.messages).toBe(0);
+    expect(m.bytes).toBe(0);
+    expect(m.estimated).toBe(false);
+    expect(calls.some((c) => c.startsWith('fetchAll'))).toBe(false);
+  });
+});
