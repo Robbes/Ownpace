@@ -1609,6 +1609,23 @@ say "writing the configuration into .env"
   "VITE_IDP_CONSOLE_USER_URL=${ISSUER}/ui/console/users/{sub}" \
   "IDP_UPSTREAM_CALLBACK_URL=${ISSUER}/ui/login/login/externalidp/callback"
 
+# THE LOGIN NAME IS USER@ORGANISATION-DOMAIN, not user@instance. Zitadel
+# generates the first organisation's primary domain from its NAME (the default
+# organisation "ZITADEL" becomes zitadel.<external domain>), and that is what a
+# person types on the sign-in screen. This printed owner@${IDP_DOMAIN} until
+# 2026-09-02, and the owner's first attempt answered "is not known". Read the
+# real one from the instance; fall back to the old form only if it cannot be
+# read, and say so rather than print a guess as a fact.
+# The setup service user lives in that first organisation, so /orgs/me with
+# its token IS the owner's organisation. Read first, then parse — a `$(api |
+# jq)` pipeline would abort on pipefail alone, and this is a summary line, not
+# a gate: a failure here prints the fallback, it does not fail the run.
+org_me="$(api GET /management/v1/orgs/me 2>/dev/null || true)"
+ORG_DOMAIN="$(jq -r '.org.primaryDomain // empty' <<<"$org_me" 2>/dev/null || true)"
+if [ -z "$ORG_DOMAIN" ]; then
+  ORG_DOMAIN="${IDP_DOMAIN}   (could not read the organisation's domain — check Organisation -> Domains in the console)"
+fi
+
 cat <<EOF
 
 [setup-zitadel] done.
@@ -1617,7 +1634,8 @@ cat <<EOF
   audience   ${PROJECT_ID}
   client     ${CLIENT_ID}
   console    ${ISSUER}/ui/console
-  first user $(read_env ZITADEL_ADMIN_USERNAME owner)@${IDP_DOMAIN}
+  first user $(read_env ZITADEL_ADMIN_USERNAME owner)@${ORG_DOMAIN}
+             (the login name carries the ORGANISATION's domain, not the issuer's)
              password is ZITADEL_ADMIN_PASSWORD in .env, and must be changed
              on first sign-in
 
