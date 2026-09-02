@@ -33,7 +33,7 @@ import {
   providerAccountsApi,
 } from '../services/mapping-service.ts';
 import { useT, useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
-import { probeText, qualificationText, schedulingText } from '../i18n/probe-text.ts';
+import { probeText, qualificationEvidence, qualificationText, schedulingText } from '../i18n/probe-text.ts';
 import {
   inUseMigrations,
   invalidCredentialFields,
@@ -221,6 +221,13 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
             {qualificationText(t, connection.qualification)}
           </span>
         )}
+        {/* And WHY each `?` is a `?`, on screen (2026-09-02): the hover
+            above is not on a phone, and the sentence is the remedy. */}
+        {qualificationEvidence(t, connection.qualification ?? undefined).map((line) => (
+          <span key={line} className="block w-full text-xs text-amber-800 break-words">
+            {line}
+          </span>
+        ))}
 
         {/* wrap, and only push right once there is room to (workplan 0068):
             on a phone these four actions overflowed the card horizontally and
@@ -337,6 +344,12 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
             /* What this account CAN CARRY (0106 T0) — per domain, measured. */
             <span className="block mt-1">{qualificationText(t, result.qualification)}</span>
           )}
+          {qualificationEvidence(t, result.qualification).map((line) => (
+            /* Why a face is `?` — on screen, since a phone has no hover. */
+            <span key={line} className="block mt-1 text-xs break-words">
+              {line}
+            </span>
+          ))}
         </p>
       )}
     </li>
@@ -715,6 +728,11 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           {result.qualification && (
             <span className="block mt-1">{qualificationText(t, result.qualification)}</span>
           )}
+          {qualificationEvidence(t, result.qualification).map((line) => (
+            <span key={line} className="block mt-1 text-xs break-words">
+              {line}
+            </span>
+          ))}
         </p>
       )}
 
