@@ -318,6 +318,21 @@ describe('and none of it reached the product', () => {
     );
   });
 
+  it('prints the way to take the extras off the screen from the shell — links removed, no provider deleted', () => {
+    // The owner looked for a delete in the console and found none; the
+    // instance page's "available" toggle is the console's way, and this is the
+    // shell's. Both remove a login-policy LINK — the provider, and whoever is
+    // linked through it, stay; a POST to the same path puts the button back.
+    const fn = setup.slice(
+      setup.indexOf('configure_idp() {'),
+      setup.indexOf('IDP_GOOGLE_CLIENT_ID="$(read_env'),
+    );
+    expect(fn).toContain('curl -sS -X DELETE ${ISSUER}/admin/v1/policies/login/idps/\\$id');
+    expect(fn, 'the hint reads the token from the machinekey volume, not from a variable the operator does not have')
+      .toContain('_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt');
+    expect(fn, 'the hint names the INSTANCE page, whose choice this script keeps').toContain('Default settings');
+  });
+
   it('tells somebody how to change a credential, since a re-run will not', () => {
     expect(
       setup,
