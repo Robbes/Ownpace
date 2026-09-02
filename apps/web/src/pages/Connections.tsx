@@ -25,7 +25,13 @@ import {
 } from '@openmig/shared';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { frontDoorCards } from '../components/front-door-cards.ts';
-import { connectionsApi, type ConnectionSummary, type TestConnectionResult, providerAccountsApi } from '../services/mapping-service.ts';
+import {
+  connectionsApi,
+  mappingApi,
+  type ConnectionSummary,
+  type TestConnectionResult,
+  providerAccountsApi,
+} from '../services/mapping-service.ts';
 import { useT, useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { probeText, qualificationText, schedulingText } from '../i18n/probe-text.ts';
 import {
@@ -346,6 +352,11 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
  * with the answers is the create route's shape builders, unchanged, so a
  * connection added here is one a sync pass can use.
  */
+/** The faces a Google account can be asked to serve — the wizard's domain
+ *  ids, and the consent route's own union. */
+type Domain = 'email' | 'calendar' | 'contact' | 'file';
+const GRANT_FACES: ReadonlyArray<Domain> = ['email', 'calendar', 'contact', 'file'];
+
 const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const { t, locale } = useLocale();
   const [open, setOpen] = React.useState(false);
@@ -383,6 +394,82 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     deploymentGoogleClient &&
     fields.some((f) => f.key === 'clientId' && f.pairedWith === 'clientSecret');
   const pairedSecret = folded ? fields.find((f) => f.key === 'clientSecret') : undefined;
+  // AND THE TOKEN FOLDS WITH THEM (owner remark, after the first round trip):
+  // on the consent path the token arrives from Google and is never typed, so
+  // a box with an asterisk above the fold asked for what the button below
+  // supplies. Inside the fold it is the manual alternative it always was.
+  const pairedToken = folded ? fields.find((f) => f.key === 'refreshToken') : undefined;
+
+  // THE CONSENT YOU CAN CLICK, on this door too (owner step 4, 2026-09-02).
+  // The wizard has had it since 0089 T1; this form folded the pair away
+  // (#709) and left no way to obtain the token the fold took the pair from —
+  // on a managed deployment its Gmail and Drive paths were dead ends. Which
+  // kinds have a consent is the descriptor's answer, as the fold's is: an id
+  // paired with its secret AND a refresh token to fill — Google's own kinds,
+  // and not Dropbox, whose id is unpaired.
+  const googleGrantKind =
+    role === 'source' &&
+    fields.some((f) => f.key === 'clientId' && f.pairedWith === 'clientSecret') &&
+    fields.some((f) => f.key === 'refreshToken');
+  // The ACCOUNT kind asks for the faces ticked and nothing else (0106 T3b);
+  // a connection has no mapping yet to read them from, so it asks here.
+  const isAccountKind = googleGrantKind && type === 'google';
+  const [domains, setDomains] = React.useState<Domain[]>([]);
+  const [googleConsent, setGoogleConsent] = React.useState<string | null>(null);
+  const [googleRedirect, setGoogleRedirect] = React.useState<string | null>(null);
+  const clientIdTyped = (values.clientId ?? '').trim() !== '';
+  const clientSecretTyped = (values.clientSecret ?? '').trim() !== '';
+  // One half typed is a pair being typed, never a pair left to the
+  // deployment (ADR-0041): both or neither, as every door refuses it.
+  const pairRequired = !deploymentGoogleClient || clientIdTyped !== clientSecretTyped;
+  const ownPair =
+    clientIdTyped && clientSecretTyped
+      ? { clientId: (values.clientId ?? '').trim(), clientSecret: values.clientSecret ?? '' }
+      : {};
+  const pairMissing = pairRequired && !(clientIdTyped && clientSecretTyped);
+  const facesMissing = isAccountKind && domains.length === 0;
+
+  // The popup hands the token back over postMessage; the wizard's own rule
+  // applies verbatim — same origin, the flow's own shape, a non-empty token —
+  // and it lands in the SAME field a pasted one does (ADR-0037).
+  React.useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; refreshToken?: string } | null;
+      if (event.origin !== window.location.origin) return;
+      if (!data || data.type !== 'ownpace-google-consent') return;
+      if (typeof data.refreshToken !== 'string' || data.refreshToken.length === 0) return;
+      setValues((v) => ({ ...v, refreshToken: data.refreshToken as string }));
+      setGoogleConsent('received');
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  const startGoogleConsent = async () => {
+    setGoogleConsent(null);
+    try {
+      const { url, redirectUri } = await mappingApi.googleAuthorize(
+        isAccountKind
+          ? { domains, ...ownPair }
+          : {
+              sourceType: type as 'gmail' | 'google-calendar' | 'google-contacts' | 'google-drive',
+              ...ownPair,
+            },
+      );
+      // The address this consent used, shown on every attempt: it has to be
+      // registered with Google BEFORE the first one can work.
+      setGoogleRedirect(redirectUri ?? null);
+      window.open(url, 'ownpace-google-consent', 'popup,width=520,height=640');
+    } catch (err) {
+      setGoogleConsent(refusalText(err));
+    }
+  };
+
+  const resetConsent = () => {
+    setDomains([]);
+    setGoogleConsent(null);
+    setGoogleRedirect(null);
+  };
 
   const submit = async () => {
     setBusy(true);
@@ -470,6 +557,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
                 setType(frontDoorCards(r)[0]?.id ?? '');
                 setValues({});
                 setResult(null);
+                resetConsent();
               }}
               className={`px-4 py-1.5 text-sm font-medium ${
                 role === r ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -490,6 +578,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
             setType(card.id);
             setValues({});
             setResult(null);
+            resetConsent();
           }}
           gridClass={role === 'source' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}
         />
@@ -506,7 +595,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         </label>
 
         {fields.map((field) => {
-          if (folded && field.key === 'clientSecret') return null;
+          if (folded && (field.key === 'clientSecret' || field.key === 'refreshToken')) return null;
           if (folded && field.key === 'clientId') {
             return (
               <details key={field.key} className="sm:col-span-2 rounded-md border border-gray-200 p-3">
@@ -517,6 +606,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {fieldBox(field)}
                   {pairedSecret && fieldBox(pairedSecret)}
+                  {pairedToken && fieldBox(pairedToken)}
                 </div>
               </details>
             );
@@ -524,6 +614,61 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           return <React.Fragment key={field.key}>{fieldBox(field)}</React.Fragment>;
         })}
       </div>
+
+      {googleGrantKind && (
+        <div className="mt-4">
+          {isAccountKind && (
+            <fieldset className="mb-3">
+              <legend className="block text-sm text-gray-700 mb-1">
+                {t('connections.googleFaces')}
+              </legend>
+              <div className="flex flex-wrap gap-4">
+                {GRANT_FACES.map((face) => (
+                  <label key={face} className="inline-flex items-center gap-1 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={domains.includes(face)}
+                      onChange={() =>
+                        setDomains((d) => (d.includes(face) ? d.filter((x) => x !== face) : [...d, face]))
+                      }
+                    />
+                    {t(`domain.${face}` as StringKey)}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <button
+            type="button"
+            onClick={startGoogleConsent}
+            disabled={pairMissing || facesMissing}
+            className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+            title={
+              pairMissing
+                ? deploymentGoogleClient
+                  ? t('wizard.google.connect.halfClient')
+                  : t('wizard.google.connect.needsClient')
+                : facesMissing
+                  ? t('wizard.google.connect.needsDomains')
+                  : undefined
+            }
+          >
+            {t('wizard.google.connect')}
+          </button>
+          <p className="mt-1 text-sm text-gray-500">{t('wizard.google.connect.hint')}</p>
+          {googleConsent && (
+            <p className={`mt-1 text-sm ${googleConsent === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
+              {googleConsent === 'received' ? t('wizard.google.received') : googleConsent}
+            </p>
+          )}
+          {googleRedirect && googleConsent !== 'received' && (
+            <p className="mt-1 text-sm text-gray-500">
+              {t('wizard.google.redirectUri')}{' '}
+              <code className="break-all font-mono text-xs">{googleRedirect}</code>
+            </p>
+          )}
+        </div>
+      )}
 
       {/* The prerequisites for whatever is selected — often the reason a value
           is missing is that nobody has been to the provider's console yet. */}

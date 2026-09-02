@@ -245,6 +245,7 @@ const en = {
   // Playground walk. The full evidence stays in the API's refusals; these
   // are the button's own words.
   'wizard.google.connect': 'Connect with Google',
+  'connections.googleFaces': 'What this account will serve',
   'wizard.google.connect.hint':
     'Opens Google’s consent screen against your own OAuth client and fills the refresh token ' +
     'in for you. Pasting a token you already have keeps working.',
@@ -1729,6 +1730,7 @@ const nl: Record<keyof typeof en, string> = {
   'queue.mailSkipped': 'Er is niemand gemaild, zoals u vroeg.',
   'wizard.proto.imap.hint': 'Standaard e-mailprotocol',
   'wizard.google.connect': 'Verbinden met Google',
+  'connections.googleFaces': 'Wat dit account gaat leveren',
   'wizard.google.connect.hint':
     'Opent het toestemmingsscherm van Google met uw eigen OAuth-client en vult het ' +
     'vernieuwingstoken voor u in. Een token plakken dat u al heeft, blijft gewoon werken.',
