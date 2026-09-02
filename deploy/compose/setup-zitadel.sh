@@ -1069,9 +1069,22 @@ IDP_COUNT=0
 # state and says nothing when a stack is already correct. Read first, write only
 # what is missing.
 configure_idp() {
-  local name="$1" path="$2" payload="$3" existing id
-  existing="$(api POST /admin/v1/idps/_search '{}')"
-  id="$(jq -r --arg n "$name" '.result[]? | select(.name == $n) | .id' <<<"$existing" | awk 'NR==1')"
+  local name="$1" path="$2" payload="$3" existing ids id count
+  # THE LIST THE PROVIDER IS ACTUALLY ON. Google, Microsoft, GitHub and Apple
+  # are TEMPLATE providers, created at /admin/v1/idps/{google,azure,...} and
+  # listed by /admin/v1/idps/templates/_search. The deprecated
+  # /admin/v1/idps/_search lists only the generic OIDC/JWT kind, and answered an
+  # empty list for every provider this function had just created — so every
+  # re-run of the app phase "added" one more, and the sign-in screen gained a
+  # button per bring-up (nine Google buttons on the owner's box, 2026-09-02).
+  # Oldest first: that is the one the earliest sign-ins were linked to, and the
+  # one that stays on the screen if somebody removes the rest.
+  existing="$(api POST /admin/v1/idps/templates/_search '{}')"
+  ids="$(jq -r --arg n "$name" \
+    '[.result[]? | select(.name == $n)] | sort_by(.details.creationDate // "") | .[].id' \
+    <<<"$existing")"
+  count="$(grep -c . <<<"$ids" || true)"
+  id="$(awk 'NR==1' <<<"$ids")"
 
   if [ -z "$id" ] || [ "$id" = "null" ]; then
     local created
@@ -1111,6 +1124,15 @@ the same URI:
     # a mistyped secret in `.env`, re-run, and this leaves the old one in place
     # — every button still fails, and the log said "configured". Naming it here
     # is what turns that into a five-second answer rather than a search.
+    if [ "$count" -gt 1 ]; then
+      # DUPLICATES ARE REPORTED, NEVER REMOVED (hard rule 2): a provider may
+      # hold the links of people who signed in through it. The oldest stays;
+      # the person decides about the rest, in the console, with the list in
+      # front of them.
+      say "  ${name}: ${count} providers of this name exist — the sign-in screen shows ${count} ${name} buttons"
+      say "      keeping the oldest (${id}); remove the others in the console under"
+      say "      Settings -> Identity Providers (this script never deletes a provider)"
+    fi
     say "  ${name}: a provider of this name exists — left as it is"
     say "      credentials in ${ENV_FILE} are NOT re-sent; to change them,"
     say "      remove it in the console under Settings -> Identity Providers"

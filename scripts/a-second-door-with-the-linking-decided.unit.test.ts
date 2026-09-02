@@ -234,6 +234,43 @@ describe('and none of it reached the product', () => {
     ).not.toMatch(claim);
   });
 
+  /**
+   * AND IT LOOKS ON THE LIST THE PROVIDER IS ACTUALLY ON.
+   *
+   * Google, Microsoft, GitHub and Apple are TEMPLATE providers. The deprecated
+   * `/admin/v1/idps/_search` lists only the generic OIDC/JWT kind and answered
+   * an empty list for every provider this function had just created — so each
+   * re-run of the app phase added one more, and after a week the owner's
+   * sign-in screen showed nine Google buttons (2026-09-02). The search has to
+   * ask `/admin/v1/idps/templates/_search`, or "read first, write only what is
+   * missing" reads nothing and writes every time.
+   */
+  it('finds an existing provider on the template list, not the deprecated one', () => {
+    const fn = setup.slice(
+      setup.indexOf('configure_idp() {'),
+      setup.indexOf('IDP_GOOGLE_CLIENT_ID="$(read_env'),
+    );
+    expect(fn, 'configure_idp is not searching the template providers').toContain(
+      '/admin/v1/idps/templates/_search',
+    );
+    expect(fn, 'the deprecated list is back — it never lists what this creates').not.toContain(
+      '/admin/v1/idps/_search',
+    );
+  });
+
+  it('says so when a name is there more than once, and deletes nothing', () => {
+    // A duplicate may hold the links of people who signed in through it, so
+    // the script reports and keeps the oldest; the removal is a person's, in
+    // the console (hard rule 2).
+    const fn = setup.slice(
+      setup.indexOf('configure_idp() {'),
+      setup.indexOf('IDP_GOOGLE_CLIENT_ID="$(read_env'),
+    );
+    expect(fn).toMatch(/providers of this name exist/);
+    expect(fn).toMatch(/sort_by\(\.details\.creationDate/);
+    expect(fn).not.toMatch(/api DELETE/);
+  });
+
   it('tells somebody how to change a credential, since a re-run will not', () => {
     expect(
       setup,
