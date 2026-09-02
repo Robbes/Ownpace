@@ -232,15 +232,25 @@ describe('the client this consent runs against', () => {
     expect(JSON.stringify(res.body)).not.toContain('deployment-secret');
   });
 
-  it('refuses half a pair from the CALLER rather than mixing it with the deployment’s', async () => {
-    // Half of one client and half of another cannot exchange a code, and the
-    // failure would arrive at Google with nothing on this side to explain it.
-    // `.min(1).optional()` also means a cleared field is a cleared field.
+  it('refuses half a pair from the CALLER, as every other door does', async () => {
+    // This used to discard the lone id and run the consent against the
+    // deployment's client — a token minted for an application the caller did
+    // not name, silently. Since the doors refuse half a pair (ADR-0041), so
+    // does the consent, in the same sentence; the wizard never sends a half
+    // since #706, so only an API caller meets this, and they meet the truth.
     configure(CONFIGURED_ID, 'deployment-secret');
     const res = await bare({ sourceType: 'gmail', clientId: CLIENT.clientId });
-    expect(res.status).toBe(200);
-    expect(clientIdInUrl(res.body.url), 'a lone clientId must not be half-used').toBe(
-      CONFIGURED_ID,
-    );
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('half_client_pair');
+    expect(res.body.reason).toContain('clientId was sent without clientSecret');
+    expect(JSON.stringify(res.body)).not.toContain('deployment-secret');
+  });
+
+  it('a cleared field is a cleared field — an empty string is refused, not read as "none sent"', async () => {
+    // `.min(1).optional()` is kept on the optional halves for this reason.
+    configure(CONFIGURED_ID, 'deployment-secret');
+    const res = await bare({ sourceType: 'gmail', clientId: '', clientSecret: '' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_body');
   });
 });
