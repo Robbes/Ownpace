@@ -891,20 +891,36 @@ else
   fi
 
   # ONE GOOGLE SIGN-IN PROVIDER, HOWEVER OFTEN THE APP PHASE RAN (#711). The
-  # workflow runs the provider step a second time before this smoke. A search
-  # that cannot see what it created adds one per run, and the sign-in screen
-  # grows a button each time — nine on the owner's box before anybody counted.
+  # workflow runs the provider step a second time before this smoke and reads
+  # that it added nothing; this counts what the instance holds. A search that
+  # could not see what it created added one per run, and the sign-in screen
+  # grew a button each time — nine on the owner's box before anybody counted.
   # Only where the gate carries a sign-in pair: with none there is no provider
   # to count, and that is also a correct stack.
+  #
+  # THE RUNNER'S INSTANCE PERSISTS between runs, so more than one is not
+  # something this run did: it is what bring-ups before #711 left, and the
+  # script never deletes a provider, because a person may be linked to it. It
+  # is still a sign-in screen with that many Google buttons, so it fails —
+  # with the remedy, which is a person's, once. After that #711 holds it at one.
   if [ -n "$(grep -E '^IDP_GOOGLE_CLIENT_ID=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 || true)" ]; then
-    google_idps="$(idp_api POST /admin/v1/idps/templates/_search '{}' \
-      | jq -r '[.result[]? | select(.name == "Google")] | length' || echo unreadable)"
-    if [ "$google_idps" = "1" ]; then
-      echo "    one Google sign-in provider, after the provider step ran twice"
-    else
-      echo "expected exactly ONE Google sign-in provider, found '${google_idps}' — configure_idp adds on a re-run"
-      fail=1
-    fi
+    google_idps_json="$(idp_api POST /admin/v1/idps/templates/_search '{}' || true)"
+    google_idps="$(jq -r '[.result[]? | select(.name == "Google")] | length' <<<"$google_idps_json" 2>/dev/null || echo unreadable)"
+    case "$google_idps" in
+      1) echo "    one Google sign-in provider, after the provider step ran twice" ;;
+      0|''|unreadable)
+        echo "expected ONE Google sign-in provider, found '${google_idps}' — the provider step left none, or the template list could not be read"
+        fail=1 ;;
+      *)
+        echo "found ${google_idps} sign-in providers named Google — the sign-in screen shows ${google_idps} Google buttons."
+        echo "  The provider step ran twice in this run and added nothing (the workflow step read it), so these"
+        echo "  are older: every bring-up before #711 added one, and setup-zitadel.sh never deletes a provider,"
+        echo "  because a person may be linked to it. Remove the extras by hand, once:"
+        echo "    ${STACK_ISSUER}/ui/console  ->  Instance  ->  Identity Providers"
+        echo "  and keep the one a signed-in person is linked to (their user page lists it under External"
+        echo "  Identity Providers). After that, #711 holds the count at one."
+        fail=1 ;;
+    esac
   fi
 
   # ---- the login page a browser is actually sent to ----

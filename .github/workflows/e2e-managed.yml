@@ -330,7 +330,15 @@ jobs:
         # searched a list that never held what it had just created. A fresh
         # instance cannot show that defect: its first run is honestly "added".
         # So the step runs AGAIN, on the stack the bring-up just provisioned,
-        # and what it says is read. The smoke then counts the providers.
+        # and what it says is read: found, and not added.
+        #
+        # THE COUNT IS THE SMOKE'S. This runner's instance persists between
+        # runs (the gate is near-net-zero, not fresh), so it carries whatever
+        # bring-ups before #711 left there — the script never deletes a
+        # provider, since a person may be linked to it. A count above one is a
+        # real finding about the sign-in screen, and the smoke fails on it
+        # with the remedy; failing HERE would also hide every other piece of
+        # evidence the run was dispatched for, which is what run #129 did.
         run: |
           set -euo pipefail
           out="$(./deploy/compose/setup-zitadel.sh 2>&1)" || { printf '%s\n' "$out"; exit 1; }
@@ -344,8 +352,7 @@ jobs:
             exit 1
           fi
           if grep -qE 'providers of this name exist' <<<"$out"; then
-            echo "::error::duplicates on a fresh instance — the first run created more than one"
-            exit 1
+            echo "::warning::more than one Google provider on this runner's instance — residue of bring-ups before #711; the smoke's identity section counts them and names the remedy"
           fi
           echo "the second run found the provider and added nothing"
 
