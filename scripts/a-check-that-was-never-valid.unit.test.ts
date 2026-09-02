@@ -287,6 +287,46 @@ describe('the lifetimes, which are the part that locked everybody out', () => {
     expect(off['allowExternalIdp']).toBe(false);
   });
 
+  it('writes only when a flag would change — the provider refuses a write that changes nothing', () => {
+    // E2E (managed) #130, 2026-09-02: the organisation's own policy was the
+    // only thing wrong, the reset had removed it, and the instance policy was
+    // right — so PUT answered 400 "Default Login Policy has not been changed"
+    // and the bring-up died on a write it had no reason to send.
+    const SAME = jqProgram(SETUP.slice(SETUP.indexOf('SAME="$(jq')));
+    expect(jq(SAME, HEALTHY, ['-r', '--argjson', 'x', 'false']).out).toBe('true');
+    expect(jq(SAME, HEALTHY, ['-r', '--argjson', 'x', 'true']).out).toBe('false');
+    const healthy = JSON.parse(HEALTHY) as { policy: Record<string, unknown> };
+    const noRegister = JSON.stringify({ policy: { ...healthy.policy, allowRegister: false } });
+    expect(jq(SAME, noRegister, ['-r', '--argjson', 'x', 'false']).out).toBe('false');
+    // …and the decision sits between the body and the write it decides.
+    const at = SETUP.indexOf('SAME="$(jq');
+    expect(at).toBeGreaterThan(SETUP.indexOf('POLICY="$(jq'));
+    expect(at).toBeLessThan(SETUP.indexOf('api PUT /admin/v1/policies/login'));
+  });
+
+  it('treats the provider calling the write unchanged as an answer, and anything else as fatal', () => {
+    const block = SETUP.slice(
+      SETUP.indexOf('SAME="$(jq'),
+      SETUP.indexOf('READ BACK, AND SEPARATELY'),
+    );
+    expect(block).toContain('*"has not been changed"*)');
+    expect(block, 'another refusal is no longer fatal').toMatch(
+      /\*\)\s+printf '%s\\n' "\$written" >&2; exit 1/,
+    );
+  });
+
+  it('says what the probe saw before it resets or writes anything', () => {
+    // Two writes follow a failed probe, and #130 died on one of them with no
+    // line in the log to say why the probe had failed.
+    const block = SETUP.slice(
+      SETUP.indexOf('if policy_is_right <<<"$PROBED"'),
+      SETUP.indexOf('api_try DELETE /management/v1/policies/login'),
+    );
+    for (const fact of ['isDefault=', 'allowRegister=', 'allowUsernamePassword=', 'allowExternalIdp=', 'passwordCheckLifetime=']) {
+      expect(block, `the probe's view of ${fact} is not printed`).toContain(fact);
+    }
+  });
+
   it('names a zero lifetime rather than sending it back', () => {
     // Echoing the instance is only safe while the instance is sane. If one of
     // its own lifetimes is nought, writing it back puts the bug on the policy
