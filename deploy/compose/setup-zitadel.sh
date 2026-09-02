@@ -1167,10 +1167,18 @@ the same URI:
       # screen stays; the person decides about the rest, in the console, with
       # the list in front of them — the "available" toggle takes one off the
       # screen and keeps it, which is the gentlest of the three switches.
+      local others
+      others="$(jq -r '[.[] | select(.linked)] | .[1:] | .[].id' <<<"$candidates" | tr '\n' ' ')"
       say "  ${name}: ${count} providers of this name exist on the sign-in screen — it shows ${count} ${name} buttons"
       say "      keeping the oldest of them (${id}); take the others off the screen in the console"
-      say "      under Settings -> Login Behaviour -> Identity Providers, or deactivate them"
-      say "      (this script never deletes a provider)"
+      say "      under Default settings -> Login Behaviour and Security -> Identity Providers"
+      say "      (the INSTANCE page — an organisation's own login policy is reset by this script),"
+      say "      or from this shell, which removes their LINKS and keeps every provider:"
+      say "        PAT=\"\$(docker run --rm -v ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt)\""
+      say "        for id in ${others}; do"
+      say "          curl -sS -X DELETE ${ISSUER}/admin/v1/policies/login/idps/\$id -H \"Authorization: Bearer \$PAT\""
+      say "        done"
+      say "      (a POST to the same path puts one back; this script never deletes a provider)"
     fi
     [ "${aside:-0}" -eq 0 ] \
       || say "  ${name}: ${aside} more of this name exist, taken off the sign-in screen — left as they are"
