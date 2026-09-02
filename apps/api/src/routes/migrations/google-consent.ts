@@ -311,16 +311,28 @@ export type ExchangeResult =
   | { readonly ok: true; readonly refreshToken: string; readonly grantedScopes: ReadonlyArray<string> }
   | { readonly ok: false; readonly reason: string };
 
-/** Does the granted set satisfy the asked scope? The broader Drive scope
- *  satisfies the read-only ask (a superset grant is reported, never refused
- *  — over-ASKING is what least privilege forbids, not over-receiving what
- *  Google chose to enumerate). */
-function grantSatisfies(asked: string, granted: ReadonlyArray<string>): boolean {
-  if (granted.includes(asked)) return true;
-  return (
-    asked === 'https://www.googleapis.com/auth/drive.readonly' &&
-    granted.includes('https://www.googleapis.com/auth/drive')
-  );
+/**
+ * Which of the asked scopes the granted set does NOT satisfy. The broader
+ * Drive scope satisfies the read-only ask (a superset grant is reported, never
+ * refused — over-ASKING is what least privilege forbids, not over-receiving
+ * what Google chose to enumerate).
+ *
+ * AN ASK IS ONE OR MORE SCOPES, space-separated — one per domain ticked
+ * (0106 T1b) — and each is judged on its own. On 2026-09-02 the owner ticked
+ * all four, Google granted all four, and the previous check called the whole
+ * ask "missing": it looked for the space-joined string as if it were one
+ * scope, which no grant can ever contain. A single-scope ask is the
+ * one-element case of this, not a separate rule.
+ */
+export function unsatisfiedScopes(asked: string, granted: ReadonlyArray<string>): string[] {
+  const satisfied = (scope: string): boolean =>
+    granted.includes(scope) ||
+    (scope === 'https://www.googleapis.com/auth/drive.readonly' &&
+      granted.includes('https://www.googleapis.com/auth/drive'));
+  return asked
+    .split(/\s+/)
+    .filter((scope) => scope.length > 0)
+    .filter((scope) => !satisfied(scope));
 }
 
 /**
@@ -374,11 +386,12 @@ export async function exchangeCode(
     scope?: string;
   };
   const granted = (json.scope ?? '').split(' ').filter((s) => s.length > 0);
-  if (!grantSatisfies(p.askedScope, granted)) {
+  const missing = unsatisfiedScopes(p.askedScope, granted);
+  if (missing.length > 0) {
     return {
       ok: false,
       reason:
-        `Google granted less than was asked: the consent is missing ${p.askedScope}. ` +
+        `Google granted less than was asked: the consent is missing ${missing.join(' ')}. ` +
         `Granted: ${granted.length > 0 ? granted.join(', ') : '(nothing enumerated)'}. ` +
         'Asking is granting — run Connect with Google again and leave every requested ' +
         'permission ticked, rather than storing a token that would fail later.',

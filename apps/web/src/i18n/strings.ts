@@ -253,7 +253,7 @@ const en = {
     + 'and nothing more.',
   'wizard.google.connect.needsClient':
     'Enter the Client ID and client secret first — the consent runs against your own Google client.',
-  'wizard.google.received': 'Consent received — the refresh token has been filled in below.',
+  'wizard.google.received': 'Consent received — the refresh token has been filled in.',
   // The deployment's own client (ADR-0041, owner decision 2026-09-01): the
   // pair becomes optional as a whole, and a half-typed pair is named rather
   // than silently completed with the deployment's other half.
@@ -1737,7 +1737,7 @@ const nl: Record<keyof typeof en, string> = {
     + 'is aangevinkt, en niets meer.',
   'wizard.google.connect.needsClient':
     'Vul eerst de Client-ID en het clientgeheim in — de toestemming loopt via uw eigen Google-client.',
-  'wizard.google.received': 'Toestemming ontvangen — het vernieuwingstoken is hieronder ingevuld.',
+  'wizard.google.received': 'Toestemming ontvangen — het vernieuwingstoken is ingevuld.',
   'wizard.google.deploymentClient':
     'Deze installatie heeft een eigen Google-client, dus deze twee mogen leeg blijven. ' +
     'Vul beide in om in plaats daarvan uw eigen client te gebruiken.',

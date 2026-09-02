@@ -913,6 +913,12 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       expect(fold).toContainElement(screen.getByPlaceholderText('…apps.googleusercontent.com'));
       expect(fold).toContainElement(screen.getByPlaceholderText('••••••••'));
       expect(fold).toHaveTextContent(/has its own Google client/);
+      // …and the token box with them (owner's second remark, after the first
+      // round trip): on this path the token comes from the button, so a box
+      // with an asterisk above the fold asked for what the button supplies.
+      expect(fold).toContainElement(screen.getByPlaceholderText('1//…'));
+      // The address stays in plain view — it is what the fold is not about.
+      expect(screen.getByPlaceholderText('user@example.com').closest('details')).toBeNull();
 
       fireEvent.click(connectButton());
       await waitFor(() => expect(authorizeMock).toHaveBeenCalled());
