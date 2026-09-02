@@ -263,6 +263,7 @@ const en = {
   'wizard.google.connect.halfClient':
     'Enter both the Client ID and the client secret, or neither — this deployment has its own ' +
     'Google client.',
+  'wizard.google.ownClient': 'Use your own Google application instead',
   // The string Google matches against the client's registered list. It was
   // always in the route's answer and the wizard threw it away, so
   // `redirect_uri_mismatch` arrived naming no address (2026-09-01).
@@ -1743,6 +1744,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.google.connect.halfClient':
     'Vul zowel de Client-ID als het clientgeheim in, of geen van beide — deze installatie heeft ' +
     'een eigen Google-client.',
+  'wizard.google.ownClient': 'Gebruik in plaats daarvan uw eigen Google-toepassing',
   // Zie het Engelse blok.
   'wizard.google.redirectUri':
     'Registreer dit exacte adres in uw Google-client, onder Geautoriseerde omleidings-URI\u2019s:',

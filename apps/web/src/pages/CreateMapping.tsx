@@ -1331,98 +1331,124 @@ const CreateMapping: React.FC = () => {
       side,
       isSource ? formData.sourceType : formData.targetType,
     );
+    /**
+     * One labelled box (workplan 0075: one input in this file instead of
+     * thirty). Where it goes is the loop's decision below; what it is stays
+     * here. `htmlFor`/`id` pair kept (0068 T10) so a screen reader can attach
+     * the label to its box.
+     */
+    const fieldControl = (field: CredentialField): React.ReactNode => {
+      const formKey = isSource ? SOURCE_FORM_FIELD[field.key] : TARGET_FORM_FIELD[field.key];
+      if (!formKey) return null;
+      const value = String(formData[formKey] ?? '');
+      const placeholder =
+        field.placeholder ??
+        (field.placeholderKey ? t(field.placeholderKey as StringKey) : undefined);
+      const set = (v: string) => updateField(formKey, v);
+      const id = `${side}-${field.key}`;
+      return (
+        <div>
+          <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
+            {t(field.labelKey as StringKey)}
+            {(isSource ? sourceFieldRequiredNow(field) : field.required === true) && <Required />}
+          </label>
+          {field.multiline ? (
+            <textarea
+              id={id}
+              value={value}
+              onChange={(e) => set(e.target.value)}
+              className="input w-full font-mono text-xs"
+              rows={4}
+              placeholder={placeholder}
+            />
+          ) : field.revealable ? (
+            <div className="relative">
+              <input
+                id={id}
+                type={reveal ? 'text' : 'password'}
+                autoComplete={field.autoComplete}
+                value={value}
+                onChange={(e) => set(e.target.value)}
+                className="input w-full pr-10"
+                placeholder={placeholder}
+              />
+              <button
+                type="button"
+                onClick={() => setReveal((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                aria-label={t(reveal ? 'wizard.hidePassword' : 'wizard.showPassword')}
+              >
+                {reveal ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          ) : (
+            <input
+              id={id}
+              type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
+              inputMode={field.numeric ? 'numeric' : undefined}
+              min={field.numeric ? 1 : undefined}
+              max={field.numeric ? 65535 : undefined}
+              autoComplete={field.autoComplete ?? 'off'}
+              value={value}
+              onChange={(e) => set(e.target.value)}
+              className="input w-full"
+              placeholder={placeholder}
+            />
+          )}
+          {field.hintKey && (
+            <p
+              className={
+                field.key === 'serviceAccountKey'
+                  ? 'mt-1 text-xs text-amber-800'
+                  : 'mt-1 text-sm text-gray-500'
+              }
+            >
+              {t(field.hintKey as StringKey)}
+            </p>
+          )}
+        </div>
+      );
+    };
     return (
       <div className="space-y-4">
         {fields.map((field) => {
           // A stored connection answers everything except THIS mapping's own
           // question — whose files, and from which folder (0066 T4a).
           if (chosen && !field.perMapping) return null;
-          const formKey = isSource ? SOURCE_FORM_FIELD[field.key] : TARGET_FORM_FIELD[field.key];
-          if (!formKey) return null;
-          const value = String(formData[formKey] ?? '');
-          const placeholder =
-            field.placeholder ??
-            (field.placeholderKey ? t(field.placeholderKey as StringKey) : undefined);
-          const set = (v: string) => updateField(formKey, v);
-          /**
-           * A label a screen reader can actually attach to its box
-           * (workplan 0068 T10, finally cheap).
-           *
-           * The wizard's inputs had no `htmlFor`/`id` pair, so a screen
-           * reader read roughly thirty unlabelled boxes and the fix was
-           * logged as "~30 mechanical edits, deserves its own change". After
-           * 0075 there is one input in this file instead of thirty, so it is
-           * four lines. That is the compounding return on deleting the
-           * duplication rather than editing every copy of it.
-           */
-          const id = `${side}-${field.key}`;
+          if (!(isSource ? SOURCE_FORM_FIELD[field.key] : TARGET_FORM_FIELD[field.key])) return null;
+          // THE PAIR FOLDS AWAY where the deployment carries the client
+          // (ADR-0041; owner remark 2026-09-02). On a managed deployment a
+          // person grants Ownpace's own Google application, and "use your
+          // own" is the exception — so the default screen is the address,
+          // the token and the consent button, and the two boxes sit behind a
+          // fold. The secret renders INSIDE the id's fold, never on its own:
+          // half a pair is refused at every door, and the screen should not
+          // make it easy to type one.
+          const folded =
+            isSource &&
+            isGoogleGrantSource &&
+            deploymentGoogleClient &&
+            (field.key === 'clientId' || field.key === 'clientSecret');
+          if (folded && field.key === 'clientSecret') return null;
+          const secretField = folded ? fields.find((f) => f.key === 'clientSecret') : undefined;
           return (
             <React.Fragment key={field.key}>
               {isSource && field.key === 'rootFolderId' && isDriveSource && renderDriveBrowse()}
               {isSource && field.key === 'rootPath' && isDropboxSource && renderDropboxBrowse()}
-              {isSource && field.key === 'clientId' && isGoogleGrantSource && deploymentGoogleClient && (
-                <p className="text-sm text-gray-500">{t('wizard.google.deploymentClient')}</p>
-              )}
-              <div>
-                <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
-                  {t(field.labelKey as StringKey)}
-                  {(isSource ? sourceFieldRequiredNow(field) : field.required === true) && <Required />}
-                </label>
-                {field.multiline ? (
-                  <textarea
-                    id={id}
-                    value={value}
-                    onChange={(e) => set(e.target.value)}
-                    className="input w-full font-mono text-xs"
-                    rows={4}
-                    placeholder={placeholder}
-                  />
-                ) : field.revealable ? (
-                  <div className="relative">
-                    <input
-                      id={id}
-                      type={reveal ? 'text' : 'password'}
-                      autoComplete={field.autoComplete}
-                      value={value}
-                      onChange={(e) => set(e.target.value)}
-                      className="input w-full pr-10"
-                      placeholder={placeholder}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setReveal((v) => !v)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
-                      aria-label={t(reveal ? 'wizard.hidePassword' : 'wizard.showPassword')}
-                    >
-                      {reveal ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+              {folded ? (
+                <details className="rounded-md border border-gray-200 p-3">
+                  <summary className="cursor-pointer text-sm text-gray-700">
+                    {t('wizard.google.ownClient')}
+                  </summary>
+                  <p className="mt-2 text-sm text-gray-500">{t('wizard.google.deploymentClient')}</p>
+                  <div className="mt-3 space-y-4">
+                    {fieldControl(field)}
+                    {secretField && fieldControl(secretField)}
                   </div>
-                ) : (
-                  <input
-                    id={id}
-                    type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
-                    inputMode={field.numeric ? 'numeric' : undefined}
-                    min={field.numeric ? 1 : undefined}
-                    max={field.numeric ? 65535 : undefined}
-                    autoComplete={field.autoComplete ?? 'off'}
-                    value={value}
-                    onChange={(e) => set(e.target.value)}
-                    className="input w-full"
-                    placeholder={placeholder}
-                  />
-                )}
-                {field.hintKey && (
-                  <p
-                    className={
-                      field.key === 'serviceAccountKey'
-                        ? 'mt-1 text-xs text-amber-800'
-                        : 'mt-1 text-sm text-gray-500'
-                    }
-                  >
-                    {t(field.hintKey as StringKey)}
-                  </p>
-                )}
-              </div>
+                </details>
+              ) : (
+                fieldControl(field)
+              )}
               {/* TLS belongs to the server, so it sits with host and port —
                   it is not a credential and the descriptor does not carry it. */}
               {field.key === 'port' && !chosen && (
