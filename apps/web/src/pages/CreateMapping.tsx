@@ -869,6 +869,20 @@ const CreateMapping: React.FC = () => {
   const [googleConsent, setGoogleConsent] = React.useState<string | null>(null);
   /** The callback address the last consent asked Google to return to. */
   const [googleRedirect, setGoogleRedirect] = React.useState<string | null>(null);
+  /**
+   * ONE GO (owner remark 2026-09-02, after the first working round trip):
+   * "I would expect an automatic save — the app did receive the grant — and
+   * the connection tested." The consent used to land the token in a box
+   * behind a fold and leave the person on the same screen with the same
+   * button, which read as nothing having happened. So a consent that lands
+   * runs the source probe at once — the same probe the Test button runs,
+   * which saves the connection and reports what it can carry.
+   *
+   * A counter rather than the 'received' flag: a second consent in the same
+   * sitting must run the probe again, and a flag that is already set would
+   * not fire the effect.
+   */
+  const [consentLanded, setConsentLanded] = React.useState(0);
   React.useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { type?: string; refreshToken?: string } | null;
@@ -877,10 +891,17 @@ const CreateMapping: React.FC = () => {
       if (typeof data.refreshToken !== 'string' || data.refreshToken.length === 0) return;
       setFormData((prev) => ({ ...prev, sourceRefreshToken: data.refreshToken as string }));
       setGoogleConsent('received');
+      setConsentLanded((n) => n + 1);
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, []);
+  // The probe of THIS render, so the effect below never runs a stale one.
+  const runProbeRef = React.useRef<(only?: 'source' | 'target') => void>(() => {});
+  runProbeRef.current = runProbe;
+  React.useEffect(() => {
+    if (consentLanded > 0) runProbeRef.current('source');
+  }, [consentLanded]);
 
   const startGoogleConsent = async () => {
     setGoogleConsent(null);
@@ -1808,6 +1829,35 @@ const CreateMapping: React.FC = () => {
             {GOOGLE_CONSENT_SOURCES.includes(formData.sourceType) &&
               !formData.sourceConnectionId && (
                 <div className="mt-4">
+                  {/* THE FACES, HERE, for the account kind. Its consent asks
+                      Google for exactly what is ticked (0106 T3b), and the
+                      ticks lived two steps further on — behind a gate this
+                      button is the only way through. The owner met the
+                      dead end on 2026-09-02: a button that waits for ticks
+                      nobody can reach. Same state as the migration step's
+                      cards, so ticking here is ticking there. */}
+                  {isGoogleAccountSource && (
+                    <fieldset className="mb-3">
+                      <legend className="block text-sm text-gray-700 mb-1">
+                        {t('connections.googleFaces')}
+                      </legend>
+                      <div className="flex flex-wrap gap-4">
+                        {dataTypes.map((face) => (
+                          <label
+                            key={face.id}
+                            className="inline-flex items-center gap-1 text-sm text-gray-700"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={formData.domains.includes(face.id)}
+                              onChange={() => toggleDomain(face.id)}
+                            />
+                            {t(face.nameKey)}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  )}
                   <button
                     type="button"
                     onClick={startGoogleConsent}

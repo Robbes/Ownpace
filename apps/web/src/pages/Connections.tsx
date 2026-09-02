@@ -440,6 +440,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       if (typeof data.refreshToken !== 'string' || data.refreshToken.length === 0) return;
       setValues((v) => ({ ...v, refreshToken: data.refreshToken as string }));
       setGoogleConsent('received');
+      setConsentLanded((n) => n + 1);
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
@@ -471,11 +472,11 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     setGoogleRedirect(null);
   };
 
-  const submit = async () => {
+  const submit = async (name: string = displayName) => {
     setBusy(true);
     setResult(null);
     try {
-      const answer = await connectionsApi.add({ role, type, displayName, values });
+      const answer = await connectionsApi.add({ role, type, displayName: name, values });
       setResult(answer);
       // Added either way — a credential that does not work YET is still worth
       // keeping while somebody chases an administrator.
@@ -486,6 +487,26 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       setBusy(false);
     }
   };
+
+  /**
+   * ONE GO (owner remark 2026-09-02): a consent that lands saves and tests
+   * the connection at once — the grant is the person's word, and pressing
+   * Add after it was a second word for the same thing. The name defaults to
+   * the address when none was typed, the way the wizard names what it saves.
+   * A counter, not the 'received' flag, so a second consent submits again.
+   */
+  const [consentLanded, setConsentLanded] = React.useState(0);
+  const submitRef = React.useRef<(name?: string) => Promise<void>>(async () => {});
+  submitRef.current = submit;
+  React.useEffect(() => {
+    if (consentLanded === 0) return;
+    const name = displayName.trim() || (values.username ?? '').trim() || type;
+    if (!displayName.trim()) setDisplayName(name);
+    void submitRef.current(name);
+    // The values of THIS render carry the token the handler just set; the
+    // name is read the same way. Re-running on their later changes would
+    // submit again for a keystroke, which is why only the landing counts.
+  }, [consentLanded]);
 
   /** One labelled box; where it goes is the map below's decision. */
   const fieldBox = (field: CredentialField) => (
@@ -701,7 +722,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         <button
           type="button"
           disabled={busy || !displayName.trim()}
-          onClick={submit}
+          onClick={() => void submit()}
           className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded disabled:opacity-50"
         >
           {busy ? t('connections.testing') : t('connections.addAndTest')}

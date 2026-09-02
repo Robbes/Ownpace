@@ -350,6 +350,17 @@ describe('the result page: one origin, no leaks', () => {
     expect(page).toContain('rt-123');
   });
 
+  it('says so when there is no opener to hand the result to, and still shows no token', () => {
+    // The owner's "it told me it worked": a popup with no opener sat on
+    // "handing the result back" while nothing arrived. The page now names
+    // the situation and the way out, and the token stays where it belongs.
+    const page = consentResultPage({ webOrigin: 'https://app.example.nl', outcome: OK });
+    expect(page).toContain('could not be handed back');
+    expect(page).toContain('Connect with Google again');
+    // The token rides the script that posts it; it is never rendered as text.
+    expect(page).not.toMatch(/<code>[^<]*rt-123/);
+  });
+
   it('a token that tries to close the script block stays inert', () => {
     const sly = { ...OK, refreshToken: '</script><script>alert(1)</script>' };
     const page = consentResultPage({ webOrigin: 'https://app.example.nl', outcome: sly });

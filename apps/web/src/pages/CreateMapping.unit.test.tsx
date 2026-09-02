@@ -25,7 +25,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import CreateMapping from './CreateMapping.tsx';
-import { mappingApi, providerAccountsApi } from '../services/mapping-service.ts';
+import { mappingApi, providerAccountsApi, connectionsApi } from '../services/mapping-service.ts';
 import type { ProviderAccountFacts } from '../services/mapping-service.ts';
 
 vi.mock('../services/mapping-service', () => ({
@@ -37,7 +37,12 @@ vi.mock('../services/mapping-service', () => ({
   },
   // The wizard offers reusable connections (workplan 0064); an empty list is
   // the "nothing to reuse yet" case these walks exercise.
-  connectionsApi: { list: vi.fn().mockResolvedValue([]) },
+  connectionsApi: {
+    list: vi.fn().mockResolvedValue([]),
+    add: vi.fn(),
+    rotate: vi.fn(),
+    test: vi.fn(),
+  },
   // The deployment's own ceiling for a Google ACCOUNT (ADR-0041). Mocked
   // empty: the wizard falls back to the narrow default, which is what an
   // appliance and an undeclared managed deployment both get.
@@ -45,6 +50,7 @@ vi.mock('../services/mapping-service', () => ({
 }));
 
 const createMock = vi.mocked(mappingApi.create);
+const addMock = vi.mocked(connectionsApi.add);
 const authorizeMock = vi.mocked(mappingApi.googleAuthorize);
 
 // The wizard now REMEMBERS its non-secret half across mounts (workplan 0069),
@@ -950,6 +956,56 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
         target: { value: '1//mail-refresh' },
       });
       expect(nextButton()).toBeEnabled();
+    } finally {
+      open.mockRestore();
+    }
+  });
+
+  it('the account kind ticks its faces on this step, and a consent that lands saves and tests in one go', async () => {
+    // 2026-09-02, the owner's walk: the account kind's consent waited for
+    // ticks that lived two steps on, behind the gate this button is the way
+    // through — a dead end. And a consent that landed left the person on the
+    // same screen with the same button, which read as nothing happening.
+    addMock.mockResolvedValue({ ok: true, id: 'conn-google', detail: 'reachable' } as never);
+    // The wizard remembers its draft across mounts (0069); an earlier walk's
+    // ticks would enable the button before this one ticked anything.
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      renderWizard();
+      fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+      await waitFor(() => expect(screen.getByText('What this account will serve')).toBeTruthy());
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@gmail.com' },
+      });
+      // The deployment's ceiling arrives pre-ticked (calendar and contacts
+      // here), and the ticks are the same state the migration step shows —
+      // so they can be read and changed HERE, before the consent asks.
+      expect(screen.getByLabelText('Calendar')).toBeChecked();
+      expect(screen.getByLabelText('Contacts')).toBeChecked();
+      fireEvent.click(screen.getByLabelText('Calendar'));
+      fireEvent.click(screen.getByLabelText('Contacts'));
+      // Nothing ticked: nothing to ask Google for.
+      await waitFor(() => expect(connectButton()).toBeDisabled());
+      fireEvent.click(screen.getByLabelText('Calendar'));
+      await waitFor(() => expect(connectButton()).toBeEnabled());
+      fireEvent.click(connectButton());
+      await waitFor(() => expect(authorizeMock).toHaveBeenCalled());
+      expect(authorizeMock.mock.calls[authorizeMock.mock.calls.length - 1]![0]).toEqual({ domains: ['calendar'] });
+
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'ownpace-google-consent', refreshToken: '1//landed' },
+          origin: window.location.origin,
+        }),
+      );
+      // Saved and tested without another press: the probe that Test runs.
+      await waitFor(() => expect(addMock).toHaveBeenCalled());
+      const saved = addMock.mock.calls[addMock.mock.calls.length - 1]![0];
+      expect(saved.type).toBe('google');
+      expect(saved.values).toMatchObject({ username: 'owner@gmail.com', refreshToken: '1//landed' });
+      expect(saved.values).not.toHaveProperty('host');
     } finally {
       open.mockRestore();
     }
