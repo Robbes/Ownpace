@@ -267,8 +267,70 @@ describe('and none of it reached the product', () => {
       setup.indexOf('IDP_GOOGLE_CLIENT_ID="$(read_env'),
     );
     expect(fn).toMatch(/providers of this name exist/);
-    expect(fn).toMatch(/sort_by\(\.details\.creationDate/);
+    expect(fn, 'the age of a provider is no longer read off creationDate').toMatch(
+      /created: \(\.details\.creationDate/,
+    );
+    expect(fn).toMatch(/sort_by\(\(if \.linked then 0 else 1 end\), \.created\)/);
     expect(fn).not.toMatch(/api DELETE/);
+  });
+
+  it('keeps a person\'s choice — the one already on the screen is the one it manages, and a button taken off is not put back', () => {
+    // Two hours after #711: the owner took seven of the eight Google providers
+    // off the sign-in screen with the console's "available" toggle, which
+    // removes the login-policy link and keeps the provider. A count of the
+    // template list still said "8 buttons" — and had the oldest been among the
+    // seven, the link step would have put its button back on every bring-up.
+    const fn = setup.slice(
+      setup.indexOf('configure_idp() {'),
+      setup.indexOf('IDP_GOOGLE_CLIENT_ID="$(read_env'),
+    );
+    const onScreen = fn.indexOf('/admin/v1/policies/login/idps/_search');
+    const pick = fn.indexOf('candidates="$(jq');
+    expect(onScreen, 'the login policy is not read').toBeGreaterThan(-1);
+    expect(pick, 'the candidates are not picked with jq').toBeGreaterThan(-1);
+    expect(onScreen, 'the login policy is read only after the pick').toBeLessThan(pick);
+    expect(fn, 'a button is no longer a provider ON the login policy').toMatch(
+      /linked: \(\(\$linked \| index\(\$i\)\) != null\)/,
+    );
+    expect(fn, 'the one already on the screen no longer comes first').toMatch(
+      /sort_by\(\(if \.linked then 0 else 1 end\)/,
+    );
+    expect(fn, 'a provider taken off the screen is not reported as left alone').toContain(
+      'taken off the sign-in screen — left as they are',
+    );
+  });
+
+  it('counts what the sign-in screen shows — a deactivated provider is neither a duplicate nor the one it manages', () => {
+    // 2026-09-02, an hour after #711: the owner deactivated seven of the eight
+    // Google providers, since the console offered no delete. A state-blind
+    // count still said "8 buttons", and the oldest — switched off — was the
+    // one this would have put on the login policy.
+    const fn = setup.slice(
+      setup.indexOf('configure_idp() {'),
+      setup.indexOf('\n}', setup.indexOf('configure_idp() {')),
+    );
+    expect(fn, 'the selection no longer leaves out IDP_STATE_INACTIVE').toMatch(
+      /select\(\.name == \$n and \.state != "IDP_STATE_INACTIVE"\)/,
+    );
+    expect(fn, 'every-one-switched-off is not named').toContain('every one is deactivated');
+    expect(fn, 'a switched-off provider gets a second added beside it').toContain(
+      'adds no second provider beside a switched-off one',
+    );
+  });
+
+  it('prints the way to take the extras off the screen from the shell — links removed, no provider deleted', () => {
+    // The owner looked for a delete in the console and found none; the
+    // instance page's "available" toggle is the console's way, and this is the
+    // shell's. Both remove a login-policy LINK — the provider, and whoever is
+    // linked through it, stay; a POST to the same path puts the button back.
+    const fn = setup.slice(
+      setup.indexOf('configure_idp() {'),
+      setup.indexOf('IDP_GOOGLE_CLIENT_ID="$(read_env'),
+    );
+    expect(fn).toContain('curl -sS -X DELETE ${ISSUER}/admin/v1/policies/login/idps/\\$id');
+    expect(fn, 'the hint reads the token from the machinekey volume, not from a variable the operator does not have')
+      .toContain('_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt');
+    expect(fn, 'the hint names the INSTANCE page, whose choice this script keeps').toContain('Default settings');
   });
 
   it('tells somebody how to change a credential, since a re-run will not', () => {

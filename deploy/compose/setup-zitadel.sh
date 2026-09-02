@@ -1069,7 +1069,7 @@ IDP_COUNT=0
 # state and says nothing when a stack is already correct. Read first, write only
 # what is missing.
 configure_idp() {
-  local name="$1" path="$2" payload="$3" existing ids id count
+  local name="$1" path="$2" payload="$3" existing on_screen linked candidates id count aside off
   # THE LIST THE PROVIDER IS ACTUALLY ON. Google, Microsoft, GitHub and Apple
   # are TEMPLATE providers, created at /admin/v1/idps/{google,azure,...} and
   # listed by /admin/v1/idps/templates/_search. The deprecated
@@ -1079,12 +1079,49 @@ configure_idp() {
   # button per bring-up (nine Google buttons on the owner's box, 2026-09-02).
   # Oldest first: that is the one the earliest sign-ins were linked to, and the
   # one that stays on the screen if somebody removes the rest.
+  #
+  # ON THE SCREEN MEANS ON THE LOGIN POLICY, AND ACTIVE (the same day, two
+  # hours later). Two switches take a provider off the sign-in screen without
+  # deleting it, and the owner used one of them on seven of the eight: the
+  # console's "available" toggle, which removes the provider's login-policy
+  # link, and deactivation, which sets IDP_STATE_INACTIVE. A count of the
+  # template list still said "8 buttons" after either. So "exists", "duplicates"
+  # and the one this manages are read among providers of this name that are
+  # active (no state on the wire counts as active, the safe direction), and a
+  # button is one of those that is ALSO on the login policy.
+  #
+  # AND THE ONE ALREADY ON THE SCREEN COMES FIRST. The link step below puts the
+  # managed provider on the login policy if it is not there — right for a fresh
+  # provider, and exactly wrong if "the managed one" were the oldest while the
+  # owner had just taken the oldest off the screen: every bring-up would put
+  # the button back. Linked first, then oldest, and a person's choice holds.
   existing="$(api POST /admin/v1/idps/templates/_search '{}')"
-  ids="$(jq -r --arg n "$name" \
-    '[.result[]? | select(.name == $n)] | sort_by(.details.creationDate // "") | .[].id' \
+  on_screen="$(api POST /admin/v1/policies/login/idps/_search '{}')"
+  linked="$(jq -c '[.result[]?.idpId]' <<<"$on_screen")"
+  candidates="$(jq -c --arg n "$name" --argjson linked "$linked" \
+    '[.result[]? | select(.name == $n and .state != "IDP_STATE_INACTIVE")
+      | .id as $i | {id: $i, linked: (($linked | index($i)) != null), created: (.details.creationDate // "")}]
+     | sort_by((if .linked then 0 else 1 end), .created)' \
     <<<"$existing")"
-  count="$(grep -c . <<<"$ids" || true)"
-  id="$(awk 'NR==1' <<<"$ids")"
+  count="$(jq -r '[.[] | select(.linked)] | length' <<<"$candidates")"
+  aside="$(jq -r '[.[] | select(.linked | not)] | length' <<<"$candidates")"
+  off="$(jq -r --arg n "$name" \
+    '[.result[]? | select(.name == $n and .state == "IDP_STATE_INACTIVE")] | length' \
+    <<<"$existing")"
+  id="$(jq -r '.[0].id // empty' <<<"$candidates")"
+
+  if [ -z "$id" ] && [ "${off:-0}" -gt 0 ]; then
+    # EVERY ONE OF THIS NAME IS SWITCHED OFF. A person did that, in the console,
+    # and this script does not undo a person's switch (hard rule 2) — nor add
+    # a second provider beside it, which is the defect above. It says so and
+    # names both ways out; the login policy below then follows what is actually
+    # offered, which is nothing.
+    say "  ${name}: ${off} provider(s) of this name exist and every one is deactivated — the sign-in screen shows no ${name} button"
+    say "      activate one in the console under Settings -> Identity Providers, or unset"
+    say "      the IDP_*_CLIENT_ID for ${name} in ${ENV_FILE} if that is intended (this script"
+    say "      adds no second provider beside a switched-off one)"
+    return 0
+  fi
 
   if [ -z "$id" ] || [ "$id" = "null" ]; then
     local created
@@ -1126,13 +1163,27 @@ the same URI:
     # is what turns that into a five-second answer rather than a search.
     if [ "$count" -gt 1 ]; then
       # DUPLICATES ARE REPORTED, NEVER REMOVED (hard rule 2): a provider may
-      # hold the links of people who signed in through it. The oldest stays;
-      # the person decides about the rest, in the console, with the list in
-      # front of them.
-      say "  ${name}: ${count} providers of this name exist — the sign-in screen shows ${count} ${name} buttons"
-      say "      keeping the oldest (${id}); remove the others in the console under"
-      say "      Settings -> Identity Providers (this script never deletes a provider)"
+      # hold the links of people who signed in through it. The oldest on the
+      # screen stays; the person decides about the rest, in the console, with
+      # the list in front of them — the "available" toggle takes one off the
+      # screen and keeps it, which is the gentlest of the three switches.
+      local others
+      others="$(jq -r '[.[] | select(.linked)] | .[1:] | .[].id' <<<"$candidates" | tr '\n' ' ')"
+      say "  ${name}: ${count} providers of this name exist on the sign-in screen — it shows ${count} ${name} buttons"
+      say "      keeping the oldest of them (${id}); take the others off the screen in the console"
+      say "      under Default settings -> Login Behaviour and Security -> Identity Providers"
+      say "      (the INSTANCE page — an organisation's own login policy is reset by this script),"
+      say "      or from this shell, which removes their LINKS and keeps every provider:"
+      say "        PAT=\"\$(docker run --rm -v ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt)\""
+      say "        for id in ${others}; do"
+      say "          curl -sS -X DELETE ${ISSUER}/admin/v1/policies/login/idps/\$id -H \"Authorization: Bearer \$PAT\""
+      say "        done"
+      say "      (a POST to the same path puts one back; this script never deletes a provider)"
     fi
+    [ "${aside:-0}" -eq 0 ] \
+      || say "  ${name}: ${aside} more of this name exist, taken off the sign-in screen — left as they are"
+    [ "${off:-0}" -eq 0 ] \
+      || say "  ${name}: ${off} more of this name are deactivated — on the list, off the sign-in screen"
     say "  ${name}: a provider of this name exists — left as it is"
     say "      credentials in ${ENV_FILE} are NOT re-sent; to change them,"
     say "      remove it in the console under Settings -> Identity Providers"
@@ -1143,8 +1194,6 @@ the same URI:
   # Creating the IdP configures it; adding it to the login policy is what puts
   # the button on the sign-in screen. Two steps, and skipping the second leaves
   # a stack that looks configured from the API and offers nothing to a person.
-  local on_screen
-  on_screen="$(api POST /admin/v1/policies/login/idps/_search '{}')"
   if jq -e --arg i "$id" '[.result[]?.idpId] | index($i)' >/dev/null <<<"$on_screen"; then
     :
   else
@@ -1419,9 +1468,19 @@ policy_is_right() {   # reads a login-policy JSON on stdin
   ' >/dev/null 2>&1 <<<"$json" && positive_password_life <<<"$json"
 }
 
-if policy_is_right <<<"$(probe_policy)"; then
+PROBED="$(probe_policy)"
+if policy_is_right <<<"$PROBED"; then
   say "already allowed"
 else
+  # SAY WHAT THE PROBE SAW, before anything is reset or written. Two writes
+  # follow, and a reader of the log deserves the reason for them — E2E
+  # (managed) #130 died a few lines further down with nothing here to say why.
+  say "the policy people resolve is not the described one yet:"
+  say "  $(jq -r --argjson x "$WANT_EXTERNAL" '
+      .policy as $p
+      | if $p == null then "no login policy could be read"
+        else "isDefault=\($p.isDefault // false) allowRegister=\($p.allowRegister // false) allowUsernamePassword=\($p.allowUsernamePassword // false) allowExternalIdp=\($p.allowExternalIdp // false) (want \($x)) passwordCheckLifetime=\($p.passwordCheckLifetime // "unset")"
+        end' <<<"$PROBED" 2>/dev/null || echo "(unreadable: ${PROBED:-nothing at all})")"
   # RESET FIRST. On an instance an older version of this script has run
   # against, the custom org policy is the thing that has to go — the settings
   # below land on the instance policy, which nobody resolves while a shadow
@@ -1485,7 +1544,26 @@ Zitadel's own defaults are 864000s for the password check; set them in the
 console at ${ISSUER}/ui/console under Settings -> Login Behaviour, or re-run
 this against an instance whose defaults have not been overwritten."
 
-  api PUT /admin/v1/policies/login "$POLICY" >/dev/null
+  # WRITE ONLY WHAT WOULD CHANGE. Everything in the body but the three flags
+  # is the instance's own answer handed back, so the write changes something
+  # exactly when one of the three differs — and Zitadel REFUSES a write that
+  # changes nothing: `PUT /admin/v1/policies/login` answers HTTP 400 "Default
+  # Login Policy has not been changed". That is how E2E (managed) #130 died on
+  # 2026-09-02: the organisation's own policy was the only thing wrong, the
+  # reset above had already removed it, and the instance policy was right all
+  # along — so the bring-up failed on a write it had no reason to send.
+  SAME="$(jq -r --argjson x "$WANT_EXTERNAL" '.policy | ((.allowRegister // false) and (.allowUsernamePassword // false) and ((.allowExternalIdp // false) == $x))' <<<"$INSTANCE")"
+  if [ "$SAME" = "true" ]; then
+    say "the instance policy already reads that way — nothing to write; what people resolve is read back below"
+  # AND IF THE PROVIDER STILL CALLS IT UNCHANGED, THAT IS AN ANSWER, NOT A
+  # FAILURE: nothing was lost, and the read-backs below are what decide.
+  # Anything else it refuses is printed and fatal, exactly as before.
+  elif ! written="$( (api PUT /admin/v1/policies/login "$POLICY") 2>&1 )"; then
+    case "$written" in
+      *"has not been changed"*) say "the provider answered that the policy already reads that way — nothing was changed" ;;
+      *) printf '%s\n' "$written" >&2; exit 1 ;;
+    esac
+  fi
 
   # READ BACK, AND SEPARATELY. Four settings that fail in four different ways,
   # and a person reading the log deserves to know WHICH one did not take.
