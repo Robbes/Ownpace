@@ -25,11 +25,7 @@ import {
 } from '@openmig/shared';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { frontDoorCards } from '../components/front-door-cards.ts';
-import {
-  connectionsApi,
-  type ConnectionSummary,
-  type TestConnectionResult,
-} from '../services/mapping-service.ts';
+import { connectionsApi, type ConnectionSummary, type TestConnectionResult, providerAccountsApi } from '../services/mapping-service.ts';
 import { useT, useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { probeText, qualificationText, schedulingText } from '../i18n/probe-text.ts';
 import {
@@ -365,6 +361,28 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const fields = credentialFieldsFor(role, type);
   const refusalText = useRefusalText(fields);
   const placeholderFor = usePlaceholderFor();
+  // The same fact the wizard reads (ADR-0041): does this deployment carry its
+  // own Google client? Read over the wire, never compiled in, and defaulting
+  // to "no" while the answer is on its way — the direction that cannot
+  // under-ask.
+  const { data: providerAccounts } = useQuery({
+    queryKey: ['provider-accounts'],
+    queryFn: providerAccountsApi.get,
+    retry: false,
+    staleTime: Infinity,
+  });
+  const deploymentGoogleClient = providerAccounts?.google?.client === 'deployment';
+  // THE PAIR FOLDS AWAY where the deployment carries the client (owner
+  // remark 2026-09-02): a person grants Ownpace's own application, and "use
+  // your own" is the exception. Which kinds have such a pair is the
+  // descriptor's to say — an id `pairedWith` its secret — not a Google list
+  // kept in this page. Dropbox's and Box's ids are required, unpaired, and
+  // stay in plain view.
+  const folded =
+    role === 'source' &&
+    deploymentGoogleClient &&
+    fields.some((f) => f.key === 'clientId' && f.pairedWith === 'clientSecret');
+  const pairedSecret = folded ? fields.find((f) => f.key === 'clientSecret') : undefined;
 
   const submit = async () => {
     setBusy(true);
@@ -381,6 +399,38 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       setBusy(false);
     }
   };
+
+  /** One labelled box; where it goes is the map below's decision. */
+  const fieldBox = (field: CredentialField) => (
+    <label className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
+      <span className="block text-gray-700 mb-1">
+        {t(field.labelKey as StringKey)}
+        {field.required && <span className="text-red-600"> *</span>}
+      </span>
+      {field.multiline ? (
+        <textarea
+          className="input w-full font-mono text-xs"
+          rows={4}
+          placeholder={placeholderFor(field)}
+          value={values[field.key] ?? ''}
+          onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+        />
+      ) : (
+        <input
+          // Secrets are masked here for the same reason they are never
+          // returned by the API: nothing should read one over a shoulder;
+          // a numeric field is numeric here too (0072).
+          type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
+          inputMode={field.numeric ? 'numeric' : undefined}
+          autoComplete={field.autoComplete ?? (field.secret ? 'new-password' : 'off')}
+          placeholder={placeholderFor(field)}
+          className="input w-full"
+          value={values[field.key] ?? ''}
+          onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+        />
+      )}
+    </label>
+  );
 
   if (!open) {
     return (
@@ -455,36 +505,24 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           />
         </label>
 
-        {fields.map((field) => (
-          <label key={field.key} className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
-            <span className="block text-gray-700 mb-1">
-              {t(field.labelKey as StringKey)}
-              {field.required && <span className="text-red-600"> *</span>}
-            </span>
-            {field.multiline ? (
-              <textarea
-                className="input w-full font-mono text-xs"
-                rows={4}
-                placeholder={placeholderFor(field)}
-                value={values[field.key] ?? ''}
-                onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-              />
-            ) : (
-              <input
-                // Secrets are masked here for the same reason they are never
-                // returned by the API: nothing should read one over a shoulder;
-                // a numeric field is numeric here too (0072).
-                type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
-                inputMode={field.numeric ? 'numeric' : undefined}
-                autoComplete={field.autoComplete ?? (field.secret ? 'new-password' : 'off')}
-                placeholder={placeholderFor(field)}
-                className="input w-full"
-                value={values[field.key] ?? ''}
-                onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-              />
-            )}
-          </label>
-        ))}
+        {fields.map((field) => {
+          if (folded && field.key === 'clientSecret') return null;
+          if (folded && field.key === 'clientId') {
+            return (
+              <details key={field.key} className="sm:col-span-2 rounded-md border border-gray-200 p-3">
+                <summary className="cursor-pointer text-sm text-gray-700">
+                  {t('wizard.google.ownClient')}
+                </summary>
+                <p className="mt-2 text-sm text-gray-500">{t('wizard.google.deploymentClient')}</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {fieldBox(field)}
+                  {pairedSecret && fieldBox(pairedSecret)}
+                </div>
+              </details>
+            );
+          }
+          return <React.Fragment key={field.key}>{fieldBox(field)}</React.Fragment>;
+        })}
       </div>
 
       {/* The prerequisites for whatever is selected — often the reason a value

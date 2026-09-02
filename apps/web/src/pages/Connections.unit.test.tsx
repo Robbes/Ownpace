@@ -44,15 +44,19 @@ const axios400 = (data: unknown): AxiosError => {
   return err;
 };
 
-const { list, test: testConnection, rotate, remove } = vi.hoisted(() => ({
+const { list, test: testConnection, rotate, remove, providerAccounts } = vi.hoisted(() => ({
   list: vi.fn(),
   test: vi.fn(),
   rotate: vi.fn(),
   remove: vi.fn(),
+  // The deployment's own Google client (ADR-0041), as the add-form reads it.
+  // Empty by default: the pair stays in plain view, as on an appliance.
+  providerAccounts: vi.fn(),
 }));
 
 vi.mock('../services/mapping-service', () => ({
   connectionsApi: { list, test: testConnection, rotate, remove },
+  providerAccountsApi: { get: providerAccounts },
 }));
 
 import Connections from './Connections.tsx';
@@ -83,6 +87,7 @@ beforeEach(() => {
   list.mockReset();
   testConnection.mockReset();
   rotate.mockReset();
+  providerAccounts.mockReset().mockResolvedValue({});
   remove.mockReset();
 });
 
@@ -450,6 +455,34 @@ describe('adding a connection through the front door', () => {
         `gmail's '${field.key}' is not asked for after picking its card`,
       ).toBeGreaterThan(0);
     }
+  });
+
+  it('folds the Google client pair away where the deployment carries the client (ADR-0041)', async () => {
+    // The owner's remark of 2026-09-02: on a managed deployment a person
+    // grants Ownpace's own application; "use your own" is the exception. So
+    // the pair sits behind a disclosure, both halves inside it, and the
+    // default form is the address and the token. Which kinds fold is the
+    // descriptor's answer — an id paired with its secret — not a list here.
+    providerAccounts.mockResolvedValue({
+      google: { domains: ['calendar', 'contact'], client: 'deployment' },
+    });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    const fold = (
+      await screen.findByText('Use your own Google application instead')
+    ).closest('details');
+    expect(fold).not.toBeNull();
+    expect(fold).toContainElement(screen.getByPlaceholderText('…apps.googleusercontent.com'));
+    expect(fold).toContainElement(screen.getByPlaceholderText('••••••••'));
+    // The address stays in plain view — it is what the fold is not about.
+    expect(screen.getByPlaceholderText('user@example.com').closest('details')).toBeNull();
+  });
+
+  it('keeps the pair in plain view where each connection brings its own', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    expect(screen.queryByText('Use your own Google application instead')).toBeNull();
+    expect(screen.getByPlaceholderText('…apps.googleusercontent.com').closest('details')).toBeNull();
   });
 
   it('switching the side switches the cards', async () => {
