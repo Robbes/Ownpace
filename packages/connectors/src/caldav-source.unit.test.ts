@@ -781,3 +781,31 @@ describe('the throttle limiter (workplan 0050)', () => {
     expect(httpClient.request).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("a refusal in Google's GData envelope reads as Google's sentence (2026-09-02)", () => {
+  it('the owner sees which API, which project and the console page — not a wall of XML', async () => {
+    const google403: HttpResponse = {
+      status: 403,
+      body:
+        '<?xml version="1.0" encoding="UTF-8"?><errors xmlns="http://schemas.google.com/g/2005">' +
+        '<error><domain>GData</domain><code>accessNotConfigured</code><internalReason>CalDAV API ' +
+        'has not been used in project 123 before or it is disabled. Enable it by visiting ' +
+        'https://console.developers.google.com/apis/api/caldav.googleapis.com/overview?project=123 ' +
+        'then retry.</internalReason></error></errors>',
+      headers: {},
+    };
+    const source = new CalDAVSource(
+      { url: 'https://apidata.googleusercontent.com/caldav/v2', username: 'owner@example.com', password: 'x' },
+      { httpClient: createMockHttpClient(google403) },
+    );
+    const failure = await source.listFolders().then(
+      () => 'listed',
+      (err: unknown) => (err instanceof Error ? err.message : String(err)),
+    );
+    expect(failure).toContain('PROPFIND failed with status 403');
+    expect(failure).toContain('accessNotConfigured');
+    expect(failure).toContain('caldav.googleapis.com/overview?project=123');
+    expect(failure).not.toContain('<errors');
+    expect(failure).not.toContain('</internalReason>');
+  });
+});

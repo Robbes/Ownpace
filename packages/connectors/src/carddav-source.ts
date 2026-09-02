@@ -17,6 +17,7 @@
 
 import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@openmig/shared';
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types.ts';
+import { davRefusalBody } from './gdata-refusal.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { wellKnownUrl as buildWellKnownUrl } from './dav-http.types.ts';
 import { parseRemovedHrefs } from './dav-removals.ts';
@@ -202,7 +203,7 @@ export class CarddavSource implements ContactSource {
       const baseUrl = this.config.url.replace(/\/$/, '');
       this.addressBookHomeSet = `${baseUrl}/addressbooks/users/${this.config.username}/`;
     } else {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${response.body}`);
+      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
   }
 
@@ -269,7 +270,7 @@ export class CarddavSource implements ContactSource {
     }
 
     if (response.status !== 207) {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${response.body}`);
+      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
 
     return this.parseCollectionsResponse(response.body, homeSet);
