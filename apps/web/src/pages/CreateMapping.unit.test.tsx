@@ -840,6 +840,9 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     try {
       renderWizard();
       pickAccount();
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@example.invalid' },
+      });
       fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
         target: { value: 'cid.apps.googleusercontent.com' },
       });
@@ -937,6 +940,10 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
     try {
       renderWizard();
       pickGmail();
+      // The address first (2026-09-02): the consent saves and tests in one go.
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@gmail.com' },
+      });
       // The answer comes over the wire; until it does the pair is demanded.
       await waitFor(() => expect(connectButton()).toBeEnabled());
       // The pair is FOLDED AWAY, not merely optional (owner remark
@@ -964,9 +971,6 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       expect(sent).not.toHaveProperty('clientSecret');
       expect(sent.sourceType).toBe('gmail');
 
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
-        target: { value: 'owner@gmail.com' },
-      });
       // The token is still this account's to give — it says whose mail.
       expect(nextButton()).toBeDisabled();
       fireEvent.change(screen.getByPlaceholderText('1//…'), {
@@ -1031,6 +1035,9 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
   it('takes the pair only as a whole: one half typed asks for the other, never for the deployment to complete it', async () => {
     renderWizard();
     pickGmail();
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@gmail.com' },
+    });
     await waitFor(() => expect(connectButton()).toBeEnabled());
 
     fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
@@ -1127,6 +1134,9 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     try {
       renderWizard();
       pickDropbox();
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@example.invalid' },
+      });
       await waitFor(() => expect(connectButton()).toBeEnabled());
       expect(screen.queryByRole('button', { name: /Connect with Google/i })).toBeNull();
       const fold = screen.getByText('Use your own Dropbox app instead').closest('details');
@@ -1138,9 +1148,6 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
       // The account stays in plain view — it is what the fold is not about.
       expect(screen.getByPlaceholderText('user@example.com').closest('details')).toBeNull();
 
-      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
-        target: { value: 'owner@example.invalid' },
-      });
       fireEvent.click(connectButton());
       await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
       // ABSENT, not empty strings — the route's schema refuses an empty one —
@@ -1172,6 +1179,9 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
   it('takes the pair only as a whole: one half typed asks for the other, and Next waits with it', async () => {
     renderWizard();
     pickDropbox();
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@example.invalid' },
+    });
     await waitFor(() => expect(connectButton()).toBeEnabled());
 
     fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'dbx-app-key' } });
@@ -1211,6 +1221,40 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     );
     expect(screen.queryByText('Use your own Dropbox app instead')).not.toBeInTheDocument();
     expect(screen.getByLabelText(/App key/).closest('details')).toBeNull();
+  });
+
+  it('waits for the account address before offering the consent (the owner’s walk, 2026-09-02)', async () => {
+    renderWizard();
+    pickDropbox();
+    await waitFor(() => expect(providerClientsApi.get).toHaveBeenCalled());
+    await act(async () => {});
+    expect(connectButton()).toBeDisabled();
+    expect(connectButton()).toHaveAttribute(
+      'title',
+      expect.stringContaining('Enter the account address first'),
+    );
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@example.invalid' },
+    });
+    await waitFor(() => expect(connectButton()).toBeEnabled());
+  });
+
+  it('says when the door answered before the measuring finished (2026-09-02)', async () => {
+    addMock.mockResolvedValue({
+      ok: true,
+      id: 'conn-dropbox',
+      detail: 'reachable',
+      qualificationPending: true,
+    } as never);
+    renderWizard();
+    pickDropbox();
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@example.invalid' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: 'dbx-refresh' } });
+    fireEvent.click(screen.getByRole('button', { name: /Test and save connections/ }));
+    await waitFor(() => expect(addMock).toHaveBeenCalled());
+    expect(await screen.findByText(/Still measuring what this account can carry/)).toBeTruthy();
   });
 
   it('the folder browse works on the token alone, and sends no empty pair', async () => {

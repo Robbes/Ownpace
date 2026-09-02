@@ -9,12 +9,104 @@
  * passing vacuously.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
+  PROBE_DEADLINE_MS,
   measureTargetScheduling,
   probeSourceConnection,
   probeTargetConnection,
+  withProbeDeadline,
 } from './probe-connection.ts';
+
+describe('the deadline (2026-09-02): a probe that does not answer is an answer', () => {
+  // The owner's whole-Dropbox Test outlived the browser's 30 s while the API
+  // kept walking, and the connection appeared minutes later. Every probe now
+  // runs under a deadline; past it the answer is timedOut, with the seconds.
+  afterEach(() => vi.useRealTimers());
+
+  it('answers timedOut with the seconds, instead of hanging past the browser', async () => {
+    vi.useFakeTimers();
+    const never = withProbeDeadline(() => new Promise<never>(() => {}));
+    await vi.advanceTimersByTimeAsync(PROBE_DEADLINE_MS);
+    const result = await never;
+    expect(result.ok).toBe(false);
+    expect(result.outcome).toEqual({ code: 'timedOut', seconds: 20 });
+    if (!result.ok) expect(result.reason).toContain('did not answer within 20 seconds');
+    // Under the web client's 30 s, with room for the row write and the answer.
+    expect(PROBE_DEADLINE_MS).toBeLessThan(30_000);
+  });
+
+  it('a probe that answers in time is untouched, and no timer lingers', async () => {
+    vi.useFakeTimers();
+    const quick = await withProbeDeadline(async () => ({
+      ok: true,
+      detail: 'Connected.',
+      outcome: { code: 'connectedSession' },
+    }));
+    expect(quick.ok).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('a probe that throws is still an answer, labelled a refusal', async () => {
+    const thrown = await withProbeDeadline(async () => {
+      throw new Error('boom');
+    });
+    expect(thrown).toMatchObject({ ok: false, reason: 'boom', outcome: { code: 'providerRefused' } });
+  });
+
+  it('both exported probes run under it — pinned in the source, since a hang cannot be awaited', () => {
+    const source = readFileSync(fileURLToPath(new URL('./probe-connection.ts', import.meta.url)), 'utf8');
+    expect(source).toContain('return withProbeDeadline(() => probeSourceNow(kind, config, rawCreds));');
+    expect(source).toContain('return withProbeDeadline(() => probeTargetNow(targetType, config, creds));');
+  });
+});
+
+describe('the Dropbox probe asks the top level only (2026-09-02)', () => {
+  it('one non-recursive list_folder, never a walk of the tree', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => {
+      const answer = (payload: unknown) => ({
+        ok: true,
+        status: 200,
+        json: async () => payload,
+        text: async () => JSON.stringify(payload),
+      });
+      if (url.includes('/oauth2/token')) {
+        return answer({ access_token: 'at', token_type: 'bearer', expires_in: 14400 });
+      }
+      if (url.endsWith('/files/list_folder')) {
+        return answer({
+          entries: [
+            { '.tag': 'folder', id: 'id:1', name: 'Docs', path_display: '/Docs' },
+            { '.tag': 'file', id: 'id:2', name: 'x.txt', path_display: '/x.txt', size: 1 },
+          ],
+          cursor: 'c',
+          has_more: false,
+        });
+      }
+      throw new Error(`the probe asked ${url}${init?.body ? ` with ${init.body}` : ''}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const result = await probeSourceConnection(
+        'dropbox',
+        { rootPath: '' },
+        { clientId: 'app-key', clientSecret: 'app-secret', refreshToken: 'refresh' },
+      );
+      expect(result).toMatchObject({
+        ok: true,
+        outcome: { code: 'connected', count: 2, unit: 'folder' },
+      });
+      const listing = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/files/list_folder'));
+      expect(listing, 'no list_folder was asked').toBeDefined();
+      expect(JSON.parse(String(listing![1]?.body))).toMatchObject({ recursive: false, limit: 1000 });
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('list_folder/continue'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
 
 describe('probeSourceConnection: refusals are answers, in the builders\' own words', () => {
   it('a gmail source with missing credentials refuses in the STORED vocabulary', async () => {

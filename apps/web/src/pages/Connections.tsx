@@ -211,7 +211,9 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
           {connection.kind}
         </span>
         <span className="text-sm text-gray-500">
-          {connection.usedByMailboxes} {t('connections.usedBy')}
+          {connection.usedByMailboxes === 0
+            ? t('connections.usedBy.none')
+            : `${connection.usedByMailboxes} ${t('connections.usedBy')}`}
         </span>
         <span className="text-xs text-gray-400">{relativeToNow(connection.createdAt)}</span>
         {connection.qualification && (
@@ -360,6 +362,10 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
           {result.qualification && measuredText(t, result.qualification, locale) && (
             <span className="block mt-1">{measuredText(t, result.qualification, locale)}</span>
           )}
+          {result.qualificationPending && (
+            /* The door answered before the measuring finished (2026-09-02). */
+            <span className="block mt-1">{t('probe.measuring')}</span>
+          )}
           {qualificationEvidence(t, result.qualification).map((line) => (
             /* Why a face is `?` — on screen, since a phone has no hover. */
             <span key={line} className="block mt-1 text-xs break-words">
@@ -467,6 +473,14 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       : {};
   const pairMissing = pairRequired && !(clientIdTyped && clientSecretTyped);
   const facesMissing = isAccountKind && domains.length === 0;
+  // THE ACCOUNT FIRST (owner's walk, 2026-09-02): a consent that lands saves
+  // and tests in one go, and the save needs the address — pressed before it
+  // was typed, the door answered "Still needed: username" to a form whose
+  // button had just said yes. Every required field but the token the consent
+  // fills.
+  const accountMissing = fields.some(
+    (f) => f.required && f.key !== 'refreshToken' && (values[f.key] ?? '').trim() === '',
+  );
 
   // The popup hands the token back over postMessage; the wizard's own rule
   // applies verbatim — same origin, the flow's own shape, a non-empty token —
@@ -714,7 +728,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           <button
             type="button"
             onClick={startConsent}
-            disabled={pairMissing || facesMissing}
+            disabled={pairMissing || facesMissing || accountMissing}
             className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
             title={
               pairMissing
@@ -723,7 +737,9 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
                   : ps('connect.needsClient')
                 : facesMissing
                   ? t('wizard.google.connect.needsDomains')
-                  : undefined
+                  : accountMissing
+                    ? t('wizard.consent.needsAccount')
+                    : undefined
             }
           >
             {ps('connect')}
@@ -769,6 +785,10 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           )}
           {result.qualification && measuredText(t, result.qualification, locale) && (
             <span className="block mt-1">{measuredText(t, result.qualification, locale)}</span>
+          )}
+          {result.qualificationPending && (
+            /* The door answered before the measuring finished (2026-09-02). */
+            <span className="block mt-1">{t('probe.measuring')}</span>
           )}
           {qualificationEvidence(t, result.qualification).map((line) => (
             <span key={line} className="block mt-1 text-xs break-words">

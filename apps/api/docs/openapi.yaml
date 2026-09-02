@@ -1220,7 +1220,9 @@ paths:
                         createdAt: { type: string, format: date-time }
                         usedByMailboxes:
                           type: integer
-                          description: How many mailboxes depend on this connection.
+                          description: |
+                            How many migrations (mailbox mappings) depend on
+                            this connection — of any kind, not only mail.
                         updatedAt: { type: string, format: date-time }
                         qualification:
                           type: object
@@ -1381,6 +1383,15 @@ paths:
                     properties:
                       capability: { type: string, enum: [auto-schedule, none, unknown] }
                       sentence: { type: string }
+                  qualificationPending:
+                    type: boolean
+                    description: |
+                      The door answered before the qualification finished
+                      (2026-09-02): the probe has its own 20 s deadline, the
+                      qualification gets what is left of the door's budget,
+                      and past it the measuring finishes into the row on its
+                      own — the next read of the connection shows it. Present
+                      only when true; `qualification` is absent beside it.
                   qualification:
                     type: object
                     description: |

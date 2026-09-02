@@ -26,8 +26,17 @@ import type { BilingualRefusal } from './credential-refusals.ts';
 export type ProbeUnit = 'folder' | 'calendar' | 'addressBook' | 'collection';
 
 export type ProbeOutcome =
-  /** Reached it and it listed. Ours. */
-  | { readonly code: 'connected'; readonly count: number; readonly unit: ProbeUnit }
+  /**
+   * Reached it and it listed. Ours. `floor` says the count is a lower bound:
+   * a probe that stopped listing at its cap (Dropbox's top level past its
+   * page cap, 2026-09-02) saw at least this many, and a screen says so.
+   */
+  | {
+      readonly code: 'connected';
+      readonly count: number;
+      readonly unit: ProbeUnit;
+      readonly floor?: boolean;
+    }
   /** JMAP answered its session document — nothing to count. Ours. */
   | { readonly code: 'connectedSession' }
   /** A target answered a status instead of the document. Ours. */
@@ -50,4 +59,12 @@ export type ProbeOutcome =
    * because the factory that throws has no idea who reads it — a log on the
    * appliance, a probe panel on a phone, an API response.
    */
-  | { readonly code: 'credentialsRefused'; readonly refusal: BilingualRefusal };
+  | { readonly code: 'credentialsRefused'; readonly refusal: BilingualRefusal }
+  /**
+   * The probe did not answer within its deadline (2026-09-02, the owner's
+   * whole-Dropbox test): a Test that walked a large tree outlived the
+   * browser's 30 s while the API kept walking. Ours, with the seconds as
+   * data. UNKNOWN, never a refusal — the credentials may be fine, and the
+   * connection is kept so it can be tested again.
+   */
+  | { readonly code: 'timedOut'; readonly seconds: number };

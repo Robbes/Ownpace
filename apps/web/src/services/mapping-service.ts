@@ -488,6 +488,12 @@ export interface TestConnectionResult {
    */
   outcome?: ProbeOutcome;
   /**
+   * The door answered before the qualification finished (2026-09-02): the
+   * measuring goes on into the row, and the next refresh shows it. A screen
+   * says "still measuring" rather than showing nothing.
+   */
+  qualificationPending?: boolean;
+  /**
    * DAV targets only (0105 T0): what this target will DO with the calendar
    * objects a migration writes, measured by one OPTIONS at test time.
    * `capability` is the code a localised screen renders in its own words;
