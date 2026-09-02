@@ -53,6 +53,11 @@ function fakeDropbox(pages: Record<string, unknown[]>, bytes?: Uint8Array) {
       const queue = pages['sharing'] ?? [];
       return respond(queue[0] ?? { entries: [] });
     }
+    if (url.includes('/users/get_space_usage')) {
+      return respond(
+        (pages['space'] ?? [])[0] ?? { used: 0, allocation: { '.tag': 'individual', allocated: 0 } },
+      );
+    }
     if (url.includes('list_folder/continue')) {
       // `c1` → page 1 of the continue queue. A stale or missing cursor
       // therefore re-reads a page it has already had, which is a loop.
@@ -227,6 +232,29 @@ describe('listTopLevelFolders — the probe’s cheap question (2026-09-02)', ()
     for (const call of [...capped.calls, ...whole.calls]) {
       expect(JSON.parse(call.body!)).not.toMatchObject({ recursive: true });
     }
+  });
+});
+
+describe('spaceUsage — how much the Dropbox holds (2026-09-02)', () => {
+  it('asks users/get_space_usage with the null argument the endpoint demands, and answers bytes plus the allocation', async () => {
+    const { transport, calls } = fakeDropbox({
+      space: [{ used: 48_000_000, allocation: { '.tag': 'individual', allocated: 2_000_000_000 } }],
+    });
+    const source = new DropboxFileSource(transport, { apiBaseUrl: API, contentBaseUrl: CONTENT });
+
+    await expect(source.spaceUsage()).resolves.toEqual({
+      bytes: 48_000_000,
+      allocated: 2_000_000_000,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(`${API}/users/get_space_usage`);
+    expect(calls[0]!.body).toBe('null');
+  });
+
+  it('an answer without a figure is a refusal, never a zero', async () => {
+    const { transport } = fakeDropbox({ space: [{ allocation: { '.tag': 'individual' } }] });
+    const source = new DropboxFileSource(transport, { apiBaseUrl: API, contentBaseUrl: CONTENT });
+    await expect(source.spaceUsage()).rejects.toThrow('without a `used` figure');
   });
 });
 

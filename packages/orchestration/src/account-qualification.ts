@@ -30,8 +30,12 @@
  * anybody's account.
  */
 
-import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
-import { parseGoogleDriveSource, withDeploymentGoogleClient } from '@openmig/shared';
+import { CalDAVSource, CarddavSource, DropboxFileSource, WebdavFileSource } from '@openmig/connectors';
+import {
+  parseGoogleDriveSource,
+  withDeploymentDropboxClient,
+  withDeploymentGoogleClient,
+} from '@openmig/shared';
 import type { ProbeUnit } from '@openmig/shared';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import { davEndpointFromCreds } from './dav-endpoint.ts';
@@ -48,6 +52,7 @@ import {
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
 } from './google-dav-source-factory.ts';
 import { buildGoogleDriveSourceFrom, STORED_GOOGLE_CREDENTIAL_NAMES } from './drive-source-factory.ts';
+import { buildDropboxSourceFrom, STORED_DROPBOX_CREDENTIAL_NAMES } from './dropbox-source-factory.ts';
 import type { GoogleCredentialsAsFound } from './drive-source-factory.ts';
 
 export type DomainAnswer = 'yes' | 'no' | 'unknown';
@@ -640,6 +645,85 @@ function googleFaceListable(
         STORED_GOOGLE_CREDENTIAL_NAMES,
       );
   }
+}
+
+/**
+ * THE DROPBOX ACCOUNT, qualified (2026-09-02, after the owner's first Dropbox
+ * test read "Connected. 23 folders visible" and nothing beside it).
+ *
+ * One face, files, and two answers for it: reachable and listing — the top
+ * level, as the probe asks it — and how much the Dropbox holds, from
+ * `users/get_space_usage`, the same sizing Drive's `about` gives. The other
+ * three faces are a measured NO: a Dropbox carries files and nothing else,
+ * which is an answer rather than an absence of measurement, so the wizard's
+ * domain step may constrain on it (0106 T3a) and the card shows no `?`.
+ */
+export const DROPBOX_QUALIFIED_KIND = 'dropbox';
+
+export function isDropboxKind(kind: string): boolean {
+  return kind === DROPBOX_QUALIFIED_KIND;
+}
+
+export async function qualifyDropbox(
+  kind: string,
+  config: Record<string, unknown>,
+  rawCreds: Record<string, string>,
+): Promise<AccountQualification | undefined> {
+  if (!isDropboxKind(kind)) return undefined;
+  // The deployment's own app, where it carries one (ADR-0041): the same fill
+  // the probe and the pass apply, so a row that stores no pair measures too.
+  const creds = withDeploymentDropboxClient(true, rawCreds);
+  const notAFace = (face: string): QualifiedDomain => ({
+    answer: 'no',
+    detail: `A Dropbox carries files only; ${face} is not a face of this connection.`,
+  });
+  let file: QualifiedDomain;
+  try {
+    const source = buildDropboxSourceFrom(
+      { rootPath: (config as { rootPath?: string }).rootPath },
+      {
+        appKey: creds[STORED_DROPBOX_CREDENTIAL_NAMES.appKey],
+        appSecret: creds[STORED_DROPBOX_CREDENTIAL_NAMES.appSecret],
+        refreshToken: creds[STORED_DROPBOX_CREDENTIAL_NAMES.refreshToken],
+      },
+      STORED_DROPBOX_CREDENTIAL_NAMES,
+    );
+    if (!(source instanceof DropboxFileSource)) {
+      throw new Error('the Dropbox builder did not answer a Dropbox source');
+    }
+    const { folders, truncated } = await source.listTopLevelFolders();
+    file = {
+      answer: 'yes',
+      detail: `${truncated ? 'At least ' : ''}${counted(folders.length, 'folder')} at the top level.`,
+      count: folders.length,
+      unit: 'folder',
+    };
+    try {
+      const usage = await source.spaceUsage();
+      file = { ...file, volume: { bytes: usage.bytes } };
+    } catch (err) {
+      // The face answered; the measure did not. Data, so a screen can say
+      // so beside the line (the second-measured-Test lesson of 2026-09-02).
+      file = {
+        ...file,
+        volume: { failed: `space usage: ${err instanceof Error ? err.message : String(err)}` },
+      };
+    }
+  } catch (err) {
+    // A refusal is NOT a no (the same rule as every other face).
+    file = {
+      answer: 'unknown',
+      detail: `Unmeasured — the probe was refused: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  return {
+    domains: {
+      mail: notAFace('mail'),
+      calendar: notAFace('a calendar'),
+      contact: notAFace('an address book'),
+      file,
+    },
+  };
 }
 
 export async function qualifyGoogleGrant(

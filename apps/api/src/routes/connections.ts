@@ -32,9 +32,11 @@ import {
   probeTargetConnection,
 } from '@openmig/orchestration/probe-connection';
 import {
+  isDropboxKind,
   isGoogleGrantKind,
   isQualifiableKind,
   qualifyAccount,
+  qualifyDropbox,
   qualifyGoogleGrant,
   type AccountQualification,
 } from '@openmig/orchestration/account-qualification';
@@ -111,7 +113,9 @@ async function qualifyAndRemember(
   actor: string,
   deadlineAt: number,
 ): Promise<AccountQualification | 'pending' | undefined> {
-  if (!isQualifiableKind(kind) && !isGoogleGrantKind(kind)) return undefined;
+  if (!isQualifiableKind(kind) && !isGoogleGrantKind(kind) && !isDropboxKind(kind)) {
+    return undefined;
+  }
   return withinBudget(
     qualifyAndRememberNow(tenantId, connectionId, kind, config, creds, actor),
     Math.max(QUALIFICATION_FLOOR_MS, deadlineAt - Date.now()),
@@ -134,11 +138,15 @@ async function qualifyAndRememberNow(
     // pass would ask it, from the row's own address and blob, so a switch
     // left off in the client's project shows here and not at the first
     // migration. The owner's "5 calendars and nothing about the other three".
+    // AND THE DROPBOX ACCOUNT (2026-09-02): one face, its top-level count
+    // and the bytes in use — the Measured line the owner asked for on Drive,
+    // on the connection he tested next.
     const qualification =
       (await qualifyAccount(kind, config, creds)) ??
       (await qualifyGoogleGrant(kind, creds, {
         reach: { user: String(config.user ?? ''), config },
-      }));
+      })) ??
+      (await qualifyDropbox(kind, config, creds));
     if (!qualification) return undefined;
     await withTenantDb(tenantId, pool(), async (db) => {
       await db
