@@ -36,6 +36,17 @@ export interface CredentialField {
   /** Rendered masked, and never echoed back by any API. */
   readonly secret?: boolean;
   readonly required?: boolean;
+  /**
+   * The other half of a pair this value belongs to, by key (ADR-0041).
+   *
+   * A client id is neither secret nor, since the deployment may carry its own
+   * client, required — so the rotation panel, which offers "required or
+   * secret", dropped it and offered the secret alone. Rotation REPLACES the
+   * stored credential, so a new secret typed there travelled without its id,
+   * and the doors now refuse exactly that: half a pair. This flag says the id
+   * is presented wherever its secret is, so a rotated pair is a pair.
+   */
+  readonly pairedWith?: string;
   /** A pasted key file rather than a one-line value. */
   readonly multiline?: boolean;
   /**
@@ -126,7 +137,12 @@ const SERVICE_ACCOUNT_KEY = {
 function googleFields(): ReadonlyArray<CredentialField> {
   return [
     USER,
-    { key: 'clientId', labelKey: 'wizard.clientId', placeholder: '…apps.googleusercontent.com' },
+    {
+      key: 'clientId',
+      labelKey: 'wizard.clientId',
+      placeholder: '…apps.googleusercontent.com',
+      pairedWith: 'clientSecret',
+    },
     { ...SECRET, required: false },
     REFRESH,
     SERVICE_ACCOUNT_KEY,

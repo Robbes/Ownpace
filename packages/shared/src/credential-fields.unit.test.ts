@@ -132,3 +132,39 @@ describe('the soverin mail face is asked at ITS door only (0106 T4b)', () => {
     }
   });
 });
+
+describe('a pair is presented as a pair (ADR-0041)', () => {
+  const GOOGLE_TYPES = ['gmail', 'google-drive', 'google-calendar', 'google-contacts', 'google'];
+
+  it("pairs every Google type's client id with its secret", () => {
+    // The id is neither secret nor required once the deployment may carry the
+    // client, so a panel offering "required or secret" would drop it and let
+    // a new secret travel alone — the half pair every door now refuses.
+    for (const type of GOOGLE_TYPES) {
+      const fields = credentialFieldsFor('source', type);
+      const id = fields.find((f) => f.key === 'clientId');
+      expect(id?.pairedWith, `${type}: the client id travels alone`).toBe('clientSecret');
+      expect(
+        fields.find((f) => f.key === id?.pairedWith)?.secret,
+        `${type}: pairedWith names a field that is not the secret half`,
+      ).toBe(true);
+    }
+  });
+
+  it('never points at a field the same type does not have', () => {
+    // A dangling pair is worse than none: a panel would show a box for a
+    // partner that the route never reads.
+    for (const role of ['source', 'target'] as const) {
+      for (const type of connectableTypes(role)) {
+        const fields = credentialFieldsFor(role, type);
+        for (const f of fields) {
+          if (f.pairedWith === undefined) continue;
+          expect(
+            fields.some((g) => g.key === f.pairedWith),
+            `${role}/${type}: '${f.key}' is paired with '${f.pairedWith}', which does not exist there`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+});

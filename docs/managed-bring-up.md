@@ -995,7 +995,8 @@ authorization code, so half of it is refused with the missing name rather than
 failing at Google's token endpoint hours later. The same rule holds for a
 connection's *own* pair, at every door — the wizard, the API, the add-form and
 a rotation alike: half of one is refused where it is sent, never completed with
-the deployment's other half.
+the deployment's other half. The rotation panel therefore offers the Client ID
+beside the secret, so a rotated pair is a pair.
 
 **Two places, and the second is the one that bites.** `managed.yml` passes
 them to the API; **`set-task-env.sh` uploads them to the worker**, because a
