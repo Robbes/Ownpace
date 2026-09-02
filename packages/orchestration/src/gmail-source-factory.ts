@@ -135,6 +135,30 @@ export class GmailFolderView implements SourceConnector {
   fetch(item: MailItem): Promise<RawMessage> {
     return this.inner.fetch(item);
   }
+
+  /**
+   * How much mail, through the VIEW (2026-09-02): the owner's first
+   * measured Test showed Drive and nothing for mail, because this wrapper
+   * delegated the interface's three methods and the measure lived on the
+   * inner source, a method the qualification asks for by shape and found
+   * absent. Delegated now — and over the folders this view SHOWS, so
+   * "[Gmail]/All Mail" and the other label views are not counted on top of
+   * the folders they duplicate. Absent when the inner cannot measure.
+   */
+  async measureMailbox(
+    options: { readonly sampleSize?: number } = {},
+  ): Promise<{ folders: number; messages: number; bytes: number; estimated: boolean }> {
+    const inner = this.inner as SourceConnector & {
+      measureMailbox?: (o: {
+        sampleSize?: number;
+        folders?: ReadonlyArray<MailFolder>;
+      }) => Promise<{ folders: number; messages: number; bytes: number; estimated: boolean }>;
+    };
+    if (typeof inner.measureMailbox !== 'function') {
+      throw new Error('This mail source cannot measure its mailbox.');
+    }
+    return inner.measureMailbox({ ...options, folders: await this.listFolders() });
+  }
 }
 
 /** Test seam: how the token provider is made. Production uses the default. */

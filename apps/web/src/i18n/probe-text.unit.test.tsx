@@ -309,3 +309,20 @@ describe('measuredText — how much each reached face holds (2026-09-02)', () =>
     expect(measuredText(en, undefined)).toBeNull();
   });
 });
+
+describe('a face that answered but could not be measured says why, on the line (2026-09-02)', () => {
+  const half = {
+    domains: {
+      mail: { answer: 'yes' as const, detail: 'x', volume: { failed: 'FETCH timed out after 30 s' } },
+      calendar: { answer: 'yes' as const, detail: 'x' },
+      contact: { answer: 'yes' as const, detail: 'x', volume: { items: 3 } },
+      file: { answer: 'yes' as const, detail: 'x', volume: { bytes: 1024 } },
+    },
+  };
+
+  it('the Measured line leaves the failed face off, and the evidence lines carry its reason', () => {
+    expect(measuredText(en, half)).toBe('Measured: Contacts 3 cards · Files 1.0 KB');
+    expect(qualificationEvidence(en, half)).toEqual(['Email ✓, not measured: FETCH timed out after 30 s']);
+    expect(qualificationEvidence(nl, half)).toEqual(['E-mail ✓, niet gemeten: FETCH timed out after 30 s']);
+  });
+});

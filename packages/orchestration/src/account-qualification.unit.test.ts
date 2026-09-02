@@ -514,8 +514,12 @@ describe('the reach MEASURES each face it reached (owner 2026-09-02: GB in Drive
         reach: { user: 'owner@example.com', listable: () => source as never },
       });
       expect(q?.domains.mail).toMatchObject({ answer: 'yes', count: 3 });
-      expect(q?.domains.mail.volume).toBeUndefined();
-      expect(q?.domains.mail.detail).toContain('Volume not measured — FETCH timed out');
+      // The failure is DATA beside the yes, for a screen to show on a phone.
+      expect(q?.domains.mail.volume).toEqual({ failed: 'FETCH timed out' });
+      expect(q?.domains.mail.detail).not.toContain('not measured');
+      expect(
+        qualificationReportLines(q!)[0],
+      ).toContain('Measured: not measured — FETCH timed out.');
     } finally {
       vi.unstubAllGlobals();
     }
@@ -530,7 +534,6 @@ describe('the reach MEASURES each face it reached (owner 2026-09-02: GB in Drive
       });
       expect(q?.domains.file).toMatchObject({ answer: 'yes', count: 1 });
       expect(q?.domains.file.volume).toBeUndefined();
-      expect(q?.domains.file.detail).not.toContain('Volume not measured');
     } finally {
       vi.unstubAllGlobals();
     }

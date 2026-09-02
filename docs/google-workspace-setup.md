@@ -421,6 +421,27 @@ Stated here rather than discovered:
 - **Two files with the same name in the same folder cannot both be migrated.** The natural key
   is the path, and the ledger's unique index on it makes that a hard stop, not a setting.
 
+## Google Photos, and the device backups
+
+**Photos are not migrated, and the reason is Google's, not ours.** Since 31 March 2025 the
+Photos Library API no longer lets a third-party application read a person's library: an app
+may see only the items it uploaded itself, or items the person picks by hand in Google's own
+picker, one selection at a time. A complete, unattended copy of a photo library through the API
+is therefore not possible for any product, and a connection that offered it would be promising
+something Google refuses. The complete route Google leaves open is **Google Takeout** — the
+person exports their library as an archive — which is a snapshot to download rather than an
+account to read, and so a different kind of migration than the account faces on this page.
+If you need your photos moved, say so; it decides whether an archive-import route is worth
+building, and nothing here will quietly pretend to cover it.
+
+**Device backups** (the "Back-up van apparaat" line in Google's storage overview) are Android's
+own app-and-settings backups, readable only by an Android device signing in. They are not data
+this product can or should read, and they stay where they are.
+
+That is why the measured Drive figure on a connection matches Google's own *Google Drive* line
+and not the storage total: photos, backups and Gmail are counted by Google under their own
+headings, and Ownpace measures each face it can reach under its own.
+
 ---
 
 ## Domain-wide delegation — one admin action instead of N consents
