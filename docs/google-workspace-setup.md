@@ -63,8 +63,21 @@ person, no admin needed.
 ## 1. The project and the API
 
 1. [Google Cloud Console](https://console.cloud.google.com/) → create a project (or pick one).
-2. **APIs & Services → Library →** enable **Google Drive API**. Nothing works before this, and
-   the error when it is missing (`accessNotConfigured`) does not say which API.
+2. **APIs & Services → Library →** enable the API behind every face this client will serve.
+   Each is a separate switch, and a switch left off refuses the first request with
+   `accessNotConfigured` — Google's sentence names the API and links the exact page, and this
+   product shows that sentence at *Test connection* rather than the XML it arrives in.
+
+   | face | enable | why |
+   |---|---|---|
+   | Files | **Google Drive API** | every Drive request |
+   | Calendar | **CalDAV API** | Google's CalDAV endpoint is a Cloud API like any other |
+   | Contacts | **Google Contacts CardDAV API** | the same, for CardDAV |
+   | Mail | **Gmail API** | IMAP itself needs no API; with this on, the `https://mail.google.com/` scope is listed in the consent screen's scope picker instead of having to be pasted in by hand |
+
+   The owner met the calendar one on 2026-09-02: a Google account connection whose consent
+   had gone through cleanly, refused at Test with *CalDAV API has not been used in project …
+   before or it is disabled* — nothing before that point had said the API existed.
 
 ## 2. The consent screen
 
@@ -349,6 +362,10 @@ this product already implements — CalDAV for calendars, CardDAV for contacts �
 sources are the ordinary DAV connectors aimed at Google's endpoints, with one difference:
 **Google's DAV endpoints take OAuth only**, so requests carry a Bearer token minted from your
 refresh token instead of a password.
+
+Both need their API switched on in the project (§1: **CalDAV API**, **Google Contacts CardDAV
+API**) — the OAuth consent does not do that for you, and a face whose API is off refuses its
+first PROPFIND with `accessNotConfigured`, naming the API and the page to enable it on.
 
 Each product has its own scope, and the refresh token must be consented with it:
 

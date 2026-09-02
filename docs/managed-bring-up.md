@@ -1021,14 +1021,23 @@ out weeks later never to have included mail.
 
 So at Google, once, for the client this deployment uses:
 
-1. **Google Cloud Console → APIs & Services → OAuth consent screen.** Add
+1. **Google Cloud Console → APIs & Services → Library.** Enable the API behind
+   each face: **CalDAV API** (calendar), **Google Contacts CardDAV API**
+   (contacts), **Google Drive API** (files), and **Gmail API** — not for IMAP,
+   which needs none, but so the `https://mail.google.com/` scope is listed in
+   the consent screen's scope picker rather than pasted in. A consent goes through without
+   any of these; the face whose switch is off refuses its first request with
+   `accessNotConfigured`, and *Test connection* shows Google's sentence naming
+   the API and the page (the owner met the CalDAV one on 2026-09-02, after a
+   clean consent).
+2. **APIs & Services → OAuth consent screen.** Add
    `https://mail.google.com/` and `https://www.googleapis.com/auth/drive.readonly`
    to the scopes, beside the calendar and CardDAV ones.
-2. **Credentials → your OAuth client → Authorised redirect URIs.** It must
+3. **Credentials → your OAuth client → Authorised redirect URIs.** It must
    carry `https://<your API host>/api/migrations/google/callback` — the exact
    string, which `POST /api/migrations/google/authorize` also returns so the
    wizard can show it.
-3. **`API_URL` must be the address the API is reached at from OUTSIDE**, because the
+4. **`API_URL` must be the address the API is reached at from OUTSIDE**, because the
    redirect is built from it. The example ships `API_URL=http://localhost:3001`,
    and with the default `VITE_API_URL=/api` the API is actually reached on the
    same origin as the app — so on a real deployment it is your app's address:

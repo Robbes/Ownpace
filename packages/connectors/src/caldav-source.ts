@@ -14,6 +14,7 @@
 
 import type { CalendarSource, CalendarFolder, SyncCursor, RawCalendarEvent } from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
+import { davRefusalBody } from './gdata-refusal.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { wellKnownUrl as buildWellKnownUrl } from './dav-http.types.ts';
 import { parseRemovedHrefs } from './dav-removals.ts';
@@ -207,7 +208,7 @@ export class CalDAVSource implements CalendarSource {
       const baseUrl = this.config.url.replace(/\/$/, '');
       this.calendarHomeSet = `${baseUrl}/calendars/${this.config.username}/`;
     } else {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${response.body}`);
+      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
   }
 
@@ -274,7 +275,7 @@ export class CalDAVSource implements CalendarSource {
     }
 
     if (response.status !== 207) {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${response.body}`);
+      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
 
     return this.parseCollectionsResponse(response.body, homeSet);
