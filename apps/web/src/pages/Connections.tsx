@@ -142,7 +142,12 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
     connection.role,
     wizardTypeForConnectionKind(connection.kind),
   );
-  const rotatableFields = allFields.filter((f) => f.required || f.secret);
+  // And the OTHER HALF of any pair a secret belongs to (ADR-0041): a Google
+  // client id is neither required nor secret since the deployment may carry
+  // the client, and a panel offering the secret alone sent half a pair to a
+  // door that now refuses exactly that. The descriptor says which field is
+  // whose partner; this reads it rather than naming Google here.
+  const rotatableFields = allFields.filter((f) => f.required || f.secret || f.pairedWith);
   const refusalText = useRefusalText(allFields);
 
   /** The server decides whether this is allowed; its refusal is the message. */

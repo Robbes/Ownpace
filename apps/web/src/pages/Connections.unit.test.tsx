@@ -213,6 +213,19 @@ describe('replacing credentials', () => {
     }
   });
 
+  it('offers a Google client id BESIDE its secret, so a rotated pair is a pair (ADR-0041)', async () => {
+    // The id is neither required nor secret since the deployment may carry
+    // the client, so "required or secret" dropped it — and a new secret typed
+    // here travelled alone, to a door that refuses half a pair. Read from the
+    // descriptor's `pairedWith`, not from a Google list kept in this page.
+    list.mockResolvedValue([conn({ kind: 'gmail', role: 'source' })]);
+    renderPage();
+    fireEvent.click(await screen.findByText('Replace credentials'));
+
+    expect(screen.queryAllByText(STRINGS.en['wizard.clientId']).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText(STRINGS.en['wizard.sourceClientSecret']).length).toBeGreaterThan(0);
+  });
+
   it('starts from what the connection already knows (0078)', async () => {
     // Rotating an expired secret meant retyping the server address and the
     // account that had not changed. Only NON-SECRET config values arrive —
