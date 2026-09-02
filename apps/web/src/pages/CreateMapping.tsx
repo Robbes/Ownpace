@@ -587,14 +587,20 @@ const CreateMapping: React.FC = () => {
   >(null);
   const [sharedDrivesError, setSharedDrivesError] = React.useState<string | null>(null);
   const [browsing, setBrowsing] = React.useState(false);
+  /**
+   * The client pair as a whole or not at all (ADR-0041): absent, the server
+   * uses the deployment's own — the consent and the browse resolve it the
+   * same way. Never as empty strings, which the routes' schemas refuse; half
+   * a pair never gets this far, because the buttons refuse it first.
+   */
+  const ownGoogleClient =
+    formData.sourceClientId.trim() && formData.sourceClientSecret.trim()
+      ? { clientId: formData.sourceClientId.trim(), clientSecret: formData.sourceClientSecret }
+      : {};
   const browseSharedDrives = () => {
     setBrowsing(true);
     setSharedDrivesError(null);
-    const creds = {
-      clientId: formData.sourceClientId,
-      clientSecret: formData.sourceClientSecret,
-      refreshToken: formData.sourceRefreshToken,
-    };
+    const creds = { ...ownGoogleClient, refreshToken: formData.sourceRefreshToken };
     void Promise.allSettled([
       mappingApi.listSharedDrives(creds),
       mappingApi.listSharedFolders(creds),
@@ -871,13 +877,6 @@ const CreateMapping: React.FC = () => {
 
   const startGoogleConsent = async () => {
     setGoogleConsent(null);
-    // The pair goes as a whole or not at all; absent, the server uses the
-    // deployment's own client (ADR-0041). Never as empty strings — the
-    // route's schema refuses those, and half a pair is refused by the button.
-    const ownGoogleClient =
-      formData.sourceClientId.trim() && formData.sourceClientSecret.trim()
-        ? { clientId: formData.sourceClientId.trim(), clientSecret: formData.sourceClientSecret }
-        : {};
     try {
       // The ACCOUNT asks for exactly the faces ticked (workplan 0106 T3b);
       // the four single-purpose sources ask for their own one scope. The
@@ -1215,8 +1214,8 @@ const CreateMapping: React.FC = () => {
         onClick={browseSharedDrives}
         disabled={
           browsing ||
-          !formData.sourceClientId ||
-          !formData.sourceClientSecret ||
+          (googleClientPairRequired &&
+            (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())) ||
           !formData.sourceRefreshToken
         }
         className="text-sm text-blue-700 hover:underline disabled:opacity-50"
