@@ -271,7 +271,33 @@ describe('and none of it reached the product', () => {
       /created: \(\.details\.creationDate/,
     );
     expect(fn).toMatch(/sort_by\(\(if \.linked then 0 else 1 end\), \.created\)/);
-    expect(fn).not.toMatch(/api DELETE/);
+    // A provider is never deleted. A login-policy LINK may go, on the
+    // person's word (the case below) — that is the console's toggle, not a
+    // deletion: the provider and everyone linked through it stay.
+    expect(fn).not.toMatch(/api DELETE "?\/admin\/v1\/idps/);
+  });
+
+  it('takes the extras off the screen only on the person\'s word — links removed, never a provider', () => {
+    // 2026-09-02: the owner's organisation-page toggles were undone by the
+    // next bring-up, and a pasted loop was never proved to have run. So the
+    // script owns the act, behind a flag: `--offer-one Google` keeps the
+    // oldest button and removes the other links. Without the flag it reports,
+    // exactly as before — hard rule 2 is the default, not the only mode.
+    const fn = setup.slice(
+      setup.indexOf('configure_idp() {'),
+      setup.indexOf('IDP_GOOGLE_CLIENT_ID="$(read_env'),
+    );
+    const at = fn.indexOf('if [ "$OFFER_ONE" = "$name" ]; then');
+    expect(at, 'the flag is not honoured inside configure_idp').toBeGreaterThan(-1);
+    const branch = fn.slice(at, fn.indexOf('\n      else\n', at));
+    expect(branch).toContain('api DELETE "/admin/v1/policies/login/idps/${oid}"');
+    expect(branch, 'the flag deletes a provider').not.toMatch(/\/admin\/v1\/idps\//);
+    expect(fn, 'the default run is no longer a report').toContain(
+      'else\n        say "  ${name}: ${count} providers of this name exist on the sign-in screen',
+    );
+    expect(setup, 'the flag is not parsed').toContain('--offer-one)');
+    expect(setup, 'a flag without a name is not refused').toContain('--offer-one needs a provider name');
+    expect(setup, 'an unknown argument is not refused').toContain('unknown argument');
   });
 
   it('keeps a person\'s choice — the one already on the screen is the one it manages, and a button taken off is not put back', () => {
