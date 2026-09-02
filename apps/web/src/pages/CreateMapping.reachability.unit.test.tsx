@@ -232,6 +232,11 @@ describe('the consent you can click (0089 T1)', () => {
   });
 
   it('a consent message from THIS origin fills the refresh-token field — the field a paste uses', async () => {
+    // A consent that lands also runs the source probe (owner remark
+    // 2026-09-02), which saves through the add door — so that door answers
+    // here the way the API does, or the probe's bookkeeping has nothing to
+    // read an id from.
+    vi.mocked(connectionsApi.add).mockResolvedValue({ id: 'c-consent', ok: true, detail: 'Reached it.' });
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     fireEvent(
@@ -244,6 +249,10 @@ describe('the consent you can click (0089 T1)', () => {
     await waitFor(() =>
       expect((fieldFor(/^Refresh token/) as HTMLInputElement).value).toBe('1//minted-by-consent'),
     );
+    // …and it is saved and tested in one go, with the token it just received.
+    await waitFor(() => expect(connectionsApi.add).toHaveBeenCalled());
+    const saved = vi.mocked(connectionsApi.add).mock.calls[0]![0];
+    expect(saved.values).toMatchObject({ refreshToken: '1//minted-by-consent' });
   });
 
   it('a message from ANOTHER origin is ignored — the origin is the gate', async () => {
