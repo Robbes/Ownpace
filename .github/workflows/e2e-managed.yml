@@ -269,6 +269,24 @@ jobs:
             echo "backfilled ${key} from managed.env.example"
           done
 
+          # A GOOGLE CLIENT THE GATE CAN REASON ABOUT, AND NEVER FOLLOWS
+          # (ADR-0041; #703–#712). Two pairs: the MIGRATION client, so the
+          # smoke can ask the real stack what the unit suites cannot — that
+          # provider-accounts answers `deployment`, that a consent with no
+          # pair builds a URL for this id and leaks no secret, and that half
+          # a pair is refused at the consent and at the connection door —
+          # and the SIGN-IN provider, so configure_idp has a provider to find
+          # on a second run, which is the path that grew nine buttons on the
+          # owner's box (#711). None of it is a credential: the consent URL is
+          # built and never opened, and nobody presses the sign-in button. The
+          # secrets are random per runner, so nothing in this file reads as
+          # one. `--if-absent`: a runner that carries a real pair keeps it.
+          ./deploy/compose/env-upsert.sh --if-absent deploy/compose/.env \
+            "GOOGLE_OAUTH_CLIENT_ID=gate-migration-client.apps.googleusercontent.com" \
+            "GOOGLE_OAUTH_CLIENT_SECRET=gate-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')" \
+            "IDP_GOOGLE_CLIENT_ID=gate-signin-client.apps.googleusercontent.com" \
+            "IDP_GOOGLE_CLIENT_SECRET=gate-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+
           # PERSIST IT BACK, and this is not housekeeping. ZITADEL_MASTERKEY is
           # the key the identity provider encrypts its own data with: generate a
           # different one next run and every user it holds is stranded, which is
@@ -305,6 +323,31 @@ jobs:
         run: |
           set -euo pipefail
           ./deploy/compose/bootstrap-managed.sh --from data --with-demo --no-smoke
+
+      - name: The provider step, run a second time, adds nothing (#711)
+        # On the owner's box every re-run of the app phase added a Google
+        # sign-in provider — nine buttons after a week — because configure_idp
+        # searched a list that never held what it had just created. A fresh
+        # instance cannot show that defect: its first run is honestly "added".
+        # So the step runs AGAIN, on the stack the bring-up just provisioned,
+        # and what it says is read. The smoke then counts the providers.
+        run: |
+          set -euo pipefail
+          out="$(./deploy/compose/setup-zitadel.sh 2>&1)" || { printf '%s\n' "$out"; exit 1; }
+          printf '%s\n' "$out" | grep -E 'Google' || true
+          if grep -qE 'Google: added' <<<"$out"; then
+            echo "::error::the second run ADDED a Google provider — this is the re-run path that grew nine buttons"
+            exit 1
+          fi
+          if ! grep -qE 'Google: a provider of this name exists' <<<"$out"; then
+            echo "::error::the second run did not find the provider the first run created"
+            exit 1
+          fi
+          if grep -qE 'providers of this name exist' <<<"$out"; then
+            echo "::error::duplicates on a fresh instance — the first run created more than one"
+            exit 1
+          fi
+          echo "the second run found the provider and added nothing"
 
       - name: The demo's mail source has mail in it (0084)
         # The verify half compares a source against a target. On an empty
