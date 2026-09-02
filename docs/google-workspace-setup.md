@@ -363,9 +363,10 @@ sources are the ordinary DAV connectors aimed at Google's endpoints, with one di
 **Google's DAV endpoints take OAuth only**, so requests carry a Bearer token minted from your
 refresh token instead of a password.
 
-Both need their API switched on in the project (§1: **CalDAV API**, **Google Contacts CardDAV
-API**) — the OAuth consent does not do that for you, and a face whose API is off refuses its
-first PROPFIND with `accessNotConfigured`, naming the API and the page to enable it on.
+Both need their API switched on in the project — **CalDAV API** and **Google Contacts CardDAV
+API**, under APIs & Services → Library, as in the first step of this guide. The OAuth consent
+does not do that for you, and a face whose API is off refuses its first PROPFIND with
+`accessNotConfigured`, naming the API and the page to enable it on.
 
 Each product has its own scope, and the refresh token must be consented with it:
 
