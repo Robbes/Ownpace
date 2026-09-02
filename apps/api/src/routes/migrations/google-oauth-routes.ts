@@ -20,7 +20,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import { log, googleDeploymentClient, googleDeploymentClientProblem } from '@openmig/shared';
+import { log, resolveGoogleClient } from '@openmig/shared';
 import {
   GOOGLE_SOURCE_SCOPES,
   consentResultPage,
@@ -118,39 +118,17 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
   }
 
   /**
-   * WHOSE CLIENT THIS CONSENT RUNS AGAINST.
-   *
-   * The caller's pair first, because owning a client is a real choice
-   * (ADR-0041) and a deployment-wide default that replaced it would take that
-   * choice away. Only both together: a client id with no secret cannot
-   * exchange the code, and half of one pair mixed with half of another is a
-   * failure at Google's token endpoint with nothing on this side to explain
-   * it.
-   *
-   * Then the deployment's own, if it configured one. Then a refusal that names
-   * BOTH ways forward, because either is legitimate and somebody hitting this
-   * cannot tell which their deployment expects.
+   * WHOSE CLIENT THIS CONSENT RUNS AGAINST — shared's order, read rather than
+   * restated (ADR-0041): the caller's WHOLE pair, else the deployment's, else
+   * a refusal naming both ways forward; and half a pair refused before
+   * either, as every other door refuses it. This route used to take a lone
+   * client id as "none sent" and run the consent against the deployment's
+   * application — a token minted for an application the caller did not name,
+   * silently. A half-configured deployment answers with its own sentence.
    */
-  const sent =
-    parsed.data.clientId && parsed.data.clientSecret
-      ? { clientId: parsed.data.clientId, clientSecret: parsed.data.clientSecret }
-      : null;
-  const client = sent ?? googleDeploymentClient();
-  if (!client) {
-    // A HALF-CONFIGURED DEPLOYMENT SAYS SO, rather than reading as one that
-    // configured nothing: somebody who set one of the two has plainly tried,
-    // and the same silence for both cases hides a typo behind a feature that
-    // merely looks absent. The sentence never carries either value.
-    const halfConfigured = googleDeploymentClientProblem();
-    return void res.status(400).json({
-      error: 'no_google_client',
-      reason:
-        halfConfigured ??
-        'This consent needs a Google OAuth client and there is none: send clientId and ' +
-          'clientSecret with the request, or set GOOGLE_OAUTH_CLIENT_ID and ' +
-          'GOOGLE_OAUTH_CLIENT_SECRET on this deployment so every connection can share ' +
-          "the owner's own application (docs/google-workspace-setup.md).",
-    });
+  const client = resolveGoogleClient(parsed.data);
+  if (!client.ok) {
+    return void res.status(400).json({ error: client.error, reason: client.reason });
   }
   const { clientId, clientSecret } = client;
 

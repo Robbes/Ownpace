@@ -505,8 +505,9 @@ live in [README.md](./README.md), the register.
   too. **A connection carrying its own pair always wins** — this is a fallback, never an
   override, or owning a client would stop being a choice. **Both variables or neither**: half a
   pair is refused with the missing name, never mixed with the other half. A connection's *own*
-  pair obeys the same rule at every door — wizard, API, add-form and rotation alike: half of one
-  is refused where it is sent, never completed with the deployment's other half, because the
+  pair obeys the same rule at every door — wizard, API, add-form, rotation and the consent itself
+  alike: half of one is refused where it is sent, never completed with the deployment's other
+  half (nor a consent run against an application the caller did not name), because the
   fallback fills only the missing key and a mixed pair fails at Google's token endpoint hours
   later, from a sync log. And the fallback is gated on a GOOGLE connection kind, because
   `clientId`/`clientSecret` are shared key names — Dropbox stores its App key and App secret
