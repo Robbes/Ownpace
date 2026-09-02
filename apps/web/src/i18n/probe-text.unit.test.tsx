@@ -15,7 +15,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { ProbeOutcome } from '@openmig/shared';
-import { probeText, qualificationText, schedulingText } from './probe-text.ts';
+import { probeText, qualificationEvidence, qualificationText, schedulingText } from './probe-text.ts';
 import { STRINGS, type StringKey } from './strings.ts';
 
 /** A `t` bound to one locale, with the same interpolation the app uses. */
@@ -232,5 +232,38 @@ describe('qualificationText — the count beside the tick, once a face was reach
     expect(qualificationText(en, bare)).toBe(
       "Can carry: Email ✓ · Calendar ✗ · Contacts ✓ · Files ? — '?' is unmeasured — not safe to assume either way",
     );
+  });
+});
+
+describe('qualificationEvidence — why each `?` is a `?`, as lines to show (2026-09-02)', () => {
+  const GOOGLE_403 =
+    'The grant carries https://www.googleapis.com/auth/carddav, but the face did not answer: ' +
+    'PROPFIND failed with status 403: accessNotConfigured — Google Contacts CardDAV API has not ' +
+    'been used in project 123 before or it is disabled.';
+  const mixed = {
+    domains: {
+      mail: { answer: 'yes' as const, detail: '29 folders visible.' },
+      calendar: { answer: 'yes' as const, detail: '5 calendars visible.' },
+      contact: { answer: 'unknown' as const, detail: GOOGLE_403 },
+      file: { answer: 'no' as const, detail: 'The grant does not carry drive.readonly — re-consent.' },
+    },
+  };
+
+  it('one line per unknown face, labelled in the reader\'s language, the sentence verbatim', () => {
+    expect(qualificationEvidence(en, mixed)).toEqual([`Contacts ?: ${GOOGLE_403}`]);
+    expect(qualificationEvidence(nl, mixed)).toEqual([`Contacten ?: ${GOOGLE_403}`]);
+  });
+
+  it('nothing to show when every face was measured, and nothing for no record at all', () => {
+    const measured = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'x' },
+        calendar: { answer: 'no' as const, detail: 'x' },
+        contact: { answer: 'yes' as const, detail: 'x' },
+        file: { answer: 'no' as const, detail: 'x' },
+      },
+    };
+    expect(qualificationEvidence(en, measured)).toEqual([]);
+    expect(qualificationEvidence(en, undefined)).toEqual([]);
   });
 });

@@ -147,3 +147,42 @@ export function qualificationText(
   const anyUnknown = order.some((domain) => qualification.domains[domain].answer === 'unknown');
   return `${t('probe.qualify.lead')} ${line}${anyUnknown ? ` — ${t('probe.qualify.unknownHint')}` : ''}`;
 }
+
+/**
+ * The evidence behind every `?` on the line (2026-09-02), as lines to SHOW.
+ *
+ * The line above says "Contacts ?", and the sentence that says why — Google's
+ * own, naming the API and the page since #722 — sat in a hover title. The
+ * owner read the line on a phone, which has no hover, and could not learn
+ * which switch to flip. A `?` is the one state whose sentence IS the remedy,
+ * so its sentence goes on screen; a yes carries its count on the line and a
+ * no its re-consent remedy in the matrix, neither of which needs a second
+ * line here.
+ *
+ * The sentence is the server's evidence line: our English around the
+ * provider's words, exactly as the hover had it. Not translated, for the
+ * reason the hover was not — the provider's half is the string somebody
+ * pastes into a console.
+ */
+export function qualificationEvidence(
+  t: Translate,
+  qualification:
+    | {
+        domains: Record<
+          'mail' | 'calendar' | 'contact' | 'file',
+          { answer: 'yes' | 'no' | 'unknown'; detail: string }
+        >;
+      }
+    | undefined,
+): string[] {
+  if (!qualification) return [];
+  const label: Record<'mail' | 'calendar' | 'contact' | 'file', StringKey> = {
+    mail: 'domain.email',
+    calendar: 'domain.calendar',
+    contact: 'domain.contact',
+    file: 'domain.file',
+  };
+  return (['mail', 'calendar', 'contact', 'file'] as const)
+    .filter((domain) => qualification.domains[domain].answer === 'unknown')
+    .map((domain) => `${t(label[domain])} ?: ${qualification.domains[domain].detail}`);
+}

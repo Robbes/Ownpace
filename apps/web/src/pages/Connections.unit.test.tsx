@@ -602,3 +602,42 @@ describe('adding a connection through the front door', () => {
     expect(screen.queryByRole('button', { name: /^Gmail/ })).toBeNull();
   });
 });
+
+describe('why a face is `?` is on screen, not in a hover (owner 2026-09-02)', () => {
+  const REFUSAL =
+    'The grant carries https://www.googleapis.com/auth/carddav, but the face did not answer: ' +
+    'PROPFIND failed with status 403: accessNotConfigured — Google Contacts CardDAV API has not ' +
+    'been used in project 123 before or it is disabled. Enable it by visiting ' +
+    'https://console.developers.google.com/apis/api/carddav.googleapis.com/overview?project=123 then retry.';
+  const qualification = {
+    domains: {
+      mail: { answer: 'yes' as const, detail: '29 folders visible.', count: 29, unit: 'folder' as const },
+      calendar: { answer: 'yes' as const, detail: '5 calendars visible.', count: 5, unit: 'calendar' as const },
+      contact: { answer: 'unknown' as const, detail: REFUSAL },
+      file: { answer: 'yes' as const, detail: '3 folders visible.', count: 3, unit: 'folder' as const },
+    },
+  };
+
+  it('the test panel shows the sentence behind the `?` — the owner read "Contacts ?" on a phone and could not learn which switch to flip', async () => {
+    list.mockResolvedValue([conn({ kind: 'google', role: 'source' })]);
+    testConnection.mockResolvedValue({
+      ok: true,
+      detail: 'Connected. 5 calendars visible.',
+      outcome: { code: 'connected', count: 5, unit: 'calendar' },
+      qualification,
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Test'));
+
+    expect(await screen.findByText(/Can carry: Email ✓ 29 folders · Calendar ✓ 5 calendars · Contacts \? · Files ✓ 3 folders/)).toBeTruthy();
+    expect(screen.getByText(/^Contacts \?: .*Google Contacts CardDAV API has not been used/)).toBeTruthy();
+  });
+
+  it('the card shows it too, without pressing Test — the stored record is what a phone opens first', async () => {
+    list.mockResolvedValue([conn({ kind: 'google', role: 'source', qualification })]);
+    renderPage();
+
+    expect(await screen.findByText(/^Contacts \?: .*carddav\.googleapis\.com/)).toBeTruthy();
+  });
+});
