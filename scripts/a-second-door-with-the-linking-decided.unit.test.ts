@@ -271,6 +271,24 @@ describe('and none of it reached the product', () => {
     expect(fn).not.toMatch(/api DELETE/);
   });
 
+  it('counts what the sign-in screen shows — a deactivated provider is neither a duplicate nor the one it manages', () => {
+    // 2026-09-02, an hour after #711: the owner deactivated seven of the eight
+    // Google providers, since the console offered no delete. A state-blind
+    // count still said "8 buttons", and the oldest — switched off — was the
+    // one this would have put on the login policy.
+    const fn = setup.slice(
+      setup.indexOf('configure_idp() {'),
+      setup.indexOf('\n}', setup.indexOf('configure_idp() {')),
+    );
+    expect(fn, 'the selection no longer leaves out IDP_STATE_INACTIVE').toMatch(
+      /select\(\.name == \$n and \.state != "IDP_STATE_INACTIVE"\)/,
+    );
+    expect(fn, 'every-one-switched-off is not named').toContain('every one is deactivated');
+    expect(fn, 'a switched-off provider gets a second added beside it').toContain(
+      'adds no second provider beside a switched-off one',
+    );
+  });
+
   it('tells somebody how to change a credential, since a re-run will not', () => {
     expect(
       setup,

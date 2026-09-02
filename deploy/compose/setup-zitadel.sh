@@ -1079,12 +1079,35 @@ configure_idp() {
   # button per bring-up (nine Google buttons on the owner's box, 2026-09-02).
   # Oldest first: that is the one the earliest sign-ins were linked to, and the
   # one that stays on the screen if somebody removes the rest.
+  #
+  # ACTIVE, NOT LISTED (the same day, an hour later). A deactivated provider
+  # stays on this list and off the sign-in screen — that is how the owner
+  # cleaned the nine up, since the console offered no delete, and it is a
+  # correct clean-up. So "exists", "duplicates" and the one this manages are
+  # all read among the providers NOT in IDP_STATE_INACTIVE; a provider with no
+  # state on the wire counts as active, which is the safe direction.
   existing="$(api POST /admin/v1/idps/templates/_search '{}')"
   ids="$(jq -r --arg n "$name" \
-    '[.result[]? | select(.name == $n)] | sort_by(.details.creationDate // "") | .[].id' \
+    '[.result[]? | select(.name == $n and .state != "IDP_STATE_INACTIVE")] | sort_by(.details.creationDate // "") | .[].id' \
+    <<<"$existing")"
+  off="$(jq -r --arg n "$name" \
+    '[.result[]? | select(.name == $n and .state == "IDP_STATE_INACTIVE")] | length' \
     <<<"$existing")"
   count="$(grep -c . <<<"$ids" || true)"
   id="$(awk 'NR==1' <<<"$ids")"
+
+  if { [ -z "$id" ] || [ "$id" = "null" ]; } && [ "${off:-0}" -gt 0 ]; then
+    # EVERY ONE OF THIS NAME IS SWITCHED OFF. A person did that, in the console,
+    # and this script does not undo a person's switch (hard rule 2) — nor add
+    # a second provider beside it, which is the defect above. It says so and
+    # names both ways out; the login policy below then follows what is actually
+    # offered, which is nothing.
+    say "  ${name}: ${off} provider(s) of this name exist and every one is deactivated — the sign-in screen shows no ${name} button"
+    say "      activate one in the console under Settings -> Identity Providers, or unset"
+    say "      the IDP_*_CLIENT_ID for ${name} in ${ENV_FILE} if that is intended (this script"
+    say "      adds no second provider beside a switched-off one)"
+    return 0
+  fi
 
   if [ -z "$id" ] || [ "$id" = "null" ]; then
     local created
@@ -1130,9 +1153,11 @@ the same URI:
       # the person decides about the rest, in the console, with the list in
       # front of them.
       say "  ${name}: ${count} providers of this name exist — the sign-in screen shows ${count} ${name} buttons"
-      say "      keeping the oldest (${id}); remove the others in the console under"
-      say "      Settings -> Identity Providers (this script never deletes a provider)"
+      say "      keeping the oldest (${id}); deactivate or remove the others in the console"
+      say "      under Settings -> Identity Providers (this script never deletes a provider)"
     fi
+    [ "${off:-0}" -eq 0 ] \
+      || say "  ${name}: ${off} more of this name are deactivated — on the list, off the sign-in screen"
     say "  ${name}: a provider of this name exists — left as it is"
     say "      credentials in ${ENV_FILE} are NOT re-sent; to change them,"
     say "      remove it in the console under Settings -> Identity Providers"
@@ -1419,9 +1444,19 @@ policy_is_right() {   # reads a login-policy JSON on stdin
   ' >/dev/null 2>&1 <<<"$json" && positive_password_life <<<"$json"
 }
 
-if policy_is_right <<<"$(probe_policy)"; then
+PROBED="$(probe_policy)"
+if policy_is_right <<<"$PROBED"; then
   say "already allowed"
 else
+  # SAY WHAT THE PROBE SAW, before anything is reset or written. Two writes
+  # follow, and a reader of the log deserves the reason for them — E2E
+  # (managed) #130 died a few lines further down with nothing here to say why.
+  say "the policy people resolve is not the described one yet:"
+  say "  $(jq -r --argjson x "$WANT_EXTERNAL" '
+      .policy as $p
+      | if $p == null then "no login policy could be read"
+        else "isDefault=\($p.isDefault // false) allowRegister=\($p.allowRegister // false) allowUsernamePassword=\($p.allowUsernamePassword // false) allowExternalIdp=\($p.allowExternalIdp // false) (want \($x)) passwordCheckLifetime=\($p.passwordCheckLifetime // "unset")"
+        end' <<<"$PROBED" 2>/dev/null || echo "(unreadable: ${PROBED:-nothing at all})")"
   # RESET FIRST. On an instance an older version of this script has run
   # against, the custom org policy is the thing that has to go — the settings
   # below land on the instance policy, which nobody resolves while a shadow
@@ -1485,7 +1520,26 @@ Zitadel's own defaults are 864000s for the password check; set them in the
 console at ${ISSUER}/ui/console under Settings -> Login Behaviour, or re-run
 this against an instance whose defaults have not been overwritten."
 
-  api PUT /admin/v1/policies/login "$POLICY" >/dev/null
+  # WRITE ONLY WHAT WOULD CHANGE. Everything in the body but the three flags
+  # is the instance's own answer handed back, so the write changes something
+  # exactly when one of the three differs — and Zitadel REFUSES a write that
+  # changes nothing: `PUT /admin/v1/policies/login` answers HTTP 400 "Default
+  # Login Policy has not been changed". That is how E2E (managed) #130 died on
+  # 2026-09-02: the organisation's own policy was the only thing wrong, the
+  # reset above had already removed it, and the instance policy was right all
+  # along — so the bring-up failed on a write it had no reason to send.
+  SAME="$(jq -r --argjson x "$WANT_EXTERNAL" '.policy | ((.allowRegister // false) and (.allowUsernamePassword // false) and ((.allowExternalIdp // false) == $x))' <<<"$INSTANCE")"
+  if [ "$SAME" = "true" ]; then
+    say "the instance policy already reads that way — nothing to write; what people resolve is read back below"
+  # AND IF THE PROVIDER STILL CALLS IT UNCHANGED, THAT IS AN ANSWER, NOT A
+  # FAILURE: nothing was lost, and the read-backs below are what decide.
+  # Anything else it refuses is printed and fatal, exactly as before.
+  elif ! written="$( (api PUT /admin/v1/policies/login "$POLICY") 2>&1 )"; then
+    case "$written" in
+      *"has not been changed"*) say "the provider answered that the policy already reads that way — nothing was changed" ;;
+      *) printf '%s\n' "$written" >&2; exit 1 ;;
+    esac
+  fi
 
   # READ BACK, AND SEPARATELY. Four settings that fail in four different ways,
   # and a person reading the log deserves to know WHICH one did not take.
