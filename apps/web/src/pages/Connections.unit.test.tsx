@@ -44,19 +44,20 @@ const axios400 = (data: unknown): AxiosError => {
   return err;
 };
 
-const { list, test: testConnection, rotate, remove, providerAccounts, googleAuthorize } = vi.hoisted(() => ({
+const { list, test: testConnection, rotate, remove, add, providerAccounts, googleAuthorize } = vi.hoisted(() => ({
   list: vi.fn(),
   test: vi.fn(),
   rotate: vi.fn(),
   remove: vi.fn(),
   // The deployment's own Google client (ADR-0041), as the add-form reads it.
   // Empty by default: the pair stays in plain view, as on an appliance.
+  add: vi.fn(),
   providerAccounts: vi.fn(),
   googleAuthorize: vi.fn(),
 }));
 
 vi.mock('../services/mapping-service', () => ({
-  connectionsApi: { list, test: testConnection, rotate, remove },
+  connectionsApi: { list, test: testConnection, rotate, remove, add },
   providerAccountsApi: { get: providerAccounts },
   mappingApi: { googleAuthorize },
 }));
@@ -91,6 +92,7 @@ beforeEach(() => {
   rotate.mockReset();
   providerAccounts.mockReset().mockResolvedValue({});
   googleAuthorize.mockReset();
+  add.mockReset();
   remove.mockReset();
 });
 
@@ -493,8 +495,12 @@ describe('adding a connection through the front door', () => {
     });
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
     try {
+      add.mockResolvedValue({ ok: true, id: 'c1', detail: 'reachable' });
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@gmail.com' },
+      });
       const button = await screen.findByRole('button', { name: /Connect with Google/ });
       await waitFor(() => expect(button).toBeEnabled());
       // The token box is inside the fold, with the pair — not above it with
@@ -517,6 +523,16 @@ describe('adding a connection through the front door', () => {
       );
       await screen.findByText(/Consent received/);
       expect((screen.getByPlaceholderText('1//…') as HTMLInputElement).value).toBe('1//granted');
+      // …and it is saved and tested in one go (owner remark 2026-09-02): no
+      // second press, the address as the name where none was typed.
+      await waitFor(() => expect(add).toHaveBeenCalled());
+      expect(add.mock.calls[add.mock.calls.length - 1]![0]).toMatchObject({
+        role: 'source',
+        type: 'gmail',
+        displayName: 'owner@gmail.com',
+        values: { username: 'owner@gmail.com', refreshToken: '1//granted' },
+      });
+      await screen.findByText(/reachable/);
     } finally {
       opened.mockRestore();
     }

@@ -457,6 +457,13 @@ export function consentResultPage(p: {
       `const payload = JSON.parse(${jsString(payload)});` +
       `const target = JSON.parse(${jsString(p.webOrigin)});` +
       'if (window.opener) { window.opener.postMessage(payload, target); window.close(); }' +
+      // A window with no opener cannot hand anything back, and a page that
+      // says "handing the result back" while nothing arrives is the owner's
+      // "it told me it worked" of 2026-09-02. Say what happened, and never
+      // show the token: it belongs to the app, not to a screen.
+      " else { document.querySelector('p').textContent = " +
+      "'This window was not opened by Ownpace, so the result could not be handed back. " +
+      "Close it and press Connect with Google again from the same browser tab.'; }" +
       '</script>'
     );
   }
