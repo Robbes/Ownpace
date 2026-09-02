@@ -486,7 +486,15 @@ export interface TestConnectionResult {
   qualification?: {
     domains: Record<
       'mail' | 'calendar' | 'contact' | 'file',
-      { answer: 'yes' | 'no' | 'unknown'; detail: string }
+      {
+        answer: 'yes' | 'no' | 'unknown';
+        detail: string;
+        /** What the face counted when it answered (2026-09-02) — data, so the
+         *  line can say "5 calendars" in the reader's language. Absent on an
+         *  older record, a no, an unknown. */
+        count?: number;
+        unit?: 'folder' | 'calendar' | 'addressBook' | 'collection';
+      }
     >;
     scheduling?: { capability: 'auto-schedule' | 'none' | 'unknown'; sentence: string };
   };

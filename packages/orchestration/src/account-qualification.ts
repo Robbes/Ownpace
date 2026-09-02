@@ -31,11 +31,24 @@
  */
 
 import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
-import { withDeploymentGoogleClient } from '@openmig/shared';
+import { parseGoogleDriveSource, withDeploymentGoogleClient } from '@openmig/shared';
+import type { ProbeUnit } from '@openmig/shared';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import { davEndpointFromCreds } from './dav-endpoint.ts';
 import { measureTargetScheduling } from './target-scheduling.ts';
 import type { SchedulingVerdict } from './target-scheduling.ts';
+// THE FOUR FACES OF A GOOGLE GRANT, built exactly as a pass builds them
+// (2026-09-02): the same factories `build-deps-from-mapping.ts` reaches for,
+// under the same stored names, so the reach cannot pass a shape a pass would
+// refuse — `probe-connection.ts`'s reason, applied to the qualification.
+import { buildGmailSourceFrom, STORED_GMAIL_CREDENTIAL_NAMES } from './gmail-source-factory.ts';
+import {
+  buildGoogleCalendarDavSourceFrom,
+  buildGoogleContactsDavSourceFrom,
+  STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
+} from './google-dav-source-factory.ts';
+import { buildGoogleDriveSourceFrom, STORED_GOOGLE_CREDENTIAL_NAMES } from './drive-source-factory.ts';
+import type { GoogleCredentialsAsFound } from './drive-source-factory.ts';
 
 export type DomainAnswer = 'yes' | 'no' | 'unknown';
 
@@ -45,6 +58,15 @@ export interface QualifiedDomain {
    *  own words, or WHY this stayed unmeasured. The UI words yes/no/unknown
    *  itself; this is the evidence line. */
   readonly detail: string;
+  /**
+   * What the face COUNTED when it answered (2026-09-02): the number and the
+   * unit, as data, so a screen can say "5 calendars" in its own language
+   * beside the tick rather than only in a hover nobody's phone has. Present
+   * only on a `yes` that came from a listing — absent on a no, an unknown,
+   * and on a grant read without a reach.
+   */
+  readonly count?: number;
+  readonly unit?: ProbeUnit;
 }
 
 export interface AccountQualification {
@@ -83,15 +105,24 @@ const NOT_ASKABLE_DAV =
   'This connection carries no DAV address, so this face was not measured — ' +
   'calendars, contacts and files are qualified on a DAV connection.';
 
+/** The English noun for a unit, in the right number — the fallback wording;
+ *  a screen words the unit itself from `count` and `unit`. */
+function counted(count: number, unit: ProbeUnit): string {
+  const noun = unit === 'addressBook' ? 'address book' : unit;
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
 async function askListable(
   build: () => Listable,
-  noun: string,
+  unit: ProbeUnit,
 ): Promise<QualifiedDomain> {
   try {
     const folders = await build().listFolders();
     return {
       answer: 'yes',
-      detail: `${folders.length} ${noun}${folders.length === 1 ? '' : 's'} visible.`,
+      detail: `${counted(folders.length, unit)} visible.`,
+      count: folders.length,
+      unit,
     };
   } catch (err) {
     // A refusal is NOT a no: a 401 here may be an app-password scoped to
@@ -162,7 +193,7 @@ export async function qualifyAccount(
     ),
     askListable(
       () => new CarddavSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password }),
-      'address book',
+      'addressBook',
     ),
     askListable(
       () => new WebdavFileSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password }),
@@ -437,11 +468,76 @@ function allUnknown(why: string): AccountQualification {
  * domain stays unknown, carrying Google's own words — the same words the
  * headline probe fails with, so the two never disagree.
  */
+/**
+ * The seam through which a carried face is REACHED (2026-09-02).
+ *
+ * The owner's first Google account connection tested "5 calendars visible"
+ * and said nothing about the three other faces it had just been granted —
+ * the grant half read the scopes and stopped there, so a face whose API was
+ * switched off in the client's project passed Test and would have failed at
+ * the first migration. Now each face the grant carries is asked the one
+ * question every source answers, with the builder a pass would use.
+ *
+ * `user` is the account address every builder starts from (the Gmail user,
+ * the DAV principal, the Drive subject); `config` is the row's own blob, so
+ * a Drive row's chosen root is honoured and an account row lands on My Drive
+ * as a pass would. `listable` is the test seam: the default builds the real
+ * sources.
+ */
+export interface GoogleReach {
+  readonly user: string;
+  readonly config?: Record<string, unknown>;
+  readonly listable?: (
+    domain: GoogleGrantDomain,
+    user: string,
+    creds: GoogleCredentialsAsFound,
+    config: Record<string, unknown>,
+  ) => Listable;
+}
+
+export interface QualifyGoogleGrantOptions {
+  /** Google's token endpoint — a parameter so tests exchange against a stub. */
+  readonly tokenEndpoint?: string;
+  /** Absent: the grant is read and not reached (an older caller's contract). */
+  readonly reach?: GoogleReach;
+}
+
+/** What each face counts, in the unit a screen words. */
+const GOOGLE_FACE_UNIT: Readonly<Record<GoogleGrantDomain, ProbeUnit>> = {
+  mail: 'folder',
+  calendar: 'calendar',
+  contact: 'addressBook',
+  file: 'folder',
+};
+
+function googleFaceListable(
+  domain: GoogleGrantDomain,
+  user: string,
+  creds: GoogleCredentialsAsFound,
+  config: Record<string, unknown>,
+): Listable {
+  switch (domain) {
+    case 'mail':
+      return buildGmailSourceFrom(user, creds, STORED_GMAIL_CREDENTIAL_NAMES);
+    case 'calendar':
+      return buildGoogleCalendarDavSourceFrom(user, creds, STORED_GOOGLE_DAV_CREDENTIAL_NAMES);
+    case 'contact':
+      return buildGoogleContactsDavSourceFrom(user, creds, STORED_GOOGLE_DAV_CREDENTIAL_NAMES);
+    case 'file':
+      return buildGoogleDriveSourceFrom(
+        parseGoogleDriveSource(config),
+        creds,
+        STORED_GOOGLE_CREDENTIAL_NAMES,
+      );
+  }
+}
+
 export async function qualifyGoogleGrant(
   kind: string,
   rawCreds: Record<string, string>,
-  tokenEndpoint: string = GOOGLE_TOKEN_ENDPOINT,
+  options: QualifyGoogleGrantOptions = {},
 ): Promise<AccountQualification | undefined> {
+  const tokenEndpoint = options.tokenEndpoint ?? GOOGLE_TOKEN_ENDPOINT;
   if (!isGoogleGrantKind(kind)) return undefined;
   // THE DEPLOYMENT'S OWN CLIENT, where it configured one (ADR-0041, owner
   // decision 2026-09-01). Without this the measurement is the one that goes
@@ -485,23 +581,55 @@ export async function qualifyGoogleGrant(
     );
   }
 
-  const domainFromGrant = (domain: GoogleGrantDomain): QualifiedDomain => {
+  const reach = options.reach;
+  const domainFromGrant = async (domain: GoogleGrantDomain): Promise<QualifiedDomain> => {
     const carried = scopesSatisfying(domain).find((scope) => granted.has(scope));
-    return carried
-      ? { answer: 'yes', detail: `The grant carries ${carried}.` }
-      : {
-          answer: 'no',
-          detail:
-            `The grant does not carry ${GOOGLE_DOMAIN_SCOPES[domain].asked} — asking is ` +
-            'granting: re-consent with that scope to add this domain.',
-        };
+    if (!carried) {
+      return {
+        answer: 'no',
+        detail:
+          `The grant does not carry ${GOOGLE_DOMAIN_SCOPES[domain].asked} — asking is ` +
+          'granting: re-consent with that scope to add this domain.',
+      };
+    }
+    if (!reach) return { answer: 'yes', detail: `The grant carries ${carried}.` };
+    // REACHED, not inferred: the scope says Google MAY answer this face; the
+    // listing says it DID. A face the grant does not carry is never asked —
+    // asking would be a request Google refuses by design, and the no above
+    // already names the remedy.
+    try {
+      const listed = await (reach.listable ?? googleFaceListable)(
+        domain,
+        reach.user,
+        creds,
+        reach.config ?? {},
+      ).listFolders();
+      const unit = GOOGLE_FACE_UNIT[domain];
+      return {
+        answer: 'yes',
+        detail: `The grant carries ${carried}; ${counted(listed.length, unit)} visible.`,
+        count: listed.length,
+        unit,
+      };
+    } catch (err) {
+      // The three-state rule: a refusal is NOT a no. The scope is carried, so
+      // "cannot carry" would be false; and it is not a yes either, since
+      // nothing answered. Unknown, with the refusal's own words — Google's,
+      // when the switch behind the face is off, naming the API and the page.
+      return {
+        answer: 'unknown',
+        detail:
+          `The grant carries ${carried}, but the face did not answer: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+      };
+    }
   };
-  return {
-    domains: {
-      mail: domainFromGrant('mail'),
-      calendar: domainFromGrant('calendar'),
-      contact: domainFromGrant('contact'),
-      file: domainFromGrant('file'),
-    },
-  };
+  const [mail, calendar, contact, file] = await Promise.all([
+    domainFromGrant('mail'),
+    domainFromGrant('calendar'),
+    domainFromGrant('contact'),
+    domainFromGrant('file'),
+  ]);
+  return { domains: { mail, calendar, contact, file } };
 }

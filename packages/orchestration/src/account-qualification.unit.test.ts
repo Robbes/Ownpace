@@ -61,6 +61,11 @@ describe('the DAV family: three faces from one credential', () => {
       expect(q?.domains.calendar.answer).toBe('yes');
       expect(q?.domains.contact.answer).toBe('yes');
       expect(q?.domains.file.answer).toBe('yes');
+      // The count rides as DATA beside the sentence (2026-09-02), in the unit
+      // a screen words — the one multistatus entry is a calendar and an
+      // address book at once.
+      expect(q?.domains.calendar).toMatchObject({ count: 1, unit: 'calendar' });
+      expect(q?.domains.contact).toMatchObject({ count: 1, unit: 'addressBook' });
       // Not askable is UNKNOWN with the remedy, never a quiet no.
       expect(q?.domains.mail.answer).toBe('unknown');
       expect(q?.domains.mail.detail).toContain('no mail server address');
@@ -102,7 +107,7 @@ describe('the DAV family: three faces from one credential', () => {
           },
         },
       );
-      expect(q?.domains.mail).toEqual({ answer: 'yes', detail: '2 folders visible.' });
+      expect(q?.domains.mail).toMatchObject({ answer: 'yes', detail: '2 folders visible.' });
       // The face was asked at the STORED mail host, not the DAV endpoint.
       expect(asked[0]?.host).toBe('imap.example.net');
       // The DAV faces are unchanged beside it.
@@ -161,7 +166,7 @@ describe('the IMAP face', () => {
       CREDS,
       { imapListable: () => ({ listFolders: async () => ['INBOX', 'Sent', 'Archive'] }) },
     );
-    expect(q?.domains.mail).toEqual({ answer: 'yes', detail: '3 folders visible.' });
+    expect(q?.domains.mail).toMatchObject({ answer: 'yes', detail: '3 folders visible.' });
     expect(q?.domains.calendar.answer).toBe('unknown');
     expect(q?.domains.calendar.detail).toContain('no DAV address');
   });
@@ -248,7 +253,7 @@ describe('the grant-qualified half: what a stored Google grant carries (0106 T1a
     );
     vi.stubGlobal('fetch', fetchMock);
     try {
-      const q = await qualifyGoogleGrant('google_calendar', GOOGLE_CREDS, 'https://stub/token');
+      const q = await qualifyGoogleGrant('google_calendar', GOOGLE_CREDS, { tokenEndpoint: 'https://stub/token' });
       expect(q?.domains.calendar.answer).toBe('yes');
       expect(q?.domains.contact.answer).toBe('yes');
       // Absent from an enumeration that ARRIVED — a measured no, and the
@@ -277,7 +282,7 @@ describe('the grant-qualified half: what a stored Google grant carries (0106 T1a
       ),
     );
     try {
-      const q = await qualifyGoogleGrant('google_drive', GOOGLE_CREDS, 'https://stub/token');
+      const q = await qualifyGoogleGrant('google_drive', GOOGLE_CREDS, { tokenEndpoint: 'https://stub/token' });
       expect(q?.domains.file.answer).toBe('yes');
     } finally {
       vi.unstubAllGlobals();
@@ -290,7 +295,7 @@ describe('the grant-qualified half: what a stored Google grant carries (0106 T1a
       vi.fn(async () => new Response('{"error":"invalid_grant"}', { status: 400 })),
     );
     try {
-      const q = await qualifyGoogleGrant('gmail', GOOGLE_CREDS, 'https://stub/token');
+      const q = await qualifyGoogleGrant('gmail', GOOGLE_CREDS, { tokenEndpoint: 'https://stub/token' });
       for (const domain of ['mail', 'calendar', 'contact', 'file'] as const) {
         expect(q?.domains[domain].answer).toBe('unknown');
         expect(q?.domains[domain].detail).toContain('invalid_grant');
@@ -307,7 +312,7 @@ describe('the grant-qualified half: what a stored Google grant carries (0106 T1a
       const q = await qualifyGoogleGrant(
         'google_drive',
         { serviceAccountKey: '{"type":"service_account"}' },
-        'https://stub/token',
+        { tokenEndpoint: 'https://stub/token' },
       );
       expect(q?.domains.file.answer).toBe('unknown');
       expect(q?.domains.file.detail).toContain('admin console');
@@ -318,9 +323,120 @@ describe('the grant-qualified half: what a stored Google grant carries (0106 T1a
   });
 
   it('missing refresh token is unknown naming the gap; a non-Google kind is not this half\'s to answer', async () => {
-    const q = await qualifyGoogleGrant('gmail', { clientId: 'cid' }, 'https://stub/token');
+    const q = await qualifyGoogleGrant('gmail', { clientId: 'cid' }, { tokenEndpoint: 'https://stub/token' });
     expect(q?.domains.mail.answer).toBe('unknown');
     expect(q?.domains.mail.detail).toContain('refreshToken');
-    expect(await qualifyGoogleGrant('imap', GOOGLE_CREDS, 'https://stub/token')).toBeUndefined();
+    expect(await qualifyGoogleGrant('imap', GOOGLE_CREDS, { tokenEndpoint: 'https://stub/token' })).toBeUndefined();
+  });
+});
+
+describe('the grant, REACHED: each carried face is asked as a pass would ask it (owner 2026-09-02)', () => {
+  // The owner's first Google account connection tested "5 calendars visible"
+  // and said nothing about the three other faces it had just been granted:
+  // the grant half read the scopes and stopped. A face whose API was off in
+  // the client's project passed Test and would have failed at the first
+  // migration.
+  const GOOGLE_CREDS = { clientId: 'cid', clientSecret: 'sec', refreshToken: 'rt' };
+  const CAL = 'https://www.googleapis.com/auth/calendar';
+  const CARD = 'https://www.googleapis.com/auth/carddav';
+  const MAIL = 'https://mail.google.com/';
+  const DRIVE = 'https://www.googleapis.com/auth/drive.readonly';
+  const grantOf = (scope: string) =>
+    vi.fn(async () =>
+      new Response(JSON.stringify({ access_token: 'at', scope }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+  const listing = (n: number) => ({ listFolders: async () => Array.from({ length: n }, (_, i) => i) });
+
+  it('counts ride each carried face in the unit a screen words; a face the grant does not carry is never asked', async () => {
+    vi.stubGlobal('fetch', grantOf(`${CAL} ${CARD}`));
+    const asked: string[] = [];
+    const listable = vi.fn(
+      (domain: string, _user: string, _creds: unknown, _config: unknown) => {
+        asked.push(domain);
+        return domain === 'calendar' ? listing(5) : listing(2);
+      },
+    );
+    try {
+      const q = await qualifyGoogleGrant('google', GOOGLE_CREDS, {
+        tokenEndpoint: 'https://stub/token',
+        reach: { user: 'owner@example.com', listable },
+      });
+      expect(q?.domains.calendar).toMatchObject({ answer: 'yes', count: 5, unit: 'calendar' });
+      expect(q?.domains.calendar.detail).toContain('5 calendars visible');
+      expect(q?.domains.contact).toMatchObject({ answer: 'yes', count: 2, unit: 'addressBook' });
+      expect(q?.domains.contact.detail).toContain('2 address books visible');
+      // Not carried: a measured no as before, and the face was never asked.
+      expect(q?.domains.mail.answer).toBe('no');
+      expect(q?.domains.file.answer).toBe('no');
+      expect(asked.sort()).toEqual(['calendar', 'contact']);
+      // The reach starts from the account address and the stored trio.
+      expect(listable.mock.calls[0]?.[1]).toBe('owner@example.com');
+      expect(listable.mock.calls[0]?.[2]).toMatchObject({ clientId: 'cid', refreshToken: 'rt' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("a carried face that refuses is UNKNOWN with the refusal's words — never a no, never a yes on the strength of the scope", async () => {
+    vi.stubGlobal('fetch', grantOf(`${CAL} ${CARD}`));
+    const listable = (domain: string) =>
+      domain === 'calendar'
+        ? {
+            listFolders: async () => {
+              throw new Error(
+                'PROPFIND failed with status 403: accessNotConfigured — CalDAV API has not ' +
+                  'been used in project 123 before or it is disabled. Enable it by visiting ' +
+                  'https://console.developers.google.com/apis/api/caldav.googleapis.com/overview?project=123 then retry.',
+              );
+            },
+          }
+        : listing(1);
+    try {
+      const q = await qualifyGoogleGrant('google', GOOGLE_CREDS, {
+        tokenEndpoint: 'https://stub/token',
+        reach: { user: 'owner@example.com', listable },
+      });
+      expect(q?.domains.calendar.answer).toBe('unknown');
+      expect(q?.domains.calendar.detail).toContain('accessNotConfigured');
+      expect(q?.domains.calendar.detail).toContain('caldav.googleapis.com');
+      expect(q?.domains.calendar.detail).toContain(CAL);
+      expect(q?.domains.calendar.count).toBeUndefined();
+      // The neighbour that answered is unaffected.
+      expect(q?.domains.contact).toMatchObject({ answer: 'yes', count: 1 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('mail and files count folders; all four faces are reached when all four are carried', async () => {
+    vi.stubGlobal('fetch', grantOf(`${MAIL} ${CAL} ${CARD} ${DRIVE}`));
+    const listable = (domain: string) =>
+      ({ mail: listing(14), calendar: listing(5), contact: listing(2), file: listing(3) })[domain]!;
+    try {
+      const q = await qualifyGoogleGrant('google', GOOGLE_CREDS, {
+        tokenEndpoint: 'https://stub/token',
+        reach: { user: 'owner@example.com', listable },
+      });
+      expect(q?.domains.mail).toMatchObject({ answer: 'yes', count: 14, unit: 'folder' });
+      expect(q?.domains.file).toMatchObject({ answer: 'yes', count: 3, unit: 'folder' });
+      expect(q?.domains.calendar).toMatchObject({ answer: 'yes', count: 5, unit: 'calendar' });
+      expect(q?.domains.contact).toMatchObject({ answer: 'yes', count: 2, unit: 'addressBook' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('without a reach the grant is read as before: yes on the scope, and no count to word', async () => {
+    vi.stubGlobal('fetch', grantOf(CAL));
+    try {
+      const q = await qualifyGoogleGrant('google', GOOGLE_CREDS, { tokenEndpoint: 'https://stub/token' });
+      expect(q?.domains.calendar).toMatchObject({ answer: 'yes', detail: `The grant carries ${CAL}.` });
+      expect(q?.domains.calendar.count).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
