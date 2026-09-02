@@ -22,7 +22,7 @@ import {
   type FileSource,
   DEFAULT_CONCURRENCY,
   parseGoogleDriveSource,
-  withDeploymentGoogleClient,
+  withDeploymentDropboxClient, withDeploymentGoogleClient,
   log,
 } from '@openmig/shared';
 import { isGoogleGrantKind } from './account-qualification.ts';
@@ -144,7 +144,13 @@ function sourceCredentialsFor(
 ): Record<string, string> {
   return mergeMappingCredentials(
     role,
-    withDeploymentGoogleClient(isGoogleGrantKind(kind), connectionCreds),
+    // The deployment's own Dropbox app fills a Dropbox row the same way
+    // Google's fills a Google one (2026-09-02), kind-gated for the same
+    // reason: the two share the key names and must never share the values.
+    withDeploymentDropboxClient(
+      kind === DROPBOX_CONNECTION_KIND,
+      withDeploymentGoogleClient(isGoogleGrantKind(kind), connectionCreds),
+    ),
     mappingSecretRef,
   );
 }

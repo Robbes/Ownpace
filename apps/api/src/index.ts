@@ -31,6 +31,7 @@ import billingRoutes from './routes/billing/index.ts';
 import billingWebhookRoutes from './routes/billing/webhooks.ts';
 import scopeManifestRoutes from './routes/scope-manifest.ts';
 import providerAccountRoutes from './routes/provider-accounts.ts';
+import providerClientRoutes from './routes/provider-clients.ts';
 import redirectUriRoutes from './routes/redirect-uris.ts';
 import setupRoutes from './routes/setup.ts';
 import connectionRoutes from './routes/connections.ts';
@@ -198,6 +199,7 @@ app.use('/api/scope-manifest', scopeManifestRoutes);
  * bundle was built before anybody set it — see the route's own header.
  */
 app.use('/api/provider-accounts', providerAccountRoutes);
+app.use('/api/provider-clients', providerClientRoutes);
 /**
  * Every address this deployment needs registered elsewhere (2026-09-01).
  *

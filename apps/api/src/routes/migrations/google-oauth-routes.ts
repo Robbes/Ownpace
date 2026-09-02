@@ -200,7 +200,11 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       .send(html);
 
   const state = typeof req.query.state === 'string' ? req.query.state : '';
-  const pending = state ? flows.take(state) : undefined;
+  const taken = state ? flows.take(state) : undefined;
+  // A consent begun at another provider is not this callback's to end: the
+  // state is spent (single-use) and the sentence is the same as for a forged
+  // one, on purpose.
+  const pending = taken && (taken.provider ?? 'google') === 'google' ? taken : undefined;
   if (!pending) {
     // Absent, forged, expired or ALREADY USED — one honest sentence for all
     // four, because distinguishing them would teach a forger which part of

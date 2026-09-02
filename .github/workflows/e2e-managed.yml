@@ -284,6 +284,8 @@ jobs:
           ./deploy/compose/env-upsert.sh --if-absent deploy/compose/.env \
             "GOOGLE_OAUTH_CLIENT_ID=gate-migration-client.apps.googleusercontent.com" \
             "GOOGLE_OAUTH_CLIENT_SECRET=gate-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')" \
+            "DROPBOX_OAUTH_CLIENT_ID=gatedropboxappkey" \
+            "DROPBOX_OAUTH_CLIENT_SECRET=gate-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')" \
             "IDP_GOOGLE_CLIENT_ID=gate-signin-client.apps.googleusercontent.com" \
             "IDP_GOOGLE_CLIENT_SECRET=gate-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 

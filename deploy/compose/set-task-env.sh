@@ -168,6 +168,8 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   OAUTH2_TENANT_ID="${OAUTH2_TENANT_ID:-}" \
   GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-}" \
   GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-}" \
+  DROPBOX_OAUTH_CLIENT_ID="${DROPBOX_OAUTH_CLIENT_ID:-}" \
+  DROPBOX_OAUTH_CLIENT_SECRET="${DROPBOX_OAUTH_CLIENT_SECRET:-}" \
   SMTP_HOST="${SMTP_HOST:-}" \
   SMTP_PORT="${SMTP_PORT:-}" \
   SMTP_SECURE="${SMTP_SECURE:-}" \
@@ -216,6 +218,8 @@ const { envvars } = require("@trigger.dev/sdk");
     // would consent happily and the migration would then fail to mint a
     // token, which is the worst of the possible splits.
     "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
+    // And the deployment-owned Dropbox app (2026-09-02), for the same reason.
+    "DROPBOX_OAUTH_CLIENT_ID", "DROPBOX_OAUTH_CLIENT_SECRET",
     "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD",
     "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
     "LEDGER_RETENTION_DAYS", "TRIGGER_API_URL_IN_NETWORK", "LOG_LEVEL",

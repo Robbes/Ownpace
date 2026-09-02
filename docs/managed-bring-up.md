@@ -1076,6 +1076,44 @@ button — it is not a publishing status to run a customer on.
   face you ticked and Google did not grant shows as a measured no, with the
   remedy: asking is granting, so adding it means re-consenting.
 
+#### The deployment's own Dropbox app (2026-09-02)
+
+The same idea, for Dropbox: set the pair once and *Connect with Dropbox* appears
+in the wizard and on the Connections page, with the App key and secret folded
+away behind *Use your own Dropbox app instead*.
+
+1. **[Dropbox App Console](https://www.dropbox.com/developers/apps) → Create app**
+   → *Scoped access* → *Full Dropbox*. **Permissions**: `files.metadata.read`
+   and `files.content.read`, nothing else — the app is read-only by
+   construction, and a consent asked through it can grant no more.
+2. **Settings → OAuth 2 → Redirect URIs.** Add
+   `https://<your API host>/api/migrations/dropbox/callback` — the exact
+   string `GET /api/redirect-uris` lists (the app's *Redirect URIs* page shows
+   it), built from `API_URL` like Google's. Dropbox refuses a consent whose
+   redirect is not registered, at its own screen.
+3. **The pair, in `deploy/compose/.env`:**
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env \
+     DROPBOX_OAUTH_CLIENT_ID=<App key> \
+     DROPBOX_OAUTH_CLIENT_SECRET=<App secret>
+   ./deploy/compose/bootstrap-managed.sh --only app
+   ./deploy/compose/set-task-env.sh
+   ./deploy/compose/deploy-tasks.sh
+   ```
+
+   The last two are the same second place that bites for Google: a task
+   container inherits nothing from compose, and a pair the worker cannot see
+   is a consent that succeeds and a migration that cannot mint a token.
+
+Every rule of the Google pair holds: the connection stores neither half; a
+connection's own pair wins; both or neither, refused as half a pair at the
+consent, the create door, the mapping door and the rotation panel alike; and
+the pair is handed only to a Dropbox row — `clientId`/`clientSecret` are shared
+key names, and a Google connection is never given Dropbox's app. `GET
+/api/provider-clients` answers `dropbox: deployment` once both halves are set,
+which is what the wizard reads before it offers the button.
+
 ### 9. `tasks` — the task environment, then the deploy
 
 ```bash
