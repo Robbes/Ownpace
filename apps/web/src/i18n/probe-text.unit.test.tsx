@@ -15,7 +15,13 @@
 
 import { describe, it, expect } from 'vitest';
 import type { ProbeOutcome } from '@openmig/shared';
-import { probeText, qualificationEvidence, qualificationText, schedulingText } from './probe-text.ts';
+import {
+  measuredText,
+  probeText,
+  qualificationEvidence,
+  qualificationText,
+  schedulingText,
+} from './probe-text.ts';
 import { STRINGS, type StringKey } from './strings.ts';
 
 /** A `t` bound to one locale, with the same interpolation the app uses. */
@@ -265,5 +271,41 @@ describe('qualificationEvidence — why each `?` is a `?`, as lines to show (202
     };
     expect(qualificationEvidence(en, measured)).toEqual([]);
     expect(qualificationEvidence(en, undefined)).toEqual([]);
+  });
+});
+
+describe('measuredText — how much each reached face holds (2026-09-02)', () => {
+  const measured = {
+    domains: {
+      mail: { answer: 'yes' as const, detail: 'x', volume: { items: 12400, bytes: 3_400_000_000, estimated: true } },
+      calendar: { answer: 'yes' as const, detail: 'x' },
+      contact: { answer: 'yes' as const, detail: 'x', volume: { items: 1 } },
+      file: { answer: 'yes' as const, detail: 'x', volume: { bytes: 1_900_000_000, nativeFilesExcluded: true } },
+    },
+  };
+
+  it('words counts and bytes in the reader\'s language, ≈ only where estimated, and leaves an unmeasured face off the line', () => {
+    const line = measuredText(en, measured, 'en')!;
+    expect(line).toBe(
+      'Measured: Email 12,400 messages ≈ 3.2 GB · Contacts 1 card · Files 1.8 GB (Docs, Sheets and Slides not counted)',
+    );
+    const dutch = measuredText(nl, measured, 'nl')!;
+    expect(dutch).toContain('Gemeten:');
+    expect(dutch).toContain('12.400 berichten');
+    expect(dutch).toContain('1 kaart');
+    expect(dutch).toContain('niet meegeteld');
+  });
+
+  it('with no measured face at all there is no line', () => {
+    const bare = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'x' },
+        calendar: { answer: 'no' as const, detail: 'x' },
+        contact: { answer: 'unknown' as const, detail: 'x' },
+        file: { answer: 'yes' as const, detail: 'x' },
+      },
+    };
+    expect(measuredText(en, bare)).toBeNull();
+    expect(measuredText(en, undefined)).toBeNull();
   });
 });

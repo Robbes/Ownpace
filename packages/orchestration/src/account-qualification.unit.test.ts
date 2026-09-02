@@ -8,7 +8,13 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { isQualifiableKind, qualifyAccount, qualifyGoogleGrant } from './account-qualification.ts';
+import {
+  isQualifiableKind,
+  qualifyAccount,
+  qualifyGoogleGrant,
+  qualificationReportLines,
+  volumeSentence,
+} from './account-qualification.ts';
 
 const CREDS = { username: 'probe', password: 'pw' };
 const DAV_CONFIG = { url: 'https://dav.example.net/dav/' };
@@ -438,5 +444,115 @@ describe('the grant, REACHED: each carried face is asked as a pass would ask it 
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('the reach MEASURES each face it reached (owner 2026-09-02: GB in Drive, contacts, GB of mail)', () => {
+  const GOOGLE_CREDS = { clientId: 'cid', clientSecret: 'sec', refreshToken: 'rt' };
+  const ALL =
+    'https://mail.google.com/ https://www.googleapis.com/auth/calendar ' +
+    'https://www.googleapis.com/auth/carddav https://www.googleapis.com/auth/drive.readonly';
+  const grantOf = (scope: string) =>
+    vi.fn(async () =>
+      new Response(JSON.stringify({ access_token: 'at', scope }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+  const folders = (n: number) => Array.from({ length: n }, (_, i) => ({ path: `f${i}` }));
+
+  it('mail: messages and bytes with the estimate flag; contacts: cards over every address book; files: Drive usage — calendar claims nothing', async () => {
+    vi.stubGlobal('fetch', grantOf(ALL));
+    const listSince = vi.fn(async () => ({ items: [1, 2, 3], nextCursor: { value: '' } }));
+    const sources: Record<string, unknown> = {
+      mail: {
+        listFolders: async () => folders(29),
+        measureMailbox: async () => ({ folders: 29, messages: 12400, bytes: 3_400_000_000, estimated: true }),
+      },
+      calendar: { listFolders: async () => folders(5) },
+      contact: { listFolders: async () => folders(2), listSince },
+      file: {
+        listFolders: async () => folders(6),
+        storageUsage: async () => ({ bytes: 1_900_000_000, trashBytes: 0, nativeFilesExcluded: true }),
+      },
+    };
+    try {
+      const q = await qualifyGoogleGrant('google', GOOGLE_CREDS, {
+        tokenEndpoint: 'https://stub/token',
+        reach: { user: 'owner@example.com', listable: (domain: string) => sources[domain] as never },
+      });
+      expect(q?.domains.mail).toMatchObject({
+        answer: 'yes',
+        count: 29,
+        volume: { items: 12400, bytes: 3_400_000_000, estimated: true },
+      });
+      expect(q?.domains.contact).toMatchObject({ answer: 'yes', count: 2, volume: { items: 6 } });
+      expect(listSince).toHaveBeenCalledTimes(2);
+      expect(q?.domains.file).toMatchObject({
+        answer: 'yes',
+        count: 6,
+        volume: { bytes: 1_900_000_000, nativeFilesExcluded: true },
+      });
+      expect(q?.domains.calendar).toMatchObject({ answer: 'yes', count: 5 });
+      expect(q?.domains.calendar.volume).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a measure that fails does not take the yes away — the listing is the evidence, and the failure is said in the sentence', async () => {
+    vi.stubGlobal('fetch', grantOf('https://mail.google.com/'));
+    const source = {
+      listFolders: async () => folders(3),
+      measureMailbox: async () => {
+        throw new Error('FETCH timed out');
+      },
+    };
+    try {
+      const q = await qualifyGoogleGrant('gmail', GOOGLE_CREDS, {
+        tokenEndpoint: 'https://stub/token',
+        reach: { user: 'owner@example.com', listable: () => source as never },
+      });
+      expect(q?.domains.mail).toMatchObject({ answer: 'yes', count: 3 });
+      expect(q?.domains.mail.volume).toBeUndefined();
+      expect(q?.domains.mail.detail).toContain('Volume not measured — FETCH timed out');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a source that offers no measure is listed and not measured — no volume is claimed', async () => {
+    vi.stubGlobal('fetch', grantOf('https://www.googleapis.com/auth/drive.readonly'));
+    try {
+      const q = await qualifyGoogleGrant('google_drive', GOOGLE_CREDS, {
+        tokenEndpoint: 'https://stub/token',
+        reach: { user: '', listable: () => ({ listFolders: async () => folders(1) }) },
+      });
+      expect(q?.domains.file).toMatchObject({ answer: 'yes', count: 1 });
+      expect(q?.domains.file.volume).toBeUndefined();
+      expect(q?.domains.file.detail).not.toContain('Volume not measured');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("the appliance's report lines carry the volume in English, ≈ only when estimated", () => {
+    expect(volumeSentence('mail', { items: 12400, bytes: 3_400_000_000, estimated: true })).toBe(
+      '12400 messages, ≈ 3.2 GB',
+    );
+    expect(volumeSentence('contact', { items: 1 })).toBe('1 card');
+    expect(volumeSentence('file', { bytes: 1_900_000_000, nativeFilesExcluded: true })).toBe(
+      '1.8 GB, Docs, Sheets and Slides not counted',
+    );
+    const lines = qualificationReportLines({
+      domains: {
+        mail: { answer: 'yes', detail: 'x', volume: { items: 2, bytes: 2048 } },
+        calendar: { answer: 'yes', detail: 'x' },
+        contact: { answer: 'no', detail: 'x' },
+        file: { answer: 'unknown', detail: 'x' },
+      },
+    });
+    expect(lines[0]).toBe('Email ✓: x Measured: 2 messages, 2.0 KB.');
+    expect(lines[1]).toBe('Calendar ✓: x');
   });
 });

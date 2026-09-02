@@ -494,6 +494,15 @@ export interface TestConnectionResult {
          *  older record, a no, an unknown. */
         count?: number;
         unit?: 'folder' | 'calendar' | 'addressBook' | 'collection';
+        /** How MUCH the face holds, measured when it answered (2026-09-02). */
+        volume?: {
+          items?: number;
+          bytes?: number;
+          /** `bytes` extrapolated from a sample — shown as ≈. */
+          estimated?: boolean;
+          /** Drive: Docs, Sheets and Slides weigh nothing here. */
+          nativeFilesExcluded?: boolean;
+        };
       }
     >;
     scheduling?: { capability: 'auto-schedule' | 'none' | 'unknown'; sentence: string };

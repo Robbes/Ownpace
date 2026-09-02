@@ -1265,6 +1265,15 @@ const en = {
   // deliberately three: '?' is unmeasured, never a quiet yes or no.
   'probe.qualify.lead': 'Can carry:',
   'probe.qualify.unknownHint': "'?' is unmeasured — not safe to assume either way",
+  // The measured-volume line (2026-09-02): how much each reached face holds.
+  'probe.measured.lead': 'Measured:',
+  'probe.measured.message.one': '{count} message',
+  'probe.measured.message.many': '{count} messages',
+  'probe.measured.card.one': '{count} card',
+  'probe.measured.card.many': '{count} cards',
+  'probe.measured.item.one': '{count} item',
+  'probe.measured.item.many': '{count} items',
+  'probe.measured.driveNote': 'Docs, Sheets and Slides not counted',
 
   'connections.ok': 'Reached it. The credentials still work.',
   'connections.failed': 'Could not reach it.',
@@ -2560,6 +2569,14 @@ const nl: Record<keyof typeof en, string> = {
     'Of dit doel automatisch plant is NIET GEMETEN — het gaf geen DAV-compliance-header terug. Niet gemeten is niet veilig; Ownpace neutraliseert nog steeds elk agenda-object dat het schrijft.',
   'probe.qualify.lead': 'Kan dragen:',
   'probe.qualify.unknownHint': "'?' is niet gemeten — geen van beide aannemen is veilig",
+  'probe.measured.lead': 'Gemeten:',
+  'probe.measured.message.one': '{count} bericht',
+  'probe.measured.message.many': '{count} berichten',
+  'probe.measured.card.one': '{count} kaart',
+  'probe.measured.card.many': '{count} kaarten',
+  'probe.measured.item.one': '{count} item',
+  'probe.measured.item.many': '{count} items',
+  'probe.measured.driveNote': 'Documenten, Spreadsheets en Presentaties niet meegeteld',
 
   'connections.ok': 'Bereikt. De inloggegevens werken nog.',
   'connections.failed': 'Kon deze niet bereiken.',

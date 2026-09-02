@@ -25,6 +25,7 @@
 
 import { refusalText, type ProbeOutcome, type ProbeUnit, type RefusalLocale } from '@openmig/shared';
 import type { StringKey } from './strings.ts';
+import { formatBytes } from './bytes.ts';
 
 type Translate = (key: StringKey, vars?: Readonly<Record<string, string | number>>) => string;
 
@@ -185,4 +186,66 @@ export function qualificationEvidence(
   return (['mail', 'calendar', 'contact', 'file'] as const)
     .filter((domain) => qualification.domains[domain].answer === 'unknown')
     .map((domain) => `${t(label[domain])} ?: ${qualification.domains[domain].detail}`);
+}
+
+type Measured = {
+  domains: Record<
+    'mail' | 'calendar' | 'contact' | 'file',
+    {
+      answer: 'yes' | 'no' | 'unknown';
+      volume?: { items?: number; bytes?: number; estimated?: boolean; nativeFilesExcluded?: boolean };
+    }
+  >;
+};
+
+/**
+ * The measured-volume line (2026-09-02): how MUCH each reached face holds,
+ * beside the capability line and never instead of it — *Measured: Email
+ * 12,400 messages ≈ 3.2 GB · Contacts 412 cards · Files 1.8 GB (Docs, Sheets
+ * and Slides not counted)*. Faces without a measure are left off the line;
+ * with none at all the line is not shown. Counts are formatted for the
+ * reader's locale; an extrapolated byte figure carries ≈, an exact one does
+ * not, because the difference is the honesty of the number.
+ */
+export function measuredText(
+  t: Translate,
+  qualification: Measured | undefined,
+  locale: RefusalLocale = 'en',
+): string | null {
+  if (!qualification) return null;
+  const label: Record<'mail' | 'calendar' | 'contact' | 'file', StringKey> = {
+    mail: 'domain.email',
+    calendar: 'domain.calendar',
+    contact: 'domain.contact',
+    file: 'domain.file',
+  };
+  const numberFormat = new Intl.NumberFormat(locale === 'nl' ? 'nl-NL' : 'en-GB');
+  const parts: string[] = [];
+  for (const domain of ['mail', 'calendar', 'contact', 'file'] as const) {
+    const v = qualification.domains[domain].volume;
+    if (!v) continue;
+    const bits: string[] = [];
+    if (v.items !== undefined) {
+      const key: StringKey =
+        domain === 'mail'
+          ? v.items === 1
+            ? 'probe.measured.message.one'
+            : 'probe.measured.message.many'
+          : domain === 'contact'
+            ? v.items === 1
+              ? 'probe.measured.card.one'
+              : 'probe.measured.card.many'
+            : v.items === 1
+              ? 'probe.measured.item.one'
+              : 'probe.measured.item.many';
+      bits.push(t(key, { count: numberFormat.format(v.items) }));
+    }
+    if (v.bytes !== undefined) {
+      bits.push(`${v.estimated ? '≈ ' : ''}${formatBytes(v.bytes)}`);
+    }
+    if (v.nativeFilesExcluded) bits.push(`(${t('probe.measured.driveNote')})`);
+    if (bits.length > 0) parts.push(`${t(label[domain])} ${bits.join(' ')}`);
+  }
+  if (parts.length === 0) return null;
+  return `${t('probe.measured.lead')} ${parts.join(' · ')}`;
 }

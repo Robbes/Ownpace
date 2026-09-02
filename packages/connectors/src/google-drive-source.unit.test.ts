@@ -624,3 +624,28 @@ describe('listOrphanedFiles — the coverage question (workplan 0058)', () => {
     expect(result.capped, 'a short list read as the whole one is the failure here').toBe(true);
   });
 });
+
+describe("storageUsage — how much the Drive holds, as Google says it (2026-09-02)", () => {
+  it('reads My Drive and its bin apart, with the limit when stated, and says native files are not in it', async () => {
+    const { transport, calls } = fakeDrive({
+      '/about?fields=storageQuota': {
+        storageQuota: { usage: '2000000000', usageInDrive: '1900000000', usageInDriveTrash: '5', limit: '16106127360' },
+      },
+    });
+    const usage = await new GoogleDriveSource(transport, { baseUrl: BASE }).storageUsage();
+    expect(usage).toEqual({
+      bytes: 1_900_000_000,
+      trashBytes: 5,
+      limitBytes: 16_106_127_360,
+      nativeFilesExcluded: true,
+    });
+    // One request, no walk.
+    expect(calls).toHaveLength(1);
+  });
+
+  it('an account without a stated limit reads as unlimited: no limit field, zero when Google leaves a figure out', async () => {
+    const { transport } = fakeDrive({ '/about?fields=storageQuota': { storageQuota: { usageInDrive: '10' } } });
+    const usage = await new GoogleDriveSource(transport, { baseUrl: BASE }).storageUsage();
+    expect(usage).toEqual({ bytes: 10, trashBytes: 0, nativeFilesExcluded: true });
+  });
+});
