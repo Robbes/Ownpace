@@ -34,6 +34,8 @@
 # Usage:
 #   ./deploy/compose/setup-zitadel.sh              # provision, idempotently
 #   ./deploy/compose/setup-zitadel.sh --print      # show what is configured
+#   ./deploy/compose/setup-zitadel.sh --offer-one Google   # one Google button on the sign-in screen: the extras'
+#                                                         # login-policy links go, every provider stays
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,6 +48,29 @@ APP_NAME="Ownpace Web"
 
 say() { echo "[setup-zitadel] $*"; }
 die() { echo "[setup-zitadel] FATAL: $*" >&2; exit 1; }
+
+# ------------------------------------------------------------------ arguments --
+#
+# ONE FLAG, ONE DECISION. `--offer-one <name>` takes every provider of that
+# name but the oldest one on the screen OFF the sign-in screen, by removing
+# their login-policy links: the providers stay, and so does every person's
+# link to them; a POST to the same path puts a button back. It is the console's
+# "available" toggle and the pasted loop, done by this script with its own
+# token and error handling, on the person's explicit word — which is what
+# keeps hard rule 2 intact: run without it, this script only reports.
+#
+# On 2026-09-02 the owner's first two routes did not reach the instance: the
+# organisation page's toggles were undone by the next bring-up (it resets an
+# organisation's own login policy on purpose), and a pasted loop was never
+# proved to have run. A flag the script owns can be proved, and re-run.
+OFFER_ONE=""
+case "${1:-}" in
+  ''|--print) ;;
+  --offer-one)
+    OFFER_ONE="${2:-}"
+    [ -n "$OFFER_ONE" ] || die "--offer-one needs a provider name, e.g. --offer-one Google" ;;
+  *) die "unknown argument '${1}' — this script takes --print, --offer-one <name>, or nothing" ;;
+esac
 
 # --------------------------------------------------------------- environment --
 
@@ -1169,16 +1194,33 @@ the same URI:
       # screen and keeps it, which is the gentlest of the three switches.
       local others
       others="$(jq -r '[.[] | select(.linked)] | .[1:] | .[].id' <<<"$candidates" | tr '\n' ' ')"
-      say "  ${name}: ${count} providers of this name exist on the sign-in screen — it shows ${count} ${name} buttons"
-      say "      keeping the oldest of them (${id}); take the others off the screen in the console"
-      say "      under Default settings -> Login Behaviour and Security -> Identity Providers"
-      say "      (the INSTANCE page — an organisation's own login policy is reset by this script),"
-      say "      or from this shell, which removes their LINKS and keeps every provider:"
-      say "        PAT=\"\$(docker run --rm -v ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt)\""
-      say "        for id in ${others}; do"
-      say "          curl -sS -X DELETE ${ISSUER}/admin/v1/policies/login/idps/\$id -H \"Authorization: Bearer \$PAT\""
-      say "        done"
-      say "      (a POST to the same path puts one back; this script never deletes a provider)"
+      if [ "$OFFER_ONE" = "$name" ]; then
+        # ON THE PERSON'S WORD, AND ONLY THEN. The LINK goes, the provider
+        # stays, every person's link to it stays; a POST to the same path puts
+        # the button back. The oldest on the screen is kept — the one the
+        # earliest sign-ins were linked to. `api` dies on a refusal, so a
+        # link that did not go is a run that stops and says so.
+        local oid
+        for oid in $others; do
+          api DELETE "/admin/v1/policies/login/idps/${oid}" >/dev/null
+          say "  ${name}: ${oid} taken off the sign-in screen — its link removed, the provider and its people kept"
+        done
+        say "  ${name}: one button on the sign-in screen (${id}); $(( count - 1 )) taken off it on --offer-one"
+        count=1
+      else
+        say "  ${name}: ${count} providers of this name exist on the sign-in screen — it shows ${count} ${name} buttons"
+        say "      keeping the oldest of them (${id}); take the others off the screen with"
+        say "        ${SCRIPT_DIR}/setup-zitadel.sh --offer-one ${name}"
+        say "      (their LINKS go, every provider stays, a POST puts one back), or in the console"
+        say "      under Default settings -> Login Behaviour and Security -> Identity Providers"
+        say "      (the INSTANCE page — an organisation's own login policy is reset by this script),"
+        say "      or from this shell:"
+        say "        PAT=\"\$(docker run --rm -v ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt)\""
+        say "        for id in ${others}; do"
+        say "          curl -sS -X DELETE ${ISSUER}/admin/v1/policies/login/idps/\$id -H \"Authorization: Bearer \$PAT\""
+        say "        done"
+        say "      (this script never deletes a provider)"
+      fi
     fi
     [ "${aside:-0}" -eq 0 ] \
       || say "  ${name}: ${aside} more of this name exist, taken off the sign-in screen — left as they are"
