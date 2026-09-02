@@ -7,6 +7,7 @@
  * hands a token to exactly one origin — never `*`.
  */
 
+import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 import { GOOGLE_SCOPES_ASKED_BY_DOMAIN } from '@openmig/orchestration/account-qualification';
 import {
@@ -14,9 +15,11 @@ import {
   ConsentFlowStore,
   GOOGLE_SOURCE_DOMAIN,
   GOOGLE_SOURCE_SCOPES,
+  callbackPageHeaders,
   consentResultPage,
   consentUrl,
   exchangeCode,
+  grantResultPage,
   rawIpCallbackRefusal,
   unreachableCallbackRefusal,
 } from './google-consent.ts';
@@ -374,5 +377,70 @@ describe('the result page: one origin, no leaks', () => {
     });
     expect(page).toContain('access_denied');
     expect(page).not.toContain('postMessage');
+  });
+});
+
+describe("the headers the page is served under: the API's defaults deny it its own script (2026-09-02)", () => {
+  // The owner's walk: Google came back to a page saying "handing the result
+  // back… you can close this window", and nothing arrived. helmet's default
+  // policy had blocked the page's inline script, and its default opener
+  // policy had taken the popup's opener away. Every test of this page read
+  // its HTML; none had asked what it was served under.
+  const OK = { ok: true as const, refreshToken: 'rt-123', grantedScopes: [PENDING.scope] };
+  const ORIGIN = 'https://app.example.nl';
+  const scriptOf = (page: string) => /<script>([\s\S]*?)<\/script>/.exec(page)?.[1];
+  const sha = (text: string) => createHash('sha256').update(text, 'utf8').digest('base64');
+  const directive = (csp: string, name: string) =>
+    csp
+      .split(';')
+      .map((d) => d.trim())
+      .find((d) => d.startsWith(`${name} `));
+
+  it("permits exactly this response's inline script, by its hash — never 'self', never unsafe-inline", () => {
+    const page = consentResultPage({ webOrigin: ORIGIN, outcome: OK });
+    const script = scriptOf(page);
+    expect(script).toBeTruthy();
+    const csp = callbackPageHeaders(page)['Content-Security-Policy'];
+    expect(directive(csp, 'script-src')).toBe(`script-src 'sha256-${sha(script!)}'`);
+    expect(directive(csp, 'default-src')).toBe("default-src 'none'");
+    expect(directive(csp, 'script-src')).not.toContain("'unsafe-inline'");
+    expect(directive(csp, 'script-src')).not.toContain("'self'");
+  });
+
+  it('two tokens, two hashes — the permission is per response, not a constant', () => {
+    const a = consentResultPage({ webOrigin: ORIGIN, outcome: OK });
+    const b = consentResultPage({ webOrigin: ORIGIN, outcome: { ...OK, refreshToken: 'rt-456' } });
+    expect(callbackPageHeaders(a)['Content-Security-Policy']).not.toBe(
+      callbackPageHeaders(b)['Content-Security-Policy'],
+    );
+  });
+
+  it('a page with no script permits none — the refusal, the copy-paste page, the link holder\'s', () => {
+    const pages = [
+      consentResultPage({ webOrigin: ORIGIN, outcome: { ok: false, reason: 'Google reported: access_denied.' } }),
+      consentResultPage({ outcome: OK }),
+      grantResultPage({ ok: true }),
+    ];
+    for (const page of pages) {
+      expect(scriptOf(page)).toBeUndefined();
+      expect(directive(callbackPageHeaders(page)['Content-Security-Policy'], 'script-src')).toBe(
+        "script-src 'none'",
+      );
+    }
+  });
+
+  it('keeps the opener: unsafe-none, the only value a popup that went to Google and back comes home under', () => {
+    const page = consentResultPage({ webOrigin: ORIGIN, outcome: OK });
+    expect(callbackPageHeaders(page)['Cross-Origin-Opener-Policy']).toBe('unsafe-none');
+  });
+
+  it('still lets the page style itself, and nothing else in — no frames, no forms, no base', () => {
+    const csp = callbackPageHeaders(consentResultPage({ webOrigin: ORIGIN, outcome: OK }))[
+      'Content-Security-Policy'
+    ];
+    expect(directive(csp, 'style-src')).toBe("style-src 'unsafe-inline'");
+    expect(directive(csp, 'frame-ancestors')).toBe("frame-ancestors 'none'");
+    expect(directive(csp, 'form-action')).toBe("form-action 'none'");
+    expect(directive(csp, 'base-uri')).toBe("base-uri 'none'");
   });
 });

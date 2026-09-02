@@ -2376,6 +2376,29 @@ else
     fail=1
   fi
 fi
+# THE CALLBACK PAGE, UNDER ITS OWN HEADERS (2026-09-02). The consent popup
+# ends on a page the API serves, and the API's defaults — helmet's — deny that
+# page its inline script (`script-src 'self'`) and take its opener away
+# (`Cross-Origin-Opener-Policy: same-origin`). The owner's walk landed on
+# "Handing the result back to the wizard… you can close this window" with
+# nothing arriving: the sentence was static, the script never ran, the opener
+# was gone. The route now answers with headers derived from the page, proved at
+# unit level with helmet mounted; THIS asks the deployed stack, through the web
+# origin the browser actually uses, so a proxy that put the defaults back would
+# show up here and not on somebody's phone. A bogus state is enough: the
+# headers ride every ending, and a bogus state stores nothing and opens nothing.
+cb_headers="$(curl -sS -o /dev/null -D - --max-time 15 \
+  "${WEB}/api/migrations/google/callback?state=not-a-state" 2>/dev/null || true)"
+if grep -q '^HTTP/[0-9.]* 400' <<<"$cb_headers" \
+  && grep -qi '^cross-origin-opener-policy: *unsafe-none' <<<"$cb_headers" \
+  && grep -qi '^content-security-policy:.*script-src' <<<"$cb_headers" \
+  && ! grep -qi "^content-security-policy:.*script-src 'self'" <<<"$cb_headers"; then
+  echo "consent callback page: HTTP 400 for a bogus state, served under its own headers (opener kept, script by hash)"
+else
+  echo "consent callback page: the defaults reached the browser — the popup cannot hand the token back"
+  echo "    $(grep -i '^HTTP/\|^cross-origin-opener-policy\|^content-security-policy' <<<"$cb_headers" | tr -d '\r' | paste -sd '|' -)"
+  fail=1
+fi
 report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
 report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Before you start"
 # A mailbox is required and the demo owner's is the one address this tenant is

@@ -23,6 +23,7 @@ import type { AuthenticatedRequest } from '../../types/api.ts';
 import { log, resolveGoogleClient } from '@openmig/shared';
 import {
   GOOGLE_SOURCE_SCOPES,
+  callbackPageHeaders,
   consentResultPage,
   consentUrl,
   exchangeCode,
@@ -189,8 +190,14 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
  * the migrator's goes into the database and stops there.
  */
 router.get('/google/callback', async (req: Request, res: Response) => {
+  // Under ITS OWN headers, set after helmet's and so replacing them: the
+  // defaults deny this page its inline script and its opener, which is the
+  // whole hand-back (`callbackPageHeaders`, 2026-09-02).
   const page = (status: number, html: string) =>
-    void res.status(status).setHeader('Content-Type', 'text/html; charset=utf-8').send(html);
+    void res
+      .status(status)
+      .set({ 'Content-Type': 'text/html; charset=utf-8', ...callbackPageHeaders(html) })
+      .send(html);
 
   const state = typeof req.query.state === 'string' ? req.query.state : '';
   const pending = state ? flows.take(state) : undefined;

@@ -31,7 +31,7 @@
  *    than handing over a token that fails later at a confusing place.
  */
 
-import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
   domainsToScopes,
   type GoogleGrantDomain,
@@ -509,4 +509,53 @@ export function grantResultPage(
     'end. You can withdraw it at any time from your Google account’s security settings, ' +
     'under the third-party apps that have access.</p></main>'
   );
+}
+
+/**
+ * THE HEADERS THE CALLBACK PAGE IS SERVED UNDER (2026-09-02).
+ *
+ * The API mounts helmet with its defaults, and two of those defaults deny
+ * this page the one thing it exists to do:
+ *
+ *  - `Content-Security-Policy: … script-src 'self'` blocks an inline script,
+ *    and the hand-back IS an inline script. The page rendered its heading and
+ *    "Handing the result back to the wizard…" and did nothing else — the
+ *    owner's walk of 2026-09-02: a popup that says it worked, a wizard that
+ *    never hears, and not even the no-opener sentence, since that too is the
+ *    script's to write.
+ *  - `Cross-Origin-Opener-Policy: same-origin` puts the document in a fresh
+ *    browsing-context group when the popup arrives here from Google, and a
+ *    fresh group has no `window.opener`. Google's consent screen sends its
+ *    own opener policy report-only, so the severing was ours alone.
+ *
+ * Neither ever showed in a test: every proof of this page read its HTML, and
+ * the headers are decided by a middleware the page's tests never mount.
+ *
+ * So the callback answers with headers DERIVED FROM THE PAGE. The policy
+ * permits exactly the script this response carries, by its SHA-256 — the
+ * token rides that script, so the hash is per response, and nothing else
+ * inline can ever run on this page — and the opener policy is `unsafe-none`,
+ * the only value under which a window that went to Google and back still
+ * has an opener. A page with no script (an ending that refuses, the
+ * copy-paste degradation, the link holder's page) permits no script at all.
+ *
+ * Not loosened in `index.ts` on purpose: this is the one response the API
+ * makes that needs an inline script, and the one that needs its opener.
+ * Every other answer keeps helmet's defaults.
+ */
+export function callbackPageHeaders(html: string): {
+  readonly 'Content-Security-Policy': string;
+  readonly 'Cross-Origin-Opener-Policy': string;
+} {
+  const hashes: string[] = [];
+  for (const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) {
+    hashes.push(`'sha256-${createHash('sha256').update(m[1] ?? '', 'utf8').digest('base64')}'`);
+  }
+  const scriptSrc = hashes.length > 0 ? hashes.join(' ') : "'none'";
+  return {
+    'Content-Security-Policy':
+      `default-src 'none'; script-src ${scriptSrc}; style-src 'unsafe-inline'; ` +
+      "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    'Cross-Origin-Opener-Policy': 'unsafe-none',
+  };
 }
