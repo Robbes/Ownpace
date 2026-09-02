@@ -51,7 +51,8 @@ export function probeText(
   if (!outcome) return fallback;
   switch (outcome.code) {
     case 'connected':
-      return t('probe.connected', {
+      // A count that stopped at the listing's cap is a floor, and says so.
+      return t(outcome.floor ? 'probe.connected.floor' : 'probe.connected', {
         count: outcome.count,
         unit: unitWord(t, outcome.unit, outcome.count),
       });
@@ -63,6 +64,9 @@ export function probeText(
       }`;
     case 'noProbe':
       return t('probe.noProbe', { kind: outcome.kind });
+    case 'timedOut':
+      // Ours: unknown, not refused — the credentials may be fine.
+      return t('probe.timedOut', { seconds: outcome.seconds });
     case 'credentialsRefused':
       // OURS, so it gets translated — the opposite of the case below, and the
       // distinction the outcome exists to carry. The field names inside the

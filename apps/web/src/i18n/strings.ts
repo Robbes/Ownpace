@@ -257,6 +257,11 @@ const en = {
   // One sentence for every provider's consent: what lands is the same
   // token in the same box, and the same save-and-test follows.
   'wizard.consent.received': 'Consent received — saving and testing this connection.',
+  // The account first (owner's walk, 2026-09-02): the consent saves and
+  // tests in one go, and the save needs the address.
+  'wizard.consent.needsAccount':
+    'Enter the account address first — the consent saves and tests the connection in one go, ' +
+    'and the address says whose data it is.',
   // The deployment's own client (ADR-0041, owner decision 2026-09-01): the
   // pair becomes optional as a whole, and a half-typed pair is named rather
   // than silently completed with the deployment's other half.
@@ -1249,19 +1254,30 @@ const en = {
   'connections.targets': 'Targets',
   'connections.test': 'Test',
   'connections.testing': 'Testing…',
-  'connections.usedBy': 'mailbox(es) use this',
+  // A connection serves migrations, not mailboxes (owner remark 2026-09-02:
+  // Dropbox is files, a Google account is four faces) — and none yet is a
+  // sentence, not a zero.
+  'connections.usedBy': 'migration(s) use this',
+  'connections.usedBy.none': 'Not used by any migration yet',
   'connections.setupSteps': 'Setup steps',
   // What a probe FOUND, rendered from its outcome code (workplan 0080).
   // Ours, so translated; the provider's own refusal is never in here — it
   // renders verbatim, because that string is what you paste into their
   // console.
   'probe.connected': 'Connected. {count} {unit} visible.',
+  'probe.connected.floor': 'Connected. At least {count} {unit} visible.',
   'probe.connectedSession': 'Connected. The JMAP session document answered.',
   'probe.targetStatus': 'The server at {url} answered {status}.',
   'probe.targetStatus.refused': 'It is reachable and refused the credentials.',
   'probe.targetStatus.check': 'Check the target host and port.',
   'probe.noProbe':
     'This build has no check for a {kind} connection. That is a gap on our side, not a problem with your credentials.',
+  // The deadline (2026-09-02): unknown, not refused, and the connection is
+  // kept so it can be tested again.
+  'probe.timedOut':
+    'The test did not answer within {seconds} seconds. The connection is kept; test it again ' +
+    'later, or give it a narrower root folder.',
+  'probe.measuring': 'Still measuring what this account can carry — refresh in a minute.',
   'probe.unit.folder.one': 'folder',
   'probe.unit.folder.many': 'folders',
   'probe.unit.calendar.one': 'calendar',
@@ -1768,6 +1784,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.google.connect.needsClient':
     'Vul eerst de Client-ID en het clientgeheim in — de toestemming loopt via uw eigen Google-client.',
   'wizard.consent.received': 'Toestemming ontvangen — de verbinding wordt opgeslagen en getest.',
+  'wizard.consent.needsAccount':
+    'Vul eerst het accountadres in — de toestemming slaat de verbinding in één keer op en test ' +
+    'hem, en het adres zegt van wie de gegevens zijn.',
   'wizard.google.deploymentClient':
     'Deze installatie heeft een eigen Google-client, dus deze twee mogen leeg blijven. ' +
     'Vul beide in om in plaats daarvan uw eigen client te gebruiken.',
@@ -2578,15 +2597,21 @@ const nl: Record<keyof typeof en, string> = {
   'connections.targets': 'Doelen',
   'connections.test': 'Testen',
   'connections.testing': 'Bezig met testen…',
-  'connections.usedBy': 'postbus(sen) gebruiken dit',
+  'connections.usedBy': 'migratie(s) gebruiken dit',
+  'connections.usedBy.none': 'Nog door geen enkele migratie gebruikt',
   'connections.setupSteps': 'Instelstappen',
   'probe.connected': 'Verbonden. {count} {unit} zichtbaar.',
+  'probe.connected.floor': 'Verbonden. Ten minste {count} {unit} zichtbaar.',
   'probe.connectedSession': 'Verbonden. Het JMAP-sessiedocument antwoordde.',
   'probe.targetStatus': 'De server op {url} antwoordde {status}.',
   'probe.targetStatus.refused': 'Hij is bereikbaar en weigerde de inloggegevens.',
   'probe.targetStatus.check': 'Controleer de host en poort van het doel.',
   'probe.noProbe':
     'Deze versie heeft geen controle voor een {kind}-verbinding. Dat is een gat aan onze kant, geen probleem met uw inloggegevens.',
+  'probe.timedOut':
+    'De test antwoordde niet binnen {seconds} seconden. De verbinding is bewaard; test later ' +
+    'opnieuw, of geef een kleinere hoofdmap op.',
+  'probe.measuring': 'Er wordt nog gemeten wat dit account kan dragen — ververs over een minuut.',
   'probe.unit.folder.one': 'map',
   'probe.unit.folder.many': 'mappen',
   'probe.unit.calendar.one': 'agenda',

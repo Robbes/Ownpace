@@ -109,12 +109,27 @@ beforeEach(() => {
 });
 
 describe('the connections screen', () => {
-  it('says how many mailboxes depend on a connection — whether it matters', async () => {
-    list.mockResolvedValue([conn()]);
+  it('says how many migrations depend on a connection — whether it matters', async () => {
+    // Migrations, not mailboxes (owner remark 2026-09-02): a Dropbox
+    // connection carries files and a Google account four faces. And none
+    // yet is a sentence, never "0 … use this".
+    list.mockResolvedValue([conn(), conn({ id: 'c2', displayName: 'Spare', usedByMailboxes: 0 })]);
     renderPage();
 
     expect(await screen.findByText('Acme migration (source)')).toBeTruthy();
-    expect(screen.getByText(/3 mailbox\(es\) use this/)).toBeTruthy();
+    expect(screen.getByText(/3 migration\(s\) use this/)).toBeTruthy();
+    expect(screen.getByText('Not used by any migration yet')).toBeTruthy();
+    expect(screen.queryByText(/mailbox/)).toBeNull();
+  });
+
+  it('says when the door answered before the measuring finished (2026-09-02)', async () => {
+    list.mockResolvedValue([conn()]);
+    testConnection.mockResolvedValue({ ok: true, detail: 'reachable', qualificationPending: true });
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Test'));
+
+    expect(await screen.findByText(/Still measuring what this account can carry/)).toBeTruthy();
   });
 
   it("shows a refusal VERBATIM — that sentence is what somebody came to find out", async () => {
@@ -555,6 +570,9 @@ describe('adding a connection through the front door', () => {
     try {
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@gmail.com' },
+      });
       const button = await screen.findByRole('button', { name: /Connect with Google/ });
       // A connection has no mapping to read the faces from, so it asks; with
       // none ticked there is nothing to ask Google for.
@@ -576,6 +594,9 @@ describe('adding a connection through the front door', () => {
     try {
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@gmail.com' },
+      });
       const button = screen.getByRole('button', { name: /Connect with Google/ });
       expect(button).toBeDisabled();
       fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
@@ -686,6 +707,9 @@ describe('adding a connection through the front door', () => {
     try {
       await open();
       fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@example.invalid' },
+      });
       const button = screen.getByRole('button', { name: /Connect with Dropbox/ });
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute(
@@ -709,6 +733,23 @@ describe('adding a connection through the front door', () => {
     } finally {
       opened.mockRestore();
     }
+  });
+
+  it('waits for the account address before offering the consent (the owner’s walk, 2026-09-02)', async () => {
+    // The consent saves and tests in one go, and the save needs the address:
+    // pressed before it was typed, the door answered "Still needed: username"
+    // to a form whose button had just said yes.
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'deployment' });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
+    const button = await screen.findByRole('button', { name: /Connect with Dropbox/ });
+    await act(async () => {});
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', expect.stringContaining('Enter the account address first'));
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@example.invalid' },
+    });
+    await waitFor(() => expect(button).toBeEnabled());
   });
 
   it('switching the side switches the cards', async () => {

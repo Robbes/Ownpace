@@ -224,6 +224,9 @@ describe('the consent you can click (0089 T1)', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     const connect = await screen.findByRole('button', { name: /Connect with Google/ });
     expect(connect).toBeDisabled();
+    // And for the account address (2026-09-02): the consent saves and tests
+    // in one go, and the save needs to know whose data it is.
+    fill(/^Source Username/, 'owner@gmail.com');
     fill(/^Client ID/, 'gmail.apps.googleusercontent.com');
     fill(/^Source client secret/, 'shh-secret');
     await waitFor(() =>

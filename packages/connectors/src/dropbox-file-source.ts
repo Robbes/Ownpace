@@ -145,6 +145,41 @@ export class DropboxFileSource implements FileSource {
     return out;
   }
 
+  /**
+   * THE CHEAP QUESTION, for a probe (2026-09-02, the owner's whole-Dropbox
+   * test). `listFolders` above is one recursive listing of the WHOLE tree —
+   * every file and folder under the root, 1000 entries a page — which is what
+   * a pass needs and what a Test cannot afford: the owner's Dropbox took
+   * longer than the browser's 30 s, the API kept walking, and the connection
+   * appeared minutes later. This asks the top level only, non-recursive, and
+   * stops after `maxPages` pages; past the cap the count is a floor and
+   * `truncated` says so, rather than a walk that outlives the person asking.
+   */
+  async listTopLevelFolders(
+    maxPages = 5,
+  ): Promise<{ folders: ReadonlyArray<FileFolder>; truncated: boolean }> {
+    const folders: FileFolder[] = [{ path: '' }];
+    let page = (await this.rpc('files/list_folder', {
+      path: this.rootPath,
+      recursive: false,
+      limit: 1000,
+    })) as DropboxListFolderResponse;
+    let pages = 1;
+    for (;;) {
+      for (const entry of page.entries) {
+        if (entry['.tag'] !== 'folder') continue;
+        const path = this.relativePath(entry);
+        if (path) folders.push({ path, name: entry.name });
+      }
+      if (!page.has_more) return { folders, truncated: false };
+      if (pages >= maxPages) return { folders, truncated: true };
+      page = (await this.rpc('files/list_folder/continue', {
+        cursor: page.cursor,
+      })) as DropboxListFolderResponse;
+      pages += 1;
+    }
+  }
+
   async listSince(
     folder: FileFolder,
     _cursor?: SyncCursor,

@@ -72,6 +72,23 @@ describe('probeText — what we authored', () => {
   });
 });
 
+describe('probeText — the deadline and the floor (2026-09-02)', () => {
+  it('a probe that did not answer says so, with the seconds, in both languages', () => {
+    const late: ProbeOutcome = { code: 'timedOut', seconds: 20 };
+    expect(probeText(en, late, 'ignored')).toBe(
+      'The test did not answer within 20 seconds. The connection is kept; test it again later, ' +
+        'or give it a narrower root folder.',
+    );
+    expect(probeText(nl, late, 'ignored')).toContain('niet binnen 20 seconden');
+  });
+
+  it('a count that stopped at the cap reads as a floor', () => {
+    const floor: ProbeOutcome = { code: 'connected', count: 5001, unit: 'folder', floor: true };
+    expect(probeText(en, floor, '')).toBe('Connected. At least 5001 folders visible.');
+    expect(probeText(nl, floor, '')).toBe('Verbonden. Ten minste 5001 mappen zichtbaar.');
+  });
+});
+
 describe("probeText — what the PROVIDER said", () => {
   const theirs: ProbeOutcome = { code: 'providerRefused' };
   const verbatim = 'Dropbox refused the token request (400): {"error": "invalid_client"}';

@@ -61,6 +61,7 @@ import {
   targetConnectionConfig,
 } from './migrations/index.ts';
 import { serverFault } from '../server-fault.ts';
+import { withinBudget } from './within-budget.ts';
 
 const router = Router();
 
@@ -82,6 +83,25 @@ type TargetKind = (typeof TARGET_KINDS)[number];
  * taken is reported to the log and the test result stands (the probe's own
  * verdict is the thing the person asked for).
  */
+/**
+ * THE DOOR ANSWERS BEFORE THE BROWSER GIVES UP (2026-09-02, the owner's
+ * whole-Dropbox test). The web client waits 30 s; a door probes (its own
+ * deadline, `PROBE_DEADLINE_MS`), writes the row, then qualifies the account,
+ * and the qualification gets what is left of this budget — never less than
+ * the floor. Past it the door answers `qualificationPending` and the
+ * measuring finishes on its own, into the row.
+ */
+const DOOR_BUDGET_MS = 26_000;
+const QUALIFICATION_FLOOR_MS = 3_000;
+
+/** The response's qualification field, or its "still measuring" stand-in. */
+function qualificationField(
+  q: AccountQualification | 'pending' | undefined,
+): { qualification: AccountQualification } | { qualificationPending: true } | Record<never, never> {
+  if (q === 'pending') return { qualificationPending: true };
+  return q ? { qualification: q } : {};
+}
+
 async function qualifyAndRemember(
   tenantId: string,
   connectionId: string,
@@ -89,8 +109,23 @@ async function qualifyAndRemember(
   config: Record<string, unknown>,
   creds: Record<string, string>,
   actor: string,
-): Promise<AccountQualification | undefined> {
+  deadlineAt: number,
+): Promise<AccountQualification | 'pending' | undefined> {
   if (!isQualifiableKind(kind) && !isGoogleGrantKind(kind)) return undefined;
+  return withinBudget(
+    qualifyAndRememberNow(tenantId, connectionId, kind, config, creds, actor),
+    Math.max(QUALIFICATION_FLOOR_MS, deadlineAt - Date.now()),
+  );
+}
+
+async function qualifyAndRememberNow(
+  tenantId: string,
+  connectionId: string,
+  kind: string,
+  config: Record<string, unknown>,
+  creds: Record<string, string>,
+  actor: string,
+): Promise<AccountQualification | undefined> {
   try {
     // Probe-qualified for the Basic-auth families; grant-qualified for the
     // Google kinds (0106 T1a) — the token response's scope field says what
@@ -281,6 +316,7 @@ const AddSchema = z.object({
  * healthy. The provider's own words come back so the person can act on them.
  */
 router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  const startedAt = Date.now();
   try {
     if (!req.tenantId) {
       return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
@@ -392,12 +428,13 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       config,
       creds as Record<string, string>,
       req.userId ?? 'unknown',
+      startedAt + DOOR_BUDGET_MS,
     );
 
     res.status(201).json({
       id: inserted[0]!.id,
       ...probe,
-      ...(qualification ? { qualification } : {}),
+      ...qualificationField(qualification),
     });
   } catch (error) {
     serverFault(res, 'add_failed', 'adding this connection', error);
@@ -405,6 +442,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
 });
 
 router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  const startedAt = Date.now();
   try {
     if (!req.tenantId) {
       return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
@@ -467,9 +505,10 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
       config,
       creds,
       req.userId ?? 'unknown',
+      startedAt + DOOR_BUDGET_MS,
     );
 
-    res.json({ ...result, ...(qualification ? { qualification } : {}) });
+    res.json({ ...result, ...qualificationField(qualification) });
   } catch (error) {
     serverFault(res, 'test_failed', 'testing this connection', error);
   }
@@ -490,6 +529,7 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
  * broken one because somebody pasted the wrong value is worse than refusing.
  */
 router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  const startedAt = Date.now();
   try {
     if (!req.tenantId) {
       return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
@@ -608,9 +648,10 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       (row.config ?? {}) as Record<string, unknown>,
       creds as Record<string, string>,
       req.userId ?? 'unknown',
+      startedAt + DOOR_BUDGET_MS,
     );
 
-    res.json({ ...probe, rotated: true, ...(qualification ? { qualification } : {}) });
+    res.json({ ...probe, rotated: true, ...qualificationField(qualification) });
   } catch (error) {
     serverFault(res, 'rotate_failed', 'replacing these credentials', error);
   }

@@ -1045,6 +1045,10 @@ const CreateMapping: React.FC = () => {
   const clientHalfTyped =
     (formData.sourceClientId.trim() !== '') !== (formData.sourceClientSecret.trim() !== '');
   const clientPairRequired = !deploymentClient || clientHalfTyped;
+  // THE ACCOUNT FIRST (owner's walk, 2026-09-02): a consent that lands runs
+  // the save-and-test, which needs the address — every grant source's
+  // descriptor requires it, and the door answers "Still needed" without it.
+  const accountMissing = formData.sourceUsername.trim() === '';
 
   /** The problem with a non-empty custom cron, or null (empty = default). */
   const cronProblem = (): string | null =>
@@ -1630,6 +1634,10 @@ const CreateMapping: React.FC = () => {
                 /* How MUCH each reached face holds (2026-09-02). */
                 <span className="block mt-1">{measuredText(t, r.qualification, locale)}</span>
               )}
+              {r.qualificationPending && (
+                /* The door answered before the measuring finished (2026-09-02). */
+                <span className="block mt-1">{t('probe.measuring')}</span>
+              )}
               {qualificationEvidence(t, r.qualification).map((line) => (
                 /* Why a face is `?` — on screen, since a phone has no hover. */
                 <span key={line} className="block mt-1 text-xs break-words">
@@ -1903,6 +1911,7 @@ const CreateMapping: React.FC = () => {
                     type="button"
                     onClick={startConsent}
                     disabled={
+                      accountMissing ||
                       (clientPairRequired &&
                         (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())) ||
                       // The account consent asks for the ticked faces and
@@ -1921,7 +1930,9 @@ const CreateMapping: React.FC = () => {
                           : ps('connect.needsClient')
                         : isGoogleAccountSource && formData.domains.length === 0
                           ? t('wizard.google.connect.needsDomains')
-                          : undefined
+                          : accountMissing
+                            ? t('wizard.consent.needsAccount')
+                            : undefined
                     }
                   >
                     {ps('connect')}

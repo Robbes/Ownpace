@@ -25,7 +25,7 @@
 import { isCredentialRefusal, withDeploymentDropboxClient, withDeploymentGoogleClient } from '@openmig/shared';
 import { isGoogleGrantKind } from './account-qualification.ts';
 import type { SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
-import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
+import { CalDAVSource, CarddavSource, DropboxFileSource, WebdavFileSource } from '@openmig/connectors';
 import { measureTargetScheduling } from './target-scheduling.ts';
 import type { SchedulingVerdict } from './target-scheduling.ts';
 
@@ -85,15 +85,60 @@ export type ProbeResult =
   | { readonly ok: false; readonly reason: string; readonly outcome: ProbeOutcome };
 
 /** The English `detail` for a successful listing — the fallback, not the UI. */
-function connectedDetail(count: number, unit: ProbeUnit): string {
+function connectedDetail(count: number, unit: ProbeUnit, floor = false): string {
   const noun =
     unit === 'addressBook' ? 'address book' : unit === 'collection' ? 'collection' : unit;
-  return `Connected. ${count} ${noun}${count === 1 ? '' : 's'} visible.`;
+  return `Connected. ${floor ? 'At least ' : ''}${count} ${noun}${count === 1 ? '' : 's'} visible.`;
 }
 
 /** Anything with the one question every source answers. */
 interface Listable {
   listFolders(): Promise<ReadonlyArray<unknown>>;
+}
+
+/** A listing that stops at a cap: past it the count is a floor, and says so. */
+interface BoundedListable {
+  listTopLevelFolders(): Promise<{ folders: ReadonlyArray<unknown>; truncated: boolean }>;
+}
+
+/**
+ * HOW LONG A PROBE MAY TAKE before the answer is "it did not answer"
+ * (2026-09-02). The web client gives up at 30 s; this leaves the door room
+ * to write the row and answer. The work in flight is not cancelled — a
+ * provider walk has no abort handle — so a slow probe still finishes in the
+ * background; what changes is that the person gets an answer.
+ */
+export const PROBE_DEADLINE_MS = 20_000;
+
+function timedOut(ms: number): ProbeResult {
+  const seconds = Math.round(ms / 1000);
+  return {
+    ok: false,
+    reason:
+      `The test did not answer within ${seconds} seconds. The connection is kept; test it ` +
+      'again later, or give it a narrower root folder.',
+    outcome: { code: 'timedOut', seconds },
+  };
+}
+
+/** Run one probe under the deadline: the first of the two answers wins. */
+export function withProbeDeadline(
+  run: () => Promise<ProbeResult>,
+  ms = PROBE_DEADLINE_MS,
+): Promise<ProbeResult> {
+  return new Promise<ProbeResult>((resolve) => {
+    const timer = setTimeout(() => resolve(timedOut(ms)), ms);
+    run().then(
+      (result) => {
+        clearTimeout(timer);
+        resolve(result);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        resolve(providerRefused(err));
+      },
+    );
+  });
 }
 
 /**
@@ -137,13 +182,39 @@ async function probeListable(build: () => Listable, unit: ProbeUnit): Promise<Pr
   }
 }
 
+async function probeBounded(build: () => BoundedListable, unit: ProbeUnit): Promise<ProbeResult> {
+  try {
+    const { folders, truncated } = await build().listTopLevelFolders();
+    return {
+      ok: true,
+      detail: connectedDetail(folders.length, unit, truncated),
+      outcome: {
+        code: 'connected',
+        count: folders.length,
+        unit,
+        ...(truncated ? { floor: true } : {}),
+      },
+    };
+  } catch (err) {
+    return providerRefused(err);
+  }
+}
+
 /**
  * Probe a SOURCE as the create route would store it: `kind` is the
  * connection.kind the mapping would get, `config` the JSONB blob, `creds` the
  * record that would be encrypted. The same builders a sync pass uses do the
  * interpreting, so the probe cannot pass on a shape the pass would refuse.
  */
-export async function probeSourceConnection(
+export function probeSourceConnection(
+  kind: string,
+  config: Record<string, unknown>,
+  rawCreds: Record<string, string>,
+): Promise<ProbeResult> {
+  return withProbeDeadline(() => probeSourceNow(kind, config, rawCreds));
+}
+
+async function probeSourceNow(
   kind: string,
   config: Record<string, unknown>,
   rawCreds: Record<string, string>,
@@ -177,9 +248,18 @@ export async function probeSourceConnection(
     case GOOGLE_DRIVE_CONNECTION_KIND:
       return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder');
     case DROPBOX_CONNECTION_KIND:
-      // Same route as Drive: the file-source builder already branches on the
-      // kind, so the probe builds exactly what a pass would (workplan 0055).
-      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder');
+      // The same builder a pass uses (workplan 0055), a CHEAPER question
+      // (2026-09-02): `listFolders` is one recursive listing of the whole
+      // tree, which the owner's whole-Dropbox Test could not finish inside
+      // the browser's 30 s. The top level, capped, proves "reachable and
+      // listing" in one round trip; past the cap the count is a floor.
+      return probeBounded(() => {
+        const source = buildFileSourceFromConnection({ config, creds, kind });
+        if (!(source instanceof DropboxFileSource)) {
+          throw new Error('the file-source builder did not answer a Dropbox source for the dropbox kind');
+        }
+        return source;
+      }, 'folder');
     case BOX_CONNECTION_KIND:
       // Box (workplan 0056): same route again — the builder holds the CCG
       // branching, so test-connection proves exactly what a pass builds.
@@ -225,7 +305,15 @@ export async function probeSourceConnection(
  * target by fetching its session document — the same `.well-known/jmap` every
  * JMAP client here starts with.
  */
-export async function probeTargetConnection(
+export function probeTargetConnection(
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin',
+  config: Record<string, unknown>,
+  creds: Record<string, string>,
+): Promise<ProbeResult> {
+  return withProbeDeadline(() => probeTargetNow(targetType, config, creds));
+}
+
+async function probeTargetNow(
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin',
   config: Record<string, unknown>,
   creds: Record<string, string>,

@@ -162,6 +162,74 @@ describe('listFolders', () => {
   });
 });
 
+describe('listTopLevelFolders — the probe’s cheap question (2026-09-02)', () => {
+  // The owner's whole-Dropbox Test: `listFolders` is one recursive listing of
+  // everything under the root, which took longer than the browser waits. A
+  // probe asks the top level, non-recursive, and stops at a cap.
+  const folder = (n: number) => ({
+    '.tag': 'folder',
+    id: `id:${n}`,
+    name: `F${n}`,
+    path_display: `/F${n}`,
+  });
+
+  it('asks the top level non-recursively, keeps only folders, root included', async () => {
+    const { transport, calls } = fakeDropbox({
+      '': [
+        {
+          entries: [folder(1), FILE('/x.txt'), folder(2)],
+          cursor: 'c',
+          has_more: false,
+        },
+      ],
+    });
+    const source = new DropboxFileSource(transport, { apiBaseUrl: API, contentBaseUrl: CONTENT });
+
+    const { folders, truncated } = await source.listTopLevelFolders();
+
+    expect(folders.map((f) => f.path)).toEqual(['', 'F1', 'F2']);
+    expect(truncated).toBe(false);
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(calls[0]!.body!)).toMatchObject({ path: '', recursive: false, limit: 1000 });
+  });
+
+  it('stops at its page cap and says the count is a floor, instead of walking on', async () => {
+    const page = (n: number, more: boolean) => ({
+      entries: [folder(n)],
+      cursor: `c${n}`,
+      has_more: more,
+    });
+    const pages = () => ({
+      '': [page(1, true)],
+      // `c1` → continue index 0, and so on: four pages at the top level.
+      continue: [page(2, true), page(3, true), page(4, false)],
+    });
+
+    const capped = fakeDropbox(pages());
+    const atCap = await new DropboxFileSource(capped.transport, {
+      apiBaseUrl: API,
+      contentBaseUrl: CONTENT,
+    }).listTopLevelFolders(2);
+    expect(atCap.folders.map((f) => f.path)).toEqual(['', 'F1', 'F2']);
+    expect(atCap.truncated).toBe(true);
+    expect(capped.calls).toHaveLength(2);
+
+    // Uncapped by the default, the same top level is four pages and no floor.
+    const whole = fakeDropbox(pages());
+    const all = await new DropboxFileSource(whole.transport, {
+      apiBaseUrl: API,
+      contentBaseUrl: CONTENT,
+    }).listTopLevelFolders();
+    expect(all.folders).toHaveLength(5);
+    expect(all.truncated).toBe(false);
+    expect(whole.calls).toHaveLength(4);
+    // And never recursive: the pass's walk is `listFolders`, not this.
+    for (const call of [...capped.calls, ...whole.calls]) {
+      expect(JSON.parse(call.body!)).not.toMatchObject({ recursive: true });
+    }
+  });
+});
+
 describe('fetch', () => {
   it("downloads by Dropbox's own id, in the header argument the endpoint demands", async () => {
     const bytes = new TextEncoder().encode('file bytes');
