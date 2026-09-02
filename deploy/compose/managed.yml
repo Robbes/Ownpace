@@ -830,6 +830,10 @@ services:
       # places and why that script names them.
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      # The deployment's own Dropbox app (2026-09-02), the same rule and the
+      # same second place: set-task-env.sh carries them to the worker.
+      DROPBOX_OAUTH_CLIENT_ID: ${DROPBOX_OAUTH_CLIENT_ID:-}
+      DROPBOX_OAUTH_CLIENT_SECRET: ${DROPBOX_OAUTH_CLIENT_SECRET:-}
       API_URL: ${API_URL:-http://localhost:3001}
       # How long a backup of this database is kept. Not a schedule — it is what
       # the close endpoint TELLS a customer about when their erasure actually

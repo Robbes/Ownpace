@@ -22,7 +22,7 @@
  * nothing anywhere.
  */
 
-import { isCredentialRefusal, withDeploymentGoogleClient } from '@openmig/shared';
+import { isCredentialRefusal, withDeploymentDropboxClient, withDeploymentGoogleClient } from '@openmig/shared';
 import { isGoogleGrantKind } from './account-qualification.ts';
 import type { SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, WebdavFileSource } from '@openmig/connectors';
@@ -163,7 +163,10 @@ export async function probeSourceConnection(
    * secret under the same `clientId`/`clientSecret` names, and handing them
    * Google's application would fail at their provider naming nothing useful.
    */
-  const creds = withDeploymentGoogleClient(isGoogleGrantKind(kind), rawCreds);
+  const creds = withDeploymentDropboxClient(
+    kind === DROPBOX_CONNECTION_KIND,
+    withDeploymentGoogleClient(isGoogleGrantKind(kind), rawCreds),
+  );
   const user = String(config.user ?? '');
   switch (kind) {
     case GMAIL_CONNECTION_KIND:

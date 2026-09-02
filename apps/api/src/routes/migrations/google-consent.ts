@@ -86,6 +86,14 @@ interface PendingConsent {
   readonly redirectUri: string;
   readonly createdAt: number;
   /**
+   * Whose consent this is (2026-09-02: Connect with Dropbox). One store holds
+   * every in-flight consent, and each provider's callback takes only its own:
+   * a state begun at Dropbox presented to Google's callback is "not one the
+   * wizard is waiting for", never a code exchanged at the wrong endpoint.
+   * Absent means Google, which is every state begun before Dropbox existed.
+   */
+  readonly provider?: 'google' | 'dropbox';
+  /**
    * Present when the consent was begun by a LINK holder rather than by the
    * owner in the wizard (workplan 0108 T4). It is what the callback branches
    * on, and the branch decides who may see the token: in the owner's flow the
@@ -436,6 +444,8 @@ export function consentResultPage(p: {
   outcome:
     | { readonly ok: true; readonly refreshToken: string; readonly grantedScopes: ReadonlyArray<string> }
     | { readonly ok: false; readonly reason: string };
+  /** Whose consent — decides the message type the wizard listens for. Google unless said. */
+  provider?: 'google' | 'dropbox';
 }): string {
   if (!p.outcome.ok) {
     return (
@@ -445,7 +455,7 @@ export function consentResultPage(p: {
     );
   }
   const payload = {
-    type: 'ownpace-google-consent',
+    type: `ownpace-${p.provider ?? 'google'}-consent`,
     refreshToken: p.outcome.refreshToken,
     grantedScopes: p.outcome.grantedScopes,
   };

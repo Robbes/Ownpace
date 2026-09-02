@@ -1109,6 +1109,81 @@ paths:
             text/html:
               schema: { type: string }
 
+  /api/migrations/dropbox/authorize:
+    post:
+      tags: [Migrations]
+      summary: Start a Dropbox consent — Connect with Dropbox
+      description: |
+        The Google consent's shape, for Dropbox (2026-09-02). Returns the URL
+        to send a browser to, plus the redirect URI the Dropbox app must have
+        registered (App Console → Settings → OAuth 2 → Redirect URIs) — a wrong
+        one fails at Dropbox's screen, so the caller is given the exact string.
+
+        **Whose app.** The caller's whole pair (App key as `clientId`, App
+        secret as `clientSecret`) wins; with none sent, the deployment's own
+        app (`DROPBOX_OAUTH_CLIENT_ID`/`DROPBOX_OAUTH_CLIENT_SECRET`, both or
+        neither) is used; half a pair is refused before anything is begun.
+
+        **No scope on the URL.** A Dropbox app is created with its permissions
+        (the guide says: the two read scopes), and the consent is granted
+        exactly those. `token_access_type=offline` is pinned, since without it
+        Dropbox mints no refresh token. The secret never appears in the URL.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clientId: { type: string, description: The App key. }
+                clientSecret: { type: string, description: The App secret. }
+      responses:
+        '200':
+          description: Where to send the browser, and the address Dropbox must have registered.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, redirectUri]
+                properties:
+                  url: { type: string }
+                  redirectUri: { type: string }
+        '400':
+          description: |
+            `invalid_body`, `half_client_pair` (one half of an App key pair),
+            `no_dropbox_client` (nothing sent and nothing configured, naming
+            both ways forward), `raw_ip_callback` or `unreachable_callback`.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/migrations/dropbox/callback:
+    get:
+      tags: [Migrations]
+      summary: Where Dropbox returns the person's browser
+      description: |
+        Public by nature and trusted by nothing except the signed, single-use,
+        expiring `state` — and only a state begun at the Dropbox door: one
+        begun at Google's is "not one the wizard is waiting for" here, and
+        spent. Answers an HTML page under its own headers that hands the
+        refresh token to the opening window as `ownpace-dropbox-consent`; a
+        grant missing a read scope is refused with the missing one named.
+      security: []
+      parameters:
+        - { name: state, in: query, schema: { type: string } }
+        - { name: code, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+        - { name: error_description, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: The result page — granted, or Dropbox's own refusal.
+          content:
+            text/html:
+              schema: { type: string }
+        '400':
+          description: No state this server is waiting for, no authorization code, or a grant a migration cannot run on.
+          content:
+            text/html:
+              schema: { type: string }
+
   /api/connections:
     get:
       tags: [Connections]
@@ -2584,6 +2659,33 @@ paths:
               example:
                 google: { domains: [calendar, contact], client: deployment }
                 soverin: { domains: [email, calendar, contact] }
+
+  /api/provider-clients:
+    get:
+      tags: [Discovery]
+      summary: Which OAuth applications this deployment carries
+      description: |
+        One fact per provider (2026-09-02): `deployment` when this installation
+        carries its own application for that provider (both halves set),
+        `connection` otherwise. What a wizard reads before offering a
+        *Connect with …* button without the client pair. Never the values.
+        Unauthenticated for the reason `/api/provider-accounts` is: a static
+        fact about the deployment, naming no customer.
+      security: []
+      responses:
+        '200':
+          description: Provider to where its OAuth application comes from.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [google, dropbox]
+                properties:
+                  google: { type: string, enum: [deployment, connection] }
+                  dropbox: { type: string, enum: [deployment, connection] }
+              example:
+                google: deployment
+                dropbox: connection
 
   /api/redirect-uris:
     get:

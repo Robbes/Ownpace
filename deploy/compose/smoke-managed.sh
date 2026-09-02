@@ -2399,6 +2399,43 @@ else
   echo "    $(grep -i '^HTTP/\|^cross-origin-opener-policy\|^content-security-policy' <<<"$cb_headers" | tr -d '\r' | paste -sd '|' -)"
   fail=1
 fi
+# THE DEPLOYMENT'S OWN DROPBOX APP (2026-09-02: Connect with Dropbox), the
+# Google block's three questions asked of Dropbox's door: the facts say
+# `deployment`; a consent without a pair answers a URL for THIS App key, with
+# token_access_type=offline and no secret in it; half a pair is refused. The
+# gate's pair is a sentinel that never reaches Dropbox — the URL is built,
+# never opened.
+gate_dbx_id="$(grep -E '^DROPBOX_OAUTH_CLIENT_ID=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+gate_dbx_secret="$(grep -E '^DROPBOX_OAUTH_CLIENT_SECRET=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+if [ -n "$gate_dbx_id" ] && [ -n "$gate_dbx_secret" ]; then
+  report_json "provider clients (dropbox)" "/api/provider-clients" '.dropbox' deployment
+
+  r="$(http POST "$API/api/migrations/dropbox/authorize" "$TOK_R" '{}')"
+  code="${r%% *}"; body="${r#* }"
+  dbx_url="$(jq -r '.url // empty' <<<"$body" 2>/dev/null || true)"
+  case "$code:$dbx_url" in
+    "200:"*"client_id=${gate_dbx_id}"*"token_access_type=offline"*|"200:"*"token_access_type=offline"*"client_id=${gate_dbx_id}"*)
+      echo "dropbox consent without a pair: HTTP 200, the URL carries the deployment's App key and offline access" ;;
+    *)
+      echo "dropbox consent without a pair: HTTP $code, url '${dbx_url:0:120}' — ${body:0:200}"
+      fail=1 ;;
+  esac
+  case "$body" in
+    *"$gate_dbx_secret"*) echo "the dropbox consent answer CARRIES THE APP SECRET"; fail=1 ;;
+  esac
+
+  r="$(http POST "$API/api/migrations/dropbox/authorize" "$TOK_R" \
+    "$(jq -nc --arg c "$gate_dbx_id" '{clientId:$c}')")"
+  code="${r%% *}"; body="${r#* }"
+  if [ "$code" = "400" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "half_client_pair" ]; then
+    echo "dropbox consent with half a pair: HTTP 400 half_client_pair"
+  else
+    echo "dropbox consent with half a pair: HTTP $code — ${body:0:200} (expected 400 half_client_pair)"
+    fail=1
+  fi
+else
+  report_json "provider clients (dropbox)" "/api/provider-clients" '.dropbox' connection
+fi
 report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
 report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Before you start"
 # A mailbox is required and the demo owner's is the one address this tenant is

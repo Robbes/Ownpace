@@ -124,12 +124,16 @@ export function redirectUris(env: RedirectUriEnv = process.env): ReadonlyArray<R
     {
       id: 'dropbox.migration',
       group: 'migration',
-      provider: 'Dropbox App Console',
-      uri: null,
+      provider: 'Dropbox App Console → your app → Settings → OAuth 2 → Redirect URIs',
+      // Built the way the Dropbox consent route builds it, from the same
+      // variable (2026-09-02: Connect with Dropbox).
+      uri: api === null ? null : `${api}/api/migrations/dropbox/callback`,
+      unconfigured: api === null,
       why:
-        'None. A Dropbox source authenticates with an App key, App secret and a refresh ' +
-        'token typed into the wizard — no browser is redirected back here, so there is no ' +
-        'redirect URI to register.',
+        'Where Dropbox returns the browser after somebody approves a Dropbox consent from ' +
+        'the wizard or the Connections page. Built from API_URL, like the Google one. A ' +
+        'Dropbox source can still be typed in by hand (App key, App secret, refresh token), ' +
+        'and that path registers nothing.',
     },
     {
       id: 'box.migration',

@@ -36,6 +36,7 @@ import operatingRoutes from './operating-routes.ts';
 // (workplan 0106 T3b) — so the door demands what the consent asked for.
 import { googleAccountScopeSentence } from './google-account-consent.ts';
 import googleOauthRoutes from './google-oauth-routes.ts';
+import dropboxOauthRoutes from './dropbox-oauth-routes.ts';
 // The owner's grant-link surface (workplan 0108 T3): issue, list, revoke, all
 // under /api/migrations/:mappingId/links. The link HOLDER's routes are not
 // here and never will be — they authenticate a link, not a session, so they
@@ -51,6 +52,8 @@ import {
   providerAccountDomains,
   googleDeploymentClient,
   halfGoogleClientPairProblem,
+  halfDropboxClientPairProblem,
+  dropboxDeploymentClient,
   resolveGoogleClient,
   parseGoogleDriveSource,
   ConfigError,
@@ -251,6 +254,17 @@ function refuseHalfGoogleClientPair(
   sourceConfig: { clientId?: string | undefined; clientSecret?: string | undefined },
 ): void {
   const problem = halfGoogleClientPairProblem(sourceConfig);
+  if (!problem) return;
+  const missing = sourceConfig.clientId?.trim() ? 'clientSecret' : 'clientId';
+  ctx.addIssue({ code: 'custom', path: ['sourceConfig', missing], message: problem });
+}
+
+/** The same refusal for a Dropbox app (2026-09-02: Connect with Dropbox). */
+function refuseHalfDropboxClientPair(
+  ctx: { addIssue: (issue: { code: 'custom'; path: string[]; message: string }) => void },
+  sourceConfig: { clientId?: string | undefined; clientSecret?: string | undefined },
+): void {
+  const problem = halfDropboxClientPairProblem(sourceConfig);
   if (!problem) return;
   const missing = sourceConfig.clientId?.trim() ? 'clientSecret' : 'clientId';
   ctx.addIssue({ code: 'custom', path: ['sourceConfig', missing], message: problem });
@@ -529,6 +543,7 @@ export class DuplicateMappingError extends Error {
 
 router.use('/', operatingRoutes);
 router.use('/', googleOauthRoutes);
+router.use('/', dropboxOauthRoutes);
 router.use('/', linkRoutes);
 
 // Global pool - created once and reused
@@ -838,10 +853,14 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     }
   } else if (body.sourceType === 'dropbox') {
     // Dropbox's App Console calls these "App key" and "App secret"; they ride
-    // the shared trio fields so the probe and create post one shape.
-    const missing = (['clientId', 'clientSecret', 'refreshToken'] as const).filter(
-      (k) => !body.sourceConfig[k],
-    );
+    // the shared trio fields so the probe and create post one shape. The pair
+    // is demanded only where this deployment carries no Dropbox app of its own
+    // (2026-09-02: Connect with Dropbox) — the same rule as Google's trio.
+    const missing = (
+      dropboxDeploymentClient() === null
+        ? (['clientId', 'clientSecret', 'refreshToken'] as const)
+        : (['refreshToken'] as const)
+    ).filter((k) => !body.sourceConfig[k]);
     if (missing.length > 0) {
       ctx.addIssue({
         code: 'custom',
@@ -852,6 +871,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           `${missing.join(', ')}. Where each comes from is docs/dropbox-setup.md.`,
       });
     }
+    refuseHalfDropboxClientPair(ctx, body.sourceConfig);
     const sourceRefusal = sourceDomainRefusal('dropbox', body.syncConfig.domains);
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });

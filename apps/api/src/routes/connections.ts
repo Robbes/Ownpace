@@ -42,6 +42,7 @@ import { z } from 'zod';
 import {
   credentialFieldsFor,
   halfGoogleClientPairProblem,
+  halfDropboxClientPairProblem,
   log,
   wizardTypeForConnectionKind,
 } from '@openmig/shared';
@@ -333,6 +334,13 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         return void res.status(400).json({ error: 'half_client_pair', reason: halfPair });
       }
     }
+    // And half a Dropbox app (2026-09-02: Connect with Dropbox), the same way.
+    if (role === 'source' && sourceKindFor(type as never) === 'dropbox') {
+      const halfPair = halfDropboxClientPairProblem(values);
+      if (halfPair) {
+        return void res.status(400).json({ error: 'half_client_pair', reason: halfPair });
+      }
+    }
 
     const half = checked.data as never;
     const config =
@@ -536,6 +544,12 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     // the same way (ADR-0041).
     if (row.role === 'source' && isGoogleGrantKind(row.kind)) {
       const halfPair = halfGoogleClientPairProblem(values);
+      if (halfPair) {
+        return void res.status(400).json({ error: 'half_client_pair', reason: halfPair });
+      }
+    }
+    if (row.role === 'source' && row.kind === 'dropbox') {
+      const halfPair = halfDropboxClientPairProblem(values);
       if (halfPair) {
         return void res.status(400).json({ error: 'half_client_pair', reason: halfPair });
       }

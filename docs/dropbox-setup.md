@@ -23,6 +23,20 @@ values.
 
 ## 2. Consent, once, as the migrated account
 
+**The short way: press *Connect with Dropbox*.** Where the deployment you use carries its own
+Dropbox app (the operator sets it once — see *Configure it* below), the wizard and the
+Connections page show a **Connect with Dropbox** button beside the token field. It opens
+Dropbox's consent screen for the account being migrated, and when that account approves, the
+refresh token lands in the field by itself and the connection is saved and tested in one go.
+Nothing is typed, and the App secret never leaves the server. You can still use your own app
+instead: open *Use your own Dropbox app instead* and enter the App key and App secret as a pair.
+
+For the button to work, the app must know where to send the browser back: **Settings → OAuth
+2 → Redirect URIs**, add `https://<your app's address>/api/migrations/dropbox/callback` — the
+exact string is listed on the app's *Redirect URIs* page so it can be copied, not retyped.
+
+**The long way, by hand**, when there is no button or you prefer it:
+
 Send the account owner through the consent URL (replace `APP_KEY`):
 
     https://www.dropbox.com/oauth2/authorize?client_id=APP_KEY&response_type=code&token_access_type=offline
@@ -59,6 +73,19 @@ has no path until the account adds it to its Dropbox.
 step; the App secret and refresh token ride the credential fields on the credentials step,
 stored encrypted. The **Test connections** button runs one read-only listing through
 exactly what a pass would build.
+
+**Managed, with the deployment's own app** — the operator sets the App key and App secret
+once, in the deployment's environment:
+
+    DROPBOX_OAUTH_CLIENT_ID=<App key>
+    DROPBOX_OAUTH_CLIENT_SECRET=<App secret>
+
+and registers the redirect URI above on that app. From then on every Dropbox connection needs
+only the consent: the pair is read at the moment a token is minted and is stored on no
+connection, so rotating the secret is one edit rather than one per connection. A connection
+that carries its own App key and secret keeps using them; half a pair — an App key without
+its secret, or the reverse — is refused where it is entered rather than completed with the
+deployment's other half.
 
 ## What does not migrate (stated, not implied)
 

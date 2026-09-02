@@ -364,6 +364,14 @@ describe('the result page: one origin, no leaks', () => {
     expect(page).not.toMatch(/<code>[^<]*rt-123/);
   });
 
+  it("carries the provider in the message type, so a wizard listening for Dropbox's never takes Google's", () => {
+    const google = consentResultPage({ webOrigin: 'https://app.example.nl', outcome: OK });
+    const dropbox = consentResultPage({ webOrigin: 'https://app.example.nl', outcome: OK, provider: 'dropbox' });
+    expect(google).toContain('ownpace-google-consent');
+    expect(dropbox).toContain('ownpace-dropbox-consent');
+    expect(dropbox).not.toContain('ownpace-google-consent');
+  });
+
   it('a token that tries to close the script block stays inert', () => {
     const sly = { ...OK, refreshToken: '</script><script>alert(1)</script>' };
     const page = consentResultPage({ webOrigin: 'https://app.example.nl', outcome: sly });

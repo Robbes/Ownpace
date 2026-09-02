@@ -101,7 +101,7 @@ describe('the addresses this deployment needs registered', () => {
 });
 
 describe('the providers that need NOTHING are answers too', () => {
-  it.each([['dropbox.migration'], ['box.migration'], ['o365.migration']])(
+  it.each([['box.migration'], ['o365.migration']])(
     '%s says no redirect URI, and why',
     (id) => {
       // "We will probably have more, like Dropbox, Box, O365" deserves the real
@@ -114,11 +114,21 @@ describe('the providers that need NOTHING are answers too', () => {
     },
   );
 
+  it('dropbox.migration is built from API_URL like Google\'s, since Connect with Dropbox (2026-09-02)', () => {
+    const entry = find({ API_URL: 'https://app.ota.ownpace.eu' }, 'dropbox.migration');
+    expect(entry.uri).toBe('https://app.ota.ownpace.eu/api/migrations/dropbox/callback');
+    expect(entry.unconfigured).toBe(false);
+    expect(entry.provider).toContain('Dropbox App Console');
+    // And without API_URL it is a thing this deployment has not told us yet.
+    expect(find({}, 'dropbox.migration').uri).toBeNull();
+    expect(find({}, 'dropbox.migration').unconfigured).toBe(true);
+  });
+
   it('does not warn about them, because there is nothing to set', () => {
     // The flag means "this deployment has not told us something". Raising it
     // for a provider that structurally has no redirect would be a permanent
     // warning nobody can clear.
-    for (const id of ['dropbox.migration', 'box.migration', 'o365.migration']) {
+    for (const id of ['box.migration', 'o365.migration']) {
       expect(find({}, id).unconfigured).toBeUndefined();
     }
   });
