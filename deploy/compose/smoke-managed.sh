@@ -890,19 +890,22 @@ else
     fail=1
   fi
 
-  # ONE ACTIVE GOOGLE SIGN-IN PROVIDER, HOWEVER OFTEN THE APP PHASE RAN (#711).
-  # The workflow runs the provider step a second time before this smoke and
-  # reads that it added nothing; this counts what the instance holds. A search
-  # that could not see what it created added one per run, and the sign-in
-  # screen grew a button each time — nine on the owner's box before anybody
-  # counted. Only where the gate carries a sign-in pair: with none there is no
-  # provider to count, and that is also a correct stack.
+  # ONE GOOGLE BUTTON ON THE SIGN-IN SCREEN, HOWEVER OFTEN THE APP PHASE RAN
+  # (#711). The workflow runs the provider step a second time before this
+  # smoke and reads that it added nothing; this counts what the screen shows.
+  # A search that could not see what it created added one per run, and the
+  # sign-in screen grew a button each time — nine on the owner's box before
+  # anybody counted. Only where the gate carries a sign-in pair: with none
+  # there is no provider to count, and that is also a correct stack.
   #
-  # ACTIVE, NOT LISTED. A deactivated provider stays on the template list and
-  # off the sign-in screen — that is what the owner did with the extras on
-  # 2026-09-02, and it is a correct clean-up. So the count that means "buttons"
-  # is the count of providers NOT in IDP_STATE_INACTIVE; a provider with no
-  # state on the wire counts as active, which is the safe direction here.
+  # ON THE SCREEN = ON THE POLICY PEOPLE RESOLVE, AND ACTIVE. Two console
+  # switches take a provider off the sign-in screen and keep it: the
+  # "available" toggle removes its login-policy link, and deactivation sets
+  # IDP_STATE_INACTIVE. The owner used one of them on seven of the eight, and
+  # a count of the template list still said 8 (E2E (managed) #131). So a
+  # button is a provider of this name that is active (no state on the wire
+  # counts as active, the safe direction) AND linked on the login policy the
+  # organisation resolves — the one a person is actually sent to.
   #
   # THE RUNNER'S INSTANCE PERSISTS between runs, so more than one is not
   # something this run did: it is what bring-ups before #711 left, and the
@@ -910,25 +913,31 @@ else
   # is still a sign-in screen with that many Google buttons, so it fails —
   # with the remedy, which is a person's, once. After that #711 holds it at one.
   if [ -n "$(grep -E '^IDP_GOOGLE_CLIENT_ID=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 || true)" ]; then
+    policy_json="$(idp_api GET /management/v1/policies/login || true)"
+    linked_json="$(jq -c '[.policy.idps[]?.idpId]' <<<"$policy_json" 2>/dev/null || echo '[]')"
     google_idps_json="$(idp_api POST /admin/v1/idps/templates/_search '{}' || true)"
-    google_idps="$(jq -r '[.result[]? | select(.name == "Google" and .state != "IDP_STATE_INACTIVE")] | length' <<<"$google_idps_json" 2>/dev/null || echo unreadable)"
+    google_idps="$(jq -r --argjson linked "$linked_json" '[.result[]? | select(.name == "Google" and .state != "IDP_STATE_INACTIVE") | .id as $i | select(($linked | index($i)) != null)] | length' <<<"$google_idps_json" 2>/dev/null || echo unreadable)"
+    google_idps_aside="$(jq -r --argjson linked "$linked_json" '[.result[]? | select(.name == "Google" and .state != "IDP_STATE_INACTIVE") | .id as $i | select(($linked | index($i)) == null)] | length' <<<"$google_idps_json" 2>/dev/null || echo 0)"
     google_idps_off="$(jq -r '[.result[]? | select(.name == "Google" and .state == "IDP_STATE_INACTIVE")] | length' <<<"$google_idps_json" 2>/dev/null || echo 0)"
     case "$google_idps" in
       1)
-        echo "    one active Google sign-in provider, after the provider step ran twice"
+        echo "    one Google button on the sign-in screen, after the provider step ran twice"
+        [ "${google_idps_aside:-0}" = "0" ] \
+          || echo "    (${google_idps_aside} more named Google exist, taken off the screen — kept, not offered)"
         [ "${google_idps_off:-0}" = "0" ] \
           || echo "    (${google_idps_off} more named Google are deactivated — on the list, off the screen)" ;;
       0|''|unreadable)
-        echo "expected ONE active Google sign-in provider, found '${google_idps}' — the provider step left none active, or the template list could not be read"
+        echo "expected ONE Google button on the sign-in screen, found '${google_idps}' — no active provider of that name is on the login policy, or a list could not be read"
         fail=1 ;;
       *)
-        echo "found ${google_idps} active sign-in providers named Google — the sign-in screen shows ${google_idps} Google buttons."
+        echo "found ${google_idps} Google buttons on the sign-in screen — ${google_idps} active providers named Google are on the login policy."
         echo "  The provider step ran twice in this run and added nothing (the workflow step read it), so these"
         echo "  are older: every bring-up before #711 added one, and setup-zitadel.sh never deletes a provider,"
-        echo "  because a person may be linked to it. Deactivate or remove the extras by hand, once:"
-        echo "    ${STACK_ISSUER}/ui/console  ->  Instance  ->  Identity Providers"
-        echo "  and keep the one a signed-in person is linked to (their user page lists it under External"
-        echo "  Identity Providers). After that, #711 holds the count at one."
+        echo "  because a person may be linked to it. Take the extras off the screen by hand, once:"
+        echo "    ${STACK_ISSUER}/ui/console  ->  Default settings  ->  Login Behaviour and Security  ->  Identity Providers"
+        echo "  the 'available' toggle keeps the provider and takes its button away; deactivating does too. In the"
+        echo "  INSTANCE (default) settings, not the organisation's — the bring-up resets an organisation's own login"
+        echo "  policy, and a clean-up made there is undone with it. After that, #711 holds it at one."
         fail=1 ;;
     esac
   fi
