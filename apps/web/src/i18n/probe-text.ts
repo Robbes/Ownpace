@@ -116,7 +116,7 @@ export function qualificationText(
     | {
         domains: Record<
           'mail' | 'calendar' | 'contact' | 'file',
-          { answer: 'yes' | 'no' | 'unknown'; detail: string }
+          { answer: 'yes' | 'no' | 'unknown'; detail: string; count?: number; unit?: ProbeUnit }
         >;
       }
     | undefined,
@@ -130,8 +130,19 @@ export function qualificationText(
     file: 'domain.file',
   };
   const order = ['mail', 'calendar', 'contact', 'file'] as const;
+  // The count beside the tick, when the face was reached and listed
+  // (2026-09-02): "Calendar ✓ 5 calendars" — the owner's "a bit more info
+  // on the other three", on the line itself rather than in a hover a phone
+  // has not got. An older record, a no and an unknown carry no count.
   const line = order
-    .map((domain) => `${t(label[domain])} ${mark[qualification.domains[domain].answer]}`)
+    .map((domain) => {
+      const d = qualification.domains[domain];
+      const counted =
+        d.answer === 'yes' && d.count !== undefined && d.unit
+          ? ` ${d.count} ${unitWord(t, d.unit, d.count)}`
+          : '';
+      return `${t(label[domain])} ${mark[d.answer]}${counted}`;
+    })
     .join(' · ');
   const anyUnknown = order.some((domain) => qualification.domains[domain].answer === 'unknown');
   return `${t('probe.qualify.lead')} ${line}${anyUnknown ? ` — ${t('probe.qualify.unknownHint')}` : ''}`;

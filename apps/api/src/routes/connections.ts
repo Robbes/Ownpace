@@ -94,8 +94,15 @@ async function qualifyAndRemember(
     // Probe-qualified for the Basic-auth families; grant-qualified for the
     // Google kinds (0106 T1a) — the token response's scope field says what
     // the grant ACTUALLY carries, never the wizard kind it was typed under.
+    // AND REACHED (2026-09-02): each face the grant carries is asked as a
+    // pass would ask it, from the row's own address and blob, so a switch
+    // left off in the client's project shows here and not at the first
+    // migration. The owner's "5 calendars and nothing about the other three".
     const qualification =
-      (await qualifyAccount(kind, config, creds)) ?? (await qualifyGoogleGrant(kind, creds));
+      (await qualifyAccount(kind, config, creds)) ??
+      (await qualifyGoogleGrant(kind, creds, {
+        reach: { user: String(config.user ?? ''), config },
+      }));
     if (!qualification) return undefined;
     await withTenantDb(tenantId, pool(), async (db) => {
       await db

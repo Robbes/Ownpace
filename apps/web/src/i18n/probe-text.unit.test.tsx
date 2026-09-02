@@ -197,3 +197,40 @@ describe('qualificationText — what the account can carry (0106 T0)', () => {
     expect(qualificationText(en, undefined)).toBeNull();
   });
 });
+
+describe('qualificationText — the count beside the tick, once a face was reached (2026-09-02)', () => {
+  const reached = {
+    domains: {
+      mail: { answer: 'yes' as const, detail: 'The grant carries mail; 14 folders visible.', count: 14, unit: 'folder' as const },
+      calendar: { answer: 'yes' as const, detail: '5 calendars visible.', count: 5, unit: 'calendar' as const },
+      contact: { answer: 'unknown' as const, detail: 'The grant carries carddav, but the face did not answer: 403' },
+      file: { answer: 'yes' as const, detail: '1 folder visible.', count: 1, unit: 'folder' as const },
+    },
+  };
+
+  it('words each count in the reader\'s language, singular and plural, and leaves an unknown bare', () => {
+    const english = qualificationText(en, reached)!;
+    expect(english).toContain('Email ✓ 14 folders');
+    expect(english).toContain('Calendar ✓ 5 calendars');
+    expect(english).toContain('Contacts ?');
+    expect(english).toContain('Files ✓ 1 folder');
+    const dutch = qualificationText(nl, reached)!;
+    expect(dutch).toContain('5 agenda');
+    expect(dutch).toContain('1 map');
+    expect(dutch).not.toContain('calendars');
+  });
+
+  it('an older record without counts renders exactly as before', () => {
+    const bare = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'x' },
+        calendar: { answer: 'no' as const, detail: 'x' },
+        contact: { answer: 'yes' as const, detail: 'x' },
+        file: { answer: 'unknown' as const, detail: 'x' },
+      },
+    };
+    expect(qualificationText(en, bare)).toBe(
+      "Can carry: Email ✓ · Calendar ✗ · Contacts ✓ · Files ? — '?' is unmeasured — not safe to assume either way",
+    );
+  });
+});
