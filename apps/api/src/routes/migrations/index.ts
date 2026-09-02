@@ -50,6 +50,7 @@ import {
   sourceDomainRefusal,
   providerAccountDomains,
   googleDeploymentClient,
+  halfGoogleClientPairProblem,
   parseGoogleDriveSource,
   ConfigError,
   describeCronScheduleProblem,
@@ -230,6 +231,28 @@ function googleCredentialKeysRequired(): ReadonlyArray<'clientId' | 'clientSecre
   return googleDeploymentClient() === null
     ? (['clientId', 'clientSecret', 'refreshToken'] as const)
     : (['refreshToken'] as const);
+}
+
+/**
+ * Refuse HALF a client pair on a Google source (ADR-0041, the rule the wizard
+ * enforces since the deployment's client became a fact it could read).
+ *
+ * `googleCredentialKeysRequired` above stops demanding the pair the moment the
+ * deployment carries one — and the run path then fills only the MISSING half.
+ * So a request carrying a client id and no secret would be accepted here,
+ * stored, completed with the deployment's secret at mint time, and refused by
+ * Google's token endpoint hours later, from a sync log. The sentence is
+ * shared's, the same one the connection routes use; the anchor is the key
+ * that is missing, so a form can point at the box to fill or to empty.
+ */
+function refuseHalfGoogleClientPair(
+  ctx: { addIssue: (issue: { code: 'custom'; path: string[]; message: string }) => void },
+  sourceConfig: { clientId?: string | undefined; clientSecret?: string | undefined },
+): void {
+  const problem = halfGoogleClientPairProblem(sourceConfig);
+  if (!problem) return;
+  const missing = sourceConfig.clientId?.trim() ? 'clientSecret' : 'clientId';
+  ctx.addIssue({ code: 'custom', path: ['sourceConfig', missing], message: problem });
 }
 
 /**
@@ -738,6 +761,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           'read-only command that proves all three before anything migrates.',
       });
     }
+    refuseHalfGoogleClientPair(ctx, body.sourceConfig);
     const sourceRefusal = sourceDomainRefusal('google-drive', body.syncConfig.domains);
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
@@ -802,6 +826,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     // `process.env` does not exist — the wizard gets the same list from
     // `GET /api/provider-accounts`. The single-purpose kinds take no argument
     // and are unaffected: a Gmail credential reads mail whoever deployed it.
+    refuseHalfGoogleClientPair(ctx, body.sourceConfig);
     const sourceRefusal = sourceDomainRefusal(
       body.sourceType,
       body.syncConfig.domains,
@@ -880,6 +905,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           'not exist on a Workspace account.',
       });
     }
+    refuseHalfGoogleClientPair(ctx, body.sourceConfig);
     const sourceRefusal = sourceDomainRefusal('gmail', body.syncConfig.domains);
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
