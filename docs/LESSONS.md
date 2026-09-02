@@ -146,6 +146,10 @@ reading a file drops off its entry by itself.
 
 - [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
 
+### `apps/web/src/pages/Connections.tsx`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
 ### `apps/web/src/pages/CreateMapping.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -532,6 +536,10 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
+### `packages/shared/src/provider-clients.ts`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
 ### `packages/shared/src/target-domains.unit.test.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -671,10 +679,12 @@ Reads:
 - `apps/api/src/routes/provider-accounts.ts`
 - `apps/api/src/routes/provider-accounts.unit.test.ts`
 - `apps/web/src/i18n/strings.ts`
+- `apps/web/src/pages/Connections.tsx`
 - `apps/web/src/pages/CreateMapping.tsx`
 - `apps/web/src/services/mapping-service.ts`
 - `deploy/compose/managed.yml`
 - `packages/shared/src/provider-accounts.ts`
+- `packages/shared/src/provider-clients.ts`
 - `packages/shared/src/target-domains.unit.test.ts`
 - `scripts/a-scope-class-the-product-does-not-decide.unit.test.ts`
 

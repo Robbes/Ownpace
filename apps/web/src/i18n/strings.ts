@@ -254,7 +254,9 @@ const en = {
     + 'and nothing more.',
   'wizard.google.connect.needsClient':
     'Enter the Client ID and client secret first — the consent runs against your own Google client.',
-  'wizard.google.received': 'Consent received — saving and testing this connection.',
+  // One sentence for every provider's consent: what lands is the same
+  // token in the same box, and the same save-and-test follows.
+  'wizard.consent.received': 'Consent received — saving and testing this connection.',
   // The deployment's own client (ADR-0041, owner decision 2026-09-01): the
   // pair becomes optional as a whole, and a half-typed pair is named rather
   // than silently completed with the deployment's other half.
@@ -270,6 +272,22 @@ const en = {
   // `redirect_uri_mismatch` arrived naming no address (2026-09-01).
   'wizard.google.redirectUri':
     'Register this exact address in your Google client, under Authorised redirect URIs:',
+  // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
+  'wizard.dropbox.connect': 'Connect with Dropbox',
+  'wizard.dropbox.connect.hint':
+    'Opens Dropbox’s consent screen and fills the refresh token in for you. Pasting a token ' +
+    'you already have keeps working.',
+  'wizard.dropbox.connect.needsClient':
+    'Enter the App key and App secret first — the consent runs against your own Dropbox app.',
+  'wizard.dropbox.connect.halfClient':
+    'Enter both the App key and the App secret, or neither — this deployment has its own ' +
+    'Dropbox app.',
+  'wizard.dropbox.deploymentClient':
+    'This deployment has its own Dropbox app, so these two can stay empty. ' +
+    'Enter both to use your own instead.',
+  'wizard.dropbox.ownClient': 'Use your own Dropbox app instead',
+  'wizard.dropbox.redirectUri':
+    'Register this exact address in your Dropbox app, under OAuth 2 → Redirect URIs:',
   // The two Microsoft 365 connection methods (0107 T1): the family heading
   // says WHO, the card says HOW — "OAuth2" as a card name said neither.
   'wizard.group.provider': 'Your provider',
@@ -1749,7 +1767,7 @@ const nl: Record<keyof typeof en, string> = {
     + 'is aangevinkt, en niets meer.',
   'wizard.google.connect.needsClient':
     'Vul eerst de Client-ID en het clientgeheim in — de toestemming loopt via uw eigen Google-client.',
-  'wizard.google.received': 'Toestemming ontvangen — de verbinding wordt opgeslagen en getest.',
+  'wizard.consent.received': 'Toestemming ontvangen — de verbinding wordt opgeslagen en getest.',
   'wizard.google.deploymentClient':
     'Deze installatie heeft een eigen Google-client, dus deze twee mogen leeg blijven. ' +
     'Vul beide in om in plaats daarvan uw eigen client te gebruiken.',
@@ -1760,6 +1778,21 @@ const nl: Record<keyof typeof en, string> = {
   // Zie het Engelse blok.
   'wizard.google.redirectUri':
     'Registreer dit exacte adres in uw Google-client, onder Geautoriseerde omleidings-URI\u2019s:',
+  'wizard.dropbox.connect': 'Verbinden met Dropbox',
+  'wizard.dropbox.connect.hint':
+    'Opent het toestemmingsscherm van Dropbox en vult het vernieuwingstoken voor u in. Een ' +
+    'token plakken dat u al heeft, blijft gewoon werken.',
+  'wizard.dropbox.connect.needsClient':
+    'Vul eerst de App key en het App secret in — de toestemming loopt via uw eigen Dropbox-app.',
+  'wizard.dropbox.connect.halfClient':
+    'Vul zowel de App key als het App secret in, of geen van beide — deze installatie heeft ' +
+    'een eigen Dropbox-app.',
+  'wizard.dropbox.deploymentClient':
+    'Deze installatie heeft een eigen Dropbox-app, dus deze twee mogen leeg blijven. ' +
+    'Vul beide in om in plaats daarvan uw eigen app te gebruiken.',
+  'wizard.dropbox.ownClient': 'Gebruik in plaats daarvan uw eigen Dropbox-app',
+  'wizard.dropbox.redirectUri':
+    'Registreer dit exacte adres in uw Dropbox-app, onder OAuth 2 → Redirect URIs:',
   'wizard.group.provider': 'Uw aanbieder',
   'wizard.group.protocol': 'Elke server, via protocol',
   'wizard.m365.viaImap': 'Via IMAP',

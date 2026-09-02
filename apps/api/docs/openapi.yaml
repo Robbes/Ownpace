@@ -957,13 +957,18 @@ paths:
         "App secret"); nothing is stored. Needs the `sharing.read` scope —
         an app without it gets Dropbox's refusal verbatim
         (`{ok:false, reason}`).
+
+        The pair is optional as a whole (ADR-0041): absent, the deployment's
+        own Dropbox app is used (`DROPBOX_OAUTH_CLIENT_ID`/`_SECRET`); half a
+        pair is refused `half_client_pair`, and no app at all
+        `no_dropbox_client` — the consent route's own answers.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [clientId, clientSecret, refreshToken]
+              required: [refreshToken]
               properties:
                 clientId: { type: string }
                 clientSecret: { type: string, writeOnly: true }
