@@ -903,7 +903,16 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       pickGmail();
       // The answer comes over the wire; until it does the pair is demanded.
       await waitFor(() => expect(connectButton()).toBeEnabled());
-      expect(screen.getByText(/has its own Google client/)).toBeInTheDocument();
+      // The pair is FOLDED AWAY, not merely optional (owner remark
+      // 2026-09-02): both boxes live inside one collapsed disclosure that
+      // says what it is for, and the sentence about the deployment's client
+      // is in there with them. The default screen is the address, the token
+      // and the button.
+      const fold = screen.getByText('Use your own Google application instead').closest('details');
+      expect(fold).not.toBeNull();
+      expect(fold).toContainElement(screen.getByPlaceholderText('…apps.googleusercontent.com'));
+      expect(fold).toContainElement(screen.getByPlaceholderText('••••••••'));
+      expect(fold).toHaveTextContent(/has its own Google client/);
 
       fireEvent.click(connectButton());
       await waitFor(() => expect(authorizeMock).toHaveBeenCalled());
@@ -967,6 +976,9 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       expect.stringContaining('Enter the Client ID and client secret first'),
     );
     expect(screen.queryByText(/has its own Google client/)).not.toBeInTheDocument();
+    // And no fold: the pair is required here, so it is in plain view.
+    expect(screen.queryByText('Use your own Google application instead')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('…apps.googleusercontent.com').closest('details')).toBeNull();
   });
 
   it('the Drive browse works on the token alone, and sends no empty pair', async () => {

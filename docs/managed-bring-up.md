@@ -979,12 +979,13 @@ secret at Google is therefore this one edit and a restart, not an edit per
 connection.
 
 **And the wizard knows.** `GET /api/provider-accounts` answers
-`client: deployment` once both halves are set, so the wizard shows the Client
-ID and client secret as optional, enables *Connect with Google* without them,
-and says so beside the fields. Enter both to use your own client instead; enter
-one and it asks for the other rather than pairing it with the deployment's. The
-shared-drive browse behind a Drive source follows the same rule: the token
-alone is enough.
+`client: deployment` once both halves are set, so the wizard — and the
+Connections page's add-form — fold the Client ID and client secret away behind
+*Use your own Google application instead*, enable *Connect with Google* without
+them, and leave the address, the token and the button as the whole form. Open
+the fold and enter both to use your own client; enter one and it asks for the
+other rather than pairing it with the deployment's. The shared-drive browse
+behind a Drive source follows the same rule: the token alone is enough.
 
 **A connection that carries its own pair still wins.** A customer who
 registered their own Google application keeps using it; this is a fallback,
