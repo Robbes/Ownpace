@@ -162,6 +162,36 @@ describe('the exchange: granted is read, never assumed', () => {
     }
   });
 
+  it('judges a MULTI-scope ask scope by scope — four asked and four granted is not "missing all four"', async () => {
+    // 2026-09-02, the owner's first consent with every domain ticked: Google
+    // granted all four, and the exchange refused with the whole space-joined
+    // ask named as missing — it had looked for the joined string as one
+    // scope. The ask is one scope per domain; each is judged on its own.
+    const four =
+      'https://mail.google.com/ https://www.googleapis.com/auth/calendar ' +
+      'https://www.googleapis.com/auth/carddav https://www.googleapis.com/auth/drive.readonly';
+    const grantedAll =
+      'https://mail.google.com/ https://www.googleapis.com/auth/carddav ' +
+      'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email ' +
+      'openid https://www.googleapis.com/auth/drive.readonly';
+    const ask = (scope: string) =>
+      exchangeCode(
+        { code: 'c', clientId: 'cid', clientSecret: 'shh', redirectUri: PENDING.redirectUri, askedScope: four },
+        vi.fn(async () => new Response(JSON.stringify({ refresh_token: 'rt', scope }))) as unknown as typeof fetch,
+      );
+    const all = await ask(grantedAll);
+    expect(all.ok).toBe(true);
+    if (all.ok) expect(all.grantedScopes).toContain('https://www.googleapis.com/auth/drive.readonly');
+
+    // …and a grant short of ONE names exactly that one, not the ones granted.
+    const short = await ask(grantedAll.replace('https://www.googleapis.com/auth/carddav ', ''));
+    expect(short.ok).toBe(false);
+    if (!short.ok) {
+      expect(short.reason).toContain('missing https://www.googleapis.com/auth/carddav.');
+      expect(short.reason).not.toContain('missing https://mail.google.com/');
+    }
+  });
+
   it('the broader Drive scope satisfies the read-only ask — over-receiving is reported, not refused', async () => {
     const r = await exchangeCode(
       {

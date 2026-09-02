@@ -1057,7 +1057,12 @@ const CreateMapping: React.FC = () => {
           if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
           if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
         }
-        if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
+        // On the consent path the token box sits inside the fold, so what is
+        // missing is named by the button that fills it, not by a box the
+        // person is not looking at.
+        if (formData.sourceRefreshToken === '') {
+          out.push(googleClientPairRequired ? t('wizard.refreshToken') : t('wizard.google.connect'));
+        }
       }
     } else if (isO365Source) {
       if (formData.sourceTenantId.trim() === '') out.push(t('wizard.tenantId'));
@@ -1419,18 +1424,30 @@ const CreateMapping: React.FC = () => {
           // THE PAIR FOLDS AWAY where the deployment carries the client
           // (ADR-0041; owner remark 2026-09-02). On a managed deployment a
           // person grants Ownpace's own Google application, and "use your
-          // own" is the exception — so the default screen is the address,
-          // the token and the consent button, and the two boxes sit behind a
-          // fold. The secret renders INSIDE the id's fold, never on its own:
-          // half a pair is refused at every door, and the screen should not
-          // make it easy to type one.
+          // own" is the exception — so the default screen is the address and
+          // the consent button, and the two boxes sit behind a fold. The
+          // secret renders INSIDE the id's fold, never on its own: half a pair
+          // is refused at every door, and the screen should not make it easy
+          // to type one.
+          //
+          // AND THE TOKEN FOLDS WITH THEM (owner's second remark, the same
+          // day, after the first consent round trip): on the consent path the
+          // refresh token arrives from Google and is never typed, so a box
+          // with a red asterisk above the fold asked for something the button
+          // beside it supplies. Inside the fold it is what it always was — the
+          // manual alternative, for a token minted against one's own
+          // application. Where the deployment carries no client, nothing
+          // folds and the token stays in plain view, as before.
           const folded =
             isSource &&
             isGoogleGrantSource &&
             deploymentGoogleClient &&
-            (field.key === 'clientId' || field.key === 'clientSecret');
-          if (folded && field.key === 'clientSecret') return null;
+            (field.key === 'clientId' ||
+              field.key === 'clientSecret' ||
+              field.key === 'refreshToken');
+          if (folded && field.key !== 'clientId') return null;
           const secretField = folded ? fields.find((f) => f.key === 'clientSecret') : undefined;
+          const tokenField = folded ? fields.find((f) => f.key === 'refreshToken') : undefined;
           return (
             <React.Fragment key={field.key}>
               {isSource && field.key === 'rootFolderId' && isDriveSource && renderDriveBrowse()}
@@ -1444,6 +1461,7 @@ const CreateMapping: React.FC = () => {
                   <div className="mt-3 space-y-4">
                     {fieldControl(field)}
                     {secretField && fieldControl(secretField)}
+                    {tokenField && fieldControl(tokenField)}
                   </div>
                 </details>
               ) : (
