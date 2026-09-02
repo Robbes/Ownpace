@@ -55,6 +55,7 @@ import {
   halfDropboxClientPairProblem,
   dropboxDeploymentClient,
   resolveGoogleClient,
+  resolveDropboxClient,
   parseGoogleDriveSource,
   ConfigError,
   describeCronScheduleProblem,
@@ -1050,25 +1051,35 @@ const TestConnectionSchema = z.object({
  * and the credentials travel in the request exactly as test-connection's do —
  * nothing is stored.
  */
-const SharedDrivesSchema = z.object({
-  clientId: z.string().min(1),
-  clientSecret: z.string().min(1),
-  refreshToken: z.string().min(1),
-});
-
 /**
- * The Google browse's own shape (ADR-0041): the pair is optional as a WHOLE,
+ * The Google browse's shape (ADR-0041): the pair is optional as a WHOLE,
  * because the deployment may carry it — `resolveGoogleClient` decides, in
  * the order the consent route uses. `.min(1)` on the optional halves so an
- * empty string is refused rather than read as "the deployment's". Dropbox
- * keeps `SharedDrivesSchema` above: the same three names, its own
- * application, no deployment fallback.
+ * empty string is refused rather than read as "the deployment's".
  */
 const GoogleBrowseSchema = z.object({
   clientId: z.string().min(1).optional(),
   clientSecret: z.string().min(1).optional(),
   refreshToken: z.string().min(1),
 });
+
+/**
+ * Dropbox's browse, the same rule against its own application (2026-09-02:
+ * Connect with Dropbox): the same three names, the pair optional as a whole,
+ * and `resolveDropboxClient` — never Google's resolver — supplying the
+ * deployment's App key and secret where none were sent. Until then the
+ * wizard's folder browse stayed dead behind two fields the fold had taken.
+ */
+const DropboxBrowseSchema = GoogleBrowseSchema;
+
+/** The refusal for a body the Dropbox browse cannot read. */
+const DROPBOX_BROWSE_BODY_REFUSAL = {
+  error: 'invalid_body',
+  reason:
+    'Send { refreshToken } and, unless this deployment carries its own Dropbox app, ' +
+    '{ clientId, clientSecret } — the App key and App secret, under the same keys the ' +
+    'Dropbox source stores.',
+} as const;
 
 /** The refusal for a body the Google browse cannot read. */
 const GOOGLE_BROWSE_BODY_REFUSAL = {
@@ -1145,16 +1156,21 @@ router.post(
   authenticate,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const parsed = SharedDrivesSchema.safeParse(req.body);
+      const parsed = DropboxBrowseSchema.safeParse(req.body);
       if (!parsed.success) {
-        return void res.status(400).json({
-          error: 'invalid_body',
-          reason:
-            'Send { clientId, clientSecret, refreshToken } — the App key, App secret and ' +
-            'refresh token, under the same three keys the Dropbox source stores.',
-        });
+        return void res.status(400).json(DROPBOX_BROWSE_BODY_REFUSAL);
       }
-      res.json(await listDropboxSharedFolders(parsed.data));
+      const client = resolveDropboxClient(parsed.data);
+      if (!client.ok) {
+        return void res.status(400).json({ error: client.error, reason: client.reason });
+      }
+      res.json(
+        await listDropboxSharedFolders({
+          clientId: client.clientId,
+          clientSecret: client.clientSecret,
+          refreshToken: parsed.data.refreshToken,
+        }),
+      );
     } catch (error) {
       serverFault(res, 'listing_failed', 'listing the Dropbox shared folders', error);
     }

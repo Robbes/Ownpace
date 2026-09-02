@@ -45,6 +45,7 @@ import {
   connectionsApi,
   mappingApi,
   providerAccountsApi,
+  providerClientsApi,
   type ConnectionSummary,
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
@@ -198,23 +199,6 @@ const dataTypes: {
   { id: 'calendar', nameKey: 'domain.calendar', icon: Calendar, hintKey: 'wizard.domain.calendar.hint' },
   { id: 'contact', nameKey: 'domain.contact', icon: Users, hintKey: 'wizard.domain.contact.hint' },
   { id: 'file', nameKey: 'domain.file', icon: Folder, hintKey: 'wizard.domain.file.hint' },
-];
-
-/** The sources whose credentials can be minted by the clickable consent
- *  (0089 T1) — exactly the four that authenticate with a Google OAuth
- *  client, spelled out rather than derived: `isGoogleSource` includes
- *  Dropbox for credential-SHAPE reasons, which is not this question. */
-const GOOGLE_CONSENT_SOURCES: ReadonlyArray<string> = [
-  'gmail',
-  'google-calendar',
-  'google-contacts',
-  'google-drive',
-  // The ACCOUNT (0106 T3b). Same button, different ask: the four above each
-  // consent to one fixed scope, and this one consents to exactly the faces
-  // ticked on the next step — which is why the button below is disabled
-  // until something is ticked, rather than sending an empty consent the
-  // server would refuse.
-  'google',
 ];
 
 const isValidPort = (raw: string): boolean => {
@@ -453,14 +437,44 @@ const CreateMapping: React.FC = () => {
   });
   const googleAccountDomains = providerAccounts?.google?.domains ?? PROVIDER_ACCOUNT_DOMAINS.google;
   /**
-   * Does this deployment carry its own Google OAuth client (ADR-0041, owner
-   * decision 2026-09-01)? The server has accepted a consent and a create
-   * without a client id and secret since the pair became configurable; this
-   * screen kept demanding both, because nothing had told it. Same fact, same
-   * route, same default as the domains above: until the answer arrives the
-   * pair is asked for — the direction that cannot under-ask.
+   * WHOSE CONSENT mints the source's token is the descriptor's answer
+   * (`consent` on its refresh-token field): Google's kinds say google,
+   * Dropbox says dropbox (2026-09-02: Connect with Dropbox), and a source
+   * that says nothing has no button and no fold. It used to be a list of
+   * five source types kept here, which was a second copy of that table.
    */
-  const deploymentGoogleClient = providerAccounts?.google?.client === 'deployment';
+  const grantProvider = credentialFieldsFor('source', formData.sourceType).find(
+    (f) => f.key === 'refreshToken',
+  )?.consent;
+  const isGrantSource = grantProvider !== undefined;
+  /**
+   * Does this deployment carry its own OAuth application for THAT provider
+   * (ADR-0041, owner decision 2026-09-01)? The server has accepted a consent
+   * and a create without a client id and secret since the pair became
+   * configurable; this screen kept demanding both, because nothing had told
+   * it. One fact per provider, read over the wire, and the same default as
+   * the domains above: until the answer arrives the pair is asked for — the
+   * direction that cannot under-ask.
+   */
+  const { data: providerClients } = useQuery({
+    queryKey: ['provider-clients'],
+    queryFn: providerClientsApi.get,
+    retry: false,
+    staleTime: Infinity,
+  });
+  const deploymentClient =
+    grantProvider !== undefined && providerClients?.[grantProvider] === 'deployment';
+  /** The provider's own words for the shared button, fold and hints. */
+  const ps = (
+    suffix:
+      | 'connect'
+      | 'connect.hint'
+      | 'connect.needsClient'
+      | 'connect.halfClient'
+      | 'deploymentClient'
+      | 'ownClient'
+      | 'redirectUri',
+  ) => t(`wizard.${grantProvider ?? 'google'}.${suffix}` as StringKey);
 
   const reusableSources = (existingConnections ?? []).filter(
     (c) => c.role === 'source' && c.kind === sourceKindOf(formData.sourceType),
@@ -606,14 +620,14 @@ const CreateMapping: React.FC = () => {
    * same way. Never as empty strings, which the routes' schemas refuse; half
    * a pair never gets this far, because the buttons refuse it first.
    */
-  const ownGoogleClient =
+  const ownClientPair =
     formData.sourceClientId.trim() && formData.sourceClientSecret.trim()
       ? { clientId: formData.sourceClientId.trim(), clientSecret: formData.sourceClientSecret }
       : {};
   const browseSharedDrives = () => {
     setBrowsing(true);
     setSharedDrivesError(null);
-    const creds = { ...ownGoogleClient, refreshToken: formData.sourceRefreshToken };
+    const creds = { ...ownClientPair, refreshToken: formData.sourceRefreshToken };
     void Promise.allSettled([
       mappingApi.listSharedDrives(creds),
       mappingApi.listSharedFolders(creds),
@@ -647,11 +661,7 @@ const CreateMapping: React.FC = () => {
     setBrowsing(true);
     setDropboxFoldersError(null);
     mappingApi
-      .listDropboxSharedFolders({
-        clientId: formData.sourceClientId,
-        clientSecret: formData.sourceClientSecret,
-        refreshToken: formData.sourceRefreshToken,
-      })
+      .listDropboxSharedFolders({ ...ownClientPair, refreshToken: formData.sourceRefreshToken })
       .then((result) => {
         // A refusal (a missing sharing.read scope, most likely) arrives in
         // Dropbox's own words and is shown verbatim.
@@ -872,9 +882,9 @@ const CreateMapping: React.FC = () => {
    * own shape are trusted. The token lands in the SAME field a pasted one
    * does — storage, probing and create see no difference (ADR-0037).
    */
-  const [googleConsent, setGoogleConsent] = React.useState<string | null>(null);
+  const [consentNote, setConsentNote] = React.useState<string | null>(null);
   /** The callback address the last consent asked Google to return to. */
-  const [googleRedirect, setGoogleRedirect] = React.useState<string | null>(null);
+  const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
   /**
    * ONE GO (owner remark 2026-09-02, after the first working round trip):
    * "I would expect an automatic save — the app did receive the grant — and
@@ -889,14 +899,20 @@ const CreateMapping: React.FC = () => {
    * not fire the effect.
    */
   const [consentLanded, setConsentLanded] = React.useState(0);
+  // THIS source's provider, read at the moment a message lands: a Google
+  // popup left open behind a Dropbox source must not hand its token over.
+  const grantProviderRef = React.useRef(grantProvider);
+  grantProviderRef.current = grantProvider;
   React.useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { type?: string; refreshToken?: string } | null;
       if (event.origin !== window.location.origin) return;
-      if (!data || data.type !== 'ownpace-google-consent') return;
+      const provider = grantProviderRef.current;
+      if (provider === undefined) return;
+      if (!data || data.type !== `ownpace-${provider}-consent`) return;
       if (typeof data.refreshToken !== 'string' || data.refreshToken.length === 0) return;
       setFormData((prev) => ({ ...prev, sourceRefreshToken: data.refreshToken as string }));
-      setGoogleConsent('received');
+      setConsentNote('received');
       setConsentLanded((n) => n + 1);
     };
     window.addEventListener('message', onMessage);
@@ -909,30 +925,34 @@ const CreateMapping: React.FC = () => {
     if (consentLanded > 0) runProbeRef.current('source');
   }, [consentLanded]);
 
-  const startGoogleConsent = async () => {
-    setGoogleConsent(null);
+  const startConsent = async () => {
+    setConsentNote(null);
     try {
       // The ACCOUNT asks for exactly the faces ticked (workplan 0106 T3b);
       // the four single-purpose sources ask for their own one scope. The
       // domain set is sent rather than a source type, so the consent screen
       // and the ticks cannot disagree — and the server refuses an empty set
       // rather than substituting a default, which is why the button is
-      // disabled until something is ticked.
-      const { url, redirectUri } = await mappingApi.googleAuthorize(
-        isGoogleAccountSource
-          ? {
-              domains: formData.domains,
-              ...ownGoogleClient,
-            }
-          : {
-              sourceType: formData.sourceType as
-                | 'gmail'
-                | 'google-calendar'
-                | 'google-contacts'
-                | 'google-drive',
-              ...ownGoogleClient,
-            },
-      );
+      // disabled until something is ticked. Dropbox asks for no scope at
+      // all: its app's permissions decide (2026-09-02: Connect with Dropbox).
+      const { url, redirectUri } =
+        grantProvider === 'dropbox'
+          ? await mappingApi.dropboxAuthorize(ownClientPair)
+          : await mappingApi.googleAuthorize(
+              isGoogleAccountSource
+                ? {
+                    domains: formData.domains,
+                    ...ownClientPair,
+                  }
+                : {
+                    sourceType: formData.sourceType as
+                      | 'gmail'
+                      | 'google-calendar'
+                      | 'google-contacts'
+                      | 'google-drive',
+                    ...ownClientPair,
+                  },
+            );
       /**
        * THE ADDRESS THIS CONSENT USED, kept rather than discarded.
        *
@@ -950,10 +970,10 @@ const CreateMapping: React.FC = () => {
        * Shown on every attempt, not only on failure, because it has to be
        * registered BEFORE the first one can work.
        */
-      setGoogleRedirect(redirectUri ?? null);
-      window.open(url, 'ownpace-google-consent', 'popup,width=520,height=640');
+      setConsentRedirect(redirectUri ?? null);
+      window.open(url, `ownpace-${grantProvider ?? 'google'}-consent`, 'popup,width=520,height=640');
     } catch (error) {
-      setGoogleConsent(serverMessage(error));
+      setConsentNote(serverMessage(error));
     }
   };
 
@@ -1016,18 +1036,15 @@ const CreateMapping: React.FC = () => {
   // uses the Client Credentials Grant (Box rotates refresh tokens, so none is
   // stored) — client id + secret plus the numeric subject user id.
   const isBoxSource = formData.sourceType === 'box';
-  // The kinds the deployment's client can stand in for: Google's own, and NOT
-  // Dropbox, which rides the same three field names with its own app pair.
-  const isGoogleGrantSource =
-    isDriveSource || isGmailSource || isGoogleDavSource || isGoogleAccountSource;
   // One half of a pair typed is a pair being typed, not a pair left to the
-  // deployment: the server fills only what is missing, key by key, and a
-  // customer's id with the deployment's secret fails at Google's token
-  // endpoint hours later. So the pair is optional as a WHOLE, never by half.
-  const googleClientHalfTyped =
+  // deployment: the server refuses the half rather than completing it, and a
+  // customer's id with the deployment's secret would fail at the provider's
+  // token endpoint hours later. So the pair is optional as a WHOLE, never by
+  // half — for Google's kinds and for Dropbox alike: `deploymentClient` is
+  // the answer for whichever provider the source's descriptor names.
+  const clientHalfTyped =
     (formData.sourceClientId.trim() !== '') !== (formData.sourceClientSecret.trim() !== '');
-  const googleClientPairRequired =
-    !(deploymentGoogleClient && isGoogleGrantSource) || googleClientHalfTyped;
+  const clientPairRequired = !deploymentClient || clientHalfTyped;
 
   /** The problem with a non-empty custom cron, or null (empty = default). */
   const cronProblem = (): string | null =>
@@ -1073,10 +1090,18 @@ const CreateMapping: React.FC = () => {
     if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
 
     if (isDropboxSource) {
-      // Labelled as the Dropbox App Console labels it, which is not "Client ID".
-      if (formData.sourceClientId.trim() === '') out.push(t('wizard.dropboxAppKey'));
-      if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
-      if (formData.sourceRefreshToken === '') out.push(t('wizard.refreshToken'));
+      // Labelled as the Dropbox App Console labels it, which is not "Client
+      // ID". The pair is the deployment's where it carries a Dropbox app
+      // (2026-09-02: Connect with Dropbox); the token is always this
+      // account's, and on the consent path what is missing is named by the
+      // button that fills it — as for Google below.
+      if (clientPairRequired) {
+        if (formData.sourceClientId.trim() === '') out.push(t('wizard.dropboxAppKey'));
+        if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
+      }
+      if (formData.sourceRefreshToken === '') {
+        out.push(clientPairRequired ? t('wizard.refreshToken') : t('wizard.dropbox.connect'));
+      }
     } else if (isBoxSource) {
       if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
       // The CCG subject: without it there is no "whose files" to read.
@@ -1087,7 +1112,7 @@ const CreateMapping: React.FC = () => {
       // of which the client pair is the deployment's to supply where it has
       // one (ADR-0041), and the refresh token never is: it says whose data.
       if (formData.sourceServiceAccountKey.trim() === '') {
-        if (googleClientPairRequired) {
+        if (clientPairRequired) {
           if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
           if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
         }
@@ -1095,7 +1120,7 @@ const CreateMapping: React.FC = () => {
         // missing is named by the button that fills it, not by a box the
         // person is not looking at.
         if (formData.sourceRefreshToken === '') {
-          out.push(googleClientPairRequired ? t('wizard.refreshToken') : t('wizard.google.connect'));
+          out.push(clientPairRequired ? t('wizard.refreshToken') : t('wizard.google.connect'));
         }
       }
     } else if (isO365Source) {
@@ -1240,7 +1265,7 @@ const CreateMapping: React.FC = () => {
       if (formData.sourceServiceAccountKey.trim() !== '') return false;
       // The pair is the deployment's where it has one (ADR-0041); the token
       // is always this account's.
-      return field.key === 'refreshToken' || googleClientPairRequired;
+      return field.key === 'refreshToken' || clientPairRequired;
     }
     return field.required === true;
   };
@@ -1253,7 +1278,7 @@ const CreateMapping: React.FC = () => {
         onClick={browseSharedDrives}
         disabled={
           browsing ||
-          (googleClientPairRequired &&
+          (clientPairRequired &&
             (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())) ||
           !formData.sourceRefreshToken
         }
@@ -1311,8 +1336,8 @@ const CreateMapping: React.FC = () => {
         onClick={browseDropboxFolders}
         disabled={
           browsing ||
-          !formData.sourceClientId ||
-          !formData.sourceClientSecret ||
+          (clientPairRequired &&
+            (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())) ||
           !formData.sourceRefreshToken
         }
         className="text-sm text-blue-700 hover:underline disabled:opacity-50"
@@ -1474,8 +1499,8 @@ const CreateMapping: React.FC = () => {
           // folds and the token stays in plain view, as before.
           const folded =
             isSource &&
-            isGoogleGrantSource &&
-            deploymentGoogleClient &&
+            isGrantSource &&
+            deploymentClient &&
             (field.key === 'clientId' ||
               field.key === 'clientSecret' ||
               field.key === 'refreshToken');
@@ -1489,9 +1514,9 @@ const CreateMapping: React.FC = () => {
               {folded ? (
                 <details className="rounded-md border border-gray-200 p-3">
                   <summary className="cursor-pointer text-sm text-gray-700">
-                    {t('wizard.google.ownClient')}
+                    {ps('ownClient')}
                   </summary>
-                  <p className="mt-2 text-sm text-gray-500">{t('wizard.google.deploymentClient')}</p>
+                  <p className="mt-2 text-sm text-gray-500">{ps('deploymentClient')}</p>
                   <div className="mt-3 space-y-4">
                     {fieldControl(field)}
                     {secretField && fieldControl(secretField)}
@@ -1842,7 +1867,7 @@ const CreateMapping: React.FC = () => {
                 wizard against the customer's OWN client. The fields above
                 stay — an operator holding a token can still paste it, and
                 the appliance's file-configured path is untouched. */}
-            {GOOGLE_CONSENT_SOURCES.includes(formData.sourceType) &&
+            {isGrantSource &&
               !formData.sourceConnectionId && (
                 <div className="mt-4">
                   {/* THE FACES, HERE, for the account kind. Its consent asks
@@ -1876,9 +1901,9 @@ const CreateMapping: React.FC = () => {
                   )}
                   <button
                     type="button"
-                    onClick={startGoogleConsent}
+                    onClick={startConsent}
                     disabled={
-                      (googleClientPairRequired &&
+                      (clientPairRequired &&
                         (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())) ||
                       // The account consent asks for the ticked faces and
                       // nothing else, so with nothing ticked there is nothing
@@ -1889,32 +1914,32 @@ const CreateMapping: React.FC = () => {
                     }
                     className="btn btn-secondary"
                     title={
-                      googleClientPairRequired &&
+                      clientPairRequired &&
                       (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())
-                        ? deploymentGoogleClient
-                          ? t('wizard.google.connect.halfClient')
-                          : t('wizard.google.connect.needsClient')
+                        ? deploymentClient
+                          ? ps('connect.halfClient')
+                          : ps('connect.needsClient')
                         : isGoogleAccountSource && formData.domains.length === 0
                           ? t('wizard.google.connect.needsDomains')
                           : undefined
                     }
                   >
-                    {t('wizard.google.connect')}
+                    {ps('connect')}
                   </button>
-                  <p className="mt-1 text-sm text-gray-500">{t('wizard.google.connect.hint')}</p>
-                  {googleConsent && (
+                  <p className="mt-1 text-sm text-gray-500">{ps('connect.hint')}</p>
+                  {consentNote && (
                     <p
                       className={`mt-1 text-sm ${
-                        googleConsent === 'received' ? 'text-green-700' : 'text-amber-800'
+                        consentNote === 'received' ? 'text-green-700' : 'text-amber-800'
                       }`}
                     >
-                      {googleConsent === 'received' ? t('wizard.google.received') : googleConsent}
+                      {consentNote === 'received' ? t('wizard.consent.received') : consentNote}
                     </p>
                   )}
-                  {googleRedirect && googleConsent !== 'received' && (
+                  {consentRedirect && consentNote !== 'received' && (
                     <p className="mt-1 text-sm text-gray-500">
-                      {t('wizard.google.redirectUri')}{' '}
-                      <code className="break-all font-mono text-xs">{googleRedirect}</code>
+                      {ps('redirectUri')}{' '}
+                      <code className="break-all font-mono text-xs">{consentRedirect}</code>
                     </p>
                   )}
                 </div>

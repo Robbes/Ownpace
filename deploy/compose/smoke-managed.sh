@@ -2433,6 +2433,19 @@ if [ -n "$gate_dbx_id" ] && [ -n "$gate_dbx_secret" ]; then
     echo "dropbox consent with half a pair: HTTP $code — ${body:0:200} (expected 400 half_client_pair)"
     fail=1
   fi
+
+  # The folder browse reads the same resolver (the wizard's browse behind
+  # rootPath, alive behind the fold since the web half): half a pair is
+  # refused before any call to Dropbox — the token below never leaves.
+  r="$(http POST "$API/api/migrations/dropbox/shared-folders" "$TOK_R" \
+    "$(jq -nc --arg c "$gate_dbx_id" '{clientId:$c, refreshToken:"never-sent-to-dropbox"}')")"
+  code="${r%% *}"; body="${r#* }"
+  if [ "$code" = "400" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "half_client_pair" ]; then
+    echo "dropbox folder browse with half a pair: HTTP 400 half_client_pair, before any call to Dropbox"
+  else
+    echo "dropbox folder browse with half a pair: HTTP $code — ${body:0:200} (expected 400 half_client_pair)"
+    fail=1
+  fi
 else
   report_json "provider clients (dropbox)" "/api/provider-clients" '.dropbox' connection
 fi

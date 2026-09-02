@@ -47,7 +47,10 @@ describe('the missing-fields refusal', () => {
     const dropbox = credentialFieldsFor('source', 'dropbox');
     const emitted = dropbox.filter((f) => f.required).map((f) => f.key);
 
-    expect(emitted).toContain('clientId');
+    // The token is always the account's own, so it is always required; the
+    // App key is paired with its secret and optional as a whole since the
+    // deployment may carry the app (Connect with Dropbox, 2026-09-02).
+    expect(emitted).toContain('refreshToken');
     for (const key of missingFieldsRefusal(emitted).fields) {
       expect(
         dropbox.find((f) => f.key === key),

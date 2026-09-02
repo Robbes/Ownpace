@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
@@ -44,22 +44,33 @@ const axios400 = (data: unknown): AxiosError => {
   return err;
 };
 
-const { list, test: testConnection, rotate, remove, add, providerAccounts, googleAuthorize } = vi.hoisted(() => ({
+const {
+  list,
+  test: testConnection,
+  rotate,
+  remove,
+  add,
+  providerClients,
+  googleAuthorize,
+  dropboxAuthorize,
+} = vi.hoisted(() => ({
   list: vi.fn(),
   test: vi.fn(),
   rotate: vi.fn(),
   remove: vi.fn(),
-  // The deployment's own Google client (ADR-0041), as the add-form reads it.
-  // Empty by default: the pair stays in plain view, as on an appliance.
   add: vi.fn(),
-  providerAccounts: vi.fn(),
+  // Which OAuth applications the deployment carries (ADR-0041), one fact
+  // per provider, as the add-form reads them. Neither by default: the pair
+  // stays in plain view, as on an appliance.
+  providerClients: vi.fn(),
   googleAuthorize: vi.fn(),
+  dropboxAuthorize: vi.fn(),
 }));
 
 vi.mock('../services/mapping-service', () => ({
   connectionsApi: { list, test: testConnection, rotate, remove, add },
-  providerAccountsApi: { get: providerAccounts },
-  mappingApi: { googleAuthorize },
+  providerClientsApi: { get: providerClients },
+  mappingApi: { googleAuthorize, dropboxAuthorize },
 }));
 
 import Connections from './Connections.tsx';
@@ -90,8 +101,9 @@ beforeEach(() => {
   list.mockReset();
   testConnection.mockReset();
   rotate.mockReset();
-  providerAccounts.mockReset().mockResolvedValue({});
+  providerClients.mockReset().mockResolvedValue({ google: 'connection', dropbox: 'connection' });
   googleAuthorize.mockReset();
+  dropboxAuthorize.mockReset();
   add.mockReset();
   remove.mockReset();
 });
@@ -468,9 +480,7 @@ describe('adding a connection through the front door', () => {
     // the pair sits behind a disclosure, both halves inside it, and the
     // default form is the address and the token. Which kinds fold is the
     // descriptor's answer — an id paired with its secret — not a list here.
-    providerAccounts.mockResolvedValue({
-      google: { domains: ['calendar', 'contact'], client: 'deployment' },
-    });
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection' });
     await open();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     const fold = (
@@ -487,7 +497,7 @@ describe('adding a connection through the front door', () => {
     // Owner step 4, 2026-09-02: the fold took the pair away (#709) and left
     // no way to obtain the token — on a managed deployment this door's Gmail
     // and Drive paths were dead ends. The wizard's consent, on this door.
-    providerAccounts.mockResolvedValue({ google: { domains: ['email'], client: 'deployment' } });
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection' });
     googleAuthorize.mockResolvedValue({
       url: 'https://accounts.google.com/o/oauth2/v2/auth?scope=x',
       redirectUri: 'https://app.example.test/api/migrations/google/callback',
@@ -539,7 +549,7 @@ describe('adding a connection through the front door', () => {
   });
 
   it('the account kind asks for the faces ticked, and nothing with none ticked', async () => {
-    providerAccounts.mockResolvedValue({ google: { domains: ['calendar', 'contact'], client: 'deployment' } });
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection' });
     googleAuthorize.mockResolvedValue({ url: 'https://accounts.google.com/x', redirectUri: 'r', scope: 'x' });
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
     try {
@@ -592,6 +602,113 @@ describe('adding a connection through the front door', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     expect(screen.queryByText('Use your own Google application instead')).toBeNull();
     expect(screen.getByPlaceholderText('…apps.googleusercontent.com').closest('details')).toBeNull();
+  });
+
+  it('offers Connect with Dropbox where the deployment carries a Dropbox app, folds the App key pair away, and a consent that lands saves and tests in one go', async () => {
+    // Owner ask 2026-09-02: "add the grant button for Dropbox, similar to how
+    // we now have Google". Which kinds have a button is the descriptor's
+    // answer (`consent` on the token field), so Dropbox's arrival changed no
+    // list in this page — and the fact is Dropbox's own: a deployment with
+    // no Google client and a Dropbox app folds Dropbox's pair, not Google's.
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'deployment' });
+    dropboxAuthorize.mockResolvedValue({
+      url: 'https://www.dropbox.com/oauth2/authorize?client_id=x&token_access_type=offline',
+      redirectUri: 'https://app.example.test/api/migrations/dropbox/callback',
+    });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      add.mockResolvedValue({ ok: true, id: 'c2', detail: 'reachable' });
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@example.invalid' },
+      });
+      const button = await screen.findByRole('button', { name: /Connect with Dropbox/ });
+      await waitFor(() => expect(button).toBeEnabled());
+      expect(screen.queryByRole('button', { name: /Connect with Google/ })).toBeNull();
+      // Dropbox's words on the fold, and the App key, its secret and the
+      // token inside it — the same fold Google's kinds get, in its words.
+      const fold = screen.getByText('Use your own Dropbox app instead').closest('details');
+      expect(fold).not.toBeNull();
+      expect(fold).toHaveTextContent(/has its own Dropbox app/);
+      expect(fold).toContainElement(screen.getByLabelText(/App key/));
+      expect(fold).toContainElement(screen.getByPlaceholderText('••••••••'));
+      expect(fold).toContainElement(screen.getByPlaceholderText('1//…'));
+
+      fireEvent.click(button);
+      await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
+      // The deployment's app: no pair sent, not even empty strings — and
+      // Dropbox's route, never Google's.
+      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({});
+      expect(googleAuthorize).not.toHaveBeenCalled();
+      expect(opened.mock.calls[0]?.[1]).toBe('ownpace-dropbox-consent');
+
+      // A Google popup's message is not this form's: same origin, wrong flow.
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'ownpace-google-consent', refreshToken: 'not-for-dropbox' },
+          origin: window.location.origin,
+        }),
+      );
+      await act(async () => {});
+      expect((screen.getByPlaceholderText('1//…') as HTMLInputElement).value).toBe('');
+      expect(add).not.toHaveBeenCalled();
+
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'ownpace-dropbox-consent', refreshToken: 'dbx-granted' },
+          origin: window.location.origin,
+        }),
+      );
+      await screen.findByText(/Consent received/);
+      expect((screen.getByPlaceholderText('1//…') as HTMLInputElement).value).toBe('dbx-granted');
+      // Saved and tested in one go, the address as the name; the connection
+      // stores neither half of the pair (ADR-0041).
+      await waitFor(() => expect(add).toHaveBeenCalled());
+      const saved = add.mock.calls[add.mock.calls.length - 1]![0];
+      expect(saved).toMatchObject({
+        role: 'source',
+        type: 'dropbox',
+        displayName: 'owner@example.invalid',
+        values: { username: 'owner@example.invalid', refreshToken: 'dbx-granted' },
+      });
+      expect(saved.values).not.toHaveProperty('clientId');
+      expect(saved.values).not.toHaveProperty('clientSecret');
+      await screen.findByText(/reachable/);
+    } finally {
+      opened.mockRestore();
+    }
+  });
+
+  it('where each connection brings its own Dropbox app, the button waits for the whole pair and sends it', async () => {
+    dropboxAuthorize.mockResolvedValue({ url: 'https://www.dropbox.com/oauth2/authorize', redirectUri: 'r' });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
+      const button = screen.getByRole('button', { name: /Connect with Dropbox/ });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute(
+        'title',
+        expect.stringContaining('Enter the App key and App secret first'),
+      );
+      // No fold: the pair is required here, so it is in plain view.
+      expect(screen.queryByText('Use your own Dropbox app instead')).toBeNull();
+      expect(screen.getByLabelText(/App key/).closest('details')).toBeNull();
+      fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'dbx-app-key' } });
+      // Half a pair is still no pair (ADR-0041).
+      expect(button).toBeDisabled();
+      fireEvent.change(screen.getByPlaceholderText('••••••••'), { target: { value: 'dbx-app-secret' } });
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
+      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({
+        clientId: 'dbx-app-key',
+        clientSecret: 'dbx-app-secret',
+      });
+    } finally {
+      opened.mockRestore();
+    }
   });
 
   it('switching the side switches the cards', async () => {

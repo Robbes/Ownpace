@@ -47,6 +47,14 @@ export interface CredentialField {
    * is presented wherever its secret is, so a rotated pair is a pair.
    */
   readonly pairedWith?: string;
+  /**
+   * WHOSE consent mints this value (2026-09-02: Connect with Dropbox). On a
+   * refresh-token field, the provider whose consent screen fills it — and
+   * so which deployment-owned application may stand in for the pair beside
+   * it. A screen reads it to know which button to offer; a list of kinds
+   * kept in the page would be a second copy of this table.
+   */
+  readonly consent?: 'google' | 'dropbox';
   /** A pasted key file rather than a one-line value. */
   readonly multiline?: boolean;
   /**
@@ -144,7 +152,7 @@ function googleFields(): ReadonlyArray<CredentialField> {
       pairedWith: 'clientSecret',
     },
     { ...SECRET, required: false },
-    REFRESH,
+    { ...REFRESH, consent: 'google' },
     SERVICE_ACCOUNT_KEY,
   ];
 }
@@ -196,10 +204,13 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
   ],
   dropbox: [
     USER,
-    // Dropbox's App Console calls it an App key, so the field does too.
-    { key: 'clientId', labelKey: 'wizard.dropboxAppKey', required: true },
-    SECRET,
-    { ...REFRESH, required: true },
+    // Dropbox's App Console calls it an App key, so the field does too. Paired
+    // with its secret and no longer required on its own (2026-09-02: Connect
+    // with Dropbox): the deployment may carry the app, as it may Google's
+    // client, and a screen folds the pair away where it does.
+    { key: 'clientId', labelKey: 'wizard.dropboxAppKey', pairedWith: 'clientSecret' },
+    { ...SECRET, required: false },
+    { ...REFRESH, required: true, consent: 'dropbox' },
     {
       key: 'rootPath',
       labelKey: 'wizard.dropboxRootPath',

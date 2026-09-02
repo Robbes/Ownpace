@@ -42,6 +42,19 @@ describe('the provider\'s own vocabulary', () => {
     expect(appKey?.labelKey).toBe('wizard.dropboxAppKey');
   });
 
+  it("names whose consent mints each token, and pairs Dropbox's App key with its secret (2026-09-02)", () => {
+    const dropbox = credentialFieldsFor('source', 'dropbox');
+    expect(dropbox.find((f) => f.key === 'refreshToken')?.consent).toBe('dropbox');
+    expect(dropbox.find((f) => f.key === 'clientId')).toMatchObject({ pairedWith: 'clientSecret' });
+    expect(dropbox.find((f) => f.key === 'clientId')?.required).not.toBe(true);
+    expect(dropbox.find((f) => f.key === 'clientSecret')?.required).toBe(false);
+    for (const type of ['gmail', 'google-drive', 'google'] as const) {
+      expect(credentialFieldsFor('source', type).find((f) => f.key === 'refreshToken')?.consent).toBe('google');
+    }
+    // Box mints no refresh token and names no consent.
+    expect(credentialFieldsFor('source', 'box').some((f) => f.consent)).toBe(false);
+  });
+
   it('asks Box for the numeric subject user id it needs', () => {
     const keys = credentialFieldsFor('source', 'box').map((f) => f.key);
     expect(keys).toContain('userId');

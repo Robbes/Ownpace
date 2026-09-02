@@ -11,10 +11,14 @@
  * `resolveGoogleClient`: the caller's whole pair, else the deployment's, else
  * a refusal naming both ways forward; half a pair refused before either.
  *
+ * Dropbox's browse followed on 2026-09-02 (Connect with Dropbox): the same
+ * rule against `resolveDropboxClient`, and never Google's resolver — the two
+ * providers share the three key names and a Dropbox row must never be handed
+ * Google's client.
+ *
  * Pinned by reading the source, because the routes sit in the migrations
  * router, which a unit test cannot mount without a database — and what
- * matters here is exactly WHICH routes read the shared order: the two Google
- * ones, and not Dropbox, whose three fields are its own application's.
+ * matters here is exactly WHICH resolver each route reads.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -58,10 +62,19 @@ describe('the two Google browse routes', () => {
   });
 });
 
-describe('and Dropbox is left alone', () => {
-  it('/dropbox/shared-folders still demands its own three, and resolves nothing', () => {
+describe("and Dropbox's browse, against its own application", () => {
+  it('/dropbox/shared-folders resolves the App key pair through shared, and never through Google', () => {
     const body = route('/dropbox/shared-folders');
-    expect(body).toContain('SharedDrivesSchema.safeParse');
+    expect(body).toContain('DropboxBrowseSchema.safeParse');
+    expect(body).toContain('resolveDropboxClient(parsed.data)');
     expect(body).not.toContain('resolveGoogleClient');
+    expect(body).toContain('{ error: client.error, reason: client.reason }');
+    expect(body).toContain('refreshToken: parsed.data.refreshToken');
+  });
+
+  it('takes the pair as a whole or not at all — the Google schema, verbatim', () => {
+    expect(source).toContain('const DropboxBrowseSchema = GoogleBrowseSchema;');
+    // The old three-required schema is gone with the rule that made it.
+    expect(source).not.toContain('SharedDrivesSchema');
   });
 });

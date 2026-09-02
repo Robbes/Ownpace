@@ -43,6 +43,12 @@ vi.mock('../services/mapping-service', () => ({
   // empty: the wizard falls back to the narrow default, which is what an
   // appliance and an undeclared managed deployment both get.
   providerAccountsApi: { get: vi.fn().mockResolvedValue({}) },
+  // Which OAuth applications the deployment carries (ADR-0041), one fact
+  // per provider since Connect with Dropbox (2026-09-02). Neither here:
+  // every pair stays in plain view, as on an appliance.
+  providerClientsApi: {
+    get: vi.fn().mockResolvedValue({ google: 'connection', dropbox: 'connection' }),
+  },
 }));
 
 const listMock = vi.mocked(connectionsApi.list);

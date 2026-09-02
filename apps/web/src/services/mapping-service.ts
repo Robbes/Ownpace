@@ -430,6 +430,24 @@ export const providerAccountsApi = {
 };
 
 /**
+ * Which OAuth applications this deployment carries, one fact per provider
+ * (2026-09-02: Connect with Dropbox). Asked, not compiled in, for the reason
+ * the provider accounts are: the pair is set at run time.
+ */
+export const ProviderClientFactsSchema = z.object({
+  google: z.enum(['deployment', 'connection']),
+  dropbox: z.enum(['deployment', 'connection']),
+});
+export type ProviderClientFacts = z.infer<typeof ProviderClientFactsSchema>;
+
+export const providerClientsApi = {
+  get: async (): Promise<ProviderClientFacts> => {
+    const response = await apiClient.get('/provider-clients');
+    return ProviderClientFactsSchema.parse(response.data);
+  },
+};
+
+/**
  * Every address this deployment needs registered in somebody else's console
  * (2026-09-01).
  *
@@ -551,6 +569,22 @@ export const mappingApi = {
   },
 
   /**
+   * Dropbox's turn at the same round trip (2026-09-02: Connect with Dropbox).
+   * One ask and no scopes — the app's own permissions decide what the token
+   * can do, and `token_access_type=offline` is pinned server-side so a
+   * refresh token comes back. The pair is both or neither (ADR-0041): absent,
+   * the server uses the deployment's own Dropbox app. `redirectUri` is the
+   * exact string that must be registered under the app's OAuth 2 Redirect
+   * URIs before the first consent can work.
+   */
+  dropboxAuthorize: async (
+    p: { clientId?: string; clientSecret?: string } = {},
+  ): Promise<{ url: string; redirectUri: string }> => {
+    const response = await apiClient.post('/migrations/dropbox/authorize', p);
+    return response.data as { url: string; redirectUri: string };
+  },
+
+  /**
    * The shared drives a Google credential can see (workplan 0049) — the
    * wizard's "browse" behind rootFolderId. Read-only; nothing stored.
    */
@@ -597,8 +631,10 @@ export const mappingApi = {
    * exists. Read-only; nothing stored.
    */
   listDropboxSharedFolders: async (creds: {
-    clientId: string;
-    clientSecret: string;
+    // Both or neither (ADR-0041): absent, the server uses the deployment's
+    // own Dropbox app — the same rule as `dropboxAuthorize`.
+    clientId?: string;
+    clientSecret?: string;
     refreshToken: string;
   }): Promise<
     | { ok: true; folders: Array<{ id: string; name: string; path?: string }> }

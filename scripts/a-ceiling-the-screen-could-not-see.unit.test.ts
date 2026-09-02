@@ -143,27 +143,41 @@ describe('the deployment answers once, and the screen asks', () => {
 describe('the second fact the screen could not see (ADR-0041, owner decision 2026-09-01)', () => {
   // The same shape a day later: the server accepted a consent and a create
   // without a client id and secret once GOOGLE_OAUTH_CLIENT_* was set, and
-  // the wizard went on demanding both. Same route, same rule.
-  it('the answer carries where the client comes from, and the wizard reads it', () => {
-    expect(read('packages/shared/src/provider-accounts.ts')).toContain(
-      "client: googleDeploymentClient(env) ? 'deployment' : 'connection'",
+  // the wizard went on demanding both. Same rule; since Connect with Dropbox
+  // (2026-09-02) the fact has a route of its own, one answer per provider,
+  // because Dropbox has no account kind for its answer to ride on.
+  it('the answer carries where each application comes from, and the wizard reads it', () => {
+    expect(read('packages/shared/src/provider-clients.ts')).toContain(
+      "google: googleDeploymentClient(env) ? 'deployment' : 'connection'",
     );
+    expect(read('packages/shared/src/provider-clients.ts')).toContain(
+      "dropbox: dropboxDeploymentClient(env) ? 'deployment' : 'connection'",
+    );
+    expect(read('apps/api/src/index.ts')).toContain("app.use('/api/provider-clients'");
     expect(read('apps/web/src/services/mapping-service.ts')).toContain(
-      "client: z.enum(['deployment', 'connection']).optional()",
+      "google: z.enum(['deployment', 'connection'])",
     );
     // Compared against 'deployment', never against 'connection': an absent,
-    // unparsable or still-pending answer must keep demanding the pair.
-    expect(read(WIZARD)).toContain("providerAccounts?.google?.client === 'deployment'");
+    // unparsable or still-pending answer must keep demanding the pair. And
+    // indexed by the provider the source's descriptor names — a Google
+    // client is not a Dropbox app.
+    for (const rel of [WIZARD, 'apps/web/src/pages/Connections.tsx']) {
+      expect(read(rel), `${rel} does not ask which applications the deployment carries`).toContain(
+        'providerClientsApi',
+      );
+      expect(read(rel)).toContain("providerClients?.[grantProvider] === 'deployment'");
+    }
   });
 
   it('the pair travels whole or not at all — never as empty strings', () => {
-    // The authorize route's schema is `.min(1).optional()`: an empty string
+    // The authorize routes' schemas are `.min(1).optional()`: an empty string
     // is refused, an absent key means "the deployment's". A wizard that sent
     // `clientId: ''` would be refused by the very route that no longer needs
-    // the value.
+    // the value. One pair for both providers' consents.
     const wizard = read(WIZARD);
-    const consent = wizard.slice(wizard.indexOf('const startGoogleConsent'));
-    expect(consent).toContain('...ownGoogleClient');
+    const consent = wizard.slice(wizard.indexOf('const startConsent'));
+    expect(consent).toContain('mappingApi.dropboxAuthorize(ownClientPair)');
+    expect(consent).toContain('...ownClientPair');
     expect(consent.slice(0, consent.indexOf('mappingApi.googleAuthorize('))).not.toContain(
       'clientId: formData.sourceClientId,',
     );
@@ -177,16 +191,19 @@ describe('a fact the server computed and the screen must show', () => {
     // the thing you obviously need, and the other field is the one you need
     // only when it has already gone wrong.
     const wizard = read(WIZARD);
-    expect(wizard, 'the authorize answer is being destructured without its redirect').toContain(
-      'const { url, redirectUri } = await mappingApi.googleAuthorize(',
+    // Both providers' answers land in the same destructuring (2026-09-02):
+    // Dropbox's route returns the address for the same reason Google's does.
+    expect(wizard, 'the authorize answer is being destructured without its redirect').toMatch(
+      /const \{ url, redirectUri \} =\s*grantProvider === 'dropbox'\s*\? await mappingApi\.dropboxAuthorize\([^)]*\)\s*: await mappingApi\.googleAuthorize\(/,
     );
-    expect(wizard, 'kept but never stored').toContain('setGoogleRedirect(');
+    expect(wizard, 'kept but never stored').toContain('setConsentRedirect(');
   });
 
   it('and RENDERS it, because a value in state nobody can read is the same defect', () => {
     const wizard = read(WIZARD);
-    expect(wizard).toContain("t('wizard.google.redirectUri')");
-    expect(wizard, 'the address itself, not only the label').toContain('{googleRedirect}');
+    // In the provider's own words: `ps` reads `wizard.<provider>.redirectUri`.
+    expect(wizard).toContain("ps('redirectUri')");
+    expect(wizard, 'the address itself, not only the label').toContain('{consentRedirect}');
   });
 
   it('the sentence beside it tells somebody what to DO with the address', () => {
@@ -201,5 +218,11 @@ describe('a fact the server computed and the screen must show', () => {
     expect(sentence, 'and where — Google calls it Authorised redirect URIs').toContain(
       'Authorised redirect URIs',
     );
+    // Dropbox's sentence names Dropbox's box (App Console → OAuth 2).
+    const dbx = strings.indexOf("'wizard.dropbox.redirectUri':");
+    expect(dbx, 'the Dropbox string is gone').toBeGreaterThan(-1);
+    const dbxSentence = strings.slice(dbx, dbx + 400);
+    expect(dbxSentence).toContain('Register this exact address');
+    expect(dbxSentence).toContain('Redirect URIs');
   });
 });

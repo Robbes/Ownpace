@@ -30,7 +30,7 @@ import {
   mappingApi,
   type ConnectionSummary,
   type TestConnectionResult,
-  providerAccountsApi,
+  providerClientsApi,
 } from '../services/mapping-service.ts';
 import { useT, useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
 import {
@@ -401,56 +401,66 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const fields = credentialFieldsFor(role, type);
   const refusalText = useRefusalText(fields);
   const placeholderFor = usePlaceholderFor();
-  // The same fact the wizard reads (ADR-0041): does this deployment carry its
-  // own Google client? Read over the wire, never compiled in, and defaulting
-  // to "no" while the answer is on its way — the direction that cannot
-  // under-ask.
-  const { data: providerAccounts } = useQuery({
-    queryKey: ['provider-accounts'],
-    queryFn: providerAccountsApi.get,
+  // WHOSE CONSENT mints this kind's token is the descriptor's answer
+  // (`consent` on the refresh-token field; 2026-09-02, Connect with Dropbox):
+  // Google's kinds say google, Dropbox says dropbox, and a kind that says
+  // nothing has no button and no fold. Not a list of kinds kept in this
+  // page, which would be a second copy of that table.
+  const grantProvider =
+    role === 'source' ? fields.find((f) => f.key === 'refreshToken')?.consent : undefined;
+  const grantKind = grantProvider !== undefined;
+  // Does this deployment carry its own application for THAT provider
+  // (ADR-0041)? One fact per provider, read over the wire, never compiled
+  // in, and defaulting to "no" while the answer is on its way — the
+  // direction that cannot under-ask.
+  const { data: providerClients } = useQuery({
+    queryKey: ['provider-clients'],
+    queryFn: providerClientsApi.get,
     retry: false,
     staleTime: Infinity,
   });
-  const deploymentGoogleClient = providerAccounts?.google?.client === 'deployment';
-  // THE PAIR FOLDS AWAY where the deployment carries the client (owner
-  // remark 2026-09-02): a person grants Ownpace's own application, and "use
-  // your own" is the exception. Which kinds have such a pair is the
-  // descriptor's to say — an id `pairedWith` its secret — not a Google list
-  // kept in this page. Dropbox's and Box's ids are required, unpaired, and
-  // stay in plain view.
+  const deploymentClient =
+    grantProvider !== undefined && providerClients?.[grantProvider] === 'deployment';
+  // THE PAIR FOLDS AWAY where the deployment carries the application (owner
+  // remark 2026-09-02): a person grants Ownpace's own, and "use your own" is
+  // the exception. The pair is the descriptor's to name — an id `pairedWith`
+  // its secret. Box's id is required, unpaired, and stays in plain view.
   const folded =
-    role === 'source' &&
-    deploymentGoogleClient &&
-    fields.some((f) => f.key === 'clientId' && f.pairedWith === 'clientSecret');
+    deploymentClient && fields.some((f) => f.key === 'clientId' && f.pairedWith === 'clientSecret');
   const pairedSecret = folded ? fields.find((f) => f.key === 'clientSecret') : undefined;
   // AND THE TOKEN FOLDS WITH THEM (owner remark, after the first round trip):
-  // on the consent path the token arrives from Google and is never typed, so
-  // a box with an asterisk above the fold asked for what the button below
-  // supplies. Inside the fold it is the manual alternative it always was.
+  // on the consent path the token arrives from the provider and is never
+  // typed, so a box with an asterisk above the fold asked for what the button
+  // below supplies. Inside the fold it is the manual alternative it always was.
   const pairedToken = folded ? fields.find((f) => f.key === 'refreshToken') : undefined;
+  /** The provider's own words for the shared button, fold and hints. */
+  const ps = (
+    suffix:
+      | 'connect'
+      | 'connect.hint'
+      | 'connect.needsClient'
+      | 'connect.halfClient'
+      | 'deploymentClient'
+      | 'ownClient'
+      | 'redirectUri',
+  ) => t(`wizard.${grantProvider ?? 'google'}.${suffix}` as StringKey);
 
   // THE CONSENT YOU CAN CLICK, on this door too (owner step 4, 2026-09-02).
   // The wizard has had it since 0089 T1; this form folded the pair away
   // (#709) and left no way to obtain the token the fold took the pair from —
-  // on a managed deployment its Gmail and Drive paths were dead ends. Which
-  // kinds have a consent is the descriptor's answer, as the fold's is: an id
-  // paired with its secret AND a refresh token to fill — Google's own kinds,
-  // and not Dropbox, whose id is unpaired.
-  const googleGrantKind =
-    role === 'source' &&
-    fields.some((f) => f.key === 'clientId' && f.pairedWith === 'clientSecret') &&
-    fields.some((f) => f.key === 'refreshToken');
+  // on a managed deployment its Gmail and Drive paths were dead ends. One
+  // button per provider the descriptor names, in that provider's words.
   // The ACCOUNT kind asks for the faces ticked and nothing else (0106 T3b);
   // a connection has no mapping yet to read them from, so it asks here.
-  const isAccountKind = googleGrantKind && type === 'google';
+  const isAccountKind = grantProvider === 'google' && type === 'google';
   const [domains, setDomains] = React.useState<Domain[]>([]);
-  const [googleConsent, setGoogleConsent] = React.useState<string | null>(null);
-  const [googleRedirect, setGoogleRedirect] = React.useState<string | null>(null);
+  const [consentNote, setConsentNote] = React.useState<string | null>(null);
+  const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
   const clientIdTyped = (values.clientId ?? '').trim() !== '';
   const clientSecretTyped = (values.clientSecret ?? '').trim() !== '';
   // One half typed is a pair being typed, never a pair left to the
   // deployment (ADR-0041): both or neither, as every door refuses it.
-  const pairRequired = !deploymentGoogleClient || clientIdTyped !== clientSecretTyped;
+  const pairRequired = !deploymentClient || clientIdTyped !== clientSecretTyped;
   const ownPair =
     clientIdTyped && clientSecretTyped
       ? { clientId: (values.clientId ?? '').trim(), clientSecret: values.clientSecret ?? '' }
@@ -461,44 +471,57 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   // The popup hands the token back over postMessage; the wizard's own rule
   // applies verbatim — same origin, the flow's own shape, a non-empty token —
   // and it lands in the SAME field a pasted one does (ADR-0037).
+  // THIS kind's provider, read at the moment a message lands: a Google popup
+  // left open behind a Dropbox form must not hand its token to Dropbox's box.
+  const grantProviderRef = React.useRef(grantProvider);
+  grantProviderRef.current = grantProvider;
   React.useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { type?: string; refreshToken?: string } | null;
       if (event.origin !== window.location.origin) return;
-      if (!data || data.type !== 'ownpace-google-consent') return;
+      const provider = grantProviderRef.current;
+      if (provider === undefined) return;
+      if (!data || data.type !== `ownpace-${provider}-consent`) return;
       if (typeof data.refreshToken !== 'string' || data.refreshToken.length === 0) return;
       setValues((v) => ({ ...v, refreshToken: data.refreshToken as string }));
-      setGoogleConsent('received');
+      setConsentNote('received');
       setConsentLanded((n) => n + 1);
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, []);
 
-  const startGoogleConsent = async () => {
-    setGoogleConsent(null);
+  const startConsent = async () => {
+    setConsentNote(null);
     try {
-      const { url, redirectUri } = await mappingApi.googleAuthorize(
-        isAccountKind
-          ? { domains, ...ownPair }
-          : {
-              sourceType: type as 'gmail' | 'google-calendar' | 'google-contacts' | 'google-drive',
-              ...ownPair,
-            },
-      );
+      const { url, redirectUri } =
+        grantProvider === 'dropbox'
+          ? await mappingApi.dropboxAuthorize(ownPair)
+          : await mappingApi.googleAuthorize(
+              isAccountKind
+                ? { domains, ...ownPair }
+                : {
+                    sourceType: type as
+                      | 'gmail'
+                      | 'google-calendar'
+                      | 'google-contacts'
+                      | 'google-drive',
+                    ...ownPair,
+                  },
+            );
       // The address this consent used, shown on every attempt: it has to be
-      // registered with Google BEFORE the first one can work.
-      setGoogleRedirect(redirectUri ?? null);
-      window.open(url, 'ownpace-google-consent', 'popup,width=520,height=640');
+      // registered with the provider BEFORE the first one can work.
+      setConsentRedirect(redirectUri ?? null);
+      window.open(url, `ownpace-${grantProvider ?? 'google'}-consent`, 'popup,width=520,height=640');
     } catch (err) {
-      setGoogleConsent(refusalText(err));
+      setConsentNote(refusalText(err));
     }
   };
 
   const resetConsent = () => {
     setDomains([]);
-    setGoogleConsent(null);
-    setGoogleRedirect(null);
+    setConsentNote(null);
+    setConsentRedirect(null);
   };
 
   const submit = async (name: string = displayName) => {
@@ -650,9 +673,9 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
             return (
               <details key={field.key} className="sm:col-span-2 rounded-md border border-gray-200 p-3">
                 <summary className="cursor-pointer text-sm text-gray-700">
-                  {t('wizard.google.ownClient')}
+                  {ps('ownClient')}
                 </summary>
-                <p className="mt-2 text-sm text-gray-500">{t('wizard.google.deploymentClient')}</p>
+                <p className="mt-2 text-sm text-gray-500">{ps('deploymentClient')}</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {fieldBox(field)}
                   {pairedSecret && fieldBox(pairedSecret)}
@@ -665,7 +688,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         })}
       </div>
 
-      {googleGrantKind && (
+      {grantKind && (
         <div className="mt-4">
           {isAccountKind && (
             <fieldset className="mb-3">
@@ -690,31 +713,31 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           )}
           <button
             type="button"
-            onClick={startGoogleConsent}
+            onClick={startConsent}
             disabled={pairMissing || facesMissing}
             className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
             title={
               pairMissing
-                ? deploymentGoogleClient
-                  ? t('wizard.google.connect.halfClient')
-                  : t('wizard.google.connect.needsClient')
+                ? deploymentClient
+                  ? ps('connect.halfClient')
+                  : ps('connect.needsClient')
                 : facesMissing
                   ? t('wizard.google.connect.needsDomains')
                   : undefined
             }
           >
-            {t('wizard.google.connect')}
+            {ps('connect')}
           </button>
-          <p className="mt-1 text-sm text-gray-500">{t('wizard.google.connect.hint')}</p>
-          {googleConsent && (
-            <p className={`mt-1 text-sm ${googleConsent === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
-              {googleConsent === 'received' ? t('wizard.google.received') : googleConsent}
+          <p className="mt-1 text-sm text-gray-500">{ps('connect.hint')}</p>
+          {consentNote && (
+            <p className={`mt-1 text-sm ${consentNote === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
+              {consentNote === 'received' ? t('wizard.consent.received') : consentNote}
             </p>
           )}
-          {googleRedirect && googleConsent !== 'received' && (
+          {consentRedirect && consentNote !== 'received' && (
             <p className="mt-1 text-sm text-gray-500">
-              {t('wizard.google.redirectUri')}{' '}
-              <code className="break-all font-mono text-xs">{googleRedirect}</code>
+              {ps('redirectUri')}{' '}
+              <code className="break-all font-mono text-xs">{consentRedirect}</code>
             </p>
           )}
         </div>
