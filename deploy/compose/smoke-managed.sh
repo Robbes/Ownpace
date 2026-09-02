@@ -890,6 +890,58 @@ else
     fail=1
   fi
 
+  # ONE GOOGLE BUTTON ON THE SIGN-IN SCREEN, HOWEVER OFTEN THE APP PHASE RAN
+  # (#711). The workflow runs the provider step a second time before this
+  # smoke and reads that it added nothing; this counts what the screen shows.
+  # A search that could not see what it created added one per run, and the
+  # sign-in screen grew a button each time — nine on the owner's box before
+  # anybody counted. Only where the gate carries a sign-in pair: with none
+  # there is no provider to count, and that is also a correct stack.
+  #
+  # ON THE SCREEN = ON THE POLICY PEOPLE RESOLVE, AND ACTIVE. Two console
+  # switches take a provider off the sign-in screen and keep it: the
+  # "available" toggle removes its login-policy link, and deactivation sets
+  # IDP_STATE_INACTIVE. The owner used one of them on seven of the eight, and
+  # a count of the template list still said 8 (E2E (managed) #131). So a
+  # button is a provider of this name that is active (no state on the wire
+  # counts as active, the safe direction) AND linked on the login policy the
+  # organisation resolves — the one a person is actually sent to.
+  #
+  # THE RUNNER'S INSTANCE PERSISTS between runs, so more than one is not
+  # something this run did: it is what bring-ups before #711 left, and the
+  # script never deletes a provider, because a person may be linked to it. It
+  # is still a sign-in screen with that many Google buttons, so it fails —
+  # with the remedy, which is a person's, once. After that #711 holds it at one.
+  if [ -n "$(grep -E '^IDP_GOOGLE_CLIENT_ID=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 || true)" ]; then
+    policy_json="$(idp_api GET /management/v1/policies/login || true)"
+    linked_json="$(jq -c '[.policy.idps[]?.idpId]' <<<"$policy_json" 2>/dev/null || echo '[]')"
+    google_idps_json="$(idp_api POST /admin/v1/idps/templates/_search '{}' || true)"
+    google_idps="$(jq -r --argjson linked "$linked_json" '[.result[]? | select(.name == "Google" and .state != "IDP_STATE_INACTIVE") | .id as $i | select(($linked | index($i)) != null)] | length' <<<"$google_idps_json" 2>/dev/null || echo unreadable)"
+    google_idps_aside="$(jq -r --argjson linked "$linked_json" '[.result[]? | select(.name == "Google" and .state != "IDP_STATE_INACTIVE") | .id as $i | select(($linked | index($i)) == null)] | length' <<<"$google_idps_json" 2>/dev/null || echo 0)"
+    google_idps_off="$(jq -r '[.result[]? | select(.name == "Google" and .state == "IDP_STATE_INACTIVE")] | length' <<<"$google_idps_json" 2>/dev/null || echo 0)"
+    case "$google_idps" in
+      1)
+        echo "    one Google button on the sign-in screen, after the provider step ran twice"
+        [ "${google_idps_aside:-0}" = "0" ] \
+          || echo "    (${google_idps_aside} more named Google exist, taken off the screen — kept, not offered)"
+        [ "${google_idps_off:-0}" = "0" ] \
+          || echo "    (${google_idps_off} more named Google are deactivated — on the list, off the screen)" ;;
+      0|''|unreadable)
+        echo "expected ONE Google button on the sign-in screen, found '${google_idps}' — no active provider of that name is on the login policy, or a list could not be read"
+        fail=1 ;;
+      *)
+        echo "found ${google_idps} Google buttons on the sign-in screen — ${google_idps} active providers named Google are on the login policy."
+        echo "  The provider step ran twice in this run and added nothing (the workflow step read it), so these"
+        echo "  are older: every bring-up before #711 added one, and setup-zitadel.sh never deletes a provider,"
+        echo "  because a person may be linked to it. Take the extras off the screen by hand, once:"
+        echo "    ${STACK_ISSUER}/ui/console  ->  Default settings  ->  Login Behaviour and Security  ->  Identity Providers"
+        echo "  the 'available' toggle keeps the provider and takes its button away; deactivating does too. In the"
+        echo "  INSTANCE (default) settings, not the organisation's — the bring-up resets an organisation's own login"
+        echo "  policy, and a clean-up made there is undone with it. After that, #711 holds it at one."
+        fail=1 ;;
+    esac
+  fi
+
   # ---- the login page a browser is actually sent to ----
   #
   # EVERYTHING ELSE IN THIS GATE SIGNS IN LIKE A MACHINE. `sign_in_as` takes the
@@ -2255,6 +2307,73 @@ report_json "provider accounts (google)" "/api/provider-accounts" '.google.domai
 # deployment's addresses, and pinning them would make the gate an opinion about
 # somebody's .env.
 report_json "redirect URIs" "/api/redirect-uris" '.entries | length'
+
+# THE DEPLOYMENT'S OWN GOOGLE CLIENT, AS FACT AND AS REFUSAL (ADR-0041, owner
+# decision 2026-09-01; #703–#712). The gate's .env carries a client pair that
+# is never followed to Google: the consent route only BUILDS a URL, and nothing
+# here opens it. What is asked of the real stack — through PgBouncer, with a
+# real issuer token — is the part the unit suites cannot ask:
+#
+#   the wizard's fact      provider-accounts answers `deployment`
+#   the consent's client   a request with no pair gets a URL for THIS id, and
+#                          the secret is nowhere in the answer
+#   half a pair, twice     a lone clientId is refused at the consent and at the
+#                          connection door — before anything is probed or
+#                          stored, so the gate stays net-zero
+#
+# A stack that carries no client is also correct (an appliance never does), and
+# then the fact reads `connection` and the consent refuses `no_google_client`,
+# which is asserted in its own right rather than skipped.
+gate_client_id="$(grep -E '^GOOGLE_OAUTH_CLIENT_ID=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+gate_client_secret="$(grep -E '^GOOGLE_OAUTH_CLIENT_SECRET=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+if [ -n "$gate_client_id" ] && [ -n "$gate_client_secret" ]; then
+  report_json "provider accounts (google client)" "/api/provider-accounts" '.google.client' deployment
+
+  r="$(http POST "$API/api/migrations/google/authorize" "$TOK_R" '{"sourceType":"gmail"}')"
+  code="${r%% *}"; body="${r#* }"
+  consent_url="$(jq -r '.url // empty' <<<"$body" 2>/dev/null || true)"
+  case "$code:$consent_url" in
+    "200:"*"client_id=${gate_client_id}"*)
+      echo "consent without a pair: HTTP 200, the URL carries the deployment's client id" ;;
+    *)
+      echo "consent without a pair: HTTP $code, url '${consent_url:0:120}' — ${body:0:200}"
+      fail=1 ;;
+  esac
+  case "$body" in
+    *"$gate_client_secret"*) echo "the consent answer CARRIES THE CLIENT SECRET"; fail=1 ;;
+  esac
+
+  r="$(http POST "$API/api/migrations/google/authorize" "$TOK_R" \
+    "$(jq -nc --arg c "$gate_client_id" '{sourceType:"gmail", clientId:$c}')")"
+  code="${r%% *}"; body="${r#* }"
+  if [ "$code" = "400" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "half_client_pair" ]; then
+    echo "consent with half a pair: HTTP 400 half_client_pair"
+  else
+    echo "consent with half a pair: HTTP $code — ${body:0:200} (expected 400 half_client_pair)"
+    fail=1
+  fi
+
+  r="$(http POST "$API/api/connections" "$TOK_R" \
+    "$(jq -nc --arg c "$gate_client_id" \
+      '{role:"source", type:"gmail", displayName:"gate: half a pair", values:{username:"gate@example.invalid", clientId:$c}}')")"
+  code="${r%% *}"; body="${r#* }"
+  if [ "$code" = "400" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "half_client_pair" ]; then
+    echo "connection door with half a pair: HTTP 400 half_client_pair, nothing probed or stored"
+  else
+    echo "connection door with half a pair: HTTP $code — ${body:0:200} (expected 400 half_client_pair)"
+    fail=1
+  fi
+else
+  report_json "provider accounts (google client)" "/api/provider-accounts" '.google.client' connection
+  r="$(http POST "$API/api/migrations/google/authorize" "$TOK_R" '{"sourceType":"gmail"}')"
+  code="${r%% *}"; body="${r#* }"
+  if [ "$code" = "400" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "no_google_client" ]; then
+    echo "consent without a pair, on a stack without a client: HTTP 400 no_google_client"
+  else
+    echo "consent without a pair: HTTP $code — ${body:0:200} (expected 400 no_google_client)"
+    fail=1
+  fi
+fi
 report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
 report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Before you start"
 # A mailbox is required and the demo owner's is the one address this tenant is
