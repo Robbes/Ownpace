@@ -1069,7 +1069,7 @@ IDP_COUNT=0
 # state and says nothing when a stack is already correct. Read first, write only
 # what is missing.
 configure_idp() {
-  local name="$1" path="$2" payload="$3" existing ids id count
+  local name="$1" path="$2" payload="$3" existing on_screen linked candidates id count aside off
   # THE LIST THE PROVIDER IS ACTUALLY ON. Google, Microsoft, GitHub and Apple
   # are TEMPLATE providers, created at /admin/v1/idps/{google,azure,...} and
   # listed by /admin/v1/idps/templates/_search. The deprecated
@@ -1080,23 +1080,37 @@ configure_idp() {
   # Oldest first: that is the one the earliest sign-ins were linked to, and the
   # one that stays on the screen if somebody removes the rest.
   #
-  # ACTIVE, NOT LISTED (the same day, an hour later). A deactivated provider
-  # stays on this list and off the sign-in screen — that is how the owner
-  # cleaned the nine up, since the console offered no delete, and it is a
-  # correct clean-up. So "exists", "duplicates" and the one this manages are
-  # all read among the providers NOT in IDP_STATE_INACTIVE; a provider with no
-  # state on the wire counts as active, which is the safe direction.
+  # ON THE SCREEN MEANS ON THE LOGIN POLICY, AND ACTIVE (the same day, two
+  # hours later). Two switches take a provider off the sign-in screen without
+  # deleting it, and the owner used one of them on seven of the eight: the
+  # console's "available" toggle, which removes the provider's login-policy
+  # link, and deactivation, which sets IDP_STATE_INACTIVE. A count of the
+  # template list still said "8 buttons" after either. So "exists", "duplicates"
+  # and the one this manages are read among providers of this name that are
+  # active (no state on the wire counts as active, the safe direction), and a
+  # button is one of those that is ALSO on the login policy.
+  #
+  # AND THE ONE ALREADY ON THE SCREEN COMES FIRST. The link step below puts the
+  # managed provider on the login policy if it is not there — right for a fresh
+  # provider, and exactly wrong if "the managed one" were the oldest while the
+  # owner had just taken the oldest off the screen: every bring-up would put
+  # the button back. Linked first, then oldest, and a person's choice holds.
   existing="$(api POST /admin/v1/idps/templates/_search '{}')"
-  ids="$(jq -r --arg n "$name" \
-    '[.result[]? | select(.name == $n and .state != "IDP_STATE_INACTIVE")] | sort_by(.details.creationDate // "") | .[].id' \
+  on_screen="$(api POST /admin/v1/policies/login/idps/_search '{}')"
+  linked="$(jq -c '[.result[]?.idpId]' <<<"$on_screen")"
+  candidates="$(jq -c --arg n "$name" --argjson linked "$linked" \
+    '[.result[]? | select(.name == $n and .state != "IDP_STATE_INACTIVE")
+      | .id as $i | {id: $i, linked: (($linked | index($i)) != null), created: (.details.creationDate // "")}]
+     | sort_by((if .linked then 0 else 1 end), .created)' \
     <<<"$existing")"
+  count="$(jq -r '[.[] | select(.linked)] | length' <<<"$candidates")"
+  aside="$(jq -r '[.[] | select(.linked | not)] | length' <<<"$candidates")"
   off="$(jq -r --arg n "$name" \
     '[.result[]? | select(.name == $n and .state == "IDP_STATE_INACTIVE")] | length' \
     <<<"$existing")"
-  count="$(grep -c . <<<"$ids" || true)"
-  id="$(awk 'NR==1' <<<"$ids")"
+  id="$(jq -r '.[0].id // empty' <<<"$candidates")"
 
-  if { [ -z "$id" ] || [ "$id" = "null" ]; } && [ "${off:-0}" -gt 0 ]; then
+  if [ -z "$id" ] && [ "${off:-0}" -gt 0 ]; then
     # EVERY ONE OF THIS NAME IS SWITCHED OFF. A person did that, in the console,
     # and this script does not undo a person's switch (hard rule 2) — nor add
     # a second provider beside it, which is the defect above. It says so and
@@ -1149,13 +1163,17 @@ the same URI:
     # is what turns that into a five-second answer rather than a search.
     if [ "$count" -gt 1 ]; then
       # DUPLICATES ARE REPORTED, NEVER REMOVED (hard rule 2): a provider may
-      # hold the links of people who signed in through it. The oldest stays;
-      # the person decides about the rest, in the console, with the list in
-      # front of them.
-      say "  ${name}: ${count} providers of this name exist — the sign-in screen shows ${count} ${name} buttons"
-      say "      keeping the oldest (${id}); deactivate or remove the others in the console"
-      say "      under Settings -> Identity Providers (this script never deletes a provider)"
+      # hold the links of people who signed in through it. The oldest on the
+      # screen stays; the person decides about the rest, in the console, with
+      # the list in front of them — the "available" toggle takes one off the
+      # screen and keeps it, which is the gentlest of the three switches.
+      say "  ${name}: ${count} providers of this name exist on the sign-in screen — it shows ${count} ${name} buttons"
+      say "      keeping the oldest of them (${id}); take the others off the screen in the console"
+      say "      under Settings -> Login Behaviour -> Identity Providers, or deactivate them"
+      say "      (this script never deletes a provider)"
     fi
+    [ "${aside:-0}" -eq 0 ] \
+      || say "  ${name}: ${aside} more of this name exist, taken off the sign-in screen — left as they are"
     [ "${off:-0}" -eq 0 ] \
       || say "  ${name}: ${off} more of this name are deactivated — on the list, off the sign-in screen"
     say "  ${name}: a provider of this name exists — left as it is"
@@ -1168,8 +1186,6 @@ the same URI:
   # Creating the IdP configures it; adding it to the login policy is what puts
   # the button on the sign-in screen. Two steps, and skipping the second leaves
   # a stack that looks configured from the API and offers nothing to a person.
-  local on_screen
-  on_screen="$(api POST /admin/v1/policies/login/idps/_search '{}')"
   if jq -e --arg i "$id" '[.result[]?.idpId] | index($i)' >/dev/null <<<"$on_screen"; then
     :
   else

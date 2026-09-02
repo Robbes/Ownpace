@@ -267,8 +267,37 @@ describe('and none of it reached the product', () => {
       setup.indexOf('IDP_GOOGLE_CLIENT_ID="$(read_env'),
     );
     expect(fn).toMatch(/providers of this name exist/);
-    expect(fn).toMatch(/sort_by\(\.details\.creationDate/);
+    expect(fn, 'the age of a provider is no longer read off creationDate').toMatch(
+      /created: \(\.details\.creationDate/,
+    );
+    expect(fn).toMatch(/sort_by\(\(if \.linked then 0 else 1 end\), \.created\)/);
     expect(fn).not.toMatch(/api DELETE/);
+  });
+
+  it('keeps a person\'s choice — the one already on the screen is the one it manages, and a button taken off is not put back', () => {
+    // Two hours after #711: the owner took seven of the eight Google providers
+    // off the sign-in screen with the console's "available" toggle, which
+    // removes the login-policy link and keeps the provider. A count of the
+    // template list still said "8 buttons" — and had the oldest been among the
+    // seven, the link step would have put its button back on every bring-up.
+    const fn = setup.slice(
+      setup.indexOf('configure_idp() {'),
+      setup.indexOf('IDP_GOOGLE_CLIENT_ID="$(read_env'),
+    );
+    const onScreen = fn.indexOf('/admin/v1/policies/login/idps/_search');
+    const pick = fn.indexOf('candidates="$(jq');
+    expect(onScreen, 'the login policy is not read').toBeGreaterThan(-1);
+    expect(pick, 'the candidates are not picked with jq').toBeGreaterThan(-1);
+    expect(onScreen, 'the login policy is read only after the pick').toBeLessThan(pick);
+    expect(fn, 'a button is no longer a provider ON the login policy').toMatch(
+      /linked: \(\(\$linked \| index\(\$i\)\) != null\)/,
+    );
+    expect(fn, 'the one already on the screen no longer comes first').toMatch(
+      /sort_by\(\(if \.linked then 0 else 1 end\)/,
+    );
+    expect(fn, 'a provider taken off the screen is not reported as left alone').toContain(
+      'taken off the sign-in screen — left as they are',
+    );
   });
 
   it('counts what the sign-in screen shows — a deactivated provider is neither a duplicate nor the one it manages', () => {
