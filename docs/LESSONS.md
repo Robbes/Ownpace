@@ -528,6 +528,10 @@ reading a file drops off its entry by itself.
 
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 
+### `packages/shared/src/provider-accounts.ts`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
 ### `packages/shared/src/target-domains.unit.test.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -670,6 +674,7 @@ Reads:
 - `apps/web/src/pages/CreateMapping.tsx`
 - `apps/web/src/services/mapping-service.ts`
 - `deploy/compose/managed.yml`
+- `packages/shared/src/provider-accounts.ts`
 - `packages/shared/src/target-domains.unit.test.ts`
 - `scripts/a-scope-class-the-product-does-not-decide.unit.test.ts`
 

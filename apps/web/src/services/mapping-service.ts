@@ -403,17 +403,29 @@ export const scopeManifestApi = {
  * The domains are the discovery vocabulary (`email`, not `mail`), and unknown
  * ones are dropped rather than trusted: a value this build has never heard of
  * cannot be rendered as a tick and must not become one.
+ *
+ * Since 2026-09-01 the same answer carries a second run-time fact for the
+ * same reason: whether the deployment holds its own Google OAuth client, so
+ * the wizard can stop demanding a pair the server no longer requires.
  */
-export const ProviderAccountDomainsSchema = z.record(
+export const ProviderAccountFactsSchema = z.record(
   z.string(),
-  z.array(z.enum(['email', 'calendar', 'contact', 'file'])),
+  z.object({
+    domains: z.array(z.enum(['email', 'calendar', 'contact', 'file'])),
+    // Where a Google connection's OAuth client comes from (ADR-0041): the
+    // deployment's own, or each connection's. `google` only, and read the
+    // same way as the domains — a value this build has never heard of fails
+    // the parse, and the wizard falls back to demanding the pair, which is
+    // the direction that cannot under-ask.
+    client: z.enum(['deployment', 'connection']).optional(),
+  }),
 );
-export type ProviderAccountDomains = z.infer<typeof ProviderAccountDomainsSchema>;
+export type ProviderAccountFacts = z.infer<typeof ProviderAccountFactsSchema>;
 
 export const providerAccountsApi = {
-  get: async (): Promise<ProviderAccountDomains> => {
+  get: async (): Promise<ProviderAccountFacts> => {
     const response = await apiClient.get('/provider-accounts');
-    return ProviderAccountDomainsSchema.parse(response.data);
+    return ProviderAccountFactsSchema.parse(response.data);
   },
 };
 
@@ -493,8 +505,11 @@ export const mappingApi = {
     p:
       | {
           sourceType: 'gmail' | 'google-calendar' | 'google-contacts' | 'google-drive';
-          clientId: string;
-          clientSecret: string;
+          // Both or neither (ADR-0041): absent, the server uses the
+          // deployment's own client. Never an empty string — the route's
+          // schema refuses one, and rightly.
+          clientId?: string;
+          clientSecret?: string;
         }
       // The ACCOUNT ask (workplan 0106 T3b): the ticked faces rather than one
       // source type. A union rather than an optional field, so a caller cannot
@@ -502,8 +517,8 @@ export const mappingApi = {
       // `oneOf` for the same reason.
       | {
           domains: ReadonlyArray<'email' | 'calendar' | 'contact' | 'file'>;
-          clientId: string;
-          clientSecret: string;
+          clientId?: string;
+          clientSecret?: string;
         },
   ): Promise<{
     url: string;

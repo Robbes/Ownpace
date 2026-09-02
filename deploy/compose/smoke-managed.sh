@@ -2242,7 +2242,7 @@ report_json "readiness (verdict)" "/api/ready" '.status'
 # `restricted` and one that has not are both correct, and pinning either would
 # make the gate an opinion about somebody's .env. What is pinned is that Google
 # is answered for at all.
-report_json "provider accounts (google)" "/api/provider-accounts" '.google | length'
+report_json "provider accounts (google)" "/api/provider-accounts" '.google.domains | length'
 # EVERY ADDRESS THIS DEPLOYMENT NEEDS REGISTERED ELSEWHERE (2026-09-01).
 #
 # The owner met `redirect_uri_mismatch` with the correct string nowhere on

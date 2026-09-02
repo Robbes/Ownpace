@@ -2557,19 +2557,33 @@ paths:
       security: []
       responses:
         '200':
-          description: Provider account kind to the discovery domains it serves.
+          description: |
+            Provider account kind to what one account of it may serve here —
+            and, for `google`, where its OAuth client comes from.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties:
-                  type: array
-                  items:
-                    type: string
-                    enum: [email, calendar, contact, file]
+                  type: object
+                  required: [domains]
+                  properties:
+                    domains:
+                      type: array
+                      items:
+                        type: string
+                        enum: [email, calendar, contact, file]
+                    client:
+                      type: string
+                      enum: [deployment, connection]
+                      description: |
+                        `google` only. `deployment` when this installation
+                        carries its own Google OAuth client (both halves set,
+                        ADR-0041), so a connection need not bring one;
+                        `connection` otherwise. Never the values.
               example:
-                google: [calendar, contact]
-                soverin: [email, calendar, contact]
+                google: { domains: [calendar, contact], client: deployment }
+                soverin: { domains: [email, calendar, contact] }
 
   /api/redirect-uris:
     get:
