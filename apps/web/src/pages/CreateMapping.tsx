@@ -502,8 +502,15 @@ const CreateMapping: React.FC = () => {
                 ? { rootFolderId: formData.sourceRootFolderId.trim() }
                 : {}),
             }
-          : isGmailSource || isGoogleDavSource
+          : isGmailSource || isGoogleDavSource || isGoogleAccountSource
           ? {
+              // The account kind (0106 T4) carries the same OAuth trio as
+              // Gmail and the DAV kinds — one client, one token, every domain.
+              // It fell through to the server-shaped default below until
+              // 2026-09-02, so the owner's first consented account was stored
+              // as host/port/password with no token, and its first test said
+              // "missing refreshToken" about a token the consent had just
+              // handed over.
               username: formData.sourceUsername,
               clientId: formData.sourceClientId,
               clientSecret: formData.sourceClientSecret,
