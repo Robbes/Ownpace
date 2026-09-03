@@ -340,21 +340,50 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
     });
   };
 
-  it('a CardDAV target blocks the preselected email domain with the shared refusal, and recovers on deselect', () => {
+  it('a CardDAV target drops the preselected email tick by itself — nothing to deselect, the card says why (owner 2026-09-03)', () => {
     renderWizard();
     walkToDataTypes('CardDAV');
 
-    // email is preselected but CardDAV cannot receive it: Next is blocked
-    // and the reason is the SAME sentence the server would refuse with.
+    // email was preselected for the IMAP source and CardDAV cannot receive
+    // it: the tick is gone before the person sees the step, so the shared
+    // refusal never shows — what shows is the missing-selection line, the
+    // Email card unticked and locked, and the note on it.
     expect(nextButton()).toBeDisabled();
-    expect(screen.getByRole('status').textContent).toContain('CardDAV target cannot receive');
-    expect(screen.getByRole('status').textContent).toContain("'email'");
+    expect(screen.getByRole('status').textContent).not.toContain('cannot receive');
+    expect(screen.getByRole('status').textContent).toContain('To continue, fill in:');
+    const email = screen.getByRole('button', { name: /Email/ });
+    expect(email).toBeDisabled();
+    expect(email.textContent).toContain('Not available over the selected target protocol.');
 
-    // Unreachable types are marked; the selected-but-incompatible one stays
-    // clickable so it can be DESELECTED.
-    fireEvent.click(screen.getByRole('button', { name: /Email/ }));
+    // What fits is one tick away.
     fireEvent.click(screen.getByRole('button', { name: /Contacts?/ }));
     expect(nextButton()).toBeEnabled();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('changing the target after ticking drops only what the new target cannot carry, and keeps the rest', () => {
+    renderWizard();
+    walkToDataTypes('JMAP');
+    // JMAP carries email, contacts and files: tick contacts beside the
+    // preselected email.
+    fireEvent.click(screen.getByRole('button', { name: /Contacts?/ }));
+    expect(nextButton()).toBeEnabled();
+
+    // Back to the target step, switch to CardDAV: email falls away on its
+    // own, contacts stays ticked, Next stays enabled — no refusal to read,
+    // nothing to untick.
+    fireEvent.click(screen.getByRole('button', { name: /Back/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^CardDAV/ }));
+    fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
+      target: { value: 'target@acme.example' },
+    });
+    fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
+      target: { value: 'target-password' },
+    });
+    fireEvent.click(nextButton());
+    expect(screen.getByRole('button', { name: /Email/ })).toBeDisabled();
+    expect(nextButton()).toBeEnabled();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('calendar is not offered over a JMAP target (0031 T1 parked by owner decision)', () => {
