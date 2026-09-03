@@ -350,3 +350,81 @@ describe('binary file fidelity, source vs target', () => {
     expect(new TextDecoder().decode(target)).toContain('🐙');
   }, 60000);
 });
+
+/**
+ * A migrated event keeps its reminder — asked of a real CalDAV server.
+ *
+ * #755 traced this through the copy path and pinned it in unit tests:
+ * `caldav-target-writer` PUTs the source bytes and `neutraliseScheduling`
+ * rewrites only ATTENDEE/ORGANIZER lines, so a `BEGIN:VALARM … END:VALARM`
+ * block passes through byte-faithfully. That settles OUR half.
+ *
+ * It could not settle the server's half, and said so: whether a real Nextcloud
+ * stores an alarm and hands it back rather than dropping, normalising or
+ * rewriting it is a property of SabreDAV, not of our code, and no test double
+ * can establish it. Until now no fixture anywhere in this repository contained
+ * a VALARM, so the nightly had never once put one in front of a real server.
+ *
+ * ## Why this can fail in a way nothing else would notice
+ *
+ * The natural key is the UID and `calendarContentHash` fingerprints
+ * UID/SUMMARY/DESCRIPTION/LOCATION. An event that arrives with its alarm
+ * stripped therefore hashes IDENTICALLY to the original, matches on count, and
+ * passes §20 verification clean. The verification gate above cannot see this
+ * failure at all — which is exactly why the assertion has to read the bytes.
+ *
+ * REPEAT and DURATION carry the sharpest version of it. `CalendarEvent.reminders`
+ * is `{ action, triggerSeconds, description }` and can represent neither, so a
+ * writer rebuilt from the parsed model would drop them while leaving everything
+ * verification looks at untouched.
+ */
+describe('calendar reminder fidelity, source vs target', () => {
+  const canRun = Boolean(DAV_SOURCE_PASSWORD && DAV_TARGET_PASSWORD);
+  // Matches ALARM_EVENT_INDEX in seed-dav-source.mjs. Not -1 (moved by the
+  // restart-resume gate) and not -2 (deleted by the apply-deletion gate).
+  const ALARM_UID = 'dav-seed-event-3@dev.local';
+
+  async function calendarGet(user: string, password: string): Promise<string> {
+    const url = `${NEXTCLOUD_URL}/remote.php/dav/calendars/${user}/personal/${ALARM_UID}.ics`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}` },
+    });
+    if (!response.ok) throw new Error(`GET ${url} -> ${response.status}`);
+    return await response.text();
+  }
+
+  it.runIf(canRun)('the reminder survives the migration onto a real server', async () => {
+    const source = await calendarGet(DAV_SOURCE_USER, DAV_SOURCE_PASSWORD!);
+
+    // Guard against a vacuous pass. If the seeder ever stops emitting the
+    // alarm, every assertion below would still need something to compare — and
+    // the failure should name the FIXTURE, not look like a migration defect.
+    expect(
+      source,
+      'the seeded source event carries no VALARM — the fixture cannot answer the question it exists for',
+    ).toContain('BEGIN:VALARM');
+
+    const target = await calendarGet(DAV_TARGET_USER, DAV_TARGET_PASSWORD!);
+    console.log(`[e2e] ${ALARM_UID}: source=${source.length}B target=${target.length}B`);
+
+    expect(target, 'the migrated event arrived without its reminder').toContain('BEGIN:VALARM');
+    expect(target).toContain('END:VALARM');
+    expect(target).toContain('TRIGGER:-PT15M');
+
+    // The two the model cannot hold. If these are gone while the block above is
+    // present, the writer is reserialising from `CalendarEvent` — which the
+    // content hash would never reveal.
+    expect(
+      target,
+      'REPEAT is gone: the alarm was rebuilt from the model, not copied',
+    ).toContain('REPEAT:2');
+    expect(
+      target,
+      'DURATION is gone: the alarm was rebuilt from the model, not copied',
+    ).toContain('DURATION:PT5M');
+
+    // And the event itself is still the event — so a passing alarm assertion
+    // cannot be hiding a broken copy of everything around it.
+    expect(target).toContain(`UID:${ALARM_UID}`);
+  }, 60000);
+});
