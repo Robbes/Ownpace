@@ -33,12 +33,9 @@
 
 import { schedules, configure } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
-import { log, mapWithConcurrency } from '@openmig/shared';
+import { log, mapWithConcurrency, type DiscoveryDomain } from '@openmig/shared';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
-import {
-  enabledDomainsForMappings,
-  type SyncDomain,
-} from '@openmig/orchestration/enabled-domains';
+import { enabledDomainsForMappings } from '@openmig/orchestration/enabled-domains';
 import { runDeltaSync } from './run-delta-sync.ts';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -151,7 +148,7 @@ export const managedSyncTick = schedules.task({
       due.map((m) => ({ id: m.id, tenantId: m.tenant_id }))
     );
 
-    const toEnqueue: { row: TickRow; domains: SyncDomain[] }[] = [];
+    const toEnqueue: { row: TickRow; domains: DiscoveryDomain[] }[] = [];
     for (const m of due) {
       // Absent from the map means no included rows: no scope_selection row is
       // "not selected", never "default to everything".

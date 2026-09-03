@@ -20,12 +20,27 @@ set -euo pipefail
 #                                         this is what the API uses to enqueue)
 #      Then restart the api so it picks the key up:
 #        docker compose -f deploy/compose/managed.yml up -d api
-#   4. CLI login, once per machine:
+#   4. CLI login, ONCE — and once means once, since the token is remembered:
+#        npx -y trigger.dev@<version> logout --profile <name>     # if a stale one exists
 #        npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <name>
 #      where <name> is TRIGGER_CLI_PROFILE (default openmig) — a SETTING, not
 #      a constant, and one that cannot move a login that already exists under
-#      another name. This script prints the exact pinned command, with the
+#      another name. This script prints the exact pinned commands, with the
 #      name filled in, if you are not logged in.
+#
+#      LOGOUT COMES FIRST when there is anything to log out of. The profile
+#      lives at ~/.config/trigger/config.json, on the HOST, and outlives the
+#      instance it was minted against — so after a wipe or a rename it holds a
+#      token for an account that no longer exists. `login` finds that token and
+#      short-circuits with "You are already logged in" WITHOUT validating it,
+#      so it reports success while this script still correctly says no. Only
+#      `logout` clears it. The owner met that loop twice (2026-09-03).
+#
+#      AND THEN NOT AGAIN: on the next successful run this script calls
+#      trigger-remember-token.sh, which puts the CLI's own token into .env as
+#      TRIGGER_ACCESS_TOKEN. The CLI's `deploy` reads that before it looks at
+#      any profile, and validates it server-side — no browser, no profile file,
+#      nothing to go stale on the host.
 #
 # TASK RUNTIME ENV VARS — the deployed tasks run in their own containers on
 # the compose network, NOT in the worker container, so they inherit nothing:
@@ -119,9 +134,23 @@ fi
 # a naive check and fails later, inside `deploy`, with an error that looks
 # like a broken deployment rather than a login nobody did.
 if ! trigger_cli_logged_in "${CLI_VERSION}" "${PROFILE}"; then
-  echo "[deploy-tasks] Not logged in under the profile '${PROFILE}'. Run this once," >&2
+  echo "[deploy-tasks] Not logged in under the profile '${PROFILE}'. Run these, in order," >&2
   echo "[deploy-tasks] then re-run this script:" >&2
+  # LOGOUT FIRST, AND THAT ORDER IS THE WHOLE POINT (owner, 2026-09-03 — the
+  # second time this wall cost him a morning). The usual cause of landing here
+  # is a profile that OUTLIVED the instance it was minted against: the file is
+  # at ~/.config/trigger/config.json, on the host, and survives every `down -v`
+  # and rename. `login` then sees a token in it and short-circuits with "You
+  # are already logged in" WITHOUT validating it against the server — so it
+  # reports success, this check still says no, and the operator loops. Only
+  # `logout` clears it. This message used to print `login` alone, which is
+  # exactly the loop; the failure table has carried the remedy since 2026-08-31
+  # and nothing pointed an operator at it from here.
+  echo "               npx -y trigger.dev@${CLI_VERSION} logout --profile ${PROFILE}" >&2
   echo "               npx -y trigger.dev@${CLI_VERSION} login -a ${TRIGGER_URL} --profile ${PROFILE}" >&2
+  echo "[deploy-tasks] (logout FIRST: login short-circuits on a stale token and reports success.)" >&2
+  echo "[deploy-tasks] Then this script remembers the token, and no browser is needed again:" >&2
+  echo "               ./deploy/compose/trigger-remember-token.sh" >&2
   # The same omission bootstrap-managed.sh's login phase had: naming the
   # profile without ever saying it is a SETTING leaves an operator who is
   # logged in under another name with nothing to act on (0099).
@@ -141,6 +170,23 @@ if ! trigger_cli_logged_in "${CLI_VERSION}" "${PROFILE}"; then
   echo "[deploy-tasks] To point it at one you already have:" >&2
   echo "[deploy-tasks]   ./deploy/compose/env-upsert.sh deploy/compose/.env TRIGGER_CLI_PROFILE=<name>" >&2
   exit 1
+fi
+
+# REMEMBER THE TOKEN, SO THE NEXT DEPLOY NEEDS NOBODY (owner, 2026-09-03:
+# "this is no fun at all"). Getting past the refusal above costs four commands
+# and a browser, and nothing about it is once-per-machine: the CLI profile is
+# on the host and outlives the instance, so the same wall returns after every
+# wipe. `TRIGGER_ACCESS_TOKEN` in .env removes it permanently — the CLI's
+# `deploy` reads that variable before it ever looks at a profile file, and
+# validates it against the server itself (trigger-cli-lib.sh cites the source).
+#
+# So the moment a login IS working, the token it minted is copied into the
+# file this stack already keeps its secrets in. Best-effort, and deliberately
+# so: a deploy that can run must never be stopped by the convenience step in
+# front of it. `|| true` is the whole error policy, and the script itself is
+# silent unless it did something.
+if [ -z "${TRIGGER_ACCESS_TOKEN:-}" ] && [ -x "${SCRIPT_DIR}/trigger-remember-token.sh" ]; then
+  TRIGGER_CLI_PROFILE="$PROFILE" "${SCRIPT_DIR}/trigger-remember-token.sh" || true
 fi
 
 # The registry is loopback-bound and unauthenticated (see managed.yml's

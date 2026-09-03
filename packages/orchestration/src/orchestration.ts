@@ -59,7 +59,7 @@ import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@
 function recordPassMetrics(
   tenantId: string,
   mappingId: string,
-  domain: SyncDomain,
+  domain: DiscoveryDomain,
   outcome: DomainSyncResult,
 ): void {
   const labels = { tenant: tenantId, mapping: mappingId, domain };
@@ -88,7 +88,7 @@ function recordPassMetrics(
 }
 
 export interface DomainSyncResult {
-  domain: 'email' | 'calendar' | 'contact' | 'file';
+  domain: DiscoveryDomain;
   scanned: number;
   created: number;
   skipped: number;
@@ -142,7 +142,6 @@ export interface DomainSyncResult {
   metrics?: PassMetrics;
 }
 
-export type SyncDomain = 'email' | 'calendar' | 'contact' | 'file';
 
 /**
  * The hostnames a source or target config talks to, for lane grouping.
@@ -189,9 +188,9 @@ function endpointHost(endpoint: unknown): string | undefined {
  */
 export function planDomainLanes(
   config: MappingConfig,
-  domains: ReadonlyArray<SyncDomain>,
-): SyncDomain[][] {
-  const configFor: Record<SyncDomain, { source?: unknown; target?: unknown } | undefined> = {
+  domains: ReadonlyArray<DiscoveryDomain>,
+): DiscoveryDomain[][] {
+  const configFor: Record<DiscoveryDomain, { source?: unknown; target?: unknown } | undefined> = {
     email: config.domains?.mail,
     calendar: config.domains?.calendar,
     contact: config.domains?.contacts,
@@ -200,7 +199,7 @@ export function planDomainLanes(
 
   // host -> index of the lane that already claimed it.
   const laneOfHost = new Map<string, number>();
-  const lanes: SyncDomain[][] = [];
+  const lanes: DiscoveryDomain[][] = [];
 
   for (const domain of domains) {
     const domainConfig = configFor[domain];
@@ -280,7 +279,7 @@ export async function runAllDomains(
   ledger?: LedgerOptions,
 ): Promise<DomainSyncResult[]> {
   const results: DomainSyncResult[] = [];
-  const domains: Array<{ name: SyncDomain; enabled: boolean }> = [
+  const domains: Array<{ name: DiscoveryDomain; enabled: boolean }> = [
     { name: 'email', enabled: config.domains?.mail?.enabled ?? false },
     { name: 'calendar', enabled: config.domains?.calendar?.enabled ?? false },
     { name: 'contact', enabled: config.domains?.contacts?.enabled ?? false },
@@ -320,13 +319,13 @@ export async function runAllDomains(
     );
   }
 
-  const runLane = async (lane: ReadonlyArray<SyncDomain>): Promise<void> => {
+  const runLane = async (lane: ReadonlyArray<DiscoveryDomain>): Promise<void> => {
     for (const domain of lane) {
       await runOneDomain(domain);
     }
   };
 
-  async function runOneDomain(domain: SyncDomain): Promise<void> {
+  async function runOneDomain(domain: DiscoveryDomain): Promise<void> {
     await statusStore.markInProgress(tenantId, mappingId, domain);
 
     // Collected per domain rather than read back off the end of the shared
@@ -834,12 +833,12 @@ export async function verifyMapping(
  * is IMAP → mail-only") is exactly how the two existing copies could drift
  * apart unnoticed.
  */
-function enabledSyncDomains(config: MappingConfig): SyncDomain[] {
+function enabledSyncDomains(config: MappingConfig): DiscoveryDomain[] {
   const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
   const mailEnabled =
     config.domains?.mail?.enabled ?? (!hasDomainConfig && isTopLevelMailSource(config.source.type));
 
-  const domains: SyncDomain[] = [];
+  const domains: DiscoveryDomain[] = [];
   if (mailEnabled) domains.push('email');
   if (config.domains?.calendar?.enabled) domains.push('calendar');
   if (config.domains?.contacts?.enabled) domains.push('contact');
@@ -850,7 +849,7 @@ function enabledSyncDomains(config: MappingConfig): SyncDomain[] {
 /** One domain's `{ target, ledger, close }`, mail included, via a single call shape. */
 async function openSyncDomainDeps(
   config: MappingConfig,
-  domain: SyncDomain,
+  domain: DiscoveryDomain,
   ledgerOptions?: LedgerOptions,
 ): Promise<{ target: unknown; ledger: Ledger; close: () => Promise<void> }> {
   // Branched explicitly rather than passing `domain` straight through: each

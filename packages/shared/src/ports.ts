@@ -716,7 +716,7 @@ export interface TargetReindexer {
 export interface LedgerRecord {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
-  readonly itemType: 'email' | 'calendar' | 'contact' | 'file';
+  readonly itemType: DiscoveryDomain;
   readonly naturalKeyHash: string;
   readonly contentHash: string;
   readonly targetId: string;
@@ -958,7 +958,7 @@ export interface Ledger {
   find(
     tenantId: TenantId,
     mappingId: MappingId,
-    itemType: 'email' | 'calendar' | 'contact' | 'file',
+    itemType: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<LedgerRecord | undefined>;
   /**
@@ -1016,7 +1016,7 @@ export interface Ledger {
   placedItems(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
   ): Promise<
     Array<{
       naturalKeyHash: string;
@@ -1056,7 +1056,7 @@ export interface Ledger {
   listFailures(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain?: 'email' | 'calendar' | 'contact' | 'file',
+    domain?: DiscoveryDomain,
   ): Promise<ItemFailure[]>;
   /**
    * Apply an owner decision to one failed item.
@@ -1094,7 +1094,7 @@ export interface Ledger {
   recordMove(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
     toCollection: string,
     toNaturalKeyHash?: string,
@@ -1223,14 +1223,14 @@ export interface Ledger {
   clearMove(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<void>;
   /** Recorded moves for a mapping — open ones first, then acknowledged. */
   listMoves(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain?: 'email' | 'calendar' | 'contact' | 'file',
+    domain?: DiscoveryDomain,
   ): Promise<ItemMove[]>;
   /**
    * Apply an owner decision to one moved item.
@@ -1259,7 +1259,7 @@ export interface Ledger {
   findBySourceRef(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     sourceRef: string,
   ): Promise<LedgerRecord | undefined>;
   /**
@@ -1274,7 +1274,7 @@ export interface Ledger {
   recordAbsent(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<number>;
   /**
@@ -1297,7 +1297,7 @@ export interface Ledger {
   recordReportedDeletion(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<boolean>;
   /**
@@ -1317,7 +1317,7 @@ export interface Ledger {
   recordTrashedDeletion(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<boolean>;
   /**
@@ -1337,14 +1337,14 @@ export interface Ledger {
   clearAbsent(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<void>;
   /** Items the source has stopped showing — confirmed ones first. */
   listDeletions(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain?: 'email' | 'calendar' | 'contact' | 'file',
+    domain?: DiscoveryDomain,
   ): Promise<ItemDeletion[]>;
   /**
    * Apply an owner decision to one vanished item.
@@ -1376,7 +1376,7 @@ export interface Ledger {
   applyDeletion(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<boolean>;
   /**
@@ -1398,7 +1398,7 @@ export interface Ledger {
   applyRelocation(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<boolean>;
 }
@@ -1450,7 +1450,7 @@ export function isOnTarget(status: LedgerRecord['status']): boolean {
 
 /** One item that would not migrate, and what can be done about it. */
 export interface ItemFailure {
-  readonly domain: 'email' | 'calendar' | 'contact' | 'file';
+  readonly domain: DiscoveryDomain;
   /**
    * The idempotency anchor, and the handle for `resolveFailure`.
    *
@@ -1489,7 +1489,7 @@ export interface ItemFailure {
  * part of this that is safe to export to a metrics store.
  */
 export interface ItemMove {
-  readonly domain: 'email' | 'calendar' | 'contact' | 'file';
+  readonly domain: DiscoveryDomain;
   /** Same anchor, and for the same §17 reason, as `ItemFailure.naturalKeyHash`. */
   readonly naturalKeyHash: string;
   /** The source collection recorded on the ledger row when we copied it. */
@@ -1576,7 +1576,7 @@ export type DeletionEvidence = 'reported' | 'trashed' | 'inferred';
  * `ItemMove.from` already go — and must never become a metric label.
  */
 export interface ItemDeletion {
-  readonly domain: 'email' | 'calendar' | 'contact' | 'file';
+  readonly domain: DiscoveryDomain;
   /** Same anchor, same §17 reason, as `ItemFailure.naturalKeyHash`. */
   readonly naturalKeyHash: string;
   /** Where we copied it from, which is also where it stopped appearing. */
@@ -1826,7 +1826,7 @@ export interface ReindexDeps {
    * the reindexer was mail-only until the doorway existed (0026 T1 item 5);
    * the reindexer passed in must of course read the SAME domain's target.
    */
-  readonly domain?: 'email' | 'calendar' | 'contact' | 'file';
+  readonly domain?: DiscoveryDomain;
 }
 
 /** Summary of a reindex/adopt pass. */
@@ -1937,16 +1937,16 @@ export interface TokenProvider {
  */
 export interface LedgerVerificationReader {
   /** Count items of a given type in the ledger for a mapping */
-  countItems(tenantId: TenantId, mappingId: MappingId, domain: 'email' | 'calendar' | 'contact' | 'file'): Promise<number>;
+  countItems(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<number>;
   
   /** Get total bytes for items of a given type in the ledger */
-  totalSizeBytes(tenantId: TenantId, mappingId: MappingId, domain: 'email' | 'calendar' | 'contact' | 'file'): Promise<number>;
+  totalSizeBytes(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<number>;
   
   /** Get sample items for verification (ids + natural key hashes + content hashes) */
   getSamples(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     count: number
   ): Promise<Array<{ id: string; naturalKeyHash: string; contentHash: string }>>;
   
@@ -1954,7 +1954,7 @@ export interface LedgerVerificationReader {
   getAllNaturalKeyHashes(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file'
+    domain: DiscoveryDomain
   ): Promise<string[]>;
 }
 
@@ -1965,7 +1965,7 @@ export interface MigrationStatus {
   readonly id: string;
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
-  readonly domain: 'email' | 'calendar' | 'contact' | 'file';
+  readonly domain: DiscoveryDomain;
   readonly state: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped';
   readonly itemsSynced: number;
   readonly itemsFailed: number;
@@ -2020,12 +2020,12 @@ export interface MigrationStatusStore {
    * Initialize domain status as 'pending' (idempotent).
    * Creates a new row if it doesn't exist, otherwise no-op.
    */
-  initDomainStatus(tenantId: TenantId, mappingId: MappingId, domain: 'email' | 'calendar' | 'contact' | 'file'): Promise<void>;
+  initDomainStatus(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<void>;
 
   /**
    * Mark a domain sync as in progress.
    */
-  markInProgress(tenantId: TenantId, mappingId: MappingId, domain: 'email' | 'calendar' | 'contact' | 'file'): Promise<void>;
+  markInProgress(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<void>;
 
   /**
    * Mark a domain sync as completed successfully.
@@ -2033,7 +2033,7 @@ export interface MigrationStatusStore {
   markCompleted(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     /** Where this pass's time went, for §19's throughput dashboard. */
     metrics?: PassMetrics,
   ): Promise<void>;
@@ -2041,12 +2041,12 @@ export interface MigrationStatusStore {
   /**
    * Mark a domain sync as failed with an error.
    */
-  markFailed(tenantId: TenantId, mappingId: MappingId, domain: 'email' | 'calendar' | 'contact' | 'file', error: string): Promise<void>;
+  markFailed(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain, error: string): Promise<void>;
 
   /**
    * Mark a domain sync as skipped (e.g., disabled or no work).
    */
-  markSkipped(tenantId: TenantId, mappingId: MappingId, domain: 'email' | 'calendar' | 'contact' | 'file'): Promise<void>;
+  markSkipped(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<void>;
 
   /**
    * Get the migration status for a mapping, including DERIVED counts from item records.

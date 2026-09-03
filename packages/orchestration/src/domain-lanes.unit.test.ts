@@ -16,10 +16,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { planDomainLanes, type SyncDomain } from './orchestration.ts';
-import type { MappingConfig } from '@openmig/shared';
+import { planDomainLanes } from './orchestration.ts';
+import type { DiscoveryDomain, MappingConfig } from '@openmig/shared';
 
-const ALL: SyncDomain[] = ['email', 'calendar', 'contact', 'file'];
+const ALL: DiscoveryDomain[] = ['email', 'calendar', 'contact', 'file'];
 
 function dav(url: string) {
   return { type: 'caldav', url, user: 'u', auth: { kind: 'password', passwordFromEnv: 'P' } };
