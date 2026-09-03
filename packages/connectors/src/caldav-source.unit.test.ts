@@ -260,11 +260,14 @@ describe('CalDAVSource', () => {
       .filter(Boolean)
       .join('\r\n');
 
-    const parse = (icalendar: string) => {
+    // The source carries only ITS OWN component (see the describe below), so a
+    // test about the LABEL asks the source that would carry that object.
+    const parse = (icalendar: string, component: 'VEVENT' | 'VTODO' | 'VJOURNAL' = 'VEVENT') => {
       const source = new CalDAVSource({
         url: 'https://caldav.example.com/',
         username: 'test',
         password: 'pw',
+        component,
       });
       return (source as never as {
         parseCalendarObject(o: { href: string; icalendar: string; etag?: string }): {
@@ -274,12 +277,12 @@ describe('CalDAVSource', () => {
     };
 
     it('a VTODO is a todo — the label the ledger stores stops saying event', () => {
-      expect(parse(wrap('VTODO', 'STATUS:NEEDS-ACTION'))?.item.type).toBe('todo');
+      expect(parse(wrap('VTODO', 'STATUS:NEEDS-ACTION'), 'VTODO')?.item.type).toBe('todo');
     });
 
     it('a VEVENT is still an event, and a VJOURNAL is a journal', () => {
       expect(parse(wrap('VEVENT'))?.item.type).toBe('event');
-      expect(parse(wrap('VJOURNAL'))?.item.type).toBe('journal');
+      expect(parse(wrap('VJOURNAL'), 'VJOURNAL')?.item.type).toBe('journal');
     });
 
     it('an object whose component this parse does not recognise travels exactly as it did before', () => {
@@ -307,8 +310,92 @@ describe('CalDAVSource', () => {
 
     it('the raw iCalendar is untouched either way — the label changed, the bytes never did', () => {
       const icalendar = wrap('VTODO', 'PERCENT-COMPLETE:40');
-      const parsed = parse(icalendar) as unknown as { icalendar: string } | null;
+      const parsed = parse(icalendar, 'VTODO') as unknown as { icalendar: string } | null;
       expect(parsed?.icalendar).toBe(icalendar);
+    });
+  });
+
+  describe('one source, two domains — the component decides (0113 T3b, second half)', () => {
+    // Both are calendar collections read over CalDAV with the same credential;
+    // only `supported-calendar-component-set` tells them apart. So this is one
+    // class with a component, not two classes differing in one string.
+
+    const both = `<?xml version="1.0" encoding="utf-8"?>
+      <D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+        <D:response>
+          <D:href>/dav/calendars/test/personal/</D:href>
+          <D:propstat><D:prop>
+            <D:displayname>Personal</D:displayname>
+            <D:resourcetype><D:collection/><C:calendar-collection/></D:resourcetype>
+            <C:supported-calendar-component-set><C:comp name="VEVENT"/></C:supported-calendar-component-set>
+          </D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/dav/calendars/test/tasks/</D:href>
+          <D:propstat><D:prop>
+            <D:displayname>Tasks</D:displayname>
+            <D:resourcetype><D:collection/><C:calendar-collection/></D:resourcetype>
+            <C:supported-calendar-component-set><C:comp name="VTODO"/></C:supported-calendar-component-set>
+          </D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/dav/calendars/test/mixed/</D:href>
+          <D:propstat><D:prop>
+            <D:displayname>Mixed</D:displayname>
+            <D:resourcetype><D:collection/><C:calendar-collection/></D:resourcetype>
+            <C:supported-calendar-component-set><C:comp name="VEVENT"/><C:comp name="VTODO"/></C:supported-calendar-component-set>
+          </D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat>
+        </D:response>
+      </D:multistatus>`;
+
+    const named = (component?: 'VEVENT' | 'VTODO') =>
+      (new CalDAVSource({
+        url: 'https://caldav.example.com/',
+        username: 'test',
+        password: 'pw',
+        ...(component ? { component } : {}),
+      }) as never as {
+        parseCollectionsResponse(b: string, h: string): ReadonlyArray<{ name?: string }>;
+        parseCalendarObject(o: { href: string; icalendar: string }): unknown;
+      });
+
+    const object = (component: string) => ({
+      href: '/c/1.ics',
+      icalendar: `BEGIN:VCALENDAR\r\nBEGIN:${component}\r\nUID:u1\r\nEND:${component}\r\nEND:VCALENDAR`,
+    });
+
+    it('the calendar domain sees the calendar and the mixed one, never the task list', () => {
+      const names = named('VEVENT').parseCollectionsResponse(both, '/dav/calendars/test/').map((c) => c.name);
+      expect(names).toEqual(['Personal', 'Mixed']);
+    });
+
+    it('the task domain sees the task list and the mixed one, never the calendar', () => {
+      const names = named('VTODO').parseCollectionsResponse(both, '/dav/calendars/test/').map((c) => c.name);
+      expect(names).toEqual(['Tasks', 'Mixed']);
+    });
+
+    it('a MIXED collection gives each domain only its own objects', () => {
+      // `sync-collection` (RFC 6578) is component-agnostic: it hands the parser
+      // everything in the collection. Without this filter, ticking Calendar
+      // would quietly copy the person's to-do list too.
+      expect(named('VEVENT').parseCalendarObject(object('VEVENT'))).not.toBeNull();
+      expect(named('VEVENT').parseCalendarObject(object('VTODO'))).toBeNull();
+      expect(named('VTODO').parseCalendarObject(object('VTODO'))).not.toBeNull();
+      expect(named('VTODO').parseCalendarObject(object('VEVENT'))).toBeNull();
+    });
+
+    it('a source told nothing is a CALENDAR source — every caller before this meant that', () => {
+      const names = named().parseCollectionsResponse(both, '/dav/calendars/test/').map((c) => c.name);
+      expect(names).toEqual(['Personal', 'Mixed']);
+      expect(named().parseCalendarObject(object('VTODO'))).toBeNull();
+    });
+
+    it('an object whose component is unrecognised stays with the calendar domain', () => {
+      // Where every object went before any of this existed. Re-routing it on
+      // the strength of a parse that did not understand it would drop it from
+      // both domains, which is the one outcome worse than mislabelling it.
+      expect(named('VEVENT').parseCalendarObject(object('VFREEBUSY'))).not.toBeNull();
+      expect(named('VTODO').parseCalendarObject(object('VFREEBUSY'))).toBeNull();
     });
   });
 
