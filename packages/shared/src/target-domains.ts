@@ -18,8 +18,12 @@
  *    decision — recurring events cannot round-trip over JMAP yet, so a JMAP
  *    calendar target would flatten a series into single events (data loss).
  *  - `imap`   — mail only (ImapFlowDavMailTarget's IMAP half).
- *  - `caldav` — calendars only; `carddav` — contacts only; `webdav` — files
- *    only (the per-domain DAV writers).
+ *  - `caldav` — calendars AND task lists; `carddav` — contacts only; `webdav`
+ *    — files only (the per-domain DAV writers). CalDAV carries two of this
+ *    product's data types because on the wire they are one thing: both are
+ *    calendar collections written by the same writer with the same credential,
+ *    and only `supported-calendar-component-set` says which components each
+ *    holds (RFC 4791 §5.2.3, workplan 0113).
  *
  * The managed per-domain factories make the stakes concrete: they fall back
  * to carddav/webdav for any non-jmap connection kind, so an `imap` target
@@ -35,7 +39,7 @@ export type WizardTargetType = 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav'
 export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<DiscoveryDomain>> = {
   jmap: ['email', 'contact', 'file'],
   imap: ['email'],
-  caldav: ['calendar'],
+  caldav: ['calendar', 'task'],
   carddav: ['contact'],
   webdav: ['file'],
   // The first provider-named ACCOUNT kind (0106 T4a): one connection row,
@@ -46,9 +50,11 @@ export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<Discove
   // half of `imap-dav` since T4b — resolved at the one mail seam from the
   // account's STORED mail server (`mailHost`, typed by the person; the
   // create door demands it by name when email is ticked, never guesses a
-  // host). Files stay out until a Soverin account MEASURES a file face
-  // (the qualification's job, never this table's guess).
-  soverin: ['email', 'calendar', 'contact'],
+  // host). Tasks ride the same CalDAV face as calendars (0113 T5): a Soverin
+  // account's task list is a calendar collection that declares VTODO. Files
+  // stay out until a Soverin account MEASURES a file face (the
+  // qualification's job, never this table's guess).
+  soverin: ['email', 'calendar', 'contact', 'task'],
 };
 
 const PROTOCOL_NAMES: Record<WizardTargetType, string> = {

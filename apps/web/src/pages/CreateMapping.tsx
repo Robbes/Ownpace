@@ -22,6 +22,7 @@ import {
   Calendar,
   Users,
   Folder,
+  ListChecks,
   AlertCircle,
   Eye,
   EyeOff
@@ -201,6 +202,12 @@ const dataTypes: {
   { id: 'calendar', nameKey: 'domain.calendar', icon: Calendar, hintKey: 'wizard.domain.calendar.hint' },
   { id: 'contact', nameKey: 'domain.contact', icon: Users, hintKey: 'wizard.domain.contact.hint' },
   { id: 'file', nameKey: 'domain.file', icon: Folder, hintKey: 'wizard.domain.file.hint' },
+  // The fifth tick (workplan 0113 T5). Beside Calendar, not inside it: the
+  // owner settled the consequence — *"yes, correct that tasks move with task
+  // tick"* — so a person who wants their to-do lists ticks for them, and one
+  // who ticks only Calendar gets calendars. Two ticks on one screen is what
+  // makes that a choice rather than a silent loss.
+  { id: 'task', nameKey: 'domain.task', icon: ListChecks, hintKey: 'wizard.domain.task.hint' },
 ];
 
 const isValidPort = (raw: string): boolean => {

@@ -2,6 +2,57 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
+**2026-09-03 (latest): T5 built — the domain surfaces, and the four fan-outs that would have
+made the tick a lie.** `DISCOVERY_DOMAINS` names five, and the tick now reaches the whole
+product: the matrices (`caldav` carries `calendar` and `task`; `PROVIDER_ACCOUNT_DOMAINS.soverin`
+gains `task` — the owner's own account has a Tasks list, over the CalDAV face that row already
+claimed), the qualification's fifth face, the wizard's fifth tick, the confirm screen's counts,
+the verification gate's fifth row, EN/NL strings, and an icon.
+
+**The qualification measures tasks at the same endpoint as calendars, one property apart.** A
+task list is a calendar collection declaring VTODO, so there is no second address to resolve —
+`davFace('task', …)` builds the same `CalDAVSource` with `component: 'VTODO'` and counts in its
+own unit (`taskList`). Two calendars and one task list on one account now read *Calendar ✓ 2
+calendars · Tasks ✓ 1 task list*, where before both were "3 calendars". Google's face is a
+MEASURED no at every tier, because Google's CalDAV carries no VTODO at all and no scope buys
+one; JMAP's is a no in this product's own name, like its calendar.
+
+**The four fan-outs are what a compile error could not find.** `orchestration.ts` asks "is this
+domain switched on?" in five hand-written places — sync, discovery, the delta pass, the
+verification reindexers, and the gate's own switches — and `config.domains.tasks` is an optional
+field, so a chain that never mentions it compiles perfectly and silently does nothing. A person
+could have ticked Tasks, watched the mapping activate, and got a migration that copied nothing,
+discovered nothing, and passed its verification gate having never looked (hard rule 9). All five
+now name it, and `scripts/a-domain-the-fan-outs-forgot.unit.test.ts` counts them so the sixth
+domain cannot repeat it.
+
+**One list became four fewer copies.** The record's face vocabulary (`mail` where the product
+says `email`) is now `QUALIFICATION_KEYS` in shared, derived from `DISCOVERY_DOMAINS`; the
+browser's four `domain.*` label maps became one `i18n/domain-words.ts`; and the zod enums at the
+three doors (web validators, discovery job, create/discover routes) read `DISCOVERY_DOMAINS`
+rather than restating it — their T1 exception said "not until the ledger widens", and T2 widened
+it. The guard's exception map shrank by three entries accordingly.
+
+**A record written before today has four faces, and the browser reads those rows.** Walking five
+keys over four-key JSON would have thrown on the first existing connection card — the
+fifth-domain failure this plan exists to stop, landing in the one layer with no compiler to catch
+it, since the record arrives as JSON over the wire. An absent face is `?`, which is the rule
+`qualifiedAnswerFor` already states in shared: unmeasured, never a no, with the Test button as
+the remedy. Proved by breaking, eight ways.
+
+**2026-09-03 — OWNER DECISION, the last one this plan was waiting on.** Asked whether a
+customer mid-migration should keep having their VTODOs carried by the Calendar tick through a
+transition period, the owner: *"yes, correct that tasks move with task tick."*
+
+So there is no transition. **The component decides the domain**, from the moment the tick
+exists: ticking Calendar carries events, ticking Tasks carries tasks, and a mixed collection
+gives each domain its own. A person migrating today who ticked only Calendar will see their
+to-dos stop arriving until they tick Tasks — and the tick will be on the same screen, beside
+the one they already ticked, which is what makes that acceptable rather than a silent loss.
+
+This confirms what T3b already built rather than changing it, and it closes T0: every decision
+this plan needed is now made.
+
 **2026-09-03 (latest): T3b finished — one source, two domains.** `CalDAVSource` takes a
 `component` (default `VEVENT`, which is what every existing caller meant). It decides two
 things: which collections the source lists — so a task list stops appearing under Calendar and
@@ -119,14 +170,14 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 Decide: its own tick, and how far v1 reaches | ✅ Decided 2026-09-03 | 1: **build it** (the owner queued the work). 2: **its own tick**. 3: **Google Tasks out of v1**. 2 and 3 are this plan's own recommendations, taken in the owner's absence and reversible by a word from him. |
+| T0 Decide: its own tick, and how far v1 reaches | ✅ Decided 2026-09-03 | 1: **build it** (the owner queued the work). 2: **its own tick**. 3: **Google Tasks out of v1**. 2 and 3 were this plan's recommendations, taken in the owner's absence; he then confirmed the consequence that matters — *"yes, correct that tasks move with task tick"* — so the ticks are separate and there is no transition period. |
 | T1 The domain has ONE name | ✅ Done | Was **80 inline copies across 18 files** (73 when this was written; #734–#738 added seven). Now one `DISCOVERY_DOMAINS` in `packages/shared/src/discovery.ts` with `DiscoveryDomain` derived from it, three redundant aliases removed, and `scripts/a-domain-union-typed-out-by-hand.unit.test.ts` failing the build on a new copy of the type OR of the value list — with every legitimate exception named and two-way, so it cannot go stale. Proved by breaking. No behaviour changed. |
 | T2 The ledger widens | ✅ Done | `0036_a_task_is_not_an_event.sql`: nine CHECKs widened (eight `domain` columns — seven baseline, one from 0035 — plus the legacy `item.item_type`). Additive, re-runnable, verified against a real Postgres: nine constraints accept `task`, a row lands in each of the eight tables, and `journal` is still refused. The Drizzle mirror names `DISCOVERY_DOMAINS` rather than listing values, and a guard fails the build on a domain that reaches the code without a migration. Proved by breaking. |
 | T3 The source tells a task list from a calendar | ✅ Done | **(a)** `listCollections` now PROPFINDs `supported-calendar-component-set` (RFC 4791 §5.2.3) and drops a collection that does not carry `VEVENT`, so a VTODO-only list stops being counted among "5 calendars visible". The declared set rides on `CalendarFolder.components` as data; an UNDECLARED set is a yes for every component, per the RFC and 0105's never-guess rule. Proved by breaking. **(b)** each object's `type` is read from its own `BEGIN:` line instead of stamped `'event'`, and `CalDAVSource` now takes a **component**: it lists only collections carrying it and yields only objects of it, so one class serves two domains and a MIXED collection gives each domain its own. Default `VEVENT` — every caller before this meant that. Proved by breaking. |
 | T4 The writer writes a task | ✅ Done | Both read-backs follow the component: the per-item REPORT filters on what is being written (read from the object's own bytes), the collection snapshot covers all three while keeping partial retrieval, `MKCALENDAR` carries the source's declared component set (and declares nothing when the source did), and a refusal names the component instead of returning a bare 403 — passing the server's own words through unchanged when the component is not the reason. Proved by breaking, five ways. |
-| T5 The domain surfaces | 📋 Planned (needs T1, T2, T3) | The matrices, the qualification's fifth face and its badge, the wizard's fifth tick, the discovery counts, the confirm screen, EN/NL strings, the icon. |
+| T5 The domain surfaces | ✅ Done | The matrices (`caldav` → calendar+task, `soverin` gains task, Google gains nothing at any scope tier), the qualification's fifth face measured through the same CalDAV endpoint with `component: 'VTODO'` and counted in its own `taskList` unit, the wizard's fifth tick, the discovery counts, the confirm screen, the verification gate's fifth row, EN/NL strings and an icon. Plus the four per-domain fan-outs in `orchestration.ts` that no compile error could have named — sync, discovery, delta, verification — with a counting guard so the sixth domain cannot slip past them. Four vocabularies collapsed into one on the way (`QUALIFICATION_KEYS`, `domain-words.ts`, three zod enums). A pre-T5 record's missing face reads as `?`, never as a crash. Proved by breaking, eight ways. |
 | T6 Google Tasks | 📋 Optional (needs T0 decision 3) | Google's CalDAV carries no VTODO at all: tasks live behind the separate Tasks REST API, whose model is thinner than VTODO. A face of its own, or out of scope for v1. |
-| T7 The gate | 📋 Planned (needs T4) | The managed nightly seeds a task list in the demo backend and migrates it, so the next regression of this shape is caught by a machine rather than by the owner's account. |
+| T7 The gate | 📋 Planned (needs T4, T5) | The managed nightly seeds a task list in the demo backend and migrates it, so the next regression of this shape is caught by a machine rather than by the owner's account. |
 
 ## Why this exists
 

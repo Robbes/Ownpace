@@ -6,6 +6,11 @@
  * DECISION, and saying it about a domain the owner did select would put words
  * in their mouth on the screen they use to check whether a migration is
  * complete.
+ *
+ * The sentences below name every domain, so they move when the domain list
+ * does — `task` joined them on 2026-09-03 (workplan 0113 T5). That is the
+ * point rather than a maintenance cost: a fifth domain that quietly failed to
+ * appear in this log is precisely the drift these lines exist to catch.
  */
 import { describe, it, expect } from 'vitest';
 import { describeAbsentDomains, ALL_SYNC_DOMAINS } from './enabled-domains.ts';
@@ -23,14 +28,14 @@ describe('describeAbsentDomains', () => {
     // the log itself was making: contact and file are absent from the run, and
     // "they all ran" is only true of the two the owner picked.
     expect(describeAbsentDomains(set('email', 'calendar'), ['email', 'calendar'])).toEqual([
-      'contact, file: not selected for this migration — not synced, not checked',
+      'contact, file, task: not selected for this migration — not synced, not checked',
     ]);
   });
 
   it('names the unselected domains — the email-only mapping the owner asked about', () => {
     const [line, ...rest] = describeAbsentDomains(set('email'), ['email']);
     expect(line).toBe(
-      'calendar, contact, file: not selected for this migration — not synced, not checked',
+      'calendar, contact, file, task: not selected for this migration — not synced, not checked',
     );
     expect(rest).toEqual([]);
   });
@@ -39,7 +44,7 @@ describe('describeAbsentDomains', () => {
     // Selected: email + calendar. This run was asked for email only.
     const lines = describeAbsentDomains(set('email', 'calendar'), ['email']);
     expect(lines).toEqual([
-      'contact, file: not selected for this migration — not synced, not checked',
+      'contact, file, task: not selected for this migration — not synced, not checked',
       'calendar: selected for this migration but not part of this run',
     ]);
   });
@@ -54,7 +59,7 @@ describe('describeAbsentDomains', () => {
 
   it('accounts for every domain when nothing is selected and nothing ran', () => {
     expect(describeAbsentDomains(set(), [])).toEqual([
-      'email, calendar, contact, file: not selected for this migration — not synced, not checked',
+      'email, calendar, contact, file, task: not selected for this migration — not synced, not checked',
     ]);
   });
 
@@ -62,7 +67,9 @@ describe('describeAbsentDomains', () => {
     // The set arrives from a SELECT with no ORDER BY and the run list from a
     // payload; neither is a reading order a person should have to follow.
     const lines = describeAbsentDomains(set('file', 'contact', 'email'), ['file']);
-    expect(lines[0]).toBe('calendar: not selected for this migration — not synced, not checked');
+    expect(lines[0]).toBe(
+      'calendar, task: not selected for this migration — not synced, not checked',
+    );
     expect(lines[1]).toBe('email, contact: selected for this migration but not part of this run');
   });
 });

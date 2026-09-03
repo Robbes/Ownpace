@@ -21,21 +21,45 @@
  * (`DiscoveryDomain`); the mapping lives here so neither door hand-rolls it.
  */
 
-import type { DiscoveryDomain } from './discovery.ts';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain } from './discovery.ts';
 
 export interface QualifiedDomainRecord {
   readonly answer: 'yes' | 'no' | 'unknown';
   readonly detail: string;
 }
 
-type QualificationKey = 'mail' | 'calendar' | 'contact' | 'file';
+/**
+ * The stored record's own word for each domain. Exported since workplan 0113
+ * T5, because the browser was writing this vocabulary out by hand — four
+ * copies of `'mail' | 'calendar' | 'contact' | 'file'` in the probe text and
+ * the mapping service — and a fifth face reached the record before any of
+ * them knew. The same one-list rule the domains themselves live under (T1):
+ * the record's words are derived from `DISCOVERY_DOMAINS`, so a sixth domain
+ * is a compile error in `KEY_FOR_DOMAIN` and nowhere else.
+ */
+export type QualificationKey = 'mail' | 'calendar' | 'contact' | 'file' | 'task';
 
 const KEY_FOR_DOMAIN: Readonly<Record<DiscoveryDomain, QualificationKey>> = {
   email: 'mail',
   calendar: 'calendar',
   contact: 'contact',
   file: 'file',
+  task: 'task',
 };
+
+/**
+ * The record's faces IN DOMAIN ORDER — the order a person ticks them, so a
+ * qualification line and a domain step list them the same way twice running.
+ */
+export const QUALIFICATION_KEYS: ReadonlyArray<QualificationKey> =
+  DISCOVERY_DOMAINS.map((d) => KEY_FOR_DOMAIN[d]);
+
+/** The wizard domain a record face belongs to — `KEY_FOR_DOMAIN`, inverted. */
+export const DOMAIN_FOR_QUALIFICATION_KEY: Readonly<Record<QualificationKey, DiscoveryDomain>> =
+  Object.fromEntries(DISCOVERY_DOMAINS.map((d) => [KEY_FOR_DOMAIN[d], d])) as Record<
+    QualificationKey,
+    DiscoveryDomain
+  >;
 
 function asDomainRecord(value: unknown): QualifiedDomainRecord | undefined {
   if (typeof value !== 'object' || value === null) return undefined;

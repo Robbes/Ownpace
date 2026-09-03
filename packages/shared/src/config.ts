@@ -415,6 +415,16 @@ export interface DomainsConfig {
   calendar?: DomainConfig;
   contacts?: DomainConfig;
   files?: DomainConfig;
+  /**
+   * Tasks — VTODO components in a CalDAV collection (workplan 0113).
+   *
+   * A separate key rather than a flag on `calendar`, for the same reason the
+   * domain is a separate tick: a target can carry one and refuse the other
+   * (Google's CalDAV carries no VTODO at all), and per-domain source/target
+   * overrides are exactly what a person needs when the two live in different
+   * places.
+   */
+  tasks?: DomainConfig;
 }
 
 export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | GoogleAccountSource | DropboxSource | BoxSource;

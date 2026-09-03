@@ -217,6 +217,7 @@ export const runCutover = schemaTask({
                       verifyCalendar: true,
                       verifyContacts: true,
                       verifyFiles: true,
+                      verifyTasks: true,
                     },
                     verificationReader,
                     // One reindexer per domain, each reading its own target.

@@ -40,6 +40,7 @@ const BASE_CONFIG = {
   verifyCalendar: false,
   verifyContacts: false,
   verifyFiles: false,
+  verifyTasks: false,
 };
 
 /** Three migrated items, all present and identical on the target. */

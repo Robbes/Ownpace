@@ -33,7 +33,7 @@ export type DataTypeVerificationStatus = 'PASS' | 'WARN' | 'FAIL' | 'SKIPPED' | 
 
 /** Verification status for a single data type */
 export interface DataTypeVerification {
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files';
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks';
   status: DataTypeVerificationStatus;
 
   // Statistics

@@ -295,13 +295,14 @@ async function main() {
               maxSampleSize: 1000,
               requiredMatchPercentage: 0.99,
               maxDiscrepancyPercentage: 0.01,
-              // All four are enabled: a domain that cannot be read comes back
+              // Every domain is enabled: one that cannot be read comes back
               // NOT_VERIFIABLE and blocks, rather than being quietly switched
               // off here so the gate looks green.
               verifyMail: true,
               verifyCalendar: true,
               verifyContacts: true,
               verifyFiles: true,
+              verifyTasks: true,
             },
             verificationReader,
             // One reindexer per domain, each reading its own target.

@@ -20,7 +20,7 @@ import { buildDomainDepsFromMapping } from './build-deps-from-mapping.ts';
 import { log } from '@openmig/shared';
 
 /** Domains the verification gate knows about. */
-export type VerificationDomain = 'mail' | 'calendar' | 'contacts' | 'files';
+export type VerificationDomain = 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks';
 
 export interface TargetReindexers {
   readonly reindexers: Partial<Record<VerificationDomain, TargetReindexer>>;

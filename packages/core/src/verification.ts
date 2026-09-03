@@ -40,6 +40,13 @@ export interface VerificationConfig {
   verifyCalendar: boolean; // Default: true
   verifyContacts: boolean; // Default: true
   verifyFiles: boolean; // Default: true
+  /**
+   * Tasks (workplan 0113 T5). Joined the gate in the same commit as the tick
+   * that copies them: a domain that copies and is never verified is the green
+   * run that checked nothing, and this gate is the last thing standing
+   * between that and a cutover.
+   */
+  verifyTasks: boolean; // Default: true
 }
 
 /** Verification dependencies */
@@ -49,12 +56,12 @@ export interface VerificationDeps {
   config: VerificationConfig;
   
   // Data access
-  getSourceCount(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number>;
-  getTargetCount(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number>;
+  getSourceCount(dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'): Promise<number>;
+  getTargetCount(dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'): Promise<number>;
   
   // Sample retrieval for checksum verification
   getSourceSamples(
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
     count: number
   ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>>;
   
@@ -75,22 +82,22 @@ export interface VerificationDeps {
    * none.
    */
   getTargetSamples(
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
     count: number,
     naturalKeyHashes?: ReadonlyArray<string>
   ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>>;
   
   // Discrepancy detection
   findMissingOnTarget(
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files'
+    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'
   ): Promise<Array<{ id: string; sourceRef: string }>>;
   
   findExtraOnTarget(
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files'
+    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'
   ): Promise<Array<{ id: string; targetRef: string }>>;
   
   // Bytes tracking
-  getTotalBytesSource(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number>;
+  getTotalBytesSource(dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'): Promise<number>;
   /**
    * Optional: total bytes as measured ON THE TARGET. Supply this only if the
    * target can genuinely report sizes. Omit it — or return null — rather than
@@ -101,7 +108,7 @@ export interface VerificationDeps {
    * item". A partial sum would read as a shortfall against the source total,
    * i.e. as data loss.
    */
-  getTotalBytesTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): Promise<number | null>;
+  getTotalBytesTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'): Promise<number | null>;
 
   /**
    * Can this domain's target actually be read? Return false when there is no
@@ -109,13 +116,13 @@ export interface VerificationDeps {
    * measured against a target nobody can see. Omit to assume every enabled
    * domain is readable.
    */
-  canVerifyTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files'): boolean;
+  canVerifyTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'): boolean;
 }
 
 /** Which domains the config asks to verify. */
 function isDataTypeEnabled(
   config: VerificationConfig,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
 ): boolean {
   switch (dataType) {
     case 'mail':
@@ -126,12 +133,14 @@ function isDataTypeEnabled(
       return config.verifyContacts;
     case 'files':
       return config.verifyFiles;
+    case 'tasks':
+      return config.verifyTasks;
   }
 }
 
 /** A result for a domain that was not measured, with the reason attached. */
 function notMeasured(
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
   status: 'SKIPPED' | 'NOT_VERIFIABLE',
   message: string,
   /** What the ledger says was copied, when that is known. */
@@ -181,7 +190,7 @@ export async function runVerification(
    * one of them missing.
    */
   const verifyDomain = async (
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
   ): Promise<DataTypeVerification> => {
     if (!isDataTypeEnabled(config, dataType)) {
       return notMeasured(
@@ -265,7 +274,7 @@ export async function runVerification(
  * Verify a single data type
  */
 async function verifyDataType(
-  deps: VerificationDeps & { dataType: 'mail' | 'calendar' | 'contacts' | 'files' }
+  deps: VerificationDeps & { dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks' }
 ): Promise<DataTypeVerification> {
   const { dataType, config } = deps;
   

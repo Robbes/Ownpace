@@ -113,7 +113,7 @@ async function autoApplyOpenRelocations(
 const DeltaSyncJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
-  domains: z.array(z.enum(['file', 'email', 'calendar', 'contact'])).optional(),
+  domains: z.array(z.enum(['file', 'email', 'calendar', 'contact', 'task'])).optional(),
 });
 
 type DeltaSyncJobPayload = z.infer<typeof DeltaSyncJobSchema>;

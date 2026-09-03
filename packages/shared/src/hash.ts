@@ -55,6 +55,41 @@ export function naturalKeyForCalendar(event: CalendarEvent): string {
 }
 
 /**
+ * Task natural key hash from UID — its OWN prefix, not the calendar one
+ * (workplan 0113).
+ *
+ * A VTODO and a VEVENT can carry the same UID. RFC 5545 says a UID identifies
+ * one calendar component, so a single collection holding both under one UID is
+ * malformed — but two collections on one account may each hold one, and that
+ * is ordinary. Under `cal:` they would hash to the same key, and the ledger's
+ * uniqueness is `(tenant, mapping, item_type, natural_key_hash)` where
+ * `item_type` is a legacy column nothing writes: the two rows would collide,
+ * and whichever arrived second would be adopted as "already migrated" and
+ * never copied.
+ *
+ * That is #597's shape again — a key that does not identify what it names —
+ * and the fifth domain is the moment to give tasks their own space rather than
+ * inherit a collision. Nothing is re-keyed by this: no task has ever been
+ * written under the task DOMAIN, because the domain did not exist. A task
+ * carried under `calendar` from a mixed collection keeps its `cal:` row and
+ * its history, which is what it should do.
+ */
+export function taskNaturalKeyHash(uid: string): string {
+  return sha256Hex(`todo:${uid.toLowerCase()}`);
+}
+
+/**
+ * The natural key for a task, with RECURRENCE-ID for the same reason a
+ * calendar event has one: RFC 5545 lets a VTODO recur, and an exception shares
+ * the series' UID.
+ */
+export function naturalKeyForTask(task: CalendarEvent): string {
+  return taskNaturalKeyHash(
+    task.recurrenceId ? `${task.uid}|${task.recurrenceId}` : task.uid,
+  );
+}
+
+/**
  * Contact natural key hash from UID.
  * vCard UIDs are case-sensitive, so we preserve the original casing.
  */

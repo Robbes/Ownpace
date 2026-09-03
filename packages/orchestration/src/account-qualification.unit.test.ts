@@ -185,16 +185,116 @@ describe('each face is asked where that face lives (owner 2026-09-03: "Files ✓
       // domain step already refuses `file` for a soverin connection.
       expect(q?.domains.file.answer).toBe('no');
       expect(q?.domains.file.detail).toBe(
-        'A Soverin account carries email, calendar and contact; a file store is not a ' +
+        'A Soverin account carries email, calendar, contact and task; a file store is not a ' +
           'face of this connection.',
       );
       // Nothing was counted, because nothing was read: a count beside a no
       // would be the old sentence wearing a new answer.
       expect(q?.domains.file.count).toBeUndefined();
       expect(q?.domains.file.unit).toBeUndefined();
-      // The faces it does have are untouched by the gate.
+      // The faces it does have are untouched by the gate — tasks among them
+      // since 0113 T5, measured through the same DAV endpoint as calendars
+      // with `component: 'VTODO'`, and counted in their own unit so "5
+      // calendars" never absorbs somebody's to-do lists.
       expect(q?.domains.calendar.answer).toBe('yes');
       expect(q?.domains.contact.answer).toBe('yes');
+      expect(q?.domains.task.answer).toBe('yes');
+      expect(q?.domains.task.unit).toBe('taskList');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a calendar and a task list are counted apart — the component decides, not the collection', async () => {
+    // THE T5 ASSERTION, and the one the owner's own account motivated: two
+    // collections under one calendar home set, one declaring VEVENT and the
+    // other VTODO. Before this, both faces were one face and both were called
+    // "calendars" — "5 calendars visible" on an account with four calendars
+    // and a to-do list.
+    //
+    // Same endpoint, same credential, one PROPFIND property apart (RFC 4791
+    // §5.2.3): the CalDAV source is built twice, with `component: 'VEVENT'`
+    // and `component: 'VTODO'`, and each lists only what carries its own.
+    //
+    // TWO calendars and ONE task list, deliberately. With one of each, a task
+    // face that quietly read VEVENT would still answer "1" and the test would
+    // pass on a coincidence — which is what the first draft of it did.
+    const twoCollections = `<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/dav/calendars/probe/work/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+        <d:displayname>Work</d:displayname>
+        <cal:supported-calendar-component-set><cal:comp name="VEVENT"/></cal:supported-calendar-component-set>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/dav/calendars/probe/family/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+        <d:displayname>Family</d:displayname>
+        <cal:supported-calendar-component-set><cal:comp name="VEVENT"/></cal:supported-calendar-component-set>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/dav/calendars/probe/todo/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+        <d:displayname>Tasks</d:displayname>
+        <cal:supported-calendar-component-set><cal:comp name="VTODO"/></cal:supported-calendar-component-set>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>`;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: FetchInit) => {
+        if (init?.method === 'OPTIONS') {
+          return new Response('', { status: 200, headers: { DAV: '1, 2, calendar-access' } });
+        }
+        // The collection listing is the PROPFIND that asks for the component
+        // set; every other hop is home-set discovery.
+        const body = String(init?.body ?? '');
+        return new Response(
+          body.includes('supported-calendar-component-set') ? twoCollections : MULTISTATUS,
+          { status: 207, headers: { 'content-type': 'application/xml; charset=utf-8' } },
+        );
+      }),
+    );
+    try {
+      const q = await qualifyAccount('caldav', DAV_CONFIG, CREDS);
+      // One each, and each in its OWN unit — the unit is what makes the count
+      // true when a screen words it.
+      expect(q?.domains.calendar).toMatchObject({ answer: 'yes', count: 2, unit: 'calendar' });
+      expect(q?.domains.task).toMatchObject({ answer: 'yes', count: 1, unit: 'taskList' });
+      // Said in words, too: nobody reads "1 calendar" about a to-do list.
+      expect(q?.domains.calendar.detail).toBe('2 calendars visible.');
+      expect(q?.domains.task.detail).toBe('1 task list visible.');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('an undeclared component set is a yes for BOTH faces — absence is not evidence of absence', async () => {
+    // RFC 4791 §5.2.3: a collection that declares no
+    // `supported-calendar-component-set` MAY contain any component type. So
+    // the all-purpose fixture — which declares none — is honestly counted
+    // once as a calendar and once as a task list, rather than hidden from one
+    // of them on a guess (0105's never-guess rule, pointed the other way).
+    vi.stubGlobal('fetch', davAnsweringFetch());
+    try {
+      const q = await qualifyAccount('caldav', DAV_CONFIG, CREDS);
+      expect(q?.domains.calendar.answer).toBe('yes');
+      expect(q?.domains.task.answer).toBe('yes');
     } finally {
       vi.unstubAllGlobals();
     }
@@ -206,18 +306,22 @@ describe('each face is asked where that face lives (owner 2026-09-03: "Files ✓
         mail: { answer: 'unknown', detail: 'x' },
         calendar: { answer: 'yes', detail: '1 calendar visible.' },
         contact: { answer: 'yes', detail: '1 address book visible.' },
+        task: { answer: 'yes', detail: '1 task list visible.' },
         file: {
           answer: 'no',
           detail:
-            'A Soverin account carries email, calendar and contact; a file store is not a ' +
+            'A Soverin account carries email, calendar, contact and task; a file store is not a ' +
             'face of this connection.',
         },
       },
     });
     expect(lines).toContain(
-      'Files ✗: A Soverin account carries email, calendar and contact; a file store is not a ' +
+      'Files ✗: A Soverin account carries email, calendar, contact and task; a file store is not a ' +
         'face of this connection.',
     );
+    // And tasks are a line of their own on that report, between the calendars
+    // they are not and the contacts they never were (0113 T5).
+    expect(lines).toContain('Tasks ✓: 1 task list visible.');
   });
 
   it('a nextcloud connection is measured where its files are — files/{username}/, not the DAV root', async () => {
@@ -764,6 +868,7 @@ describe('the reach MEASURES each face it reached (owner 2026-09-02: GB in Drive
       domains: {
         mail: { answer: 'yes', detail: 'x', volume: { items: 2, bytes: 2048 } },
         calendar: { answer: 'yes', detail: 'x' },
+        task: { answer: 'yes', detail: 'x' },
         contact: { answer: 'no', detail: 'x' },
         file: { answer: 'unknown', detail: 'x' },
       },

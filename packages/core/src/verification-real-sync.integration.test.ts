@@ -55,6 +55,7 @@ const VERIFY_CONFIG = {
   verifyCalendar: false,
   verifyContacts: false,
   verifyFiles: false,
+  verifyTasks: false,
 };
 
 /** Three messages, seeded into the source the way a real mailbox presents them. */

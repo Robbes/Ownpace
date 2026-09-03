@@ -101,9 +101,16 @@ export interface DiscoveryCollection {
  * new copy of either, and names every place that legitimately keeps its own
  * (workplan 0113 T1).
  */
-export const DISCOVERY_DOMAINS = ['email', 'calendar', 'contact', 'file'] as const;
+export const DISCOVERY_DOMAINS = ['email', 'calendar', 'contact', 'file', 'task'] as const;
 
-/** The sync domains discovery covers. */
+/**
+ * The sync domains discovery covers.
+ *
+ * `task` joined on 2026-09-03 (workplan 0113). It is the fifth, and the first
+ * added since this list became one list — which is the whole point of T1: the
+ * compiler now names every place that has to decide what a task means there,
+ * instead of leaving one behind to fail in somebody's migration.
+ */
 export type DiscoveryDomain = (typeof DISCOVERY_DOMAINS)[number];
 
 /** A stored discovery result for one domain (T2). Extends the counts with persistence metadata. */

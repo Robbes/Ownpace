@@ -22,9 +22,15 @@ describe('TARGET_TYPE_DOMAINS mirrors the engines', () => {
 
   it('the single-protocol targets carry exactly their own domain', () => {
     expect(TARGET_TYPE_DOMAINS.imap).toEqual(['email']);
-    expect(TARGET_TYPE_DOMAINS.caldav).toEqual(['calendar']);
     expect(TARGET_TYPE_DOMAINS.carddav).toEqual(['contact']);
     expect(TARGET_TYPE_DOMAINS.webdav).toEqual(['file']);
+  });
+
+  it('caldav carries two data types, because on the wire they are one thing', () => {
+    // A task list is a calendar collection that declares VTODO in its
+    // `supported-calendar-component-set` — same protocol, same credential,
+    // same writer, one property apart (RFC 4791 §5.2.3, workplan 0113).
+    expect(TARGET_TYPE_DOMAINS.caldav).toEqual(['calendar', 'task']);
   });
 
   it('soverin — the account-shaped kind — carries what its builders drive TODAY (0106 T4a+T4b)', () => {
@@ -32,7 +38,8 @@ describe('TARGET_TYPE_DOMAINS mirrors the engines', () => {
     // (T4b), calendar + contact ride the existing DAV builders. Files stay
     // out until a qualification measures a file face — this table promises
     // only what the engines deliver.
-    expect(TARGET_TYPE_DOMAINS.soverin).toEqual(['email', 'calendar', 'contact']);
+    // Tasks joined in 0113 T5, on the CalDAV face this row already had.
+    expect(TARGET_TYPE_DOMAINS.soverin).toEqual(['email', 'calendar', 'contact', 'task']);
   });
 });
 
@@ -41,9 +48,10 @@ describe('targetDomainRefusal', () => {
     expect(targetDomainRefusal('jmap', ['email', 'contact', 'file'])).toBeNull();
     expect(targetDomainRefusal('imap', ['email'])).toBeNull();
     expect(targetDomainRefusal('caldav', ['calendar'])).toBeNull();
+    expect(targetDomainRefusal('caldav', ['calendar', 'task'])).toBeNull();
     expect(targetDomainRefusal('carddav', ['contact'])).toBeNull();
     expect(targetDomainRefusal('webdav', ['file'])).toBeNull();
-    expect(targetDomainRefusal('soverin', ['email', 'calendar', 'contact'])).toBeNull();
+    expect(targetDomainRefusal('soverin', ['email', 'calendar', 'contact', 'task'])).toBeNull();
     expect(targetDomainRefusal('jmap', [])).toBeNull();
   });
 
@@ -51,7 +59,7 @@ describe('targetDomainRefusal', () => {
     const msg = targetDomainRefusal('soverin', ['file', 'calendar']);
     expect(msg).toContain('Soverin');
     expect(msg).toContain("'file'");
-    expect(msg).toContain("carries 'email', 'calendar', 'contact' only");
+    expect(msg).toContain("carries 'email', 'calendar', 'contact', 'task' only");
   });
 
   it('names BOTH sides for carddav + email — the workplan example', () => {

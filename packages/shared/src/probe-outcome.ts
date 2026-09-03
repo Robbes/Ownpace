@@ -22,8 +22,15 @@
 
 import type { BilingualRefusal } from './credential-refusals.ts';
 
-/** What a source counts when it lists. */
-export type ProbeUnit = 'folder' | 'calendar' | 'addressBook' | 'collection';
+/**
+ * What a source counts when it lists.
+ *
+ * `taskList` is its own unit rather than a `calendar` (workplan 0113): on the
+ * wire both are calendar collections, but a person reading "5 calendars" on a
+ * connection that holds four calendars and a to-do list has been told
+ * something false. The unit is what makes the count true.
+ */
+export type ProbeUnit = 'folder' | 'calendar' | 'addressBook' | 'collection' | 'taskList';
 
 export type ProbeOutcome =
   /**

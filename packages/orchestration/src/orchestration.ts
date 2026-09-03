@@ -40,6 +40,7 @@ import { createLedgerVerificationReader } from '@openmig/ledger';
 import {
   naturalKeyHash,
   calendarNaturalKeyHash,
+  taskNaturalKeyHash,
   contactNaturalKeyHash,
   fileNaturalKeyHash,
 } from '@openmig/shared';
@@ -195,6 +196,7 @@ export function planDomainLanes(
     calendar: config.domains?.calendar,
     contact: config.domains?.contacts,
     file: config.domains?.files,
+    task: config.domains?.tasks,
   };
 
   // host -> index of the lane that already claimed it.
@@ -284,6 +286,10 @@ export async function runAllDomains(
     { name: 'calendar', enabled: config.domains?.calendar?.enabled ?? false },
     { name: 'contact', enabled: config.domains?.contacts?.enabled ?? false },
     { name: 'file', enabled: config.domains?.files?.enabled ?? false },
+    // Its own lane, not a passenger on the calendar's (0113 T0, the owner:
+    // *"yes, correct that tasks move with task tick"*). A mapping that ticked
+    // Calendar and not Tasks copies events and no to-dos, and the reverse.
+    { name: 'task', enabled: config.domains?.tasks?.enabled ?? false },
   ];
 
   // Backward compatibility: a config with no domains block but an IMAP source
@@ -580,6 +586,9 @@ export async function discoverAllDomains(
   if (config.domains?.files?.enabled) {
     enabled.push({ domain: 'file', open: async () => { const d = buildDomainDeps(config, 'file', ledger); return { source: d.source, target: d.target, close: d.close }; } });
   }
+  if (config.domains?.tasks?.enabled) {
+    enabled.push({ domain: 'task', open: async () => { const d = buildDomainDeps(config, 'task', ledger); return { source: d.source, target: d.target, close: d.close }; } });
+  }
 
   const tasks: DomainDiscoveryTask[] = enabled.map(({ domain, open }) => ({
     domain,
@@ -665,6 +674,14 @@ function sourceKeyHash(domain: DiscoveryDomain, item: unknown): string | undefin
       const path = (item as { item?: { path?: string } }).item?.path;
       return path ? fileNaturalKeyHash(path) : undefined;
     }
+    case 'task': {
+      // The same iCalendar shape as a calendar object, in its OWN key space:
+      // a VTODO and a VEVENT may share a UID across two collections, and one
+      // space would make the second look already-migrated (see
+      // `taskNaturalKeyHash`).
+      const uid = extractIcalUid((item as { icalendar?: string }).icalendar);
+      return uid ? taskNaturalKeyHash(uid) : undefined;
+    }
   }
 }
 
@@ -679,6 +696,8 @@ function targetKeyHash(domain: DiscoveryDomain, rawKey: string): string {
       return contactNaturalKeyHash(rawKey);
     case 'file':
       return fileNaturalKeyHash(rawKey);
+    case 'task':
+      return taskNaturalKeyHash(rawKey);
   }
 }
 
@@ -729,11 +748,11 @@ export async function verifyMapping(
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;
 
-  const reindexers: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files', TargetReindexer>> = {};
+  const reindexers: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files' | 'tasks', TargetReindexer>> = {};
   const closers: Array<() => Promise<void>> = [];
 
   const collect = async (
-    key: 'mail' | 'calendar' | 'contacts' | 'files',
+    key: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
     open: () => Promise<{ target: unknown; close: () => Promise<void> }>,
   ): Promise<void> => {
     let opened: { target: unknown; close: () => Promise<void> };
@@ -779,6 +798,12 @@ export async function verifyMapping(
       return { target: d.target, close: d.close };
     });
   }
+  if (config.domains?.tasks?.enabled) {
+    await collect('tasks', async () => {
+      const d = buildDomainDeps(config, 'task', ledger);
+      return { target: d.target, close: d.close };
+    });
+  }
 
   // Owns its own pool (see createLedgerVerificationReader) — closed below.
   const verificationReader = createLedgerVerificationReader(
@@ -803,6 +828,11 @@ export async function verifyMapping(
           verifyCalendar: config.domains?.calendar?.enabled ?? false,
           verifyContacts: config.domains?.contacts?.enabled ?? false,
           verifyFiles: config.domains?.files?.enabled ?? false,
+          // A DOMAIN THAT COPIES AND IS NEVER VERIFIED IS THE GREEN RUN THAT
+          // CHECKED NOTHING (hard rule 9). Tasks joined the gate with the
+          // tick, in the same commit, rather than becoming the one domain a
+          // cutover passes without reading (0113 T5).
+          verifyTasks: config.domains?.tasks?.enabled ?? false,
         },
         verificationReader,
         targetReindexers: reindexers,
@@ -843,6 +873,7 @@ function enabledSyncDomains(config: MappingConfig): DiscoveryDomain[] {
   if (config.domains?.calendar?.enabled) domains.push('calendar');
   if (config.domains?.contacts?.enabled) domains.push('contact');
   if (config.domains?.files?.enabled) domains.push('file');
+  if (config.domains?.tasks?.enabled) domains.push('task');
   return domains;
 }
 
@@ -867,6 +898,13 @@ async function openSyncDomainDeps(
     }
     case 'contact': {
       const d = buildDomainDeps(config, 'contact', ledgerOptions);
+      return { target: d.target, ledger: d.ledger, close: d.close };
+    }
+    case 'task': {
+      // The CalDAV writer, exactly as calendar uses it: on the wire a task is
+      // a calendar object, and the writer follows the component it is given
+      // (0113 T4).
+      const d = buildDomainDeps(config, 'task', ledgerOptions);
       return { target: d.target, ledger: d.ledger, close: d.close };
     }
     case 'file': {

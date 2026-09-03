@@ -40,12 +40,27 @@ describe('a provider account serves the faces its row names', () => {
     expect(providerAccountServes('google', 'file')).toBe(false);
   });
 
-  it('soverin already serves three, and file is the row a future edit adds', () => {
-    expect(providerAccountDomains('soverin')).toEqual(['email', 'calendar', 'contact']);
-    // Expected later in 2026 — and it must be MEASURED against the live
-    // provider before it is added (0105's never-guess rule), never added on
-    // an announcement.
+  it('soverin serves four — tasks ride its CalDAV face — and file is the row a future edit adds', () => {
+    expect(providerAccountDomains('soverin')).toEqual(['email', 'calendar', 'contact', 'task']);
+    // 'task' joined on 2026-09-03 under the never-guess rule rather than
+    // around it: the owner has a Tasks list in his own Soverin account, and a
+    // task list IS a calendar collection declaring VTODO — the CalDAV face
+    // this row already claimed (0113 T5).
+    expect(providerAccountServes('soverin', 'task')).toBe(true);
+    // Files are still expected later in 2026 — and must be MEASURED against
+    // the live provider before they are added, never added on an
+    // announcement.
     expect(providerAccountServes('soverin', 'file')).toBe(false);
+  });
+
+  it('google serves no task face, and no scope class buys one', () => {
+    // Not a pricing decision like mail and files: Google's CalDAV supports
+    // neither VTODO nor VJOURNAL at all, so a restricted-scope deployment
+    // gets exactly the same answer (0113 T5/T6).
+    expect(providerAccountServes('google', 'task')).toBe(false);
+    expect(providerAccountServes('google', 'task', { GOOGLE_ACCOUNT_SCOPE_CLASS: 'restricted' })).toBe(
+      false,
+    );
   });
 
   it('answers "not a provider account" rather than throwing', () => {

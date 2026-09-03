@@ -193,22 +193,50 @@ describe('qualificationText — what the account can carry (0106 T0)', () => {
     calendar: 'yes' | 'no' | 'unknown',
     contact: 'yes' | 'no' | 'unknown',
     file: 'yes' | 'no' | 'unknown',
+    task: 'yes' | 'no' | 'unknown' = 'yes',
   ) => ({
     domains: {
       mail: { answer: mail, detail: 'd' },
       calendar: { answer: calendar, detail: 'd' },
       contact: { answer: contact, detail: 'd' },
       file: { answer: file, detail: 'd' },
+      task: { answer: task, detail: 'd' },
     },
   });
 
   it('renders the three marks in the reader\'s language, domains in a fixed order', () => {
-    expect(qualificationText(en, q('unknown', 'yes', 'yes', 'no'))).toBe(
-      "Can carry: Email ? · Calendar ✓ · Contacts ✓ · Files ✗ — '?' is unmeasured — not safe to assume either way",
+    // The order is `DISCOVERY_DOMAINS`', so Tasks reads last — beside the
+    // faces, in the sequence the wizard's own ticks use (0113 T5).
+    expect(qualificationText(en, q('unknown', 'yes', 'yes', 'no', 'yes'))).toBe(
+      "Can carry: Email ? · Calendar ✓ · Contacts ✓ · Files ✗ · Tasks ✓ — '?' is unmeasured — not safe to assume either way",
     );
-    expect(qualificationText(nl, q('yes', 'yes', 'yes', 'yes'))).toBe(
-      'Kan dragen: E-mail ✓ · Agenda ✓ · Contacten ✓ · Bestanden ✓',
+    expect(qualificationText(nl, q('yes', 'yes', 'yes', 'yes', 'yes'))).toBe(
+      'Kan dragen: E-mail ✓ · Agenda ✓ · Contacten ✓ · Bestanden ✓ · Taken ✓',
     );
+  });
+
+  it('a record written before the fifth face reads it as unmeasured, never as a crash', () => {
+    // THE ROW EVERY EXISTING CONNECTION HAS. Qualifications stored before
+    // 2026-09-03 carry four faces; the browser reads them until each
+    // connection is tested again. Walking five keys over four-key JSON would
+    // have thrown on the first card — the fifth-domain failure this workplan
+    // exists to stop, in the one layer with no compiler to catch it.
+    const beforeTasks = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'd' },
+        calendar: { answer: 'yes' as const, detail: 'd' },
+        contact: { answer: 'yes' as const, detail: 'd' },
+        file: { answer: 'yes' as const, detail: 'd' },
+      },
+    };
+    const line = qualificationText(en, beforeTasks)!;
+    expect(line).toContain('Tasks ?');
+    // And the hint rides along, because a `?` IS on the line: the remedy is
+    // the Test button the reader is already looking at.
+    expect(line).toContain('unmeasured');
+    // Nothing to explain for a face nobody measured — a bare "Tasks ?:" would
+    // promise evidence that does not exist.
+    expect(qualificationEvidence(en, beforeTasks)).toEqual([]);
   });
 
   it('the unmeasured hint appears exactly when a ? is on the line', () => {
@@ -253,7 +281,8 @@ describe('qualificationText — the count beside the tick, once a face was reach
       },
     };
     expect(qualificationText(en, bare)).toBe(
-      "Can carry: Email ✓ · Calendar ✗ · Contacts ✓ · Files ? — '?' is unmeasured — not safe to assume either way",
+      'Can carry: Email ✓ · Calendar ✗ · Contacts ✓ · Files ? · Tasks ? — ' +
+        "'?' is unmeasured — not safe to assume either way",
     );
   });
 });

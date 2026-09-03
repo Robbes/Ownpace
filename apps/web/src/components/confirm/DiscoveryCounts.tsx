@@ -17,19 +17,15 @@
  */
 
 import React from 'react';
-import type { DiscoveryDomain, DiscoveryRecord } from '@openmig/shared';
+import type { DiscoveryRecord } from '@openmig/shared';
 import { useT } from '../../i18n/index.tsx';
-import type { StringKey } from '../../i18n/index.tsx';
 import { formatBytes } from '../../i18n/bytes.ts';
-
 // The dictionary's own domain words — the old local map silently bypassed
 // them, so the table said "Email" beside screens saying the translated word.
-const DOMAIN_KEY: Record<DiscoveryDomain, StringKey> = {
-  email: 'domain.email',
-  calendar: 'domain.calendar',
-  contact: 'domain.contact',
-  file: 'domain.file',
-};
+// Moved to `i18n/domain-words.ts` (workplan 0113 T5): it was one of four
+// copies of the same map, and a fifth domain reached only whichever was
+// remembered.
+import { DOMAIN_STRING_KEY as DOMAIN_KEY } from '../../i18n/domain-words.ts';
 
 // Moved to `i18n/bytes.ts` (2026-09-02) so the measured-volume line can share
 // it; re-exported here for the importers this file already has.

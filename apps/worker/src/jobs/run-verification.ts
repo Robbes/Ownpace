@@ -108,6 +108,7 @@ export const runVerificationTask = schemaTask({
               verifyMail: enabled.has('email'),
               verifyCalendar: enabled.has('calendar'),
               verifyContacts: enabled.has('contact'),
+              verifyTasks: enabled.has('task'),
               verifyFiles: enabled.has('file'),
             },
             verificationReader,

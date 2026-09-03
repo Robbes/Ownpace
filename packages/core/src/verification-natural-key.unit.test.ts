@@ -73,6 +73,7 @@ describe('verification natural-key comparison', () => {
         verifyCalendar: false,
         verifyContacts: false,
         verifyFiles: false,
+        verifyTasks: false,
       },
       verificationReader: ledgerReaderWith(MAIL_HASHES),
       targetReindexer: reindexerYielding(
@@ -103,6 +104,7 @@ describe('verification natural-key comparison', () => {
         verifyCalendar: false,
         verifyContacts: false,
         verifyFiles: false,
+        verifyTasks: false,
       },
       verificationReader: ledgerReaderWith(MAIL_HASHES),
       targetReindexer: reindexerYielding(
@@ -128,6 +130,7 @@ describe('verification natural-key comparison', () => {
         verifyCalendar: false,
         verifyContacts: false,
         verifyFiles: false,
+        verifyTasks: false,
       },
       verificationReader: ledgerReaderWith(MAIL_HASHES),
       targetReindexer: reindexerYielding(
@@ -153,6 +156,7 @@ describe('verification natural-key comparison', () => {
         verifyCalendar: false,
         verifyContacts: false,
         verifyFiles: false,
+        verifyTasks: false,
       },
       verificationReader: ledgerReaderWith(MAIL_HASHES),
       targetReindexer: reindexerYielding(
@@ -184,6 +188,7 @@ describe('verification natural-key comparison', () => {
         verifyCalendar: false,
         verifyContacts: false,
         verifyFiles: true,
+        verifyTasks: true,
       },
       verificationReader: ledgerReaderWith(paths.map((p) => fileNaturalKeyHash(p))),
       // Per-domain: `targetReindexer` (singular) is the MAIL target only, since

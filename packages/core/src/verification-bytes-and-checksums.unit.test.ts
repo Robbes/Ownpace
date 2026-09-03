@@ -69,6 +69,7 @@ const CONFIG = {
   verifyCalendar: false,
   verifyContacts: false,
   verifyFiles: false,
+  verifyTasks: false,
 };
 
 function verify(mail: TargetReindexer) {

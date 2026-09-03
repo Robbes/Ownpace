@@ -52,6 +52,38 @@ export function buildCalendarTarget(e: DavEndpoint, d: DavTargetDeps): CalendarT
   return new CalDAVTargetWriter({ url: e.url, username: e.username, password: e.password }, d);
 }
 
+/**
+ * The TASK source: the same CalDAV client, told which component it serves
+ * (workplan 0113).
+ *
+ * On the wire a task list is a calendar collection whose
+ * `supported-calendar-component-set` says VTODO, read over the same protocol
+ * with the same credential. So this is one line different from
+ * `buildCalendarSource`, and that one line is the whole distinction: the
+ * source lists only collections carrying VTODO and yields only VTODO objects,
+ * so a mixed collection gives each domain its own.
+ */
+export function buildTaskSource(e: DavEndpoint, throttleLimiter?: ThrottleLimiter): CalendarSource {
+  return new CalDAVSource({
+    url: e.url,
+    username: e.username,
+    password: e.password,
+    component: 'VTODO',
+    ...(throttleLimiter ? { throttleLimiter } : {}),
+  });
+}
+
+/**
+ * The TASK target: the CalDAV writer, unchanged.
+ *
+ * It needs no component of its own — it reads each object's from the bytes it
+ * is handed (0113 T4), so the same writer carries an event or a task and asks
+ * the server about whichever it has.
+ */
+export function buildTaskTarget(e: DavEndpoint, d: DavTargetDeps): CalendarTargetWriter {
+  return new CalDAVTargetWriter({ url: e.url, username: e.username, password: e.password }, d);
+}
+
 export function buildContactSource(e: DavEndpoint, throttleLimiter?: ThrottleLimiter): ContactSource {
   return new CarddavSource({
     url: e.url,
