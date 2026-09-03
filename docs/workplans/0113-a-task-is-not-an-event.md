@@ -2,6 +2,19 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
+**2026-09-03: T3b, first half — an object is labelled what it is.** `parseCalendarObject`
+stamped `type: 'event'` on every object it saw. That was wrong for two of RFC 5545's three
+components and reachable today rather than hypothetically: `sync-collection` (RFC 6578) is
+component-agnostic, so a MIXED collection — Nextcloud's default calendar declares
+`VEVENT,VTODO` — hands the parser its tasks along with its events. The bytes were always
+right (the raw iCalendar is carried through and PUT verbatim); the label on the record lied.
+
+Nothing reads `type` today, so this changes no behaviour — it makes the record honest and
+gives T4's read-back the field it needs. **T4 is now the live defect:** both read-back
+queries in `caldav-target-writer.ts` filter `comp-filter name="VEVENT"`, so a task written
+into a mixed collection is invisible to the check that decides whether it is already there,
+and is re-PUT on every pass.
+
 **2026-09-03: T3a built — a task list stops being counted as a calendar.** `listCollections`
 asks for `supported-calendar-component-set` and skips a collection that does not carry
 `VEVENT`. The property is the ONLY thing that separates a task list from a calendar on the
@@ -30,7 +43,7 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 | T0 Decide: its own tick, and how far v1 reaches | 📋 Owner decision | §"The owner's decisions" 1–3. Nothing below starts without 1. |
 | T1 The domain has ONE name | 📋 Planned | `DiscoveryDomain` is spelled out inline as a union **73 times across 17 files**. A fifth domain added on top of that is 73 edits and a drift bug in whichever one is missed. Collapse them onto the type first, with a guard that fails on a new inline copy. No behaviour changes; this is the task that makes every one below cheap. |
 | T2 The ledger widens | 📋 Planned (needs T1) | Nine `CHECK` constraints in `0001_baseline.sql` pin the four domains, plus `item_item_type_check`. One additive migration widens them; nothing is rewritten, nothing is dropped. |
-| T3 The source tells a task list from a calendar | 🟡 (a) done, (b) planned | **(a)** `listCollections` now PROPFINDs `supported-calendar-component-set` (RFC 4791 §5.2.3) and drops a collection that does not carry `VEVENT`, so a VTODO-only list stops being counted among "5 calendars visible". The declared set rides on `CalendarFolder.components` as data; an UNDECLARED set is a yes for every component, per the RFC and 0105's never-guess rule. Proved by breaking. **(b)** still to come: carry the task collections as their own kind, and read each object's real component instead of stamping `type: 'event'`. |
+| T3 The source tells a task list from a calendar | 🟡 (a) done, (b) half done | **(a)** `listCollections` now PROPFINDs `supported-calendar-component-set` (RFC 4791 §5.2.3) and drops a collection that does not carry `VEVENT`, so a VTODO-only list stops being counted among "5 calendars visible". The declared set rides on `CalendarFolder.components` as data; an UNDECLARED set is a yes for every component, per the RFC and 0105's never-guess rule. Proved by breaking. **(b) half:** each object's `type` is now read from its own `BEGIN:` line instead of stamped `'event'` — reachable today, because `sync-collection` is component-agnostic and a MIXED collection hands the parser its tasks along with its events. Still to come: carrying task collections as their own kind, which needs the task domain (T5). |
 | T4 The writer writes a task | 📋 Planned (needs T3) | The read-back's `comp-filter` follows the component being written; `MKCALENDAR` names the component set when a collection has to be created; a target collection that cannot take the component is refused **by name**, never by a silent 403. |
 | T5 The domain surfaces | 📋 Planned (needs T1, T2, T3) | The matrices, the qualification's fifth face and its badge, the wizard's fifth tick, the discovery counts, the confirm screen, EN/NL strings, the icon. |
 | T6 Google Tasks | 📋 Optional (needs T0 decision 3) | Google's CalDAV carries no VTODO at all: tasks live behind the separate Tasks REST API, whose model is thinner than VTODO. A face of its own, or out of scope for v1. |

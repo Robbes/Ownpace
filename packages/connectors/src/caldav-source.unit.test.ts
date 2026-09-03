@@ -240,6 +240,78 @@ describe('CalDAVSource', () => {
     });
   });
 
+  describe('an object is labelled what it is, not what the parser assumed (0113 T3b)', () => {
+    // `sync-collection` (RFC 6578) is component-agnostic, so a MIXED collection
+    // — Nextcloud's default calendar declares VEVENT,VTODO — hands this parser
+    // its tasks along with its events. Every one of them used to come back
+    // stamped `type: 'event'`. The bytes were always right (the raw iCalendar
+    // is carried through and PUT verbatim); the label on the record lied.
+
+    const wrap = (component: string, extra = '') => [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      `BEGIN:${component}`,
+      'UID:abc-123',
+      'SUMMARY:Buy milk',
+      extra,
+      `END:${component}`,
+      'END:VCALENDAR',
+    ]
+      .filter(Boolean)
+      .join('\r\n');
+
+    const parse = (icalendar: string) => {
+      const source = new CalDAVSource({
+        url: 'https://caldav.example.com/',
+        username: 'test',
+        password: 'pw',
+      });
+      return (source as never as {
+        parseCalendarObject(o: { href: string; icalendar: string; etag?: string }): {
+          item: { type: string; uid: string };
+        } | null;
+      }).parseCalendarObject({ href: '/c/1.ics', icalendar });
+    };
+
+    it('a VTODO is a todo — the label the ledger stores stops saying event', () => {
+      expect(parse(wrap('VTODO', 'STATUS:NEEDS-ACTION'))?.item.type).toBe('todo');
+    });
+
+    it('a VEVENT is still an event, and a VJOURNAL is a journal', () => {
+      expect(parse(wrap('VEVENT'))?.item.type).toBe('event');
+      expect(parse(wrap('VJOURNAL'))?.item.type).toBe('journal');
+    });
+
+    it('an object whose component this parse does not recognise travels exactly as it did before', () => {
+      // 'event' was the label EVERY object carried until now, so an unusual one
+      // keeps it rather than being re-routed on the strength of a parse that
+      // did not understand it.
+      expect(parse(wrap('VFREEBUSY'))?.item.type).toBe('event');
+    });
+
+    it('the component is read from a BEGIN line, not from the word appearing anywhere earlier', () => {
+      // A calendar's own name is text a person typed, and it lands BEFORE the
+      // component's BEGIN line. A search that just looks for the first
+      // "VTODO" in the file relabels this event as a task.
+      const icalendar = [
+        'BEGIN:VCALENDAR',
+        'X-WR-CALNAME:My VTODO list',
+        'BEGIN:VEVENT',
+        'UID:abc-123',
+        'SUMMARY:Discuss the migration',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n');
+      expect(parse(icalendar)?.item.type).toBe('event');
+    });
+
+    it('the raw iCalendar is untouched either way — the label changed, the bytes never did', () => {
+      const icalendar = wrap('VTODO', 'PERCENT-COMPLETE:40');
+      const parsed = parse(icalendar) as unknown as { icalendar: string } | null;
+      expect(parsed?.icalendar).toBe(icalendar);
+    });
+  });
+
   describe('sync-collection REPORT parsing', () => {
     it('should parse sync-collection REPORT with sync-token', async () => {
       const reportResponse: HttpResponse = {

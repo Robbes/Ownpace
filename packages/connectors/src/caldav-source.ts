@@ -16,10 +16,11 @@ import type {
   CalendarSource,
   CalendarFolder,
   CalendarComponent,
+  CalendarEventType,
   SyncCursor,
   RawCalendarEvent,
 } from '@openmig/shared';
-import { CALENDAR_COMPONENTS, collectionCarries } from '@openmig/shared';
+import { CALENDAR_COMPONENTS, COMPONENT_ITEM_TYPES, collectionCarries } from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
 import { davRefusalBody } from './gdata-refusal.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
@@ -649,6 +650,25 @@ export class CalDAVSource implements CalendarSource {
   }
 
   /**
+   * Which component an iCalendar object holds, as this product's label.
+   *
+   * The FIRST recognised `BEGIN:` inside the VCALENDAR wrapper. An object may
+   * legitimately carry more than one component — a recurring series and its
+   * modified occurrences share a file — but they are the same UID and the same
+   * kind, so the first one names the object.
+   *
+   * Defaults to `'event'` when nothing is recognised: unchanged from the
+   * behaviour every object had before this, so an unusual object keeps
+   * travelling exactly as it did rather than being re-routed on the strength
+   * of a parse that did not understand it.
+   */
+  static componentTypeOf(icalendar: string): CalendarEventType {
+    const match = icalendar.match(/^BEGIN:(VEVENT|VTODO|VJOURNAL)\s*$/im);
+    const component = match?.[1]?.toUpperCase() as CalendarComponent | undefined;
+    return component ? COMPONENT_ITEM_TYPES[component] : 'event';
+  }
+
+  /**
    * Parse a calendar object and extract event data.
    */
   private parseCalendarObject(obj: CalDAVCalendarObject): RawCalendarEvent | null {
@@ -663,7 +683,18 @@ export class CalDAVSource implements CalendarSource {
       const event: RawCalendarEvent = {
         item: {
           uid: this.normalizeUid(uid), // Normalize UID to lowercase
-          type: 'event',
+          // WHAT THIS OBJECT ACTUALLY IS, read from its own BEGIN line rather
+          // than assumed (workplan 0113). This used to be the literal
+          // `'event'` for every object, which is wrong for two of the three
+          // components RFC 5545 defines — and reachable today, not
+          // hypothetically: `sync-collection` (RFC 6578) is
+          // component-agnostic, so a MIXED collection (Nextcloud's default
+          // calendar declares VEVENT,VTODO) hands this parser its tasks along
+          // with its events. The raw iCalendar always survived, so the bytes
+          // that reach a target are right; it was the LABEL on the record that
+          // lied, and a label nothing reads today is one T4's read-back is
+          // about to.
+          type: CalDAVSource.componentTypeOf(obj.icalendar),
           summary: this.extractSummary(obj.icalendar),
           start: this.extractStart(obj.icalendar),
           end: this.extractEnd(obj.icalendar),

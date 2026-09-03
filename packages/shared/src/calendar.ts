@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /** CalDAV calendar event model for migration. */
 
-/** VEVENT component types we support. */
+/** The three iCalendar components, as this product's own item labels. */
 export type CalendarEventType = 'event' | 'todo' | 'journal';
 
 /** Event status. */
@@ -163,6 +163,19 @@ export interface CalendarFolder {
  * Nextcloud task list declares VTODO and nothing else, and stops being counted
  * among "5 calendars visible".
  */
+/**
+ * The label for an iCalendar component name.
+ *
+ * The two vocabularies exist because they answer different questions: the DAV
+ * wire says `VTODO`, and this product's records say `todo`. One map between
+ * them, so a third spelling never appears.
+ */
+export const COMPONENT_ITEM_TYPES: Readonly<Record<CalendarComponent, CalendarEventType>> = {
+  VEVENT: 'event',
+  VTODO: 'todo',
+  VJOURNAL: 'journal',
+};
+
 export function collectionCarries(
   components: ReadonlyArray<CalendarComponent> | undefined,
   component: CalendarComponent,
