@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 74 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 75 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -212,6 +212,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/deploy-tasks.sh`
 
+- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
 ### `deploy/compose/dev.ci.yml`
@@ -235,6 +236,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/env-upsert.sh`
 
+- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
@@ -383,6 +385,10 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/trigger-magic-link.sh`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+
+### `deploy/compose/trigger-remember-token.sh`
+
+- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 
 ### `deploy/compose/trigger-version.sh`
 
@@ -543,6 +549,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/target-domains.unit.test.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
+### `packages/testing/fixtures/stalwart/config.json`
+
+- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 
 ### `scripts/a-check-that-was-never-valid.unit.test.ts`
 
@@ -768,6 +778,17 @@ Reads:
 
 - `deploy/compose/set-task-env.sh`
 - `packages/ledger/src/retention.ts`
+
+### [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts)
+
+A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+
+Reads:
+
+- `deploy/compose/deploy-tasks.sh`
+- `deploy/compose/env-upsert.sh`
+- `deploy/compose/trigger-remember-token.sh`
+- `packages/testing/fixtures/stalwart/config.json`
 
 ### [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts)
 
