@@ -206,19 +206,53 @@ export async function runVerification(
         `${dataType} verification was disabled in the config — this domain was NOT checked.`,
       );
     }
+    // NOTHING RECORDED IS NOT A PASS, and it is decided here — before the
+    // target is consulted — because it is a fact about the LEDGER, not about
+    // whether the target happens to be readable.
+    //
+    // This check used to live inside the `canVerifyTarget` branch below, so a
+    // domain with nothing recorded answered SKIPPED when the target could NOT
+    // be read, and fell through to `verifyDataType` when it could. Down that
+    // second road every comparison is vacuous — 0 source, 0 missing, so
+    // `matchPercentage` takes its `sourceCount > 0 ? … : 1` fallback, no sample
+    // is drawn so `checksumMatchPercentage` takes its own, and
+    // `determineVerificationStatus` returns PASS on two ratios that measured
+    // nothing. The domain then counts as measured, #754's all-SKIPPED rule
+    // never fires, and the report reads PASS / score 1 / canProceedToCutover.
+    //
+    // Which is workplan 0113's seventh fan-out exactly: `runTaskSync` was never
+    // dispatched, the ledger got no task rows, and verification said the task
+    // domain was fine. The managed smoke caught it only through its own
+    // "compared NOTHING: totalItemsSource=0" assertion — the engine shipped the
+    // hole and the self-hosted gate never asked.
+    //
+    // SKIPPED, not FAIL, and the distinction is the whole design: one empty
+    // domain beside a mail migration that copied 10,000 messages is a user with
+    // no tasks, not a defect. It is `calculateOverallStatus` that decides what a
+    // collection of SKIPPEDs means, and since #754 it FAILs when every domain is
+    // one — nothing measured anywhere. Deciding per-domain here and overall
+    // there keeps each answer where its evidence is.
+    //
+    // TRADE-OFF, stated rather than discovered: a domain with nothing recorded
+    // but items sitting on the target used to reach `verifyDataType` and report
+    // WARN with an `EXTRA_*` issue. It now reports SKIPPED and that issue is not
+    // raised. Deliberate — extras are the destination's own pre-existing data,
+    // documented in `determineVerificationStatus` as unable to indicate that
+    // anything failed to copy, and a WARN implied this domain had been verified
+    // when nothing about the migration was. Not measuring it also saves a
+    // target round trip on a domain there is nothing to say about.
+    const recorded = await deps.getSourceCount(dataType);
+    if (recorded === 0) {
+      return notMeasured(
+        dataType,
+        'SKIPPED',
+        `No ${dataType} items were recorded for this mapping, so there is nothing to verify.`,
+      );
+    }
+
     if (deps.canVerifyTarget && !deps.canVerifyTarget(dataType)) {
-      // No way to read the target for this domain. That only matters if the
-      // ledger says we actually copied something into it — a mail-only
-      // migration has no calendar rows, so there is nothing to check and
-      // nothing to block on.
-      const recorded = await deps.getSourceCount(dataType);
-      if (recorded === 0) {
-        return notMeasured(
-          dataType,
-          'SKIPPED',
-          `No ${dataType} items were recorded for this mapping, so there is nothing to verify.`,
-        );
-      }
+      // Items WERE recorded and the target cannot be read, so their
+      // completeness is unknown and cutover must block.
       return notMeasured(
         dataType,
         'NOT_VERIFIABLE',
