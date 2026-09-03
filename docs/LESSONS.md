@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 78 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 79 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -36,6 +36,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/e2e.yml`
 
+- [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts) — The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
@@ -696,8 +697,13 @@ reading a file drops off its entry by itself.
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
 
+### `test/e2e/seed-dav-source.mjs`
+
+- [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts) — The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
+
 ### `test/e2e/seed-imap-source.mjs`
 
+- [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts) — The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
 - [seed-demo-dav-content](../scripts/seed-demo-dav-content.unit.test.ts) — The demo's DAV content, and the two ways seeding it goes quietly wrong.
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 
@@ -806,6 +812,16 @@ Reads:
 
 - `packages/orchestration/src/orchestration.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+
+### [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts)
+
+The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
+
+Reads:
+
+- `.github/workflows/e2e.yml`
+- `test/e2e/seed-dav-source.mjs`
+- `test/e2e/seed-imap-source.mjs`
 
 ### [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts)
 

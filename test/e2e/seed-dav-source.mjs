@@ -35,6 +35,16 @@ const count = Number(process.env.SEED_COUNT || '5');
  */
 const offset = Number(process.env.SEED_OFFSET || '0');
 
+/**
+ * The VTODO-only collection's name, under `calendars/<user>/`.
+ *
+ * Named, not `personal`: the whole point is a collection that declares VTODO
+ * and nothing else (0113 T8). The appliance config in `e2e.yml` points the
+ * task domain at the same DAV root and finds this collection through
+ * `supported-calendar-component-set`, so nothing has to agree on the name.
+ */
+const TASK_LIST = process.env.SEED_DAV_TASK_LIST || 'e2e-tasks';
+
 if (!password) {
   console.error('[seed-dav] SEED_DAV_SOURCE_PASSWORD is required');
   process.exit(1);
@@ -61,6 +71,40 @@ function buildIcalendar(i) {
     `SUMMARY:Restart-resume seed event ${i}`,
     'STATUS:CONFIRMED',
     'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+}
+
+/**
+ * A VTODO, for the task domain (workplan 0113 T8).
+ *
+ * Deliberately NOT a VEVENT with a different name: the component IS the
+ * domain. `componentOfIcalendar` reads the first `BEGIN:` line, the source
+ * yields only objects matching the component it was built with, and the
+ * natural key is hashed under a `todo:` prefix rather than `cal:` — so an
+ * event seeded here would be skipped by the task lane and the gate would go
+ * green having tested nothing.
+ *
+ * `DUE` rather than `DTSTART`/`DTEND`, because that is what a task has.
+ */
+function buildVtodo(i) {
+  const uid = `dav-seed-task-${i}@dev.local`;
+  // Same rollover care as the event builder: `10 + i` past 21 produced an
+  // invalid DATE-TIME that SabreDAV rejects with a 415.
+  const date = new Date(Date.UTC(2026, 0, 10 + i));
+  const ymd = `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}${String(date.getUTCDate()).padStart(2, '0')}`;
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//OpenMig//E2ESeed//EN',
+    'BEGIN:VTODO',
+    `UID:${uid}`,
+    'DTSTAMP:20260101T000000Z',
+    `DUE:${ymd}T170000Z`,
+    `SUMMARY:Restart-resume seed task ${i}`,
+    'STATUS:NEEDS-ACTION',
+    'PERCENT-COMPLETE:0',
+    'END:VTODO',
     'END:VCALENDAR',
   ].join('\r\n');
 }
@@ -154,6 +198,57 @@ function buildUtf8File(i) {
  * anything else after the retries are spent fails the seed loudly. A partial
  * seed makes every later assertion meaningless.
  */
+/**
+ * Make the task list: a calendar collection declaring **VTODO and nothing
+ * else** (workplan 0113 T8).
+ *
+ * WHY NOT `personal`. Nextcloud's default calendar declares `VEVENT,VTODO`, so
+ * a VTODO dropped in there is carried by BOTH faces — and this gate would pass
+ * whether or not the source can tell a task list from a calendar, which is the
+ * one thing 0113 is about. `supported-calendar-component-set` (RFC 4791
+ * §5.2.3) is the entire difference on the wire, and a collection created
+ * WITHOUT it declares nothing, which the RFC reads as "may contain any
+ * component type" — back to the mixed case.
+ *
+ * Idempotent, because the e2e re-seeds with a `SEED_OFFSET` to drip new items
+ * in mid-run: 405 is what a server answers for MKCALENDAR against a collection
+ * that exists, and it is the converging answer rather than a failure.
+ */
+async function makeTaskList(url) {
+  const body = [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<C:mkcalendar xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">',
+    '  <D:set>',
+    '    <D:prop>',
+    '      <D:displayname>Restart-resume seed tasks</D:displayname>',
+    '      <C:supported-calendar-component-set>',
+    '        <C:comp name="VTODO"/>',
+    '      </C:supported-calendar-component-set>',
+    '    </D:prop>',
+    '  </D:set>',
+    '</C:mkcalendar>',
+  ].join('\n');
+  const response = await davFetch(
+    url,
+    {
+      method: 'MKCALENDAR',
+      headers: { Authorization: authHeader, 'Content-Type': 'application/xml; charset=utf-8' },
+      body,
+    },
+    { label: '[seed-dav]' },
+  );
+  if (response.status === 201 || response.status === 204) {
+    console.log(`[seed-dav] task list created at ${url} (declares VTODO only)`);
+    return;
+  }
+  if (response.status === 405) {
+    console.log(`[seed-dav] task list already at ${url}`);
+    return;
+  }
+  const text = await response.text().catch(() => '');
+  throw new Error(`MKCALENDAR ${url} -> ${response.status}: ${text.slice(0, 300)}`);
+}
+
 async function put(url, body, contentType) {
   const response = await davFetch(
     url,
@@ -218,11 +313,15 @@ async function seedRange(label, worker) {
 
 async function main() {
   console.log(
-    `[seed-dav] seeding ${count} events + ${count} contacts + ${count} files for '${user}' ` +
+    `[seed-dav] seeding ${count} events + ${count} tasks + ${count} contacts + ${count} files for '${user}' ` +
       `at ${baseUrl} (${SEED_CONCURRENCY} in flight)`,
   );
 
   const calendarUrl = `${baseUrl}/remote.php/dav/calendars/${user}/personal`;
+  // A collection of its OWN, beside `personal` rather than inside it: a task
+  // list is a calendar collection that declares VTODO, and putting the VTODOs
+  // in the mixed default calendar would test the easy case (0113 T8).
+  const taskListUrl = `${baseUrl}/remote.php/dav/calendars/${user}/${TASK_LIST}`;
   const addressBookUrl = `${baseUrl}/remote.php/dav/addressbooks/users/${user}/contacts`;
   // Files domain has no discovery of its own (unlike CalDAV/CardDAV) -- seeded directly at the
   // account's own file storage root, the same convention WebdavFileSource/WebDAVTargetWriter use.
@@ -232,6 +331,17 @@ async function main() {
     put(
       `${calendarUrl}/dav-seed-event-${i}@dev.local.ics`,
       buildIcalendar(i),
+      'text/calendar; charset=utf-8',
+    ),
+  );
+
+  // The task lane (0113 T8). Its own collection, made before anything is PUT
+  // into it, and declaring VTODO alone — see `makeTaskList`.
+  await makeTaskList(taskListUrl);
+  await seedRange('tasks', (i) =>
+    put(
+      `${taskListUrl}/dav-seed-task-${i}@dev.local.ics`,
+      buildVtodo(i),
       'text/calendar; charset=utf-8',
     ),
   );
@@ -262,7 +372,8 @@ async function main() {
   );
 
   console.log(
-    `[seed-dav] done — ${count} events in '${user}'/personal, ${count} contacts in '${user}'/contacts, ` +
+    `[seed-dav] done — ${count} events in '${user}'/personal, ${count} tasks in '${user}'/${TASK_LIST}, ` +
+      `${count} contacts in '${user}'/contacts, ` +
       `${count} text + ${count} binary + ${count} non-ASCII files at '${user}''s file root`,
   );
 }

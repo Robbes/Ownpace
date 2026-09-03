@@ -19,5 +19,5 @@
     "user": "you@example.net",
     "auth": { "kind": "basic", "passwordFromEnv": "TARGET_JMAP_PASSWORD" }
   },
-  "_note_domains": "The appliance runs all four domains (mail/calendar/contacts/files). The mail domain uses the top-level source/target above. To also sync calendar/contacts/files, add a \"domains\" block with caldav/carddav/webdav source+target entries per domain, each { enabled, source, target }. See docs/selfhost-quickstart.md and packages/shared/src/config.ts for the schema."
+  "_note_domains": "The appliance runs five domains (mail/calendar/tasks/contacts/files). The mail domain uses the top-level source/target above. To also sync calendar/tasks/contacts/files, add a \"domains\" block with caldav/carddav/webdav source+target entries per domain, each { enabled, source, target }. Tasks share the CalDAV entry shape with calendars and point at the same DAV root: a task list IS a calendar collection, one that declares VTODO in its supported-calendar-component-set (RFC 4791 5.2.3), and discovery tells the two apart by that property rather than by address. See docs/selfhost-quickstart.md and packages/shared/src/config.ts for the schema."
 }
