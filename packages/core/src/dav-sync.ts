@@ -1,6 +1,7 @@
 // Copyright 2026 OpenHands Agent (Apache-2.0)
 /**
- * DAV domain sync wrappers - thin wrappers around runDomainSync for CalDAV, CardDAV, and WebDAV.
+ * DAV domain sync wrappers - thin wrappers around runDomainSync for CalDAV
+ * (events AND tasks), CardDAV, and WebDAV.
  * 
  * Each wrapper operates on REAL domain-typed sources/targets, not generic types.
  * The abstraction is at the function level, parameterizing the loop with domain-specific injections.
@@ -24,6 +25,7 @@ import { applyTargetFolderPrefix,
   type TenantId,
   type MappingId,
   naturalKeyForCalendar,
+  naturalKeyForTask,
   calendarContentHash,
   contactNaturalKeyHash,
   contactContentHash,
@@ -102,6 +104,94 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     // The DAV href — exactly what an RFC 6578 `sync-collection` 404 reports,
     // and the only way back from a removal report to this item once its body
     // is gone.
+    sourceRef: (item) => item.item.sourcePath,
+    contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
+    ensureCollection: (folder) => target.ensureCalendar(folder),
+    ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
+  });
+}
+
+/**
+ * Dependencies for task (CalDAV, VTODO) sync.
+ *
+ * The SAME shape as a calendar's, and deliberately an alias rather than a copy:
+ * on the wire a task IS a calendar object (RFC 4791), fetched from a CalDAV
+ * collection and written by the CalDAV writer. What separates the two is the
+ * component the source asks for and the natural key the ledger files it under,
+ * and both of those are decided below rather than by the type.
+ */
+export type TaskSyncDeps = CalendarSyncDeps;
+
+/**
+ * Run CalDAV **task** sync using the generalized domain sync loop.
+ *
+ * ## Why this function did not exist for a whole workplan
+ *
+ * Workplan 0113 built the source (T3a/T3b), made the writer follow the
+ * component it is given (T4), gave the ledger its own natural key (T2), and
+ * added `task` to five separate lists (T5). Nothing tied them together. Both
+ * dispatchers — `runOneDomain` in orchestration and `run-delta-sync`'s domain
+ * loop — ended in a bare `else` that ran `runFileSync`, so a selected task
+ * domain ran a FILE pass against FILE deps, copied nothing (the file pass is
+ * idempotent), and was then marked COMPLETED.
+ *
+ * That is worse than an omission. An omission leaves a domain unsynced and
+ * visibly so; this reported success for work it had not done, on a mapping
+ * whose owner had ticked Tasks. Found on the owner's own Spark on 2026-09-03
+ * by the managed smoke's task-lane assertion (0113 T7) — the only thing in the
+ * system that asked the question — against a source holding two VTODOs and a
+ * `scope_selection` row that said `task`.
+ *
+ * ## What makes it a task rather than a calendar
+ *
+ * Two things, and only two:
+ *
+ *  - the SOURCE, built with `component: 'VTODO'`, which is what makes the
+ *    CalDAV `calendar-query` ask for to-dos and what makes discovery keep only
+ *    collections whose `supported-calendar-component-set` declares them;
+ *  - the NATURAL KEY, `naturalKeyForTask`, whose `todo:` prefix exists because
+ *    a VTODO and a VEVENT may carry the same UID on one account. Keying tasks
+ *    with `naturalKeyForCalendar` would make a to-do and an event collide in
+ *    the ledger and each look, to the other, like an item already copied.
+ *
+ * Everything else — the fetch, the upsert, the content hash, the ETag, the
+ * href — is the calendar pass, because on the wire there is no difference.
+ *
+ * Idempotent: running twice creates 0 items on the second run.
+ * Non-destructive: never deletes or overwrites on the target.
+ */
+export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult> {
+  const { tenantId, mappingId, source, target, ledger, cursors, concurrency } = deps;
+
+  // Same contract as the calendar pass: the measurement provably precedes the
+  // first write (workplan 0105 T0).
+  await deps.recordTargetScheduling?.();
+
+  return runDomainSync<CalendarSource, CalendarTargetWriter, RawCalendarEvent, CalendarFolder>({
+    tenantId,
+    mappingId,
+    domain: 'task',
+    source,
+    target,
+    ledger,
+    cursors,
+    concurrency,
+    listFolders: () => source.listFolders(),
+    listSince: (folder, cursor) => source.listSince(folder, cursor),
+    fetchRaw: async (item) => {
+      const raw = item.icalendar;
+      return {
+        raw: { item: item.item, icalendar: raw } as RawCalendarEvent,
+        sizeBytes: Buffer.from(item.icalendar, 'utf8').length,
+      };
+    },
+    upsert: async (calendarId, raw, _item, options) =>
+      target.upsertCalendarEvent(calendarId, raw as RawCalendarEvent, options),
+    // THE ONE LINE THAT IS NOT THE CALENDAR PASS. `naturalKeyForTask` carries
+    // the `todo:` prefix and the same RECURRENCE-ID rule a calendar event has,
+    // because RFC 5545 lets a VTODO recur too.
+    naturalKey: (item) => naturalKeyForTask(item.item),
+    sourceVersion: (item) => item.item.etag,
     sourceRef: (item) => item.item.sourcePath,
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
     ensureCollection: (folder) => target.ensureCalendar(folder),

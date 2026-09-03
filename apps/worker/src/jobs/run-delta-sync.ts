@@ -18,6 +18,7 @@ import {
   runCalendarSync,
   runContactSync,
   runFileSync,
+  runTaskSync,
   type FileSyncDeps,
 } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
@@ -286,6 +287,17 @@ export const runDeltaSync = schemaTask({
           } else if (domain === 'contact') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact');
             try { result = await runContactSync(deps); } finally { await deps.close(); }
+          } else if (domain === 'task') {
+            // The managed half of the seventh fan-out (workplan 0113). This
+            // file had the same bare `else` as orchestration's runOneDomain,
+            // and THIS is the one that ran on the owner's Spark: the task
+            // domain built file deps, ran runFileSync, copied nothing, and was
+            // marked completed. The two dispatchers are separate code with
+            // identical shape, so a fix to one is not a fix to the other —
+            // `a-domain-the-dispatchers-forgot.unit.test.ts` now holds them
+            // together.
+            const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task');
+            try { result = await runTaskSync(deps); } finally { await deps.close(); }
           } else {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
             // Captured BEFORE the pass: ADR-0031's survived-a-pass gate keeps
