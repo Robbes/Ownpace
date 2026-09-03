@@ -35,6 +35,26 @@ export interface CalDAVSourceConfig {
   throttleLimiter?: import('@openmig/shared').ThrottleLimiter;
   /** Optional calendar home set path (if known, otherwise discovered via PROPFIND) */
   calendarHomeSet?: string;
+  /**
+   * Which iCalendar component this source serves — `VEVENT` (the default, and
+   * the calendar domain) or `VTODO` (the task domain, workplan 0113).
+   *
+   * ONE CLASS, TWO DOMAINS, because on the wire they are the same thing: both
+   * read calendar collections over CalDAV with the same credential, and only
+   * `supported-calendar-component-set` tells a task list from a calendar
+   * (RFC 4791 §5.2.3). A second class would have been a copy of every parse
+   * and every discovery hop, differing in one string.
+   *
+   * It decides two things, and the second is the one a person feels. The
+   * source lists only collections that carry this component — so a task list
+   * stops appearing under Calendar, and appears under Tasks. And it yields
+   * only objects OF this component: `sync-collection` (RFC 6578) is
+   * component-agnostic, so a MIXED collection hands the parser both, and
+   * without this filter ticking Calendar would quietly copy the person's
+   * to-do list as well. The component decides the domain; the collection
+   * never does.
+   */
+  component?: import('@openmig/shared').CalendarComponent;
 }
 
 /**

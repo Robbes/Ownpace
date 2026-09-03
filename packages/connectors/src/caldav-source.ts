@@ -39,6 +39,11 @@ export class CalDAVSource implements CalendarSource {
   private readonly config: CalDAVSourceConfig;
   private readonly httpClient: HttpClient;
   private calendarHomeSet: string | null = null;
+  /**
+   * The component this source serves — `VEVENT` unless told otherwise, which
+   * is what every caller before workplan 0113 meant and still means.
+   */
+  private readonly component: CalendarComponent;
 
   constructor(
     config: CalDAVSourceConfig,
@@ -46,6 +51,7 @@ export class CalDAVSource implements CalendarSource {
   ) {
     this.config = config;
     this.httpClient = deps?.httpClient ?? createDefaultHttpClient();
+    this.component = config.component ?? 'VEVENT';
   }
 
   /**
@@ -518,7 +524,7 @@ export class CalDAVSource implements CalendarSource {
       // can copy. It becomes visible again under the task domain (0113 T3b),
       // which reads the same property for VTODO.
       const components = CalDAVSource.parseComponentSet(responseXml);
-      if (!collectionCarries(components, 'VEVENT')) continue;
+      if (!collectionCarries(components, this.component)) continue;
 
       // Skip Nextcloud internal collections. MUST check the stable path segment, not the
       // human-readable displayname -- confirmed live against Nextcloud 34 for the sibling
@@ -680,6 +686,19 @@ export class CalDAVSource implements CalendarSource {
       // Extract UID from iCalendar data
       const uid = this.extractUidFromIcalendar(obj.icalendar);
       if (!uid) {
+        return null;
+      }
+
+      // NOT MINE TO CARRY (workplan 0113). `sync-collection` is
+      // component-agnostic, so a MIXED collection — Nextcloud's default
+      // calendar declares VEVENT,VTODO — hands this parser its tasks along
+      // with its events. Each domain takes only its own: the component decides
+      // the domain, the collection never does, and ticking one box means one
+      // thing. An object whose component is unrecognised (`undefined`) is
+      // carried by the calendar domain, which is where every object went
+      // before this existed.
+      const component = componentOfIcalendar(obj.icalendar) ?? 'VEVENT';
+      if (component !== this.component) {
         return null;
       }
 

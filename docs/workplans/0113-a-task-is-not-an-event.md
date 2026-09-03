@@ -2,7 +2,31 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
-**2026-09-03 (latest): T4 built — the writer asks about the component it is writing.**
+**2026-09-03 (latest): T3b finished — one source, two domains.** `CalDAVSource` takes a
+`component` (default `VEVENT`, which is what every existing caller meant). It decides two
+things: which collections the source lists — so a task list stops appearing under Calendar and
+appears under Tasks, and a MIXED collection appears under both — and which objects it yields,
+because `sync-collection` (RFC 6578) is component-agnostic and hands the parser everything in
+the collection. Without that second filter, ticking Calendar would quietly copy the person's
+to-do list as well. **The component decides the domain; the collection never does.**
+
+One class rather than two: on the wire they are the same thing, read over the same protocol
+with the same credential, and only `supported-calendar-component-set` tells them apart. A
+second class would have been a copy of every parse and every discovery hop, differing in one
+string.
+
+Inert until T5: nothing constructs a source with `component: 'VTODO'` yet, because
+`DISCOVERY_DOMAINS` still names four. T5 is what makes it reachable, and the two must land
+together or the wizard offers a tick that enumerates nothing.
+
+**T5, measured rather than guessed:** adding `'task'` to `DISCOVERY_DOMAINS` produces exactly
+**16 compile errors across 6 files** — the qualification and Google-grant vocabulary maps (and
+Google has no task scope, so that map becomes partial: the asymmetry made concrete), the lane
+planner's per-domain record and two switches, the two apply jobs' `openDeps` switches, and one
+narrower array in the tick. That list IS T1's thesis: a fifth domain is a finite compile error
+rather than a hunt.
+
+**2026-09-03: T4 built — the writer asks about the component it is writing.**
 Both read-back queries in `caldav-target-writer.ts` filtered `comp-filter name="VEVENT"`, so
 a task already on the target came back as "not there" and was re-PUT on every pass. Nothing
 duplicated (same href, same UID) and nothing was lost — the idempotency CHECK was blind, not
@@ -98,7 +122,7 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 | T0 Decide: its own tick, and how far v1 reaches | ✅ Decided 2026-09-03 | 1: **build it** (the owner queued the work). 2: **its own tick**. 3: **Google Tasks out of v1**. 2 and 3 are this plan's own recommendations, taken in the owner's absence and reversible by a word from him. |
 | T1 The domain has ONE name | ✅ Done | Was **80 inline copies across 18 files** (73 when this was written; #734–#738 added seven). Now one `DISCOVERY_DOMAINS` in `packages/shared/src/discovery.ts` with `DiscoveryDomain` derived from it, three redundant aliases removed, and `scripts/a-domain-union-typed-out-by-hand.unit.test.ts` failing the build on a new copy of the type OR of the value list — with every legitimate exception named and two-way, so it cannot go stale. Proved by breaking. No behaviour changed. |
 | T2 The ledger widens | ✅ Done | `0036_a_task_is_not_an_event.sql`: nine CHECKs widened (eight `domain` columns — seven baseline, one from 0035 — plus the legacy `item.item_type`). Additive, re-runnable, verified against a real Postgres: nine constraints accept `task`, a row lands in each of the eight tables, and `journal` is still refused. The Drizzle mirror names `DISCOVERY_DOMAINS` rather than listing values, and a guard fails the build on a domain that reaches the code without a migration. Proved by breaking. |
-| T3 The source tells a task list from a calendar | 🟡 (a) done, (b) half done | **(a)** `listCollections` now PROPFINDs `supported-calendar-component-set` (RFC 4791 §5.2.3) and drops a collection that does not carry `VEVENT`, so a VTODO-only list stops being counted among "5 calendars visible". The declared set rides on `CalendarFolder.components` as data; an UNDECLARED set is a yes for every component, per the RFC and 0105's never-guess rule. Proved by breaking. **(b) half:** each object's `type` is now read from its own `BEGIN:` line instead of stamped `'event'` — reachable today, because `sync-collection` is component-agnostic and a MIXED collection hands the parser its tasks along with its events. Still to come: carrying task collections as their own kind, which needs the task domain (T5). |
+| T3 The source tells a task list from a calendar | ✅ Done | **(a)** `listCollections` now PROPFINDs `supported-calendar-component-set` (RFC 4791 §5.2.3) and drops a collection that does not carry `VEVENT`, so a VTODO-only list stops being counted among "5 calendars visible". The declared set rides on `CalendarFolder.components` as data; an UNDECLARED set is a yes for every component, per the RFC and 0105's never-guess rule. Proved by breaking. **(b)** each object's `type` is read from its own `BEGIN:` line instead of stamped `'event'`, and `CalDAVSource` now takes a **component**: it lists only collections carrying it and yields only objects of it, so one class serves two domains and a MIXED collection gives each domain its own. Default `VEVENT` — every caller before this meant that. Proved by breaking. |
 | T4 The writer writes a task | ✅ Done | Both read-backs follow the component: the per-item REPORT filters on what is being written (read from the object's own bytes), the collection snapshot covers all three while keeping partial retrieval, `MKCALENDAR` carries the source's declared component set (and declares nothing when the source did), and a refusal names the component instead of returning a bare 403 — passing the server's own words through unchanged when the component is not the reason. Proved by breaking, five ways. |
 | T5 The domain surfaces | 📋 Planned (needs T1, T2, T3) | The matrices, the qualification's fifth face and its badge, the wizard's fifth tick, the discovery counts, the confirm screen, EN/NL strings, the icon. |
 | T6 Google Tasks | 📋 Optional (needs T0 decision 3) | Google's CalDAV carries no VTODO at all: tasks live behind the separate Tasks REST API, whose model is thinner than VTODO. A face of its own, or out of scope for v1. |
