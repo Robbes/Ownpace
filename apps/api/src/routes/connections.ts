@@ -390,7 +390,15 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     const config =
       role === 'source'
         ? sourceConnectionConfig({ sourceType: type as never, sourceConfig: half })
-        : targetConnectionConfig({ targetConfig: half } as never);
+        : // WITH ITS TYPE (2026-09-03, the owner's "Unsupported target type:
+          // undefined"): this call carried the fields alone, so the kind never
+          // reached the shape builder — an imap target stored without
+          // `type: 'imap-dav'` or its user, a jmap one without its baseUrl,
+          // a soverin one without its mail face — and the first migration to
+          // reuse the row handed the writer switch nothing to switch on. The
+          // wizard's own door has always passed it; this door builds exactly
+          // what that one builds.
+          targetConnectionConfig({ targetType: type as TargetKind, targetConfig: half } as never);
     const creds =
       role === 'source'
         ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })

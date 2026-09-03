@@ -235,6 +235,62 @@ describe('mailTargetConfigFromConnection — kind resolves protocol at ONE seam'
     expect(mailTargetConfigFromConnection('jmap', stored, CREDS)).toBe(stored);
   });
 
+  it('derives the imap-dav shape for an imap row stored WITHOUT its type (the Connections door before 2026-09-03), user from the credential', () => {
+    // The owner's first reused IMAP target: added through the Connections
+    // page, whose door built the config from the fields alone, then reused by
+    // a migration — the writer switch threw "Unsupported target type:
+    // undefined" at discovery. The kind names the protocol.
+    const stored = { host: 'imap.example.nl', port: 993, useSsl: true };
+    const repaired = mailTargetConfigFromConnection('imap', stored, CREDS) as unknown as {
+      type: string;
+      host: string;
+      port: number;
+      tls: boolean;
+      user: string;
+    };
+    expect(repaired).toMatchObject({
+      type: 'imap-dav',
+      host: 'imap.example.nl',
+      port: 993,
+      tls: true,
+      user: 'a@example.nl',
+    });
+    expect(
+      buildTargetWriterFromCredentials(repaired as unknown as TargetConfig, { password: 'pw' }),
+    ).toBeInstanceOf(ImapFlowDavMailTarget);
+    // A row that said no TLS keeps saying it; a row that said nothing gets the
+    // IMAP doors' asymmetry rule (TLS unless said otherwise).
+    expect(
+      (mailTargetConfigFromConnection('imap', { ...stored, useSsl: false }, CREDS) as unknown as { tls: boolean }).tls,
+    ).toBe(false);
+    expect(
+      (mailTargetConfigFromConnection('imap', { host: 'imap.example.nl', port: 993 }, CREDS) as unknown as { tls: boolean }).tls,
+    ).toBe(true);
+  });
+
+  it('derives the jmap shape for a jmap row stored without its type — the baseUrl the wizard door would have written', () => {
+    const repaired = mailTargetConfigFromConnection(
+      'jmap',
+      { host: 'jmap.example.nl', port: 443, useSsl: true },
+      CREDS,
+    ) as unknown as { type: string; baseUrl: string; user: string };
+    expect(repaired).toMatchObject({
+      type: 'jmap',
+      baseUrl: 'https://jmap.example.nl:443',
+      user: 'a@example.nl',
+    });
+  });
+
+  it('a row that carries its type is passed through untouched, and a DAV protocol row without one still has no mail face', () => {
+    const typed = { type: 'imap-dav', host: 'h', port: 993, tls: true, user: 'u' };
+    expect(mailTargetConfigFromConnection('imap', typed, CREDS)).toBe(typed);
+    const dav = { host: 'dav.example.nl', port: 443, url: 'https://dav.example.nl/dav/' };
+    expect(mailTargetConfigFromConnection('caldav', dav, CREDS)).toBe(dav);
+    expect(() =>
+      buildTargetWriterFromCredentials(dav as unknown as TargetConfig, { password: 'pw' }),
+    ).toThrow(/Unsupported target type: undefined/);
+  });
+
   it('turns a soverin row with a stored mail face into the imap-dav shape, writer included', () => {
     const resolved = mailTargetConfigFromConnection(
       'soverin',

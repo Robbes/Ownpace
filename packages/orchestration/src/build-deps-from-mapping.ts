@@ -958,7 +958,38 @@ export function mailTargetConfigFromConnection(
   config: Record<string, unknown>,
   credentials: Record<string, string>,
 ): TargetConfig {
-  if (kind !== 'soverin') return config as unknown as TargetConfig;
+  if (kind !== 'soverin') {
+    if (typeof config.type === 'string' && config.type !== '') {
+      return config as unknown as TargetConfig;
+    }
+    // A ROW STORED WITHOUT ITS TYPE (the Connections door before 2026-09-03
+    // built a target's config from the fields alone, so the kind never
+    // reached it): the owner's first reused IMAP target made the writer switch
+    // throw "Unsupported target type: undefined" at discovery. The kind names
+    // the protocol, so the shape the wizard's door would have stored is
+    // derived here — at the one seam where kind resolves protocol — and the
+    // user comes from the credential the row signs in with, as soverin's
+    // does. DAV protocol kinds have no mail face; they pass through and the
+    // switch refuses them by name, as before.
+    if (kind === 'jmap') {
+      const scheme = config.useSsl === false ? 'http' : 'https';
+      return {
+        ...config,
+        type: 'jmap',
+        baseUrl: `${scheme}://${String(config.host ?? '')}:${String(config.port ?? (scheme === 'https' ? 443 : 80))}`,
+        user: String(config.user ?? credentials.username ?? ''),
+      } as unknown as TargetConfig;
+    }
+    if (kind === 'imap') {
+      return {
+        ...config,
+        type: 'imap-dav',
+        tls: config.useSsl !== false,
+        user: String(config.user ?? credentials.username ?? ''),
+      } as unknown as TargetConfig;
+    }
+    return config as unknown as TargetConfig;
+  }
   const mailHost = typeof config.mailHost === 'string' ? config.mailHost.trim() : '';
   if (!mailHost) {
     throw new Error(
