@@ -759,6 +759,68 @@ describe('adding a connection through the front door', () => {
     expect(screen.getByRole('button', { name: /^Soverin/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Gmail/ })).toBeNull();
   });
+
+  // THE PROVIDER DIRECTORY (0106 T5; owner 2026-09-03, after finding
+  // Soverin's help page by hand: "can we add the default already, like
+  // servers and ports?"). A named provider's card pre-fills what its help
+  // page publishes; the boxes stay boxes, and what is sent is what they hold.
+  it('the Soverin card pre-fills its published servers and ports, says so, and sends what the boxes hold', async () => {
+    add.mockResolvedValue({ ok: true, id: 'c9', detail: 'Connected. 2 collections visible.' });
+    await open();
+    fireEvent.click(screen.getByRole('radio', { name: 'Targets' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
+    expect(screen.getByDisplayValue('caldav.soverin.net')).toBeTruthy();
+    expect(screen.getByDisplayValue('443')).toBeTruthy();
+    expect(screen.getByDisplayValue('imap.soverin.net')).toBeTruthy();
+    expect(screen.getByDisplayValue('993')).toBeTruthy();
+    // Whose settings, read when — never presented as measured.
+    expect(
+      screen.getByText(/Pre-filled from Soverin’s published settings, read \d{4}-\d{2}-\d{2}\./),
+    ).toBeTruthy();
+    // A typed value wins over the pre-filled one, and the untouched
+    // defaults travel exactly as they were shown.
+    fireEvent.change(screen.getByDisplayValue('caldav.soverin.net'), {
+      target: { value: 'dav.mine.example' },
+    });
+    fireEvent.change(screen.getByLabelText(STRINGS.en['connections.name']), {
+      target: { value: 'My Soverin' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@example.invalid' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'app-password' },
+    });
+    const button = screen.getByRole('button', { name: /Add and test/ });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+    await waitFor(() => expect(add).toHaveBeenCalled());
+    expect(add.mock.calls[0]![0]).toMatchObject({
+      role: 'target',
+      type: 'soverin',
+      values: {
+        host: 'dav.mine.example',
+        port: '443',
+        mailHost: 'imap.soverin.net',
+        mailPort: '993',
+        username: 'owner@example.invalid',
+        password: 'app-password',
+      },
+    });
+  });
+
+  it('a protocol card pre-fills nothing — "CardDAV" names no provider — and a pick after Soverin starts empty', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('radio', { name: 'Targets' }));
+    expect(screen.queryByDisplayValue('443')).toBeNull();
+    expect(screen.queryByText(/Pre-filled from/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
+    expect(screen.getByDisplayValue('caldav.soverin.net')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^CardDAV/ }));
+    expect(screen.queryByDisplayValue('caldav.soverin.net')).toBeNull();
+    expect(screen.queryByDisplayValue('443')).toBeNull();
+    expect(screen.queryByText(/Pre-filled from/)).toBeNull();
+  });
 });
 
 describe('why a face is `?` is on screen, not in a hover (owner 2026-09-02)', () => {

@@ -35,6 +35,9 @@ import {
   describeCronScheduleProblem,
   credentialFieldsFor,
   qualifiedAnswerFor,
+  applyProviderDefaults,
+  providerDefaultsFor,
+  providerDefaultsProvenance,
   type CredentialField,
 } from '@openmig/shared';
 // The SAME cron library — same pinned version — the managed tick evaluates
@@ -1795,9 +1798,37 @@ const CreateMapping: React.FC = () => {
               : setFormData((prev) => ({ ...prev, ...clearedSourceFields(prev, type.id), sourceType: type.id })));
   };
 
+  /** Whose published settings sit in the target boxes, when a named provider's do. */
+  const targetProvenance = providerDefaultsProvenance('target', formData.targetType);
+
   const onPickTarget = (type: (typeof TARGET_CARDS)[number]) => {
     forgetProbe('target');
-    updateField('targetType', type.id);
+    // THE DIRECTORY FILLS THE BOXES (0106 T5, owner 2026-09-03: "can we add
+    // the default already, like servers and ports?"): a named provider's
+    // published servers and ports land in the boxes the moment its card is
+    // picked — editable, and measured by Test like anything typed. Only
+    // what is ours moves: a blank box, or one still at the previous pick's
+    // default. A box the person typed into keeps its value, and a box
+    // emptied on leaving a provider falls back to the wizard's own start
+    // (the port's 443), so switching away never leaves a gate the person
+    // did not open.
+    setFormData((prev) => {
+      const boxes = Object.fromEntries(
+        Object.entries(TARGET_FORM_FIELD).map(([key, formKey]) => [key, String(prev[formKey] ?? '')]),
+      );
+      const next = applyProviderDefaults(
+        providerDefaultsFor('target', prev.targetType),
+        providerDefaultsFor('target', type.id),
+        boxes,
+      );
+      const moved: Record<string, string> = {};
+      for (const [key, formKey] of Object.entries(TARGET_FORM_FIELD)) {
+        const value = next[key] ?? '';
+        if (value === boxes[key]) continue;
+        moved[formKey] = value === '' ? String(initialFormData[formKey] ?? '') : value;
+      }
+      return { ...prev, ...(moved as Partial<FormData>), targetType: type.id };
+    });
   };
 
   const renderStep = () => {
@@ -1998,6 +2029,11 @@ const CreateMapping: React.FC = () => {
                 onPick={onPickTarget}
                 gridClass="sm:grid-cols-3"
               />
+              {targetProvenance && !formData.targetConnectionId && (
+                <p className="mt-2 text-xs text-gray-600">
+                  {t('wizard.providerDefaults.note', targetProvenance)}
+                </p>
+              )}
               {/* ADR-0011's consequence, on the step where the destination is
                   chosen (owner decision 2026-08-10 — it previously rendered on
                   the SOURCE step): whatever server the owner points this at is
