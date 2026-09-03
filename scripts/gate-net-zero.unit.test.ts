@@ -155,7 +155,7 @@ describe('the smoke removes what it added, in the only order that stays truthful
     // A `DELETE 0` prints and reads exactly like a delete that worked.
     expect(balance).toMatch(/left="\$\(q "SELECT count/);
     expect(balance, 'a leftover row must fail the smoke').toMatch(
-      /\[ "\$\{left:-1\}" = "0" \] \|\|[\s\S]{0,200}fail=1/,
+      /\[ "\$\{left:-1\}" = "0" \] \|\|[\s\S]{0,200}fail_at/,
     );
   });
 
@@ -215,7 +215,7 @@ describe('and the organisation it grants itself, in the order the schema allows'
     const block = opBlock();
     expect(block).toContain('g_left');
     expect(block).toMatch(/\[ "\$g_left" = "0\/0" \]/);
-    expect(block, 'a residue count that cannot fail the run').toMatch(/taken back[\s\S]{0,400}fail=1/);
+    expect(block, 'a residue count that cannot fail the run').toMatch(/taken back[\s\S]{0,400}fail_at/);
   });
 
   it('sweeps a previous run before it starts, not only after it ends', () => {
@@ -293,7 +293,7 @@ describe('and the refusals it files, which no grant deletes for it', () => {
     const block = declineBlock();
     expect(block).toContain('d_left');
     expect(block).toMatch(/\[ "\$d_left" = "0" \]/);
-    expect(block, 'a residue count that cannot fail the run').toMatch(/NOT taken back[\s\S]{0,200}fail=1/);
+    expect(block, 'a residue count that cannot fail the run').toMatch(/NOT taken back[\s\S]{0,200}fail_at/);
   });
 });
 
@@ -335,7 +335,7 @@ describe('and the knock the boundary block files to have something to refuse', (
     const block = boundaryBlock();
     expect(block).toContain('b_left');
     expect(block).toMatch(/\[ "\$b_left" = "0" \]/);
-    expect(block, 'a residue count that cannot fail the run').toMatch(/NOT taken back[\s\S]{0,200}fail=1/);
+    expect(block, 'a residue count that cannot fail the run').toMatch(/NOT taken back[\s\S]{0,200}fail_at/);
   });
 
   it('creates nothing else — no tenant, no operator, no membership', () => {
@@ -398,7 +398,7 @@ describe('and the two requests it decides twice', () => {
     const block = decidedBlock();
     expect(block).toContain('dd_left');
     expect(block).toMatch(/\[ "\$dd_left" = "0\/0" \]/);
-    expect(block, 'a residue count that cannot fail the run').toMatch(/NOT taken back[\s\S]{0,200}fail=1/);
+    expect(block, 'a residue count that cannot fail the run').toMatch(/NOT taken back[\s\S]{0,200}fail_at/);
   });
 
   it('sweeps a previous run before it knocks, not only after it ends', () => {
