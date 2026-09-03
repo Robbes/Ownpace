@@ -15,9 +15,12 @@
  *   - Tenant A: mail only, against the demo Stalwart (IMAP source, JMAP
  *     target) — the same fixed `source`/`target` accounts
  *     `deploy/selfhost/setup-stalwart.sh` always provisions.
- *   - Tenant B: calendar/contact/file only, against the demo Nextcloud
+ *   - Tenant B: calendar/task/contact/file, against the demo Nextcloud
  *     (CalDAV/CardDAV/WebDAV) — two accounts setup-managed-demo.sh creates.
- * They're split this way (not all four domains on both tenants) because the
+ *     Tasks ride the same CalDAV face as calendars and differ only by the
+ *     collection's declared component (0113); the demo source carries a
+ *     VTODO-only collection for exactly that reason.
+ * They're split this way (not every domain on both tenants) because the
  * `connection` table has exactly one source + one target row per tenant,
  * shared by every domain — there's no way for one tenant's single
  * source/target pair to point at two unrelated backends (Stalwart AND
@@ -140,7 +143,12 @@ const DEMO_TENANTS: readonly DemoTenant[] = [
     sourceMailboxId: 'b0000000-0000-4000-8000-0000000000b1',
     targetMailboxId: 'b0000000-0000-4000-8000-0000000000b2',
     mappingId: 'b0000000-0000-4000-8000-0000000000d1',
-    domains: ['calendar', 'contact', 'file'],
+    // 'task' joined on 2026-09-03 (workplan 0113 T7). The demo Nextcloud
+    // source carries a VTODO-only collection since `seed-demo-dav-content.sh`
+    // learned to make one, and a domain the mapping does not select is never
+    // synced — so without this tick the gate would seed a task list and then
+    // prove nothing about it.
+    domains: ['calendar', 'contact', 'file', 'task'],
     source: {
       kind: 'nextcloud',
       config: { baseUrl: NEXTCLOUD_DAV_BASE_URL },

@@ -125,6 +125,7 @@ reading a file drops off its entry by itself.
 - [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts) — A REFUSAL THAT NAMED NO REMEDY.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
+- [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
 
 ### `apps/api/src/services/billing-service.ts`
 
@@ -328,6 +329,7 @@ reading a file drops off its entry by itself.
 - [gate-net-zero](../scripts/gate-net-zero.unit.test.ts) — The managed gate takes back what it added.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [seed-demo-dav-content](../scripts/seed-demo-dav-content.unit.test.ts) — The demo's DAV content, and the two ways seeding it goes quietly wrong.
+- [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
 - [the-moment-pressed](../scripts/the-moment-pressed.unit.test.ts) — THE MOMENT, PRESSED (workplan 0104 T2, final stage).
@@ -1318,6 +1320,8 @@ The seed, and the password the volume never heard of.
 
 Reads:
 
+- `apps/api/src/scripts/seed-managed.ts`
+- `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/seed-managed.sh`
 
 ### [setup-nextcloud-users](../scripts/setup-nextcloud-users.unit.test.ts)

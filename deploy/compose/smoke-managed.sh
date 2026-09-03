@@ -1550,6 +1550,55 @@ if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
     fi
   done
   [ -n "$HASH" ] || echo "prepare: still nothing after $((PREP_POLLS * POLL_SLEEP))s — see the diagnosis below."
+
+  # ---------- THE TASK LANE LANDED (workplan 0113 T7) ----------
+  #
+  # WHY THIS IS AN ASSERTION AND NOT A LINE IN THE INVENTORY. The diagnosis
+  # below already groups by `domain`, so a task row would SHOW there — and a
+  # run with no task rows at all would show nothing there and stay green,
+  # because the apply half takes whichever eligible item it finds and one
+  # calendar row satisfies it. That is the shape that has fooled this gate
+  # twice: green because the half that mattered never executed.
+  #
+  # So the task domain is checked BY NAME. What it proves is the whole of
+  # 0113 end to end against a real Nextcloud, and none of it is provable by a
+  # unit test:
+  #   - the source listed a collection declaring VTODO and nothing else (T3a),
+  #   - it yielded the VTODOs in it rather than skipping them (T3b),
+  #   - the writer created the target collection and PUT them (T4),
+  #   - the tick, the ledger domain and the natural key all agree (T5, T2).
+  # A regression in any one of those lands here as a count of zero.
+  #
+  # Scoped to THIS run's tag, so a task row left by an earlier run cannot
+  # answer for this one — the same rule the balance section works under.
+  # Polled rather than read once, because the sync is a Trigger.dev run and
+  # the calendar row the apply half waited for can land before the task one.
+  TASK_TAGGED="$HREF_EXPR LIKE '%${BALANCE_TAG}%'"
+  TASK_SCOPE="tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING'"
+  task_rows=0
+  i=0
+  while [ $i -lt "$PREP_POLLS" ]; do
+    task_rows="$(q "SELECT count(*) FROM item WHERE $TASK_SCOPE AND $TASK_TAGGED AND domain='task' AND status IN ('copied','updated')")"
+    [ "${task_rows:-0}" -gt 0 ] && break
+    i=$((i + 1))
+    sleep "$POLL_SLEEP"
+  done
+  if [ "${task_rows:-0}" -gt 0 ]; then
+    echo "prepare: the task lane landed — ${task_rows} VTODO row(s) copied under tag ${BALANCE_TAG}"
+  else
+    # Loud, and it FAILS the run. A task list that does not migrate is the
+    # defect 0113 exists to stop, and the owner found the last one in his own
+    # account rather than here.
+    echo "::error::the task domain copied NOTHING under tag ${BALANCE_TAG}."
+    echo "The source was seeded with a VTODO-only collection and the mapping selects 'task',"
+    echo "so zero copied rows means one of: the source skipped the collection (0113 T3a),"
+    echo "it skipped the VTODOs inside it (T3b), the writer refused them (T4), or the tick"
+    echo "never reached the domain at all (T5's fan-outs). What the ledger holds per domain"
+    echo "is in the inventory below."
+    q "SELECT domain, status, count(*) FROM item WHERE $TASK_SCOPE AND $TASK_TAGGED GROUP BY 1,2 ORDER BY 1,2" \
+      | sed 's/^/  /'
+    fail=1
+  fi
 fi
 
 if [ -z "$HASH" ]; then

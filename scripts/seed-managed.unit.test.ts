@@ -124,6 +124,52 @@ function run(seedMode: "ok" | "auth" | "other", seedRc = 1) {
 const calls = () =>
   readFileSync(join(dir, "calls.log"), "utf-8").split("\n").filter(Boolean);
 
+/**
+ * WHAT THE DEMO MAPPING ACTUALLY SELECTS, and why it is asserted here.
+ *
+ * `seed-demo-dav-content.sh` puts calendar, task, contact and file data into
+ * the demo Nextcloud source, and the managed gate's whole task assertion rests
+ * on the demo mapping SELECTING the task domain — a domain a mapping does not
+ * select is never synced, so the gate would seed a VTODO-only collection and
+ * then prove nothing about it.
+ *
+ * Nothing connects those two files but this test. The seeder is bash and the
+ * tenant list is TypeScript; neither imports the other, and the compiler has
+ * no opinion about whether they agree. Dropping 'task' from the tenant row
+ * left every other test in the repository green, which is how this one came to
+ * be written (0113 T7, found by breaking).
+ */
+describe("the demo tenants select the domains their backends are seeded with", () => {
+  const seedManaged = readFileSync(
+    join(REPO_ROOT, "apps/api/src/scripts/seed-managed.ts"),
+    "utf-8",
+  );
+  const davSeeder = readFileSync(
+    join(REPO_ROOT, "deploy/compose/seed-demo-dav-content.sh"),
+    "utf-8",
+  );
+
+  it("tenant B selects every DAV domain the source is seeded with, tasks included", () => {
+    expect(seedManaged).toContain("domains: ['calendar', 'contact', 'file', 'task'],");
+  });
+
+  it("and the DAV seeder really seeds each of them — neither side is asserted alone", () => {
+    // The control. `toContain` on the tenant row above would pass just as well
+    // against a seeder that writes three domains, so the pair is checked: what
+    // the mapping selects, and what the source is given.
+    expect(davSeeder).toContain("openmig-demo-event-");
+    expect(davSeeder).toContain("openmig-demo-task-");
+    expect(davSeeder).toContain("openmig-demo-contact-");
+    expect(davSeeder).toContain("openmig-demo-file-");
+  });
+
+  it("the task fixture is a VTODO, not an event that happens to be named one", () => {
+    // A task list seeded with VEVENTs would be carried by the calendar face
+    // and the gate would go green having tested nothing new.
+    expect(davSeeder).toContain("BEGIN:VTODO");
+  });
+});
+
 describe("what the seed's own failure is read as", () => {
   it("names the one command that ends the drift", () => {
     const res = run("auth");

@@ -90,6 +90,52 @@ describe('the apply half is judged, including when it found nothing to do', () =
   });
 });
 
+describe('the task lane is asserted by name, not left to the inventory (0113 T7)', () => {
+  // WHY BY NAME. The diagnosis block already groups the ledger by `domain`,
+  // so a task row SHOWS there — and a run with no task rows at all shows
+  // nothing there and stays green, because the apply half takes whichever
+  // eligible item it finds and one calendar row satisfies it. That is the
+  // shape that has fooled this gate twice: green because the half that
+  // mattered never executed (run #6's skipped apply, run #20's spent
+  // fixture). A domain nobody asserts is a domain nobody is testing.
+
+  it('counts copied rows for the task domain specifically', () => {
+    expect(smoke).toMatch(/domain='task'\s+AND\s+status IN \('copied','updated'\)/);
+  });
+
+  it('scopes that count to THIS run\'s tag', () => {
+    // An earlier run's task row must not answer for this one — the same rule
+    // the balance section works under.
+    const block = smoke.slice(smoke.indexOf('THE TASK LANE LANDED'));
+    expect(block).toContain('BALANCE_TAG');
+  });
+
+  it('sets fail when nothing copied — it does not merely remark on it', () => {
+    // The whole point. `echo` without `fail=1` is what "SKIPPED" beside
+    // "SMOKE PASS" looked like three lines apart in run #6.
+    // Bounded to THIS block, not to the next section header: everything
+    // between here and the runner logs includes the no-eligible-item branch,
+    // which sets `fail` for its own reasons — so the looser slice passed with
+    // the task-lane `fail=1` deleted. Found by breaking it, which is the only
+    // way that kind of pass shows itself.
+    const start = smoke.indexOf('THE TASK LANE LANDED');
+    const block = smoke.slice(start, smoke.indexOf('if [ -z "$HASH" ]; then', start));
+    expect(block).toContain('::error::');
+    expect(block).toMatch(/fail=1/);
+  });
+
+  it('names the four things a zero could mean, so the reader is not left guessing', () => {
+    // A refusal that names a symptom and not a state is only half a refusal
+    // (rule 9). Zero copied tasks has four distinct causes with four
+    // different fixes, and the message has to tell them apart.
+    const block = smoke.slice(smoke.indexOf('THE TASK LANE LANDED'));
+    expect(block).toContain('T3a');
+    expect(block).toContain('T3b');
+    expect(block).toContain('T4');
+    expect(block).toContain('T5');
+  });
+});
+
 describe('an enqueue that never became a runner is a failure', () => {
   // 0018 T5's lesson is the reason this script exists at all; it used to be
   // reported with an echo, so the script could miss the single thing it was
