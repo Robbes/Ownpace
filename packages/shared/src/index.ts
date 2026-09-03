@@ -42,6 +42,7 @@ export * from './provider-accounts.ts';
 export * from './provider-directory.ts';
 export * from './google-deployment-client.ts';
 export * from './dropbox-deployment-client.ts';
+export * from './microsoft-deployment-client.ts';
 export * from './provider-clients.ts';
 export * from './redirect-uris.ts';
 export * from './standing-grants.ts';
