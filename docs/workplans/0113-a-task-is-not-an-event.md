@@ -2,6 +2,34 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
+**2026-09-03 (latest): T7 built — the machine seeds a task list and refuses to pass without it.**
+`seed-demo-dav-content.sh` makes a collection declaring **VTODO and nothing else** (MKCALENDAR
+with a `supported-calendar-component-set`, RFC 4791 §5.2.3), seeds two VTODOs into it, counts
+them in its own verification, and takes them back under `--remove`. The demo tenant B mapping
+selects `task`, and the managed smoke asserts by name that VTODO rows copied under this run's
+tag — failing loudly, naming the four things a zero could mean.
+
+**The separate collection is the point.** Nextcloud's default `personal` calendar declares
+`VEVENT,VTODO`, so a VTODO dropped there is carried by both faces and proves almost nothing: a
+mixed collection is the easy case and the unit tests already cover it. The collection that
+declares VTODO alone is what this product read as a calendar for years, and it exercises T3a,
+T3b, T4 and T5's fan-outs against a real Nextcloud in one pass.
+
+**Asserted by name, because the inventory would not have caught it.** The diagnosis block
+already groups the ledger by `domain`, so a task row shows there — and a run with **no** task
+rows shows nothing there and stays green, because the apply half takes whichever eligible item
+it finds and one calendar row satisfies it. That is the shape that has fooled this gate twice
+(run #6's skipped apply, run #20's spent fixture). A domain nobody asserts is a domain nobody
+is testing.
+
+**Two of the five breaks did not discriminate on the first try**, which is the round earning its
+keep: the smoke guard sliced from the task block to the next section header, so an unrelated
+`fail=1` in between kept it green with the task-lane one deleted; and nothing anywhere asserted
+that the demo mapping SELECTS `task` — the bash seeder and the TypeScript tenant list do not
+import each other, so dropping the tick left the whole repository green. Both are now pinned,
+and the second is pinned in both directions (what the mapping selects, and what the source is
+given).
+
 **2026-09-03 (latest): T5 built — the domain surfaces, and the four fan-outs that would have
 made the tick a lie.** `DISCOVERY_DOMAINS` names five, and the tick now reaches the whole
 product: the matrices (`caldav` carries `calendar` and `task`; `PROVIDER_ACCOUNT_DOMAINS.soverin`
@@ -177,7 +205,8 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 | T4 The writer writes a task | ✅ Done | Both read-backs follow the component: the per-item REPORT filters on what is being written (read from the object's own bytes), the collection snapshot covers all three while keeping partial retrieval, `MKCALENDAR` carries the source's declared component set (and declares nothing when the source did), and a refusal names the component instead of returning a bare 403 — passing the server's own words through unchanged when the component is not the reason. Proved by breaking, five ways. |
 | T5 The domain surfaces | ✅ Done | The matrices (`caldav` → calendar+task, `soverin` gains task, Google gains nothing at any scope tier), the qualification's fifth face measured through the same CalDAV endpoint with `component: 'VTODO'` and counted in its own `taskList` unit, the wizard's fifth tick, the discovery counts, the confirm screen, the verification gate's fifth row, EN/NL strings and an icon. Plus the four per-domain fan-outs in `orchestration.ts` that no compile error could have named — sync, discovery, delta, verification — with a counting guard so the sixth domain cannot slip past them. Four vocabularies collapsed into one on the way (`QUALIFICATION_KEYS`, `domain-words.ts`, three zod enums). A pre-T5 record's missing face reads as `?`, never as a crash. Proved by breaking, eight ways. |
 | T6 Google Tasks | 📋 Optional (needs T0 decision 3) | Google's CalDAV carries no VTODO at all: tasks live behind the separate Tasks REST API, whose model is thinner than VTODO. A face of its own, or out of scope for v1. |
-| T7 The gate | 📋 Planned (needs T4, T5) | The managed nightly seeds a task list in the demo backend and migrates it, so the next regression of this shape is caught by a machine rather than by the owner's account. |
+| T7 The gate (managed) | ✅ Done | The demo Nextcloud source carries a VTODO-only collection, made by MKCALENDAR with a `supported-calendar-component-set` and seeded with two VTODOs; demo tenant B selects `task`; and `smoke-managed.sh` asserts BY NAME that VTODO rows copied under the run's own tag, failing with the four causes a zero can have. `--remove` takes the tasks back with the rest, so the gate stays net zero. Proved by breaking, five ways — two of which did not discriminate at first and were rewritten. |
+| T8 The gate (self-hosted) | 📋 Planned (needs T7) | `e2e.yml` proves all four domains across two real Nextcloud accounts — the restart-resume idempotency gate and a real apply-deletion per domain — and does not know about the fifth. It needs `test/e2e/seed-dav-source.mjs` to seed a VTODO-only collection, `cfg.domains.tasks` in the workflow's mapping patch, and a `tasks` block in `mapping.json.example` so an operator can see the shape. The appliance side needs no code: `DomainsConfig.tasks` landed with T5. |
 
 ## Why this exists
 

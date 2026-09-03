@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# seed-demo-dav-content.sh — put real calendar, contact and file data into the
-# demo Nextcloud SOURCE account, so the demo tenant B mapping has something to
-# sync (workplan 0084, run #7).
+# seed-demo-dav-content.sh — put real calendar, TASK, contact and file data into
+# the demo Nextcloud SOURCE account, so the demo tenant B mapping has something
+# to sync (workplan 0084, run #7; tasks added by 0113 T7).
 #
 # WHY THIS EXISTS
 # ---------------
@@ -18,6 +18,28 @@
 # hold three messages somebody put there by hand — nothing in this repo seeds
 # those either, which is worth knowing before trusting the verify half's counts
 # on a fresh machine.
+#
+# THE TASK LIST IS A COLLECTION OF ITS OWN, ON PURPOSE (0113 T7)
+# --------------------------------------------------------------
+# Nextcloud's default `personal` calendar declares `VEVENT,VTODO`, so a VTODO
+# dropped in there would be carried by BOTH faces and would prove almost
+# nothing: a mixed collection is the easy case, and it is already the one the
+# unit tests cover. What 0113 is actually about is the collection that declares
+# **VTODO and nothing else** — a task list, which for years this product read
+# as a calendar and whose to-dos it labelled events.
+#
+# So this seeds one: `MKCALENDAR` with a `supported-calendar-component-set` of
+# VTODO alone (RFC 4791 §5.2.3), and the VTODOs go in there. That single
+# property is the whole difference on the wire, and it is what the gate now
+# exercises end to end — the source must skip it under Calendar and list it
+# under Tasks, and the writer must recreate it on the target declaring the same
+# component. A regression in any of that shows up here as a missing item rather
+# than as a customer's to-do list arriving in their calendar.
+#
+# MKCALENDAR is issued only when the collection is not already there, and 405
+# (Method Not Allowed, which is what a server answers for a collection that
+# exists) counts as "already there" rather than as a failure — bring-up calls
+# this repeatedly and must converge (hard rule 1).
 #
 # WHAT IT DOES NOT DO
 # -------------------
@@ -80,6 +102,10 @@
 #
 # Env overrides:
 #   NEXTCLOUD_CONTAINER  (default ownpace-nextcloud, matches managed.yml)
+#   DAV_TASK_COLLECTION  the VTODO-only collection's name under calendars/
+#                        (default openmig-tasks). Its own name rather than
+#                        `personal`, because the point is a collection that
+#                        declares VTODO and nothing else.
 #   DAV_USER / DAV_PASSWORD  the demo SOURCE account; the defaults match
 #                            seed-managed.ts's tenant B source credentials. Point
 #                            them at the TARGET account and `--remove` cleans the
@@ -201,10 +227,51 @@ ABK="$(discover "addressbooks/users/${DAVUSER}/contacts/" "addressbooks/${DAVUSE
 FILES="files/${DAVUSER}/"
 discover "$FILES" >/dev/null || fail "no files home for '${DAVUSER}' — does the account exist?"
 
+# THE TASK LIST (0113 T7). Its own collection, declaring VTODO and nothing
+# else — see the header. `discover` first, because MKCALENDAR against a
+# collection that exists is a 405 and bring-up runs this every time.
+TASK_COLLECTION="${DAV_TASK_COLLECTION:-openmig-tasks}"
+TASKS="$(discover "calendars/${DAVUSER}/${TASK_COLLECTION}/" "calendars/users/${DAVUSER}/${TASK_COLLECTION}/" || true)"
+
+# make_task_list — MKCALENDAR the VTODO-only collection, or accept the one
+# already there. Echoes the path it settled on.
+#
+# The component set is the entire point of the request: a collection created
+# WITHOUT it declares nothing, which RFC 4791 §5.2.3 reads as "may contain any
+# component type" — and a gate seeded into that collection would pass whether
+# or not the source can tell a task list from a calendar, which is the one
+# thing it exists to check.
+make_task_list() {
+  local path="calendars/${DAVUSER}/${TASK_COLLECTION}/"
+  local code
+  code=$(dav MKCALENDAR "$path" 'application/xml; charset=utf-8' \
+"<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<C:mkcalendar xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\">
+  <D:set>
+    <D:prop>
+      <D:displayname>Ownpace demo tasks</D:displayname>
+      <C:supported-calendar-component-set>
+        <C:comp name=\"VTODO\"/>
+      </C:supported-calendar-component-set>
+    </D:prop>
+  </D:set>
+</C:mkcalendar>")
+  case "$code" in
+    201|204) echo "$path" ;;
+    # 405 is a collection that already exists — the converging answer, not a
+    # failure. So is 403 from a server that reserves MKCALENDAR: if the
+    # collection is really there, `discover` above would have found it, so
+    # reaching here with a 403 means it is not, and that IS a failure.
+    405) echo "$path" ;;
+    *) return 1 ;;
+  esac
+}
+
 echo "[seed-dav] account ${DAVUSER}"
 echo "[seed-dav]   calendar     ${CAL}"
 echo "[seed-dav]   addressbook  ${ABK}"
 echo "[seed-dav]   files        ${FILES}"
+echo "[seed-dav]   task list    ${TASKS:-<absent>}"
 if [ "$REMOVE_ONLY" = "1" ]; then
   echo "[seed-dav]   mode         REMOVE, tag ${TAG} — undoing one --fresh seed"
 elif [ -n "$TAG" ]; then
@@ -228,7 +295,15 @@ if [ "$REMOVE_ONLY" = "1" ]; then
   # rather than refuse (hard rule 1).
   gone=0
   for n in 1 2; do
+    # The task list is only in this loop when it EXISTS. `--remove` never
+    # creates a collection: making one in order to empty it would be a write on
+    # the take-back path, and an absent collection already means the tasks
+    # under it are absent too (hard rule 2 — a removal that guesses its own
+    # target is not one anybody should write).
+    task_spec=""
+    [ -n "$TASKS" ] && task_spec="${TASKS}openmig-demo-task-${SUFFIX}${n}.ics"
     for spec in "${CAL}openmig-demo-event-${SUFFIX}${n}.ics" \
+                ${task_spec:+"$task_spec"} \
                 "${ABK}openmig-demo-contact-${SUFFIX}${n}.vcf" \
                 "${FILES}openmig-demo-file-${SUFFIX}${n}.txt"; do
       code=$(dav DELETE "$spec")
@@ -245,6 +320,7 @@ if [ "$REMOVE_ONLY" = "1" ]; then
   left=$(( $(count "$CAL" "openmig-demo-event-${SUFFIX}") \
          + $(count "$ABK" "openmig-demo-contact-${SUFFIX}") \
          + $(count "$FILES" "openmig-demo-file-${SUFFIX}") ))
+  [ -n "$TASKS" ] && left=$(( left + $(count "$TASKS" "openmig-demo-task-${SUFFIX}") ))
   [ "$left" = "0" ] || fail "${left} resource(s) tagged ${TAG} are still present after removal"
   echo "[seed-dav] source is clean of tag ${TAG}"
   exit 0
@@ -269,6 +345,15 @@ ATTENDEE;CN=Migration Canary;PARTSTAT=NEEDS-ACTION:mailto:openmig-attendee-${TAG
 fi
 
 if [ "$VERIFY_ONLY" = "0" ]; then
+  # The collection has to exist before anything can be PUT into it, and it is
+  # created here rather than at discovery time so `--verify` and `--remove`
+  # stay read-only about it.
+  if [ -z "$TASKS" ]; then
+    TASKS="$(make_task_list)" \
+      || fail "could not create the VTODO-only task list at calendars/${DAVUSER}/${TASK_COLLECTION}/"
+    echo "[seed-dav]   task list    ${TASKS} (created, declares VTODO only)"
+  fi
+
   for n in 1 2; do
     # Injected by PARAMETER expansion, never command substitution: `$(...)`
     # strips every trailing newline, which glued END:VEVENT onto the ATTENDEE
@@ -293,6 +378,28 @@ ${EVENT_PROPS}END:VEVENT
 END:VCALENDAR")
     echo "[seed-dav] event ${SUFFIX}${n}: HTTP ${code}"
     case "$code" in 201|204) ;; *) fail "calendar PUT ${SUFFIX}${n} returned ${code}" ;; esac
+
+    # THE TASK (0113 T7). A VTODO, in the VTODO-only collection — the shape
+    # this product spent its first four domains unable to tell from an event.
+    # No ORGANIZER or ATTENDEE: a task carries no scheduling, so the canary
+    # above has nothing to say here, and adding one would make this fixture
+    # test two things at once.
+    code=$(dav PUT "${TASKS}openmig-demo-task-${SUFFIX}${n}.ics" 'text/calendar; charset=utf-8' \
+"BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//OpenMigrate//demo//EN
+BEGIN:VTODO
+UID:openmig-demo-task-${SUFFIX}${n}
+DTSTAMP:20260101T000000Z
+DUE:2026010${n}T170000Z
+SUMMARY:Ownpace demo task ${SUFFIX}${n}
+DESCRIPTION:Seeded by seed-demo-dav-content.sh so the task lane has something to copy.
+STATUS:NEEDS-ACTION
+PERCENT-COMPLETE:0
+END:VTODO
+END:VCALENDAR")
+    echo "[seed-dav] task ${SUFFIX}${n}: HTTP ${code}"
+    case "$code" in 201|204) ;; *) fail "task PUT ${SUFFIX}${n} returned ${code}" ;; esac
 
     code=$(dav PUT "${ABK}openmig-demo-contact-${SUFFIX}${n}.vcf" 'text/vcard; charset=utf-8' \
 "BEGIN:VCARD
@@ -349,8 +456,10 @@ fi
 ev=$(count "$CAL" "openmig-demo-event-${SUFFIX}")
 ct=$(count "$ABK" "openmig-demo-contact-${SUFFIX}")
 fl=$(count "$FILES" "openmig-demo-file-${SUFFIX}")
-echo "[seed-dav] present now — events:${ev} contacts:${ct} files:${fl}"
-[ "$ev" -ge 1 ] && [ "$ct" -ge 1 ] && [ "$fl" -ge 1 ] \
+tk=0
+[ -n "$TASKS" ] && tk=$(count "$TASKS" "openmig-demo-task-${SUFFIX}")
+echo "[seed-dav] present now — events:${ev} tasks:${tk} contacts:${ct} files:${fl}"
+[ "$ev" -ge 1 ] && [ "$ct" -ge 1 ] && [ "$fl" -ge 1 ] && [ "$tk" -ge 1 ] \
   || fail "seeding did not stick — nothing to sync, so the apply half would still find no item"
 
 # The heredoc below stays QUOTED. It contains `$POSTGRES_USER`, `$POSTGRES_DB`

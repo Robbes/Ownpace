@@ -17,7 +17,15 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  chmodSync,
+  existsSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,11 +49,24 @@ url="\${args[\${#args[@]}-1]}"
 for ((j=0;j<\${#args[@]};j++)); do [ "\${args[$j]}" = "-X" ] && m="\${args[$((j+1))]}"; done
 if [ "$m" = "PROPFIND" ]; then
   case "$url" in
+    # TASK_LIST_ANSWER decides whether the VTODO-only collection already
+    # exists: 207 is the steady state (bring-up made it once), 404 sends the
+    # seeder down the MKCALENDAR path. Default 207, so every test written
+    # before 0113 T7 keeps measuring what it was written to measure.
+    *"/calendars/$NCUSER/openmig-tasks/"*)
+      printf '%s\\n' "\${args[@]}" | grep -q 'Depth: 1' && { echo "$VERIFY_ANSWER"; exit 0; }
+      echo -n "\${TASK_LIST_ANSWER:-207}" ;;
     *"/calendars/$NCUSER/personal/"*|*"/addressbooks/users/$NCUSER/contacts/"*|*"/files/$NCUSER/"*)
       printf '%s\\n' "\${args[@]}" | grep -q 'Depth: 1' && { echo "$VERIFY_ANSWER"; exit 0; }
       echo -n 207 ;;
     *) echo -n 404 ;;
   esac
+  exit 0
+fi
+if [ "$m" = "MKCALENDAR" ]; then
+  printf '%s\\n' "$url" >> "$ARGDIR/mkcalendar.txt"
+  cat >> "$ARGDIR/mkcalendar-body.txt" 2>/dev/null
+  echo -n "\${MKCALENDAR_ANSWER:-201}"
   exit 0
 fi
 if [ "$m" = "DELETE" ]; then
@@ -70,7 +91,11 @@ function run(env: Record<string, string> = {}, argv: string[] = []) {
       PATH: `${join(dir, 'bin')}:${process.env.PATH}`,
       ARGDIR: dir,
       NCUSER: 'tenant-b-source',
-      VERIFY_ANSWER: 'openmig-demo-event-1 openmig-demo-contact-1 openmig-demo-file-1',
+      // The task name joins the default answer because the seeder counts
+      // tasks now and refuses when it finds none (0113 T7) — the same
+      // "report what is true" rule the other three already lived under.
+      VERIFY_ANSWER:
+        'openmig-demo-event-1 openmig-demo-task-1 openmig-demo-contact-1 openmig-demo-file-1',
       ...env,
     },
   });
@@ -103,12 +128,81 @@ describe('the requests it builds', () => {
     expect(args).not.toContain('Content-Type:');
   });
 
-  it('seeds all three domains the demo mapping selects', () => {
+  it('seeds all four domains the demo mapping selects', () => {
     run();
     const all = readFileSync(join(dir, 'all.args'), 'utf8');
     expect(all).toMatch(/openmig-demo-event-\d\.ics/);
     expect(all).toMatch(/openmig-demo-contact-\d\.vcf/);
     expect(all).toMatch(/openmig-demo-file-\d\.txt/);
+    // Tasks joined the mapping in 0113 T7. A gate that seeds three domains
+    // for a mapping that selects four proves nothing about the fourth.
+    expect(all).toMatch(/openmig-demo-task-\d\.ics/);
+  });
+});
+
+describe('the task list is a collection that declares VTODO and nothing else (0113 T7)', () => {
+  // THE WHOLE POINT OF T7. Nextcloud's default `personal` calendar declares
+  // `VEVENT,VTODO`, so a VTODO dropped in there is carried by BOTH faces and
+  // would pass whether or not the source can tell a task list from a calendar
+  // — which is the one thing this gate exists to check. The collection that
+  // declares VTODO ALONE is what this product read as a calendar for years.
+
+  it('the tasks go in their own collection, never beside the events', () => {
+    run();
+    const all = readFileSync(join(dir, 'all.args'), 'utf8');
+    expect(all).toContain('/calendars/tenant-b-source/openmig-tasks/openmig-demo-task-1.ics');
+    // And the events stay where they were: two collections, not one renamed.
+    expect(all).toContain('/calendars/tenant-b-source/personal/openmig-demo-event-1.ics');
+    expect(all).not.toContain('/calendars/tenant-b-source/personal/openmig-demo-task-');
+  });
+
+  it('creates it with a supported-calendar-component-set of VTODO alone', () => {
+    // A collection created WITHOUT the property declares nothing, which RFC
+    // 4791 §5.2.3 reads as "may contain any component type" — and a gate
+    // seeded into that collection is back to the mixed case it was written to
+    // get away from.
+    const r = run({ TASK_LIST_ANSWER: '404' });
+    expect(r.status).toBe(0);
+    const body = readFileSync(join(dir, 'mkcalendar-body.txt'), 'utf8');
+    expect(body).toContain('supported-calendar-component-set');
+    expect(body).toContain('<C:comp name="VTODO"/>');
+    // VEVENT here would make it a mixed collection and quietly undo the test.
+    expect(body).not.toContain('VEVENT');
+  });
+
+  it('does not MKCALENDAR when the collection is already there', () => {
+    // Bring-up runs this every time and must converge (hard rule 1).
+    const r = run({ TASK_LIST_ANSWER: '207' });
+    expect(r.status).toBe(0);
+    expect(existsSync(join(dir, 'mkcalendar.txt'))).toBe(false);
+  });
+
+  it('treats 405 as a collection that exists, not as a failure', () => {
+    // What a server answers for MKCALENDAR against an existing collection. A
+    // race with another bring-up lands here, and refusing would make a
+    // concurrent run fail for having lost by a millisecond.
+    const r = run({ TASK_LIST_ANSWER: '404', MKCALENDAR_ANSWER: '405' });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('openmig-tasks');
+  });
+
+  it('refuses when the collection cannot be made at all', () => {
+    // 403 from a server that reserves MKCALENDAR, with the collection really
+    // absent. Seeding on top of that would PUT tasks into nothing and the
+    // verification would be left to notice.
+    const r = run({ TASK_LIST_ANSWER: '404', MKCALENDAR_ANSWER: '403' });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('could not create the VTODO-only task list');
+  });
+
+  it('the VTODO carries a UID that travels with the tagged name', () => {
+    // The natural key is the UID (`taskNaturalKeyHash`, 0113). A tagged
+    // filename over an untagged UID would hash to the spent fixture's key and
+    // change nothing — the same trap the event fixture documents.
+    run({ SEED_DAV_TAG: 'tag001' }, ['--fresh']);
+    const bodies = readFileSync(join(dir, 'bodies.txt'), 'utf8');
+    expect(bodies).toContain('UID:openmig-demo-task-tag001-1');
+    expect(bodies).toContain('BEGIN:VTODO');
   });
 });
 
@@ -132,7 +226,7 @@ describe('it reports what is true, not what it attempted', () => {
     const r = run({ VERIFY_ANSWER: '' });
     // Every PUT still answered 201 in this run.
     expect(r.stdout).toContain('HTTP 201');
-    expect(r.stdout).toContain('events:0 contacts:0 files:0');
+    expect(r.stdout).toContain('events:0 tasks:0 contacts:0 files:0');
     expect(r.status).not.toBe(0);
     expect(r.stderr).toContain('seeding did not stick');
   });
@@ -156,7 +250,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
     }
   };
 
-  it('deletes exactly the six paths --fresh writes, and nothing else', () => {
+  it('deletes exactly the eight paths --fresh writes, and nothing else', () => {
     const r = run({ VERIFY_ANSWER: '' }, ['--remove', 'tag-1']);
     expect(r.status).toBe(0);
     const paths = deleted().map((u) => u.replace(/^.*remote\.php\/dav\//, ''));
@@ -166,10 +260,26 @@ describe('--remove takes one --fresh set back (0100)', () => {
         'addressbooks/users/tenant-b-source/contacts/openmig-demo-contact-tag-1-2.vcf',
         'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-1.ics',
         'calendars/tenant-b-source/personal/openmig-demo-event-tag-1-2.ics',
+        // The task pair (0113 T7), in the VTODO-only collection rather than
+        // beside the events. A `--fresh` set that seeded four domains and
+        // took back three would grow the demo source by a task a night.
+        'calendars/tenant-b-source/openmig-tasks/openmig-demo-task-tag-1-1.ics',
+        'calendars/tenant-b-source/openmig-tasks/openmig-demo-task-tag-1-2.ics',
         'files/tenant-b-source/openmig-demo-file-tag-1-1.txt',
         'files/tenant-b-source/openmig-demo-file-tag-1-2.txt',
       ].sort(),
     );
+  });
+
+  it('leaves the task list alone when the account has not got one', () => {
+    // `--remove` must never MKCALENDAR: creating a collection in order to
+    // empty it is a write on the take-back path. With the collection absent
+    // the other three domains are still taken back, and nothing is created.
+    const r = run({ VERIFY_ANSWER: '', TASK_LIST_ANSWER: '404' }, ['--remove', 'tag-9']);
+    expect(r.status).toBe(0);
+    expect(deleted()).toHaveLength(6);
+    expect(deleted().join('\n')).not.toContain('openmig-demo-task-');
+    expect(existsSync(join(dir, 'mkcalendar.txt'))).toBe(false);
   });
 
   it('converges when the set is already gone (404 is the outcome we wanted)', () => {
@@ -220,7 +330,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
     );
     expect(r.status).toBe(0);
     expect(deleted().every((u) => u.includes('tenant-b-target'))).toBe(true);
-    expect(deleted()).toHaveLength(6);
+    expect(deleted()).toHaveLength(8);
   });
 });
 
@@ -371,7 +481,8 @@ describe('--fresh seeds keys no tombstone can already own', () => {
       {
         SEED_DAV_TAG: 'tag001',
         VERIFY_ANSWER:
-          'openmig-demo-event-tag001-1 openmig-demo-contact-tag001-1 openmig-demo-file-tag001-1',
+          'openmig-demo-event-tag001-1 openmig-demo-task-tag001-1 ' +
+          'openmig-demo-contact-tag001-1 openmig-demo-file-tag001-1',
       },
       ['--fresh'],
     );
@@ -427,7 +538,7 @@ describe('--fresh seeds keys no tombstone can already own', () => {
       { SEED_DAV_TAG: 'tag001', VERIFY_ANSWER: 'openmig-demo-event-1 openmig-demo-contact-1' },
       ['--fresh'],
     );
-    expect(r.stdout).toContain('events:0 contacts:0 files:0');
+    expect(r.stdout).toContain('events:0 tasks:0 contacts:0 files:0');
     expect(r.status).not.toBe(0);
   });
 
@@ -466,8 +577,9 @@ describe('--fresh seeds keys no tombstone can already own', () => {
     // "event 1: HTTP 204 / event 2: HTTP 204 / present now — events:1".
     const r = run({
       VERIFY_ANSWER:
-        'openmig-demo-event-1 openmig-demo-event-2 openmig-demo-contact-1 openmig-demo-file-1',
+        'openmig-demo-event-1 openmig-demo-event-2 openmig-demo-task-1 ' +
+        'openmig-demo-contact-1 openmig-demo-file-1',
     });
-    expect(r.stdout).toContain('events:2 contacts:1 files:1');
+    expect(r.stdout).toContain('events:2 tasks:1 contacts:1 files:1');
   });
 });
