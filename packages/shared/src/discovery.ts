@@ -81,8 +81,30 @@ export interface DiscoveryCollection {
   readonly excluded?: string;
 }
 
-/** The four sync domains discovery covers. */
-export type DiscoveryDomain = 'email' | 'calendar' | 'contact' | 'file';
+/**
+ * THE sync domains — the one list, in the order a person ticks them.
+ *
+ * A capability list belongs in one table, and a second copy disagrees with the
+ * first exactly once (the rule `PROVIDER_ACCOUNT_DOMAINS` already carries).
+ * This union used to be typed out by hand in eighty places across eighteen
+ * files — the ledger stores, the orchestration seams, the core engines, the
+ * managed metering, the web services — so a fifth domain was eighty edits and
+ * a drift bug in whichever one was missed. That is #597's shape, which this
+ * repository has paid for twice.
+ *
+ * A `const` array rather than a bare union because both halves are needed and
+ * only one may be authored: the TYPE for what a value may be, and the LIST for
+ * code that has to walk every domain. Deriving the first from the second is
+ * what stops them disagreeing.
+ *
+ * `scripts/a-domain-union-typed-out-by-hand.unit.test.ts` fails the build on a
+ * new copy of either, and names every place that legitimately keeps its own
+ * (workplan 0113 T1).
+ */
+export const DISCOVERY_DOMAINS = ['email', 'calendar', 'contact', 'file'] as const;
+
+/** The sync domains discovery covers. */
+export type DiscoveryDomain = (typeof DISCOVERY_DOMAINS)[number];
 
 /** A stored discovery result for one domain (T2). Extends the counts with persistence metadata. */
 export interface DiscoveryRecord extends DomainDiscovery {

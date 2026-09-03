@@ -25,6 +25,7 @@
  */
 
 import apiClient from './api.ts';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 /** One organisation, as an operator sees it. Metadata only, by construction. */
 export interface SupportTenant {
@@ -87,7 +88,7 @@ export interface SupportInvoice {
  * see it.
  */
 export interface SupportMigrationDomain {
-  readonly domain: 'email' | 'calendar' | 'contact' | 'file';
+  readonly domain: DiscoveryDomain;
   readonly state: string;
   readonly started_at: string | null;
   readonly updated_at: string;

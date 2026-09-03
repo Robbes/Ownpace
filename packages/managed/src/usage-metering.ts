@@ -20,6 +20,7 @@ import * as billingSchema from './schema-managed.ts';
 // meters FROM stay in the ledger; the table it meters INTO is billing's.
 const schema = { ...ledgerSchema, ...billingSchema };
 import type { TenantId, MappingId } from '@openmig/shared';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 export interface UsageMetricsResult {
   storageBytes: number;
@@ -31,7 +32,7 @@ export interface UsageMetricsResult {
 export interface ComputeUsageInput {
   tenantId: TenantId;
   mappingId: MappingId;
-  domain: 'email' | 'calendar' | 'contact' | 'file';
+  domain: DiscoveryDomain;
   startedAt: Date;
   completedAt: Date;
   periodStart: string;
@@ -41,7 +42,7 @@ export interface ComputeUsageInput {
 export interface ApiCallUsageInput {
   tenantId: TenantId;
   mappingId: MappingId;
-  domain: 'email' | 'calendar' | 'contact' | 'file';
+  domain: DiscoveryDomain;
   periodStart: string;
   periodEnd: string;
 }

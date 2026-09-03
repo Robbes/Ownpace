@@ -11,6 +11,7 @@ import {
 import type { PgDatabase } from './db.ts';
 import { eq, and, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
  * PostgreSQL implementation of MigrationStatusStore.
@@ -40,7 +41,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
   async initDomainStatus(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
   ): Promise<void> {
     // Idempotent upsert: insert if not exists, otherwise no-op
     // Using raw SQL to ensure correct handling of composite unique constraint
@@ -54,7 +55,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
   async markInProgress(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
   ): Promise<void> {
     await this.db
       .update(schemaPg.migrationStatus)
@@ -84,7 +85,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
   async markCompleted(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     metrics?: PassMetrics,
   ): Promise<void> {
     await this.db
@@ -135,7 +136,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
   async markFailed(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     error: string,
   ): Promise<void> {
     await this.db
@@ -164,7 +165,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
   async markSkipped(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
   ): Promise<void> {
     await this.db
       .update(schemaPg.migrationStatus)
@@ -227,7 +228,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       id: row.status.id,
       tenantId: row.status.tenantId as TenantId,
       mappingId: row.status.mappingId as MappingId,
-      domain: row.status.domain as 'email' | 'calendar' | 'contact' | 'file',
+      domain: row.status.domain as DiscoveryDomain,
       state: row.status.state as
         | 'pending'
         | 'in_progress'

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { ProbeOutcome } from '@openmig/shared';
 import { FAILURE_CATEGORIES, MAPPING_LIFECYCLES } from '@openmig/shared';
 import type { DiscoveryRecord, MappingLifecycle } from '@openmig/shared';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 // Schema definitions
 //
@@ -253,7 +254,7 @@ export interface CreateMappingInput {
     mailPort?: number;
   };
   syncConfig: {
-    domains: Array<'email' | 'calendar' | 'contact' | 'file'>;
+    domains: Array<DiscoveryDomain>;
     schedule?: string;
   };
   /** Absent/empty = merge into the account root (the default). */
@@ -559,7 +560,7 @@ export const mappingApi = {
       // send both and leave the server to pick — the server's schema is a
       // `oneOf` for the same reason.
       | {
-          domains: ReadonlyArray<'email' | 'calendar' | 'contact' | 'file'>;
+          domains: ReadonlyArray<DiscoveryDomain>;
           clientId?: string;
           clientSecret?: string;
         },

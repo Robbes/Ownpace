@@ -70,6 +70,7 @@ import { tenantMember } from '@openmig/managed/schema-managed';
 import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
 import { log } from '@openmig/shared';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 /** One demo tenant's fixed identifiers (deterministic → idempotent re-runs). */
 interface DemoTenant {
@@ -82,7 +83,7 @@ interface DemoTenant {
   readonly targetMailboxId: string;
   readonly mappingId: string;
   /** Domains this tenant's single source/target pair can actually serve (see file header). */
-  readonly domains: readonly ('email' | 'calendar' | 'contact' | 'file')[];
+  readonly domains: readonly (DiscoveryDomain)[];
   readonly source: { readonly kind: 'imap' | 'nextcloud'; readonly config: Record<string, unknown>; readonly credentials: Record<string, string> };
   readonly target: { readonly kind: 'jmap' | 'nextcloud'; readonly config: Record<string, unknown>; readonly credentials: Record<string, string> };
 }

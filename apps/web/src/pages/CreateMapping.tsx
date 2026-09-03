@@ -56,11 +56,10 @@ import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { SOURCE_CARDS, TARGET_CARDS } from '../components/front-door-cards.ts';
 import { useMutation } from '@tanstack/react-query';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 type Step = 'source' | 'target' | 'migration' | 'review';
 
-// Matches the shared/API domain enum so the wizard submits a schema-valid config.
-type Domain = 'email' | 'calendar' | 'contact' | 'file';
 
 interface FormData {
   name: string;
@@ -118,7 +117,7 @@ interface FormData {
   targetSsl: boolean;
   /** '' = merge into the account root (the default). See wizard.targetPrefix.hint. */
   targetFolderPrefix: string;
-  domains: Domain[];
+  domains: DiscoveryDomain[];
   schedule: string;
 }
 
@@ -193,7 +192,7 @@ const steps: { id: Step; nameKey: StringKey; icon: React.FC<React.SVGProps<SVGSV
 ];
 
 const dataTypes: {
-  id: Domain;
+  id: DiscoveryDomain;
   nameKey: StringKey;
   icon: React.FC<React.SVGProps<SVGSVGElement>>;
   hintKey: StringKey;
@@ -980,7 +979,7 @@ const CreateMapping: React.FC = () => {
     }
   };
 
-  const toggleDomain = (domain: Domain) => {
+  const toggleDomain = (domain: DiscoveryDomain) => {
     setFormData((prev) => ({
       ...prev,
       domains: prev.domains.includes(domain)
@@ -1009,7 +1008,7 @@ const CreateMapping: React.FC = () => {
     (formData.targetConnectionId
       ? reusableTargets.find((c) => c.id === formData.targetConnectionId)?.qualification
       : undefined) ?? probeResults.target?.qualification;
-  const measuredAnswerFor = (d: Domain) => qualifiedAnswerFor(targetQualification, d);
+  const measuredAnswerFor = (d: DiscoveryDomain) => qualifiedAnswerFor(targetQualification, d);
 
   /**
    * THE SELECTION FITS WHAT THE MIGRATION CAN CARRY (owner, 2026-09-03: "it

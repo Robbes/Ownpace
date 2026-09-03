@@ -27,6 +27,7 @@ import {
 } from '@openmig/shared';
 import { log, isLevelEnabled, type DiscardedListing, type PassMetrics } from '@openmig/shared';
 import type { BudgetPause, ByteBudgetState, DownloadMeter } from '@openmig/shared';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 export type { PassMetrics };
 
@@ -351,7 +352,7 @@ function decided(
 export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike = FolderLike> {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
-  readonly domain: 'email' | 'calendar' | 'contact' | 'file';
+  readonly domain: DiscoveryDomain;
   readonly source: Source;
   readonly target: Target;
   readonly ledger: Ledger;
@@ -1600,7 +1601,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 async function resolveReportedRemovals(args: {
   tenantId: TenantId;
   mappingId: MappingId;
-  domain: 'email' | 'calendar' | 'contact' | 'file';
+  domain: DiscoveryDomain;
   ledger: Ledger;
   removals: ReadonlyArray<string>;
   seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
@@ -1690,7 +1691,7 @@ async function resolveReportedRemovals(args: {
 async function resolveDiscardedItems(args: {
   tenantId: TenantId;
   mappingId: MappingId;
-  domain: 'email' | 'calendar' | 'contact' | 'file';
+  domain: DiscoveryDomain;
   ledger: Ledger;
   discarded: ReadonlyArray<string>;
   seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
@@ -1778,7 +1779,7 @@ async function resolveDiscardedItems(args: {
 async function detectPathKeyedMoves(args: {
   tenantId: TenantId;
   mappingId: MappingId;
-  domain: 'email' | 'calendar' | 'contact' | 'file';
+  domain: DiscoveryDomain;
   ledger: Ledger;
   seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
   createdThisPass: ReadonlyArray<{ naturalKeyHash: string; contentHash: string; collection: string }>;

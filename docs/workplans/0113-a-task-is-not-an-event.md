@@ -2,7 +2,7 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
-**2026-09-03: T3b, first half — an object is labelled what it is.** `parseCalendarObject`
+**2026-09-03 (latest): T3b, first half — an object is labelled what it is.** `parseCalendarObject`
 stamped `type: 'event'` on every object it saw. That was wrong for two of RFC 5545's three
 components and reachable today rather than hypothetically: `sync-collection` (RFC 6578) is
 component-agnostic, so a MIXED collection — Nextcloud's default calendar declares
@@ -27,8 +27,40 @@ type" (RFC 4791 §5.2.3), and so does a collection whose declaration this parse 
 recognise. Both are kept. Reading silence as VTODO would hide a real calendar from somebody
 who has one, which is a worse failure than the one being fixed.
 
-*(T0's decisions and T1/T2 land in their own pull requests; this one is independent of both
-and can merge in any order.)*
+**2026-09-03 (later still): T2 built — the ledger accepts `task` before anything sends it.**
+Migration `0036_a_task_is_not_an_event.sql` widens **nine** CHECK constraints: eight `domain`
+columns (seven from the baseline, one from 0035's `path_lifecycle`) and `item.item_type`,
+whose vocabulary says 'mail' where the others say 'email' and whose column the code has never
+written. The plan said "nine plus `item_item_type_check`"; measured, it is eight plus that
+one. Additive only — every existing value stays valid, no row is read or written, and a second
+application is a no-op.
+
+`DISCOVERY_DOMAINS` still names four, deliberately: the database accepts a value nobody sends,
+which is inert, rather than code sending a value the database refuses, which is a pass that
+dies half-copied. The Drizzle mirror in `schema-pg.ts` now names `DISCOVERY_DOMAINS` instead
+of listing the values, so it can only ever be narrower than what Postgres accepts — and
+`scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts` fails the build if a domain
+reaches the shared list without a migration behind it. **`journal` is asserted absent**: the
+third component in the same iCalendar enum, deliberately out of scope, and now out of the
+database too.
+
+Verified against a real Postgres (`scripts/local-pg.sh`), not reasoned about: all nine
+constraints read back as accepting `task`, one row inserted into each of the eight domain
+tables plus `item`, and `journal` still refused by name.
+
+**2026-09-03 (later): T1 built — the domain has one name.** The owner, in the same
+message that queued this work: *"add the task-objectkind (one of the latest workplans). Work
+on this autonomously."* That is decision 1, yes. Decisions 2 and 3 are taken as this plan's
+own recommendations — **its own tick**, and **Google Tasks out of v1** (T6 stays visible and
+unstarted). Decision 4 waits for the owner's Soverin account to answer.
+
+T1 measured **80** hand-written copies of the union across **18** files, not 73 — the count in
+the table below was taken before #734–#738 landed. All 80 are gone: the list lives once, in
+`DISCOVERY_DOMAINS`, with the type derived from it, and
+`scripts/a-domain-union-typed-out-by-hand.unit.test.ts` fails the build on a new copy of
+either. Three local aliases for the same concept (`SyncDomain` — declared twice in one
+package — `PathDomain`, and two web-local `Domain`s) are gone with them. No behaviour changed;
+the guard's exception list is now the checklist T2 and T5 work through.
 
 **2026-09-03: drafted for the owner's decision, nothing built.** The owner, walking his own
 Soverin account: *"i found 'Tasks', is that a Dav to? Perhaps we need to add it as
@@ -40,9 +72,9 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 Decide: its own tick, and how far v1 reaches | 📋 Owner decision | §"The owner's decisions" 1–3. Nothing below starts without 1. |
-| T1 The domain has ONE name | 📋 Planned | `DiscoveryDomain` is spelled out inline as a union **73 times across 17 files**. A fifth domain added on top of that is 73 edits and a drift bug in whichever one is missed. Collapse them onto the type first, with a guard that fails on a new inline copy. No behaviour changes; this is the task that makes every one below cheap. |
-| T2 The ledger widens | 📋 Planned (needs T1) | Nine `CHECK` constraints in `0001_baseline.sql` pin the four domains, plus `item_item_type_check`. One additive migration widens them; nothing is rewritten, nothing is dropped. |
+| T0 Decide: its own tick, and how far v1 reaches | ✅ Decided 2026-09-03 | 1: **build it** (the owner queued the work). 2: **its own tick**. 3: **Google Tasks out of v1**. 2 and 3 are this plan's own recommendations, taken in the owner's absence and reversible by a word from him. |
+| T1 The domain has ONE name | ✅ Done | Was **80 inline copies across 18 files** (73 when this was written; #734–#738 added seven). Now one `DISCOVERY_DOMAINS` in `packages/shared/src/discovery.ts` with `DiscoveryDomain` derived from it, three redundant aliases removed, and `scripts/a-domain-union-typed-out-by-hand.unit.test.ts` failing the build on a new copy of the type OR of the value list — with every legitimate exception named and two-way, so it cannot go stale. Proved by breaking. No behaviour changed. |
+| T2 The ledger widens | ✅ Done | `0036_a_task_is_not_an_event.sql`: nine CHECKs widened (eight `domain` columns — seven baseline, one from 0035 — plus the legacy `item.item_type`). Additive, re-runnable, verified against a real Postgres: nine constraints accept `task`, a row lands in each of the eight tables, and `journal` is still refused. The Drizzle mirror names `DISCOVERY_DOMAINS` rather than listing values, and a guard fails the build on a domain that reaches the code without a migration. Proved by breaking. |
 | T3 The source tells a task list from a calendar | 🟡 (a) done, (b) half done | **(a)** `listCollections` now PROPFINDs `supported-calendar-component-set` (RFC 4791 §5.2.3) and drops a collection that does not carry `VEVENT`, so a VTODO-only list stops being counted among "5 calendars visible". The declared set rides on `CalendarFolder.components` as data; an UNDECLARED set is a yes for every component, per the RFC and 0105's never-guess rule. Proved by breaking. **(b) half:** each object's `type` is now read from its own `BEGIN:` line instead of stamped `'event'` — reachable today, because `sync-collection` is component-agnostic and a MIXED collection hands the parser its tasks along with its events. Still to come: carrying task collections as their own kind, which needs the task domain (T5). |
 | T4 The writer writes a task | 📋 Planned (needs T3) | The read-back's `comp-filter` follows the component being written; `MKCALENDAR` names the component set when a collection has to be created; a target collection that cannot take the component is refused **by name**, never by a silent 403. |
 | T5 The domain surfaces | 📋 Planned (needs T1, T2, T3) | The matrices, the qualification's fifth face and its badge, the wizard's fifth tick, the discovery counts, the confirm screen, EN/NL strings, the icon. |
