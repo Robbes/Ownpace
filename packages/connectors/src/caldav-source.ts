@@ -12,7 +12,14 @@
  * - Case-insensitive UID handling (UIDs are lowercased for comparison)
  */
 
-import type { CalendarSource, CalendarFolder, SyncCursor, RawCalendarEvent } from '@openmig/shared';
+import type {
+  CalendarSource,
+  CalendarFolder,
+  CalendarComponent,
+  SyncCursor,
+  RawCalendarEvent,
+} from '@openmig/shared';
+import { CALENDAR_COMPONENTS, collectionCarries } from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
 import { davRefusalBody } from './gdata-refusal.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
@@ -254,6 +261,7 @@ export class CalDAVSource implements CalendarSource {
           <D:resourcetype/>
           <C:calendar-description/>
           <C:calendar-timezone/>
+          <C:supported-calendar-component-set/>
           <CR:color xmlns:CR="urn:ietf:params:xml:ns:carddav"/>
         </D:prop>
       </D:propfind>`;
@@ -421,6 +429,34 @@ export class CalDAVSource implements CalendarSource {
   }
 
   /**
+   * The components one collection declared, or `undefined` when it declared
+   * nothing (RFC 4791 §5.2.3).
+   *
+   * Namespace-agnostic like every other parse in this file, and scoped to the
+   * `supported-calendar-component-set` element rather than run over the whole
+   * response: a `<C:comp name="VEVENT"/>` can legitimately appear elsewhere in
+   * a multistatus, and reading one of those as this collection's declaration
+   * would answer a question the server never asked.
+   *
+   * A declared set with no recognised `comp` children comes back `undefined`
+   * — read as undeclared, which keeps the collection. The alternative reading
+   * ("declares nothing, so holds nothing") would drop a real calendar on a
+   * server whose spelling this parse did not anticipate, and 0105's rule is
+   * that a thing we could not measure is never a no.
+   */
+  static parseComponentSet(responseXml: string): ReadonlyArray<CalendarComponent> | undefined {
+    const set = responseXml.match(
+      /<[A-Za-z]+:supported-calendar-component-set[^>]*>([\s\S]*?)<\/[A-Za-z]+:supported-calendar-component-set>/i,
+    );
+    if (!set || !set[1]) return undefined;
+    const known = new Set<string>(CALENDAR_COMPONENTS);
+    const components = [...set[1].matchAll(/<[A-Za-z]*:?comp\s[^>]*name="([^"]+)"/gi)]
+      .map((m) => m[1]!.toUpperCase())
+      .filter((name) => known.has(name)) as CalendarComponent[];
+    return components.length > 0 ? [...new Set(components)] : undefined;
+  }
+
+  /**
    * Parse collections from PROPFIND multi-status response.
    */
   private parseCollectionsResponse(body: string, _homeSet: string): CalendarFolder[] {
@@ -462,6 +498,22 @@ export class CalDAVSource implements CalendarSource {
       const colorMatch = responseXml.match(/<[A-Za-z]+:color[^>]*>([^<]*)<\/[A-Za-z]+:color>/i);
       const color = colorMatch && colorMatch[1] ? colorMatch[1].trim() : undefined;
 
+      // WHAT THIS COLLECTION SAYS IT HOLDS (RFC 4791 §5.2.3).
+      //
+      // A task list is not a different kind of collection — it is a calendar
+      // collection whose `supported-calendar-component-set` says VTODO. Until
+      // this property was asked for, there was nothing here to tell them apart,
+      // so a Nextcloud "Tasks" list was returned as a calendar and counted as
+      // one: the owner's "5 calendars visible" could include a list holding no
+      // events at all (workplan 0113).
+      //
+      // Skipped, not renamed: this source's `listFolders` answers the CALENDAR
+      // domain, and a collection that carries no VEVENT has nothing that domain
+      // can copy. It becomes visible again under the task domain (0113 T3b),
+      // which reads the same property for VTODO.
+      const components = CalDAVSource.parseComponentSet(responseXml);
+      if (!collectionCarries(components, 'VEVENT')) continue;
+
       // Skip Nextcloud internal collections. MUST check the stable path segment, not the
       // human-readable displayname -- confirmed live against Nextcloud 34 for the sibling
       // CardDAV filter (same bug pattern): internal collections get a friendly displayname
@@ -480,6 +532,7 @@ export class CalDAVSource implements CalendarSource {
         description,
         timezone,
         color,
+        ...(components ? { components } : {}),
       });
     }
 
