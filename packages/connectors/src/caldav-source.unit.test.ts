@@ -12,7 +12,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CalDAVSource } from './caldav-source.ts';
 import type { CalDAVSourceConfig, CalDAVSyncToken } from './caldav-source.types.ts';
-import type { HttpClient, HttpResponse } from './dav-http.types.ts';
+import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 
 // Mock HTTP client for testing
 function createMockHttpClient(response: HttpResponse): HttpClient {
@@ -224,7 +224,7 @@ describe('CalDAVSource', () => {
 
     it('the PROPFIND actually asks for the property — a parse of something never requested finds nothing', async () => {
       const httpClient = {
-        request: vi.fn(async () => ({
+        request: vi.fn(async (_options: HttpRequestOptions) => ({
           status: 207,
           headers: {},
           body: multistatus(collection('/dav/calendars/user/test/personal/', 'Personal')),
@@ -235,7 +235,7 @@ describe('CalDAVSource', () => {
         { httpClient },
       );
       await s.listFolders();
-      const bodies = httpClient.request.mock.calls.map(([o]) => String((o as { body?: string }).body ?? ''));
+      const bodies = httpClient.request.mock.calls.map(([o]) => String(o.body ?? ''));
       expect(bodies.some((b) => b.includes('supported-calendar-component-set'))).toBe(true);
     });
   });
