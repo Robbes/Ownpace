@@ -20,6 +20,7 @@ import {
   calendarNaturalKeyHash,
   contactNaturalKeyHash,
   fileNaturalKeyHash,
+  taskNaturalKeyHash,
 } from '@openmig/shared';
 import type { VerificationDeps } from './verification.ts';
 import type { DiscoveryDomain } from '@openmig/shared';
@@ -49,7 +50,7 @@ export interface RealVerificationDeps {
    */
   targetReindexer?: TargetReindexer;
   /** Per-domain reindexers. Takes precedence over `targetReindexer` for mail. */
-  targetReindexers?: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files', TargetReindexer>>;
+  targetReindexers?: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files' | 'tasks', TargetReindexer>>;
   verificationReader: LedgerVerificationReader;
 }
 
@@ -62,7 +63,7 @@ export function createRealVerificationDeps(
   const { tenantId, mappingId, verificationReader } = deps;
 
   const reindexerFor = (
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
   ): TargetReindexer | undefined =>
     deps.targetReindexers?.[dataType] ?? (dataType === 'mail' ? deps.targetReindexer : undefined);
 
@@ -101,7 +102,7 @@ async function getSourceCountFromLedger(
   reader: LedgerVerificationReader,
   tenantId: TenantId,
   mappingId: MappingId,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files'
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'
 ): Promise<number> {
   const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
   return reader.countItems(tenantId, mappingId, domain);
@@ -115,7 +116,7 @@ async function getTargetCountFromReindexer(
   reader: LedgerVerificationReader,
   tenantId: TenantId,
   mappingId: MappingId,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files'
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'
 ): Promise<number> {
   if (!targetReindexer) {
     // Never fall back to the ledger count. That returned the SOURCE figure as
@@ -148,7 +149,7 @@ async function getSourceSamplesFromLedger(
   reader: LedgerVerificationReader,
   tenantId: TenantId,
   mappingId: MappingId,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
   count: number
 ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>> {
   const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
@@ -169,7 +170,7 @@ async function getTargetSamplesFromReindexer(
   reader: LedgerVerificationReader,
   tenantId: TenantId,
   mappingId: MappingId,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
   count: number,
   naturalKeyHashes?: ReadonlyArray<string>
 ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>> {
@@ -256,7 +257,7 @@ async function findMissingOnTarget(
   reader: LedgerVerificationReader,
   tenantId: TenantId,
   mappingId: MappingId,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
   targetReindexer?: TargetReindexer
 ): Promise<Array<{ id: string; sourceRef: string }>> {
   const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
@@ -296,7 +297,7 @@ async function findExtraOnTarget(
   reader: LedgerVerificationReader,
   tenantId: TenantId,
   mappingId: MappingId,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
   targetReindexer?: TargetReindexer
 ): Promise<Array<{ id: string; targetRef: string }>> {
   if (!targetReindexer) {
@@ -332,7 +333,7 @@ async function getTotalBytesFromLedger(
   reader: LedgerVerificationReader,
   tenantId: TenantId,
   mappingId: MappingId,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files'
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'
 ): Promise<number> {
   const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
   return reader.totalSizeBytes(tenantId, mappingId, domain);
@@ -351,7 +352,7 @@ async function getTotalBytesFromReindexer(
   reader: LedgerVerificationReader,
   tenantId: TenantId,
   mappingId: MappingId,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
 ): Promise<number | null> {
   if (!targetReindexer) return null;
 
@@ -405,7 +406,7 @@ async function getTotalBytesFromReindexer(
  * compares a target key against a ledger hash must go through here first.
  */
 function hashTargetNaturalKey(
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files',
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
   rawKey: string,
 ): string {
   switch (dataType) {
@@ -417,6 +418,13 @@ function hashTargetNaturalKey(
       return contactNaturalKeyHash(rawKey);
     case 'files':
       return fileNaturalKeyHash(rawKey);
+    case 'tasks':
+      // NOT `calendarNaturalKeyHash`, and that is the whole point of the
+      // separate function: a VTODO and a VEVENT can legitimately share a UID,
+      // and hashing both under `cal:` would make them collide on one ledger
+      // row — the second one adopted as already-migrated and never copied
+      // (workplan 0113).
+      return taskNaturalKeyHash(rawKey);
   }
 }
 
@@ -424,7 +432,7 @@ function hashTargetNaturalKey(
  * Map data type to domain string used in the ledger
  */
 function mapDataTypeToDomain(
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files'
+  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'
 ): string {
   switch (dataType) {
     case 'mail':
@@ -435,6 +443,8 @@ function mapDataTypeToDomain(
       return 'contact';
     case 'files':
       return 'file';
+    case 'tasks':
+      return 'task';
     default:
       throw new Error(`Unknown data type: ${dataType}`);
   }

@@ -40,6 +40,8 @@ import {
   type DavEndpoint,
   buildCalendarSource,
   buildCalendarTarget,
+  buildTaskSource,
+  buildTaskTarget,
   buildContactSource,
   buildFileSource,
 } from './dav-factories.ts';
@@ -567,9 +569,27 @@ export function buildDomainDeps(
   cursors?: CursorStore;
   concurrency?: number;
 }>;
+/**
+ * Tasks (workplan 0113). The same shapes calendar uses — a task IS a calendar
+ * object on the wire — differing only in which component the source asks for
+ * and which key space the ledger writes.
+ */
 export function buildDomainDeps(
   config: MappingConfig,
-  domain: 'calendar' | 'contact' | 'file',
+  domain: 'task',
+  options?: LedgerOptions,
+): WithClose<{
+  tenantId: TenantId;
+  mappingId: MappingId;
+  source: CalendarSource;
+  target: CalendarTargetWriter;
+  ledger: Ledger;
+  cursors?: CursorStore;
+  concurrency?: number;
+}>;
+export function buildDomainDeps(
+  config: MappingConfig,
+  domain: 'calendar' | 'contact' | 'file' | 'task',
   options?: LedgerOptions,
 ): WithClose<{
   tenantId: TenantId;
@@ -598,7 +618,7 @@ export function buildDomainDeps(
 
 function buildDomainDepsWithLedger(
   config: MappingConfig,
-  domain: 'calendar' | 'contact' | 'file',
+  domain: 'calendar' | 'contact' | 'file' | 'task',
   opened: { ledger: PgLedger; cursors: PgCursorStore; closable: { close: () => Promise<void> } },
 ): WithClose<{
   tenantId: TenantId;
@@ -622,6 +642,9 @@ function buildDomainDepsWithLedger(
       break;
     case 'file':
       domainConfig = config.domains?.files;
+      break;
+    case 'task':
+      domainConfig = config.domains?.tasks;
       break;
   }
 
@@ -772,6 +795,22 @@ function buildDomainDepsWithLedger(
         davEndpoint(targetConfig, protocol === 'jmap' ? 'jmap' : 'webdav', 'target'),
         targetDeps,
       );
+      break;
+    }
+    case 'task': {
+      // A task is a calendar object on the wire, so this is the calendar
+      // branch with two differences and no third: the SOURCE is told to serve
+      // VTODO (so it lists only collections carrying tasks and yields only
+      // tasks — 0113 T3b), and there is no scheduling verdict to record,
+      // because a to-do list invites nobody and RFC 6638 has nothing to say
+      // about it.
+      //
+      // No Google branch either: Google's CalDAV supports neither VTODO nor
+      // VJOURNAL (its own developer guide), so there is no Google task source
+      // to build. A `google` account never reaches here — `task` is not one of
+      // the faces PROVIDER_ACCOUNT_DOMAINS gives it.
+      source = buildTaskSource(davEndpoint(sourceConfig, 'caldav', 'source'), domainThrottleLimiter);
+      target = buildTaskTarget(davEndpoint(targetConfig, 'caldav', 'target'), targetDeps);
       break;
     }
   }

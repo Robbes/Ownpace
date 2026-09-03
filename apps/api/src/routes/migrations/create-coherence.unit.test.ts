@@ -46,6 +46,14 @@ describe('target/domain coherence — the server refuses, naming both sides', ()
     expect(msg).toContain("carries 'contact' only");
   });
 
+  it('refuses carddav + task — a task list is a CALENDAR collection (0113 T5)', () => {
+    const msg = refusalText(
+      body({ targetType: 'carddav', syncConfig: { domains: ['contact', 'task'] } }),
+    );
+    expect(msg).toContain('CardDAV');
+    expect(msg).toContain("'task'");
+  });
+
   it('refuses jmap + calendar, naming the parked owner decision (0031 T1)', () => {
     const msg = refusalText(body({ syncConfig: { domains: ['email', 'calendar'] } }));
     expect(msg).toContain('no JMAP calendar target');
@@ -57,6 +65,11 @@ describe('target/domain coherence — the server refuses, naming both sides', ()
       { targetType: 'jmap', domains: ['email', 'contact', 'file'] },
       { targetType: 'imap', domains: ['email'] },
       { targetType: 'caldav', domains: ['calendar'] },
+      // The create door must ACCEPT the fifth tick, or the wizard offers a
+      // choice the server refuses (0113 T5). It reaches the schema through
+      // the same `DISCOVERY_DOMAINS` the ledger's CHECKs were widened for.
+      { targetType: 'caldav', domains: ['calendar', 'task'] },
+      { targetType: 'caldav', domains: ['task'] },
       { targetType: 'carddav', domains: ['contact'] },
       { targetType: 'webdav', domains: ['file'] },
       // The account-shaped kind (0106 T4a): both DAV domains through one row.

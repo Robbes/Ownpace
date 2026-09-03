@@ -28,17 +28,17 @@ import type { DomainStatusReport, FailureCategory } from '@openmig/shared';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
-import type { StringKey } from '../i18n/index.tsx';
 // One map, shared with the operator's support screen (0110 T4) so the person
 // who phones and the person they phone read the same sentence.
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
+// And one map for the domain words, shared with the confirm screen and the
+// probe text — this was the fifth copy of it (workplan 0113 T5).
+import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 
-export const DOMAIN_KEY: Record<DomainStatusReport['domain'], StringKey> = {
-  email: 'domain.email',
-  calendar: 'domain.calendar',
-  contact: 'domain.contact',
-  file: 'domain.file',
-};
+export const DOMAIN_KEY = DOMAIN_STRING_KEY satisfies Record<
+  DomainStatusReport['domain'],
+  unknown
+>;
 
 /** Only what the strip renders — `DomainStatusReport` satisfies this, and so
  *  does the detail schema's parsed row. */

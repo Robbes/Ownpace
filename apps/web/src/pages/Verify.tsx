@@ -29,6 +29,7 @@ import { useT, useFormatters } from '../i18n/index.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import MappingHubLink from '../components/MappingHubLink.tsx';
 import type { StringKey } from '../i18n/index.tsx';
+import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { serverMessage } from '../services/api.ts';
 
 // The status WORD (PASS/FAIL/…) stays the server's vocabulary; the hover help
@@ -42,11 +43,18 @@ const STATUS_STYLE: Record<DataTypeVerificationStatus, { icon: React.ReactNode; 
 };
 
 // Reuses the queue screens' domain keys — one vocabulary, one translation.
+//
+// The verification report has a THIRD spelling of the domains: plural, and
+// `mail`/`contacts`/`files` where the wizard says `email`/`contact`/`file`.
+// So this maps its words onto the one word map rather than restating the
+// words themselves (workplan 0113 T5) — a total record, so a sixth domain is
+// a compile error here rather than a row on the gate with no name.
 const DOMAIN_KEY: Record<DataTypeVerification['dataType'], StringKey> = {
-  mail: 'domain.email',
-  calendar: 'domain.calendar',
-  contacts: 'domain.contact',
-  files: 'domain.file',
+  mail: DOMAIN_STRING_KEY.email,
+  calendar: DOMAIN_STRING_KEY.calendar,
+  contacts: DOMAIN_STRING_KEY.contact,
+  files: DOMAIN_STRING_KEY.file,
+  tasks: DOMAIN_STRING_KEY.task,
 };
 
 function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {

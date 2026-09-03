@@ -92,6 +92,7 @@ function deps(overrides: {
       verifyCalendar: overrides.verifyCalendar ?? false,
       verifyContacts: overrides.verifyContacts ?? false,
       verifyFiles: overrides.verifyFiles ?? false,
+      verifyTasks: false,
     },
     verificationReader: ledgerReader(),
     targetReindexers: overrides.targetReindexers ?? { mail: mailReindexer() },
@@ -180,12 +181,19 @@ describe('verification domain scope', () => {
   });
 
   it('does not let skipped domains inflate the score', async () => {
-    // Mail is genuinely broken; three domains are switched off. Averaging four
-    // domains where three score a perfect 1.0 would hide it.
+    // Mail is genuinely broken; every other domain is switched off. Averaging
+    // the whole set, where the others score a perfect 1.0, would hide it.
     const broken = createRealVerificationDeps({
       tenantId: TENANT,
       mappingId: MAPPING,
-      config: { ...BASE_CONFIG, verifyMail: true, verifyCalendar: false, verifyContacts: false, verifyFiles: false },
+      config: {
+        ...BASE_CONFIG,
+        verifyMail: true,
+        verifyCalendar: false,
+        verifyContacts: false,
+        verifyFiles: false,
+        verifyTasks: false,
+      },
       verificationReader: ledgerReader(),
       targetReindexers: { mail: reindexer([]) }, // target holds nothing
     });

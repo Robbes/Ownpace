@@ -40,6 +40,7 @@ import {
   withDeploymentDropboxClient,
   withDeploymentGoogleClient,
 } from '@openmig/shared';
+import { QUALIFICATION_KEYS, type QualificationKey } from '@openmig/shared';
 import type { DiscoveryDomain, ProbeUnit } from '@openmig/shared';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint.ts';
@@ -113,6 +114,13 @@ export interface AccountQualification {
     readonly calendar: QualifiedDomain;
     readonly contact: QualifiedDomain;
     readonly file: QualifiedDomain;
+    /**
+     * Tasks (workplan 0113 T5). A face of its own rather than a property of
+     * the calendar one, because it is a separate answer: a DAV account can
+     * hold calendars and no task list, or a task list and no calendar, and
+     * the calendar face's count was never evidence about either.
+     */
+     readonly task: QualifiedDomain;
   };
   /** Folded in when the calendar face answered yes (0105 T0's verdict). */
   readonly scheduling?: SchedulingVerdict;
@@ -141,12 +149,12 @@ const NOT_ASKABLE_MAIL =
   'mail is qualified on an imap or jmap connection.';
 const NOT_ASKABLE_DAV =
   'This connection carries no DAV address, so this face was not measured — ' +
-  'calendars, contacts and files are qualified on a DAV connection.';
+  'calendars, task lists, contacts and files are qualified on a DAV connection.';
 
 /** The English noun for a unit, in the right number — the fallback wording;
  *  a screen words the unit itself from `count` and `unit`. */
 function counted(count: number, unit: ProbeUnit): string {
-  const noun = unit === 'addressBook' ? 'address book' : unit;
+  const noun = unit === 'addressBook' ? 'address book' : unit === 'taskList' ? 'task list' : unit;
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
@@ -242,7 +250,9 @@ export async function qualifyAccount(
       'folder',
     );
     const notAskable: QualifiedDomain = { answer: 'unknown', detail: NOT_ASKABLE_DAV };
-    return { domains: { mail, calendar: notAskable, contact: notAskable, file: notAskable } };
+    return {
+      domains: { mail, calendar: notAskable, contact: notAskable, file: notAskable, task: notAskable },
+    };
   }
 
   if (kind === 'jmap') {
@@ -293,12 +303,33 @@ export async function qualifyAccount(
     unit: ProbeUnit,
   ): Promise<QualifiedDomain> =>
     accountServes(kind, face) ? askListable(build, unit) : Promise.resolve(notAFaceOf(kind, word));
-  const [calendar, contact, file, mailMeasured] = await Promise.all([
+  const [calendar, task, contact, file, mailMeasured] = await Promise.all([
     davFace(
       'calendar',
       'a calendar',
       () => new CalDAVSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password }),
       'calendar',
+    ),
+    // THE SAME ENDPOINT, A DIFFERENT COMPONENT (workplan 0113 T5). A task list
+    // is a calendar collection that declares VTODO in its
+    // `supported-calendar-component-set` — there is no second protocol and no
+    // second address to resolve, which is why this rides `endpoint` rather
+    // than getting a `taskEndpointFromCreds` of its own. What separates the
+    // two faces is the component the source asks for: with `VTODO` the same
+    // class lists only the collections that carry tasks, so this count is the
+    // person's to-do lists and the calendar count above is their calendars,
+    // and a MIXED collection is honestly counted in both.
+    davFace(
+      'task',
+      'a task list',
+      () =>
+        new CalDAVSource({
+          url: endpoint.url,
+          username: endpoint.username,
+          password: endpoint.password,
+          component: 'VTODO',
+        }),
+      'taskList',
     ),
     davFace(
       'contact',
@@ -358,6 +389,7 @@ export async function qualifyAccount(
       calendar,
       contact,
       file,
+      task,
     },
     ...(scheduling ? { scheduling } : {}),
   };
@@ -381,6 +413,7 @@ async function qualifyJmap(
       calendar: { answer: 'unknown', detail: why },
       contact: { answer: 'unknown', detail: why },
       file: { answer: 'unknown', detail: why },
+      task: { answer: 'unknown', detail: why },
     },
   });
   let capabilities: Record<string, unknown>;
@@ -423,6 +456,16 @@ async function qualifyJmap(
         detail:
           'Calendars are not carried over JMAP by this product (0031 T1 parked) — use a caldav connection.',
       },
+      // Tasks follow calendars, and for the same reason rather than a new one:
+      // this product's task face is CalDAV `VTODO` (workplan 0113), so there
+      // is nothing to ask a JMAP session for. Stated as ours, like the line
+      // above — a fact about what we carry, not a claim about this server.
+      task: {
+        answer: 'no',
+        detail:
+          'Tasks are not carried over JMAP by this product — they are CalDAV VTODO collections, ' +
+          'so use a caldav connection.',
+      },
       // No standard capability marks file storage; the product's JMAP file
       // writer exists, but whether THIS server carries it is unmeasured.
       file: {
@@ -447,13 +490,14 @@ export function bytesText(bytes: number): string {
 
 /** The English sentence for a measured volume — the report's, not the screen's. */
 export function volumeSentence(
-  domain: 'mail' | 'calendar' | 'contact' | 'file',
+  domain: QualificationKey,
   volume: MeasuredVolume,
 ): string {
   if (volume.failed) return `not measured — ${volume.failed}`;
   const parts: string[] = [];
   if (volume.items !== undefined) {
-    const noun = domain === 'mail' ? 'message' : domain === 'contact' ? 'card' : 'item';
+    const noun =
+      domain === 'mail' ? 'message' : domain === 'contact' ? 'card' : domain === 'task' ? 'task' : 'item';
     parts.push(`${volume.items} ${noun}${volume.items === 1 ? '' : 's'}`);
   }
   if (volume.bytes !== undefined) {
@@ -471,8 +515,18 @@ export function volumeSentence(
 export function qualificationReportLines(qualification: AccountQualification): readonly string[] {
   const mark = (answer: DomainAnswer): string =>
     answer === 'yes' ? '✓' : answer === 'no' ? '✗' : '?';
-  const label = { mail: 'Email', calendar: 'Calendar', contact: 'Contacts', file: 'Files' } as const;
-  const lines = (['mail', 'calendar', 'contact', 'file'] as const).map((domain) => {
+  // Labelled and ORDERED from the one list (0113 T5), so the report reads the
+  // faces in the same sequence as the qualification line on screen — a total
+  // record, so a sixth domain is a compile error here rather than a face
+  // missing from a report nobody re-reads.
+  const label: Readonly<Record<QualificationKey, string>> = {
+    mail: 'Email',
+    calendar: 'Calendar',
+    contact: 'Contacts',
+    file: 'Files',
+    task: 'Tasks',
+  };
+  const lines = QUALIFICATION_KEYS.map((domain) => {
     const d = qualification.domains[domain];
     const measured = d.volume ? ` Measured: ${volumeSentence(domain, d.volume)}.` : '';
     return `${label[domain]} ${mark(d.answer)}: ${d.detail}${measured}`;
@@ -592,13 +646,37 @@ export function domainsToScopes(
   return order.filter((d) => ticked.has(d)).map((d) => GOOGLE_DOMAIN_SCOPES[d].asked);
 }
 
+/**
+ * GOOGLE HAS NO TASK FACE, AND NO SCOPE BUYS ONE (workplan 0113 T5/T6).
+ *
+ * Google's own CalDAV developer guide says its service supports neither VTODO
+ * nor VJOURNAL: a Google account's tasks live behind the separate Tasks REST
+ * API, whose model is thinner than VTODO, and driving it is T6 — deliberately
+ * out of v1. So this is a MEASURED no under the three-state rule (0106 T3a),
+ * not an unknown: the answer is known, it just is not this account's to give.
+ *
+ * Which is why it stands even in `allUnknown`, where every other face is
+ * unmeasured because the token exchange never answered. This one does not
+ * depend on the exchange — it is a fact about the provider and about what this
+ * product drives, and a `?` here would invite somebody to re-consent for a
+ * scope that does not exist.
+ */
+const GOOGLE_NO_TASKS: QualifiedDomain = {
+  answer: 'no',
+  detail:
+    "Google's CalDAV service carries no VTODO components at all, so there is no task face to " +
+    'grant. Google Tasks is a separate API this product does not migrate yet.',
+};
+
 const DWD_UNMEASURED =
   "Unmeasured — a service-account key's scopes live in the Workspace admin " +
   'console domain-wide delegation grant, which no token response enumerates.';
 
 function allUnknown(why: string): AccountQualification {
   const domain: QualifiedDomain = { answer: 'unknown', detail: why };
-  return { domains: { mail: domain, calendar: domain, contact: domain, file: domain } };
+  return {
+    domains: { mail: domain, calendar: domain, contact: domain, file: domain, task: GOOGLE_NO_TASKS },
+  };
 }
 
 /**
@@ -805,6 +883,7 @@ export async function qualifyDropbox(
       mail: notAFace('mail'),
       calendar: notAFace('a calendar'),
       contact: notAFace('an address book'),
+      task: notAFace('a task list'),
       file,
     },
   };
@@ -923,5 +1002,5 @@ export async function qualifyGoogleGrant(
     domainFromGrant('contact'),
     domainFromGrant('file'),
   ]);
-  return { domains: { mail, calendar, contact, file } };
+  return { domains: { mail, calendar, contact, file, task: GOOGLE_NO_TASKS } };
 }

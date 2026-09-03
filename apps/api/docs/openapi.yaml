@@ -1047,6 +1047,11 @@ paths:
                   description: |
                     The account ask: which faces of one Google account to
                     consent to. Mutually exclusive with `sourceType`.
+
+                    FOUR, not five: there is no `task` here and no scope that
+                    would add one. Google's CalDAV carries no VTODO at all, so
+                    a Google account has no task face to consent to (workplan
+                    0113).
                   items:
                     type: string
                     enum: [email, calendar, contact, file]
@@ -2663,7 +2668,7 @@ paths:
                       type: array
                       items:
                         type: string
-                        enum: [email, calendar, contact, file]
+                        enum: [email, calendar, contact, file, task]
                     client:
                       type: string
                       enum: [deployment, connection]
@@ -3596,7 +3601,7 @@ components:
         `last_error`: the category is actionable and carries no address, no
         folder name and no subject (workplan 0110 T3).
       properties:
-        domain: { type: string, enum: [email, calendar, contact, file] }
+        domain: { type: string, enum: [email, calendar, contact, file, task] }
         state: { type: string }
         started_at: { type: string, format: date-time, nullable: true }
         updated_at: { type: string, format: date-time }
@@ -3997,8 +4002,12 @@ components:
 
     Domain:
       type: string
-      description: The four data domains this product carries.
-      enum: [email, calendar, contact, file]
+      description: |
+        The data domains this product carries. `task` joined on 2026-09-03
+        (workplan 0113): a task list is a CalDAV collection declaring VTODO,
+        and it is its own domain because a person ticks it separately from
+        their calendars.
+      enum: [email, calendar, contact, file, task]
 
     MappingStatus:
       type: string

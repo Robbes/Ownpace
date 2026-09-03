@@ -48,6 +48,7 @@ import {
   missingCredentialFields,
   serverMessage,
 } from '../services/api.ts';
+import { QUALIFICATION_KEYS } from '@openmig/shared';
 import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
@@ -225,8 +226,11 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
              carries each domain's evidence line for whoever hovers. */
           <span
             className="text-xs text-gray-500"
-            title={(['mail', 'calendar', 'contact', 'file'] as const)
-              .map((d) => connection.qualification!.domains[d].detail)
+            /* Every face the record actually carries — walked from the one
+               list, and skipping a face an older record never had rather
+               than reading `undefined.detail` off it (0113 T5). */
+            title={QUALIFICATION_KEYS.map((d) => connection.qualification?.domains[d]?.detail)
+              .filter((line): line is string => Boolean(line))
               .join('\n')}
           >
             {qualificationText(t, connection.qualification)}

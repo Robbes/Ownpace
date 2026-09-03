@@ -386,6 +386,34 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
     expect(screen.queryByRole('status')).toBeNull();
   });
 
+  it('Tasks is a tick of its own, offered over CalDAV and refused over CardDAV (0113 T5)', () => {
+    renderWizard();
+    walkToDataTypes('CalDAV');
+    // The fifth tick, beside Calendar rather than inside it. The owner
+    // settled the consequence — *"yes, correct that tasks move with task
+    // tick"* — so somebody who wants their to-do lists ticks for them, and
+    // somebody who ticks only Calendar gets calendars.
+    const tasks = screen.getByRole('button', { name: /Tasks/ });
+    expect(tasks).toBeEnabled();
+    // And it is genuinely separate state: ticking Tasks leaves Calendar alone.
+    // Selection is the blue border the reader sees — these ticks are buttons,
+    // not checkboxes, so that class IS the state on screen.
+    fireEvent.click(tasks);
+    expect(tasks.className).toContain('border-blue-500');
+    expect(screen.getByRole('button', { name: /Calendar/ }).className).not.toContain(
+      'border-blue-500',
+    );
+  });
+
+  it('Tasks is not offered over a CardDAV target — a task list is a CALENDAR collection', () => {
+    renderWizard();
+    walkToDataTypes('CardDAV');
+    // CalDAV carries tasks because a task list IS a calendar collection, one
+    // that declares VTODO (RFC 4791 §5.2.3). CardDAV is a different protocol
+    // and carries neither.
+    expect(screen.getByRole('button', { name: /Tasks/ })).toBeDisabled();
+  });
+
   it('calendar is not offered over a JMAP target (0031 T1 parked by owner decision)', () => {
     renderWizard();
     walkToDataTypes('JMAP');

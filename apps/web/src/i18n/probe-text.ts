@@ -23,11 +23,78 @@
  * in a Dutch UI under a rule meant for somebody else's strings.
  */
 
-import { refusalText, type ProbeOutcome, type ProbeUnit, type RefusalLocale } from '@openmig/shared';
+import {
+  refusalText,
+  DOMAIN_FOR_QUALIFICATION_KEY,
+  QUALIFICATION_KEYS,
+  type ProbeOutcome,
+  type ProbeUnit,
+  type QualificationKey,
+  type RefusalLocale,
+} from '@openmig/shared';
 import type { StringKey } from './strings.ts';
+import { DOMAIN_STRING_KEY } from './domain-words.ts';
 import { formatBytes } from './bytes.ts';
 
 type Translate = (key: StringKey, vars?: Readonly<Record<string, string | number>>) => string;
+
+/**
+ * One face of a stored qualification record, as the three functions below
+ * read it. `volume` is absent from the capability line's own reading and
+ * present in the other two; typed together because they are one row.
+ */
+interface QualifiedFace {
+  readonly answer: 'yes' | 'no' | 'unknown';
+  readonly detail?: string;
+  readonly count?: number;
+  readonly unit?: ProbeUnit;
+  readonly volume?: {
+    readonly items?: number;
+    readonly bytes?: number;
+    readonly estimated?: boolean;
+    readonly nativeFilesExcluded?: boolean;
+    readonly failed?: string;
+  };
+}
+
+/**
+ * A stored record's faces — PARTIAL, and that is the contract rather than a
+ * looseness.
+ *
+ * Every qualification written before 2026-09-03 has four faces, because that
+ * is how many there were; the browser reads those rows for as long as their
+ * connections go untested (workplan 0113 T5). A total `Record` would have had
+ * this code walk five keys over four-key JSON and throw on the first old row
+ * — the fifth-domain failure this workplan exists to stop, landing in the one
+ * layer with no compiler to catch it, since the record arrives over the wire.
+ */
+type QualifiedDomains = Partial<Record<QualificationKey, QualifiedFace>>;
+
+/**
+ * The word for one face. The record says `mail` where the rest of the product
+ * says `email`; shared owns that mapping and `DOMAIN_STRING_KEY` owns the
+ * word. The three functions below kept a label map each until T5 — three
+ * copies of four domains, which is how a fifth face reached the record while
+ * every line on screen still listed four.
+ */
+function faceLabel(face: QualificationKey): StringKey {
+  return DOMAIN_STRING_KEY[DOMAIN_FOR_QUALIFICATION_KEY[face]];
+}
+
+/**
+ * A FACE THE RECORD DOES NOT MENTION IS UNMEASURED, not missing.
+ *
+ * `?`, not omission and not a no: shared's `qualifiedAnswerFor` already says
+ * a face with no well-formed answer must be treated exactly like `unknown`,
+ * and one rule read the same way at every door is why it was written down
+ * once. The line then carries the unmeasured hint, and the remedy is the Test
+ * button the reader is already looking at.
+ */
+const UNMEASURED_FACE: QualifiedFace = { answer: 'unknown', detail: '' };
+
+function faceOf(domains: QualifiedDomains, face: QualificationKey): QualifiedFace {
+  return domains[face] ?? UNMEASURED_FACE;
+}
 
 /** The counted noun, in the right number. */
 function unitWord(t: Translate, unit: ProbeUnit, count: number): string {
@@ -118,38 +185,29 @@ export function schedulingText(
 export function qualificationText(
   t: Translate,
   qualification:
-    | {
-        domains: Record<
-          'mail' | 'calendar' | 'contact' | 'file',
-          { answer: 'yes' | 'no' | 'unknown'; detail: string; count?: number; unit?: ProbeUnit }
-        >;
-      }
+    | { domains: QualifiedDomains }
     | undefined,
 ): string | null {
   if (!qualification) return null;
   const mark = { yes: '✓', no: '✗', unknown: '?' } as const;
-  const label: Record<'mail' | 'calendar' | 'contact' | 'file', StringKey> = {
-    mail: 'domain.email',
-    calendar: 'domain.calendar',
-    contact: 'domain.contact',
-    file: 'domain.file',
-  };
-  const order = ['mail', 'calendar', 'contact', 'file'] as const;
+  const order = QUALIFICATION_KEYS;
   // The count beside the tick, when the face was reached and listed
   // (2026-09-02): "Calendar ✓ 5 calendars" — the owner's "a bit more info
   // on the other three", on the line itself rather than in a hover a phone
   // has not got. An older record, a no and an unknown carry no count.
   const line = order
     .map((domain) => {
-      const d = qualification.domains[domain];
+      const d = faceOf(qualification.domains, domain);
       const counted =
         d.answer === 'yes' && d.count !== undefined && d.unit
           ? ` ${d.count} ${unitWord(t, d.unit, d.count)}`
           : '';
-      return `${t(label[domain])} ${mark[d.answer]}${counted}`;
+      return `${t(faceLabel(domain))} ${mark[d.answer]}${counted}`;
     })
     .join(' · ');
-  const anyUnknown = order.some((domain) => qualification.domains[domain].answer === 'unknown');
+  const anyUnknown = order.some(
+    (domain) => faceOf(qualification.domains, domain).answer === 'unknown',
+  );
   return `${t('probe.qualify.lead')} ${line}${anyUnknown ? ` — ${t('probe.qualify.unknownHint')}` : ''}`;
 }
 
@@ -172,60 +230,28 @@ export function qualificationText(
 export function qualificationEvidence(
   t: Translate,
   qualification:
-    | {
-        domains: Record<
-          'mail' | 'calendar' | 'contact' | 'file',
-          {
-            answer: 'yes' | 'no' | 'unknown';
-            detail: string;
-            volume?: {
-              items?: number;
-              bytes?: number;
-              estimated?: boolean;
-              nativeFilesExcluded?: boolean;
-              failed?: string;
-            };
-          }
-        >;
-      }
+    | { domains: QualifiedDomains }
     | undefined,
 ): string[] {
   if (!qualification) return [];
-  const label: Record<'mail' | 'calendar' | 'contact' | 'file', StringKey> = {
-    mail: 'domain.email',
-    calendar: 'domain.calendar',
-    contact: 'domain.contact',
-    file: 'domain.file',
-  };
   const lines: string[] = [];
-  for (const domain of ['mail', 'calendar', 'contact', 'file'] as const) {
-    const d = qualification.domains[domain];
-    if (d.answer === 'unknown') lines.push(`${t(label[domain])} ?: ${d.detail}`);
+  for (const domain of QUALIFICATION_KEYS) {
+    const d = faceOf(qualification.domains, domain);
+    // An UNMEASURED face with no sentence is a face the record never had —
+    // an older row read by a newer build. There is nothing to explain, and a
+    // bare "Tasks ?:" would be an empty promise of evidence.
+    if (d.answer === 'unknown' && d.detail) lines.push(`${t(faceLabel(domain))} ?: ${d.detail}`);
     // A face that answered but could not be MEASURED (2026-09-02): the
     // reason on screen too, or the Measured line simply lacks a face and
     // nobody learns why.
     else if (d.volume?.failed) {
-      lines.push(`${t(label[domain])} ✓, ${t('probe.measured.failed')}: ${d.volume.failed}`);
+      lines.push(`${t(faceLabel(domain))} ✓, ${t('probe.measured.failed')}: ${d.volume.failed}`);
     }
   }
   return lines;
 }
 
-type Measured = {
-  domains: Record<
-    'mail' | 'calendar' | 'contact' | 'file',
-    {
-      answer: 'yes' | 'no' | 'unknown';
-      volume?: {
-        items?: number;
-        bytes?: number;
-        estimated?: boolean;
-        nativeFilesExcluded?: boolean;
-        failed?: string;
-      };
-    }
-  >;
-};
+type Measured = { domains: QualifiedDomains };
 
 /**
  * The measured-volume line (2026-09-02): how MUCH each reached face holds,
@@ -242,16 +268,10 @@ export function measuredText(
   locale: RefusalLocale = 'en',
 ): string | null {
   if (!qualification) return null;
-  const label: Record<'mail' | 'calendar' | 'contact' | 'file', StringKey> = {
-    mail: 'domain.email',
-    calendar: 'domain.calendar',
-    contact: 'domain.contact',
-    file: 'domain.file',
-  };
   const numberFormat = new Intl.NumberFormat(locale === 'nl' ? 'nl-NL' : 'en-GB');
   const parts: string[] = [];
-  for (const domain of ['mail', 'calendar', 'contact', 'file'] as const) {
-    const v = qualification.domains[domain].volume;
+  for (const domain of QUALIFICATION_KEYS) {
+    const v = faceOf(qualification.domains, domain).volume;
     if (!v || v.failed) continue;
     const bits: string[] = [];
     if (v.items !== undefined) {
@@ -273,7 +293,7 @@ export function measuredText(
       bits.push(`${v.estimated ? '≈ ' : ''}${formatBytes(v.bytes)}`);
     }
     if (v.nativeFilesExcluded) bits.push(`(${t('probe.measured.driveNote')})`);
-    if (bits.length > 0) parts.push(`${t(label[domain])} ${bits.join(' ')}`);
+    if (bits.length > 0) parts.push(`${t(faceLabel(domain))} ${bits.join(' ')}`);
   }
   if (parts.length === 0) return null;
   return `${t('probe.measured.lead')} ${parts.join(' · ')}`;

@@ -62,8 +62,19 @@ import {
  * differed since both existed. Written out rather than string-munged, so the
  * next vocabulary that joins is a line in a table instead of a rule somebody
  * has to remember.
+ *
+ * PARTIAL, AND THE GAP IS THE POINT (workplan 0113). There is no entry for
+ * `task`, because there is no Google scope to ask for: Google's own CalDAV
+ * guide states the implementation supports neither VTODO nor VJOURNAL, and its
+ * tasks live behind a separate REST API this product does not speak (0113 T6,
+ * deliberately out of v1). A missing entry therefore means "Google cannot
+ * serve this face" — which is true, and which `providerAccountDomains` already
+ * says by leaving `task` off the google row. Anything reading this map filters
+ * to the faces the account carries first, so the gap is never reached; it is
+ * `Partial` so that a future domain Google also cannot serve is a missing line
+ * rather than a lie.
  */
-const GRANT_DOMAIN: Readonly<Record<DiscoveryDomain, GoogleGrantDomain>> = {
+const GRANT_DOMAIN: Readonly<Partial<Record<DiscoveryDomain, GoogleGrantDomain>>> = {
   email: 'mail',
   calendar: 'calendar',
   contact: 'contact',
@@ -95,12 +106,31 @@ export function isRefusal(
 }
 
 /**
- * The four, in the order `domainsToScopes` emits scopes in. One order for
- * both halves of the answer — see the note where it is used.
+ * The four Google faces, in the order `domainsToScopes` emits scopes in. One
+ * order for both halves of the answer — see the note where it is used.
+ *
+ * FOUR, NOT FIVE: `task` is a domain of the product, not a face of a Google
+ * account (0113). Google's CalDAV carries no VTODO at all, so there is nothing
+ * here to order.
  */
 const ORDER: ReadonlyArray<DiscoveryDomain> = ['email', 'calendar', 'contact', 'file'];
 
 const KNOWN = ORDER;
+
+/**
+ * The grant names for these domains, dropping any Google cannot serve.
+ *
+ * The drop is unreachable from both callers — one filters through `ORDER` and
+ * the other through `providerAccountDomains('google')`, and neither yields
+ * `task`. It is written once, here, rather than asserted away at each site:
+ * a filter that can be read is better than a `!` that has to be trusted, and
+ * when a sixth domain arrives this is where it declines to become a scope.
+ */
+function grantNamesFor(domains: ReadonlyArray<DiscoveryDomain>): GoogleGrantDomain[] {
+  return domains
+    .map((d) => GRANT_DOMAIN[d])
+    .filter((g): g is GoogleGrantDomain => g !== undefined);
+}
 
 const isDiscoveryDomain = (value: string): value is DiscoveryDomain =>
   (KNOWN as ReadonlyArray<string>).includes(value);
@@ -167,7 +197,7 @@ export function googleAccountConsent(
   // orders is one of them being wrong, and the one that matters is the one
   // Google renders.
   const ordered = ORDER.filter((d) => domains.includes(d));
-  const scopes = domainsToScopes(ordered.map((d) => GRANT_DOMAIN[d]));
+  const scopes = domainsToScopes(grantNamesFor(ordered));
   return { scope: scopes.join(' '), domains: ordered };
 }
 
@@ -195,7 +225,7 @@ export function googleAccountScopeSentence(
   if (!isRefusal(consent)) return consent.scope;
   // The same deployment answer as the gate above, or this sentence would name
   // scopes the consent would then refuse to ask for — a fallback that lies.
-  return providerAccountDomains('google', env)
-    .map((d) => GOOGLE_SCOPES_ASKED_BY_DOMAIN[GRANT_DOMAIN[d]])
+  return grantNamesFor(providerAccountDomains('google', env))
+    .map((g) => GOOGLE_SCOPES_ASKED_BY_DOMAIN[g])
     .join(' ');
 }

@@ -93,6 +93,10 @@ async function openDeps(tenantId: string, mappingId: string, domain: (typeof DOM
       const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
       return { ledger: d.ledger, target: d.target as unknown, close: d.close };
     }
+    case 'task': {
+      const d = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task');
+      return { ledger: d.ledger, target: d.target as unknown, close: d.close };
+    }
   }
 }
 

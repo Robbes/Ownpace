@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 77 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 78 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -97,7 +97,6 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
-- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `apps/api/src/routes/provider-accounts.ts`
@@ -547,6 +546,10 @@ reading a file drops off its entry by itself.
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
+### `packages/orchestration/src/orchestration.ts`
+
+- [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
+
 ### `packages/orchestration/src/probe-connection.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
@@ -600,6 +603,11 @@ reading a file drops off its entry by itself.
 ### `scripts/a-domain-union-typed-out-by-hand.unit.test.ts`
 
 - [a-fifth-domain-the-database-would-refuse](../scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts) — No domain the product knows may be one the database refuses (workplan 0113 T2).
+
+### `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+
+- [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 
@@ -788,6 +796,15 @@ Reads:
 - `scripts/local-pg.sh`
 - `vitest.global-setup.ts`
 
+### [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts)
+
+Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
+
+Reads:
+
+- `packages/orchestration/src/orchestration.ts`
+- `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+
 ### [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts)
 
 The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
@@ -797,7 +814,6 @@ Reads:
 - `apps/api/src/routes/migrations/google-account-consent.ts`
 - `apps/api/src/routes/migrations/google-account-consent.unit.test.ts`
 - `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
-- `apps/api/src/routes/migrations/index.ts`
 - `apps/api/src/routes/provider-accounts.unit.test.ts`
 - `apps/web/src/pages/Connections.tsx`
 - `apps/web/src/services/mapping-service.ts`
@@ -808,6 +824,7 @@ Reads:
 - `packages/shared/src/provider-accounts.unit.test.ts`
 - `packages/shared/src/qualification-gate.unit.test.ts`
 - `packages/shared/src/target-domains.unit.test.ts`
+- `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
 
 ### [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts)
 

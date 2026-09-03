@@ -25,10 +25,20 @@ import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-fr
 import { discoverDomains, type DomainDiscoveryTask } from '@openmig/orchestration/discovery';
 import { DISCOVERY_DOMAINS, log } from '@openmig/shared';
 
+/**
+ * The sync domains, from the one list (workplan 0113 T5).
+ *
+ * Written out by hand until T2 landed: widening a validator ahead of the
+ * ledger would have accepted a domain the database then refuses, which is a
+ * pass that dies half-copied rather than a request that is refused. The
+ * migration is in, and `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+ * fails the build if the shared list ever outruns the CHECKs again — so
+ * deriving is now the safer of the two, not just the shorter.
+ */
 const DiscoveryJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
-  domains: z.array(z.enum(['email', 'calendar', 'contact', 'file'])).optional(),
+  domains: z.array(z.enum(DISCOVERY_DOMAINS)).optional(),
 });
 
 type DiscoveryJobPayload = z.infer<typeof DiscoveryJobSchema>;

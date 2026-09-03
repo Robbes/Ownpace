@@ -443,6 +443,7 @@ const en = {
   'wizard.domain.calendar.hint': 'Events and appointments',
   'wizard.domain.contact.hint': 'Address book entries',
   'wizard.domain.file.hint': 'Attachments and documents',
+  'wizard.domain.task.hint': 'To-do lists and their tasks',
   'wizard.schedule': 'Sync Schedule',
   'wizard.scheduleHint':
     'Choose how often to sync data between source and target. The first sync starts as ' +
@@ -587,6 +588,7 @@ const en = {
   'domain.calendar': 'Calendar',
   'domain.contact': 'Contacts',
   'domain.file': 'Files',
+  'domain.task': 'Tasks',
   'evidence.reported.title': 'The source itself told us the object was gone.',
   'evidence.trashed.title':
     "We found it in the owner's Deleted Items — the old system's own record that they deleted it.",
@@ -1295,6 +1297,8 @@ const en = {
   'probe.unit.calendar.many': 'calendars',
   'probe.unit.addressBook.one': 'address book',
   'probe.unit.addressBook.many': 'address books',
+  'probe.unit.taskList.one': 'task list',
+  'probe.unit.taskList.many': 'task lists',
   'probe.unit.collection.one': 'collection',
   'probe.unit.collection.many': 'collections',
   // The scheduling verdict a DAV target's test carries (0105 T0): three
@@ -1960,6 +1964,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.domain.calendar.hint': 'Afspraken en agenda-items',
   'wizard.domain.contact.hint': 'Adresboekvermeldingen',
   'wizard.domain.file.hint': 'Bijlagen en documenten',
+  'wizard.domain.task.hint': 'Takenlijsten en de taken daarin',
   'wizard.schedule': 'Synchronisatieschema',
   'wizard.scheduleHint':
     'Kies hoe vaak gegevens tussen bron en doel synchroniseren. De eerste synchronisatie ' +
@@ -2080,6 +2085,7 @@ const nl: Record<keyof typeof en, string> = {
   'domain.calendar': 'Agenda',
   'domain.contact': 'Contacten',
   'domain.file': 'Bestanden',
+  'domain.task': 'Taken',
   'evidence.reported.title': 'Het bronsysteem heeft zelf gemeld dat het object weg is.',
   'evidence.trashed.title':
     'We vonden het in de map Verwijderde items van de eigenaar — het eigen bewijs van het oude systeem dat het is verwijderd.',
@@ -2633,6 +2639,8 @@ const nl: Record<keyof typeof en, string> = {
   'probe.unit.calendar.many': 'agenda\'s',
   'probe.unit.addressBook.one': 'adresboek',
   'probe.unit.addressBook.many': 'adresboeken',
+  'probe.unit.taskList.one': 'takenlijst',
+  'probe.unit.taskList.many': 'takenlijsten',
   'probe.unit.collection.one': 'verzameling',
   'probe.unit.collection.many': 'verzamelingen',
   'probe.scheduling.autoSchedule':

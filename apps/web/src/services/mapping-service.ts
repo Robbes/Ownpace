@@ -4,7 +4,8 @@ import { z } from 'zod';
 import type { ProbeOutcome } from '@openmig/shared';
 import { FAILURE_CATEGORIES, MAPPING_LIFECYCLES } from '@openmig/shared';
 import type { DiscoveryRecord, MappingLifecycle } from '@openmig/shared';
-import type { DiscoveryDomain } from '@openmig/shared';
+import { DISCOVERY_DOMAINS } from '@openmig/shared';
+import type { DiscoveryDomain, ProbeUnit, QualificationKey } from '@openmig/shared';
 
 // Schema definitions
 //
@@ -81,7 +82,17 @@ const MappingLifecycleSchema = z.enum(
   MAPPING_LIFECYCLES as [MappingLifecycle, ...MappingLifecycle[]],
 );
 
-const DomainEnum = z.enum(['email', 'calendar', 'contact', 'file']);
+/**
+ * The sync domains, from the one list (workplan 0113 T5).
+ *
+ * Written out by hand until T2 landed: widening a validator ahead of the
+ * ledger would have accepted a domain the database then refuses, which is a
+ * pass that dies half-copied rather than a request that is refused. The
+ * migration is in, and `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+ * fails the build if the shared list ever outruns the CHECKs again — so
+ * deriving is now the safer of the two, not just the shorter.
+ */
+const DomainEnum = z.enum(DISCOVERY_DOMAINS);
 
 /** GET /migrations list items. No configs — the list route doesn't serve
  *  them; sourceType/targetType are CONNECTION KINDS (imap, o365, jmap, ...,
@@ -351,7 +362,7 @@ export const DiscoveryCollectionSchema = z.object({
   excluded: z.string().optional(),
 });
 export const DiscoveryRecordSchema = z.object({
-  domain: z.enum(['email', 'calendar', 'contact', 'file']),
+  domain: DomainEnum,
   collections: z.number(),
   items: z.number(),
   bytes: z.number().optional(),
@@ -412,7 +423,7 @@ export const scopeManifestApi = {
 export const ProviderAccountFactsSchema = z.record(
   z.string(),
   z.object({
-    domains: z.array(z.enum(['email', 'calendar', 'contact', 'file'])),
+    domains: z.array(DomainEnum),
     // Where a Google connection's OAuth client comes from (ADR-0041): the
     // deployment's own, or each connection's. `google` only, and read the
     // same way as the domains — a value this build has never heard of fails
@@ -509,8 +520,13 @@ export interface TestConnectionResult {
    * either. `detail` is the English evidence line per domain.
    */
   qualification?: {
-    domains: Record<
-      'mail' | 'calendar' | 'contact' | 'file',
+    // PARTIAL: a record written before a domain existed simply has no key for
+    // it, and the browser reads those rows until the connection is tested
+    // again (workplan 0113 T5). Absent is unmeasured — the rule
+    // `qualifiedAnswerFor` states in shared, applied here.
+    domains: Partial<
+      Record<
+      QualificationKey,
       {
         answer: 'yes' | 'no' | 'unknown';
         detail: string;
@@ -518,7 +534,7 @@ export interface TestConnectionResult {
          *  line can say "5 calendars" in the reader's language. Absent on an
          *  older record, a no, an unknown. */
         count?: number;
-        unit?: 'folder' | 'calendar' | 'addressBook' | 'collection';
+        unit?: ProbeUnit;
         /** How MUCH the face holds, measured when it answered (2026-09-02). */
         volume?: {
           items?: number;
@@ -531,6 +547,7 @@ export interface TestConnectionResult {
           failed?: string;
         };
       }
+    >
     >;
     scheduling?: { capability: 'auto-schedule' | 'none' | 'unknown'; sentence: string };
   };

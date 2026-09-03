@@ -77,7 +77,13 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   // 2026-08-27). When it lands and has been MEASURED against the live
   // provider, 'file' joins this array — one word, no new branch. Never added
   // on an announcement: 0105's never-guess rule.
-  soverin: ['email', 'calendar', 'contact'],
+  //
+  // 'task' joined on 2026-09-03 under that same rule, not around it: the owner
+  // has a Tasks list in his own Soverin account, over the CalDAV face this row
+  // already claims. A task list IS a calendar collection — one that declares
+  // VTODO in its `supported-calendar-component-set` (RFC 4791 §5.2.3) — so
+  // this is a face already measured, now named (workplan 0113 T5).
+  soverin: ['email', 'calendar', 'contact', 'task'],
 };
 
 /**
@@ -87,6 +93,11 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
  * Not a wish list: `https://mail.google.com/` and `drive.readonly` are
  * restricted, and Google grants them only to an application that registered
  * them and passed the review its publishing status demands.
+ *
+ * `task` is absent from BOTH Google lists, and no scope buys it. Google's own
+ * CalDAV developer guide says its service supports neither VTODO nor VJOURNAL:
+ * there is no task face to consent to, at any tier (workplan 0113 T5). This is
+ * the asymmetry that makes the grant map partial rather than total.
  */
 export const GOOGLE_RESTRICTED_ACCOUNT_DOMAINS: ReadonlyArray<DiscoveryDomain> = [
   'email',

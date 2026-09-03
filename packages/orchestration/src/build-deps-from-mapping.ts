@@ -35,6 +35,8 @@ import type { CalendarSyncDeps, ContactSyncDeps, FileSyncDeps } from '@openmig/c
 import {
   buildCalendarSource,
   buildCalendarTarget,
+  buildTaskSource,
+  buildTaskTarget,
   buildContactSource,
   buildFileSource,
 } from './dav-factories.ts';
@@ -552,11 +554,13 @@ export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mapping
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'calendar'): Promise<WithClose<CalendarSyncDeps>>;
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'contact'): Promise<WithClose<ContactSyncDeps>>;
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'file'): Promise<WithClose<FileSyncDeps>>;
+/** Tasks: the calendar shapes, because on the wire a task IS a calendar object (0113). */
+export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'task'): Promise<WithClose<CalendarSyncDeps>>;
 export async function buildDomainDepsFromMapping(
   pool: Pool,
   tenantId: string,
   mappingId: string,
-  domain: 'mail' | 'calendar' | 'contact' | 'file',
+  domain: 'mail' | 'calendar' | 'contact' | 'file' | 'task',
 ): Promise<WithClose<ReconcileDeps | CalendarSyncDeps | ContactSyncDeps | FileSyncDeps>> {
   if (domain === 'mail') {
     return buildDepsFromMapping(pool, tenantId, mappingId);
@@ -615,6 +619,24 @@ export async function buildDomainDepsFromMapping(
           // The verdict, recorded before the mapping's first calendar write
           // (0105 T0) — measured on the SAME endpoint the writer just got.
           recordTargetScheduling: schedulingRecorder(calendarTargetEndpoint, targetDeps),
+        } satisfies CalendarSyncDeps,
+        db,
+      );
+    }
+    if (domain === 'task') {
+      // The calendar branch with two differences and no third: the source is
+      // told to serve VTODO (0113 T3b), and there is no scheduling verdict —
+      // a to-do list invites nobody, so RFC 6638 has nothing to say about it.
+      //
+      // No Google branch: Google's CalDAV supports neither VTODO nor VJOURNAL
+      // (its own developer guide), and `task` is not one of the faces
+      // PROVIDER_ACCOUNT_DOMAINS gives a `google` account — so a Google source
+      // never reaches here.
+      return withClose(
+        {
+          ...common,
+          source: buildTaskSource(davEndpointFromCreds('source', src.config, src.creds)),
+          target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps),
         } satisfies CalendarSyncDeps,
         db,
       );

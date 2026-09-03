@@ -34,8 +34,16 @@ const SELF = relative(ROOT, import.meta.filename);
 /** The type union, in any spacing a formatter might produce. */
 const UNION = /'email'\s*\|\s*'calendar'\s*\|\s*'contact'\s*\|\s*'file'/;
 
-/** The values as a runtime list, in any spacing. */
-const ARRAY = /\[\s*'email',\s*'calendar',\s*'contact',\s*'file'\s*,?\s*\]/;
+/**
+ * The values as a runtime list, in any spacing.
+ *
+ * Anchored on the FIRST FOUR and open-ended after them, so a file keeping its
+ * own copy is still caught whether it stopped at four (a list that did not
+ * follow the domains) or went on to five (a hand-written copy of today's).
+ * The `]` is deliberately not required: `['email', 'calendar', 'contact',
+ * 'file', 'task']` must match too, and it is the shape most copies now take.
+ */
+const ARRAY = /\[\s*'email',\s*'calendar',\s*'contact',\s*'file'\s*[,\]]/;
 
 /** The one home of both. */
 const HOME = 'packages/shared/src/discovery.ts';
@@ -53,20 +61,24 @@ const MAY_LIST_THE_VALUES: Readonly<Record<string, string>> = {
   [HOME]: 'The definition. DISCOVERY_DOMAINS, and the type derived from it.',
 
   // --- Mirrors of something outside TypeScript, which widen on their own clock.
-  'apps/web/src/services/mapping-service.ts':
-    'Zod schemas validating what the API returns and accepts. Widening a validator ' +
-    'ahead of the ledger would accept a domain the database then refuses, so these ' +
-    'follow T2 as well.',
-  'apps/worker/src/jobs/run-discovery.ts':
-    'The zod enum on the job payload — same reason as the web validators.',
-  'apps/api/src/routes/migrations/index.ts':
-    'The zod enums on the discovery and create routes — same reason.',
+  //
+  // THREE ENTRIES LEFT HERE WHEN T5 LANDED (2026-09-03), and all three are
+  // gone: the zod enums in `mapping-service.ts`, `run-discovery.ts` and the
+  // migrations routes now read `DISCOVERY_DOMAINS` directly. Their exception
+  // was honest while it stood — widening a validator ahead of the ledger
+  // accepts a domain the database then refuses, which is a pass that dies
+  // half-copied — but T2 put the migration in and
+  // `a-fifth-domain-the-database-would-refuse.unit.test.ts` now fails the
+  // build if the shared list ever outruns the CHECKs again. With that guard
+  // standing, deriving is the safer of the two.
 
   // --- Lists that are NOT the product's domains and must not widen with them.
   'apps/web/src/pages/Connections.tsx':
     'GRANT_FACES — the faces a GOOGLE account can be asked to serve. Google carries ' +
     'no tasks over CalDAV at all (0113 §"The facts"), so this list answers a ' +
-    "question about one provider, not about the product's domains.",
+    "question about one provider, not about the product's domains. It stayed four " +
+    'when the product went to five (T5, 2026-09-03), which is the exception doing ' +
+    'its job rather than the exception going stale.',
   'apps/api/src/routes/migrations/google-account-consent.ts':
     'ORDER — the order the Google consent screen lists the faces it asks for. Same ' +
     'reason as GRANT_FACES: a fact about one provider.',
