@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 82 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 83 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -628,6 +628,10 @@ reading a file drops off its entry by itself.
 
 - [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts) — A REFUSAL THAT NAMES NOTHING IS A RUN SOMEBODY HAS TO REPEAT TO LEARN ANYTHING.
 
+### `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
+
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
 ### `scripts/a-domain-the-fan-outs-forgot.unit.test.ts`
 
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
@@ -905,6 +909,7 @@ Reads:
 - `packages/shared/src/provider-accounts.unit.test.ts`
 - `packages/shared/src/qualification-gate.unit.test.ts`
 - `packages/shared/src/target-domains.unit.test.ts`
+- `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
 
 ### [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts)
