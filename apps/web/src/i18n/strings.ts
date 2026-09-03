@@ -570,9 +570,16 @@ const en = {
   'mappings.action.delete': 'Delete',
   // 0037 T5: mapping deletion destroys config and ledger linkage, so the
   // button arms with the mapping's own name (hard rule 2's posture).
+  // WHAT GOES, AND WHAT IS NOT TOUCHED (owner, 2026-09-03). The old sentence
+  // asked for the migration's name to be typed, which is the gate you build
+  // for something unrecoverable. This removes rows in our own database; the
+  // mail, calendars and files at either provider are not reached at all.
+  // Saying which is which is the part that makes one press enough.
   'mappings.delete.explain':
-    'Deleting this migration removes its configuration and its history linkage. ' +
-    'Type the migration name to confirm.',
+    'This removes the migration itself: its settings, and the record of what it has ' +
+    'already copied. Nothing at your source or your destination is touched — no mail, ' +
+    'no calendars, no contacts, no files are deleted anywhere. Setting the same ' +
+    'migration up again starts a fresh record and copies nothing twice.',
   'mappings.delete.confirm': 'Delete migration',
   'mappings.delete.cancel': 'Cancel',
   'mappings.delete.failed': 'The migration was not deleted.',
@@ -2062,8 +2069,10 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.action.reviewAndStart': 'Controleren en starten',
   'mappings.action.delete': 'Verwijderen',
   'mappings.delete.explain':
-    'Het verwijderen van deze migratie verwijdert de configuratie en de koppeling met de ' +
-    'historie. Typ de naam van de migratie om te bevestigen.',
+    'Dit verwijdert de migratie zelf: de instellingen en de registratie van wat er al ' +
+    'gekopieerd is. Bij uw bron of bestemming wordt niets aangeraakt — er wordt nergens ' +
+    'e-mail, agenda, contact of bestand verwijderd. Dezelfde migratie opnieuw instellen ' +
+    'begint met een nieuwe registratie en kopieert niets dubbel.',
   'mappings.delete.confirm': 'Migratie verwijderen',
   'mappings.delete.cancel': 'Annuleren',
   'mappings.delete.failed': 'De migratie is niet verwijderd.',

@@ -54,10 +54,12 @@ const Mappings: React.FC = () => {
   >({});
 
   // Delete arming (0037 T5). The Trash button used to have NO onClick — a
-  // dead control on the exact path an admin takes after a botched run.
-  // Mapping deletion destroys config and ledger linkage, so it arms with the
-  // mapping's own name (hard rule 2's posture) instead of firing on a click.
-  const [deleteArm, setDeleteArm] = React.useState<{ id: string; typed: string } | null>(null);
+  // dead control on the exact path an admin takes after a botched run. It
+  // arms rather than firing on one click (hard rule 2's posture); what it
+  // asks for at the second press is a plain yes, and the row below says why
+  // that is the honest weight.
+  /** Which row is armed for deletion, if any — the first of the two presses. */
+  const [deleteArm, setDeleteArm] = React.useState<{ id: string } | null>(null);
   const [deleteFailed, setDeleteFailed] = React.useState<string | null>(null);
   const [deletePending, setDeletePending] = React.useState(false);
 
@@ -285,7 +287,7 @@ const Mappings: React.FC = () => {
                         onClick={() => {
                           setDeleteFailed(null);
                           setDeleteArm((arm) =>
-                            arm?.id === mapping.id ? null : { id: mapping.id, typed: '' },
+                            arm?.id === mapping.id ? null : { id: mapping.id },
                           );
                         }}
                         className="text-red-600 hover:text-red-800"
@@ -299,19 +301,36 @@ const Mappings: React.FC = () => {
                 {deleteArm?.id === mapping.id && (
                   <tr>
                     <td colSpan={5} className="px-6 py-3 bg-red-50 text-sm text-red-900">
+                      {/* ASKING TWICE, NOT ASKING FOR DICTATION (owner,
+                          2026-09-03: "deleting a migration force me to type
+                          the name again. Why?? … no data is lost in
+                          source/target, right? So this is over the top. Even,
+                          i think i typed it over, but it was not recognized,
+                          so i cant delete my migration.").
+
+                          Both halves of that were right. The gate compared
+                          the typed text to `mapping.name` byte for byte — no
+                          trim, no case — so a name carrying a space nobody
+                          can see in a placeholder locked the button forever,
+                          with no sentence saying why. A confirmation that can
+                          refuse a correct answer is not a safety measure.
+
+                          And the weight was misplaced. Typing a name to
+                          confirm is what you ask for when the thing cannot be
+                          got back: a dropped database, a deleted account.
+                          This deletes rows in OUR database — the migration's
+                          configuration and what it recorded about its own
+                          copies. Every FK to `mailbox_mapping` cascades, and
+                          all of them are ours. Nothing reaches the source or
+                          the target: this product only writes to a provider
+                          inside a sync or a gated apply (ADR-0024), never
+                          from a screen. So the honest gate is two presses and
+                          a sentence saying exactly that. */}
                       <p>{t('mappings.delete.explain')}</p>
                       <div className="mt-2 flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={deleteArm.typed}
-                          onChange={(e) => setDeleteArm({ id: mapping.id, typed: e.target.value })}
-                          className="input"
-                          placeholder={mapping.name}
-                          aria-label={t('mappings.delete.explain')}
-                        />
                         <button
                           onClick={() => void handleDelete(mapping.id)}
-                          disabled={deleteArm.typed !== mapping.name || deletePending}
+                          disabled={deletePending}
                           className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {t('mappings.delete.confirm')}

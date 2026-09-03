@@ -215,31 +215,76 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
     expect(table.className).not.toContain('overflow-hidden');
   });
 
-  it('stays disarmed until the typed name matches, then deletes and refreshes', async () => {
+  /**
+   * ASKING TWICE, NOT ASKING FOR DICTATION (owner, 2026-09-03).
+   *
+   * This test used to type the migration's name into a box, because the
+   * confirm button compared the typed text to `mapping.name` byte for byte.
+   * The owner met the failure that gate makes possible: *"i think i typed it
+   * over, but it was not recognized, so i cant delete my migration"* — a
+   * name carrying a character a placeholder cannot show (a trailing space is
+   * enough) locks the button with no sentence saying why, and a confirmation
+   * that can refuse a correct answer is not a safety measure.
+   *
+   * The weight was misplaced as well as brittle. Typing a name belongs to
+   * things that cannot be got back; this deletes rows in OUR database, and
+   * every FK to `mailbox_mapping` cascades to more of ours. Nothing reaches
+   * the source or the target — this product writes to a provider inside a
+   * sync or a gated apply, never from a screen. So: two presses, and the
+   * sentence between them says exactly that.
+   */
+  it('arms on the first press and deletes on the second — no name to type', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
     deleteMock.mockResolvedValue(undefined);
 
     renderMappings();
 
+    // One press arms; nothing has been asked of the server yet.
     fireEvent.click(await screen.findByTitle('Delete'));
-    expect(screen.getByText(/Type the migration name to confirm/)).toBeInTheDocument();
+    expect(deleteMock).not.toHaveBeenCalled();
+
+    // The sentence names what goes AND what is not touched, because that is
+    // what makes one press enough.
+    expect(screen.getByText(/the record of what it has already copied/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Nothing at your source or your destination is touched/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Type the migration name/)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Inbox')).not.toBeInTheDocument();
 
     const confirmButton = screen.getByRole('button', { name: 'Delete migration' });
-    expect(confirmButton).toBeDisabled();
-
-    // A wrong name keeps it disarmed — deliberate confirmation, not friction.
-    fireEvent.change(screen.getByPlaceholderText('Inbox'), { target: { value: 'inbox' } });
-    expect(confirmButton).toBeDisabled();
-
-    fireEvent.change(screen.getByPlaceholderText('Inbox'), { target: { value: 'Inbox' } });
     expect(confirmButton).toBeEnabled();
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('m1'));
     // The arming row closes after a successful delete.
     await waitFor(() =>
-      expect(screen.queryByText(/Type the migration name to confirm/)).not.toBeInTheDocument(),
+      expect(screen.queryByRole('button', { name: 'Delete migration' })).not.toBeInTheDocument(),
     );
+  });
+
+  it('a name no placeholder could show still deletes — the owner\u2019s own wall', async () => {
+    // A trailing space is invisible in a text box and was, until today,
+    // enough to make a migration undeletable through the product.
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox ' })]);
+    deleteMock.mockResolvedValue(undefined);
+
+    renderMappings();
+    fireEvent.click(await screen.findByTitle('Delete'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete migration' }));
+
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('m1'));
+  });
+
+  it('the first press can be taken back without deleting anything', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
+    renderMappings();
+
+    fireEvent.click(await screen.findByTitle('Delete'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('button', { name: 'Delete migration' })).not.toBeInTheDocument();
+    expect(deleteMock).not.toHaveBeenCalled();
   });
 
   it('a refused delete renders the server words and keeps the row', async () => {
@@ -262,7 +307,6 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
     renderMappings();
 
     fireEvent.click(await screen.findByTitle('Delete'));
-    fireEvent.change(screen.getByPlaceholderText('Inbox'), { target: { value: 'Inbox' } });
     fireEvent.click(screen.getByRole('button', { name: 'Delete migration' }));
 
     expect(await screen.findByText('The migration was not deleted.')).toBeInTheDocument();
