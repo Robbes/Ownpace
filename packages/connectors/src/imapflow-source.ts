@@ -213,25 +213,35 @@ export class ImapFlowSource implements SourceConnector {
 
   private async listFoldersInternal(client: ImapFlow): Promise<ReadonlyArray<MailFolder>> {
     const listed = await client.list();
+    // A CONTAINER IS NOT A FOLDER (2026-09-03, the owner's Gmail). Gmail lists
+    // `[Gmail]` as `\HasChildren \Noselect` — a name that holds its labels and
+    // no mail. It reached every consumer that opens what this lists: the
+    // measure SELECTed it and Gmail answered NO, and so did discovery, so a
+    // 29-folder account measured nothing and scanned nothing. Filtered on the
+    // SERVER's own statement rather than by name (`[Gmail]` is localised, and
+    // every namespace-prefixed IMAP server has containers of its own).
+    const selectable = listed.filter((box) => isSelectableFolder(box.flags));
 
-    if (listed.length === 0) {
+    if (selectable.length === 0) {
       // The same fallback `ImapSource` has, kept so the two agree even in the
       // failure case. A server that answers LIST with nothing but can still
       // open INBOX is migratable; reporting "no folders" would report an
-      // account with mail in it as empty, which hard rule 9 forbids.
+      // account with mail in it as empty, which hard rule 9 forbids. Counted
+      // over the SELECTABLE ones: a LIST of nothing but containers is a LIST
+      // of nothing this connector can read.
       try {
         await client.mailboxOpen('INBOX');
         return [{ path: 'INBOX', name: 'INBOX', specialUse: 'inbox' as SpecialUse }];
       } catch (openErr) {
         throw new Error(
-          'IMAP LIST returned no mailboxes and INBOX cannot be opened. ' +
+          'IMAP LIST returned no selectable mailboxes and INBOX cannot be opened. ' +
             'This indicates a server-side issue or missing account configuration.',
           { cause: openErr },
         );
       }
     }
 
-    return listed.map((box) => ({
+    return selectable.map((box) => ({
       path: box.path,
       name: box.name,
       // The SERVER's own LIST flags, never imapflow's name-based inference —
@@ -482,6 +492,20 @@ export class ImapFlowSource implements SourceConnector {
    * failure into a slow one.
    */
   private async withConnection<T>(operation: (client: ImapFlow) => Promise<T>): Promise<T> {
+    try {
+      return await this.withConnectionRaw(operation);
+    } catch (error) {
+      // THE SERVER'S OWN WORDS REACH THE CALLER (hard rule 9). Everything above
+      // this line — the auth retry included — needs the error imapflow threw,
+      // so the refusal is only unpacked on the way out, and only when it IS
+      // one: anything else travels untouched, with `cause` kept either way.
+      const detail = imapRefusalDetail(error);
+      if (!detail) throw error;
+      throw new Error(detail, { cause: error });
+    }
+  }
+
+  private async withConnectionRaw<T>(operation: (client: ImapFlow) => Promise<T>): Promise<T> {
     let client = await this.connect();
     try {
       return await operation(client);
@@ -544,16 +568,81 @@ async function closeQuietly(client: ImapFlow): Promise<void> {
 }
 
 /**
+ * Attributes that say "this name cannot hold mail", in the server's own words.
+ *
+ * `\Noselect` (RFC 3501) and `\NonExistent` (RFC 5258) both mean the name
+ * cannot be SELECTed. Reading them is not a guess about a provider: it is the
+ * one statement LIST makes about whether a name can be opened at all.
+ * Lower-cased because IMAP attributes are case-insensitive, the way
+ * `mapImapSpecialUse` and `gmailVisibleFolders` already compare them.
+ */
+const UNSELECTABLE_ATTRIBUTES = new Set(['\\noselect', '\\nonexistent']);
+
+/** Can this listed mailbox be opened at all? Read off its LIST flags. */
+export function isSelectableFolder(flags: Iterable<string> | undefined): boolean {
+  for (const flag of flags ?? []) {
+    if (UNSELECTABLE_ATTRIBUTES.has(flag.toLowerCase())) return false;
+  }
+  return true;
+}
+
+/**
+ * WHAT THE SERVER ACTUALLY SAID, out of an imapflow refusal.
+ *
+ * imapflow throws `new Error('Command failed')` — one constant string — for
+ * every tagged NO and BAD there is, and puts the facts on the error object
+ * instead: `responseStatus` (NO or BAD), `responseText` (the server's own
+ * sentence, e.g. `[NONEXISTENT] Unknown Mailbox: [Gmail] (Failure)`) and
+ * `executedCommand` (the command it sent, already redacted for logging — it is
+ * what imapflow puts in its own logs, so sensitive arguments read as
+ * `(* value hidden *)`).
+ *
+ * A caller that reads only `message` therefore shows the same four words for a
+ * mailbox that does not exist, a quota refusal and an expired token — hard
+ * rule 9's exact shape. The owner's Gmail discovery reported `Command failed`
+ * and nothing else on 2026-09-03, four screens deep, and the folder it could
+ * not open was never named.
+ *
+ * `undefined` when the error is not one of imapflow's refusals, so a caller
+ * can fall back to the message it already had.
+ */
+export function imapRefusalDetail(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+  const carrier = error as {
+    responseStatus?: unknown;
+    responseText?: unknown;
+    executedCommand?: unknown;
+  };
+  const status = typeof carrier.responseStatus === 'string' ? carrier.responseStatus : undefined;
+  const text = typeof carrier.responseText === 'string' ? carrier.responseText : undefined;
+  if (!status && !text) return undefined;
+  const command =
+    typeof carrier.executedCommand === 'string' && carrier.executedCommand.trim() !== ''
+      ? carrier.executedCommand.trim()
+      : undefined;
+  return (
+    `The IMAP server refused: ${[status, text].filter(Boolean).join(' ')}` +
+    (command ? ` (in answer to: ${command})` : '')
+  );
+}
+
+/**
  * Is this an authentication failure worth refreshing a token for?
  *
  * The same patterns `imap-source.ts` matches, plus imapflow's own
  * `AUTHENTICATIONFAILED` response code, which node-imap never surfaced in that
  * form. Kept as a superset rather than a rewrite: narrowing it would mean a
  * token that used to be refreshed silently stops being.
+ *
+ * READ OVER THE REFUSAL'S OWN TEXT as well as the message (2026-09-03): every
+ * imapflow refusal carries the constant `Command failed` as its message, and
+ * the response code that says `AUTHENTICATIONFAILED` sits on `responseText`.
+ * Matching the message alone meant the ONE case this retry exists for — an
+ * XOAUTH2 token the server has stopped accepting — never reached the refresh.
  */
 export function isAuthError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  const message = error.message.toLowerCase();
+  const message = `${error.message} ${imapRefusalDetail(error) ?? ''}`.toLowerCase();
   return (
     message.includes('authentication failed') ||
     message.includes('authenticationfailed') ||
