@@ -164,6 +164,31 @@ export interface CalendarFolder {
  * among "5 calendars visible".
  */
 /**
+ * Which component an iCalendar object holds, or `undefined` when its BEGIN
+ * lines name none this product knows.
+ *
+ * The FIRST recognised `BEGIN:` inside the VCALENDAR wrapper. An object may
+ * legitimately carry more than one component — a recurring series and its
+ * modified occurrences share a file — but they are the same UID and the same
+ * kind, so the first one names the object.
+ *
+ * Anchored to the start of a line on purpose: a calendar named
+ * `X-WR-CALNAME:My VTODO list` would otherwise relabel every event inside it.
+ *
+ * Lives here rather than in either connector because BOTH sides need the same
+ * answer from the same bytes: the source labels the record it stores, and the
+ * target's read-back has to ask the server for the component it is about to
+ * write. Two readings of one file would disagree exactly once.
+ */
+export function componentOfIcalendar(icalendar: string): CalendarComponent | undefined {
+  const match = icalendar.match(/^BEGIN:(VEVENT|VTODO|VJOURNAL)\s*$/im);
+  const name = match?.[1]?.toUpperCase();
+  return (CALENDAR_COMPONENTS as ReadonlyArray<string>).includes(name ?? '')
+    ? (name as CalendarComponent)
+    : undefined;
+}
+
+/**
  * The label for an iCalendar component name.
  *
  * The two vocabularies exist because they answer different questions: the DAV

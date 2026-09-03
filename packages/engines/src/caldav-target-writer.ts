@@ -21,6 +21,8 @@ import type {
   RemovalResult,
 } from '@openmig/shared';
 import { calendarNaturalKeyHash, calendarContentHash, isOnTarget, neutraliseScheduling } from '@openmig/shared';
+import { CALENDAR_COMPONENTS, componentOfIcalendar } from '@openmig/shared';
+import type { CalendarComponent } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
 import {
   parseMultiStatus,
@@ -187,8 +189,14 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // writer win, and that is this one. See webdav-target-writer.ts.
     const sizeBytes = Buffer.byteLength(raw.icalendar, 'utf8');
 
-    // Check if event already exists on target (by UID)
-    const existingId = await this.existingTargetId(calendarId, naturalKey);
+    // Check if the object already exists on target (by UID), asking the server
+    // for the component we are about to write rather than for VEVENT always
+    // (workplan 0113 T4).
+    const existingId = await this.existingTargetId(
+      calendarId,
+      naturalKey,
+      componentOfIcalendar(raw.icalendar),
+    );
     if (existingId) {
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
@@ -308,10 +316,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   private async existingTargetId(
     collectionId: string,
     naturalKey: string,
+    component?: CalendarComponent,
   ): Promise<string | undefined> {
     const keys = await this.keysIn(collectionId);
     if (keys) return keys.get(naturalKey);
-    return this.findCalendarByNaturalKey(collectionId, naturalKey);
+    return this.findCalendarByNaturalKey(collectionId, naturalKey, component);
   }
 
   /**
@@ -321,8 +330,23 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   async findCalendarByNaturalKey(
     calendarId: string,
     naturalKey: string,
+    component?: CalendarComponent,
   ): Promise<string | undefined> {
-    // Use CalDAV REPORT to search for events by UID
+    // THE FILTER FOLLOWS THE COMPONENT BEING WRITTEN (workplan 0113 T4).
+    //
+    // This asked for `VEVENT` and nothing else, so a task already on the target
+    // came back as "not there" — and was re-PUT on every pass, for ever. Same
+    // href, so nothing duplicated and nothing was lost; it is the idempotency
+    // CHECK that was blind, not the write. Reachable without any task feature
+    // at all: `sync-collection` is component-agnostic, so a mixed collection
+    // (Nextcloud's default calendar declares VEVENT,VTODO) already carries
+    // tasks through this writer.
+    //
+    // A caller that knows the component asks for exactly it. One that does not
+    // asks for all three, which is strictly more likely to find what is there —
+    // never less. RFC 4791 §9.7.1: sibling comp-filters are a logical OR.
+    const components = component ? [component] : CALENDAR_COMPONENTS;
+    // Use CalDAV REPORT to search for the object by UID
     const query = `<?xml version="1.0" encoding="utf-8"?>
       <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
         <D:prop>
@@ -331,11 +355,15 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         </D:prop>
         <C:filter>
           <C:comp-filter name="VCALENDAR">
-            <C:comp-filter name="VEVENT">
+            ${components
+              .map(
+                (component) => `<C:comp-filter name="${component}">
               <C:prop-filter name="UID">
                 <C:text-match>${this.escapeXml(naturalKey)}</C:text-match>
               </C:prop-filter>
-            </C:comp-filter>
+            </C:comp-filter>`,
+              )
+              .join('\n            ')}
           </C:comp-filter>
         </C:filter>
       </C:calendar-query>`;
@@ -432,7 +460,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       .filter((path) => path !== homeSet);
   }
 
-  /** Every VEVENT resource in one calendar, as ledger-shaped entries. */
+  /** Every calendar resource in one collection, as ledger-shaped entries. */
   private async *listEventsIn(calendarPath: string): AsyncIterable<TargetEntry> {
     // Partial retrieval (RFC 4791 §9.6): ask for the UID rather than the whole
     // event body. Enumeration is metadata-only by contract and a mailbox-sized
@@ -444,15 +472,19 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
           <D:getcontentlength/>
           <C:calendar-data>
             <C:comp name="VCALENDAR">
-              <C:comp name="VEVENT">
+              ${CALENDAR_COMPONENTS.map(
+                (component) => `<C:comp name="${component}">
                 <C:prop name="UID"/>
-              </C:comp>
+              </C:comp>`,
+              ).join('\n              ')}
             </C:comp>
           </C:calendar-data>
         </D:prop>
         <C:filter>
           <C:comp-filter name="VCALENDAR">
-            <C:comp-filter name="VEVENT"/>
+            ${CALENDAR_COMPONENTS.map((component) => `<C:comp-filter name="${component}"/>`).join(
+              '\n            ',
+            )}
           </C:comp-filter>
         </C:filter>
       </C:calendar-query>`;
@@ -600,6 +632,18 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // namespace (C:mkcalendar), not DAV: — servers (e.g. SabreDAV, which Nextcloud uses)
     // deserialize the body by its Clark-notation element name and silently fail to create a
     // real calendar collection (while still returning success) if the root is misnamed.
+    // THE COMPONENT SET TRAVELS WITH THE COLLECTION (RFC 4791 §5.2.3, workplan
+    // 0113 T4). A task list is a calendar collection that says VTODO; created
+    // without saying so it becomes an ordinary calendar, and the tasks written
+    // into it are refused or hidden by a client that reads the property. Sent
+    // only when the SOURCE declared one — a collection that declared nothing is
+    // recreated as one that declares nothing, rather than being narrowed to
+    // whatever this pass happened to see in it.
+    const componentSet = folder.components?.length
+      ? `<C:supported-calendar-component-set>${folder.components
+          .map((component) => `<C:comp name="${component}"/>`)
+          .join('')}</C:supported-calendar-component-set>`
+      : '';
     const mkcalendar = `<?xml version="1.0" encoding="utf-8"?>
       <C:mkcalendar xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
         <D:set>
@@ -607,6 +651,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
             <D:displayname>${this.escapeXml(folder.name || folder.path)}</D:displayname>
             ${folder.description ? `<C:calendar-description>${this.escapeXml(folder.description)}</C:calendar-description>` : ''}
             ${folder.color ? `<CR:color xmlns:CR="http://apple.com/ns/ical/">${this.escapeXml(folder.color)}</CR:color>` : ''}
+            ${componentSet}
           </D:prop>
         </D:set>
       </C:mkcalendar>`;
@@ -748,13 +793,86 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     }
 
     if (response.status !== 201 && response.status !== 204) {
-      throw new Error(`PUT failed for ${eventPath} with status ${response.status}: ${response.body}`);
+      // A REFUSAL NAMES THE COMPONENT, NEVER A BARE 403 (workplan 0113 T4).
+      //
+      // A CalDAV collection may declare which components it accepts (RFC 4791
+      // §5.2.3), and writing a VTODO into a VEVENT-only calendar is refused —
+      // by SabreDAV with a 403 whose body is a stack of XML, which tells the
+      // reader nothing they can act on. So on the refusal path only (never on a
+      // write that worked) the collection is asked what it accepts, and the
+      // sentence says which component was written and which the target takes.
+      throw new Error(await this.refusalDetail(calendarId, eventPath, raw.icalendar, response));
     }
 
     // What the server says this object is now. Recorded so a later pass can
     // tell whether the copy is still the one we made; absent is fine and simply
     // costs this item its overwrite protection.
     return { path: eventPath, ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}) };
+  }
+
+  /**
+   * Why a PUT was refused, in a sentence a person can act on.
+   *
+   * Costs one PROPFIND, and only when a write has ALREADY failed — the happy
+   * path is untouched. When the collection's declared component set does not
+   * include what was being written, that is almost certainly the cause and the
+   * message says so by name; otherwise the server's own status and body are
+   * reported unchanged, because a guess dressed as a diagnosis is worse than
+   * the raw refusal (§11.2's honest passthrough).
+   */
+  private async refusalDetail(
+    calendarId: string,
+    eventPath: string,
+    icalendar: string,
+    response: { status: number; body: string },
+  ): Promise<string> {
+    const plain = `PUT failed for ${eventPath} with status ${response.status}: ${response.body}`;
+    const component = componentOfIcalendar(icalendar);
+    if (!component) return plain;
+    let accepted: ReadonlyArray<CalendarComponent> | undefined;
+    try {
+      accepted = await this.collectionComponents(calendarId);
+    } catch {
+      // The diagnosis is a courtesy; failing to fetch it must never replace the
+      // real refusal with an error about the courtesy.
+      return plain;
+    }
+    if (!accepted || accepted.includes(component)) return plain;
+    return (
+      `PUT failed for ${eventPath} with status ${response.status}: the target collection ` +
+      `${calendarId} accepts ${accepted.join(', ')} and this object is a ${component}. ` +
+      'A CalDAV collection declares which components it holds (RFC 4791 §5.2.3); this one ' +
+      `does not hold ${component}, so the write cannot land here. Server said: ${response.body}`
+    );
+  }
+
+  /** What a target collection says it accepts, or undefined when it says nothing. */
+  private async collectionComponents(
+    calendarPath: string,
+  ): Promise<ReadonlyArray<CalendarComponent> | undefined> {
+    const response = await this.requestWithRetry({
+      method: 'PROPFIND',
+      url: this.buildUrl(calendarPath),
+      body: `<?xml version="1.0" encoding="utf-8"?>
+        <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><C:supported-calendar-component-set/></D:prop>
+        </D:propfind>`,
+      headers: {
+        Depth: '0',
+        'Content-Type': 'application/xml',
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
+    if (response.status !== 207) return undefined;
+    const set = response.body.match(
+      /<[A-Za-z]+:supported-calendar-component-set[^>]*>([\s\S]*?)<\/[A-Za-z]+:supported-calendar-component-set>/i,
+    );
+    if (!set?.[1]) return undefined;
+    const known = new Set<string>(CALENDAR_COMPONENTS);
+    const components = [...set[1].matchAll(/<[A-Za-z]*:?comp\s[^>]*name="([^"]+)"/gi)]
+      .map((m) => m[1]!.toUpperCase())
+      .filter((name) => known.has(name)) as CalendarComponent[];
+    return components.length > 0 ? [...new Set(components)] : undefined;
   }
 
   private parseMultiStatusResponse(

@@ -20,7 +20,12 @@ import type {
   SyncCursor,
   RawCalendarEvent,
 } from '@openmig/shared';
-import { CALENDAR_COMPONENTS, COMPONENT_ITEM_TYPES, collectionCarries } from '@openmig/shared';
+import {
+  CALENDAR_COMPONENTS,
+  COMPONENT_ITEM_TYPES,
+  collectionCarries,
+  componentOfIcalendar,
+} from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
 import { davRefusalBody } from './gdata-refusal.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
@@ -663,8 +668,7 @@ export class CalDAVSource implements CalendarSource {
    * of a parse that did not understand it.
    */
   static componentTypeOf(icalendar: string): CalendarEventType {
-    const match = icalendar.match(/^BEGIN:(VEVENT|VTODO|VJOURNAL)\s*$/im);
-    const component = match?.[1]?.toUpperCase() as CalendarComponent | undefined;
+    const component = componentOfIcalendar(icalendar);
     return component ? COMPONENT_ITEM_TYPES[component] : 'event';
   }
 

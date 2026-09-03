@@ -2,7 +2,30 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
-**2026-09-03 (latest): T3b, first half — an object is labelled what it is.** `parseCalendarObject`
+**2026-09-03 (latest): T4 built — the writer asks about the component it is writing.**
+Both read-back queries in `caldav-target-writer.ts` filtered `comp-filter name="VEVENT"`, so
+a task already on the target came back as "not there" and was re-PUT on every pass. Nothing
+duplicated (same href, same UID) and nothing was lost — the idempotency CHECK was blind, not
+the write, which is why a green suite never noticed. Reachable with no task feature at all: a
+mixed collection already carries tasks through this writer today.
+
+Three changes, one rule. The per-item REPORT filters on the component being written, read
+from the object's own bytes; a caller that does not know asks for all three, which is
+strictly more likely to find what is there (RFC 4791 §9.7.1: sibling comp-filters are an OR).
+The collection snapshot — which also feeds verification — covers every component, keeping its
+partial retrieval so a mailbox-sized calendar is still not downloaded to be counted.
+`MKCALENDAR` carries the source collection's declared component set, and a source that
+declared nothing creates a collection that declares nothing rather than being narrowed to
+whatever this pass happened to see.
+
+And a refusal names the component: writing a VTODO into a VEVENT-only collection is a 403
+whose body is a stack of XML, so on the failure path only (one PROPFIND, never on a write
+that worked) the collection is asked what it accepts and the sentence says which component
+was written and which the target takes. When the component does not explain the refusal, the
+server's own words are passed through unchanged — a guess dressed as a diagnosis is worse
+than the raw refusal.
+
+**2026-09-03: T3b, first half — an object is labelled what it is.** `parseCalendarObject`
 stamped `type: 'event'` on every object it saw. That was wrong for two of RFC 5545's three
 components and reachable today rather than hypothetically: `sync-collection` (RFC 6578) is
 component-agnostic, so a MIXED collection — Nextcloud's default calendar declares
@@ -10,10 +33,10 @@ component-agnostic, so a MIXED collection — Nextcloud's default calendar decla
 right (the raw iCalendar is carried through and PUT verbatim); the label on the record lied.
 
 Nothing reads `type` today, so this changes no behaviour — it makes the record honest and
-gives T4's read-back the field it needs. **T4 is now the live defect:** both read-back
-queries in `caldav-target-writer.ts` filter `comp-filter name="VEVENT"`, so a task written
-into a mixed collection is invisible to the check that decides whether it is already there,
-and is re-PUT on every pass.
+gives T4's read-back the field it needs. **It also turned T4 up as a live defect**, which the
+entry above closes: both read-back queries filtered `comp-filter name="VEVENT"`, so a task
+written into a mixed collection was invisible to the check that decides whether it is already
+there, and was re-PUT on every pass.
 
 **2026-09-03: T3a built — a task list stops being counted as a calendar.** `listCollections`
 asks for `supported-calendar-component-set` and skips a collection that does not carry
@@ -76,7 +99,7 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 | T1 The domain has ONE name | ✅ Done | Was **80 inline copies across 18 files** (73 when this was written; #734–#738 added seven). Now one `DISCOVERY_DOMAINS` in `packages/shared/src/discovery.ts` with `DiscoveryDomain` derived from it, three redundant aliases removed, and `scripts/a-domain-union-typed-out-by-hand.unit.test.ts` failing the build on a new copy of the type OR of the value list — with every legitimate exception named and two-way, so it cannot go stale. Proved by breaking. No behaviour changed. |
 | T2 The ledger widens | ✅ Done | `0036_a_task_is_not_an_event.sql`: nine CHECKs widened (eight `domain` columns — seven baseline, one from 0035 — plus the legacy `item.item_type`). Additive, re-runnable, verified against a real Postgres: nine constraints accept `task`, a row lands in each of the eight tables, and `journal` is still refused. The Drizzle mirror names `DISCOVERY_DOMAINS` rather than listing values, and a guard fails the build on a domain that reaches the code without a migration. Proved by breaking. |
 | T3 The source tells a task list from a calendar | 🟡 (a) done, (b) half done | **(a)** `listCollections` now PROPFINDs `supported-calendar-component-set` (RFC 4791 §5.2.3) and drops a collection that does not carry `VEVENT`, so a VTODO-only list stops being counted among "5 calendars visible". The declared set rides on `CalendarFolder.components` as data; an UNDECLARED set is a yes for every component, per the RFC and 0105's never-guess rule. Proved by breaking. **(b) half:** each object's `type` is now read from its own `BEGIN:` line instead of stamped `'event'` — reachable today, because `sync-collection` is component-agnostic and a MIXED collection hands the parser its tasks along with its events. Still to come: carrying task collections as their own kind, which needs the task domain (T5). |
-| T4 The writer writes a task | 📋 Planned (needs T3) | The read-back's `comp-filter` follows the component being written; `MKCALENDAR` names the component set when a collection has to be created; a target collection that cannot take the component is refused **by name**, never by a silent 403. |
+| T4 The writer writes a task | ✅ Done | Both read-backs follow the component: the per-item REPORT filters on what is being written (read from the object's own bytes), the collection snapshot covers all three while keeping partial retrieval, `MKCALENDAR` carries the source's declared component set (and declares nothing when the source did), and a refusal names the component instead of returning a bare 403 — passing the server's own words through unchanged when the component is not the reason. Proved by breaking, five ways. |
 | T5 The domain surfaces | 📋 Planned (needs T1, T2, T3) | The matrices, the qualification's fifth face and its badge, the wizard's fifth tick, the discovery counts, the confirm screen, EN/NL strings, the icon. |
 | T6 Google Tasks | 📋 Optional (needs T0 decision 3) | Google's CalDAV carries no VTODO at all: tasks live behind the separate Tasks REST API, whose model is thinner than VTODO. A face of its own, or out of scope for v1. |
 | T7 The gate | 📋 Planned (needs T4) | The managed nightly seeds a task list in the demo backend and migrates it, so the next regression of this shape is caught by a machine rather than by the owner's account. |
