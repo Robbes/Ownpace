@@ -1412,8 +1412,30 @@ fi
   # checked" — so the assertion is simply that the ids we require are absent.
   # Matching on that id rather than on the status field because the per-domain
   # blocks contain nested `issues` arrays, which no `[^}]*` grep survives.
+  #
+  # ABSENT IS NOT THE SAME AS UNSKIPPED, and reading it as such is how this
+  # gate would have missed the very defect #750 fixed. Until #750 the report
+  # had four domain keys and no `tasks` at all: a `SKIPPED_tasks` grep finds
+  # nothing in that report, and "nothing found" was this loop's PASS. So a
+  # domain absent from the report is now its own failure, louder than a skip —
+  # a skip is a domain the engine declined to check, an absence is a domain
+  # the engine does not know exists.
+  #
+  # The presence probe is `"<domain>":{` because that is the shape the report
+  # actually has (`"report":{"<mappingId>":{"mail":{…},"calendar":{…},…}`).
+  # Bare `"<domain>"` would match the word anywhere in a nested issue message
+  # and hand back the same false pass in a new disguise.
 for d in "${REQUIRED_DOMAINS[@]}"; do
-  if grep -q "SKIPPED_${d}" <<<"$rbody"; then
+  if ! grep -q "\"${d}\":{" <<<"$rbody"; then
+    echo ""
+    echo "verify ($VERIFY_LABEL) has NO '${d}' domain in its report at all."
+    echo "Not skipped — absent. The engine walks VERIFICATION_DOMAINS"
+    echo "(packages/shared/src/verification-report.ts) and builds a total record over it,"
+    echo "so a missing key means this stack is running an engine that predates the domain."
+    echo "That is the shape workplan 0113's fifth fan-out was: four keys, a ticked fifth"
+    echo "domain, and canProceedToCutover computed over four fifths of the migration."
+    fail_at "verify ($VERIFY_LABEL) report has no '${d}' domain key — the engine never knew about it"
+  elif grep -q "SKIPPED_${d}" <<<"$rbody"; then
     echo ""
     echo "verify ($VERIFY_LABEL) SKIPPED the '${d}' domain, which this mapping exists to cover."
     echo "The report says it plainly: 'this domain was NOT checked'. A verify that skips"
@@ -1430,17 +1452,28 @@ done
 # Tenant A — mail, against the demo Stalwart.
 verify_mapping "$VERIFY_TENANT" "$VERIFY_SUB" "$VERIFY_MAPPING" mail mail
 
-# Tenant B — calendar, contacts and files, against the demo Nextcloud. The same
-# mapping the apply half then acts on.
+# Tenant B — calendar, contacts, files and tasks, against the demo Nextcloud.
+# The same mapping the apply half then acts on.
 #
 # DELIBERATELY NOT ASSERTED `PASS`, and the reason is this script itself. The
 # apply half removes one real item from the target every run and the tombstone
 # is permanent, so the target legitimately lacks items the source still lists —
 # `missingOnTarget` is EXPECTED here and grows by one per run. Asserting PASS
 # would make the gate red for its own correct behaviour. What is asserted is
-# the part that was missing: that the three domains were CHECKED at all, and
-# that the comparison had something in it.
-verify_mapping "$APPLY_TENANT" "$APPLY_SUB" "$APPLY_MAPPING" dav calendar contacts files
+# the part that was missing: that each domain was CHECKED at all, and that the
+# comparison had something in it.
+#
+# `tasks` joins the required list here, and this is the SIXTH place workplan
+# 0113's fan-out reached. #750 made the engine walk every domain and taught
+# both self-hosted gates to read every one; this call still named three by
+# hand, so the managed gate would have gone on never asking about the task
+# domain with a report that finally had the answer in it.
+#
+# The spelling is the report's, not the tick's: VERIFICATION_DOMAINS says
+# `tasks`, the mapping config says `tasks`, the discovery domain says `task`
+# and the ledger row says `task`. Four vocabularies, still four (flagged on
+# #746, the owner's call) — this line speaks the report's.
+verify_mapping "$APPLY_TENANT" "$APPLY_SUB" "$APPLY_MAPPING" dav calendar contacts files tasks
 
 # ---------- APPLY half ----------
 note "APPLY — mapping $APPLY_MAPPING (tenant $APPLY_TENANT, sub $APPLY_SUB)"
