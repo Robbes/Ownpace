@@ -266,7 +266,31 @@ esac
 
 echo "[deploy-tasks] deploying apps/worker tasks (project ${TRIGGER_PROJECT_REF}, env ${TRIGGER_ENV})..."
 cd "${REPO_ROOT}/apps/worker"
+# TRIGGER_API_URL TRAVELS WITH THE TOKEN, ALWAYS (owner, 2026-09-03, on the
+# second login dance in one day).
+#
+# `TRIGGER_ACCESS_TOKEN` alone is not a login. The CLI's `deploy` calls
+# login({embedded:true}), whose first branch reads the token and validates it
+# against `TRIGGER_API_URL` — and **when that is unset it defaults to the SaaS
+# cloud, api.trigger.dev**, where a self-hosted `tr_pat_` is unknown. The CLI
+# then says `Invalid or Missing Access Token`, which reads as "your token is
+# wrong" when the token is fine and the ADDRESS is missing.
+#
+# That is the exact failure this script produced immediately after
+# trigger-remember-token.sh reported success: logout, login, a browser, a
+# minted token written to .env — and then a deploy refusing in the words of
+# the wall the operator had just climbed. Twice.
+#
+# Both other users of the token already pair it. `set-task-env.sh` sets this
+# same line for its own CLI call, and `e2e-managed.yml` sets it beside the
+# token secret with a comment naming the cloud default. This script — the one
+# that HARVESTS the token — was the only one that did not, so the path was
+# only ever exercised where something else had already set the variable.
+#
+# `--profile` is passed as well and stays the fallback: with no token in .env
+# the CLI reads the profile file, which carries its own apiUrl.
 TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
+  TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:${TRIGGER_PORT:-3090}}" \
   npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}" --env "${TRIGGER_ENV}"
 
 # THE DEPLOY EDITS apps/worker/package.json AND DOES NOT SAY SO.
