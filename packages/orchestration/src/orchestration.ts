@@ -442,7 +442,7 @@ export async function runAllDomains(
         } finally {
           await deps.close();
         }
-      } else {
+      } else if (domain === 'file') {
         const deps = buildDomainDeps(config, 'file', ledger);
         // Captured BEFORE the pass: ADR-0031's survived-a-pass gate compares
         // each relocation's recording date against this, so a move this very
@@ -494,6 +494,19 @@ export async function runAllDomains(
         } finally {
           await deps.close();
         }
+      } else {
+        // NOT a fallback — a refusal. Every branch above tests a domain by
+        // name, so reaching here means DISCOVERY_DOMAINS grew and this chain
+        // did not. Throwing is the whole point of the seventh fan-out's fix:
+        // the previous version of this line was `else { …runFileSync }`, which
+        // gave the new domain a wrong pass and a `markCompleted`. A throw
+        // leaves the domain's status row in `in_progress` and surfaces in the
+        // run log, which is what an unimplemented domain should look like.
+        throw new Error(
+          `no sync pass is implemented for the '${domain}' domain — it is in DISCOVERY_DOMAINS ` +
+            'and enabled for this mapping, but runOneDomain has no branch for it. Add one ' +
+            'beside the others rather than letting it fall through to another domain\'s pass.',
+        );
       }
 
       results.push(outcome);

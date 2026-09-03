@@ -298,7 +298,7 @@ export const runDeltaSync = schemaTask({
             // together.
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task');
             try { result = await runTaskSync(deps); } finally { await deps.close(); }
-          } else {
+          } else if (domain === 'file') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
             // Captured BEFORE the pass: ADR-0031's survived-a-pass gate keeps
             // a move this pass records from being auto-applied by this pass.
@@ -307,6 +307,18 @@ export const runDeltaSync = schemaTask({
               result = await runFileSync(deps);
               await autoApplyOpenRelocations(tenantId, mappingId, runId, deps, passStartedAt);
             } finally { await deps.close(); }
+          } else {
+            // NOT a fallback — a refusal, and the managed twin of the same
+            // line in orchestration.runOneDomain. This chain used to END at
+            // the file branch with no condition, which is how a task became a
+            // file and still reached markCompleted below. A throw leaves the
+            // domain in_progress and puts the reason in the run log.
+            throw new Error(
+              `no sync pass is implemented for the '${domain}' domain — it is in ` +
+                'DISCOVERY_DOMAINS and selected for this mapping, but this dispatcher has no ' +
+                "branch for it. Add one beside the others rather than letting it fall through " +
+                "to another domain's pass.",
+            );
           }
 
           await withTenant(pool, tenantId, async (db) => {

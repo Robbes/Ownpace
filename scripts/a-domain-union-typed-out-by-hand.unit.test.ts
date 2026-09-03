@@ -106,6 +106,12 @@ const MAY_LIST_THE_VALUES: Readonly<Record<string, string>> = {
     'Pins what GOOGLE_ACCOUNT_SCOPE_CLASS=restricted widens a Google account to.',
   'apps/api/src/routes/provider-accounts.unit.test.ts':
     'Pins the same answer over HTTP.',
+  'scripts/a-domain-the-dispatchers-forgot.unit.test.ts':
+    'The domains BOTH sync dispatchers must tell apart, restated because a root-level ' +
+    'test cannot resolve @openmig/* (no-workspace-imports.unit.test.ts keeps it that ' +
+    'way). Not an unchecked copy: its first test pairs the restatement against ' +
+    'DISCOVERY_DOMAINS as text and fails if either side moves — which is how it caught ' +
+    "the sixth domain in this file's own break round (0113, the seventh fan-out).",
 };
 
 function walk(dir: string, out: string[]): void {

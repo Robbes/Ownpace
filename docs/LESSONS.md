@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 81 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 82 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -206,6 +206,10 @@ reading a file drops off its entry by itself.
 ### `apps/worker/package.json`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+
+### `apps/worker/src/jobs/run-delta-sync.ts`
+
+- [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 
 ### `apps/worker/src/jobs/run-discovery.ts`
 
@@ -518,6 +522,10 @@ reading a file drops off its entry by itself.
 
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 
+### `packages/core/src/dav-sync.ts`
+
+- [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
+
 ### `packages/core/src/verification.ts`
 
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
@@ -560,6 +568,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/orchestration/src/orchestration.ts`
 
+- [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
 
 ### `packages/orchestration/src/probe-connection.ts`
@@ -572,6 +581,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/shared/src/discovery.ts`
 
+- [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `packages/shared/src/google-deployment-client.unit.test.ts`
@@ -720,6 +730,7 @@ reading a file drops off its entry by itself.
 
 ### `test/e2e/no-workspace-imports.unit.test.ts`
 
+- [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 
 ### `test/e2e/seed-dav-source.mjs`
@@ -836,6 +847,18 @@ Reads:
 - `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 - `scripts/local-pg.sh`
 - `vitest.global-setup.ts`
+
+### [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts)
+
+A catch-all `else` that ran the wrong sync and called it a success.
+
+Reads:
+
+- `apps/worker/src/jobs/run-delta-sync.ts`
+- `packages/core/src/dav-sync.ts`
+- `packages/orchestration/src/orchestration.ts`
+- `packages/shared/src/discovery.ts`
+- `test/e2e/no-workspace-imports.unit.test.ts`
 
 ### [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts)
 
