@@ -2,7 +2,12 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
-**T1 to T4 are done and on PR #759.** T0's recommendations were taken in
+**T1 to T4 are done and on PR #759. T5 has been split into three, and T2 has
+been split into two** — see "What the survey missed" below for the first and
+the T2b row for the second. Both splits are corrections to this plan rather
+than new scope: T2 was written as "the consent round trip" and delivered the
+consent MODULE, which has no consumer; T5 was written as "the button" over a
+build path that cannot yet serve three of the four faces. T0's recommendations were taken in
 the owner's absence and are recorded below; he asked one question against them
 on 2026-09-03 — whether Microsoft has a tasks kind — and the answer is yes,
 now T9 rather than a paragraph.
@@ -52,14 +57,64 @@ pattern for a third time, over connectors that need no change at all.
 |---|---|---|
 | T0 Decide: faces, authority, and what the button asks for | ✅ Taken in his absence, recorded | Recommendation: all four faces, `/common` multi-tenant, read-only delegated scopes. Reasoning under "The design". |
 | T1 The deployment's own Entra client | ✅ Done | `microsoft-deployment-client.ts` beside the Google and Dropbox ones: `MICROSOFT_OAUTH_CLIENT_ID`/`_SECRET` both-or-neither, `resolveMicrosoftClient`, the half-pair refusal at every door. |
-| T2 The consent round trip | ✅ Done | `POST /api/migrations/microsoft/authorize` + `GET /microsoft/callback`, state-signed, `offline_access` for the refresh token, its own headers (the #721 lesson). |
+| T2 The consent, as a module | ✅ Done | `microsoft-consent.ts`: the authorize URL, `microsoftScopesFor`, `exchangeMicrosoftCode`, the AADSTS refusal sentences, `offline_access` as a scope. Twelve tests. |
+| T2b The two routes that use it | 📋 Not started | **`microsoft-consent.ts` has no consumer.** There is no `microsoft-oauth-routes.ts` beside `google-oauth-routes.ts` and `dropbox-oauth-routes.ts`, so `POST /microsoft/authorize` and `GET /microsoft/callback` do not exist. T2 was planned as "the consent round trip" and delivered the module half; this is the other half, and it is the #721 lesson's home (the callback answers under its own headers). |
 | T3 The `microsoft` account kind | ✅ Done | One row in `PROVIDER_ACCOUNT_KINDS` and one in `PROVIDER_ACCOUNT_DOMAINS`. The table was built for this. |
 | T4 The token reaches the connectors | ✅ Done, and it was already wired | The expectation held: no connector, factory or token-provider change. What the task produced instead is `a-consent-that-asks-for-a-different-scope`, pinning `MICROSOFT_DOMAIN_SCOPES` against `DELEGATED_SCOPES` and the inline mail scope, both directions, plus no writers. |
-| T5 The button, in both doors | 📋 Not started | Wizard and Connections add-form, folding the client pair away when the deployment carries it, one-go save+test. |
+| T5a The three faces the managed path never wired | ✅ Done | One face table (`source-face-builders.ts`), three seams rewritten as switches over it, the Graph refusals threaded with the managed vocabulary, `googleDavServes`/`googleDriveServes` retired into it, and a guard pairing the table against `PROVIDER_ACCOUNT_DOMAINS` in both directions. Proved by restoring the old fall-through, which reproduced the defect verbatim. |
+| T5b The kind in the tables a kind lives in | 📋 Not started | `credential-fields`, `providerClientFacts`, the `microsoft365` front-door family, the icon registry, the source config. T3 put `microsoft` in the account-kind table; a kind is not one row. |
+| T5c The button, in both doors | 📋 Not started | Wizard and Connections add-form, folding the client pair away when the deployment carries it, one-go save+test. **The two `grantProvider === 'dropbox' ? … : …` ternaries become a table first** — that is a two-provider condition with a third provider arriving, and its `else` branch runs Google's authorize for anything that is not Dropbox. |
 | T6 The refusals speak | 📋 Not started | `AADSTS65001`/`AADSTS90094` rendered as sentences, per #722's treatment of Google's `accessNotConfigured`. |
 | T7 Docs and env plumbing | 📋 Not started | `managed.yml`, `set-task-env`, `env.example`, redirect-URIs page, an operator guide and a customer guide. |
 | T8 The gate | 📋 Not started | Managed smoke assertions with a sentinel pair never followed to Microsoft, mirroring #729. |
 | T9 Microsoft To Do | 📋 Optional, not in v1 | **Yes, Microsoft has a tasks face** — Graph exposes `/me/todo/lists` under `Tasks.Read`, unlike Google, whose CalDAV carries no VTODO at any scope tier (0113 T5/T6). It is deliberately out of the grant's first version; the reasoning is under "What this deliberately leaves out", and the owner asked about it directly on 2026-09-03, which is why it is a row here rather than only a paragraph. |
+
+## What the survey missed
+
+**Found on 2026-09-03, opening T5.** The survey's table said "Graph calendar
+source — exists", "Graph contacts source — exists", "Graph OneDrive source —
+exists". Every one of those is true, and every one of them is wired in
+`build-deps.ts` — **the appliance's file-config path, from `OAUTH2_*`
+environment variables.**
+
+The MANAGED path is `build-deps-from-mapping.ts`, which builds a source from a
+stored connection's decrypted credentials. What it can build for Microsoft is
+`graph-mail`, and nothing else:
+
+| Seam | What it asks | Microsoft's answer |
+|---|---|---|
+| mail | `sourceConfig.type === 'graph-mail'` | ✅ built |
+| calendar | `googleDavServes(kind, 'calendar') ? Google : DAV` | ❌ falls to DAV |
+| contact | `googleDavServes(kind, 'contact') ? Google : DAV` | ❌ falls to DAV |
+| file | `dropbox / box / googleDriveServes / DAV` | ❌ falls to DAV |
+
+A `microsoft` account row reaching any of the last three would be handed to
+`davEndpointFromCreds`, which would refuse it for a missing username and
+password — **credentials that do not exist for this provider**, named inside a
+sync pass. That is the #597 symptom, verbatim, and it is the same sentence
+`buildFileSourceFromConnection` already has written at the top of it about
+Google Drive.
+
+**Why nothing is broken today:** no connection of kind `microsoft` can exist
+yet, because T5b has not run. This is latent, not live. It becomes live the
+moment the button lands, which is precisely why T5a comes first.
+
+### The shape of the miss, which is the part worth keeping
+
+The survey asked *"does a Graph calendar source exist?"* and the answer was
+yes. The question that would have caught this is *"can a stored connection
+build one?"* — and the difference between those two questions is a whole
+edition.
+
+**Every one of those three seams is a two-way condition with a third provider
+arriving**, which is the family this repository has now met eight times
+(0113 T1 counted seven; `providerAccountFacts` was the eighth, in T3 above).
+The seam does not fail to compile when a provider is added — it takes the
+`else` branch, does the wrong work, and reports success. So T5a's deliverable
+is not three `if`s: it is **one table of which builder speaks for which face
+of which provider account, and a guard that the table covers every face
+`PROVIDER_ACCOUNT_DOMAINS` claims.** A face a provider account advertises and
+cannot build is then a failing test rather than a support ticket.
 
 ## Why this exists
 
