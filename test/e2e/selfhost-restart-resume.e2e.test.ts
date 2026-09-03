@@ -140,7 +140,10 @@ const MOVED_HASH = calendarNaturalKeyHash(MOVED_UID);
 // Domains this gate proves restart-resume for — all four as of 2026-07-27. Comma-
 // separated override via E2E_DOMAINS lets a partial dispatch (e.g. while only
 // Stalwart is up) still exercise a subset.
-const DOMAINS: string[] = (process.env.E2E_DOMAINS || 'email,calendar,contact,file')
+// FIVE, matching what e2e.yml enables (0113 T8 added tasks). Four here meant
+// this gate never asked the appliance for the task domain's status, so a task
+// lane that synced nothing passed the nightly — the shape hard rule 9 names.
+const DOMAINS: string[] = (process.env.E2E_DOMAINS || 'email,calendar,contact,file,task')
   .split(',')
   .map((d) => d.trim())
   .filter((d) => d.length > 0);

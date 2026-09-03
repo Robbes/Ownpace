@@ -21,6 +21,7 @@ vi.mock('../services/edition', () => ({
 import Verify from './Verify.tsx';
 import * as service from '../services/operating-service.ts';
 import type { VerificationResult } from '@openmig/shared';
+import { VERIFICATION_DOMAINS } from '@openmig/shared';
 
 vi.mock('../services/operating-service', () => ({
   startVerification: vi.fn(),
@@ -30,16 +31,23 @@ vi.mock('../services/operating-service', () => ({
 const started = vi.mocked(service.startVerification);
 const fetched = vi.mocked(service.fetchVerifyReport);
 
-const domain = {
-  status: 'PASS',
-  sourceCount: 1,
-  targetCount: 1,
-  checksumSampled: 0,
-  checksumMismatches: 0,
-  totalBytesSource: 0,
-  totalBytesTarget: null,
-  issues: [],
-} as never;
+// Each domain carries its OWN dataType, because that is what the screen looks
+// its label up by. The fixture used to be one shared object with no dataType at
+// all, spread across four hand-written keys — which is how the report gaining a
+// fifth domain went unnoticed here: nothing named the domains, so nothing could
+// be missing.
+const domainFor = (dataType: string) =>
+  ({
+    dataType,
+    status: 'PASS',
+    sourceCount: 1,
+    targetCount: 1,
+    checksumSampled: 0,
+    checksumMismatches: 0,
+    totalBytesSource: 0,
+    totalBytesTarget: null,
+    issues: [],
+  }) as never;
 
 const RESULT: VerificationResult = {
   tenantId: 't' as never,
@@ -47,10 +55,9 @@ const RESULT: VerificationResult = {
   timestamp: '2026-07-31T12:00:00Z',
   overallStatus: 'PASS',
   score: 1,
-  mail: domain,
-  calendar: domain,
-  contacts: domain,
-  files: domain,
+  ...(Object.fromEntries(
+    VERIFICATION_DOMAINS.map((d) => [d, domainFor(d)]),
+  ) as Record<(typeof VERIFICATION_DOMAINS)[number], never>),
   totalItemsSource: 1,
   totalItemsTarget: 1,
   totalDiscrepancies: 0,

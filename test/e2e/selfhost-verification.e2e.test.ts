@@ -55,18 +55,40 @@ const DAV_SOURCE_PASSWORD = process.env.SOURCE_DAV_PASSWORD;
 const DAV_TARGET_USER = process.env.NEXTCLOUD_TARGET_USER || 'e2e-target';
 const DAV_TARGET_PASSWORD = process.env.TARGET_DAV_PASSWORD;
 
-const DOMAINS: string[] = (process.env.E2E_DOMAINS || 'email,calendar,contact,file')
+// FIVE, matching what e2e.yml actually enables on the appliance (0113 T8 added
+// tasks). This default was four while the workflow configured five, and since
+// nothing sets E2E_DOMAINS anywhere, the task lane ran on every nightly and no
+// assertion in this file ever asked about it.
+//
+// The override is for a PARTIAL dispatch (e.g. while only Stalwart is up), not
+// for the steady state — so the default must be everything the gate stands up,
+// or the gate silently covers less than it looks like it does.
+const DOMAINS: string[] = (process.env.E2E_DOMAINS || 'email,calendar,contact,file,task')
   .split(',')
   .map((d) => d.trim())
   .filter((d) => d.length > 0);
 
-/** Verification domain names, as the report keys them. */
-const DOMAIN_KEY: Record<string, 'mail' | 'calendar' | 'contacts' | 'files'> = {
+/**
+ * Verification domain names, as the report keys them.
+ *
+ * This file cannot import `VERIFICATION_DOMAINS` from `@openmig/shared` — the
+ * `test/` tree has no workspace dependency and `no-workspace-imports.unit.test.ts`
+ * enforces that. So the list is restated here, and
+ * `scripts/a-report-domain-the-gate-never-reads.unit.test.ts` pairs this
+ * restatement against the source of truth as TEXT. Adding a domain there and
+ * not here is a failing unit test, not a quietly narrower gate.
+ */
+const DOMAIN_KEY: Record<string, ReportDomain> = {
   email: 'mail',
   calendar: 'calendar',
   contact: 'contacts',
   file: 'files',
+  task: 'tasks',
 };
+
+/** Every domain the §20 report accounts for — `VERIFICATION_DOMAINS`, restated. */
+const REPORT_DOMAINS = ['mail', 'calendar', 'contacts', 'files', 'tasks'] as const;
+type ReportDomain = (typeof REPORT_DOMAINS)[number];
 
 interface DataTypeVerification {
   dataType: string;
@@ -97,6 +119,7 @@ interface VerificationReport {
   calendar: DataTypeVerification;
   contacts: DataTypeVerification;
   files: DataTypeVerification;
+  tasks: DataTypeVerification;
 }
 
 let report: VerificationReport;
@@ -184,7 +207,7 @@ describe('Verification gate against real servers', () => {
     // take. A systematic mismatch (every sample) means the server does not
     // store what we sent byte-for-byte — a property of the server, which no
     // amount of unit testing can establish.
-    for (const key of ['mail', 'calendar', 'contacts', 'files'] as const) {
+    for (const key of REPORT_DOMAINS) {
       const d = report[key];
       if (d.status === 'SKIPPED' || d.checksumSampleSize === 0) continue;
       console.log(
@@ -225,7 +248,7 @@ describe('Verification gate against real servers', () => {
   });
 
   it('reports whether target bytes could be measured', () => {
-    for (const key of ['mail', 'calendar', 'contacts', 'files'] as const) {
+    for (const key of REPORT_DOMAINS) {
       const d = report[key];
       if (d.status === 'SKIPPED') continue;
       console.log(
@@ -252,7 +275,7 @@ describe('Verification gate against real servers', () => {
     // The product already treats extras as WARNING rather than ERROR, which is
     // the correct severity: a target holding pre-existing data is normal, and
     // §20 must not refuse to migrate into an account someone is already using.
-    for (const key of ['mail', 'calendar', 'contacts', 'files'] as const) {
+    for (const key of REPORT_DOMAINS) {
       const d = report[key];
       if (d.extraOnTarget > 0) {
         console.log(`[e2e] ${key}: ${d.extraOnTarget} item(s) on target not in the ledger`);
