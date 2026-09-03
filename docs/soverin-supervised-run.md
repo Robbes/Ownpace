@@ -38,9 +38,16 @@ thing that would take it with it is rebuilding that stack from scratch — do
 that, and this section plus D are walked again.
 
 1. Sign in to the product (the Spark's managed web app) as the tenant owner.
-2. Connections → Add, role **target**, type **caldav**. Host and port from
-   Soverin's documentation; if their DAV root lives behind a path, put the
-   full URL in **DAV base URL** — that field exists for exactly this.
+2. Connections → Add, role **target**, type **Soverin** — one row for the
+   one account (calendars, contacts and mail). The boxes come pre-filled
+   with what Soverin's own help pages publish: host `caldav.soverin.net`,
+   port 443 (calendars and contacts share that DAV host, at the root, so
+   **DAV base URL** stays empty), mail server `imap.soverin.net`, mail port
+   993. They are Soverin's published values, not measured ones — the Test
+   button measures them, and if Soverin has moved a host it refuses in
+   Soverin's own words; if their DAV root ever moves behind a path, the
+   full URL goes in **DAV base URL**, which exists for exactly this. The
+   username is the account's email address.
    Credentials: the Soverin mailbox — **an app-password goes straight into
    the password field.** IMAP, CalDAV, CardDAV and SMTP submission all speak
    Basic auth here; no OIDC token exists or is needed anywhere on the

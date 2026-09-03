@@ -401,7 +401,7 @@ const en = {
   'wizard.proto.caldav.hint': 'Calendar protocol',
   'wizard.proto.carddav.hint': 'Contact protocol',
   'wizard.proto.webdav.hint': 'File storage',
-  'wizard.proto.soverin.hint': 'One account — calendars and contacts',
+  'wizard.proto.soverin.hint': 'One account — email, calendars and contacts',
   'wizard.title': 'Create Migration',
   'wizard.subtitle': 'Set up a new data migration between systems',
   'wizard.step.source': 'Source',
@@ -425,6 +425,10 @@ const en = {
   'wizard.soverinMailHost.hint':
     'The account’s IMAP host, as your provider’s settings page names it. Only needed when this account will also receive email — calendars and contacts need no mail server. Test measures it; nothing is assumed from the provider’s name.',
   'wizard.soverinMailPort': 'Mail port',
+  // The provider directory (0106 T5): whose published settings sit in the
+  // boxes, read when. They are measured by Test, never assumed.
+  'wizard.providerDefaults.note':
+    'Pre-filled from {provider}’s published settings, read {seen}. Test measures whether they answer; change anything that does not.',
   'wizard.useSsl': 'Use SSL/TLS',
   'wizard.migrationName': 'Migration Name',
   'wizard.migrationNameHint': 'A friendly name to identify this migration',
@@ -1913,7 +1917,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',
   'wizard.proto.webdav.hint': 'Bestandsopslag',
-  'wizard.proto.soverin.hint': 'Eén account — agenda’s en contacten',
+  'wizard.proto.soverin.hint': 'Eén account — e-mail, agenda’s en contacten',
   'wizard.title': 'Migratie aanmaken',
   'wizard.subtitle': 'Stel een nieuwe datamigratie tussen systemen in',
   'wizard.step.source': 'Bron',
@@ -1933,6 +1937,8 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.soverinMailHost.hint':
     'De IMAP-host van het account, zoals de instellingenpagina van uw aanbieder die noemt. Alleen nodig wanneer dit account ook e-mail gaat ontvangen — agenda’s en contacten hebben geen mailserver nodig. Testen meet dit; er wordt niets aangenomen op basis van de naam van de aanbieder.',
   'wizard.soverinMailPort': 'Mailpoort',
+  'wizard.providerDefaults.note':
+    'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test meet of ze antwoorden; pas aan wat niet antwoordt.',
   'wizard.useSsl': 'SSL/TLS gebruiken',
   'wizard.migrationName': 'Naam van de migratie',
   'wizard.migrationNameHint': 'Een herkenbare naam voor deze migratie',

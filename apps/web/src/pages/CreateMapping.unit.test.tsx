@@ -1257,11 +1257,17 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     pickDropbox();
     await waitFor(() => expect(providerClientsApi.get).toHaveBeenCalled());
     await act(async () => {});
-    expect(connectButton()).toBeDisabled();
-    expect(connectButton()).toHaveAttribute(
-      'title',
-      expect.stringContaining('Enter the account address first'),
+    // The sentence changes once the deployment's answer ("it carries the
+    // app") has landed; under a loaded full run that is a tick later than
+    // the call itself, so the assertion waits for the sentence rather than
+    // for the call (2026-09-03: one red in 5768 with nothing else changed).
+    await waitFor(() =>
+      expect(connectButton()).toHaveAttribute(
+        'title',
+        expect.stringContaining('Enter the account address first'),
+      ),
     );
+    expect(connectButton()).toBeDisabled();
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
@@ -1307,5 +1313,59 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     expect(sent.refreshToken).toBe('dbx-refresh');
     expect(sent).not.toHaveProperty('clientId');
     expect(sent).not.toHaveProperty('clientSecret');
+  });
+});
+
+/**
+ * THE PROVIDER DIRECTORY (0106 T5; owner 2026-09-03, after finding Soverin's
+ * help page by hand: "can we add the default already, like servers and
+ * ports?"). Picking a named provider's card fills what its help page
+ * publishes; only what is ours ever moves — a blank box, or one still at the
+ * previous pick's default — and Test measures the boxes like anything typed.
+ */
+describe('the provider directory pre-fills a named provider’s boxes', () => {
+  const toTargetStep = () => {
+    renderWizard();
+    fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
+      target: { value: 'mail.old-provider.example' },
+    });
+    satisfySourceStep();
+    fireEvent.click(nextButton());
+  };
+
+  it('picking Soverin fills its DAV host, mail host and both ports, and says whose they are', () => {
+    toTargetStep();
+    fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
+    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('caldav.soverin.net');
+    expect(screen.getByDisplayValue('443')).toBeTruthy();
+    expect(screen.getByPlaceholderText('imap.example.com')).toHaveValue('imap.soverin.net');
+    expect(screen.getByDisplayValue('993')).toBeTruthy();
+    expect(
+      screen.getByText(/Pre-filled from Soverin’s published settings, read \d{4}-\d{2}-\d{2}\./),
+    ).toBeTruthy();
+  });
+
+  it('a typed box is never overwritten — not by the pick, not by a pick after a pick', () => {
+    toTargetStep();
+    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+      target: { value: 'dav.mine.example' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
+    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('dav.mine.example');
+    // The blank mail host still takes the default beside the typed DAV host.
+    expect(screen.getByPlaceholderText('imap.example.com')).toHaveValue('imap.soverin.net');
+    fireEvent.click(screen.getByRole('button', { name: /^JMAP/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
+    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('dav.mine.example');
+  });
+
+  it('leaving Soverin empties the boxes still at its defaults; the port falls back to the wizard’s own 443', () => {
+    toTargetStep();
+    fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^JMAP/ }));
+    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('');
+    expect(screen.getByDisplayValue('443')).toBeTruthy();
+    expect(screen.queryByDisplayValue('imap.soverin.net')).toBeNull();
+    expect(screen.queryByText(/Pre-filled from/)).toBeNull();
   });
 });

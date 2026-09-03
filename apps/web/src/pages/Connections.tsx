@@ -20,6 +20,8 @@ import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
 import {
   credentialFieldsFor,
+  providerDefaultsFor,
+  providerDefaultsProvenance,
   wizardTypeForConnectionKind,
   type CredentialField,
 } from '@openmig/shared';
@@ -405,6 +407,8 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const [result, setResult] = React.useState<TestConnectionResult | null>(null);
 
   const fields = credentialFieldsFor(role, type);
+  /** Whose published settings sit in the boxes, when a named provider's do. */
+  const provenance = providerDefaultsProvenance(role, type);
   const refusalText = useRefusalText(fields);
   const placeholderFor = usePlaceholderFor();
   // WHOSE CONSENT mints this kind's token is the descriptor's answer
@@ -640,9 +644,10 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
               role="radio"
               aria-checked={role === r}
               onClick={() => {
+                const first = frontDoorCards(r)[0]?.id ?? '';
                 setRole(r);
-                setType(frontDoorCards(r)[0]?.id ?? '');
-                setValues({});
+                setType(first);
+                setValues({ ...providerDefaultsFor(r, first) });
                 setResult(null);
                 resetConsent();
               }}
@@ -663,12 +668,22 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           selectedId={type}
           onPick={(card) => {
             setType(card.id);
-            setValues({});
+            // THE DIRECTORY FILLS THE BOXES (0106 T5, owner 2026-09-03): a
+            // named provider's published servers and ports, editable, and
+            // measured by Test like anything typed. A fresh pick starts from
+            // them exactly as it used to start from nothing; a protocol card
+            // still starts from nothing, because "IMAP" names no provider.
+            setValues({ ...providerDefaultsFor(role, card.id) });
             setResult(null);
             resetConsent();
           }}
           gridClass={role === 'source' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}
         />
+        {provenance && (
+          <p className="mt-2 text-xs text-gray-600">
+            {t('wizard.providerDefaults.note', provenance)}
+          </p>
+        )}
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
