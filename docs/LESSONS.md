@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 83 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 84 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -100,6 +100,7 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts) — The create-mapping validator ends in a catch-all that asks for AZURE credentials, and nothing pairs it against the source types that exist.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `apps/api/src/routes/provider-accounts.ts`
@@ -1115,6 +1116,14 @@ Reads:
 - `deploy/compose/dev.yml`
 - `deploy/compose/managed.yml`
 - `deploy/compose/www.yml`
+
+### [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts)
+
+The create-mapping validator ends in a catch-all that asks for AZURE credentials, and nothing pairs it against the source types that exist.
+
+Reads:
+
+- `apps/api/src/routes/migrations/index.ts`
 
 ### [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts)
 
