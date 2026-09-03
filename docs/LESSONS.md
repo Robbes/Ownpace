@@ -129,6 +129,7 @@ reading a file drops off its entry by itself.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 - [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
+- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 
 ### `apps/api/src/services/billing-service.ts`
 
@@ -382,6 +383,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/smoke-managed.sh`
 
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
+- [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
 - [gate-net-zero](../scripts/gate-net-zero.unit.test.ts) — The managed gate takes back what it added.
@@ -692,6 +694,10 @@ reading a file drops off its entry by itself.
 
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 
+### `scripts/smoke-managed-verdict.unit.test.ts`
+
+- [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
+
 ### `scripts/status-page.unit.test.ts`
 
 - [a-sentence-two-files-must-agree-on](../scripts/a-sentence-two-files-must-agree-on.unit.test.ts) — A SENTENCE TWO FILES MUST AGREE ON, AND NOTHING MADE THEM.
@@ -732,6 +738,7 @@ reading a file drops off its entry by itself.
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 
 ### `test/e2e/seed-dav-source.mjs`
 
@@ -1125,6 +1132,15 @@ Reads:
 - `apps/api/src/scripts/operator.ts`
 - `deploy/compose/operator.sh`
 
+### [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts)
+
+A gate that knows what broke and will not say it.
+
+Reads:
+
+- `deploy/compose/smoke-managed.sh`
+- `scripts/smoke-managed-verdict.unit.test.ts`
+
 ### [a-version-you-can-see-before-you-sign-in](../scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts)
 
 THE BUILD STAMP WAS ON EVERY PAGE EXCEPT THE ONES YOU CAN SEE.
@@ -1437,11 +1453,13 @@ What `smoke-managed.sh` is allowed to call a pass.
 Reads:
 
 - `.github/workflows/e2e-managed.yml`
+- `apps/api/src/scripts/seed-managed.ts`
 - `deploy/compose/managed.yml`
 - `deploy/compose/redact-evidence.sh`
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/smoke-managed.sh`
 - `packages/core/src/apply-deletion.ts`
+- `test/e2e/no-workspace-imports.unit.test.ts`
 - `test/e2e/seed-imap-source.mjs`
 
 ### [status-page](../scripts/status-page.unit.test.ts)

@@ -149,7 +149,7 @@ describe('the reports are asserted, not merely fetched', () => {
     // calls it coverage. `serverFault` answers 500, but a route that quietly
     // stopped returning a key answers 200 with the key missing.
     expect(reports).toMatch(/\[ -z "\$value" \] \|\| \[ "\$value" = "null" \]/);
-    expect(reports).toContain('fail=1');
+    expect(reports).toContain('fail_at');
   });
 
   it('checks markdown for a HEADING, not for a length', () => {
@@ -550,7 +550,7 @@ describe('the other decision, and the mail that does or does not go', () => {
   it('takes its requests back, and declining creates no tenant to take back', () => {
     expect(block).toMatch(/DELETE FROM access_request WHERE email LIKE 'smoke-decline-/);
     expect(block).toContain('d_left');
-    expect(block, 'a residue count that cannot fail the run').toMatch(/d_left[\s\S]{0,200}fail=1/);
+    expect(block, 'a residue count that cannot fail the run').toMatch(/d_left[\s\S]{0,200}fail_at/);
     // Declining provisions nothing, so there is deliberately no tenant sweep
     // here — a DELETE FROM tenant in this block would be reaching for
     // something it never created.
@@ -749,7 +749,7 @@ describe('the decision that was already made', () => {
     // passes.
     expect(block).toContain('declare -F mail_to_count');
     expect(block, 'a missing helper that cannot fail the run').toMatch(
-      /declare -F mail_to_count[\s\S]{0,200}fail=1/,
+      /declare -F mail_to_count[\s\S]{0,200}fail_at/,
     );
   });
 });
@@ -837,7 +837,7 @@ describe('how far an operator can walk, and what the log says at each step', () 
     expect(block).toContain('SELECT natural_key_hash FROM item');
     expect(block).toMatch(/case "\$l3_body" in\s*\n\s*\*"\$l4_key"\*\)/);
     expect(block, 'an empty key would match every answer').toMatch(
-      /\[ \$\{#l4_key\} -lt 8 \][\s\S]{0,400}fail=1/,
+      /\[ \$\{#l4_key\} -lt 8 \][\s\S]{0,400}fail_at/,
     );
   });
 
@@ -920,6 +920,6 @@ describe('and when the appointment ends, so does the session', () => {
     // The block is meaningless if the row is still there, and "meaningless"
     // must not read as "passed".
     expect(block).toMatch(/if \[ "\$left" = "0" \]; then/);
-    expect(block).toMatch(/was not taken back[\s\S]{0,200}fail=1/);
+    expect(block).toMatch(/was not taken back[\s\S]{0,200}fail_at/);
   });
 });

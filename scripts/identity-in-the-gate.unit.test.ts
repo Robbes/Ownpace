@@ -163,7 +163,7 @@ describe('the smoke can tell a configured issuer from a running container', () =
     // not change the verdict — run #6's green said "SKIPPED" and "SMOKE PASS"
     // three lines apart.
     const section = smoke.slice(smoke.indexOf('note "identity provider"'));
-    expect(section.slice(0, section.indexOf('note "an invitation'))).toContain('fail=1');
+    expect(section.slice(0, section.indexOf('note "an invitation'))).toContain('fail_at');
   });
 
   it('checks the issuer declares its own name, byte for byte', () => {
@@ -494,7 +494,7 @@ describe('nothing but the token comes out of the thing that mints tokens', () =>
     // assertion fail, and those callers are at top level.
     expect(httpBody, 'the refusal has to travel in the answer').toMatch(/printf '%s %s\\n' "000"/);
     expect(httpBody, 'and it must not try to set the verdict from a subshell').not.toMatch(
-      /^\s*fail=1/m,
+      /^\s*fail_at/m,
     );
     // Defined before it is used, or the check is a no-op.
     expect(smoke.indexOf('looks_like_a_jwt() {')).toBeLessThan(smoke.indexOf('\nhttp() {'));
@@ -626,7 +626,7 @@ describe('the people a dead run leaves behind get taken back', () => {
   });
 
   it('sweeps BEFORE this run creates anybody, and a failed sweep fails the run', () => {
-    const call = smoke.indexOf('idp_sweep_leftovers || fail=1');
+    const call = smoke.indexOf('idp_sweep_leftovers || fail_at');
     const firstPerson = smoke.indexOf('sign_in_as "smoke-verify');
     expect(call).toBeGreaterThan(-1);
     expect(firstPerson).toBeGreaterThan(-1);
