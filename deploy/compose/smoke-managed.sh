@@ -134,7 +134,38 @@ exec > >(tee "$OUT") 2>&1
 echo "########## smoke-managed $(date -u +%FT%TZ) — evidence: $OUT ##########"
 
 fail=0
-note() { printf '\n--- %s ---\n' "$*"; }
+
+# WHAT FAILED, NOT MERELY THAT SOMETHING DID.
+#
+# This script has ONE HUNDRED AND FORTY-SEVEN places that can set the flag and,
+# until now, one
+# verdict line that said `SMOKE FAIL` and nothing else. The owner ran it on the
+# Spark, got a FAIL with `verify: done  apply: applied`, and had to ask which
+# assertion had fired — on a phone, against a 3,900-line script and a log of
+# several hundred lines. The gate knew the answer and did not say it.
+#
+# So every site records WHERE it fired instead of only THAT it fired.
+# `BASH_LINENO[0]` inside a function is the caller's line, so the call site
+# costs nothing: a bare `fail_at` already yields "section, line 1592", which is
+# the whole diagnosis for a script whose sections are named after what they
+# prove. A sentence may be passed when the line number alone would not be
+# enough, and most sites need none — they already `echo` their complaint on the
+# line above, and this points at it.
+#
+# Deliberately a STRING and not an array: `set -u` is on, arrays make an empty
+# one a special case at every read, and this is only ever appended to and
+# printed once.
+SECTION="startup"
+FAIL_REASONS=""
+fail_at() { # fail_at [reason] — set the flag AND record where it fired
+  fail=1
+  FAIL_REASONS="${FAIL_REASONS}  - ${SECTION} (line ${BASH_LINENO[0]}): ${1:-see this section in the log above}
+"
+}
+
+# `note` names the section AND remembers it, so `fail_at` can say which half of
+# the run was speaking without every call site repeating it.
+note() { SECTION="$*"; printf '\n--- %s ---\n' "$*"; }
 
 # WHICH MODE THIS STACK IS IN, read before anything mints a token — the identity
 # section far below asks the same question, but the first `mint` happens long
@@ -152,7 +183,7 @@ if [ "$STACK_ISSUER_RC" -ge 125 ]; then
   echo "!!! cannot read JWT_ISSUER from '$API_CONTAINER' (exit ${STACK_ISSUER_RC}): ${STACK_ISSUER}"
   echo "!!! nothing below can speak for this stack's sign-in either way."
   STACK_ISSUER=""
-  fail=1
+  fail_at
 elif [ "$STACK_ISSUER_RC" -ne 0 ]; then
   STACK_ISSUER=""
 fi
@@ -211,7 +242,7 @@ warn_minted_tokens_are_not_verifiable() {
     echo "!!! misleading ones."
     echo
   } >&2
-  fail=1
+  fail_at
 }
 
 # AND WHATEVER COMES OUT OF HERE IS CHECKED FOR THE SHAPE OF A TOKEN BEFORE IT
@@ -251,7 +282,7 @@ assert_looks_like_a_jwt() { # assert_looks_like_a_jwt <what> <value>
       echo "  first 200 bytes: ${2:0:200}"
     fi
   } >&2
-  fail=1
+  fail_at
   return 1
 }
 
@@ -694,7 +725,7 @@ else
   echo "      trigger-api's OBJECT_STORE_BASE_URL points there, so any task"
   echo "      payload over the inline limit fails — silently, until one is big"
   echo "      enough. This is the state the service existed to fix."
-  fail=1
+  fail_at
 fi
 
 # TRIGGER-TLS publishes a port, so the host's own curl is enough — no exec, no
@@ -722,7 +753,7 @@ else
   echo "      its production-mode Secure cookies make plain http unusable from"
   echo "      anything but localhost. If this is red, the dashboard is"
   echo "      unreachable for every operator who is not sitting at the machine."
-  fail=1
+  fail_at
 fi
 
 # ---------- runner-log capture (before anything can AutoRemove) ----------
@@ -795,7 +826,7 @@ else
   echo "      The supervisor pushes and pulls task images through this registry, so a"
   echo "      dead one means every deploy fails — as a task that never starts, with"
   echo "      nothing in the message naming the registry."
-  fail=1
+  fail_at
 fi
 
 # THE DOCKER PROXY publishes no port; it is reachable only on the stack network,
@@ -821,7 +852,7 @@ else
   echo "      Every runner container is created through this proxy, so an enqueue will"
   echo "      never become a runner — the exact failure 0018 T5 spent itself finding,"
   echo "      and the one a green CI hides."
-  fail=1
+  fail_at
 fi
 
 # ---------- whoever this stack is willing to believe ----------
@@ -860,7 +891,7 @@ else
     echo "no usable provisioning token on the machinekey volume — cannot sign anybody in."
     echo "  read it by hand with:"
     echo "    docker run --rm -v ownpace-managed_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt"
-    fail=1
+    fail_at
   fi
 
   # The host has the published port, not the network alias the origin names.
@@ -871,7 +902,7 @@ else
   # Before this run creates anybody: the people a dead run left behind. A
   # sweep that errors fails the RUN, not only itself — an orphan we can name
   # and cannot remove is a finding.
-  idp_sweep_leftovers || fail=1
+  idp_sweep_leftovers || fail_at
 
   # The application, asked for rather than assumed — its client id and the
   # redirect URI it will actually accept.
@@ -887,7 +918,7 @@ else
   IDP_DEV_MODE="$(jq -r '.app.oidcConfig.devMode // false' <<<"$IDP_APP_CFG")"
   if [ -z "$IDP_CLIENT_ID" ] || [ -z "$IDP_REDIRECT" ]; then
     echo "the provider has no 'Ownpace Web' application to sign in to — setup-zitadel.sh has not finished here."
-    fail=1
+    fail_at
   fi
 
   # ONE GOOGLE BUTTON ON THE SIGN-IN SCREEN, HOWEVER OFTEN THE APP PHASE RAN
@@ -928,7 +959,7 @@ else
           || echo "    (${google_idps_off} more named Google are deactivated — on the list, off the screen)" ;;
       0|''|unreadable)
         echo "expected ONE Google button on the sign-in screen, found '${google_idps}' — no active provider of that name is on the login policy, or a list could not be read"
-        fail=1 ;;
+        fail_at ;;
       *)
         echo "found ${google_idps} Google buttons on the sign-in screen — ${google_idps} active providers named Google are on the login policy."
         echo "  The provider step ran twice in this run and added nothing (the workflow step read it), so these"
@@ -940,7 +971,7 @@ else
         echo "  the 'available' toggle keeps the provider and takes its button away; deactivating does too. In the"
         echo "  INSTANCE (default) settings, not the organisation's — the bring-up resets an organisation's own login"
         echo "  policy, and a clean-up made there is undone with it. After that, #711 holds it at one."
-        fail=1 ;;
+        fail_at ;;
     esac
   fi
 
@@ -1012,20 +1043,20 @@ else
     echo "  'User Agent does not correspond (EVENT-adk13)' to everybody, every time."
     echo "  That domain is the raw Host header the provider was given. Something in front of it is"
     echo "  rewriting Host; the ingress has to pass the original through (docs/managed-bring-up.md)."
-    fail=1
+    fail_at
   fi
 
   case "$login_loc" in
     '')
       echo "the provider sent a browser nowhere — no Location on the authorization request."
-      fail=1 ;;
+      fail_at ;;
     */ui/v2/login*)
       # The exact failure this section exists for, named rather than left to be
       # read off an HTTP code.
       echo "the provider sends people to login v2 (${login_loc}), and nothing in this stack serves that path."
       echo "  a human would get a JSON 'Not Found' page instead of a login form."
       echo "  setup-zitadel.sh pins {\"loginV2\":{\"required\":false}} — it has not run here, or it did not take."
-      fail=1 ;;
+      fail_at ;;
     *)
       login_url="$login_loc"
       case "$login_url" in http*) ;; *) login_url="${STACK_ISSUER%/}${login_loc}" ;; esac
@@ -1048,7 +1079,7 @@ else
 
       if [ "$login_code" != "200" ]; then
         echo "the login page answered HTTP ${login_code} at ${login_url}: ${login_page:0:200}"
-        fail=1
+        fail_at
       # THE GATEWAY'S NOT-FOUND BODY, which is the failure this whole section
       # exists for: a redirect to a login UI nothing serves renders as JSON in
       # the browser. Checked by shape rather than by status, because the
@@ -1056,7 +1087,7 @@ else
       elif ! grep -qi '<html' <<<"$login_page"; then
         echo "the login page at ${login_url} served no HTML at all — a human would see this raw:"
         echo "  ${login_page:0:300}"
-        fail=1
+        fail_at
       # ZITADEL'S OWN ERROR PAGE, which wears the login theme and carries no
       # form. Recognised by the error id it prints — `ID=QUERY-1kIjX`,
       # `(EVENT-adk13)` — because that is the only thing on it that a template
@@ -1065,7 +1096,7 @@ else
         echo "the login page at ${login_url} is an error page, not a login form:"
         echo "  title: ${login_title:-<none>}"
         echo "  text:  ${login_text:0:400}"
-        fail=1
+        fail_at
       # A HERE-STRING, NOT A PIPE. `curl … | grep -q` kills the producer with
       # SIGPIPE and `pipefail` then takes the killed producer's status — the
       # repo-wide correction in #556.
@@ -1143,7 +1174,7 @@ else
   # people are throwaways. A standing test client on a real deployment is a
   # credential nobody is rotating. Same project, so JWT_AUDIENCE still matches
   # and the API accepts its tokens exactly as it accepts the web app's.
-  idp_sweep_leftover_clients || fail=1
+  idp_sweep_leftover_clients || fail_at
   smoke_app="$(idp_api POST "/management/v1/projects/${IDP_PROJECT}/apps/oidc" "$(jq -nc \
     --arg n "$IDP_SMOKE_APP_NAME" --arg r "$IDP_REDIRECT" --argjson dm "$IDP_DEV_MODE" \
     '{name:$n,
@@ -1160,7 +1191,7 @@ else
   IDP_SIGNIN_CLIENT="$(jq -r '.clientId // empty' <<<"${smoke_app:-}" 2>/dev/null || true)"
   if [ -z "$IDP_SIGNIN_CLIENT" ]; then
     echo "could not create ${IDP_SMOKE_APP_NAME}, the client this gate signs in with: ${smoke_app:0:200}"
-    fail=1
+    fail_at
   else
     echo "signing in through ${IDP_SMOKE_APP_NAME} (login v2), not the humans' client (login v1)"
   fi
@@ -1194,7 +1225,7 @@ else
   login_policy="$(idp_api GET /management/v1/policies/login 2>/dev/null || true)"
   if [ -z "$login_policy" ]; then
     echo "the login policy people are decided by: could not read it from the provider"
-    fail=1
+    fail_at
   else
     policy_default="$(jq -r '.policy.isDefault // false' <<<"$login_policy" 2>/dev/null || echo false)"
     # protojson omits a Duration holding its default, so absent and zero are the
@@ -1207,13 +1238,13 @@ else
       echo "    providers configure_idp put buttons on. Reset it:"
       echo "      curl -sS -X DELETE ${STACK_ISSUER%/}/management/v1/policies/login -H \"Authorization: Bearer \$PAT\""
       echo "    then re-run ./deploy/compose/setup-zitadel.sh, which no longer creates one."
-      fail=1
+      fail_at
     elif [ "${policy_secs%%.*}" -le 0 ] 2>/dev/null; then
       echo "the login policy people are decided by: passwordCheckLifetime is ${policy_life}"
       echo "    A password check valid for no time is a check that is never valid: the right"
       echo "    password returns 200 to the same sign-in page, with no error, for everybody."
       echo "    This gate signs in through login v2 and would not notice. A person would."
-      fail=1
+      fail_at
     else
       echo "the login policy people are decided by: instance default, password check ${policy_life}"
     fi
@@ -1326,7 +1357,7 @@ verify_mapping() { # verify_mapping <tenant> <sub> <mapping> <label> <required-d
   case "$tenant" in
     "$VERIFY_TENANT") tok="$VERIFY_TOKEN" ;;
     "$APPLY_TENANT")  tok="$APPLY_TOKEN" ;;
-    *) echo "no signed-in person for tenant $tenant"; fail=1; return 1 ;;
+    *) echo "no signed-in person for tenant $tenant"; fail_at; return 1 ;;
   esac
   read -r vcode vbody <<<"$(http POST "$API/api/migrations/$mapping/verify/start" "$tok")"
   echo "verify/start: HTTP $vcode"
@@ -1356,7 +1387,7 @@ verify_mapping() { # verify_mapping <tenant> <sub> <mapping> <label> <required-d
   fi
   echo "latest verification_run row:"
   q "SELECT state, started_at, finished_at, left(coalesce(error,''),120) FROM verification_run WHERE tenant_id='$tenant' AND mapping_id='$mapping' ORDER BY started_at DESC LIMIT 1"
-  [ "$VERIFY_RESULT" = "done" ] || fail=1
+  [ "$VERIFY_RESULT" = "done" ] || fail_at "verify ($VERIFY_LABEL) never reached 'done' — VERIFY_RESULT=$VERIFY_RESULT"
 
   # A VERIFY THAT CHECKED NOTHING IS NOT A PASS.
   #
@@ -1372,7 +1403,7 @@ if [ "$VERIFY_RESULT" = "done" ] && [ "${VERIFIED_ITEMS:-0}" = "0" ]; then
   echo "gate that accepts it is reporting the absence of data as the absence of problems."
   echo "The source for this mapping needs seeding: mail comes from"
   echo "test/e2e/seed-imap-source.mjs, DAV from deploy/compose/seed-demo-dav-content.sh."
-  fail=1
+  fail_at "verify ($VERIFY_LABEL) reached 'done' having compared nothing — totalItemsSource=0"
 fi
 
   # AND A DOMAIN THAT WAS SKIPPED WAS NOT CHECKED, whatever the overall status
@@ -1389,7 +1420,7 @@ for d in "${REQUIRED_DOMAINS[@]}"; do
     echo "the domain in question is the same lie as an apply half that never runs — the"
     echo "run is green and the thing it was for did not happen."
     echo "Check the mapping's configured domains (seed-managed.ts: DemoTenant.domains)."
-    fail=1
+    fail_at "verify ($VERIFY_LABEL) SKIPPED the '${d}' domain — see seed-managed.ts DemoTenant.domains"
   else
     echo "verify ($VERIFY_LABEL): '${d}' was actually checked"
   fi
@@ -1597,7 +1628,7 @@ if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
     echo "is in the inventory below."
     q "SELECT domain, status, count(*) FROM item WHERE $TASK_SCOPE AND $TASK_TAGGED GROUP BY 1,2 ORDER BY 1,2" \
       | sed 's/^/  /'
-    fail=1
+    fail_at "the task domain copied NOTHING under tag ${BALANCE_TAG} (workplan 0113 T3a/T3b/T4/T5)"
   fi
 fi
 
@@ -1745,7 +1776,7 @@ else
 fi
 # Outside the `if` on purpose — see the comment in its empty branch. Every
 # APPLY_RESULT is judged here, `skipped-no-item` among them.
-case "$APPLY_RESULT" in applied | refused) : ;; *) fail=1 ;; esac
+case "$APPLY_RESULT" in applied | refused) : ;; *) fail_at "the apply half neither applied nor refused — APPLY_RESULT=$APPLY_RESULT" ;; esac
 
 # ---------- runner logs ----------
 note "runner logs captured before AutoRemove"
@@ -1770,7 +1801,7 @@ if [ "$found_logs" != "1" ]; then
   # and if it ever proves flaky, the fix is an event-based capture, not a
   # softer assertion.
   echo "NO runner containers appeared during this smoke."
-  fail=1
+  fail_at
 fi
 
 # ---------- the identity provider, and the three answers to an invitation ----------
@@ -1800,7 +1831,7 @@ if [ -z "$ISSUER" ]; then
   # now runs — its absence means that step did not happen, and a stack whose
   # sign-in was never configured is exactly what this section exists to catch.
   echo "the API has no JWT_ISSUER — setup-zitadel.sh has not provisioned this stack."
-  fail=1
+  fail_at
 else
   # FROM INSIDE THE API CONTAINER, and this is the whole point of the check.
   #
@@ -1873,7 +1904,7 @@ else
     JWKS_RC=$?
     if [ "$JWKS_RC" -ne 0 ]; then
       echo "JWT_JWKS_URI '$API_JWKS' is not fetchable from the API (exit ${JWKS_RC}) — no token could be verified."
-      fail=1
+      fail_at
     else
       echo "jwks:   $API_JWKS (fetchable by the API; JWT_JWKS_URI is set, so discovery is not the API's path)"
     fi
@@ -1888,10 +1919,10 @@ else
       echo "  ${HOST_DISC:0:300}"
       echo "The web app reads its authorization and token endpoints there, so a browser"
       echo "could not begin a sign-in at all."
-      fail=1
+      fail_at
     elif [ "$HOST_DECLARED" != "${ISSUER%/}" ] && [ "$HOST_DECLARED" != "$ISSUER" ]; then
       echo "the issuer at $ISSUER declares '$HOST_DECLARED' — sign-in would refuse this."
-      fail=1
+      fail_at
     else
       echo "issuer: $ISSUER (declares its own name, as a browser sees it)"
     fi
@@ -1909,15 +1940,15 @@ else
         echo "localhost is the API. It has to be an address BOTH a browser and the API"
         echo "resolve, AND the one the provider was initialised with — Zitadel answers 404"
         echo "'Instance not found' to any other origin, so an internal shortcut is not one."
-        fail=1 ;;
+        fail_at ;;
     22) echo "the issuer at $ISSUER answered, but not with a discovery document:"
         echo "  ${DISCOVERY:0:300}"
-        fail=1 ;;
+        fail_at ;;
     *)  echo "this check could not run: asking the API container failed (exit ${DISC_RC})."
         echo "  ${DISCOVERY:0:300}"
         echo "That is a fact about the probe, not about the issuer — nothing here has been"
         echo "measured either way."
-        fail=1 ;;
+        fail_at ;;
   esac
 
   DECLARED="$(jq -r '.issuer // empty' <<<"$DISCOVERY" 2>/dev/null || true)"
@@ -1929,7 +1960,7 @@ else
   # a working sign-in and a refusal nobody can explain.
   if [ "$DISC_RC" -eq 0 ] && [ "$DECLARED" != "${ISSUER%/}" ] && [ "$DECLARED" != "$ISSUER" ]; then
     echo "the issuer at $ISSUER declares '$DECLARED' (as seen BY THE API) — sign-in would refuse this."
-    fail=1
+    fail_at
   elif [ "$DISC_RC" -eq 0 ]; then
     echo "issuer: $ISSUER (declares its own name)"
   fi
@@ -1939,13 +1970,13 @@ else
   if [ "$DISC_RC" -eq 0 ]; then
     if [ -z "$JWKS" ]; then
       echo "the discovery document names no jwks_uri — no token could be verified."
-      fail=1
+      fail_at
     else
       idp_get "$JWKS" >/dev/null
       JWKS_RC=$?
       if [ "$JWKS_RC" -ne 0 ]; then
         echo "jwks_uri '$JWKS' is not fetchable from the API (exit ${JWKS_RC}) — no token could be verified."
-        fail=1
+        fail_at
       else
         echo "jwks:   $JWKS (fetchable)"
       fi
@@ -1986,7 +2017,7 @@ if [ "${ME%% *}" != "200" ] || [ "$offered" -lt 3 ]; then
   # Reporting, not claiming: /api/me used to BIND every invitation on sight,
   # which is the behaviour 0099 removed. Three written, three offered.
   echo "expected /api/me to OFFER three invitations, got: $ME"
-  fail=1
+  fail_at
 fi
 
 T1="$(printf '0099%04d-e29b-41d4-a716-44665544%04d' 1 1)"
@@ -1999,8 +2030,8 @@ dec="$(http POST "$API/api/invitations/${T2}/decline" "$INV_TOKEN")"
 
 echo "accept:  $acc"
 echo "decline: $dec"
-[ "${acc%% *}" = "200" ] || { echo "accepting an invitation failed"; fail=1; }
-[ "${dec%% *}" = "200" ] || { echo "declining an invitation failed"; fail=1; }
+[ "${acc%% *}" = "200" ] || { echo "accepting an invitation failed"; fail_at; }
+[ "${dec%% *}" = "200" ] || { echo "declining an invitation failed"; fail_at; }
 
 s1="$(q "SELECT status FROM tenant_member WHERE tenant_id='${T1}' AND email='${INV_EMAIL}'")"
 u1="$(q "SELECT user_id FROM tenant_member WHERE tenant_id='${T1}' AND email='${INV_EMAIL}'")"
@@ -2009,16 +2040,16 @@ u2="$(q "SELECT user_id FROM tenant_member WHERE tenant_id='${T2}' AND email='${
 s3="$(q "SELECT status FROM tenant_member WHERE tenant_id='${T3}' AND email='${INV_EMAIL}'")"
 echo "accepted -> ${s1} (${u1})   declined -> ${s2} (${u2})   skipped -> ${s3}"
 
-[ "$s1" = "active" ] || { echo "accepting did not make the membership active"; fail=1; }
-[ "$u1" = "$INV_SUB" ] || { echo "accepting did not bind the subject"; fail=1; }
-[ "$s2" = "declined" ] || { echo "declining did not record the refusal"; fail=1; }
+[ "$s1" = "active" ] || { echo "accepting did not make the membership active"; fail_at; }
+[ "$u1" = "$INV_SUB" ] || { echo "accepting did not bind the subject"; fail_at; }
+[ "$s2" = "declined" ] || { echo "declining did not record the refusal"; fail_at; }
 # The property migration 0008's WITH CHECK exists to guarantee: a refusal names
 # nobody. If this ever reads a real subject, the database stopped enforcing it.
 case "$u2" in
   pending:*) ;;
-  *) echo "declining BOUND the decliner ($u2) — it must leave the pending id"; fail=1 ;;
+  *) echo "declining BOUND the decliner ($u2) — it must leave the pending id"; fail_at ;;
 esac
-[ "$s3" = "invited" ] || { echo "the skipped invitation did not stay open (got '$s3')"; fail=1; }
+[ "$s3" = "invited" ] || { echo "the skipped invitation did not stay open (got '$s3')"; fail_at; }
 
 # And it is still OFFERED, which is what makes skipping a deferral rather than a
 # quiet loss. One left: the accepted one is a membership now, the declined one
@@ -2026,7 +2057,7 @@ esac
 ME_AFTER="$(http GET "$API/api/me" "$INV_TOKEN")"
 left="$(printf '%s' "${ME_AFTER#* }" | grep -o '"invitations":\[[^]]*\]' | grep -o '"tenantId"' | wc -l | tr -d ' ')"
 echo "still offered after answering: $left"
-[ "$left" = "1" ] || { echo "expected exactly the skipped invitation to remain, got $left"; fail=1; }
+[ "$left" = "1" ] || { echo "expected exactly the skipped invitation to remain, got $left"; fail_at; }
 
 note "closing a tenant, and changing your mind"
 #
@@ -2047,7 +2078,7 @@ note "closing a tenant, and changing your mind"
 # assertion an actual window to check.
 cls="$(http POST "$API/api/tenants/${T1}/close" "$INV_TOKEN" '{"windowDays":7}')"
 echo "close:  $cls"
-[ "${cls%% *}" = "200" ] || { echo "closing a tenant failed"; fail=1; }
+[ "${cls%% *}" = "200" ] || { echo "closing a tenant failed"; fail_at; }
 
 # The ROW, not the response. A 200 describing a closure that was never recorded
 # is the shape of failure this whole script exists to catch, and the closure row
@@ -2055,19 +2086,19 @@ echo "close:  $cls"
 closed="$(q "SELECT count(*) FROM tenant_closure WHERE tenant_id='${T1}'")"
 due="$(q "SELECT purge_after > closed_at FROM tenant_closure WHERE tenant_id='${T1}'")"
 echo "closure rows: ${closed:-0}   purge_after is after closed_at: ${due:-<none>}"
-[ "${closed:-0}" = "1" ] || { echo "the close wrote no closure row — nothing would ever purge"; fail=1; }
+[ "${closed:-0}" = "1" ] || { echo "the close wrote no closure row — nothing would ever purge"; fail_at; }
 # A window that ends before it starts would purge immediately, which is the one
 # way this path can quietly become destructive.
-[ "${due:-f}" = "t" ] || { echo "purge_after is not after closed_at — that window is not a window"; fail=1; }
+[ "${due:-f}" = "t" ] || { echo "purge_after is not after closed_at — that window is not a window"; fail_at; }
 
 reo="$(http POST "$API/api/tenants/${T1}/reopen" "$INV_TOKEN")"
 echo "reopen: $reo"
-[ "${reo%% *}" = "200" ] || { echo "reopening a closed tenant failed"; fail=1; }
+[ "${reo%% *}" = "200" ] || { echo "reopening a closed tenant failed"; fail_at; }
 still="$(q "SELECT count(*) FROM tenant_closure WHERE tenant_id='${T1}'")"
 echo "closure rows after reopen: ${still:-?}"
 # The point of reopen is that the clock STOPS. A reopen that leaves the row
 # behind is a tenant that gets erased on schedule despite having been reopened.
-[ "${still:-1}" = "0" ] || { echo "reopen left the closure row — the erasure clock is still running"; fail=1; }
+[ "${still:-1}" = "0" ] || { echo "reopen left the closure row — the erasure clock is still running"; fail_at; }
 
 # Clean up after itself. This gate runs nightly against a long-lived stack, and
 # a smoke that leaves rows behind grows the thing it is measuring.
@@ -2144,14 +2175,14 @@ if ! curl -fsS -o /dev/null "${MAILPIT}/api/v1/messages"; then
   # Not skipped quietly. The catcher is in managed.yml and in the bring-up's
   # service list; if it is not answering, the mail path is unproven and this
   # gate must say so rather than pass by omission.
-  echo "mailpit is not answering at ${MAILPIT} — the mail path is unproven"; fail=1
+  echo "mailpit is not answering at ${MAILPIT} — the mail path is unproven"; fail_at
 else
   knock_code="$(curl -fsS -o /tmp/knock.$$ -w '%{http_code}' -X POST "${API}/api/access-requests" \
     -H 'Content-Type: application/json' \
     -d "$(jq -nc --arg e "$knock" '{email:$e, locale:"en", tier:"Small", organisation:"Smoke BV"}')" \
     || echo 000)"
   [ "$knock_code" = "201" ] ||
-    { echo "the front door refused a request: HTTP ${knock_code} $(head -c 200 /tmp/knock.$$ 2>/dev/null)"; fail=1; }
+    { echo "the front door refused a request: HTTP ${knock_code} $(head -c 200 /tmp/knock.$$ 2>/dev/null)"; fail_at; }
   rm -f "/tmp/knock.$$"
 
   # The send happens inside the request, so one look would usually do — but a
@@ -2172,7 +2203,7 @@ else
     echo "nobody was told about ${knock}: no mail reached mailpit within 20s."
     echo "  Check SMTP_HOST/NOTIFY_FROM/NOTIFY_TO in .env, and the api container's log"
     echo "  for '[access-request] nobody was told' — the request itself is recorded."
-    fail=1
+    fail_at
   else
     # Not merely "a mail exists". The operator's mail must be the one that
     # arrived, and it must carry the address they have to reply to.
@@ -2181,13 +2212,13 @@ else
     subject="$(jq -r '.Subject // empty' <<<"$hit")"
     case "$subject" in
       *"asked for access"*|*"vraagt toegang"*) : ;;
-      *) echo "mail arrived but is not the knock: subject '${subject}'"; fail=1 ;;
+      *) echo "mail arrived but is not the knock: subject '${subject}'"; fail_at ;;
     esac
     # Addressed to NOTIFY_TO, never to the person who asked. Mailing the
     # applicant their own request would leak the operator's channel.
     to_applicant="$(jq -r --arg k "$knock" '[.To[]?.Address] | index($k) // empty' <<<"$hit")"
     [ -z "$to_applicant" ] ||
-      { echo "the knock mail was addressed to the applicant (${knock}), not to NOTIFY_TO"; fail=1; }
+      { echo "the knock mail was addressed to the applicant (${knock}), not to NOTIFY_TO"; fail_at; }
     echo "    the operator was told: '${subject}'"
   fi
 fi
@@ -2237,15 +2268,15 @@ elif [ -n "${STACK_ISSUER:-}" ] && [ -n "${IDP_PAT:-}" ]; then
     echo "  Every verification and email-change mail it composes is dropped, and the"
     echo "  screen still says to check your mail. Run --only app to configure it,"
     echo "  or set SMTP_HOST/NOTIFY_FROM in .env first if they are empty."
-    fail=1
+    fail_at
   elif [ "$smtp_state" != "EMAIL_PROVIDER_ACTIVE" ]; then
     echo "the identity provider's email provider ${smtp_id} is '${smtp_state}',"
     echo "  not EMAIL_PROVIDER_ACTIVE. An inactive provider drops mail exactly as"
     echo "  silently as no provider at all."
-    fail=1
+    fail_at
   elif ! curl -fsS -o /dev/null "${MAILPIT}/api/v1/messages"; then
     echo "cannot reach Mailpit at ${MAILPIT} — the provider's mail cannot be read."
-    fail=1
+    fail_at
   else
     # A real send through the stored config, then read from the catcher. Not
     # "the API returned 200": Zitadel answers the test call before delivery
@@ -2270,7 +2301,7 @@ elif [ -n "${STACK_ISSUER:-}" ] && [ -n "${IDP_PAT:-}" ]; then
       echo "the identity provider accepted the test send and NOTHING reached Mailpit"
       echo "  at ${MAILPIT}. Its email provider is configured and active, so the"
       echo "  relay address it holds is wrong or unreachable from its container."
-      fail=1
+      fail_at
     fi
   fi
 fi
@@ -2301,13 +2332,13 @@ report_json() { # report_json <label> <path> <jq filter> [value it must equal]
   value="$(printf '%s' "$body" | jq -r "$3" 2>/dev/null || true)"
   if [ "$code" != "200" ] || [ -z "$value" ] || [ "$value" = "null" ]; then
     echo "$1: HTTP $code, $3 -> '${value:-<unreadable>}' — ${body:0:200}"
-    fail=1
+    fail_at
   elif [ -n "${4:-}" ] && [ "$value" != "$4" ]; then
     # The fourth argument is for answers where only ONE is acceptable. Without
     # it a report passes on any answer it manages to produce, which is right for
     # a count (0 addresses is a true answer) and wrong for a health verdict.
     echo "$1: HTTP 200 but $3 -> '$value', expected '$4'"
-    fail=1
+    fail_at
   else
     echo "$1: HTTP 200, $3 -> $value"
   fi
@@ -2321,7 +2352,7 @@ report_markdown() { # report_markdown <label> <path> <heading it must carry>
   # and `serverFault` renders JSON that would sail past a size check.
   case "$code:$body" in
     "200:"*"$3"*) echo "$1: HTTP 200, carries '$3'" ;;
-    *) echo "$1: HTTP $code, no '$3' — ${body:0:200}"; fail=1 ;;
+    *) echo "$1: HTTP $code, no '$3' — ${body:0:200}"; fail_at ;;
   esac
 }
 
@@ -2388,10 +2419,10 @@ if [ -n "$gate_client_id" ] && [ -n "$gate_client_secret" ]; then
       echo "consent without a pair: HTTP 200, the URL carries the deployment's client id" ;;
     *)
       echo "consent without a pair: HTTP $code, url '${consent_url:0:120}' — ${body:0:200}"
-      fail=1 ;;
+      fail_at ;;
   esac
   case "$body" in
-    *"$gate_client_secret"*) echo "the consent answer CARRIES THE CLIENT SECRET"; fail=1 ;;
+    *"$gate_client_secret"*) echo "the consent answer CARRIES THE CLIENT SECRET"; fail_at ;;
   esac
 
   r="$(http POST "$API/api/migrations/google/authorize" "$TOK_R" \
@@ -2401,7 +2432,7 @@ if [ -n "$gate_client_id" ] && [ -n "$gate_client_secret" ]; then
     echo "consent with half a pair: HTTP 400 half_client_pair"
   else
     echo "consent with half a pair: HTTP $code — ${body:0:200} (expected 400 half_client_pair)"
-    fail=1
+    fail_at
   fi
 
   r="$(http POST "$API/api/connections" "$TOK_R" \
@@ -2412,7 +2443,7 @@ if [ -n "$gate_client_id" ] && [ -n "$gate_client_secret" ]; then
     echo "connection door with half a pair: HTTP 400 half_client_pair, nothing probed or stored"
   else
     echo "connection door with half a pair: HTTP $code — ${body:0:200} (expected 400 half_client_pair)"
-    fail=1
+    fail_at
   fi
 else
   report_json "provider accounts (google client)" "/api/provider-accounts" '.google.client' connection
@@ -2422,7 +2453,7 @@ else
     echo "consent without a pair, on a stack without a client: HTTP 400 no_google_client"
   else
     echo "consent without a pair: HTTP $code — ${body:0:200} (expected 400 no_google_client)"
-    fail=1
+    fail_at
   fi
 fi
 # THE CALLBACK PAGE, UNDER ITS OWN HEADERS (2026-09-02). The consent popup
@@ -2446,7 +2477,7 @@ if grep -q '^HTTP/[0-9.]* 400' <<<"$cb_headers" \
 else
   echo "consent callback page: the defaults reached the browser — the popup cannot hand the token back"
   echo "    $(grep -i '^HTTP/\|^cross-origin-opener-policy\|^content-security-policy' <<<"$cb_headers" | tr -d '\r' | paste -sd '|' -)"
-  fail=1
+  fail_at
 fi
 # THE DEPLOYMENT'S OWN DROPBOX APP (2026-09-02: Connect with Dropbox), the
 # Google block's three questions asked of Dropbox's door: the facts say
@@ -2467,10 +2498,10 @@ if [ -n "$gate_dbx_id" ] && [ -n "$gate_dbx_secret" ]; then
       echo "dropbox consent without a pair: HTTP 200, the URL carries the deployment's App key and offline access" ;;
     *)
       echo "dropbox consent without a pair: HTTP $code, url '${dbx_url:0:120}' — ${body:0:200}"
-      fail=1 ;;
+      fail_at ;;
   esac
   case "$body" in
-    *"$gate_dbx_secret"*) echo "the dropbox consent answer CARRIES THE APP SECRET"; fail=1 ;;
+    *"$gate_dbx_secret"*) echo "the dropbox consent answer CARRIES THE APP SECRET"; fail_at ;;
   esac
 
   r="$(http POST "$API/api/migrations/dropbox/authorize" "$TOK_R" \
@@ -2480,7 +2511,7 @@ if [ -n "$gate_dbx_id" ] && [ -n "$gate_dbx_secret" ]; then
     echo "dropbox consent with half a pair: HTTP 400 half_client_pair"
   else
     echo "dropbox consent with half a pair: HTTP $code — ${body:0:200} (expected 400 half_client_pair)"
-    fail=1
+    fail_at
   fi
 
   # The folder browse reads the same resolver (the wizard's browse behind
@@ -2493,7 +2524,7 @@ if [ -n "$gate_dbx_id" ] && [ -n "$gate_dbx_secret" ]; then
     echo "dropbox folder browse with half a pair: HTTP 400 half_client_pair, before any call to Dropbox"
   else
     echo "dropbox folder browse with half a pair: HTTP $code — ${body:0:200} (expected 400 half_client_pair)"
-    fail=1
+    fail_at
   fi
 else
   report_json "provider clients (dropbox)" "/api/provider-clients" '.dropbox' connection
@@ -2571,7 +2602,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
   # ours rather than the provider's, and must not outlive the run.
   if [ -z "${OP_TOKEN:-}" ] || [ -z "${OP_SUBJECT:-}" ]; then
     echo "the operator surface answers an operator: could not sign one in"
-    fail=1
+    fail_at
   else
     q "INSERT INTO platform_operator (user_id, email, note)
        VALUES ('${OP_SUBJECT}', '${OP_EMAIL}', 'managed gate, removed at the end of this run')
@@ -2588,7 +2619,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "an operator holds a session with no organisation: HTTP 200, operator=true, tenants=0"
     else
       echo "an operator holds a session with no organisation: HTTP ${code}, operator=${op_flag}, tenants=${op_tenants} — ${body:0:200}"
-      fail=1
+      fail_at
     fi
 
     # AND THE QUEUE THEY CAME FOR OPENS. Pinned to "more than none" rather than
@@ -2602,7 +2633,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "support surface answers an operator: HTTP ${code}, .tenants | length -> ${op_seen} — ${body:0:200}"
       echo "    The non-operator line above proves this door refuses. This one proves it OPENS,"
       echo "    and without it a deployment whose operator can see nothing reports green."
-      fail=1
+      fail_at
     fi
 
 
@@ -2642,7 +2673,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       -H 'Content-Type: application/json' \
       -d "$(jq -nc --arg e "$GRANT_EMAIL" '{email:$e, locale:"en", organisation:"Smoke Grant BV"}')" \
       || echo 000)"
-    [ "$gk" = "201" ] || { echo "the front door refused the gate's own knock: HTTP ${gk}"; fail=1; }
+    [ "$gk" = "201" ] || { echo "the front door refused the gate's own knock: HTTP ${gk}"; fail_at; }
 
     # AND AGAIN, WHICH MUST NOT BECOME A SECOND ROW. Migration 0020 forbids two
     # OPEN requests per address with a partial unique index; the route answers
@@ -2660,7 +2691,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "the duplicate knock: HTTP ${gk2} (first was ${gk}), open rows for the address = ${open_rows}, expected 1"
       echo "    Two open requests from one address become two organisations if both are granted,"
       echo "    and /api/me then returns two tenants for somebody who asked once and pressed twice."
-      fail=1
+      fail_at
     fi
 
     # THE QUEUE OPENS FOR THE OPERATOR. Read through the route rather than the
@@ -2674,7 +2705,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "the access queue: HTTP ${code}, no open request for ${GRANT_EMAIL} — ${body:0:200}"
       echo "    This is the queue platform_operator exists for. A stack that cannot serve it"
       echo "    cannot take a customer, however healthy everything else reports."
-      fail=1
+      fail_at
     fi
 
     # AND THE BUTTON WORKS. One press, three writes, one transaction.
@@ -2686,7 +2717,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       if [ "$code" = "201" ] && [ -n "$new_tenant" ]; then
         echo "granting created an organisation: ${new_tenant}"
       else
-        echo "granting: HTTP ${code} — ${body:0:240}"; fail=1
+        echo "granting: HTTP ${code} — ${body:0:240}"; fail_at
       fi
 
       # WHAT IT ACTUALLY WROTE, asked of the database rather than of the reply.
@@ -2708,7 +2739,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
           echo "the three writes: organisation/owner-invitation/settled-request = ${made}, expected 1/1/1"
           echo "    They are one fact. A tenant nobody asked for, or a request pointing at an"
           echo "    organisation that does not exist, are both worse than a failure."
-          fail=1
+          fail_at
         fi
       fi
 
@@ -2737,13 +2768,13 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         -H 'Content-Type: application/json' \
         -d "$(jq -nc --arg e "$GRANT_EMAIL" '{email:$e, locale:"en"}')" || echo 000)"
       [ "$gk3" = "201" ] ||
-        { echo "asking again after a decision was refused: HTTP ${gk3} — 0020 forbids two OPEN, not a second ask"; fail=1; }
+        { echo "asking again after a decision was refused: HTTP ${gk3} — 0020 forbids two OPEN, not a second ask"; fail_at; }
 
       r="$(http GET "$API/api/access-requests" "$OP_TOKEN")"; body="${r#* }"
       again_id="$(jq -r --arg e "$GRANT_EMAIL" '.requests[]? | select(.email == $e and .state == "open") | .id' <<<"$body" 2>/dev/null | awk 'NR==1')"
 
       if [ -z "$again_id" ]; then
-        echo "the second ask never reached the queue — nothing to refuse"; fail=1
+        echo "the second ask never reached the queue — nothing to refuse"; fail_at
       else
         # IT REFUSES, AND IT NAMES THEM. A bare "already owns one" sends an
         # operator off to go and look; the names are what they weigh.
@@ -2760,7 +2791,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
           echo "the already-owns refusal: HTTP ${code}, confirmWith='${conf}', names the first org: '${named}' — ${body:0:240}"
           echo "    Without it, one address pressed twice becomes an owner of two organisations"
           echo "    and every later sign-in has to ask them which they meant."
-          fail=1
+          fail_at
         fi
 
         # AND IT WROTE NOTHING WHILE REFUSING. The check runs before the insert
@@ -2770,7 +2801,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         if [ "$during" = "$before" ]; then
           echo "the refusal provisioned nothing: organisations before/after = ${before}/${during}"
         else
-          echo "the refusal PROVISIONED something: organisations before/after = ${before}/${during}"; fail=1
+          echo "the refusal PROVISIONED something: organisations before/after = ${before}/${during}"; fail_at
         fi
 
         # THE OVERRIDE, WHICH IS THE HALF THAT HAD NO WAY TO BE SENT AT ALL
@@ -2797,7 +2828,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
           echo "the override: HTTP ${code}, tenantId='${second_tenant}' (first was '${new_tenant}'), organisations ${before} -> ${after}"
           echo "    The refusal names this field as the way to mean it. If the field does not work,"
           echo "    the refusal is a dead end and the only way past it is a hand-written POST."
-          fail=1
+          fail_at
         fi
       fi
 
@@ -2832,7 +2863,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
           echo "a one-character search is refused: HTTP 400"
         else
           echo "a one-character search: HTTP ${code}, expected 400 — it would match most of a customer list"
-          fail=1
+          fail_at
         fi
 
         r="$(http GET "$API/api/support/people?q=${GRANT_EMAIL}" "$OP_TOKEN")"
@@ -2857,7 +2888,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
           echo "the people search: HTTP ${code}, matches=${found}, in first=${in_first}, in second=${in_second}"
           echo "    A search scoped to one organisation cannot answer 'who is this?', which is the"
           echo "    only question this route exists for."
-          fail=1
+          fail_at
         fi
 
         # THE LOG SAYS WHAT WAS ASKED AND WHAT CAME BACK. `view_name` alone
@@ -2877,7 +2908,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
           echo "support_read rows for this search: ${logged}, expected 1"
           echo "    A read that is not logged is the failure this table exists to prevent, and it"
           echo "    is invisible from the screen: the operator still sees the person either way."
-          fail=1
+          fail_at
         fi
 
         # AND OPENING ONE IS ITS OWN READ. A different view_name, scoped to the
@@ -2894,10 +2925,10 @@ if [ -n "${STACK_ISSUER:-}" ]; then
             echo "opening the person is recorded separately: HTTP 204, support_read view_name=person"
           else
             echo "opening the person: HTTP ${code}, support_read person rows = ${opened}, expected 204 and 1"
-            fail=1
+            fail_at
           fi
         else
-          echo "the search answered without a user_id, so there was nobody to open"; fail=1
+          echo "the search answered without a user_id, so there was nobody to open"; fail_at
         fi
 
         # NOTHING SWEEPS support_read, DELIBERATELY. It is the record of what
@@ -2920,7 +2951,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     else
       echo "the gate's organisation was NOT taken back: requests/tenants left = ${g_left}"
       echo "    A tenant per nightly run accumulates in the stack this same script measures."
-      fail=1
+      fail_at
     fi
 
 
@@ -2985,7 +3016,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "a quiet decline is recorded: HTTP 200, notified=skipped, state=declined"
     else
       echo "declining quietly: HTTP ${qd_code}, notified=${qd_notified}, state=${qd_state} (expected 200/skipped/declined)"
-      fail=1
+      fail_at
     fi
 
     read -r d_code d_notified d_state <<<"$(decline_one "$DECLINE_LOUD" true)"
@@ -2995,7 +3026,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "declining loudly: HTTP ${d_code}, notified=${d_notified}, state=${d_state} (expected 200/sent/declined)"
       echo "    'off' or 'failed' here means this deployment could not send and the operator is"
       echo "    now the only person who can tell them — which is a different problem from a refusal."
-      fail=1
+      fail_at
     fi
 
     # AND IT REACHED THE APPLICANT, not the operator's own channel. The knock
@@ -3013,7 +3044,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "nobody told ${DECLINE_LOUD} they were declined: ${d_to} addressed to them within 20s"
       echo "    A message that merely MENTIONS them is the operator's copy of the knock, not"
       echo "    their refusal — which is why this counts recipients."
-      fail=1
+      fail_at
     fi
 
     # AND NOW the negative, standing on that arrival.
@@ -3024,13 +3055,13 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "a quiet decline still mailed ${DECLINE_QUIET}: ${qd_seen} message(s) addressed to them"
       echo "    Unticking the box is a decision about a person who may not exist. A mail sent"
       echo "    anyway reaches whoever really owns that address."
-      fail=1
+      fail_at
     fi
 
     q "DELETE FROM access_request WHERE email LIKE 'smoke-decline-%@smoke.local'" >/dev/null 2>&1 || true
     d_left="$(q "SELECT count(*) FROM access_request WHERE email LIKE 'smoke-decline-%@smoke.local'" 2>/dev/null || echo '?')"
     [ "$d_left" = "0" ] ||
-      { echo "the gate's declined requests were NOT taken back: ${d_left} left"; fail=1; }
+      { echo "the gate's declined requests were NOT taken back: ${d_left} left"; fail_at; }
 
     # ---------- THE SAME BUTTONS, PRESSED BY SOMEBODY WHO IS NOT AN OPERATOR ----------
     #
@@ -3067,14 +3098,14 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     else
       echo "the non-operator instrument is wrong: platform_operator=${b_isop}, tenant_member=${b_member} (expected 0/1)"
       echo "    Everything below would pass for the wrong reason, so nothing below is asked."
-      fail=1
+      fail_at
     fi
 
     if [ "$b_isop" = "0" ] && [ "$b_member" = "1" ]; then
       b_ghost="$(q "SELECT gen_random_uuid()" 2>/dev/null || echo '')"
       b_ghost_real="$(q "SELECT count(*) FROM tenant WHERE id = '${b_ghost}'" 2>/dev/null || echo '?')"
       [ "$b_ghost_real" = "0" ] ||
-        { echo "the invented organisation id is not invented: ${b_ghost} matches ${b_ghost_real} row(s)"; fail=1; }
+        { echo "the invented organisation id is not invented: ${b_ghost} matches ${b_ghost_real} row(s)"; fail_at; }
 
       # THE CONTROL FIRST. A 404 proves nothing if the route answers 404 to
       # everybody — a mis-typed path, a dropped view, a stack that never wired
@@ -3085,7 +3116,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         echo "the organisation is readable through the operator's window: HTTP 200"
       else
         echo "the operator cannot read ${APPLY_TENANT} either: HTTP ${b_op_code} — the refusals below prove nothing"
-        fail=1
+        fail_at
       fi
 
       # AND NOW THE SAME ID, THE SAME ROUTE, THE OTHER TOKEN.
@@ -3099,7 +3130,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         echo "THE SUPPORT SURFACE ANSWERED A NON-OPERATOR: HTTP ${b_real_code} for ${APPLY_TENANT}"
         echo "    ${b_real_body:0:200}"
         echo "    This is every customer's metadata, served to anybody with an account."
-        fail=1
+        fail_at
       fi
 
       # AND IT DOES NOT SAY WHICH KIND OF NOTHING. The route's own comment
@@ -3111,7 +3142,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       else
         echo "the refusal leaks which ids exist: real -> ${b_real_code} ${b_real_body:0:80}"
         echo "                                   invented -> ${b_fake_code} ${b_fake_body:0:80}"
-        fail=1
+        fail_at
       fi
 
       # THE AUDIT LOG IS NOT WRITABLE BY THE PERSON IT IS ABOUT. `/opened` is
@@ -3129,7 +3160,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         echo "opening a person as a non-operator: HTTP ${b_open_code}, support_read ${b_reads_before} -> ${b_reads_after}"
         echo "    A row here says somebody read an account. Written by the wrong hand it is worse"
         echo "    than no row at all, because the log is what a later question gets answered from."
-        fail=1
+        fail_at
       fi
 
       # THE QUEUE, AND THE DECISION. Both asked against a request that really is
@@ -3160,7 +3191,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       else
         echo "the access queue as a non-operator: id='${b_id:-<none>}', operator sees ${b_op_sees}, they see ${b_sees}"
         echo "    Expected a knock to exist, the operator to see it, and them to see none."
-        fail=1
+        fail_at
       fi
 
       if [ -n "$b_id" ]; then
@@ -3174,7 +3205,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
           echo "DECIDING SOMEBODY ELSE'S REQUEST: HTTP ${b_dec_code}, state is now '${b_after}' (expected 404/open)"
           echo "    A refusal that went through silently is the one failure the reply cannot show:"
           echo "    the applicant is told no by somebody who was never given that button."
-          fail=1
+          fail_at
         fi
       fi
     fi
@@ -3182,7 +3213,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     q "DELETE FROM access_request WHERE email LIKE 'smoke-boundary-%@smoke.local'" >/dev/null 2>&1 || true
     b_left="$(q "SELECT count(*) FROM access_request WHERE email LIKE 'smoke-boundary-%@smoke.local'" 2>/dev/null || echo '?')"
     [ "$b_left" = "0" ] ||
-      { echo "the boundary block's request was NOT taken back: ${b_left} left"; fail=1; }
+      { echo "the boundary block's request was NOT taken back: ${b_left} left"; fail_at; }
 
     # ---------- THE DECISION THAT WAS ALREADY MADE ----------
     #
@@ -3209,7 +3240,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     # missing function in bash is an empty answer, and an empty answer is what
     # this block would read as "no second mail was sent".
     if ! declare -F mail_to_count >/dev/null 2>&1; then
-      echo "mail_to_count is gone — this block cannot tell a second mail from none"; fail=1
+      echo "mail_to_count is gone — this block cannot tell a second mail from none"; fail_at
     fi
 
     DECIDED_NO="smoke-decided-no-${SMOKE_MAIL_RUN}@smoke.local"
@@ -3230,12 +3261,12 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     # ---- SAID NO, THEN ASKED AGAIN ----
     dn_id="$(knock_open "$DECIDED_NO")"
     if [ -z "$dn_id" ]; then
-      echo "the gate could not file a request to decide twice: no open row for ${DECIDED_NO}"; fail=1
+      echo "the gate could not file a request to decide twice: no open row for ${DECIDED_NO}"; fail_at
     else
       dn_first="$(http POST "$API/api/access-requests/${dn_id}/decline" "$OP_TOKEN" \
         '{"note":"smoke: the first decision, and the one that stands","notify":true}')"
       [ "${dn_first%% *}" = "200" ] ||
-        { echo "the first decline was refused: HTTP ${dn_first%% *}"; fail=1; }
+        { echo "the first decline was refused: HTTP ${dn_first%% *}"; fail_at; }
 
       # THE FIRST MAIL IS THE CONTROL for the second one's absence, exactly as
       # in the decline block: "no further mail" on a dead pipe is not a finding.
@@ -3246,7 +3277,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         sleep 1
       done
       [ "${dn_mail:-0}" = "1" ] ||
-        { echo "the first refusal did not reach ${DECIDED_NO}: ${dn_mail} addressed to them"; fail=1; }
+        { echo "the first refusal did not reach ${DECIDED_NO}: ${dn_mail} addressed to them"; fail_at; }
 
       # WHO DECIDED IT, before anybody presses anything a second time.
       dn_was="$(q "SELECT decided_by ||'|'|| coalesce(decision_note,'') ||'|'|| decided_at
@@ -3267,7 +3298,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         echo "    record after:  ${dn_now}"
         echo "    A second press that re-stamps decided_by writes the first operator out of the"
         echo "    queue's history, and a second mail tells somebody twice that they were refused."
-        fail=1
+        fail_at
       fi
 
       # AND THE OTHER BUTTON, on the same decided row. This is the one whose
@@ -3280,20 +3311,20 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         echo "and a no cannot be turned into an organisation: HTTP 409, organisations ${dn_tenants_after}"
       else
         echo "granting a DECLINED request: HTTP ${dn_grant%% *}, organisations ${dn_tenants_before} -> ${dn_tenants_after}"
-        fail=1
+        fail_at
       fi
     fi
 
     # ---- SAID YES, THEN ASKED AGAIN ----
     dy_id="$(knock_open "$DECIDED_YES")"
     if [ -z "$dy_id" ]; then
-      echo "the gate could not file a request to grant and then re-decide: no open row for ${DECIDED_YES}"; fail=1
+      echo "the gate could not file a request to grant and then re-decide: no open row for ${DECIDED_YES}"; fail_at
     else
       dy_grant="$(http POST "$API/api/access-requests/${dy_id}/grant" "$OP_TOKEN" \
         "$(jq -nc --arg n "$DECIDED_ORG" '{organisationName:$n}')")"
       dy_tenant="$(jq -r '.tenantId // empty' <<<"${dy_grant#* }" 2>/dev/null || true)"
       [ "${dy_grant%% *}" = "201" ] && [ -n "$dy_tenant" ] ||
-        { echo "the gate's second grant failed: HTTP ${dy_grant%% *} — ${dy_grant#* }"; fail=1; }
+        { echo "the gate's second grant failed: HTTP ${dy_grant%% *} — ${dy_grant#* }"; fail_at; }
 
       dy_mail=0
       for _ in $(seq 1 20); do
@@ -3317,7 +3348,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         echo "declining a GRANTED request: HTTP ${dy_again%% *}, state=${dy_state}, organisation/invitation=${dy_still}, mail ${dy_mail} -> ${dy_mail2}"
         echo "    A decline that landed here would leave an organisation nobody is the owner of,"
         echo "    or tell somebody their access was refused after they had already been let in."
-        fail=1
+        fail_at
       fi
     fi
 
@@ -3327,7 +3358,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     dd_left="$(q "SELECT (SELECT count(*) FROM access_request WHERE email LIKE 'smoke-decided-%@smoke.local')
               ||'/'|| (SELECT count(*) FROM tenant WHERE name LIKE 'Smoke Decided %')" 2>/dev/null || echo '?')"
     [ "$dd_left" = "0/0" ] ||
-      { echo "the twice-decided requests were NOT taken back: requests/tenants left = ${dd_left}"; fail=1; }
+      { echo "the twice-decided requests were NOT taken back: requests/tenants left = ${dd_left}"; fail_at; }
 
     # ---------- HOW FAR AN OPERATOR CAN WALK, AND WHAT THE LOG SAYS AT EACH STEP ----------
     #
@@ -3386,7 +3417,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "level 1: HTTP ${l1%% *}, organisations=${l1_count}, null-tenant reads ${l1_before} -> ${l1_after}"
       echo "    A list read attributed to one organisation is a read in that customer's history"
       echo "    that never happened; one not logged at all is the record this table exists to be."
-      fail=1
+      fail_at
     fi
 
     # ---- LEVEL 2: one organisation, and every section of it ----
@@ -3405,7 +3436,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     else
       echo "level 2: HTTP ${l2%% *}, every section present=${l2_shape}, tenant='${l2_id}',"
       echo "         reads for this tenant ${l2_before} -> ${l2_after}"
-      fail=1
+      fail_at
     fi
 
     # ---- AND A 404 WRITES NOTHING ----
@@ -3418,7 +3449,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
     else
       echo "reading a missing organisation: HTTP ${l2_miss%% *}, tenant reads ${l2_miss_before} -> ${l2_miss_after}"
       echo "    A logged 404 puts organisations in the record the operator never saw."
-      fail=1
+      fail_at
     fi
 
     # ---- LEVEL 3: one migration, attributed to ITS OWN organisation ----
@@ -3437,7 +3468,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "         reads for this tenant ${l3_before} -> ${l3_after}"
       echo "    The tenant is read back from the view rather than taken from the request —"
       echo "    there is no path for an operator to name who a read gets attributed to."
-      fail=1
+      fail_at
     fi
 
     # ---- AND THERE IS NO LEVEL FOUR ----
@@ -3472,7 +3503,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "the migration screen's shape: top-level keys='${l4_top}', item-level names=${l4_named}"
       echo "    Level 3 is the last one on purpose. A screen that lists items is a screen that"
       echo "    shows subject lines, and a fourth level has to introduce a key to hold them."
-      fail=1
+      fail_at
     fi
 
     #
@@ -3488,12 +3519,12 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "no item was available to prove the metadata boundary with (key='${l4_key}')"
       echo "    Not a pass: the check below would compare against an empty string and match"
       echo "    everything, so it is refused rather than reported."
-      fail=1
+      fail_at
     else
       case "$l3_body" in
         *"$l4_key"*)
           echo "THE MIGRATION SCREEN NAMED AN ITEM: it carries ${l4_key}"
-          fail=1
+          fail_at
           ;;
         *)
           echo "and it names none of this organisation's items: the key that identifies one is absent"
@@ -3514,7 +3545,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "the invoices an erasure kept: HTTP 200, and the read is logged whether or not there are any"
     else
       echo "retained invoices: HTTP ${ri%% *}, .invoices is a ${ri_is_list}, null-tenant reads ${ri_before} -> ${ri_after}"
-      fail=1
+      fail_at
     fi
 
     q "DELETE FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" >/dev/null
@@ -3523,7 +3554,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       echo "the gate's operator was taken back: 0 rows left"
     else
       echo "the gate's operator was NOT taken back (count=${left}) — a standing reader of every tenant"
-      fail=1
+      fail_at
     fi
 
     # ---------- AND WHEN THE APPOINTMENT ENDS, SO DOES THE SESSION ----------
@@ -3560,7 +3591,7 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         echo "after the take-back /api/me answered HTTP ${rv_me%% *}, operator=${rv_flag} (expected 200/false)"
         echo "    A token that stopped working would make every refusal below meaningless, and a"
         echo "    flag still reading true is the cached-permission defect this block is here for."
-        fail=1
+        fail_at
       fi
 
       rv_list="$(http GET "$API/api/support/tenants" "$OP_TOKEN")"
@@ -3581,11 +3612,11 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         echo "    Each of these answered for this exact token minutes ago. Revocation that waits"
         echo "    for a token to expire is not revocation, and a row written now would record a"
         echo "    read by somebody who is no longer an operator."
-        fail=1
+        fail_at
       fi
     else
       echo "the appointment was not taken back, so what a revoked session can still do was not asked"
-      fail=1
+      fail_at
     fi
   fi
 fi
@@ -3684,7 +3715,7 @@ if [ -n "$BALANCE_TAG" ]; then
     echo "the mail-pipe control could not create its share (file PUT ${put_code}, OCS ${share_code})"
     echo "— sharebymail off, or OCS refused. Remedy: occ app:enable sharebymail. Until a"
     echo "mail can LEAVE the target, the silence assertions below are unfalsifiable."
-    fail=1
+    fail_at
   else
     pipe_mail=0
     for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -3700,17 +3731,17 @@ if [ -n "$BALANCE_TAG" ]; then
       echo "catcher — the SMTP pipe is broken (SMTP_* env, or mailpit unreachable from the"
       echo "target), and every silence below would be silence-by-inability. Fix the pipe,"
       echo "then trust the quiet."
-      fail=1
+      fail_at
     fi
     share_del="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE -H 'OCS-APIRequest: true' \
       -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
       "http://localhost:${nc_port:-8083}/ocs/v2.php/apps/files_sharing/api/v1/shares/${share_id}")"
-    case "$share_del" in 200|404) ;; *) echo "mailproof share ${share_id} not cleaned up (HTTP ${share_del})"; fail=1 ;; esac
+    case "$share_del" in 200|404) ;; *) echo "mailproof share ${share_id} not cleaned up (HTTP ${share_del})"; fail_at ;; esac
   fi
   file_del="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
     -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
     "http://localhost:${nc_port:-8083}/remote.php/dav/files/${TARGET_DAV_USER}/${mailproof_file}")"
-  case "$file_del" in 204|200|404) ;; *) echo "mailproof file not cleaned up (HTTP ${file_del})"; fail=1 ;; esac
+  case "$file_del" in 204|200|404) ;; *) echo "mailproof file not cleaned up (HTTP ${file_del})"; fail_at ;; esac
 
   sched_href="remote.php/dav/calendars/${TARGET_DAV_USER}/personal/openmig-demo-event-${BALANCE_TAG}-1.ics"
   # Through the PUBLISHED port, as any real DAV client would — the product
@@ -3723,7 +3754,7 @@ if [ -n "$BALANCE_TAG" ]; then
     echo "gate is unproven. Either the sync never copied it, or the writer re-homed"
     echo "the collection; the apply half cannot have consumed it (pick_disposable"
     echo "excludes the canary — the E2E #88 lesson)."
-    fail=1
+    fail_at
   else
     if grep -q "SCHEDULE-AGENT=CLIENT" <<<"$sched_copy" \
        && grep -q "openmig-attendee-${BALANCE_TAG}@example.invalid" <<<"$sched_copy"; then
@@ -3733,7 +3764,7 @@ if [ -n "$BALANCE_TAG" ]; then
       grep -E "ATTENDEE|ORGANIZER" <<<"$sched_copy" | awk 'NR<=4 {print "    " $0}'
       echo "  every ATTENDEE and ORGANIZER the writer PUTs must carry SCHEDULE-AGENT=CLIENT"
       echo "  (0103 T1, ADR-0043) — an RFC 6638 target without it MAILS these people."
-      fail=1
+      fail_at
     fi
   fi
   sched_mail="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
@@ -3741,7 +3772,7 @@ if [ -n "$BALANCE_TAG" ]; then
   if [ "${sched_mail:-0}" -gt 0 ]; then
     echo "THE MIGRATION SENT MAIL: ${sched_mail} message(s) mention the canary attendee."
     echo "  Importing a calendar must never invite its attendees (ADR-0043)."
-    fail=1
+    fail_at
   else
     echo "nothing addressed to the canary reached the catcher during seed or sync"
   fi
@@ -3767,7 +3798,7 @@ if [ -n "$BALANCE_TAG" ]; then
   if [ "${press_open:-0}" -lt 1 ]; then
     echo "the rescan found no open sharing rows — the seeded source share was not"
     echo "discovered (scanNextcloudShares, or the seed's ocs() share: one of the two)."
-    fail=1
+    fail_at
   else
     prior_status="$(q "SELECT status FROM mailbox_mapping WHERE id='$APPLY_MAPPING'")"
     q "UPDATE mailbox_mapping SET status='done' WHERE id='$APPLY_MAPPING'" >/dev/null
@@ -3780,7 +3811,7 @@ if [ -n "$BALANCE_TAG" ]; then
     if [ "${press_applied:-0}" -lt 1 ]; then
       echo "the press applied nothing:"
       jq -r '.refused // .reason // .' <<<"${press_out%$'\n'*}" 2>/dev/null | awk 'NR<=6 {print "    " $0}'
-      fail=1
+      fail_at
     else
       echo "press applied ${press_applied} grant(s) — the target announces them itself"
       press_mail=0
@@ -3795,7 +3826,7 @@ if [ -n "$BALANCE_TAG" ]; then
       else
         echo "the press applied but its mail never reached the catcher — the announcement"
         echo "path is broken between the target's share-by-mail and delivery."
-        fail=1
+        fail_at
       fi
     fi
   fi
@@ -3833,7 +3864,7 @@ else
     echo "(caldav-target-writer.ts ensureCalendar) and this removal is looking in the"
     echo "wrong place — not a sync bug."
     objects_gone=0
-    fail=1
+    fail_at
   fi
 
   # Then the source, with the script's own defaults (tenant B's source account).
@@ -3845,7 +3876,7 @@ else
   else
     echo "source: REMOVAL FAILED — this run's seeded set is still in the demo source."
     objects_gone=0
-    fail=1
+    fail_at
   fi
 
   # The ledger LAST, AND ONLY IF THE OBJECTS REALLY WENT. A row deleted while
@@ -3864,7 +3895,7 @@ else
     # reads exactly like one that worked.
     [ "${left:-1}" = "0" ] || {
       echo "the ledger still carries ${left} non-tombstone row(s) for this run's tag"
-      fail=1
+      fail_at
     }
   else
     echo "ledger: rows LEFT IN PLACE on purpose — the objects they describe are still"
@@ -3902,7 +3933,7 @@ if [ -n "$BALANCE_TAG" ]; then
   if ! docker exec -u www-data "${NEXTCLOUD_CONTAINER:-ownpace-nextcloud}" php -f /var/www/html/cron.php >/dev/null 2>&1; then
     echo "the queue drain itself failed — the silence below is UN-drained, and a queued"
     echo "mail could still be sitting behind it (docker exec … php -f cron.php)."
-    fail=1
+    fail_at
   fi
   sched_mail_after="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
     --data-urlencode "query=openmig-attendee-${BALANCE_TAG}" | jq -r '.messages_count // 0')"
@@ -3910,7 +3941,7 @@ if [ -n "$BALANCE_TAG" ]; then
     echo "THE TAKE-BACK SENT MAIL: ${sched_mail_after} message(s) mention the canary"
     echo "  attendee after removal — deleting a migrated copy must not CANCEL its"
     echo "  attendees (ADR-0043; Schedule-Reply and the neutralised copy are the guards)."
-    fail=1
+    fail_at
   else
     echo "and nothing after the take-back either — no CANCEL fan-out"
   fi
@@ -3929,7 +3960,7 @@ else
   echo "the status page is not answering at ${STATUS}/health"
   echo "  It has no container healthcheck by design (scratch image), so this"
   echo "  probe is the only thing that speaks for it."
-  fail=1
+  fail_at
 fi
 
 # ---------- verdict ----------
@@ -3939,5 +3970,15 @@ if [ "$fail" = "0" ]; then
   echo "SMOKE PASS — evidence in $OUT"
 else
   echo "SMOKE FAIL — evidence in $OUT"
+  # THE LIST IS THE POINT. Printed after the FAIL line and before the exit, so
+  # the last thing on the terminal is what to go and look at rather than an
+  # invitation to search a log. Every entry names the section, the line in this
+  # file, and the sentence the site chose to add.
+  echo ""
+  echo "what failed:"
+  printf '%s' "$FAIL_REASONS"
+  echo ""
+  echo "Each line above points at deploy/compose/smoke-managed.sh, and the log"
+  echo "of that section in $OUT carries the detail."
 fi
 exit "$fail"
