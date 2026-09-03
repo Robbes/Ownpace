@@ -51,7 +51,6 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const COMPOSE = join(HERE, '..', 'deploy', 'compose');
-const REMEMBER = join(COMPOSE, 'trigger-remember-token.sh');
 const DEPLOY_TASKS = readFileSync(join(COMPOSE, 'deploy-tasks.sh'), 'utf8');
 
 /** A token that looks like the CLI's own, and is not one anybody holds. */
