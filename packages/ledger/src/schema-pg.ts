@@ -1,6 +1,20 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 // Drizzle schema for PostgreSQL — matches the canonical DDL in migrations/0001_baseline.sql.
 // See ADR-0016 (ledger schema v1).
+//
+// THE DOMAIN COLUMNS NAME `DISCOVERY_DOMAINS` RATHER THAN LISTING THE VALUES
+// (workplan 0113 T1/T2). This file is a mirror, and a mirror's failure mode is
+// drifting from the thing it mirrors: eight `domain` columns each carrying
+// their own copy of the same four values is eight chances to forget one. The
+// list now lives once, in `@openmig/shared`.
+//
+// THE ORDER THAT MAKES THAT SAFE: migration `0036_a_task_is_not_an_event.sql`
+// widened every `*_domain_check` in the database to accept `task` BEFORE the
+// product knows the word. So this type can only ever be narrower than what
+// Postgres accepts, never wider — a value it permits is a value already
+// admitted by the CHECK, and a domain added here without its migration would
+// be caught by `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+// rather than by a constraint violation halfway through a customer's pass.
 
 import {
   pgTable,
@@ -17,6 +31,7 @@ import {
   primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { DISCOVERY_DOMAINS } from '@openmig/shared';
 
 // ========================= Tenancy & connections =========================
 
@@ -279,7 +294,7 @@ export const scopeSelection = pgTable(
     mappingId: uuid('mapping_id')
       .notNull()
       .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
-    domain: text('domain', { enum: ['email', 'calendar', 'contact', 'file'] }).notNull(),
+    domain: text('domain', { enum: DISCOVERY_DOMAINS }).notNull(),
     included: boolean('included').notNull().default(true),
     filters: jsonb('filters').notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -316,7 +331,7 @@ export const pathLifecycle = pgTable(
     mappingId: uuid('mapping_id')
       .notNull()
       .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
-    domain: text('domain', { enum: ['email', 'calendar', 'contact', 'file'] }).notNull(),
+    domain: text('domain', { enum: DISCOVERY_DOMAINS }).notNull(),
     /**
      * ADR-0014's four plus `ready`, which `mailbox_mapping.status` never had.
      * `paused` STILL HOLDS A SLOT — it is reserved capacity, and the pricing
@@ -349,7 +364,7 @@ export const collectionMapping = pgTable(
     mappingId: uuid('mapping_id')
       .notNull()
       .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
-    domain: text('domain', { enum: ['email', 'calendar', 'contact', 'file'] }).notNull(),
+    domain: text('domain', { enum: DISCOVERY_DOMAINS }).notNull(),
     sourceCollection: text('source_collection').notNull(),
     targetCollection: text('target_collection').notNull(),
     specialUse: text('special_use', {
@@ -379,7 +394,7 @@ export const item = pgTable(
     mappingId: uuid('mapping_id')
       .notNull()
       .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
-    domain: text('domain', { enum: ['email', 'calendar', 'contact', 'file'] }).notNull(),
+    domain: text('domain', { enum: DISCOVERY_DOMAINS }).notNull(),
     collection: text('collection').notNull(),
     naturalKey: text('natural_key').notNull(),
     naturalKeyHash: text('natural_key_hash').notNull(), // Using text for hex hash
@@ -511,7 +526,7 @@ export const syncCheckpoint = pgTable(
     mappingId: uuid('mapping_id')
       .notNull()
       .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
-    domain: text('domain', { enum: ['email', 'calendar', 'contact', 'file'] }).notNull(),
+    domain: text('domain', { enum: DISCOVERY_DOMAINS }).notNull(),
     collection: text('collection').notNull(),
     sourceToken: jsonb('source_token').notNull().default({}),
     lastFullScanAt: timestamp('last_full_scan_at', { withTimezone: true }),
@@ -696,7 +711,7 @@ export const verification = pgTable(
       .notNull()
       .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
     runId: uuid('run_id').references(() => run.id, { onDelete: 'set null' }),
-    domain: text('domain', { enum: ['email', 'calendar', 'contact', 'file'] }).notNull(),
+    domain: text('domain', { enum: DISCOVERY_DOMAINS }).notNull(),
     collection: text('collection'),
     sourceCount: bigint('source_count', { mode: 'bigint' }),
     targetCount: bigint('target_count', { mode: 'bigint' }),
@@ -1024,7 +1039,7 @@ export const migrationStatus = pgTable(
     mappingId: uuid('mapping_id')
       .notNull()
       .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
-    domain: text('domain', { enum: ['email', 'calendar', 'contact', 'file'] }).notNull(),
+    domain: text('domain', { enum: DISCOVERY_DOMAINS }).notNull(),
     state: text('state', {
       enum: ['pending', 'in_progress', 'completed', 'failed', 'skipped'],
     })
@@ -1075,7 +1090,7 @@ export const migrationDiscovery = pgTable(
     mappingId: uuid('mapping_id')
       .notNull()
       .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
-    domain: text('domain', { enum: ['email', 'calendar', 'contact', 'file'] }).notNull(),
+    domain: text('domain', { enum: DISCOVERY_DOMAINS }).notNull(),
     collections: integer('collections').notNull().default(0),
     items: integer('items').notNull().default(0),
     bytes: bigint('bytes', { mode: 'number' }),
