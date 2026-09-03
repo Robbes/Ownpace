@@ -48,9 +48,15 @@ const VERIFICATION_GATE = 'test/e2e/selfhost-verification.e2e.test.ts';
 const RESUME_GATE = 'test/e2e/selfhost-restart-resume.e2e.test.ts';
 const WORKFLOW = '.github/workflows/e2e.yml';
 const FIXTURE = 'test/e2e/fixtures/selfhost-restart-resume.mapping.json';
+const ENGINE = 'packages/core/src/verification.ts';
 
 function read(rel: string): string {
   return readFileSync(join(ROOT, rel), 'utf8');
+}
+
+/** Every single-quoted lowercase word in a fragment of source. */
+function quoted(fragment: string): string[] {
+  return [...fragment.matchAll(/'([a-z]+)'/g)].flatMap((m) => (m[1] ? [m[1]] : []));
 }
 
 /** The one list, as declared: `export const VERIFICATION_DOMAINS = [...]`. */
@@ -58,21 +64,21 @@ function reportDomains(): string[] {
   const src = read(SHARED_REPORT);
   const m = /export const VERIFICATION_DOMAINS = \[([^\]]+)\]/.exec(src);
   expect(m, `${SHARED_REPORT} no longer declares VERIFICATION_DOMAINS as an array literal`).toBeTruthy();
-  return [...m![1].matchAll(/'([a-z]+)'/g)].map((x) => x[1]);
+  return quoted(m![1]!);
 }
 
 /** A named `as const` tuple in a gate, e.g. `const REPORT_DOMAINS = [...] as const`. */
 function tupleIn(src: string, name: string): string[] {
   const m = new RegExp(`const ${name} = \\[([^\\]]+)\\] as const`).exec(src);
   expect(m, `expected a \`const ${name} = [...] as const\` tuple`).toBeTruthy();
-  return [...m![1].matchAll(/'([a-z]+)'/g)].map((x) => x[1]);
+  return quoted(m![1]!);
 }
 
 /** The `E2E_DOMAINS` fallback a gate runs on when nobody sets the variable. */
 function defaultDomains(src: string): string[] {
   const m = /process\.env\.E2E_DOMAINS \|\| '([^']+)'/.exec(src);
   expect(m, 'expected an `process.env.E2E_DOMAINS || \'...\'` default').toBeTruthy();
-  return m![1].split(',').map((d) => d.trim());
+  return m![1]!.split(',').map((d) => d.trim());
 }
 
 describe('the report accounts for five domains, so the gates read five', () => {
@@ -81,6 +87,31 @@ describe('the report accounts for five domains, so the gates read five', () => {
     // ADDED to shared shows up here as the one diff that explains every other
     // failure below.
     expect(reportDomains()).toEqual(['mail', 'calendar', 'contacts', 'files', 'tasks']);
+  });
+
+  it('the engine itself verifies every domain, rather than a literal four', () => {
+    // THE ORIGINAL DEFECT, and the one assertion here that guards product code
+    // rather than a gate. `runVerification` called `verifyDomain` four times by
+    // hand while `verifyTasks` arrived as `true`, so the task domain was
+    // configured, enabled and never asked about.
+    //
+    // A type cannot hold this. The results are collected into
+    // `{} as Record<VerificationDomain, DataTypeVerification>`, and a cast does
+    // not check — narrowing the loop back to four compiles perfectly and leaves
+    // `byDomain.tasks` undefined at runtime. What the type DOES hold is the
+    // report's shape: `VerificationResult` is a total Record, so omitting a
+    // domain from the returned object is a compile error. Shape and reach are
+    // two different properties and this is the one nothing else covers.
+    const src = read(ENGINE);
+    expect(src).toMatch(/for \(const domain of VERIFICATION_DOMAINS\)/);
+    expect(
+      src,
+      'runVerification is walking a literal domain list again — the shape this defect had',
+    ).not.toMatch(/for \(const domain of \[/);
+    // And the summary is computed over the same walk, not over a second list:
+    // the score, the recommendations and canProceedToCutover were all derived
+    // from a four-element `allVerifications` while the report carried five.
+    expect(src).toMatch(/VERIFICATION_DOMAINS\.map\(\(domain\) => byDomain\[domain\]\)/);
   });
 
   it('the verification gate loops over every domain the report carries', () => {
@@ -105,7 +136,7 @@ describe('the report accounts for five domains, so the gates read five', () => {
     const src = read(VERIFICATION_GATE);
     const block = /const DOMAIN_KEY: Record<string, ReportDomain> = \{([^}]+)\}/.exec(src);
     expect(block, 'DOMAIN_KEY is no longer a literal record in the gate').toBeTruthy();
-    const mapped = [...block![1].matchAll(/'([a-z]+)'/g)].map((x) => x[1]);
+    const mapped = quoted(block![1]!);
     for (const domain of reportDomains()) {
       expect(mapped, `DOMAIN_KEY maps nothing onto the report's '${domain}'`).toContain(domain);
     }

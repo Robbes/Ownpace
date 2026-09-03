@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 80 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 81 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -39,6 +39,7 @@ reading a file drops off its entry by itself.
 
 - [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts) — The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `.github/workflows/images.yml`
@@ -517,6 +518,10 @@ reading a file drops off its entry by itself.
 
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 
+### `packages/core/src/verification.ts`
+
+- [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+
 ### `packages/ledger/migrations/0001_baseline.sql`
 
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
@@ -599,6 +604,10 @@ reading a file drops off its entry by itself.
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
+### `packages/shared/src/verification-report.ts`
+
+- [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+
 ### `packages/testing/fixtures/stalwart/config.json`
 
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
@@ -606,6 +615,10 @@ reading a file drops off its entry by itself.
 ### `scripts/a-check-that-was-never-valid.unit.test.ts`
 
 - [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts) — A REFUSAL THAT NAMES NOTHING IS A RUN SOMEBODY HAS TO REPEAT TO LEARN ANYTHING.
+
+### `scripts/a-domain-the-fan-outs-forgot.unit.test.ts`
+
+- [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 
 ### `scripts/a-domain-union-typed-out-by-hand.unit.test.ts`
 
@@ -701,6 +714,14 @@ reading a file drops off its entry by itself.
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
 
+### `test/e2e/fixtures/selfhost-restart-resume.mapping.json`
+
+- [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+
+### `test/e2e/no-workspace-imports.unit.test.ts`
+
+- [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+
 ### `test/e2e/seed-dav-source.mjs`
 
 - [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts) — The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
@@ -714,6 +735,14 @@ reading a file drops off its entry by itself.
 ### `test/e2e/selfhost-backup-restore.e2e.test.ts`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+
+### `test/e2e/selfhost-restart-resume.e2e.test.ts`
+
+- [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+
+### `test/e2e/selfhost-verification.e2e.test.ts`
+
+- [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 
 ### `test/ui/managed-ui.ui.test.ts`
 
@@ -991,6 +1020,21 @@ Reads:
 - `apps/api/src/scripts/seed-managed.ts`
 - `deploy/compose/seed-managed.sh`
 - `docs/managed-bring-up.md`
+
+### [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts)
+
+Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+
+Reads:
+
+- `.github/workflows/e2e.yml`
+- `packages/core/src/verification.ts`
+- `packages/shared/src/verification-report.ts`
+- `scripts/a-domain-the-fan-outs-forgot.unit.test.ts`
+- `test/e2e/fixtures/selfhost-restart-resume.mapping.json`
+- `test/e2e/no-workspace-imports.unit.test.ts`
+- `test/e2e/selfhost-restart-resume.e2e.test.ts`
+- `test/e2e/selfhost-verification.e2e.test.ts`
 
 ### [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts)
 
