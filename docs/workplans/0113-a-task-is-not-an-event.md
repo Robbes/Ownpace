@@ -2,6 +2,27 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
+**2026-09-03 (latest): T8 built — the self-hosted gate seeds a task list too.** `e2e.yml` is
+the only place the appliance is driven end to end against real servers — two Nextcloud
+accounts, a restart-resume idempotency pass per domain, a real apply-deletion per domain — and
+it knew about four domains. `test/e2e/seed-dav-source.mjs` now MKCALENDARs a VTODO-only
+collection and seeds N VTODOs into it, the workflow's mapping patch points `cfg.domains.tasks`
+at the same DAV root, and `mapping.json.example` says how an operator writes the same thing.
+
+**Nothing made the two halves agree, which is the defect the new guard is really about.** The
+seeder is Node and the workflow is YAML wrapping a `node -e` script; no compiler reads across
+them. A domain configured but never seeded passes VACUOUSLY — zero items, nothing to copy,
+nothing to verify, green — and a domain seeded but never configured piles fixtures into the
+source that nothing ever reads.
+`scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts` pairs them: every DAV domain
+in the workflow's patch must have fixtures in the seeder, and the task fixture must be a VTODO
+in a collection declaring VTODO alone.
+
+**The collection is named `e2e-tasks`, and the appliance is not told that.** The task domain
+points at the DAV root and finds the collection through
+`supported-calendar-component-set` — naming it in the config would be the gate asserting what
+the source is supposed to discover.
+
 **2026-09-03 (latest): T7 built — the machine seeds a task list and refuses to pass without it.**
 `seed-demo-dav-content.sh` makes a collection declaring **VTODO and nothing else** (MKCALENDAR
 with a `supported-calendar-component-set`, RFC 4791 §5.2.3), seeds two VTODOs into it, counts
@@ -206,7 +227,7 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 | T5 The domain surfaces | ✅ Done | The matrices (`caldav` → calendar+task, `soverin` gains task, Google gains nothing at any scope tier), the qualification's fifth face measured through the same CalDAV endpoint with `component: 'VTODO'` and counted in its own `taskList` unit, the wizard's fifth tick, the discovery counts, the confirm screen, the verification gate's fifth row, EN/NL strings and an icon. Plus the four per-domain fan-outs in `orchestration.ts` that no compile error could have named — sync, discovery, delta, verification — with a counting guard so the sixth domain cannot slip past them. Four vocabularies collapsed into one on the way (`QUALIFICATION_KEYS`, `domain-words.ts`, three zod enums). A pre-T5 record's missing face reads as `?`, never as a crash. Proved by breaking, eight ways. |
 | T6 Google Tasks | 📋 Optional (needs T0 decision 3) | Google's CalDAV carries no VTODO at all: tasks live behind the separate Tasks REST API, whose model is thinner than VTODO. A face of its own, or out of scope for v1. |
 | T7 The gate (managed) | ✅ Done | The demo Nextcloud source carries a VTODO-only collection, made by MKCALENDAR with a `supported-calendar-component-set` and seeded with two VTODOs; demo tenant B selects `task`; and `smoke-managed.sh` asserts BY NAME that VTODO rows copied under the run's own tag, failing with the four causes a zero can have. `--remove` takes the tasks back with the rest, so the gate stays net zero. Proved by breaking, five ways — two of which did not discriminate at first and were rewritten. |
-| T8 The gate (self-hosted) | 📋 Planned (needs T7) | `e2e.yml` proves all four domains across two real Nextcloud accounts — the restart-resume idempotency gate and a real apply-deletion per domain — and does not know about the fifth. It needs `test/e2e/seed-dav-source.mjs` to seed a VTODO-only collection, `cfg.domains.tasks` in the workflow's mapping patch, and a `tasks` block in `mapping.json.example` so an operator can see the shape. The appliance side needs no code: `DomainsConfig.tasks` landed with T5. |
+| T8 The gate (self-hosted) | ✅ Done | `seed-dav-source.mjs` MKCALENDARs a VTODO-only collection (405 read as "already there", so a `SEED_OFFSET` re-seed converges) and fills it with VTODOs; `e2e.yml` enables `cfg.domains.tasks` against the same DAV root, leaving the collection for discovery to find; `mapping.json.example` documents the shape for operators. A new guard pairs the seeder with the workflow, because nothing else could: one is Node, the other YAML, and a domain configured-but-unseeded passes vacuously. Proved by breaking, three ways. |
 
 ## Why this exists
 

@@ -4,9 +4,10 @@ name: E2E (self-hosted)
 # Intentionally SEPARATE from CI (ci.yml). Nightly + manual dispatch: needs the
 # self-hosted Spark runner + Docker. Drives the workplan 0010 T5 acceptance gate
 # — the self-host appliance's restart-resume idempotency property — end to end,
-# for all FOUR domains (issue #114 follow-up extended this from mail-only to also
+# for all FIVE domains (issue #114 follow-up extended this from mail-only to also
 # cover calendar/contacts; a 2026-07-27 follow-up added WebDAV files, closing the
-# last deferred gap):
+# last deferred gap; 0113 T8 added tasks — a VTODO-only collection, which is the
+# shape this product read as a calendar for years):
 #
 #   1. Bring up Stalwart via deploy/selfhost/setup-stalwart.sh — the ONE canonical
 #      two-phase (recovery-mode provisioning, then normal-mode serving) bring-up
@@ -25,11 +26,14 @@ name: E2E (self-hosted)
 #   2. SEED the source mailbox over IMAPS (the gate is only meaningful against a
 #      non-zero source; v0.16.10 doesn't bind plaintext IMAP in normal mode, so
 #      this — like the rest of the repo — uses TLS, not port 143) AND seed calendar
-#      events + contacts + files into the e2e-source Nextcloud account
-#      (test/e2e/seed-dav-source.mjs).
+#      events + TASKS + contacts + files into the e2e-source Nextcloud account
+#      (test/e2e/seed-dav-source.mjs). The tasks go into a collection of their
+#      own, made by MKCALENDAR declaring VTODO and nothing else — Nextcloud's
+#      default `personal` calendar declares VEVENT,VTODO, so seeding them there
+#      would test the mixed case this gate is not short of.
 #   3. Build + start the self-host appliance (deploy/selfhost/compose.yml) with
 #      a mapping generated from the fixture and the source/target passwords —
-#      mail, calendar, contacts, and files domains all enabled.
+#      mail, calendar, tasks, contacts, and files domains all enabled.
 #   3b. PLANT one item that cannot migrate — a file on the source at a path where
 #      the target already holds a directory. Per-item failure isolation means the
 #      rest of the domain must migrate anyway; the gate then reads the failure
@@ -224,7 +228,7 @@ jobs:
           SEED_COUNT: ${{ github.event.inputs.seed_count || '5' }}
         run: node test/e2e/seed-imap-source.mjs
 
-      - name: Seed calendar events + contacts + files (N>0, over DAV)
+      - name: Seed calendar events + tasks + contacts + files (N>0, over DAV)
         env:
           SEED_DAV_URL: http://127.0.0.1:${{ env.DEV_NEXTCLOUD_PORT }}
           SEED_DAV_SOURCE_USER: ${{ env.NEXTCLOUD_SOURCE_USER }}
@@ -304,6 +308,18 @@ jobs:
             const nextcloudDav = "http://nextcloud/remote.php/dav";
             cfg.domains.calendar.source.url = nextcloudDav;
             cfg.domains.calendar.target.url = nextcloudDav;
+            // Tasks ride the SAME DAV root as calendars and are told apart by
+            // the collection's declared component, not by the address (0113
+            // T8): the source lists only collections carrying VTODO, the
+            // seeder made one that carries VTODO and nothing else, and the
+            // writer recreates it on the target declaring the same. Nothing
+            // here names the collection — that is discovery's job, and naming
+            // it would be this config asserting what the source is supposed to
+            // find out for itself.
+            cfg.domains.tasks = cfg.domains.tasks || { enabled: true, source: {}, target: {} };
+            cfg.domains.tasks.enabled = true;
+            cfg.domains.tasks.source.url = nextcloudDav;
+            cfg.domains.tasks.target.url = nextcloudDav;
             cfg.domains.contacts.source.url = nextcloudDav;
             cfg.domains.contacts.target.url = nextcloudDav;
             // Unlike CalDAV/CardDAV, plain WebDAV has no discovery of its own -- the files
