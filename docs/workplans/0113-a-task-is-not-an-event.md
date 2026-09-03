@@ -2,7 +2,46 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
-**2026-09-03 (latest): T8 built — the self-hosted gate seeds a task list too.** `e2e.yml` is
+**2026-09-03 (latest, after T8): the fifth fan-out — the §20 report had no task domain at
+all.** T5 found four fan-outs in `orchestration.ts` that no compile error could name. There
+was a fifth, one layer down: `runVerification` called `verifyDomain` for `mail`, `calendar`,
+`contacts` and `files` by hand, and never for `tasks`. `VerificationResult` had four literal
+keys and no `tasks` field. `allVerifications` held four, so `overallStatus`, `score`, the
+recommendations, every total and **`canProceedToCutover`** were computed over four fifths of
+the migration. `Verify.tsx` listed four (the `tasks` label T5 added was present and unused).
+Both self-hosted gates defaulted `E2E_DOMAINS` to four, and nothing anywhere sets it.
+
+`run-cutover.ts` passes `verifyTasks: true`. So **a cutover carrying a task list reached
+`canProceedToCutover: true` having never once looked at the task domain** — hard rule 9, on
+the one destructive path. `verifyTasks`' own comment, written in T5, predicted exactly this:
+*"a domain that copies and is never verified is the green run that checked nothing, and this
+gate is the last thing standing between that and a cutover."*
+
+**Measured, not deduced.** The owner ran `smoke-managed.sh` on the Spark at 13:40 UTC; the DAV
+verify report it printed carries `mail`, `files`, `calendar` and `contacts` and no `tasks` key
+of any kind.
+
+**Why the type did not catch it.** T5 widened the `dataType` UNION everywhere — thirteen
+hand-written copies — and gave the web screen a total label map whose comment says why. What
+it could not widen was the ITERATION, because an array literal is never a compile error. So
+`VERIFICATION_DOMAINS` is now the one list, `VerificationDomain` derives from it, and
+`VerificationResult` extends `Record<VerificationDomain, DataTypeVerification>` — a missing
+domain is a compile error at every construction site (which is how the web unit test's fixture
+was caught). The engine's own loop is held by a guard rather than a type: it collects into
+`{} as Record<...>`, and a cast does not check.
+
+The e2e gates cannot import the list at all — `test/` declares no `@openmig/*` dependency and
+`no-workspace-imports.unit.test.ts` keeps it that way — so they restate it and
+`scripts/a-report-domain-the-gate-never-reads.unit.test.ts` pairs the restatement against the
+source as text. `tasks` also moved into the restart-resume fixture beside the other four: T8
+had switched it on inside `e2e.yml` with an `|| { enabled: true }` fallback, so the file a
+person opens to answer "what does this gate migrate?" said four while the run did five.
+
+Proved by breaking, nine ways. Two of the nine found defects in this session's own work: the
+guard file had strict-index-access errors, and the first version of the engine assertion did
+not exist, so narrowing the loop compiled green.
+
+**2026-09-03: T8 built — the self-hosted gate seeds a task list too.** `e2e.yml` is
 the only place the appliance is driven end to end against real servers — two Nextcloud
 accounts, a restart-resume idempotency pass per domain, a real apply-deletion per domain — and
 it knew about four domains. `test/e2e/seed-dav-source.mjs` now MKCALENDARs a VTODO-only
@@ -227,7 +266,7 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 | T5 The domain surfaces | ✅ Done | The matrices (`caldav` → calendar+task, `soverin` gains task, Google gains nothing at any scope tier), the qualification's fifth face measured through the same CalDAV endpoint with `component: 'VTODO'` and counted in its own `taskList` unit, the wizard's fifth tick, the discovery counts, the confirm screen, the verification gate's fifth row, EN/NL strings and an icon. Plus the four per-domain fan-outs in `orchestration.ts` that no compile error could have named — sync, discovery, delta, verification — with a counting guard so the sixth domain cannot slip past them. Four vocabularies collapsed into one on the way (`QUALIFICATION_KEYS`, `domain-words.ts`, three zod enums). A pre-T5 record's missing face reads as `?`, never as a crash. Proved by breaking, eight ways. |
 | T6 Google Tasks | 📋 Optional (needs T0 decision 3) | Google's CalDAV carries no VTODO at all: tasks live behind the separate Tasks REST API, whose model is thinner than VTODO. A face of its own, or out of scope for v1. |
 | T7 The gate (managed) | ✅ Done | The demo Nextcloud source carries a VTODO-only collection, made by MKCALENDAR with a `supported-calendar-component-set` and seeded with two VTODOs; demo tenant B selects `task`; and `smoke-managed.sh` asserts BY NAME that VTODO rows copied under the run's own tag, failing with the four causes a zero can have. `--remove` takes the tasks back with the rest, so the gate stays net zero. Proved by breaking, five ways — two of which did not discriminate at first and were rewritten. |
-| T8 The gate (self-hosted) | ✅ Done | `seed-dav-source.mjs` MKCALENDARs a VTODO-only collection (405 read as "already there", so a `SEED_OFFSET` re-seed converges) and fills it with VTODOs; `e2e.yml` enables `cfg.domains.tasks` against the same DAV root, leaving the collection for discovery to find; `mapping.json.example` documents the shape for operators. A new guard pairs the seeder with the workflow, because nothing else could: one is Node, the other YAML, and a domain configured-but-unseeded passes vacuously. Proved by breaking, three ways. |
+| T8 The gate (self-hosted) | ✅ Done | `seed-dav-source.mjs` MKCALENDARs a VTODO-only collection (405 read as "already there", so a `SEED_OFFSET` re-seed converges) and fills it with VTODOs; `e2e.yml` enables `cfg.domains.tasks` against the same DAV root, leaving the collection for discovery to find; `mapping.json.example` documents the shape for operators. A new guard pairs the seeder with the workflow, because nothing else could: one is Node, the other YAML, and a domain configured-but-unseeded passes vacuously. Proved by breaking, three ways. **Followed up the same day:** enabling a domain is not asserting one — both gates in that workflow defaulted `E2E_DOMAINS` to four, so the task lane ran every night and nothing asked about it. See the latest status entry. |
 
 ## Why this exists
 
