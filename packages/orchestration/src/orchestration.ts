@@ -25,6 +25,7 @@ import {
   runCalendarSync,
   runContactSync,
   runFileSync,
+  runTaskSync,
   discoverSource,
   discoverTarget,
   type CountableTarget,
@@ -404,7 +405,44 @@ export async function runAllDomains(
         } finally {
           await deps.close();
         }
-      } else {
+      } else if (domain === 'task') {
+        // ITS OWN BRANCH, and the trailing `else` below is narrowed to `file`
+        // so that the next domain added to DISCOVERY_DOMAINS cannot repeat
+        // this (workplan 0113, the seventh fan-out).
+        //
+        // Until 2026-09-03 there was no branch here at all, and `task` fell
+        // into the file `else`: a selected task domain built FILE deps, ran a
+        // FILE pass, copied nothing because that pass is idempotent, and was
+        // then marked COMPLETED. Not a skip — a wrong pass reporting success.
+        // Found on the owner's Spark by the managed smoke's task-lane
+        // assertion (T7) against a source holding two VTODOs.
+        //
+        // T5 widened five LISTS and none of them helped, for the same reason
+        // the fifth fan-out's own note gives about array literals: a bare
+        // `else` is never a compile error either. It is the meaner of the two,
+        // because an absent branch omits work while a catch-all does the wrong
+        // work and says it went fine.
+        const deps = buildDomainDeps(config, 'task', ledger);
+        try {
+          const result = await runTaskSync(deps);
+          outcome = {
+            domain,
+            scanned: result.scanned,
+            created: result.created,
+            skipped: result.skipped,
+            adopted: result.adopted,
+            updated: result.updated,
+            changedButAdopted: result.changedButAdopted,
+            failed: result.failed,
+            needsDecision: result.needsDecision,
+            leftBehind: result.leftBehind,
+            conflicted: result.conflicted,
+            deletions: result.deletions.length,
+          };
+        } finally {
+          await deps.close();
+        }
+      } else if (domain === 'file') {
         const deps = buildDomainDeps(config, 'file', ledger);
         // Captured BEFORE the pass: ADR-0031's survived-a-pass gate compares
         // each relocation's recording date against this, so a move this very
@@ -456,6 +494,19 @@ export async function runAllDomains(
         } finally {
           await deps.close();
         }
+      } else {
+        // NOT a fallback — a refusal. Every branch above tests a domain by
+        // name, so reaching here means DISCOVERY_DOMAINS grew and this chain
+        // did not. Throwing is the whole point of the seventh fan-out's fix:
+        // the previous version of this line was `else { …runFileSync }`, which
+        // gave the new domain a wrong pass and a `markCompleted`. A throw
+        // leaves the domain's status row in `in_progress` and surfaces in the
+        // run log, which is what an unimplemented domain should look like.
+        throw new Error(
+          `no sync pass is implemented for the '${domain}' domain — it is in DISCOVERY_DOMAINS ` +
+            'and enabled for this mapping, but runOneDomain has no branch for it. Add one ' +
+            'beside the others rather than letting it fall through to another domain\'s pass.',
+        );
       }
 
       results.push(outcome);

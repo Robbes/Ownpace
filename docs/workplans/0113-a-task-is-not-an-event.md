@@ -2,6 +2,37 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
+**2026-09-03 (latest): the SEVENTH fan-out — the task domain ran a FILE sync and was
+marked completed.** The one the whole workplan was written to prevent, found on the owner's
+Spark by T7's task-lane assertion — the only thing in the system that asked the question.
+
+There was **no task sync pass at all**. T3a/T3b built the source, T4 made the CalDAV writer
+follow its component, T2 gave the ledger a `todo:` natural key, T5 added `task` to five lists
+and even gave `buildDomainDepsFromMapping` a `'task'` overload. Nothing called any of it.
+Both dispatchers — `runOneDomain` in `orchestration.ts` and the domain loop in
+`run-delta-sync.ts`, separate code with identical shape — ended in a bare `else` that built
+FILE deps and ran `runFileSync`. So a selected task domain ran a file pass, copied nothing
+(that pass is idempotent), and was handed to `markCompleted`.
+
+**Not a skip — a wrong pass reporting success.** #750's own note says an array literal is
+never a compile error; a bare `else` is worse, because an absent branch omits work visibly
+while a catch-all does the wrong work and says it went fine.
+
+**Measured on a real Nextcloud, three facts no unit test could produce:** the seeder reported
+`tasks:2` in the source, `scope_selection` carried `task|t` for the mapping, and the ledger
+held `calendar|copied|2  contact|copied|2  file|copied|2` and not one task row.
+
+The fix is `runTaskSync` — the calendar pass with exactly two differences, the VTODO source
+and `naturalKeyForTask` — plus a named branch in both dispatchers and a trailing `else` that
+THROWS. Seven breaks; the guard caught a half-fix of my own (task branch added, trailing
+`else` left unconditional, so `file` still had no test of its own). Its first draft also
+tripped over the comments that explain the defect, which necessarily name `runFileSync` —
+#749's guard hit the mirror image of that, and both now strip comments before matching.
+
+**#750 would not have caught this.** Zero recorded task rows resolves to SKIPPED, not
+NOT_VERIFIABLE, so the cutover gate would still have passed. The gates and the engine failed
+in the same direction; only the smoke's by-name assertion did not.
+
 **2026-09-03 (latest): the SIXTH fan-out, and a gate that would not say what it found.**
 The owner ran `SMOKE_PREPARE_APPLY=1 smoke-managed.sh` on the Spark and got
 `verify: done   apply: applied` followed by a bare `SMOKE FAIL`. Both halves he could name had
