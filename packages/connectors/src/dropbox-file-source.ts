@@ -155,6 +155,25 @@ export class DropboxFileSource implements FileSource {
    * stops after `maxPages` pages; past the cap the count is a floor and
    * `truncated` says so, rather than a walk that outlives the person asking.
    */
+  /**
+   * HOW MUCH THE DROPBOX HOLDS (2026-09-02, beside the owner's "GB in
+   * Drive"): one `users/get_space_usage` — the bytes in use, and the
+   * allocation where Dropbox states one. A team allocation reports the
+   * team's total; `bytes` is this account's own use either way. For the
+   * Measured line, never for a pass.
+   */
+  async spaceUsage(): Promise<{ bytes: number; allocated?: number }> {
+    const usage = (await this.rpc('users/get_space_usage', null)) as {
+      used?: number;
+      allocation?: { '.tag'?: string; allocated?: number };
+    };
+    if (typeof usage.used !== 'number') {
+      throw new Error("Dropbox's space usage answered without a `used` figure.");
+    }
+    const allocated = usage.allocation?.allocated;
+    return { bytes: usage.used, ...(typeof allocated === 'number' ? { allocated } : {}) };
+  }
+
   async listTopLevelFolders(
     maxPages = 5,
   ): Promise<{ folders: ReadonlyArray<FileFolder>; truncated: boolean }> {

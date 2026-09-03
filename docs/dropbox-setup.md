@@ -32,8 +32,10 @@ Nothing is typed, and the App secret never leaves the server. You can still use 
 instead: open *Use your own Dropbox app instead* and enter the App key and App secret as a pair.
 
 *Test* asks Dropbox for the top level of the root folder only, so it answers in seconds on a
-Dropbox of any size; the migration itself walks every folder. A test that does not answer
-within 20 seconds says so and keeps the connection, so it can be tested again.
+Dropbox of any size; the migration itself walks every folder. Beside the folder count, the
+*Measured* line says how much the Dropbox holds, from Dropbox's own space-usage figure. A test
+that does not answer within 20 seconds says so and keeps the connection, so it can be tested
+again.
 
 For the button to work, the app must know where to send the browser back: **Settings → OAuth
 2 → Redirect URIs**, add `https://<your app's address>/api/migrations/dropbox/callback` — the

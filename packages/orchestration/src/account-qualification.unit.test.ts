@@ -9,7 +9,9 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import {
+  isDropboxKind,
   isQualifiableKind,
+  qualifyDropbox,
   qualifyAccount,
   qualifyGoogleGrant,
   qualificationReportLines,
@@ -240,6 +242,110 @@ describe('the boundary', () => {
       expect(isQualifiableKind(kind), kind).toBe(false);
       expect(await qualifyAccount(kind, {}, CREDS)).toBeUndefined();
     }
+  });
+});
+
+describe('the Dropbox account: one face, two answers (2026-09-02)', () => {
+  const dropboxFetch = (options: { refuseListing?: boolean; refuseUsage?: boolean } = {}) =>
+    vi.fn(async (url: string, init?: { body?: string }) => {
+      const answer = (payload: unknown, status = 200) => ({
+        ok: status < 400,
+        status,
+        json: async () => payload,
+        text: async () => JSON.stringify(payload),
+      });
+      if (url.includes('/oauth2/token')) {
+        return answer({ access_token: 'at', token_type: 'bearer', expires_in: 14400 });
+      }
+      if (url.endsWith('/files/list_folder')) {
+        if (options.refuseListing) return answer({ error_summary: 'invalid_access_token/' }, 401);
+        return answer({
+          entries: [
+            { '.tag': 'folder', id: 'id:1', name: 'Docs', path_display: '/Docs' },
+            { '.tag': 'folder', id: 'id:2', name: 'Photos', path_display: '/Photos' },
+            { '.tag': 'file', id: 'id:3', name: 'x.txt', path_display: '/x.txt', size: 1 },
+          ],
+          cursor: 'c',
+          has_more: false,
+        });
+      }
+      if (url.endsWith('/users/get_space_usage')) {
+        if (options.refuseUsage) return answer({ error_summary: 'missing_scope/account_info.read' }, 401);
+        return answer({ used: 48_000_000, allocation: { '.tag': 'individual', allocated: 2e12 } });
+      }
+      throw new Error(`the qualifier asked ${url}${init?.body ? ` with ${init.body}` : ''}`);
+    });
+  const DROPBOX_CREDS = { clientId: 'app-key', clientSecret: 'app-secret', refreshToken: 'refresh' };
+
+  it('files: yes with the top-level count AND the bytes in use; the other three faces a measured no', async () => {
+    vi.stubGlobal('fetch', dropboxFetch());
+    try {
+      const q = await qualifyDropbox('dropbox', { rootPath: '' }, DROPBOX_CREDS);
+      expect(q).toBeDefined();
+      expect(q!.domains.file).toMatchObject({
+        answer: 'yes',
+        count: 3,
+        unit: 'folder',
+        volume: { bytes: 48_000_000 },
+      });
+      expect(q!.domains.file.detail).toBe('3 folders at the top level.');
+      for (const face of ['mail', 'calendar', 'contact'] as const) {
+        expect(q!.domains[face].answer, face).toBe('no');
+        expect(q!.domains[face].detail).toContain('A Dropbox carries files only');
+      }
+      // No scheduling verdict: nothing here writes calendar objects.
+      expect(q!.scheduling).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a refused listing is UNKNOWN carrying the refusal — never a no, and never a crash', async () => {
+    vi.stubGlobal('fetch', dropboxFetch({ refuseListing: true }));
+    try {
+      const q = await qualifyDropbox('dropbox', {}, DROPBOX_CREDS);
+      expect(q!.domains.file.answer).toBe('unknown');
+      expect(q!.domains.file.detail).toContain('Unmeasured');
+      expect(q!.domains.file.detail).toContain('401');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a listing that answers while the usage is refused keeps the yes, and says the measure failed', async () => {
+    vi.stubGlobal('fetch', dropboxFetch({ refuseUsage: true }));
+    try {
+      const q = await qualifyDropbox('dropbox', {}, DROPBOX_CREDS);
+      expect(q!.domains.file.answer).toBe('yes');
+      expect(q!.domains.file.count).toBe(3);
+      expect(q!.domains.file.volume?.bytes).toBeUndefined();
+      expect(q!.domains.file.volume?.failed).toContain('space usage');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("uses the deployment's own Dropbox app where the row stores no pair (ADR-0041)", async () => {
+    vi.stubEnv('DROPBOX_OAUTH_CLIENT_ID', 'deployment-app-key');
+    vi.stubEnv('DROPBOX_OAUTH_CLIENT_SECRET', 'deployment-app-secret');
+    const fetchMock = dropboxFetch();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const q = await qualifyDropbox('dropbox', {}, { refreshToken: 'refresh' });
+      expect(q!.domains.file.answer).toBe('yes');
+      const exchange = fetchMock.mock.calls.find(([url]) => String(url).includes('/oauth2/token'));
+      expect(String(exchange![1]?.body)).toContain('client_id=deployment-app-key');
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('answers nothing for any other kind — the Google and Basic-auth halves keep theirs', async () => {
+    expect(await qualifyDropbox('gmail', {}, DROPBOX_CREDS)).toBeUndefined();
+    expect(await qualifyDropbox('box', {}, DROPBOX_CREDS)).toBeUndefined();
+    expect(isDropboxKind('dropbox')).toBe(true);
+    expect(isDropboxKind('google_drive')).toBe(false);
   });
 });
 
