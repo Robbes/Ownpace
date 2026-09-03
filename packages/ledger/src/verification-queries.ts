@@ -11,6 +11,7 @@ import { createPgDb } from './db.ts';
 import type { PgDatabase } from './db-types.ts';
 import * as schema from './schema-pg.ts';
 import { eq, and, sql, ne } from 'drizzle-orm';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
  * Port for reading verification data from the ledger.
@@ -18,16 +19,16 @@ import { eq, and, sql, ne } from 'drizzle-orm';
  */
 export interface LedgerVerificationReader {
   /** Count items of a given type in the ledger for a mapping */
-  countItems(tenantId: TenantId, mappingId: MappingId, domain: 'email' | 'calendar' | 'contact' | 'file'): Promise<number>;
+  countItems(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<number>;
   
   /** Get total bytes for items of a given type in the ledger */
-  totalSizeBytes(tenantId: TenantId, mappingId: MappingId, domain: 'email' | 'calendar' | 'contact' | 'file'): Promise<number>;
+  totalSizeBytes(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<number>;
   
   /** Get sample items for verification (ids + natural key hashes + content hashes) */
   getSamples(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     count: number
   ): Promise<Array<{ id: string; naturalKeyHash: string; contentHash: string }>>;
 
@@ -35,7 +36,7 @@ export interface LedgerVerificationReader {
   getAllNaturalKeyHashes(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file'
+    domain: DiscoveryDomain
   ): Promise<string[]>;
 }
 

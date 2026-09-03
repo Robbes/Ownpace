@@ -22,6 +22,7 @@ import {
   fileNaturalKeyHash,
 } from '@openmig/shared';
 import type { VerificationDeps } from './verification.ts';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
  * Verification dependencies backed by ledger reader and target
@@ -102,7 +103,7 @@ async function getSourceCountFromLedger(
   mappingId: MappingId,
   dataType: 'mail' | 'calendar' | 'contacts' | 'files'
 ): Promise<number> {
-  const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
+  const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
   return reader.countItems(tenantId, mappingId, domain);
 }
 
@@ -125,7 +126,7 @@ async function getTargetCountFromReindexer(
     throw new Error(`No target reindexer for ${dataType}: the target count cannot be measured.`);
   }
 
-  const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
+  const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
   // Get all natural key hashes from the ledger for this domain
   const ledgerHashes = new Set(await reader.getAllNaturalKeyHashes(tenantId, mappingId, domain));
 
@@ -150,7 +151,7 @@ async function getSourceSamplesFromLedger(
   dataType: 'mail' | 'calendar' | 'contacts' | 'files',
   count: number
 ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>> {
-  const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
+  const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
   const samples = await reader.getSamples(tenantId, mappingId, domain, count);
   
   return samples.map((s) => ({
@@ -258,7 +259,7 @@ async function findMissingOnTarget(
   dataType: 'mail' | 'calendar' | 'contacts' | 'files',
   targetReindexer?: TargetReindexer
 ): Promise<Array<{ id: string; sourceRef: string }>> {
-  const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
+  const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
   
   // "Cannot read the target" is not the same as "the target is empty". Reporting
   // every ledger row as missing produced a FAIL that looked like catastrophic
@@ -302,7 +303,7 @@ async function findExtraOnTarget(
     throw new Error(`No target reindexer for ${dataType}: extra items cannot be determined.`);
   }
 
-  const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
+  const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
 
   // Get all natural key hashes from the ledger for this domain
   const ledgerHashes = new Set(await reader.getAllNaturalKeyHashes(tenantId, mappingId, domain));
@@ -333,7 +334,7 @@ async function getTotalBytesFromLedger(
   mappingId: MappingId,
   dataType: 'mail' | 'calendar' | 'contacts' | 'files'
 ): Promise<number> {
-  const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
+  const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
   return reader.totalSizeBytes(tenantId, mappingId, domain);
 }
 
@@ -354,7 +355,7 @@ async function getTotalBytesFromReindexer(
 ): Promise<number | null> {
   if (!targetReindexer) return null;
 
-  const domain = mapDataTypeToDomain(dataType) as 'email' | 'calendar' | 'contact' | 'file';
+  const domain = mapDataTypeToDomain(dataType) as DiscoveryDomain;
   const ledgerHashes = new Set(await reader.getAllNaturalKeyHashes(tenantId, mappingId, domain));
 
   let total = 0;

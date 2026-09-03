@@ -69,6 +69,7 @@ import {
   type RemovalKind,
   type TenantId,
 } from '@openmig/shared';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
  * Share of a domain's migrated items that may be pending deletion before every
@@ -150,7 +151,7 @@ export type ApplyRefusal =
 export interface ApplyDeletionDeps {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
-  readonly domain: 'email' | 'calendar' | 'contact' | 'file';
+  readonly domain: DiscoveryDomain;
   readonly ledger: Ledger;
   /** The domain's target writer. Removal happens only if it implements `TargetRemover`. */
   readonly target: unknown;

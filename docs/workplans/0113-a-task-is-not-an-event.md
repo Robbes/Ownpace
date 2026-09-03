@@ -2,6 +2,20 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
+**2026-09-03 (later): T1 built — the domain has one name.** The owner, in the same
+message that queued this work: *"add the task-objectkind (one of the latest workplans). Work
+on this autonomously."* That is decision 1, yes. Decisions 2 and 3 are taken as this plan's
+own recommendations — **its own tick**, and **Google Tasks out of v1** (T6 stays visible and
+unstarted). Decision 4 waits for the owner's Soverin account to answer.
+
+T1 measured **80** hand-written copies of the union across **18** files, not 73 — the count in
+the table below was taken before #734–#738 landed. All 80 are gone: the list lives once, in
+`DISCOVERY_DOMAINS`, with the type derived from it, and
+`scripts/a-domain-union-typed-out-by-hand.unit.test.ts` fails the build on a new copy of
+either. Three local aliases for the same concept (`SyncDomain` — declared twice in one
+package — `PathDomain`, and two web-local `Domain`s) are gone with them. No behaviour changed;
+the guard's exception list is now the checklist T2 and T5 work through.
+
 **2026-09-03: drafted for the owner's decision, nothing built.** The owner, walking his own
 Soverin account: *"i found 'Tasks', is that a Dav to? Perhaps we need to add it as
 objecttype?"* Yes to the first half — tasks are CalDAV, `VTODO` components, and every DAV
@@ -12,8 +26,8 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 Decide: its own tick, and how far v1 reaches | 📋 Owner decision | §"The owner's decisions" 1–3. Nothing below starts without 1. |
-| T1 The domain has ONE name | 📋 Planned | `DiscoveryDomain` is spelled out inline as a union **73 times across 17 files**. A fifth domain added on top of that is 73 edits and a drift bug in whichever one is missed. Collapse them onto the type first, with a guard that fails on a new inline copy. No behaviour changes; this is the task that makes every one below cheap. |
+| T0 Decide: its own tick, and how far v1 reaches | ✅ Decided 2026-09-03 | 1: **build it** (the owner queued the work). 2: **its own tick**. 3: **Google Tasks out of v1**. 2 and 3 are this plan's own recommendations, taken in the owner's absence and reversible by a word from him. |
+| T1 The domain has ONE name | ✅ Done | Was **80 inline copies across 18 files** (73 when this was written; #734–#738 added seven). Now one `DISCOVERY_DOMAINS` in `packages/shared/src/discovery.ts` with `DiscoveryDomain` derived from it, three redundant aliases removed, and `scripts/a-domain-union-typed-out-by-hand.unit.test.ts` failing the build on a new copy of the type OR of the value list — with every legitimate exception named and two-way, so it cannot go stale. Proved by breaking. No behaviour changed. |
 | T2 The ledger widens | 📋 Planned (needs T1) | Nine `CHECK` constraints in `0001_baseline.sql` pin the four domains, plus `item_item_type_check`. One additive migration widens them; nothing is rewritten, nothing is dropped. |
 | T3 The source tells a task list from a calendar | 📋 Planned | Two slices. **(a) Honest today:** PROPFIND `supported-calendar-component-set` and stop counting a VTODO-only collection as a calendar. **(b)** Carry it as its own collection kind, and read each object's real component instead of stamping `type: 'event'`. |
 | T4 The writer writes a task | 📋 Planned (needs T3) | The read-back's `comp-filter` follows the component being written; `MKCALENDAR` names the component set when a collection has to be created; a target collection that cannot take the component is refused **by name**, never by a silent 403. |

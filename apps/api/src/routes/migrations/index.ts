@@ -16,7 +16,7 @@ import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgMigrationStatusStore, PgLedger, RunStore } from '@openmig/ledger';
-import { buildDomainStatusReports, log } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, buildDomainStatusReports, log } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
@@ -2310,7 +2310,7 @@ router.post('/:mappingId/discover', authenticate, async (req: AuthenticatedReque
     const mapping = await loadMapping(tenantId, mappingId);
     if (!mapping) return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
 
-    const domains: DiscoveryDomain[] = body.domains ?? ['email', 'calendar', 'contact', 'file'];
+    const domains: DiscoveryDomain[] = body.domains ?? [...DISCOVERY_DOMAINS];
     const run = await getTriggerClient().tasks.trigger(
       'run-discovery',
       { tenantId, mappingId, domains },

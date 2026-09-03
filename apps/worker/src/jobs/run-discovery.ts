@@ -23,7 +23,7 @@ import type {
 import { withTenant, PgDiscoveryStore } from '@openmig/ledger';
 import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { discoverDomains, type DomainDiscoveryTask } from '@openmig/orchestration/discovery';
-import { log } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, log } from '@openmig/shared';
 
 const DiscoveryJobSchema = z.object({
   tenantId: z.string().uuid(),
@@ -124,7 +124,7 @@ export const runDiscovery = schemaTask({
     }
     const tenantId = typed.tenantId as TenantId;
     const mappingId = typed.mappingId as MappingId;
-    const domains: DiscoveryDomain[] = typed.domains ?? ['email', 'calendar', 'contact', 'file'];
+    const domains: DiscoveryDomain[] = typed.domains ?? [...DISCOVERY_DOMAINS];
 
     log.info('Starting discovery', { tenantId, mappingId, domains });
 

@@ -36,16 +36,15 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { PgDatabase } from './db.ts';
 import * as schemaPg from './schema-pg.ts';
 import type { MappingId, TenantId } from '@openmig/shared';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 /** ADR-0014's five, in the order a path travels them. */
 export const PATH_STATES = ['ready', 'active', 'paused', 'cutover', 'done'] as const;
 export type PathState = (typeof PATH_STATES)[number];
 
-/** The four faces a path can be. */
-export type PathDomain = 'email' | 'calendar' | 'contact' | 'file';
 
 export interface PathLifecycle {
-  readonly domain: PathDomain;
+  readonly domain: DiscoveryDomain;
   readonly state: PathState;
   /** Absent until the path has ever taken a slot. */
   readonly firstActivatedAt?: string;
@@ -127,9 +126,9 @@ export class PgPathLifecycleStore {
 
     return paths.map(({ domain }) => {
       const row = moved.get(domain);
-      if (!row) return { domain: domain as PathDomain, state: 'ready' as const };
+      if (!row) return { domain: domain as DiscoveryDomain, state: 'ready' as const };
       return {
-        domain: domain as PathDomain,
+        domain: domain as DiscoveryDomain,
         state: row.state as PathState,
         ...(row.firstActivatedAt
           ? { firstActivatedAt: row.firstActivatedAt.toISOString() }
@@ -171,7 +170,7 @@ export class PgPathLifecycleStore {
   async activate(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: PathDomain,
+    domain: DiscoveryDomain,
   ): Promise<void> {
     await this.db.execute(
       sql`INSERT INTO path_lifecycle
@@ -198,7 +197,7 @@ export class PgPathLifecycleStore {
   async moveTo(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: PathDomain,
+    domain: DiscoveryDomain,
     state: Exclude<PathState, 'active'>,
   ): Promise<void> {
     const releases = !holdsASlot(state);
