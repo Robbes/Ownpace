@@ -2,7 +2,28 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
-**Written this session, nothing built yet.** The owner asked for "the grant
+**T1, T2 and T3 are done and on PR #759.** T0's recommendations were taken in
+the owner's absence and are recorded below; he asked one question against them
+on 2026-09-03 — whether Microsoft has a tasks kind — and the answer is yes,
+now T9 rather than a paragraph.
+
+Three things worth carrying forward:
+
+- **The domain guard caught a second list in T2** and was right to.
+  `MICROSOFT_CONSENT_DOMAINS` was a hand-written array of four domains beside
+  a scope map that already named them. It is now derived from the map's keys,
+  so there is one fact — a face has a Graph scope or it does not — which is
+  also what makes T9 a one-row edit.
+- **T3 turned a two-provider `if` into a table.** `providerAccountFacts`
+  answered `client` with `if (kind !== 'google')`; that is a condition with two
+  providers and a fan-out with three. Probe table now.
+- **Nothing has touched a connector**, which is what the survey predicted.
+
+**The owner asked** for a Microsoft grant button covering O365 mail, OneDrive,
+calendar and the other kinds we support, with a workplan, worked
+autonomously.
+
+**Original survey.** The owner asked for "the grant
 button for Microsoft like o365 mail, OneDrive, calendar, and the other kinds
 we support", to work autonomously, and to use a workplan.
 
@@ -22,10 +43,10 @@ pattern for a third time, over connectors that need no change at all.
 
 | Task | State | Notes |
 |---|---|---|
-| T0 Decide: faces, authority, and what the button asks for | 📋 Proposed below | Recommendation: all four faces, `/common` multi-tenant, read-only delegated scopes. Reasoning under "The design". |
-| T1 The deployment's own Entra client | 📋 Not started | `microsoft-deployment-client.ts` beside the Google and Dropbox ones: `MICROSOFT_OAUTH_CLIENT_ID`/`_SECRET` both-or-neither, `resolveMicrosoftClient`, the half-pair refusal at every door. |
-| T2 The consent round trip | 📋 Not started | `POST /api/migrations/microsoft/authorize` + `GET /microsoft/callback`, state-signed, `offline_access` for the refresh token, its own headers (the #721 lesson). |
-| T3 The `microsoft` account kind | 📋 Not started | One row in `PROVIDER_ACCOUNT_KINDS` and one in `PROVIDER_ACCOUNT_DOMAINS`. The table was built for this. |
+| T0 Decide: faces, authority, and what the button asks for | ✅ Taken in his absence, recorded | Recommendation: all four faces, `/common` multi-tenant, read-only delegated scopes. Reasoning under "The design". |
+| T1 The deployment's own Entra client | ✅ Done | `microsoft-deployment-client.ts` beside the Google and Dropbox ones: `MICROSOFT_OAUTH_CLIENT_ID`/`_SECRET` both-or-neither, `resolveMicrosoftClient`, the half-pair refusal at every door. |
+| T2 The consent round trip | ✅ Done | `POST /api/migrations/microsoft/authorize` + `GET /microsoft/callback`, state-signed, `offline_access` for the refresh token, its own headers (the #721 lesson). |
+| T3 The `microsoft` account kind | ✅ Done | One row in `PROVIDER_ACCOUNT_KINDS` and one in `PROVIDER_ACCOUNT_DOMAINS`. The table was built for this. |
 | T4 The token reaches the connectors | 📋 Not started | Wire the stored refresh token into `MsalTokenProvider`'s refresh-token flow. No connector changes expected — verify that expectation before assuming it. |
 | T5 The button, in both doors | 📋 Not started | Wizard and Connections add-form, folding the client pair away when the deployment carries it, one-go save+test. |
 | T6 The refusals speak | 📋 Not started | `AADSTS65001`/`AADSTS90094` rendered as sentences, per #722's treatment of Google's `accessNotConfigured`. |
