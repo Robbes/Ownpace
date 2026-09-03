@@ -31,9 +31,50 @@ import type { TenantId, MappingId } from './ids.ts';
  */
 export type DataTypeVerificationStatus = 'PASS' | 'WARN' | 'FAIL' | 'SKIPPED' | 'NOT_VERIFIABLE';
 
+/**
+ * EVERY domain this report accounts for — the one list, and the reason this
+ * file has one (workplan 0113, the follow-up to T5).
+ *
+ * T5 gave the report's `dataType` a fifth member and gave the web screen a
+ * TOTAL label map, whose comment says why: "a sixth domain is a compile error
+ * here rather than a row on the gate with no name". The type was widened
+ * everywhere and the ITERATION was not, because an array literal is never a
+ * compile error. So five places went on walking four domains:
+ *
+ *   - `runVerification` called `verifyDomain` four times, never for 'tasks',
+ *   - `allVerifications` held four, so the overall status, the score, the
+ *     recommendations, every total and `canProceedToCutover` were computed
+ *     over four domains,
+ *   - `VerificationResult` had four literal keys and no `tasks` at all,
+ *   - the web screen's `domains` array listed four (its `tasks` label was
+ *     already there, and unused),
+ *   - the two self-hosted e2e gates defaulted to four and looped over four.
+ *
+ * The consequence was the exact shape hard rule 9 names: `run-cutover.ts`
+ * passes `verifyTasks: true`, so a cutover carrying a task list reached
+ * `canProceedToCutover: true` having never once looked at the task domain.
+ *
+ * Hence a TUPLE, with the union derived from it and `VerificationResult`'s
+ * per-domain keys derived from that. A sixth domain is now one word here and a
+ * compile error at every site that must answer for it.
+ */
+export const VERIFICATION_DOMAINS = ['mail', 'calendar', 'contacts', 'files', 'tasks'] as const;
+
+/**
+ * The report's own spelling of a domain: PLURAL, and `mail`/`contacts`/`files`
+ * where the wizard's `DiscoveryDomain` says `email`/`contact`/`file`.
+ *
+ * Deliberately still its own vocabulary rather than folded into
+ * `DiscoveryDomain` — this is a wire shape somebody's stored report is already
+ * written in, and renaming its keys would silently reinterpret those. What was
+ * missing was not one vocabulary but the SEAM between the two, which
+ * `VERIFICATION_DOMAIN_FOR_DISCOVERY_DOMAIN` below now is.
+ */
+export type VerificationDomain = (typeof VERIFICATION_DOMAINS)[number];
+
 /** Verification status for a single data type */
 export interface DataTypeVerification {
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks';
+  dataType: VerificationDomain;
   status: DataTypeVerificationStatus;
 
   // Statistics
@@ -89,20 +130,21 @@ export interface DataTypeVerification {
   }>;
 }
 
-/** Overall verification result */
-export interface VerificationResult {
+/**
+ * Overall verification result.
+ *
+ * The per-domain results are a TOTAL record over `VERIFICATION_DOMAINS`, not
+ * four hand-written keys. That is what turns a domain the report forgot into a
+ * compile error at every construction site — `runVerification`'s return, and
+ * every fixture — instead of a `tasks` field that quietly does not exist.
+ */
+export interface VerificationResult extends Record<VerificationDomain, DataTypeVerification> {
   tenantId: TenantId;
   mappingId: MappingId;
   timestamp: string;
   overallStatus: 'PASS' | 'WARN' | 'FAIL';
   score: number; // 0.0 to 1.0
-  
-  // Per-data-type results
-  mail: DataTypeVerification;
-  calendar: DataTypeVerification;
-  contacts: DataTypeVerification;
-  files: DataTypeVerification;
-  
+
   // Summary
   totalItemsSource: number;
   totalItemsTarget: number;

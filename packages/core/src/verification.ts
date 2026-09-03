@@ -20,9 +20,16 @@ import { versionOf } from '@openmig/shared';
 export type {
   DataTypeVerificationStatus,
   DataTypeVerification,
+  VerificationDomain,
   VerificationResult,
 } from '@openmig/shared';
-import type { DataTypeVerification, VerificationResult } from '@openmig/shared';
+export { VERIFICATION_DOMAINS } from '@openmig/shared';
+import type {
+  DataTypeVerification,
+  VerificationDomain,
+  VerificationResult,
+} from '@openmig/shared';
+import { VERIFICATION_DOMAINS } from '@openmig/shared';
 
 /** Verification configuration */
 export interface VerificationConfig {
@@ -56,12 +63,12 @@ export interface VerificationDeps {
   config: VerificationConfig;
   
   // Data access
-  getSourceCount(dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'): Promise<number>;
-  getTargetCount(dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'): Promise<number>;
+  getSourceCount(dataType: VerificationDomain): Promise<number>;
+  getTargetCount(dataType: VerificationDomain): Promise<number>;
   
   // Sample retrieval for checksum verification
   getSourceSamples(
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
+    dataType: VerificationDomain,
     count: number
   ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>>;
   
@@ -82,22 +89,22 @@ export interface VerificationDeps {
    * none.
    */
   getTargetSamples(
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
+    dataType: VerificationDomain,
     count: number,
     naturalKeyHashes?: ReadonlyArray<string>
   ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>>;
   
   // Discrepancy detection
   findMissingOnTarget(
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'
+    dataType: VerificationDomain
   ): Promise<Array<{ id: string; sourceRef: string }>>;
   
   findExtraOnTarget(
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'
+    dataType: VerificationDomain
   ): Promise<Array<{ id: string; targetRef: string }>>;
   
   // Bytes tracking
-  getTotalBytesSource(dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'): Promise<number>;
+  getTotalBytesSource(dataType: VerificationDomain): Promise<number>;
   /**
    * Optional: total bytes as measured ON THE TARGET. Supply this only if the
    * target can genuinely report sizes. Omit it — or return null — rather than
@@ -108,7 +115,7 @@ export interface VerificationDeps {
    * item". A partial sum would read as a shortfall against the source total,
    * i.e. as data loss.
    */
-  getTotalBytesTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'): Promise<number | null>;
+  getTotalBytesTarget?(dataType: VerificationDomain): Promise<number | null>;
 
   /**
    * Can this domain's target actually be read? Return false when there is no
@@ -116,13 +123,13 @@ export interface VerificationDeps {
    * measured against a target nobody can see. Omit to assume every enabled
    * domain is readable.
    */
-  canVerifyTarget?(dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks'): boolean;
+  canVerifyTarget?(dataType: VerificationDomain): boolean;
 }
 
 /** Which domains the config asks to verify. */
 function isDataTypeEnabled(
   config: VerificationConfig,
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
+  dataType: VerificationDomain,
 ): boolean {
   switch (dataType) {
     case 'mail':
@@ -140,7 +147,7 @@ function isDataTypeEnabled(
 
 /** A result for a domain that was not measured, with the reason attached. */
 function notMeasured(
-  dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
+  dataType: VerificationDomain,
   status: 'SKIPPED' | 'NOT_VERIFIABLE',
   message: string,
   /** What the ledger says was copied, when that is known. */
@@ -190,7 +197,7 @@ export async function runVerification(
    * one of them missing.
    */
   const verifyDomain = async (
-    dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
+    dataType: VerificationDomain,
   ): Promise<DataTypeVerification> => {
     if (!isDataTypeEnabled(config, dataType)) {
       return notMeasured(
@@ -223,13 +230,24 @@ export async function runVerification(
     return verifyDataType({ ...deps, dataType });
   };
 
-  const mail = await verifyDomain('mail');
-  const calendar = await verifyDomain('calendar');
-  const contacts = await verifyDomain('contacts');
-  const files = await verifyDomain('files');
+  // WALKED, never written out again. Four hand-written calls stood here and
+  // `verifyTasks` was already arriving as `true` from `run-cutover.ts`, so the
+  // task domain was configured, enabled, and never asked about — see
+  // VERIFICATION_DOMAINS' comment in @openmig/shared for the five places that
+  // went on counting four.
+  //
+  // Sequential, as the four calls were: the reindexers below talk to the same
+  // target servers, and a parallel fan-out would lean harder on them for
+  // nothing this gate can use.
+  const byDomain = {} as Record<VerificationDomain, DataTypeVerification>;
+  for (const domain of VERIFICATION_DOMAINS) {
+    byDomain[domain] = await verifyDomain(domain);
+  }
 
-  // Calculate overall status
-  const allVerifications = [mail, calendar, contacts, files];
+  // Calculate overall status. Every domain in the report is in here, which is
+  // what makes the score, the recommendations and canProceedToCutover answer
+  // for the whole of what was migrated rather than for four fifths of it.
+  const allVerifications = VERIFICATION_DOMAINS.map((domain) => byDomain[domain]);
   const overallStatus = calculateOverallStatus(allVerifications);
   const score = calculateVerificationScore(allVerifications);
   
@@ -257,10 +275,7 @@ export async function runVerification(
     timestamp: new Date().toISOString(),
     overallStatus,
     score,
-    mail,
-    calendar,
-    contacts,
-    files,
+    ...byDomain,
     totalItemsSource,
     totalItemsTarget,
     totalDiscrepancies,
@@ -274,7 +289,7 @@ export async function runVerification(
  * Verify a single data type
  */
 async function verifyDataType(
-  deps: VerificationDeps & { dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks' }
+  deps: VerificationDeps & { dataType: VerificationDomain }
 ): Promise<DataTypeVerification> {
   const { dataType, config } = deps;
   

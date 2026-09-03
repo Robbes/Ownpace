@@ -21,6 +21,7 @@ vi.mock('../services/edition', () => ({
 import Verify from './Verify.tsx';
 import * as service from '../services/operating-service.ts';
 import type { VerificationResult } from '@openmig/shared';
+import { VERIFICATION_DOMAINS } from '@openmig/shared';
 
 vi.mock('../services/operating-service', () => ({
   startVerification: vi.fn(),
@@ -30,16 +31,23 @@ vi.mock('../services/operating-service', () => ({
 const started = vi.mocked(service.startVerification);
 const fetched = vi.mocked(service.fetchVerifyReport);
 
-const domain = {
-  status: 'PASS',
-  sourceCount: 1,
-  targetCount: 1,
-  checksumSampled: 0,
-  checksumMismatches: 0,
-  totalBytesSource: 0,
-  totalBytesTarget: null,
-  issues: [],
-} as never;
+// Each domain carries its OWN dataType, because that is what the screen looks
+// its label up by. The fixture used to be one shared object with no dataType at
+// all, spread across four hand-written keys — which is how the report gaining a
+// fifth domain went unnoticed here: nothing named the domains, so nothing could
+// be missing.
+const domainFor = (dataType: string) =>
+  ({
+    dataType,
+    status: 'PASS',
+    sourceCount: 1,
+    targetCount: 1,
+    checksumSampled: 0,
+    checksumMismatches: 0,
+    totalBytesSource: 0,
+    totalBytesTarget: null,
+    issues: [],
+  }) as never;
 
 const RESULT: VerificationResult = {
   tenantId: 't' as never,
@@ -47,10 +55,9 @@ const RESULT: VerificationResult = {
   timestamp: '2026-07-31T12:00:00Z',
   overallStatus: 'PASS',
   score: 1,
-  mail: domain,
-  calendar: domain,
-  contacts: domain,
-  files: domain,
+  ...(Object.fromEntries(
+    VERIFICATION_DOMAINS.map((d) => [d, domainFor(d)]),
+  ) as Record<(typeof VERIFICATION_DOMAINS)[number], never>),
   totalItemsSource: 1,
   totalItemsTarget: 1,
   totalDiscrepancies: 0,
@@ -95,6 +102,31 @@ describe('the Verify screen', () => {
     expect(await screen.findByRole('link', { name: 'mapping-1' })).toBeInTheDocument();
     expect(started).not.toHaveBeenCalled();
     expect(screen.getByText(/^Checked/)).toBeInTheDocument();
+  });
+
+  it('gives EVERY domain in the report a row, not just the four it used to list', async () => {
+    // The screen's label map has been total since 0113 T5 — and the array it
+    // rendered from listed four, so Tasks had a translated name and no row.
+    // A domain the report measured and the operator cannot see is worse than an
+    // unmeasured one: the page reads as complete.
+    //
+    // Asserted by NAME rather than by row count, so a fifth row appearing for
+    // the wrong reason does not satisfy it.
+    fetched.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-07-31T12:00:00Z',
+      finishedAt: '2026-07-31T12:03:00Z',
+      report: { 'mapping-1': RESULT },
+    });
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+    await screen.findByRole('link', { name: 'mapping-1' });
+
+    for (const label of ['Email', 'Calendar', 'Contacts', 'Files', 'Tasks']) {
+      expect(
+        screen.getByRole('cell', { name: label }),
+        `the report carries ${VERIFICATION_DOMAINS.length} domains and the screen has no ${label} row`,
+      ).toBeInTheDocument();
+    }
   });
 
   it('starts on click, polls to done, renders the report, and STOPS polling', async () => {

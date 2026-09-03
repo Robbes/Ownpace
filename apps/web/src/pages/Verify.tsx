@@ -24,6 +24,7 @@ import type {
   VerificationResult,
   VerifyResponse,
 } from '@openmig/shared';
+import { VERIFICATION_DOMAINS } from '@openmig/shared';
 import { startVerification, fetchVerifyReport } from '../services/operating-service.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { isSelfHost } from '../services/edition.ts';
@@ -105,7 +106,9 @@ function DomainRow({ d }: { d: DataTypeVerification }): React.ReactElement {
 
 function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }): React.ReactElement {
   const t = useT();
-  const domains = [r.mail, r.calendar, r.contacts, r.files];
+  // Walked, not listed. The label map below has been total since T5 — and this
+  // line listed four, so the Tasks row had a translated name and never a row.
+  const domains = VERIFICATION_DOMAINS.map((k) => r[k]);
   const issues = domains.flatMap((d) => d.issues.map((i) => ({ ...i, domain: d.dataType })));
   return (
     <section className="mb-8 p-4 bg-white border border-gray-200 rounded-lg">

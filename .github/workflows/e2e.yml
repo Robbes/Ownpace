@@ -316,8 +316,11 @@ jobs:
             // here names the collection — that is discovery's job, and naming
             // it would be this config asserting what the source is supposed to
             // find out for itself.
-            cfg.domains.tasks = cfg.domains.tasks || { enabled: true, source: {}, target: {} };
-            cfg.domains.tasks.enabled = true;
+            // Enabled in the fixture beside the other four, not conjured here:
+            // an `|| { enabled: true }` fallback in this step meant one domain
+            // was switched on somewhere no reader of the fixture would look,
+            // and the fixture — the file that answers "what does this gate
+            // migrate?" — said four.
             cfg.domains.tasks.source.url = nextcloudDav;
             cfg.domains.tasks.target.url = nextcloudDav;
             cfg.domains.contacts.source.url = nextcloudDav;
