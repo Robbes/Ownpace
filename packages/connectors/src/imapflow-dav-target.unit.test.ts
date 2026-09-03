@@ -655,3 +655,30 @@ describe('socket-level errors', () => {
     expect(connectsAfter).toBe(connectsBefore + 1);
   });
 });
+
+// =======================================================================
+// A container is not a mailbox to write into (2026-09-03)
+// =======================================================================
+
+/**
+ * The writer's half of the defect the owner's Gmail exposed on the SOURCE
+ * side. `ensureMailbox` reads this listing to decide whether a name already
+ * exists, so a `\Noselect` container of the same name would answer "it does"
+ * and hand the writer a name no SELECT can ever open — a migration that
+ * reports a destination it cannot write to. The server's own LIST flag is the
+ * only thing that says which it is.
+ */
+describe('a container is not a mailbox to write into', () => {
+  it('creates the real mailbox even when a \\Noselect container carries the name', async () => {
+    boxes.set('Archive', []);
+    mailboxFlags.set('Archive', new Set(['\\HasChildren', '\\Noselect']));
+    await target().ensureMailbox({ path: 'Archive', name: 'Archive', specialUse: 'normal' });
+    expect(calls).toContain('mailboxCreate(Archive)');
+  });
+
+  it('still adopts a mailbox the server listed as selectable', async () => {
+    boxes.set('Archive', []);
+    await target().ensureMailbox({ path: 'Archive', name: 'Archive', specialUse: 'normal' });
+    expect(calls).not.toContain('mailboxCreate(Archive)');
+  });
+});

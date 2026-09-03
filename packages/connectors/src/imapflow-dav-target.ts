@@ -77,7 +77,7 @@ import {
   extractMessageIdFromRfc822,
   type ImapDavTargetConfig,
 } from './imap-conventions.ts';
-import { isCertificateError } from './imapflow-source.ts';
+import { isCertificateError, isSelectableFolder } from './imapflow-source.ts';
 
 /**
  * The mail write path, on `imapflow`.
@@ -211,7 +211,12 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
   private async listMailboxes(): Promise<MailFolder[]> {
     const client = await this.live();
     const listed = await client.list();
-    return listed.map((box) => ({
+    // A CONTAINER IS NOT A MAILBOX (2026-09-03), the same reading
+    // `ImapFlowSource.listFolders` makes and for a sharper reason here:
+    // `ensureMailbox` treats a name it finds in this list as one it may write
+    // to, so a `\Noselect` container of the same name would answer "it already
+    // exists" and hand the writer a name no SELECT can open.
+    return listed.filter((box) => isSelectableFolder(box.flags)).map((box) => ({
       path: box.path,
       name: box.name,
       specialUse: mapImapSpecialUse([...(box.flags ?? [])]),

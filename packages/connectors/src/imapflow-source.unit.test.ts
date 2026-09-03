@@ -103,6 +103,13 @@ vi.mock('imapflow', () => {
     async getMailboxLock(path: string) {
       calls.push(`lock(${path})`);
       maybeFail();
+      // What a server does with a name LIST marked `\Noselect`: a tagged NO.
+      // Gmail answers exactly this for `[Gmail]`, and imapflow turns it into
+      // the constant 'Command failed' with the facts on the error object.
+      const listedAs = mailboxes.find((m) => m.path === path);
+      if (listedAs && [...listedAs.flags].some((f) => f.toLowerCase() === '\\noselect')) {
+        throw imapRefusal('NO', `[NONEXISTENT] Unknown Mailbox: ${path} (Failure)`, `SELECT "${path}"`);
+      }
       if (!openable) throw new Error('NONEXISTENT');
       this.mailbox = { path, ...boxState };
       return { path, release: () => calls.push(`release(${path})`) };
@@ -127,8 +134,32 @@ function maybeFail(): void {
   }
 }
 
+/**
+ * An imapflow refusal, shaped exactly as the library builds one.
+ *
+ * `new Error('Command failed')` — one constant for every tagged NO and BAD —
+ * with the facts hung on the object: `imap-flow.js` sets `responseStatus`,
+ * `responseText` and `executedCommand` (the last already redacted, which is
+ * why it is safe to show). Every test below that asserts a sentence asserts it
+ * against THIS shape, so a library upgrade that moved a field would turn them
+ * red rather than quietly restore "Command failed".
+ */
+function imapRefusal(status: 'NO' | 'BAD', text: string, command?: string): Error {
+  const err = new Error('Command failed') as Error & {
+    responseStatus?: string;
+    responseText?: string;
+    executedCommand?: string;
+  };
+  err.responseStatus = status;
+  err.responseText = text;
+  if (command) err.executedCommand = command;
+  return err;
+}
+
 // Imported AFTER the mock is declared, the way vitest hoisting requires.
-const { ImapFlowSource, isCertificateError } = await import('./imapflow-source.ts');
+const { ImapFlowSource, isCertificateError, isSelectableFolder, imapRefusalDetail } = await import(
+  './imapflow-source.ts'
+);
 
 function source(extra: Record<string, unknown> = {}) {
   return new ImapFlowSource({
@@ -668,5 +699,140 @@ describe('measureMailbox — how much mail, cheaply and honestly (2026-09-02)', 
     expect(m.bytes).toBe(0);
     expect(m.estimated).toBe(false);
     expect(calls.some((c) => c.startsWith('fetchAll'))).toBe(false);
+  });
+});
+
+// =======================================================================
+// 8. A container is not a folder, and a refusal says what the server said
+//    (2026-09-03, the owner's Gmail: `Command failed`, four screens deep)
+// =======================================================================
+
+/**
+ * WHAT HAPPENED. A Google account whose Test reported 29 folders measured
+ * nothing and scanned nothing: both answered `Command failed` and named
+ * neither the folder nor the reason. Gmail lists `[Gmail]` as
+ * `\HasChildren \Noselect` — the container its labels hang under — and every
+ * consumer that OPENS what `listFolders` returns walked straight into it.
+ * Two defects, one screen: a container offered as a folder, and imapflow's one
+ * constant string standing in for everything a server can refuse.
+ */
+describe('a container is not a folder', () => {
+  /** Gmail's own LIST answer, in the shape the fake server holds. */
+  const gmailShape = () => {
+    mailboxes = [
+      { path: 'INBOX', name: 'INBOX', flags: new Set(['\\HasNoChildren']) },
+      { path: '[Gmail]', name: '[Gmail]', flags: new Set(['\\HasChildren', '\\Noselect']) },
+      { path: '[Gmail]/Sent Mail', name: 'Sent Mail', flags: new Set(['\\Sent']) },
+    ];
+  };
+
+  it('leaves a \\Noselect container out of the listing, on the server’s own word', async () => {
+    gmailShape();
+    const folders = await source().listFolders();
+    expect(folders.map((f) => f.path)).toEqual(['INBOX', '[Gmail]/Sent Mail']);
+  });
+
+  it('leaves a \\NonExistent name out too (RFC 5258)', async () => {
+    mailboxes = [
+      { path: 'INBOX', name: 'INBOX', flags: new Set(['\\HasNoChildren']) },
+      { path: 'Gone', name: 'Gone', flags: new Set(['\\NonExistent']) },
+    ];
+    const folders = await source().listFolders();
+    expect(folders.map((f) => f.path)).toEqual(['INBOX']);
+  });
+
+  it('never opens one while measuring — the failure the owner met', async () => {
+    gmailShape();
+    const measured = await source().measureMailbox();
+    expect(calls).not.toContain('lock([Gmail])');
+    expect(calls).toContain('lock(INBOX)');
+    // Counted over what can be opened, so the folder count is honest too.
+    expect(measured.folders).toBe(2);
+  });
+
+  it('never opens one while listing a folder’s mail either', async () => {
+    gmailShape();
+    const folders = await source().listFolders();
+    for (const folder of folders) await source().listSince(folder);
+    expect(calls).not.toContain('lock([Gmail])');
+  });
+
+  it('falls back to INBOX when the server lists containers ONLY', async () => {
+    mailboxes = [{ path: 'Archive', name: 'Archive', flags: new Set(['\\Noselect']) }];
+    const folders = await source().listFolders();
+    // A LIST of nothing but containers is a LIST of nothing this connector can
+    // read, so it is probed rather than believed — the same rule the empty
+    // LIST already had.
+    expect(folders).toEqual([{ path: 'INBOX', name: 'INBOX', specialUse: 'inbox' }]);
+  });
+
+  it('reads the flags case-insensitively, the way IMAP defines them', () => {
+    expect(isSelectableFolder(['\\NOSELECT'])).toBe(false);
+    expect(isSelectableFolder(['\\noselect'])).toBe(false);
+    expect(isSelectableFolder(['\\HasChildren'])).toBe(true);
+    expect(isSelectableFolder(undefined)).toBe(true);
+  });
+});
+
+describe('a refusal says what the server said', () => {
+  it('replaces imapflow’s one constant with the server’s own sentence', async () => {
+    failNextOperations = {
+      count: 1,
+      error: imapRefusal('NO', '[OVERQUOTA] Not enough disk space', 'APPEND "INBOX"'),
+    };
+    // "Command failed" is what a mailbox that does not exist, a quota refusal
+    // and an expired token all used to read as (hard rule 9).
+    await expect(source().listFolders()).rejects.toThrow(/OVERQUOTA\] Not enough disk space/);
+  });
+
+  it('names the command that drew it, so the folder is in the sentence', async () => {
+    failNextOperations = {
+      count: 1,
+      error: imapRefusal('NO', '[NONEXISTENT] Unknown Mailbox: [Gmail] (Failure)', 'SELECT "[Gmail]"'),
+    };
+    await expect(source().listFolders()).rejects.toThrow(/SELECT "\[Gmail\]"/);
+  });
+
+  it('keeps the original error as the cause', async () => {
+    const original = imapRefusal('BAD', 'Could not parse command');
+    failNextOperations = { count: 1, error: original };
+    await expect(source().listFolders()).rejects.toMatchObject({ cause: original });
+  });
+
+  it('leaves an ordinary error exactly as it was', async () => {
+    failNextOperations = { count: 1, error: new Error('LIST exploded') };
+    await expect(source().listFolders()).rejects.toThrow(/^LIST exploded$/);
+  });
+
+  it('answers undefined for anything that is not one of imapflow’s refusals', () => {
+    expect(imapRefusalDetail(new Error('Command failed'))).toBeUndefined();
+    expect(imapRefusalDetail('not an error')).toBeUndefined();
+  });
+
+  it('refreshes the token when the auth failure is in the response CODE', async () => {
+    // The case the retry exists for, and the one it never reached: an XOAUTH2
+    // token the server stopped accepting arrives as a tagged NO whose message
+    // is the constant, with AUTHENTICATIONFAILED on the response text.
+    let refreshes = 0;
+    failNextOperations = {
+      count: 1,
+      error: imapRefusal(
+        'NO',
+        '[AUTHENTICATIONFAILED] Invalid credentials (Failure)',
+        'AUTHENTICATE XOAUTH2 "(* value hidden *)"',
+      ),
+    };
+    const folders = await source({
+      authType: 'XOAUTH2',
+      tokenProvider: {
+        getToken: async () => ({ accessToken: 'tok', expiresAt: new Date().toISOString() }),
+        refresh: async () => {
+          refreshes++;
+          return { accessToken: 'tok2', expiresAt: new Date().toISOString() };
+        },
+      },
+    }).listFolders();
+    expect(refreshes).toBe(1);
+    expect(folders).toHaveLength(2);
   });
 });
