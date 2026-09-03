@@ -52,6 +52,52 @@ if (!password) {
 
 const authHeader = `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`;
 
+/**
+ * Which seeded event carries a VALARM.
+ *
+ * NOT 1 and NOT 2: `-1` is moved between calendars by the restart-resume gate's
+ * move-detection case and `-2` is deleted by the apply-deletion gate, so an
+ * assertion about either would race a test that mutates it. `-3` is free at the
+ * default SEED_COUNT of 5 and nothing else names it.
+ */
+const ALARM_EVENT_INDEX = 3;
+
+/**
+ * A reminder, on exactly one seeded event.
+ *
+ * PR #755 traced that reminders survive a migration and pinned it in unit
+ * tests — `caldav-target-writer` PUTs the source bytes, and
+ * `neutraliseScheduling` only rewrites ATTENDEE/ORGANIZER lines, so the alarm
+ * block passes through untouched. What no test could establish is the half
+ * that is a property of the SERVER: that a real CalDAV target stores and
+ * returns the alarm rather than dropping or rewriting it. Nothing in this
+ * repository had ever put a VALARM in front of a real Nextcloud.
+ *
+ * On ONE event, not all of them, so no count changes: the fixture is the same
+ * five events it always was, one of them slightly larger. That is deliberate —
+ * adding a sixth event would move totals several assertions depend on, and this
+ * question does not need a sixth event to answer.
+ *
+ * REPEAT and DURATION are the point. `CalendarEvent.reminders` is
+ * `{ action, triggerSeconds, description }` and can hold neither. So if anyone
+ * ever "tidies" the writer to build its body from the parsed model, these two
+ * lines vanish while UID, SUMMARY and the content hash stay identical — the
+ * copy still verifies clean. Seeding fields the model cannot represent is what
+ * makes this fixture able to catch that.
+ */
+function alarmLines() {
+  return [
+    'BEGIN:VALARM',
+    'ACTION:DISPLAY',
+    'TRIGGER:-PT15M',
+    'DESCRIPTION:Restart-resume seed reminder',
+    // RFC 5545 §3.8.6.2: REPEAT requires DURATION. Both are outside the model.
+    'REPEAT:2',
+    'DURATION:PT5M',
+    'END:VALARM',
+  ];
+}
+
 function buildIcalendar(i) {
   const uid = `dav-seed-event-${i}@dev.local`;
   // Date.UTC correctly rolls the day over into later months (e.g. day 32 in January becomes
@@ -70,6 +116,7 @@ function buildIcalendar(i) {
     `DTEND:${ymd}T110000Z`,
     `SUMMARY:Restart-resume seed event ${i}`,
     'STATUS:CONFIRMED',
+    ...(i === ALARM_EVENT_INDEX ? alarmLines() : []),
     'END:VEVENT',
     'END:VCALENDAR',
   ].join('\r\n');
