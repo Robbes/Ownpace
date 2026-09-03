@@ -17,6 +17,7 @@
 import { describe, it, expect } from 'vitest';
 import { enabledDomainsForMappings } from './enabled-domains.ts';
 import type { Pool } from 'pg';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 const T1 = '7d1b0000-e29b-41d4-a716-446655441601';
 const T2 = '7d1b0000-e29b-41d4-a716-446655441602';
@@ -27,7 +28,7 @@ const M3 = '7d1b0000-e29b-41d4-a716-446655441613';
 interface Row {
   mapping_id: string;
   tenant_id: string;
-  domain: 'email' | 'calendar' | 'contact' | 'file';
+  domain: DiscoveryDomain;
 }
 
 /** A pool that records what it was asked, and answers with fixed rows. */

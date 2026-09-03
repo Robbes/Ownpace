@@ -48,6 +48,7 @@ import {
   missingCredentialFields,
   serverMessage,
 } from '../services/api.ts';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
  * A refusal in the reader's own language wherever we authored it (0071).
@@ -389,10 +390,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
  * with the answers is the create route's shape builders, unchanged, so a
  * connection added here is one a sync pass can use.
  */
-/** The faces a Google account can be asked to serve — the wizard's domain
- *  ids, and the consent route's own union. */
-type Domain = 'email' | 'calendar' | 'contact' | 'file';
-const GRANT_FACES: ReadonlyArray<Domain> = ['email', 'calendar', 'contact', 'file'];
+const GRANT_FACES: ReadonlyArray<DiscoveryDomain> = ['email', 'calendar', 'contact', 'file'];
 
 const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const { t, locale } = useLocale();
@@ -463,7 +461,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   // The ACCOUNT kind asks for the faces ticked and nothing else (0106 T3b);
   // a connection has no mapping yet to read them from, so it asks here.
   const isAccountKind = grantProvider === 'google' && type === 'google';
-  const [domains, setDomains] = React.useState<Domain[]>([]);
+  const [domains, setDomains] = React.useState<DiscoveryDomain[]>([]);
   const [consentNote, setConsentNote] = React.useState<string | null>(null);
   const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
   const clientIdTyped = (values.clientId ?? '').trim() !== '';

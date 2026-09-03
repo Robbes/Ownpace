@@ -80,14 +80,24 @@ reading a file drops off its entry by itself.
 
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 
+### `apps/api/src/routes/migrations/google-account-consent.ts`
+
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `apps/api/src/routes/migrations/google-account-consent.unit.test.ts`
+
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
 ### `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
 
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
 ### `apps/api/src/routes/migrations/index.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `apps/api/src/routes/provider-accounts.ts`
@@ -97,6 +107,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/routes/provider-accounts.unit.test.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `apps/api/src/routes/ready.ts`
 
@@ -149,6 +160,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/Connections.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `apps/web/src/pages/CreateMapping.tsx`
 
@@ -174,6 +186,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/services/mapping-service.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `apps/web/src/services/oidc.ts`
 
@@ -190,6 +203,10 @@ reading a file drops off its entry by itself.
 ### `apps/worker/package.json`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+
+### `apps/worker/src/jobs/run-discovery.ts`
+
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `deploy/compose/bootstrap-managed.sh`
 
@@ -502,6 +519,10 @@ reading a file drops off its entry by itself.
 
 - [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
 
+### `packages/ledger/src/schema-pg.ts`
+
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
 ### `packages/managed/src/pricing.ts`
 
 - [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
@@ -522,6 +543,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
+### `packages/orchestration/src/domain-lanes.unit.test.ts`
+
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
 ### `packages/orchestration/src/probe-connection.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
@@ -529,6 +554,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/config.ts`
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
+
+### `packages/shared/src/discovery.ts`
+
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `packages/shared/src/google-deployment-client.unit.test.ts`
 
@@ -541,14 +570,24 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/provider-accounts.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `packages/shared/src/provider-accounts.unit.test.ts`
+
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `packages/shared/src/provider-clients.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
+### `packages/shared/src/qualification-gate.unit.test.ts`
+
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
 ### `packages/shared/src/target-domains.unit.test.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `packages/testing/fixtures/stalwart/config.json`
 
@@ -744,6 +783,28 @@ Reads:
 - `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 - `scripts/local-pg.sh`
 - `vitest.global-setup.ts`
+
+### [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts)
+
+The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+Reads:
+
+- `apps/api/src/routes/migrations/google-account-consent.ts`
+- `apps/api/src/routes/migrations/google-account-consent.unit.test.ts`
+- `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
+- `apps/api/src/routes/migrations/index.ts`
+- `apps/api/src/routes/provider-accounts.unit.test.ts`
+- `apps/web/src/pages/Connections.tsx`
+- `apps/web/src/services/mapping-service.ts`
+- `apps/worker/src/jobs/run-discovery.ts`
+- `packages/ledger/src/schema-pg.ts`
+- `packages/orchestration/src/domain-lanes.unit.test.ts`
+- `packages/shared/src/discovery.ts`
+- `packages/shared/src/provider-accounts.ts`
+- `packages/shared/src/provider-accounts.unit.test.ts`
+- `packages/shared/src/qualification-gate.unit.test.ts`
+- `packages/shared/src/target-domains.unit.test.ts`
 
 ### [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts)
 

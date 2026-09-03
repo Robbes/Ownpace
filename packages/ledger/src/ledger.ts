@@ -18,6 +18,7 @@ import {
 import type { PgDatabase } from './db.ts';
 import { eq, and, ne, gt, gte, isNull, isNotNull, or, desc, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
+import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
  * SQL-backed idempotency ledger for PostgreSQL — workplan 0001, T0.
@@ -40,7 +41,7 @@ export class PgLedger implements Ledger {
   async find(
     tenantId: TenantId,
     mappingId: MappingId,
-    itemType: 'email' | 'calendar' | 'contact' | 'file',
+    itemType: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<LedgerRecord | undefined> {
     const result = await this.db
@@ -80,7 +81,7 @@ export class PgLedger implements Ledger {
   async findBySourceRef(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     sourceRef: string,
   ): Promise<LedgerRecord | undefined> {
     if (sourceRef === '') return undefined;
@@ -305,7 +306,7 @@ export class PgLedger implements Ledger {
   async placedItems(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
   ): Promise<Array<{ naturalKeyHash: string; contentHash: string; collection: string }>> {
     const rows = await this.db
       .select({
@@ -377,7 +378,7 @@ export class PgLedger implements Ledger {
   async listFailures(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain?: 'email' | 'calendar' | 'contact' | 'file',
+    domain?: DiscoveryDomain,
   ): Promise<ItemFailure[]> {
     const where = [
       eq(schemaPg.item.tenantId, tenantId),
@@ -727,7 +728,7 @@ export class PgLedger implements Ledger {
   async recordMove(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
     toCollection: string,
     toNaturalKeyHash?: string,
@@ -777,7 +778,7 @@ export class PgLedger implements Ledger {
   async clearMove(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<void> {
     await this.db
@@ -812,7 +813,7 @@ export class PgLedger implements Ledger {
   async listMoves(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain?: 'email' | 'calendar' | 'contact' | 'file',
+    domain?: DiscoveryDomain,
   ): Promise<ItemMove[]> {
     const rows = await this.db
       .select({
@@ -908,7 +909,7 @@ export class PgLedger implements Ledger {
   async recordAbsent(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<number> {
     const rows = await this.db
@@ -929,7 +930,7 @@ export class PgLedger implements Ledger {
   async recordReportedDeletion(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<boolean> {
     const rows = await this.db
@@ -971,7 +972,7 @@ export class PgLedger implements Ledger {
   async recordTrashedDeletion(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<boolean> {
     const rows = await this.db
@@ -1012,7 +1013,7 @@ export class PgLedger implements Ledger {
   async clearAbsent(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<void> {
     await this.db
@@ -1061,7 +1062,7 @@ export class PgLedger implements Ledger {
   async listDeletions(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain?: 'email' | 'calendar' | 'contact' | 'file',
+    domain?: DiscoveryDomain,
   ): Promise<ItemDeletion[]> {
     const rows = await this.db
       .select({
@@ -1197,7 +1198,7 @@ export class PgLedger implements Ledger {
   async applyDeletion(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<boolean> {
     const rows = await this.db
@@ -1246,7 +1247,7 @@ export class PgLedger implements Ledger {
   async applyRelocation(
     tenantId: TenantId,
     mappingId: MappingId,
-    domain: 'email' | 'calendar' | 'contact' | 'file',
+    domain: DiscoveryDomain,
     naturalKeyHash: string,
   ): Promise<boolean> {
     const rows = await this.db
@@ -1338,7 +1339,7 @@ export class PgLedger implements Ledger {
   private mapRowToRecord(row: typeof schemaPg.item.$inferSelect): LedgerRecord {
     return {
       tenantId: row.tenantId as TenantId,
-      itemType: row.domain as 'email' | 'calendar' | 'contact' | 'file',
+      itemType: row.domain as DiscoveryDomain,
       mappingId: row.mappingId as MappingId,
       naturalKeyHash: row.naturalKeyHash,
       contentHash: row.contentHash ?? '',
