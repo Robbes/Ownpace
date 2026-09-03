@@ -84,13 +84,15 @@ describe('the DAV family: three faces from one credential', () => {
     }
   });
 
-  it('kind soverin is DAV-shaped here: the same three faces from the one app-password (0106 T4a)', async () => {
+  it('kind soverin is DAV-shaped here: the two faces it has from the one app-password (0106 T4a)', async () => {
     vi.stubGlobal('fetch', davAnsweringFetch());
     try {
       const q = await qualifyAccount('soverin', DAV_CONFIG, CREDS);
       expect(q?.domains.calendar.answer).toBe('yes');
       expect(q?.domains.contact.answer).toBe('yes');
-      expect(q?.domains.file.answer).toBe('yes');
+      // The third DAV face is NOT one of this account's — see the describe
+      // below. It used to read `yes` here, and on the owner's screen.
+      expect(q?.domains.file.answer).toBe('no');
       // No stored mail server: unmeasured, with the remedy ON the sentence.
       expect(q?.domains.mail.answer).toBe('unknown');
       expect(q?.domains.mail.detail).toContain('mailHost');
@@ -160,6 +162,111 @@ describe('the DAV family: three faces from one credential', () => {
       expect(q?.domains.file.answer).toBe('yes');
       // No verdict about a calendar nobody reached.
       expect(q?.scheduling).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('each face is asked where that face lives (owner 2026-09-03: "Files ✓ 5 folders")', () => {
+  // A Soverin account has no file store, and the screen said it had five
+  // folders in one. Two independent causes, one per half of this block:
+  // nobody asked whether the account HAS that face, and the probe that ran
+  // anyway was pointed at the DAV root, where an account's principal,
+  // calendar and address-book collections live — service collections read as
+  // content, the same defect shape as `[Gmail]` counted as a mail folder.
+
+  it('a soverin account has no file store, so the face is ANSWERED, not read off whatever the root exposes', async () => {
+    vi.stubGlobal('fetch', davAnsweringFetch());
+    try {
+      const q = await qualifyAccount('soverin', DAV_CONFIG, CREDS);
+      // A MEASURED no: the product states what this account carries, so the
+      // answer is known (0106 T3a) and constrains the tick, exactly as the
+      // domain step already refuses `file` for a soverin connection.
+      expect(q?.domains.file.answer).toBe('no');
+      expect(q?.domains.file.detail).toBe(
+        'A Soverin account carries email, calendar and contact; a file store is not a ' +
+          'face of this connection.',
+      );
+      // Nothing was counted, because nothing was read: a count beside a no
+      // would be the old sentence wearing a new answer.
+      expect(q?.domains.file.count).toBeUndefined();
+      expect(q?.domains.file.unit).toBeUndefined();
+      // The faces it does have are untouched by the gate.
+      expect(q?.domains.calendar.answer).toBe('yes');
+      expect(q?.domains.contact.answer).toBe('yes');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('the report line a person reads says Files ✗ with that sentence, never a folder count', () => {
+    const lines = qualificationReportLines({
+      domains: {
+        mail: { answer: 'unknown', detail: 'x' },
+        calendar: { answer: 'yes', detail: '1 calendar visible.' },
+        contact: { answer: 'yes', detail: '1 address book visible.' },
+        file: {
+          answer: 'no',
+          detail:
+            'A Soverin account carries email, calendar and contact; a file store is not a ' +
+            'face of this connection.',
+        },
+      },
+    });
+    expect(lines).toContain(
+      'Files ✗: A Soverin account carries email, calendar and contact; a file store is not a ' +
+        'face of this connection.',
+    );
+  });
+
+  it('a nextcloud connection is measured where its files are — files/{username}/, not the DAV root', async () => {
+    const fetchMock = davAnsweringFetch();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const q = await qualifyAccount('nextcloud', DAV_CONFIG, CREDS);
+      // The SAME resolution the run path uses (`fileEndpointFromCreds`), so a
+      // qualification cannot describe a different store than the one a pass
+      // would copy.
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain(
+        'https://dav.example.net/dav/files/probe/',
+      );
+      expect(q?.domains.file.answer).toBe('yes');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a stored fileBaseUrl wins — the escape hatch a non-Nextcloud WebDAV backend needs', async () => {
+    const fetchMock = davAnsweringFetch();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const q = await qualifyAccount(
+        'nextcloud',
+        { ...DAV_CONFIG, fileBaseUrl: 'https://files.example.net/remote.php/dav/files/probe/' },
+        CREDS,
+      );
+      const asked = fetchMock.mock.calls.map(([url]) => String(url));
+      expect(asked).toContain('https://files.example.net/remote.php/dav/files/probe/');
+      // The convention did not fire beside it.
+      expect(asked).not.toContain('https://dav.example.net/dav/files/probe/');
+      expect(q?.domains.file.answer).toBe('yes');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a plain webdav connection already stores the path it wants enumerated, and is asked exactly there', async () => {
+    const fetchMock = davAnsweringFetch();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const q = await qualifyAccount('webdav', DAV_CONFIG, CREDS);
+      // A protocol kind names no provider, so the gate never closes on it and
+      // no Nextcloud path is invented under a connection that is not one.
+      expect(q?.domains.file.answer).toBe('yes');
+      const asked = fetchMock.mock.calls.map(([url]) => String(url));
+      expect(asked).toContain('https://dav.example.net/dav/');
+      expect(asked.filter((url) => url.includes('/files/'))).toEqual([]);
     } finally {
       vi.unstubAllGlobals();
     }
