@@ -2,7 +2,7 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
-**T1, T2 and T3 are done and on PR #759.** T0's recommendations were taken in
+**T1 to T4 are done and on PR #759.** T0's recommendations were taken in
 the owner's absence and are recorded below; he asked one question against them
 on 2026-09-03 — whether Microsoft has a tasks kind — and the answer is yes,
 now T9 rather than a paragraph.
@@ -18,6 +18,13 @@ Three things worth carrying forward:
   answered `client` with `if (kind !== 'google')`; that is a condition with two
   providers and a fan-out with three. Probe table now.
 - **Nothing has touched a connector**, which is what the survey predicted.
+  T4 was written to wire the token through and found the wiring already
+  there — `buildGraphMailSourceFromCredentials` takes a `refreshToken`, and
+  both Graph factories choose the delegated flow when one is present, for all
+  four domains. **So T4 became the risk the survey had not named**: the scope
+  strings live in three files, and if they drift the consent still succeeds
+  while the sync fails at its first pass, hours later. That is now pinned in
+  both directions.
 
 **The owner asked** for a Microsoft grant button covering O365 mail, OneDrive,
 calendar and the other kinds we support, with a workplan, worked
@@ -47,7 +54,7 @@ pattern for a third time, over connectors that need no change at all.
 | T1 The deployment's own Entra client | ✅ Done | `microsoft-deployment-client.ts` beside the Google and Dropbox ones: `MICROSOFT_OAUTH_CLIENT_ID`/`_SECRET` both-or-neither, `resolveMicrosoftClient`, the half-pair refusal at every door. |
 | T2 The consent round trip | ✅ Done | `POST /api/migrations/microsoft/authorize` + `GET /microsoft/callback`, state-signed, `offline_access` for the refresh token, its own headers (the #721 lesson). |
 | T3 The `microsoft` account kind | ✅ Done | One row in `PROVIDER_ACCOUNT_KINDS` and one in `PROVIDER_ACCOUNT_DOMAINS`. The table was built for this. |
-| T4 The token reaches the connectors | 📋 Not started | Wire the stored refresh token into `MsalTokenProvider`'s refresh-token flow. No connector changes expected — verify that expectation before assuming it. |
+| T4 The token reaches the connectors | ✅ Done, and it was already wired | The expectation held: no connector, factory or token-provider change. What the task produced instead is `a-consent-that-asks-for-a-different-scope`, pinning `MICROSOFT_DOMAIN_SCOPES` against `DELEGATED_SCOPES` and the inline mail scope, both directions, plus no writers. |
 | T5 The button, in both doors | 📋 Not started | Wizard and Connections add-form, folding the client pair away when the deployment carries it, one-go save+test. |
 | T6 The refusals speak | 📋 Not started | `AADSTS65001`/`AADSTS90094` rendered as sentences, per #722's treatment of Google's `accessNotConfigured`. |
 | T7 Docs and env plumbing | 📋 Not started | `managed.yml`, `set-task-env`, `env.example`, redirect-URIs page, an operator guide and a customer guide. |

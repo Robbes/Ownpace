@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 84 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 85 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -102,6 +102,10 @@ reading a file drops off its entry by itself.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts) — The create-mapping validator ends in a catch-all that asks for AZURE credentials, and nothing pairs it against the source types that exist.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
+
+### `apps/api/src/routes/migrations/microsoft-consent.ts`
+
+- [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
 
 ### `apps/api/src/routes/provider-accounts.ts`
 
@@ -569,6 +573,14 @@ reading a file drops off its entry by itself.
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
+### `packages/orchestration/src/graph-domain-source-factory.ts`
+
+- [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
+
+### `packages/orchestration/src/mail-source-factory.ts`
+
+- [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
+
 ### `packages/orchestration/src/orchestration.ts`
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
@@ -849,6 +861,16 @@ Reads:
 - `docs/rls-guide.md`
 - `scripts/a-sentence-two-files-must-agree-on.unit.test.ts`
 - `scripts/adr-operative.unit.test.ts`
+
+### [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts)
+
+A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
+
+Reads:
+
+- `apps/api/src/routes/migrations/microsoft-consent.ts`
+- `packages/orchestration/src/graph-domain-source-factory.ts`
+- `packages/orchestration/src/mail-source-factory.ts`
 
 ### [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts)
 
