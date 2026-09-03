@@ -31,6 +31,7 @@ pattern for a third time, over connectors that need no change at all.
 | T6 The refusals speak | 📋 Not started | `AADSTS65001`/`AADSTS90094` rendered as sentences, per #722's treatment of Google's `accessNotConfigured`. |
 | T7 Docs and env plumbing | 📋 Not started | `managed.yml`, `set-task-env`, `env.example`, redirect-URIs page, an operator guide and a customer guide. |
 | T8 The gate | 📋 Not started | Managed smoke assertions with a sentinel pair never followed to Microsoft, mirroring #729. |
+| T9 Microsoft To Do | 📋 Optional, not in v1 | **Yes, Microsoft has a tasks face** — Graph exposes `/me/todo/lists` under `Tasks.Read`, unlike Google, whose CalDAV carries no VTODO at any scope tier (0113 T5/T6). It is deliberately out of the grant's first version; the reasoning is under "What this deliberately leaves out", and the owner asked about it directly on 2026-09-03, which is why it is a row here rather than only a paragraph. |
 
 ## Why this exists
 
@@ -148,10 +149,23 @@ not the tenant's. The reasoning is already written down in
   tenant and it keeps its own credentials. A consent button is for one person
   consenting for themselves, and conflating the two would put a tenant-wide
   credential behind a one-click button.
-- **Microsoft To Do.** Tasks are a fifth domain since 0113, and Graph exposes
-  `/me/todo/lists`. It is a face of its own with its own model, and adding it
-  in the same change as the grant would mean two unproven things at once. Its
-  own task, after this lands and has been measured.
+- **Microsoft To Do (T9).** Tasks are a fifth domain since 0113, and Graph
+  exposes `/me/todo/lists` under `Tasks.Read`. **This is a real difference from
+  Google**, whose CalDAV carries no VTODO at all — 0113 T6 records that there
+  is no Google task face to consent to at any scope tier. Microsoft has one.
+
+  It is still out of v1, for a reason that is about sequencing rather than
+  capability: a To Do list is not a CalDAV collection, so it needs its own
+  source connector — `graph-*-source` covers mail, calendar, contacts and
+  OneDrive, and there is no `graph-todo-source`. Adding a fifth face and a
+  first consent in one change would mean two unproven things at once, and the
+  one that breaks would be hard to tell from the other.
+
+  **So the order is: land the grant over the four connectors that exist, then
+  build the To Do source, then add one scope to the map.** By then
+  `MICROSOFT_DOMAIN_SCOPES` is the only edit the consent needs — one row,
+  which is what T2 derived `MICROSOFT_CONSENT_DOMAINS` from the map to make
+  true.
 - **Writing into Microsoft 365 as a TARGET.** This plan is about a source. The
   scopes above are read-only and say so.
 

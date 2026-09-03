@@ -74,13 +74,18 @@ export const MICROSOFT_DOMAIN_SCOPES: Readonly<Partial<Record<DiscoveryDomain, s
   file: 'Files.Read',
 };
 
-/** The faces this consent can ask for, in the order a person ticks them. */
-export const MICROSOFT_CONSENT_DOMAINS: ReadonlyArray<DiscoveryDomain> = [
-  'email',
-  'calendar',
-  'contact',
-  'file',
-];
+/**
+ * The faces this consent can ask for, in the order a person ticks them.
+ *
+ * DERIVED from the scope map rather than written again. `a-domain-union-typed-
+ * out-by-hand` caught the second copy the moment it existed, which is exactly
+ * 0113 T1's point: two lists of the same capability disagree with each other
+ * precisely once. There is now one fact — a face has a Graph scope or it does
+ * not — and both the URL builder and this order read it.
+ */
+export const MICROSOFT_CONSENT_DOMAINS: ReadonlyArray<DiscoveryDomain> = Object.keys(
+  MICROSOFT_DOMAIN_SCOPES,
+) as ReadonlyArray<DiscoveryDomain>;
 
 /**
  * The scope string for the faces asked for — always with `offline_access`, and
