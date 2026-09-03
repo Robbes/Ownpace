@@ -630,6 +630,35 @@ function calculateOverallStatus(
 
   if (hasFail) return 'FAIL';
   if (hasWarn) return 'WARN';
+
+  // BUT "every domain was skipped" IS NOT A PASS, and this is where the
+  // neutrality above stops (found 2026-09-03 by the catch-all sweep that
+  // followed workplan 0113's seventh fan-out).
+  //
+  // SKIPPED is neutral ONE AT A TIME. All of them at once is not a migration
+  // that passed — it is a migration nobody looked at, and until now it read:
+  //
+  //     overallStatus: 'PASS'   score: 1   canProceedToCutover: true
+  //
+  // and `cutover-commands.ts` printed "Data verification passed".
+  //
+  // REACHABLE by two roads, both real. `verifyDomain` answers SKIPPED when a
+  // domain is disabled in the config, and when the target cannot be read for
+  // it AND the ledger recorded nothing (the `canVerifyTarget` branch above).
+  // So a mapping with no domains selected, or one whose targets have no
+  // reindexer and which has copied nothing, passed its own cutover gate with a
+  // perfect score. That is the §20 gate reporting the absence of data as the
+  // absence of problems, which is the exact shape hard rule 9 exists to forbid
+  // and the same one the managed smoke's own "a verify that checked NOTHING is
+  // not a pass" refuses.
+  //
+  // FAIL rather than WARN, by this function's own rule two comments up:
+  // NOT_VERIFIABLE fails because the migration's completeness is unknown, and
+  // nothing-measured is that same state reached by a different road.
+  if (verifications.length > 0 && verifications.every((v) => v.status === 'SKIPPED')) {
+    return 'FAIL';
+  }
+
   return 'PASS';
 }
 
@@ -644,7 +673,11 @@ function calculateVerificationScore(verifications: DataTypeVerification[]): numb
   const measured = verifications.filter(
     (v) => v.status !== 'SKIPPED' && v.status !== 'NOT_VERIFIABLE',
   );
-  if (measured.length === 0) return 1;
+  // ZERO, not one. A perfect score for a report that measured nothing is the
+  // same lie `calculateOverallStatus` refuses above, and it is the half that
+  // feeds `canProceedToCutover`'s `score >= 0.95` arm — so a WARN with no
+  // measured domain would have walked through on a 1.0 it never earned.
+  if (measured.length === 0) return 0;
 
   const totalScore = measured.reduce((sum, v) => {
     const matchRatio = v.sourceCount > 0 ? v.matchedCount / v.sourceCount : 1;
