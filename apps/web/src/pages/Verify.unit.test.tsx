@@ -104,6 +104,31 @@ describe('the Verify screen', () => {
     expect(screen.getByText(/^Checked/)).toBeInTheDocument();
   });
 
+  it('gives EVERY domain in the report a row, not just the four it used to list', async () => {
+    // The screen's label map has been total since 0113 T5 — and the array it
+    // rendered from listed four, so Tasks had a translated name and no row.
+    // A domain the report measured and the operator cannot see is worse than an
+    // unmeasured one: the page reads as complete.
+    //
+    // Asserted by NAME rather than by row count, so a fifth row appearing for
+    // the wrong reason does not satisfy it.
+    fetched.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-07-31T12:00:00Z',
+      finishedAt: '2026-07-31T12:03:00Z',
+      report: { 'mapping-1': RESULT },
+    });
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+    await screen.findByRole('link', { name: 'mapping-1' });
+
+    for (const label of ['Email', 'Calendar', 'Contacts', 'Files', 'Tasks']) {
+      expect(
+        screen.getByRole('cell', { name: label }),
+        `the report carries ${VERIFICATION_DOMAINS.length} domains and the screen has no ${label} row`,
+      ).toBeInTheDocument();
+    }
+  });
+
   it('starts on click, polls to done, renders the report, and STOPS polling', async () => {
     vi.useFakeTimers();
     started.mockResolvedValue({
