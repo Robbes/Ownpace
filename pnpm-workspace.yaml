@@ -94,6 +94,22 @@ overrides:
   #   CVE-2026-67213 (HIGH)                — fixed 3.3.17 / 5.1.6
   # <3.3.17 therefore satisfies both. No 5.x is in the tree; nothing to scope.
   nanoid@<3.3.17: ^3.3.17
+  # 2026-09-03. qs, two MEDIUM advisories with one fix floor, surfaced by Trivy
+  # as code-scanning alerts #20 and #21 on main.
+  #   CVE-2026-82417  qs.stringify throws a TypeError while serializing
+  #   CVE-2026-82562  denial of service via array limit bypass when parsing
+  # Both fixed in 6.16.0; the tree carried 6.15.3 in three places.
+  #
+  # PRODUCTION, and by the shortest possible path: `express` and `body-parser`
+  # both depend on it, and the API parses every inbound query string through
+  # them — which is precisely what the second advisory is about. (`superagent`
+  # is the third holder and is dev-only.) That makes this the same class as the
+  # engine.io and socket.io-parser entries above, not the dev-tooling ones.
+  #
+  # Scoped per major like every entry here: express 5 asks for ^6.14.0, so
+  # ^6.16.0 sits inside the range it already accepts and no consumer is forced
+  # off its own line.
+  qs@<6.16.0: ^6.16.0
 minimumReleaseAgeExclude:
   - brace-expansion@2.1.4
   - brace-expansion@5.0.9
@@ -104,6 +120,7 @@ minimumReleaseAgeExclude:
   - tar@7.5.21
   - undici@8.9.0
   - engine.io@6.6.7
+  - qs@6.16.0
   - body-parser@1.20.6
   # Dependabot-pinned major bump, newer than the release-age gate; reviewed via its PR.
   - recharts@3.10.0
