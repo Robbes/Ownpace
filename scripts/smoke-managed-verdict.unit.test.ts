@@ -37,11 +37,34 @@ const SMOKE = join(REPO_ROOT, 'deploy/compose/smoke-managed.sh');
 const WORKFLOW = join(REPO_ROOT, '.github/workflows/e2e-managed.yml');
 
 const smoke = readFileSync(SMOKE, 'utf8');
+
+/**
+ * The preamble every extracted fragment needs.
+ *
+ * The script's assertions call `fail_at` rather than assigning `fail=1`, so
+ * that the verdict can say WHICH of the 147 of them fired. That makes
+ * `fail_at` part of the vocabulary these fragments are written in, and a
+ * harness that did not define it would report every fragment as passing —
+ * `fail_at: command not found` leaves `$fail` at 0, which is the exact
+ * false-green this file exists to prevent.
+ *
+ * Taken from the script rather than restated: `FAIL_PREAMBLE` greps the real
+ * function out of the real file, so a change to what `fail_at` does reaches
+ * these tests instead of drifting away from them.
+ */
+const FAIL_PREAMBLE = (() => {
+  const start = smoke.indexOf('fail_at() {');
+  const end = smoke.indexOf('\n}\n', start);
+  if (start < 0 || end < 0) throw new Error('fail_at() is no longer defined in smoke-managed.sh');
+  return `fail=0\nSECTION=test\nFAIL_REASONS=""\n${smoke.slice(start, end + 3)}`;
+})();
 const workflow = readFileSync(WORKFLOW, 'utf8');
+const SEED_MANAGED = join(REPO_ROOT, 'apps/api/src/scripts/seed-managed.ts');
+const seedManaged = readFileSync(SEED_MANAGED, 'utf8');
 
 /** Run a fragment of the real script under bash and report the resulting $fail. */
 function verdict(fragment: string, setup: string): string {
-  const out = execFileSync('bash', ['-c', `fail=0\n${setup}\n${fragment}\necho "FAIL=$fail"`], {
+  const out = execFileSync('bash', ['-c', `${FAIL_PREAMBLE}\n${setup}\n${fragment}\necho "FAIL=$fail"`], {
     encoding: 'utf8',
   });
   // The fragments print diagnostics of their own; the verdict is the last line.
@@ -121,7 +144,7 @@ describe('the task lane is asserted by name, not left to the inventory (0113 T7)
     const start = smoke.indexOf('THE TASK LANE LANDED');
     const block = smoke.slice(start, smoke.indexOf('if [ -z "$HASH" ]; then', start));
     expect(block).toContain('::error::');
-    expect(block).toMatch(/fail=1/);
+    expect(block).toMatch(/fail_at/);
   });
 
   it('names the four things a zero could mean, so the reader is not left guessing', () => {
@@ -147,7 +170,7 @@ describe('an enqueue that never became a runner is a failure', () => {
 
   it('is asserted, not merely remarked upon', () => {
     expect(block).toBeDefined();
-    expect(block).toContain('fail=1');
+    expect(block).toContain('fail_at');
   });
 
   it('no runner containers sets fail', () => {
@@ -333,8 +356,8 @@ describe('the two services nothing else speaks for (0084)', () => {
   it('each SETS FAIL rather than merely remarking on it', () => {
     // The 0084 lesson in one line: run #6 went green with half the gate
     // unasserted because the diagnosis was an echo.
-    expect(minio).toContain('fail=1');
-    expect(tls).toContain('fail=1');
+    expect(minio).toContain('fail_at');
+    expect(tls).toContain('fail_at');
   });
 
   it('minio unreachable fails the smoke', () => {
@@ -664,7 +687,7 @@ describe('a verify that compared nothing is not a pass', () => {
     const helper = `json_number() { printf '%s' "$1" | grep -o "\\"$2\\":[0-9]*" | head -1 | cut -d: -f2; }`;
     const out = execFileSync(
       'bash',
-      ['-c', `fail=0\n${helper}\n${setup}\n${block}\necho "FAIL=$fail"`],
+      ['-c', `${FAIL_PREAMBLE}\n${helper}\n${setup}\n${block}\necho "FAIL=$fail"`],
       { encoding: 'utf8' },
     );
     return out.trim().split('\n').pop()!.replace('FAIL=', '');
@@ -715,7 +738,7 @@ describe('a domain that was SKIPPED was not verified, whatever the status said',
   /** Drive the real loop with a report body and a required-domain list. */
   function verdict(rbody: string, required: string[]) {
     const setup = `rbody='${rbody}'\nVERIFY_LABEL=test\nREQUIRED_DOMAINS=(${required.join(' ')})`;
-    const out = execFileSync('bash', ['-c', `fail=0\n${setup}\n${block}\necho "FAIL=$fail"`], {
+    const out = execFileSync('bash', ['-c', `${FAIL_PREAMBLE}\n${setup}\n${block}\necho "FAIL=$fail"`], {
       encoding: 'utf8',
     });
     return out.trim().split('\n').pop()!.replace('FAIL=', '');
@@ -728,6 +751,10 @@ describe('a domain that was SKIPPED was not verified, whatever the status said',
   const skipped = (d: string) =>
     `{"${d}":{"issues":[{"id":"SKIPPED_${d}","message":"${d} verification was disabled in the config — this domain was NOT checked.","severity":"WARNING"}],"status":"SKIPPED"}}`;
   const checked = `{"calendar":{"issues":[],"status":"PASS"},"contacts":{"issues":[],"status":"PASS"},"files":{"issues":[],"status":"PASS"}}`;
+  /** A real tenant-A report: `mail` checked, the DAV domains present and skipped. */
+  const mailCheckedDavSkipped =
+    `{"mail":{"issues":[],"status":"PASS"},` +
+    `"calendar":{"issues":[{"id":"SKIPPED_calendar","message":"this domain was NOT checked.","severity":"WARNING"}],"status":"SKIPPED"}}`;
 
   it('is extractable — the guard still exists to test', () => {
     expect(block).toBeDefined();
@@ -750,7 +777,40 @@ describe('a domain that was SKIPPED was not verified, whatever the status said',
   it('does not care about domains it was not asked for', () => {
     // Tenant A's mapping legitimately skips the three DAV domains — that is the
     // seed's design, not a fault — so requiring only `mail` must pass over them.
-    expect(verdict(skipped('calendar'), ['mail'])).toBe('0');
+    // The fixture carries a real `mail` block because the loop now requires the
+    // domain it was asked about to BE THERE; a report with no `mail` at all is
+    // the separate failure below, and conflating the two is what let a missing
+    // domain read as a checked one.
+    expect(verdict(mailCheckedDavSkipped, ['mail'])).toBe('0');
+  });
+
+  // ---- absent is not unskipped (the sixth fan-out, #750's shape in the gate)
+  //
+  // Before #750 the report had four domain keys and no `tasks`. `SKIPPED_tasks`
+  // is not in that body — and "not skipped" was this loop's pass. So the gate
+  // would have reported a domain the engine had never heard of as checked,
+  // which is the same lie one layer out.
+
+  it('fails when a required domain is ABSENT from the report, not merely skipped', () => {
+    // The pre-#750 report, exactly: four domains, no tasks.
+    const fourKeys =
+      `{"mail":{"issues":[],"status":"PASS"},"calendar":{"issues":[],"status":"PASS"},` +
+      `"contacts":{"issues":[],"status":"PASS"},"files":{"issues":[],"status":"PASS"}}`;
+    expect(verdict(fourKeys, ['calendar', 'contacts', 'files', 'tasks'])).toBe('1');
+    // And the four that ARE there still pass on that same body, so the failure
+    // is about the missing one rather than about the assertion being noisy.
+    expect(verdict(fourKeys, ['calendar', 'contacts', 'files'])).toBe('0');
+  });
+
+  it('does not accept the domain name appearing as a VALUE somewhere else', () => {
+    // The probe has to be `"<domain>":{` — the shape of a domain block — because
+    // the report is full of places the word appears as a value. An issue that
+    // names the domain it is about is the obvious one, and a loose `"tasks"`
+    // grep reads it as the domain block being present: the report then has no
+    // task results at all and the gate calls them checked.
+    const nameAsAValue =
+      `{"calendar":{"issues":[{"id":"X","domain":"tasks","message":"see the task lane"}],"status":"PASS"}}`;
+    expect(verdict(nameAsAValue, ['tasks'])).toBe('1');
   });
 });
 
@@ -845,7 +905,7 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
       chmodSync(join(dir, 'bin', name), 0o755);
     }
     try {
-      const out = execFileSync('bash', ['-c', `fail=0\n${setup}\n${block}\necho "FAIL=$fail"`], {
+      const out = execFileSync('bash', ['-c', `${FAIL_PREAMBLE}\n${setup}\n${block}\necho "FAIL=$fail"`], {
         encoding: 'utf8',
         env: { ...process.env, PATH: `${join(dir, 'bin')}:${process.env.PATH}` },
       });
@@ -968,5 +1028,65 @@ describe('nothing temporary is still living in the gate', () => {
 
   it('says TEMPORARY nowhere, because the last thing that did outlived its branch', () => {
     expect(workflow).not.toMatch(/TEMPORARY/i);
+  });
+});
+
+describe('the DAV verify asks about every domain the demo tenant actually selects', () => {
+  /**
+   * The break that did not break.
+   *
+   * Deleting `tasks` from the tenant-B `verify_mapping` call left every test in
+   * this repository green — the same shape as #747's Break E and #750's Break
+   * F. Nothing paired the list of domains the gate VERIFIES against the list
+   * the seed SELECTS, so the managed gate could go on migrating a domain it
+   * never asked a question about.
+   *
+   * The two sides cannot import each other: one is bash, one is TypeScript, and
+   * `no-workspace-imports.unit.test.ts` keeps `deploy/` free of `@openmig/*`
+   * besides. So they are paired here, as text, with the vocabulary shift
+   * written down rather than assumed — the seed speaks `DiscoveryDomain`
+   * (`contact`, `file`, `task`), the report speaks `VerificationDomain`
+   * (`contacts`, `files`, `tasks`). Four vocabularies, still four; this is the
+   * seam where two of them meet.
+   */
+  const DISCOVERY_TO_REPORT: Readonly<Record<string, string>> = {
+    email: 'mail',
+    calendar: 'calendar',
+    contact: 'contacts',
+    file: 'files',
+    task: 'tasks',
+  };
+
+  /** Tenant B's selected domains, read out of the seed rather than restated. */
+  const seededDomains = (() => {
+    const match = seedManaged.match(/domains: \[('calendar'[^\]]*)\]/);
+    expect(match, "tenant B's domains list is no longer recognisable in seed-managed.ts").not.toBeNull();
+    return match![1]!.split(',').map((d) => d.trim().replace(/'/g, ''));
+  })();
+
+  /** The required-domain arguments of the tenant-B verify_mapping call. */
+  const requiredByTheGate = (() => {
+    const line = smoke
+      .split('\n')
+      .find((l) => l.startsWith('verify_mapping "$APPLY_TENANT"'));
+    expect(line, 'the tenant-B verify_mapping call is no longer recognisable').toBeDefined();
+    // …"$APPLY_MAPPING" <label> <domains…>
+    return line!.trim().split(/\s+/).slice(5);
+  })();
+
+  it('every domain tenant B selects is a domain the DAV verify requires', () => {
+    const expected = seededDomains.map((d) => {
+      expect(DISCOVERY_TO_REPORT[d], `no report spelling known for the seeded domain '${d}'`).toBeDefined();
+      return DISCOVERY_TO_REPORT[d]!;
+    });
+    // Sorted, because the order is the reading order of the call and carries no
+    // meaning — what matters is that neither side holds a domain the other does
+    // not.
+    expect([...requiredByTheGate].sort()).toEqual([...expected].sort());
+  });
+
+  it('tasks is one of them, which is the case that was missing', () => {
+    expect(seededDomains).toContain('task');
+    expect(requiredByTheGate).toContain('tasks');
   });
 });

@@ -304,6 +304,6 @@ describe('the status page, which cannot check itself', () => {
     // Asserted, not merely present: a probe whose failure is only echoed lets
     // the gate pass while the service is down.
     const block = smoke.slice(smoke.indexOf('# ---------- the status page answers'));
-    expect(block.slice(0, block.indexOf('# ---------- verdict'))).toMatch(/fail=1/);
+    expect(block.slice(0, block.indexOf('# ---------- verdict'))).toMatch(/fail_at/);
   });
 });

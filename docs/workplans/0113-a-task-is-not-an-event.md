@@ -2,7 +2,33 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
-**2026-09-03 (latest, after T8): the fifth fan-out — the §20 report had no task domain at
+**2026-09-03 (latest): the SIXTH fan-out, and a gate that would not say what it found.**
+The owner ran `SMOKE_PREPARE_APPLY=1 smoke-managed.sh` on the Spark and got
+`verify: done   apply: applied` followed by a bare `SMOKE FAIL`. Both halves he could name had
+succeeded, so the cause was one of the other hundred and forty-five assertions — and the only
+way to find it was to read a several-hundred-line log on a phone. **The gate knew which
+assertion had fired and threw the answer away one line later.** `fail_at` replaces every
+`fail=1`; `BASH_LINENO[0]` is the caller's line, so a bare call already records "section, line
+N" at no cost to the call site, and the verdict lists them under "what failed:".
+
+The sixth fan-out was found while looking for that. `verify_mapping`'s tenant-B call named its
+domains by hand — `dav calendar contacts files` — so the managed gate would have gone on never
+asking about the task domain against a report that, after the fifth fan-out was fixed, finally
+had the answer in it. Worse, the loop read "no `SKIPPED_<domain>` issue" as a pass: **absent is
+not unskipped.** Before that fix the report had four keys and no `tasks` at all, so the grep
+found nothing and nothing was a PASS — the gate would have reported a domain the engine had
+never heard of as checked. An absent domain is now its own failure, and louder than a skip.
+
+Proved by breaking, seven ways. One of the seven found a defect in this session's own work:
+Break D (dropping `tasks` from the verify call) passed, because nothing paired the domains the
+gate VERIFIES against the domains the seed SELECTS — the same shape as T7's Break E. That
+pairing now exists in `smoke-managed-verdict.unit.test.ts`, with the `DiscoveryDomain` →
+`VerificationDomain` spelling shift written down at the seam. An eighth break also passed at
+first for the wrong reason: the loose-probe fixture escaped its quotes, so the substring the
+loose probe looks for was never in it. Corrected to the realistic case — the domain name
+appearing as a *value* in a nested issue.
+
+**2026-09-03 (after T8): the fifth fan-out — the §20 report had no task domain at
 all.** T5 found four fan-outs in `orchestration.ts` that no compile error could name. There
 was a fifth, one layer down: `runVerification` called `verifyDomain` for `mail`, `calendar`,
 `contacts` and `files` by hand, and never for `tasks`. `VerificationResult` had four literal
