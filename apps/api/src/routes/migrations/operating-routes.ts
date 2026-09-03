@@ -41,7 +41,7 @@ import type { Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
-import { assembleShareAnnouncements, renderShareAnnouncement } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, assembleShareAnnouncements, renderShareAnnouncement } from '@openmig/shared';
 import { channelIsOn, tellMessage } from '../../access-notify.ts';
 import {
   DELETIONS_MEANING,
@@ -1140,7 +1140,7 @@ router.post(
         const ledger = new PgLedger(db);
         // Domain by domain, the appliance's order: the evaluator needs the
         // domain to read the row, and the first domain holding the item wins.
-        for (const domain of ['email', 'calendar', 'contact', 'file'] as const) {
+        for (const domain of DISCOVERY_DOMAINS) {
           const outcome = await evaluateApplyDeletion(
             {
               tenantId: s.tenantId as TenantId,
@@ -1282,7 +1282,7 @@ router.post(
           .from(schema.mailboxMapping)
           .where(eq(schema.mailboxMapping.id, s.mappingId));
         const ledger = new PgLedger(db);
-        for (const domain of ['email', 'calendar', 'contact', 'file'] as const) {
+        for (const domain of DISCOVERY_DOMAINS) {
           const outcome = await evaluateApplyRelocation(
             {
               tenantId: s.tenantId as TenantId,

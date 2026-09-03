@@ -32,13 +32,17 @@
 
 import { CalDAVSource, CarddavSource, DropboxFileSource, WebdavFileSource } from '@openmig/connectors';
 import {
+  isProviderAccountKind,
   parseGoogleDriveSource,
+  providerAccountDomains,
+  providerAccountServes,
+  providerDisplayName,
   withDeploymentDropboxClient,
   withDeploymentGoogleClient,
 } from '@openmig/shared';
-import type { ProbeUnit } from '@openmig/shared';
+import type { DiscoveryDomain, ProbeUnit } from '@openmig/shared';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
-import { davEndpointFromCreds } from './dav-endpoint.ts';
+import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint.ts';
 import { measureTargetScheduling } from './target-scheduling.ts';
 import type { SchedulingVerdict } from './target-scheduling.ts';
 // THE FOUR FACES OF A GOOGLE GRANT, built exactly as a pass builds them
@@ -172,6 +176,42 @@ async function askListable(
 }
 
 /**
+ * Does this account kind serve that face AT ALL?
+ *
+ * `providerAccountServes` is the product's own statement of what a NAMED
+ * provider carries from one account row (0106 T3b) — the same answer the
+ * domain ticks and the target matrix read, deployment declaration and all. A
+ * protocol kind (caldav, carddav, webdav, nextcloud, imap) names no provider
+ * and claims nothing about the server behind it, so it is never constrained
+ * here: `true`, and the probe answers.
+ */
+function accountServes(kind: string, face: DiscoveryDomain): boolean {
+  if (!isProviderAccountKind(kind)) return true;
+  return providerAccountServes(kind, face);
+}
+
+/**
+ * The answer for a face a named account has not got, in the shape
+ * `qualifyDropbox` already gives the three faces a Dropbox has not got.
+ *
+ * A MEASURED `no` rather than an `unknown`, and that distinction is the whole
+ * three-state rule (0106 T3a): `unknown` means nobody could look and never
+ * constrains a tick; `no` means the answer is known. Here it IS known — the
+ * product states what a Soverin account carries — so `no` is the honest state,
+ * and it agrees with the domain step that refuses the same tick.
+ */
+function notAFaceOf(kind: string, face: string): QualifiedDomain {
+  const carried = providerAccountDomains(kind);
+  const carries = carried.length > 1
+    ? `${carried.slice(0, -1).join(', ')} and ${carried[carried.length - 1]}`
+    : (carried[0] ?? 'other faces');
+  return {
+    answer: 'no',
+    detail: `A ${providerDisplayName(kind)} account carries ${carries}; ${face} is not a face of this connection.`,
+  };
+}
+
+/**
  * Qualify one account connection. `kind` is the connection.kind as stored;
  * config/creds are the SAME shapes the probe and the passes read, so the
  * qualification cannot describe a different account than the one that would
@@ -209,28 +249,72 @@ export async function qualifyAccount(
     return qualifyJmap(config, creds);
   }
 
-  // The DAV family (caldav/carddav/webdav/nextcloud/soverin): one endpoint
-  // resolution, three faces asked — the SAME resolution the writers use, so
-  // Soverin's per-protocol app-password scoping (if any) shows up here as
-  // exactly the unknown-with-a-401 it is.
+  // The DAV family (caldav/carddav/webdav/nextcloud/soverin): the faces asked
+  // through the SAME resolution the writers use, so Soverin's per-protocol
+  // app-password scoping (if any) shows up here as exactly the
+  // unknown-with-a-401 it is.
+  //
+  // TWO RESOLUTIONS, NOT ONE, AND THE COMMENT ABOVE USED TO BE HALF FALSE
+  // (owner, 2026-09-03: "It tells: Files has 5 folder. But, i dont recall
+  // soverin already having Files (like nextcloud) enabled"). Calendar and
+  // contacts live at the DAV base; FILES do not, and the run path has never
+  // thought they did — `buildDepsFromMapping` resolves the file domain through
+  // `fileEndpointFromCreds`, which appends Nextcloud's own `files/{username}/`
+  // convention and honours the `fileBaseUrl` escape hatch. The qualification
+  // handed `WebdavFileSource` the bare base instead, so it PROPFINDed the DAV
+  // ROOT and counted what a DAV root holds — the account's principal, calendar
+  // and address-book collections — as file folders. Five of them, on an
+  // account with no file store at all. Same shape as the `[Gmail]` container
+  // counted as a mail folder: a service collection read as content.
   const endpoint = davEndpointFromCreds('target', config, creds);
+  const fileEndpoint = fileEndpointFromCreds('target', config, creds, kind);
   // The soverin ACCOUNT kind may also NAME its mail server (0106 T4b:
   // `mailHost`, typed by the person, never guessed) — when it does, the
   // mail face is measured with the same credential the DAV faces use; when
   // it does not, the unmeasured sentence carries the remedy.
   const mailHost =
     kind === 'soverin' && typeof config.mailHost === 'string' ? config.mailHost.trim() : '';
+  // A FACE THIS ACCOUNT KIND HAS NOT GOT IS NOT MEASURED, IT IS ANSWERED.
+  // `providerAccountDomains` is the product's own statement of what a NAMED
+  // provider carries from one account row — soverin: email, calendar,
+  // contact. Asking outside that list cannot produce a true answer, only a
+  // reading of whatever the endpoint happens to expose, which is the second
+  // half of how "Files ✓ 5 folders" reached a screen. So the face says so
+  // instead, in the shape `qualifyDropbox` already uses for the three faces a
+  // Dropbox has not got: a MEASURED no — honest, because the product knows,
+  // and constraining correctly, because the domain step refuses that tick too.
+  // A protocol kind (caldav, carddav, webdav, nextcloud) is not a named
+  // account, claims nothing about the server behind it, and is measured
+  // exactly as before.
+  const davFace = (
+    face: DiscoveryDomain,
+    word: string,
+    build: () => Listable,
+    unit: ProbeUnit,
+  ): Promise<QualifiedDomain> =>
+    accountServes(kind, face) ? askListable(build, unit) : Promise.resolve(notAFaceOf(kind, word));
   const [calendar, contact, file, mailMeasured] = await Promise.all([
-    askListable(
+    davFace(
+      'calendar',
+      'a calendar',
       () => new CalDAVSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password }),
       'calendar',
     ),
-    askListable(
+    davFace(
+      'contact',
+      'an address book',
       () => new CarddavSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password }),
       'addressBook',
     ),
-    askListable(
-      () => new WebdavFileSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password }),
+    davFace(
+      'file',
+      'a file store',
+      () =>
+        new WebdavFileSource({
+          url: fileEndpoint.url,
+          username: fileEndpoint.username,
+          password: fileEndpoint.password,
+        }),
       'folder',
     ),
     mailHost

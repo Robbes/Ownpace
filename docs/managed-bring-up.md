@@ -387,8 +387,33 @@ The CLI version is read from `@trigger.dev/sdk` in `apps/worker/package.json`,
 so there is one version number and it lives where it already lived.
 
 ```bash
+# If this machine has logged in before, log OUT first — see the box below.
+npx -y trigger.dev@<version> logout --profile openmig
 npx -y trigger.dev@<version> login -a http://localhost:3090 --profile openmig
 ```
+
+**Once means once, because the token is remembered.** The next
+`deploy-tasks.sh` run calls `trigger-remember-token.sh`, which copies the
+token the CLI just minted into `.env` as `TRIGGER_ACCESS_TOKEN`. From then on
+the CLI's `deploy` reads that variable before it looks at any profile file and
+validates it against the server itself — no browser, no profile, and nothing
+left on the host to go stale. It is the CLI's own documented path for CI, and
+the E2E workflow has used it as a repository secret since #460; what was
+missing was anybody putting one in a real stack's `.env`.
+
+Run it by hand any time (`./deploy/compose/trigger-remember-token.sh`); it
+declines to overwrite a token `.env` already holds unless you pass `--force`,
+and it never prints the value.
+
+> **Log out first when there is anything to log out of.** The profile lives at
+> `~/.config/trigger/config.json`, on the HOST, and outlives the instance it
+> was minted against — so after a wipe, a `down -v` or a rename it holds a
+> token for an account that no longer exists. `login` finds that token and
+> short-circuits with *"You are already logged in"* **without validating it**,
+> so it reports success while `deploy-tasks.sh` still correctly refuses. Only
+> `logout` clears it. If `logout` short-circuits too, delete the profile's
+> entry from that file. (Met twice on the owner's own box; the second time,
+> 2026-09-03, is why the token is now remembered at all.)
 
 **`openmig` is the DEFAULT profile name, not a fixed one.** It is pre-rename
 branding (ADR-0040) kept on purpose — a machine already logged in under it,

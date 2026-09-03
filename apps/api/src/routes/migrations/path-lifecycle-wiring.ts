@@ -28,9 +28,8 @@
 import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgPathLifecycleStore } from '@openmig/ledger';
-import type { PathDomain } from '@openmig/ledger';
 import { PgOccupancyPeakStore } from '@openmig/managed';
-import type { MappingId, TenantId } from '@openmig/shared';
+import type { DiscoveryDomain, MappingId, TenantId } from '@openmig/shared';
 import type { MappingStatus } from './mapping-status-audit.ts';
 
 /**
@@ -63,7 +62,7 @@ export async function movePathsWithMapping(
 
   if (to === 'active') {
     for (const { domain } of included) {
-      await store.activate(tenantId as TenantId, mappingId as MappingId, domain as PathDomain);
+      await store.activate(tenantId as TenantId, mappingId as MappingId, domain as DiscoveryDomain);
     }
     // The month's high-water mark rises with the slots just taken (0109 T2) —
     // same transaction, so a committed activation cannot miss its peak. This
@@ -88,7 +87,7 @@ export async function movePathsWithMapping(
   const moved = new Set(existing.map((r) => r.domain));
   for (const { domain } of included) {
     if (moved.has(domain)) {
-      await store.moveTo(tenantId as TenantId, mappingId as MappingId, domain as PathDomain, to);
+      await store.moveTo(tenantId as TenantId, mappingId as MappingId, domain as DiscoveryDomain, to);
     }
   }
 }

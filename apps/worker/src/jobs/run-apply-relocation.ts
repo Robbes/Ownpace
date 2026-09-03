@@ -26,6 +26,7 @@ import { eq } from 'drizzle-orm';
 import { applyRelocation, type ApplyDeletionOutcome } from '@openmig/core';
 import { withTenant } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
+import { DISCOVERY_DOMAINS } from '@openmig/shared';
 import type { MappingId, RemovalKind, TenantId } from '@openmig/shared';
 import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
@@ -71,7 +72,7 @@ async function landReceipt(
 }
 
 /** The order domains are searched — identical to the appliance's, on purpose. */
-const DOMAINS = ['email', 'calendar', 'contact', 'file'] as const;
+const DOMAINS = DISCOVERY_DOMAINS;
 
 /** Branched per literal, for the same overload-resolution reason as the deletion job. */
 async function openDeps(tenantId: string, mappingId: string, domain: (typeof DOMAINS)[number]) {

@@ -8,9 +8,10 @@
  * complete.
  */
 import { describe, it, expect } from 'vitest';
-import { describeAbsentDomains, ALL_SYNC_DOMAINS, type SyncDomain } from './enabled-domains.ts';
+import { describeAbsentDomains, ALL_SYNC_DOMAINS } from './enabled-domains.ts';
+import type { DiscoveryDomain } from '@openmig/shared';
 
-const set = (...d: SyncDomain[]) => new Set<SyncDomain>(d);
+const set = (...d: DiscoveryDomain[]) => new Set<DiscoveryDomain>(d);
 
 describe('describeAbsentDomains', () => {
   it('says nothing only when there is genuinely nothing absent to explain', () => {

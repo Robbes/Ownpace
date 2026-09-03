@@ -20,15 +20,15 @@
  */
 
 import type { Pool } from 'pg';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 
-export type SyncDomain = 'email' | 'calendar' | 'contact' | 'file';
 
 export async function enabledDomains(
   pool: Pool,
   tenantId: string,
   mappingId: string,
-): Promise<Set<SyncDomain>> {
-  const { rows } = await pool.query<{ domain: SyncDomain }>(
+): Promise<Set<DiscoveryDomain>> {
+  const { rows } = await pool.query<{ domain: DiscoveryDomain }>(
     `SELECT domain FROM scope_selection WHERE tenant_id = $1 AND mapping_id = $2 AND included = true`,
     [tenantId, mappingId],
   );
@@ -57,11 +57,11 @@ export async function enabledDomains(
 export async function enabledDomainsForMappings(
   pool: Pool,
   mappings: readonly { readonly id: string; readonly tenantId: string }[],
-): Promise<Map<string, Set<SyncDomain>>> {
-  const byMapping = new Map<string, Set<SyncDomain>>();
+): Promise<Map<string, Set<DiscoveryDomain>>> {
+  const byMapping = new Map<string, Set<DiscoveryDomain>>();
   if (mappings.length === 0) return byMapping;
 
-  const { rows } = await pool.query<{ mapping_id: string; tenant_id: string; domain: SyncDomain }>(
+  const { rows } = await pool.query<{ mapping_id: string; tenant_id: string; domain: DiscoveryDomain }>(
     `SELECT mapping_id, tenant_id, domain
        FROM scope_selection
       WHERE included = true AND mapping_id = ANY($1::uuid[])`,
@@ -76,7 +76,7 @@ export async function enabledDomainsForMappings(
     if (tenantOf.get(row.mapping_id) !== row.tenant_id) continue;
     let set = byMapping.get(row.mapping_id);
     if (!set) {
-      set = new Set<SyncDomain>();
+      set = new Set<DiscoveryDomain>();
       byMapping.set(row.mapping_id, set);
     }
     set.add(row.domain);
@@ -84,8 +84,15 @@ export async function enabledDomainsForMappings(
   return byMapping;
 }
 
-/** Every domain the product can carry, in the order a person reads them. */
-export const ALL_SYNC_DOMAINS: readonly SyncDomain[] = ['email', 'calendar', 'contact', 'file'];
+/**
+ * Every domain the product can carry, in the order a person reads them.
+ *
+ * `DISCOVERY_DOMAINS` under a name this package's callers already type. The
+ * list itself lives in `@openmig/shared`'s `discovery.ts` and is written once
+ * (workplan 0113 T1) — a second copy here would be the one that forgot the
+ * fifth domain.
+ */
+export const ALL_SYNC_DOMAINS: readonly DiscoveryDomain[] = DISCOVERY_DOMAINS;
 
 /**
  * What the run log should say about the domains that did NOT run.
@@ -113,8 +120,8 @@ export const ALL_SYNC_DOMAINS: readonly SyncDomain[] = ['email', 'calendar', 'co
  * means every domain the mapping carries ran, which needs no explanation.
  */
 export function describeAbsentDomains(
-  selected: ReadonlySet<SyncDomain>,
-  running: readonly SyncDomain[],
+  selected: ReadonlySet<DiscoveryDomain>,
+  running: readonly DiscoveryDomain[],
 ): string[] {
   const ran = new Set(running);
   const lines: string[] = [];
