@@ -917,6 +917,35 @@ export function buildSourceConnectorFromCredentials(
     // and inventing one for Graph would be the plan's own warning realised.
     return buildGraphMailSourceFromCredentials(sourceConfig, credentials, throttleLimiter);
   }
+  if (sourceFaceBuilder(sourceConfig.type, 'email') === 'graph-mail') {
+    // THE ACCOUNT KIND'S MAIL FACE (0114 T5a), and one branch rather than two
+    // for the same reason the Gmail arm below takes `google` alongside
+    // `gmail`: a `microsoft` row's mail is Graph mail against `/me/messages`,
+    // under the same three stored credentials, so a second builder differing
+    // only in the string it matched would be the #597 defect again.
+    //
+    // Read off the FACE TABLE rather than compared to `'microsoft'`. This is
+    // the seam that made the point: `PROVIDER_ACCOUNT_DOMAINS.microsoft`
+    // claimed `email`, `ACCOUNT_FACE_BUILDERS` answered `graph-mail`, and this
+    // function still refused with "only supports imap-oauth2, graph-mail,
+    // gmail and google mail sources, got: microsoft" — a table nothing reads
+    // is the same defect one level up.
+    //
+    // NEVER a `mailbox`. A delegated token reads the signed-in user's own
+    // store; `/users/{address}` needs application permissions, and the factory
+    // refuses the combination in a sentence written for exactly that.
+    return buildGraphMailSourceFromCredentials(
+      {
+        type: 'graph-mail',
+        tenantId:
+          (credentials.tenantId ?? '').trim() ||
+          String((sourceConfig as { tenantId?: unknown }).tenantId ?? '').trim() ||
+          microsoftTenant(),
+      },
+      credentials,
+      throttleLimiter,
+    );
+  }
   if (sourceConfig.type === 'gmail' || sourceConfig.type === 'google') {
     // The credential-store half only: name the stored fields and hand off. The
     // refusal for missing ones lives in the shared factory, so both editions

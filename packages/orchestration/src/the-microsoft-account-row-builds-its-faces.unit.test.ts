@@ -4,16 +4,25 @@
  * THE FOUR FACES A MICROSOFT ROW ADVERTISES, BUILT FROM STORED CREDENTIALS.
  *
  * Workplan 0114 T5a. `PROVIDER_ACCOUNT_DOMAINS.microsoft` has claimed mail,
- * calendar, contacts and files since T3. Three of those four could not be
- * built from a stored connection at all: the Graph calendar, contacts and
- * OneDrive sources existed and were wired only in `build-deps.ts`, the
- * appliance's path, from `OAUTH2_*` environment variables.
+ * calendar, contacts and files since T3. **None of the four could be built
+ * from a stored connection**, and they failed in two different ways.
  *
- * The managed seams asked two-way questions — `googleDavServes(kind, …) ?
- * Google : DAV` and `dropbox / box / Drive / DAV` — so a `microsoft` row took
- * the last branch every time, reached `davEndpointFromCreds`, and was refused
- * for a username and password. **An OAuth provider has neither**, and the
- * refusal arrived inside a sync pass rather than at build time.
+ * THREE OF THEM FELL THROUGH. The Graph calendar, contacts and OneDrive
+ * sources existed and were wired only in `build-deps.ts`, the appliance's
+ * path, from `OAUTH2_*` environment variables. The managed seams asked
+ * two-way questions — `googleDavServes(kind, …) ? Google : DAV` and
+ * `dropbox / box / Drive / DAV` — so a `microsoft` row took the last branch
+ * every time, reached `davEndpointFromCreds`, and was refused for a username
+ * and password. **An OAuth provider has neither**, and the refusal arrived
+ * inside a sync pass rather than at build time.
+ *
+ * THE FOURTH REFUSED OUTRIGHT. Mail does not go through those seams: it goes
+ * through `buildSourceConnectorFromCredentials`, which switches on the CONFIG
+ * TYPE rather than the connection kind, and answered *"only supports
+ * imap-oauth2, graph-mail, gmail and google mail sources, got: microsoft"*.
+ * That one was found by writing this file — the face table already said
+ * `microsoft.email → graph-mail` and the seam did not read it, which is the
+ * same defect one level up. The seam asks the table now.
  *
  * The companion guard,
  * `scripts/a-face-a-provider-account-cannot-build.unit.test.ts`, pins the
@@ -36,6 +45,7 @@ import {
   buildCalendarSourceFromConnection,
   buildContactSourceFromConnection,
   buildFileSourceFromConnection,
+  buildSourceConnectorFromCredentials,
 } from './build-deps-from-mapping.ts';
 import { sourceFaceBuilder } from './source-face-builders.ts';
 
@@ -51,6 +61,26 @@ const microsoft = (creds: Record<string, string> = GRANTED) => ({
 });
 
 describe('a microsoft account row builds all four of its faces', () => {
+  it('builds the mail face rather than refusing the source type', () => {
+    // The FOURTH face, and the one that fails differently from the other
+    // three. Mail does not go through the DAV fall-through — it goes through
+    // `buildSourceConnectorFromCredentials`, which switches on the CONFIG
+    // TYPE rather than the connection kind, and answered
+    // "buildDepsFromMapping only supports imap-oauth2, graph-mail, gmail and
+    // google mail sources, got: microsoft".
+    //
+    // Worth its own test for a reason beyond coverage: the face table claimed
+    // `microsoft.email → graph-mail` before this seam honoured it. A table
+    // whose rows nothing reads is the same defect one level up, so the seam
+    // asks the table rather than comparing to a literal.
+    expect(() =>
+      buildSourceConnectorFromCredentials(
+        { type: 'microsoft', user: 'someone@contoso.example' },
+        GRANTED,
+      ),
+    ).not.toThrow();
+  });
+
   it('builds the calendar face rather than asking for a DAV password', () => {
     expect(() => buildCalendarSourceFromConnection(microsoft())).not.toThrow();
   });
@@ -99,6 +129,14 @@ describe('the refusals speak the managed vocabulary', () => {
       expect(reason).toContain('clientId');
       expect(reason).not.toContain('OAUTH2_CLIENT_ID');
     }
+  });
+
+  it('names the stored fields on the mail face too', () => {
+    const reason = refusalFor(() =>
+      buildSourceConnectorFromCredentials({ type: 'microsoft', user: 'someone@contoso.example' }, {}),
+    );
+    expect(reason).toContain('clientId');
+    expect(reason).not.toContain('OAUTH2_CLIENT_ID');
   });
 
   it('names the stored refreshToken when neither flow was chosen', () => {
