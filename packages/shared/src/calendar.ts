@@ -112,6 +112,19 @@ export interface CalendarEvent {
   readonly icalendar: string;
 }
 
+/**
+ * The iCalendar components a CalDAV collection can declare it holds
+ * (RFC 4791 §5.2.3 `supported-calendar-component-set`).
+ *
+ * This is the ONLY thing that distinguishes a "task list" from a "calendar" on
+ * the wire: both are calendar collections; one says VTODO and the other says
+ * VEVENT. There is no separate resource type to look for, which is exactly why
+ * a task list read as a calendar looked like a calendar for so long
+ * (workplan 0113).
+ */
+export const CALENDAR_COMPONENTS = ['VEVENT', 'VTODO', 'VJOURNAL'] as const;
+export type CalendarComponent = (typeof CALENDAR_COMPONENTS)[number];
+
 /** Calendar folder/collection. */
 export interface CalendarFolder {
   /** Calendar collection path. */
@@ -124,6 +137,38 @@ export interface CalendarFolder {
   readonly timezone?: string;
   /** Color. */
   readonly color?: string;
+  /**
+   * What the server SAID this collection holds, when it said anything.
+   *
+   * Absent means the server declared no `supported-calendar-component-set`,
+   * which is not the same as "holds nothing" — see `collectionCarries`.
+   * Present and empty never happens: a declared set with no `comp` children is
+   * read as undeclared rather than as a collection that holds nothing, because
+   * the second reading would silently drop a real calendar.
+   */
+  readonly components?: ReadonlyArray<CalendarComponent>;
+}
+
+/**
+ * Does a collection hold this component?
+ *
+ * RFC 4791 §5.2.3: a calendar collection that declares no
+ * `supported-calendar-component-set` "MAY contain any calendar component
+ * type". So an undeclared set is a YES for every component — absence of a
+ * declaration is not evidence of absence, and treating it as one would hide a
+ * calendar from a person who has one (0105's never-guess rule, pointed the
+ * other way).
+ *
+ * A DECLARED set is taken at its word. That is what makes the count true: a
+ * Nextcloud task list declares VTODO and nothing else, and stops being counted
+ * among "5 calendars visible".
+ */
+export function collectionCarries(
+  components: ReadonlyArray<CalendarComponent> | undefined,
+  component: CalendarComponent,
+): boolean {
+  if (!components || components.length === 0) return true;
+  return components.includes(component);
 }
 
 /** Calendar item with raw data. */

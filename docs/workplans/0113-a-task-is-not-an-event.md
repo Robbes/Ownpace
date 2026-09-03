@@ -2,6 +2,21 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
+**2026-09-03: T3a built — a task list stops being counted as a calendar.** `listCollections`
+asks for `supported-calendar-component-set` and skips a collection that does not carry
+`VEVENT`. The property is the ONLY thing that separates a task list from a calendar on the
+wire — both are calendar collections — which is why this went unnoticed: nothing was asking.
+`CalendarFolder.components` carries what the server declared, as data, so T3b reads the same
+field for VTODO rather than asking twice.
+
+Silence is not a no: a collection that declares nothing "MAY contain any calendar component
+type" (RFC 4791 §5.2.3), and so does a collection whose declaration this parse does not
+recognise. Both are kept. Reading silence as VTODO would hide a real calendar from somebody
+who has one, which is a worse failure than the one being fixed.
+
+*(T0's decisions and T1/T2 land in their own pull requests; this one is independent of both
+and can merge in any order.)*
+
 **2026-09-03: drafted for the owner's decision, nothing built.** The owner, walking his own
 Soverin account: *"i found 'Tasks', is that a Dav to? Perhaps we need to add it as
 objecttype?"* Yes to the first half — tasks are CalDAV, `VTODO` components, and every DAV
@@ -15,7 +30,7 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 | T0 Decide: its own tick, and how far v1 reaches | 📋 Owner decision | §"The owner's decisions" 1–3. Nothing below starts without 1. |
 | T1 The domain has ONE name | 📋 Planned | `DiscoveryDomain` is spelled out inline as a union **73 times across 17 files**. A fifth domain added on top of that is 73 edits and a drift bug in whichever one is missed. Collapse them onto the type first, with a guard that fails on a new inline copy. No behaviour changes; this is the task that makes every one below cheap. |
 | T2 The ledger widens | 📋 Planned (needs T1) | Nine `CHECK` constraints in `0001_baseline.sql` pin the four domains, plus `item_item_type_check`. One additive migration widens them; nothing is rewritten, nothing is dropped. |
-| T3 The source tells a task list from a calendar | 📋 Planned | Two slices. **(a) Honest today:** PROPFIND `supported-calendar-component-set` and stop counting a VTODO-only collection as a calendar. **(b)** Carry it as its own collection kind, and read each object's real component instead of stamping `type: 'event'`. |
+| T3 The source tells a task list from a calendar | 🟡 (a) done, (b) planned | **(a)** `listCollections` now PROPFINDs `supported-calendar-component-set` (RFC 4791 §5.2.3) and drops a collection that does not carry `VEVENT`, so a VTODO-only list stops being counted among "5 calendars visible". The declared set rides on `CalendarFolder.components` as data; an UNDECLARED set is a yes for every component, per the RFC and 0105's never-guess rule. Proved by breaking. **(b)** still to come: carry the task collections as their own kind, and read each object's real component instead of stamping `type: 'event'`. |
 | T4 The writer writes a task | 📋 Planned (needs T3) | The read-back's `comp-filter` follows the component being written; `MKCALENDAR` names the component set when a collection has to be created; a target collection that cannot take the component is refused **by name**, never by a silent 403. |
 | T5 The domain surfaces | 📋 Planned (needs T1, T2, T3) | The matrices, the qualification's fifth face and its badge, the wizard's fifth tick, the discovery counts, the confirm screen, EN/NL strings, the icon. |
 | T6 Google Tasks | 📋 Optional (needs T0 decision 3) | Google's CalDAV carries no VTODO at all: tasks live behind the separate Tasks REST API, whose model is thinner than VTODO. A face of its own, or out of scope for v1. |

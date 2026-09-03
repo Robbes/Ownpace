@@ -132,6 +132,114 @@ describe('CalDAVSource', () => {
     });
   });
 
+  describe('a task list is not a calendar (workplan 0113 T3a)', () => {
+    // The owner, walking his own account: "i found 'Tasks', is that a Dav to?"
+    // It is — and until this, it came back from `listFolders` as a calendar and
+    // was counted as one. Both are calendar collections; only
+    // `supported-calendar-component-set` tells them apart (RFC 4791 §5.2.3).
+
+    const collection = (href: string, name: string, componentSet?: string) => `
+      <D:response>
+        <D:href>${href}</D:href>
+        <D:propstat>
+          <D:prop>
+            <D:displayname>${name}</D:displayname>
+            <D:resourcetype><D:collection/><C:calendar-collection/></D:resourcetype>
+            ${componentSet ?? ''}
+          </D:prop>
+          <D:status>HTTP/1.1 200 OK</D:status>
+        </D:propstat>
+      </D:response>`;
+
+    const multistatus = (...responses: string[]) => `<?xml version="1.0" encoding="utf-8"?>
+      <D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+        ${responses.join('\n')}
+      </D:multistatus>`;
+
+    const source = () =>
+      new CalDAVSource({ url: 'https://caldav.example.com/', username: 'test', password: 'pw' });
+
+    it("a VTODO-only list is not returned by the calendar source — the owner's count stops including it", () => {
+      const body = multistatus(
+        collection(
+          '/dav/calendars/user/test/personal/',
+          'Personal',
+          '<C:supported-calendar-component-set><C:comp name="VEVENT"/><C:comp name="VTODO"/></C:supported-calendar-component-set>',
+        ),
+        collection(
+          '/dav/calendars/user/test/tasks/',
+          'Tasks',
+          '<C:supported-calendar-component-set><C:comp name="VTODO"/></C:supported-calendar-component-set>',
+        ),
+      );
+      const collections = (source() as never as {
+        parseCollectionsResponse(b: string, h: string): ReadonlyArray<{ name?: string; components?: string[] }>;
+      }).parseCollectionsResponse(body, '/dav/calendars/user/test/');
+
+      expect(collections.map((c) => c.name)).toEqual(['Personal']);
+      // The mixed collection keeps what it declared, as DATA: a person ticking
+      // Calendar gets its events, and 0113 T3b reads the same field for VTODO.
+      expect(collections[0]?.components).toEqual(['VEVENT', 'VTODO']);
+    });
+
+    it('a collection that declares NOTHING is still a calendar — RFC 4791 §5.2.3, and never a guess', () => {
+      // "MAY contain any calendar component type." Reading silence as VTODO
+      // would hide a real calendar from somebody who has one.
+      const body = multistatus(collection('/dav/calendars/user/test/plain/', 'Plain'));
+      const collections = (source() as never as {
+        parseCollectionsResponse(b: string, h: string): ReadonlyArray<{ name?: string; components?: string[] }>;
+      }).parseCollectionsResponse(body, '/dav/calendars/user/test/');
+
+      expect(collections.map((c) => c.name)).toEqual(['Plain']);
+      expect(collections[0]?.components).toBeUndefined();
+    });
+
+    it('a declared set this parse does not recognise reads as undeclared, and keeps the collection', () => {
+      const body = multistatus(
+        collection(
+          '/dav/calendars/user/test/odd/',
+          'Odd',
+          '<C:supported-calendar-component-set><C:comp name="VFREEBUSY"/></C:supported-calendar-component-set>',
+        ),
+      );
+      const collections = (source() as never as {
+        parseCollectionsResponse(b: string, h: string): ReadonlyArray<{ name?: string; components?: string[] }>;
+      }).parseCollectionsResponse(body, '/dav/calendars/user/test/');
+
+      expect(collections.map((c) => c.name)).toEqual(['Odd']);
+      expect(collections[0]?.components).toBeUndefined();
+    });
+
+    it('the component set is read from ITS OWN element, not from any comp element in the response', () => {
+      // A `<comp name="VEVENT"/>` can appear elsewhere in a multistatus — in a
+      // supported-report-set, or a server extension. Reading one of those as
+      // this collection's declaration answers a question the server never
+      // asked, and would put a task list back in the calendar count.
+      const declared = CalDAVSource.parseComponentSet(
+        '<C:supported-calendar-component-set><C:comp name="VTODO"/></C:supported-calendar-component-set>' +
+          '<C:some-other-thing><C:comp name="VEVENT"/></C:some-other-thing>',
+      );
+      expect(declared).toEqual(['VTODO']);
+    });
+
+    it('the PROPFIND actually asks for the property — a parse of something never requested finds nothing', async () => {
+      const httpClient = {
+        request: vi.fn(async () => ({
+          status: 207,
+          headers: {},
+          body: multistatus(collection('/dav/calendars/user/test/personal/', 'Personal')),
+        })),
+      };
+      const s = new CalDAVSource(
+        { url: 'https://caldav.example.com/dav/calendars/user/test/', username: 'test', password: 'pw' },
+        { httpClient },
+      );
+      await s.listFolders();
+      const bodies = httpClient.request.mock.calls.map(([o]) => String((o as { body?: string }).body ?? ''));
+      expect(bodies.some((b) => b.includes('supported-calendar-component-set'))).toBe(true);
+    });
+  });
+
   describe('sync-collection REPORT parsing', () => {
     it('should parse sync-collection REPORT with sync-token', async () => {
       const reportResponse: HttpResponse = {
