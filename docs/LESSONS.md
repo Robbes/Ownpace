@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 75 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 76 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -509,13 +509,13 @@ reading a file drops off its entry by itself.
 
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 
+### `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
+
+- [a-fifth-domain-the-database-would-refuse](../scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts) — No domain the product knows may be one the database refuses (workplan 0113 T2).
+
 ### `packages/ledger/src/retention.ts`
 
 - [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
-
-### `packages/ledger/src/schema-pg.ts`
-
-- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `packages/managed/src/pricing.ts`
 
@@ -586,6 +586,10 @@ reading a file drops off its entry by itself.
 ### `scripts/a-check-that-was-never-valid.unit.test.ts`
 
 - [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts) — A REFUSAL THAT NAMES NOTHING IS A RUN SOMEBODY HAS TO REPEAT TO LEARN ANYTHING.
+
+### `scripts/a-domain-union-typed-out-by-hand.unit.test.ts`
+
+- [a-fifth-domain-the-database-would-refuse](../scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts) — No domain the product knows may be one the database refuses (workplan 0113 T2).
 
 ### `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 
@@ -788,7 +792,6 @@ Reads:
 - `apps/web/src/pages/Connections.tsx`
 - `apps/web/src/services/mapping-service.ts`
 - `apps/worker/src/jobs/run-discovery.ts`
-- `packages/ledger/src/schema-pg.ts`
 - `packages/orchestration/src/domain-lanes.unit.test.ts`
 - `packages/shared/src/discovery.ts`
 - `packages/shared/src/provider-accounts.ts`
@@ -811,6 +814,15 @@ A `false` THE READER COULD NOT REPORT.
 Reads:
 
 - `deploy/compose/setup-zitadel.sh`
+
+### [a-fifth-domain-the-database-would-refuse](../scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts)
+
+No domain the product knows may be one the database refuses (workplan 0113 T2).
+
+Reads:
+
+- `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
+- `scripts/a-domain-union-typed-out-by-hand.unit.test.ts`
 
 ### [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts)
 

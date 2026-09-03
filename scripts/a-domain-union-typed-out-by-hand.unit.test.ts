@@ -53,10 +53,6 @@ const MAY_LIST_THE_VALUES: Readonly<Record<string, string>> = {
   [HOME]: 'The definition. DISCOVERY_DOMAINS, and the type derived from it.',
 
   // --- Mirrors of something outside TypeScript, which widen on their own clock.
-  'packages/ledger/src/schema-pg.ts':
-    "Drizzle's mirror of the SQL CHECK constraints in 0001_baseline.sql. It must " +
-    'say exactly what the database will accept, so it widens with the migration ' +
-    'that widens the database (0113 T2) and never a release before it.',
   'apps/web/src/services/mapping-service.ts':
     'Zod schemas validating what the API returns and accepts. Widening a validator ' +
     'ahead of the ledger would accept a domain the database then refuses, so these ' +

@@ -2,6 +2,27 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
+**2026-09-03 (later still): T2 built — the ledger accepts `task` before anything sends it.**
+Migration `0036_a_task_is_not_an_event.sql` widens **nine** CHECK constraints: eight `domain`
+columns (seven from the baseline, one from 0035's `path_lifecycle`) and `item.item_type`,
+whose vocabulary says 'mail' where the others say 'email' and whose column the code has never
+written. The plan said "nine plus `item_item_type_check`"; measured, it is eight plus that
+one. Additive only — every existing value stays valid, no row is read or written, and a second
+application is a no-op.
+
+`DISCOVERY_DOMAINS` still names four, deliberately: the database accepts a value nobody sends,
+which is inert, rather than code sending a value the database refuses, which is a pass that
+dies half-copied. The Drizzle mirror in `schema-pg.ts` now names `DISCOVERY_DOMAINS` instead
+of listing the values, so it can only ever be narrower than what Postgres accepts — and
+`scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts` fails the build if a domain
+reaches the shared list without a migration behind it. **`journal` is asserted absent**: the
+third component in the same iCalendar enum, deliberately out of scope, and now out of the
+database too.
+
+Verified against a real Postgres (`scripts/local-pg.sh`), not reasoned about: all nine
+constraints read back as accepting `task`, one row inserted into each of the eight domain
+tables plus `item`, and `journal` still refused by name.
+
 **2026-09-03 (later): T1 built — the domain has one name.** The owner, in the same
 message that queued this work: *"add the task-objectkind (one of the latest workplans). Work
 on this autonomously."* That is decision 1, yes. Decisions 2 and 3 are taken as this plan's
@@ -28,7 +49,7 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 |---|---|---|
 | T0 Decide: its own tick, and how far v1 reaches | ✅ Decided 2026-09-03 | 1: **build it** (the owner queued the work). 2: **its own tick**. 3: **Google Tasks out of v1**. 2 and 3 are this plan's own recommendations, taken in the owner's absence and reversible by a word from him. |
 | T1 The domain has ONE name | ✅ Done | Was **80 inline copies across 18 files** (73 when this was written; #734–#738 added seven). Now one `DISCOVERY_DOMAINS` in `packages/shared/src/discovery.ts` with `DiscoveryDomain` derived from it, three redundant aliases removed, and `scripts/a-domain-union-typed-out-by-hand.unit.test.ts` failing the build on a new copy of the type OR of the value list — with every legitimate exception named and two-way, so it cannot go stale. Proved by breaking. No behaviour changed. |
-| T2 The ledger widens | 📋 Planned (needs T1) | Nine `CHECK` constraints in `0001_baseline.sql` pin the four domains, plus `item_item_type_check`. One additive migration widens them; nothing is rewritten, nothing is dropped. |
+| T2 The ledger widens | ✅ Done | `0036_a_task_is_not_an_event.sql`: nine CHECKs widened (eight `domain` columns — seven baseline, one from 0035 — plus the legacy `item.item_type`). Additive, re-runnable, verified against a real Postgres: nine constraints accept `task`, a row lands in each of the eight tables, and `journal` is still refused. The Drizzle mirror names `DISCOVERY_DOMAINS` rather than listing values, and a guard fails the build on a domain that reaches the code without a migration. Proved by breaking. |
 | T3 The source tells a task list from a calendar | 📋 Planned | Two slices. **(a) Honest today:** PROPFIND `supported-calendar-component-set` and stop counting a VTODO-only collection as a calendar. **(b)** Carry it as its own collection kind, and read each object's real component instead of stamping `type: 'event'`. |
 | T4 The writer writes a task | 📋 Planned (needs T3) | The read-back's `comp-filter` follows the component being written; `MKCALENDAR` names the component set when a collection has to be created; a target collection that cannot take the component is refused **by name**, never by a silent 403. |
 | T5 The domain surfaces | 📋 Planned (needs T1, T2, T3) | The matrices, the qualification's fifth face and its badge, the wizard's fifth tick, the discovery counts, the confirm screen, EN/NL strings, the icon. |
