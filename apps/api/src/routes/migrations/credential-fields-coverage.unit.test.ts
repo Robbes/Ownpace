@@ -140,3 +140,41 @@ describe('the DAV url escape hatch is stored, and only where it means something 
     expect('url' in stored).toBe(false);
   });
 });
+
+describe('a stored target carries its type (2026-09-03)', () => {
+  // The Connections door called this builder with the fields alone, so the
+  // kind never reached it and an imap target was stored without `type`, user
+  // or tls; the first migration reusing the row met "Unsupported target
+  // type: undefined". These pin the shapes each type stores, and the guard
+  // beside them pins that the door now says which type.
+  const cfg = { host: 'mail.example.com', port: 993, username: 'u', password: 'p', useSsl: true };
+
+  it('imap stores the imap-dav writer shape, user and tls included', () => {
+    expect(targetConnectionConfig({ targetType: 'imap', targetConfig: cfg } as never)).toMatchObject({
+      type: 'imap-dav',
+      host: 'mail.example.com',
+      port: 993,
+      user: 'u',
+      tls: true,
+    });
+  });
+
+  it('jmap stores its type, baseUrl and user', () => {
+    expect(
+      targetConnectionConfig({ targetType: 'jmap', targetConfig: { ...cfg, port: 443 } } as never),
+    ).toMatchObject({ type: 'jmap', baseUrl: 'https://mail.example.com:443', user: 'u' });
+  });
+
+  it('soverin keeps its mail face — only when the type says soverin', () => {
+    const withMail = { ...cfg, url: 'https://dav.example.com/', mailHost: 'imap.example.com', mailPort: 993 };
+    expect(
+      targetConnectionConfig({ targetType: 'soverin', targetConfig: withMail } as never),
+    ).toMatchObject({ url: 'https://dav.example.com/', mailHost: 'imap.example.com', mailPort: 993 });
+    // A protocol row never grows a mail face — and a call WITHOUT a type
+    // (the door's old shape) drops it, which is the defect made visible.
+    expect(
+      'mailHost' in targetConnectionConfig({ targetType: 'caldav', targetConfig: withMail } as never),
+    ).toBe(false);
+    expect('mailHost' in targetConnectionConfig({ targetConfig: withMail } as never)).toBe(false);
+  });
+});
