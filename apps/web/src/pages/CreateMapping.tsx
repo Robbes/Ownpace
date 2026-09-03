@@ -1008,6 +1008,34 @@ const CreateMapping: React.FC = () => {
       : undefined) ?? probeResults.target?.qualification;
   const measuredAnswerFor = (d: Domain) => qualifiedAnswerFor(targetQualification, d);
 
+  /**
+   * THE SELECTION FITS WHAT THE MIGRATION CAN CARRY (owner, 2026-09-03: "it
+   * was weird I needed to deselect what the migration could not carry: we
+   * can already derive that"). A tick the target cannot receive, or the
+   * target's own record measured a no for, is dropped the moment that
+   * becomes known — a target picked, a source changed, a reused connection's
+   * record arriving, a remembered draft reopened — rather than kept selected
+   * for the person to find behind a refusal and untick by hand. The cards
+   * still show why: unticked, locked, with the note. Only pruning, never
+   * adding: what the person unticked stays unticked.
+   */
+  const onDataTypesStep = steps[currentStep]?.id === 'migration';
+  React.useEffect(() => {
+    // Only where the ticks are shown: on the source step the target is still
+    // the default, and the account kind's consent asks for the faces ticked
+    // THERE (0106 T3b) — pruning them by a target nobody has chosen yet would
+    // narrow the grant. From the data-types step on, the target is a choice.
+    if (!onDataTypesStep) return;
+    const keep = formData.domains.filter(
+      (d) => allowedDomains.includes(d) && measuredAnswerFor(d)?.answer !== 'no',
+    );
+    if (keep.length !== formData.domains.length) {
+      setFormData((prev) => ({ ...prev, domains: prev.domains.filter((d) => keep.includes(d)) }));
+    }
+    // Re-derived when the step, the ceiling or the record moves; the domains
+    // themselves are read from the render this effect belongs to.
+  }, [onDataTypesStep, allowedDomains.join(','), targetQualification]);
+
   // oauth2/graph authenticate with the customer's own Entra app registration
   // (0037 T6): no host/port to type, an app registration to enter instead.
   // google-drive authenticates with the customer's own Google OAuth client
