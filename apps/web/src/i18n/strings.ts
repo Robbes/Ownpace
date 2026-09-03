@@ -257,6 +257,14 @@ const en = {
   // One sentence for every provider's consent: what lands is the same
   // token in the same box, and the same save-and-test follows.
   'wizard.consent.received': 'Consent received — saving and testing this connection.',
+  // The arm that must never be silent (workplan 0114): a credential field
+  // naming a provider no door has a consent for. Nothing sends a person to
+  // the wrong company's consent screen; the form says so and the manual
+  // token field is still there.
+  'wizard.consent.noProvider':
+    'This connection type has no consent button on this deployment. Paste a refresh token you ' +
+    'already have, or report this — the type says it is filled by consent and nothing here can ' +
+    'start one.',
   // The account first (owner's walk, 2026-09-02): the consent saves and
   // tests in one go, and the save needs the address.
   'wizard.consent.needsAccount':
@@ -293,6 +301,41 @@ const en = {
   'wizard.dropbox.ownClient': 'Use your own Dropbox app instead',
   'wizard.dropbox.redirectUri':
     'Register this exact address in your Dropbox app, under OAuth 2 → Redirect URIs:',
+  // Connect with Microsoft (workplan 0114): the same button a third time.
+  // Two things say Microsoft rather than Google or Dropbox — the words
+  // "app registration" and "Microsoft Entra ID", which are the provider's
+  // own, and the TENANT, which neither of the other two has.
+  'wizard.microsoft.connect': 'Connect with Microsoft',
+  'wizard.microsoft.connect.hint':
+    'Opens Microsoft’s consent screen and fills the refresh token in for you. It asks you to ' +
+    'pick which account, so a migration cannot quietly read the wrong mailbox. Pasting a token ' +
+    'you already have keeps working.',
+  'wizard.microsoft.connect.needsClient':
+    'Enter the Application (client) ID and client secret first — the consent runs against your ' +
+    'own app registration.',
+  'wizard.microsoft.connect.halfClient':
+    'Enter both the Application (client) ID and the client secret, or neither — this deployment ' +
+    'has its own app registration.',
+  'wizard.microsoft.deploymentClient':
+    'This deployment has its own Microsoft app registration, so these two can stay empty. ' +
+    'Enter both to use your own instead.',
+  'wizard.microsoft.ownClient': 'Use your own app registration instead',
+  'wizard.microsoft.redirectUri':
+    'Register this exact address in your app registration, under Authentication → Redirect URIs:',
+  // The tenant, which is the field Google and Dropbox have no equivalent of.
+  // Empty is the RIGHT answer for almost everybody, and a hint that only said
+  // "optional" would leave the one person it matters to guessing.
+  'wizard.microsoft.tenantId.hint':
+    'Leave empty unless your app registration is single-tenant. Empty means this deployment’s ' +
+    'own directory setting, which accepts any work, school or personal Microsoft account. A ' +
+    'single-tenant registration sent to the wrong directory fails with a message about the ' +
+    'application not being found — which reads like a typo and is not one.',
+  // The ACCOUNT card. Four faces, and the sentence says why that is more than
+  // Google offers rather than leaving it looking like an oversight there.
+  'wizard.proto.microsoft.hint':
+    'One Microsoft 365 account, one sign-in — mail, calendars, contacts and OneDrive, ' +
+    'whichever you tick. The two cards beside this one are for a customer who already has '
+    + 'their own app registration.',
   // The two Microsoft 365 connection methods (0107 T1): the family heading
   // says WHO, the card says HOW — "OAuth2" as a card name said neither.
   'wizard.group.provider': 'Your provider',
@@ -1799,6 +1842,10 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.google.connect.needsClient':
     'Vul eerst de Client-ID en het clientgeheim in — de toestemming loopt via uw eigen Google-client.',
   'wizard.consent.received': 'Toestemming ontvangen — de verbinding wordt opgeslagen en getest.',
+  'wizard.consent.noProvider':
+    'Voor dit verbindingstype is op deze installatie geen toestemmingsknop. Plak een ' +
+    'vernieuwingstoken dat u al heeft, of meld dit — het type zegt dat het via toestemming ' +
+    'wordt gevuld en niets hier kan er een starten.',
   'wizard.consent.needsAccount':
     'Vul eerst het accountadres in — de toestemming slaat de verbinding in één keer op en test ' +
     'hem, en het adres zegt van wie de gegevens zijn.',
@@ -1827,6 +1874,32 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.dropbox.ownClient': 'Gebruik in plaats daarvan uw eigen Dropbox-app',
   'wizard.dropbox.redirectUri':
     'Registreer dit exacte adres in uw Dropbox-app, onder OAuth 2 → Redirect URIs:',
+  'wizard.microsoft.connect': 'Verbinden met Microsoft',
+  'wizard.microsoft.connect.hint':
+    'Opent het toestemmingsscherm van Microsoft en vult het vernieuwingstoken voor u in. Het ' +
+    'vraagt u welk account, zodat een migratie niet stilletjes de verkeerde postbus leest. Een ' +
+    'token plakken dat u al heeft, blijft gewoon werken.',
+  'wizard.microsoft.connect.needsClient':
+    'Vul eerst de toepassings-id (client) en het clientgeheim in — de toestemming loopt via uw ' +
+    'eigen appregistratie.',
+  'wizard.microsoft.connect.halfClient':
+    'Vul zowel de toepassings-id (client) als het clientgeheim in, of geen van beide — deze ' +
+    'installatie heeft een eigen appregistratie.',
+  'wizard.microsoft.deploymentClient':
+    'Deze installatie heeft een eigen Microsoft-appregistratie, dus deze twee mogen leeg ' +
+    'blijven. Vul beide in om in plaats daarvan uw eigen registratie te gebruiken.',
+  'wizard.microsoft.ownClient': 'Gebruik in plaats daarvan uw eigen appregistratie',
+  'wizard.microsoft.redirectUri':
+    'Registreer dit exacte adres in uw appregistratie, onder Verificatie → Omleidings-URI\u0027s:',
+  'wizard.microsoft.tenantId.hint':
+    'Laat leeg tenzij uw appregistratie voor één tenant is. Leeg betekent de mapinstelling van ' +
+    'deze installatie, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een ' +
+    'registratie voor één tenant die naar de verkeerde map wordt gestuurd, mislukt met een ' +
+    'melding dat de toepassing niet is gevonden — wat op een typefout lijkt en het niet is.',
+  'wizard.proto.microsoft.hint':
+    'Eén Microsoft 365-account, één keer aanmelden — e-mail, agenda\u0027s, contacten en ' +
+    'OneDrive, wat u ook aanvinkt. De twee kaarten ernaast zijn voor een klant die al een ' +
+    'eigen appregistratie heeft.',
   'wizard.group.provider': 'Uw aanbieder',
   'wizard.group.protocol': 'Elke server, via protocol',
   'wizard.m365.viaImap': 'Via IMAP',

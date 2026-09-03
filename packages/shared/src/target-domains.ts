@@ -127,7 +127,11 @@ export type WizardSourceType =
   // faces from one row, one credential, one consent. The four single-domain
   // kinds above stay valid and cohabit — the owner's decision of 2026-08-27 —
   // because mail and files wait on Google's restricted-scope assessment.
-  | 'google';
+  | 'google'
+  // One Microsoft 365 ACCOUNT (workplan 0114), the same shape a provider
+  // later. It cohabits with `oauth2` and `graph` above for the same reason:
+  // a customer with their own app registration keeps it.
+  | 'microsoft';
 
 /** Domains a wizard source can serve, where the source constrains it at all. */
 export const SOURCE_TYPE_DOMAINS: Partial<
@@ -145,6 +149,12 @@ export const SOURCE_TYPE_DOMAINS: Partial<
   // Google SCOPE tables, and there is no reason to reintroduce it one file
   // away.
   google: PROVIDER_ACCOUNT_DOMAINS.google,
+  // Read from the same table, for the same reason. Microsoft constrains too,
+  // and it is worth being clear about WHICH face is missing: `task` is the
+  // one, Graph has it at `/me/todo/lists`, and the connector for it is not
+  // built (0114 T9). So a mapping that ticks tasks against a Microsoft source
+  // is refused with a reason rather than run against a face nothing serves.
+  microsoft: PROVIDER_ACCOUNT_DOMAINS.microsoft,
 };
 
 /**
@@ -165,6 +175,19 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
   'google-contacts': {
     name: 'Google Contacts',
     reads: 'contacts only (the https://www.googleapis.com/auth/carddav scope)',
+  },
+  microsoft: {
+    name: 'Microsoft 365',
+    // The honest asymmetry with Google's sentence below: Microsoft's four
+    // faces are not held back by a scope tier — its delegated read scopes
+    // carry no equivalent of Google's restricted class. The ONE face missing
+    // is tasks, and that absence is ours: Graph serves To Do lists at
+    // /me/todo/lists under Tasks.Read, and no connector reads them yet
+    // (workplan 0114 T9). Saying so is the difference between "this provider
+    // cannot" and "we have not built it".
+    reads:
+      'mail, calendars, contacts and OneDrive. Microsoft To Do is not among them yet — '
+      + 'Graph serves it and this product has no connector for it',
   },
   google: {
     name: 'Google',

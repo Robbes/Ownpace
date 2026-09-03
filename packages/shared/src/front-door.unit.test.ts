@@ -81,7 +81,11 @@ describe('partitionFrontDoor — the one algorithm both doors render', () => {
   it('splits the source vocabulary into families, standalones and protocols, order kept', () => {
     const p = ids(connectableTypes('source'));
     expect(p.families.map((f) => f.id)).toEqual(['microsoft365', 'google']);
-    expect(p.families[0]?.members).toEqual(['oauth2', 'graph']);
+    // The Microsoft ACCOUNT first (workplan 0114), by the same rule that puts
+    // `google` first in its own family below and `oauth2` before `graph`: the
+    // usual choice leads. The two app-registration methods stay beside it for
+    // a customer who already has a registration.
+    expect(p.families[0]?.members).toEqual(['microsoft', 'oauth2', 'graph']);
     // The ACCOUNT first (workplan 0106 T3b) — "the usual choice first", the
     // same rule that puts oauth2 before graph. The four single-purpose
     // products stay beside it: they are the only way to mail and files until

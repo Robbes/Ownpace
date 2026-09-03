@@ -192,6 +192,8 @@ export const CreateMappingResponseSchema = z.object({
     'imap',
     'oauth2',
     'graph',
+    // One Microsoft 365 ACCOUNT, four faces (workplan 0114).
+    'microsoft',
     'google-drive',
     'gmail',
     'google-calendar',
@@ -220,6 +222,7 @@ export interface CreateMappingInput {
     | 'imap'
     | 'oauth2'
     | 'graph'
+    | 'microsoft'
     | 'google-drive'
     | 'gmail'
     | 'google-calendar'
@@ -446,9 +449,16 @@ export const providerAccountsApi = {
  * (2026-09-02: Connect with Dropbox). Asked, not compiled in, for the reason
  * the provider accounts are: the pair is set at run time.
  */
+const CLIENT_SOURCE = z.enum(['deployment', 'connection']);
 export const ProviderClientFactsSchema = z.object({
-  google: z.enum(['deployment', 'connection']),
-  dropbox: z.enum(['deployment', 'connection']),
+  google: CLIENT_SOURCE,
+  dropbox: CLIENT_SOURCE,
+  // Microsoft (workplan 0114). A provider missing from THIS schema is the
+  // same silent failure as one missing from the server's list: `parse` would
+  // strip the key, the lookup would read `undefined`, and the client pair
+  // would never fold. `scripts/a-consent-nobody-can-answer.unit.test.ts`
+  // pairs all three files against one list.
+  microsoft: CLIENT_SOURCE,
 });
 export type ProviderClientFacts = z.infer<typeof ProviderClientFactsSchema>;
 
@@ -605,6 +615,29 @@ export const mappingApi = {
     p: { clientId?: string; clientSecret?: string } = {},
   ): Promise<{ url: string; redirectUri: string }> => {
     const response = await apiClient.post('/migrations/dropbox/authorize', p);
+    return response.data as { url: string; redirectUri: string };
+  },
+
+  /**
+   * Microsoft's turn at the same round trip (workplan 0114).
+   *
+   * Shaped like the GOOGLE ACCOUNT ask rather than Dropbox's, because it is
+   * one: `domains` says which faces to consent for, and the server builds the
+   * scope list from them so the consent screen and the ticks cannot disagree.
+   * An empty set is refused server-side rather than defaulted.
+   *
+   * `tenantId` travels beside a caller's OWN pair, never alone: a single-tenant
+   * registration sent against the deployment's authority fails at Entra with a
+   * message about the application not being found, which reads like a typo and
+   * is not one (0114 T1).
+   */
+  microsoftAuthorize: async (p: {
+    domains: ReadonlyArray<string>;
+    clientId?: string;
+    clientSecret?: string;
+    tenantId?: string;
+  }): Promise<{ url: string; redirectUri: string }> => {
+    const response = await apiClient.post('/migrations/microsoft/authorize', p);
     return response.data as { url: string; redirectUri: string };
   },
 

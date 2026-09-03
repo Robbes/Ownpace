@@ -40,6 +40,12 @@ export interface FrontDoorCard {
  */
 export const SOURCE_CARDS = [
   { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
+  // The ACCOUNT (workplan 0114), first among the Microsoft cards for the same
+  // reason `google` leads its family: it is the usual choice, and it is the
+  // only one of the three that a person without an IT department can finish.
+  // The two app-registration methods stay beside it for the customer who
+  // already has a registration — cohabitation, not replacement.
+  { id: 'microsoft', name: 'Microsoft 365 account', hintKey: 'wizard.proto.microsoft.hint' },
   { id: 'oauth2', nameKey: 'wizard.m365.viaImap', hintKey: 'wizard.proto.oauth2.hint' },
   { id: 'graph', nameKey: 'wizard.m365.viaGraph', hintKey: 'wizard.proto.graph.hint' },
   // The ACCOUNT (workplan 0106 T3b), first among the Google cards because

@@ -102,6 +102,37 @@ const GRANTS: readonly StandingGrant[] = [
       'permanente machtiging om de betrokken postbussen te lezen, of iemand die nu gebruikt of niet.',
   },
   {
+    // The ACCOUNT kind's grant (workplan 0114), and a SECOND Microsoft entry
+    // rather than a wider `impliedBy` on the one above. The two are different
+    // grants that happen to share a provider:
+    //
+    //  - `o365`/`graph`/`oauth2` carry an ADMIN consent in an Entra tenant,
+    //    removable only by an administrator, often covering other people's
+    //    mailboxes.
+    //  - `microsoft` carries the signed-in person's OWN delegated consent,
+    //    which they remove themselves, in a different console, over their own
+    //    data only.
+    //
+    // Telling somebody who pressed a button that they need an administrator
+    // is a dead end at exactly the moment they are trying to leave — and the
+    // reverse, telling an admin they can do it from My Account, is worse: it
+    // leaves a tenant-wide permission live while they believe it is gone.
+    id: 'microsoft-account',
+    impliedBy: ['microsoft'],
+    whatTheyCallIt: 'My Account → Privacy → Apps and services',
+    where: 'https://myaccount.microsoft.com → Privacy → Apps and services you have given access to',
+    en:
+      'The consent you gave this application stays on your Microsoft account until you remove ' +
+      'it there. Until then it remains a standing permission to read the mail, calendars, ' +
+      'contacts and files you approved, whether or not anybody is using it. Microsoft publishes ' +
+      'no way for us to withdraw it on your behalf.',
+    nl:
+      'De toestemming die u aan deze toepassing hebt gegeven, blijft op uw Microsoft-account ' +
+      'staan totdat u die daar verwijdert. Tot dat moment blijft het een permanente machtiging ' +
+      'om de e-mail, agenda\u0027s, contacten en bestanden te lezen die u hebt goedgekeurd, of ' +
+      'iemand die nu gebruikt of niet. Microsoft biedt ons geen manier om die namens u in te trekken.',
+  },
+  {
     id: 'google',
     // One Google account authorization covers every Google connector — which
     // is exactly why the ACCOUNT kind belongs here beside the four

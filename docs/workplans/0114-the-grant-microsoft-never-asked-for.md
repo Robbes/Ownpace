@@ -2,8 +2,8 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
-**T1 to T4 are done and on PR #759. T5 has been split into three, and T2 has
-been split into two** — see "What the survey missed" below for the first and
+**T1 to T4 are on PR #759; T5a on #760; T2b, T5b and T5c on #761. The button
+exists.** T5 was split into three and T2 into two — see "What the survey missed" below for the first and
 the T2b row for the second. Both splits are corrections to this plan rather
 than new scope: T2 was written as "the consent round trip" and delivered the
 consent MODULE, which has no consumer; T5 was written as "the button" over a
@@ -58,12 +58,12 @@ pattern for a third time, over connectors that need no change at all.
 | T0 Decide: faces, authority, and what the button asks for | ✅ Taken in his absence, recorded | Recommendation: all four faces, `/common` multi-tenant, read-only delegated scopes. Reasoning under "The design". |
 | T1 The deployment's own Entra client | ✅ Done | `microsoft-deployment-client.ts` beside the Google and Dropbox ones: `MICROSOFT_OAUTH_CLIENT_ID`/`_SECRET` both-or-neither, `resolveMicrosoftClient`, the half-pair refusal at every door. |
 | T2 The consent, as a module | ✅ Done | `microsoft-consent.ts`: the authorize URL, `microsoftScopesFor`, `exchangeMicrosoftCode`, the AADSTS refusal sentences, `offline_access` as a scope. Twelve tests. |
-| T2b The two routes that use it | 📋 Not started | **`microsoft-consent.ts` has no consumer.** There is no `microsoft-oauth-routes.ts` beside `google-oauth-routes.ts` and `dropbox-oauth-routes.ts`, so `POST /microsoft/authorize` and `GET /microsoft/callback` do not exist. T2 was planned as "the consent round trip" and delivered the module half; this is the other half, and it is the #721 lesson's home (the callback answers under its own headers). |
+| T2b The two routes that use it | ✅ Done | `microsoft-oauth-routes.ts` beside the Google and Dropbox ones, mounted, documented in `openapi.yaml`, listed in the sub-router guard. The TENANT rides the pending state so the callback exchanges at the same authority the authorize half used. |
 | T3 The `microsoft` account kind | ✅ Done | One row in `PROVIDER_ACCOUNT_KINDS` and one in `PROVIDER_ACCOUNT_DOMAINS`. The table was built for this. |
 | T4 The token reaches the connectors | ✅ Done, and it was already wired | The expectation held: no connector, factory or token-provider change. What the task produced instead is `a-consent-that-asks-for-a-different-scope`, pinning `MICROSOFT_DOMAIN_SCOPES` against `DELEGATED_SCOPES` and the inline mail scope, both directions, plus no writers. |
 | T5a The four faces the managed path never wired | ✅ Done | **Four, not three — the mail face was found while testing the other three.** One face table (`source-face-builders.ts`), four seams reading it, the Graph refusals threaded with the managed vocabulary, `MicrosoftAccountSource` as the config type, `googleDavServes`/`googleDriveServes` retired into the table, and a guard pairing it against `PROVIDER_ACCOUNT_DOMAINS` in both directions. Proved by restoring each old path, which reproduced both defects verbatim. |
-| T5b The kind in the tables a kind lives in | 📋 Not started | `credential-fields`, `providerClientFacts`, the `microsoft365` front-door family, the icon registry, the source config. T3 put `microsoft` in the account-kind table; a kind is not one row. |
-| T5c The button, in both doors | 📋 Not started | Wizard and Connections add-form, folding the client pair away when the deployment carries it, one-go save+test. **The two `grantProvider === 'dropbox' ? … : …` ternaries become a table first** — that is a two-provider condition with a third provider arriving, and its `else` branch runs Google's authorize for anything that is not Dropbox. |
+| T5b The kind in the tables a kind lives in | ✅ Done | Fourteen tables, and the guards named every one: credential fields, provider-client facts (derived from `GRANT_PROVIDERS` now), the front-door family/lane/icon/card, the source config, the create enum + validator branch, `sourceKindFor`, the drizzle enum, migration 0037, `WizardSourceType` + its two constraint tables, revocation, standing grants, the feature matrix, and the gate-coverage verdict. |
+| T5c The button, in both doors | ✅ Done | Both `grantProvider === 'dropbox' ? … : …` ternaries are per-provider tables; `isAccountKind` reads `PROVIDER_ACCOUNT_KINDS`; strings en+nl; a door test proved by restoring the old fall-through, which sent the Microsoft customer to Google. |
 | T6 The refusals speak | 📋 Not started | `AADSTS65001`/`AADSTS90094` rendered as sentences, per #722's treatment of Google's `accessNotConfigured`. |
 | T7 Docs and env plumbing | 📋 Not started | `managed.yml`, `set-task-env`, `env.example`, redirect-URIs page, an operator guide and a customer guide. |
 | T8 The gate | 📋 Not started | Managed smoke assertions with a sentinel pair never followed to Microsoft, mirroring #729. |

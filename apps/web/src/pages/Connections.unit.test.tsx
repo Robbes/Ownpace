@@ -53,6 +53,7 @@ const {
   providerClients,
   googleAuthorize,
   dropboxAuthorize,
+  microsoftAuthorize,
 } = vi.hoisted(() => ({
   list: vi.fn(),
   test: vi.fn(),
@@ -65,12 +66,13 @@ const {
   providerClients: vi.fn(),
   googleAuthorize: vi.fn(),
   dropboxAuthorize: vi.fn(),
+  microsoftAuthorize: vi.fn(),
 }));
 
 vi.mock('../services/mapping-service', () => ({
   connectionsApi: { list, test: testConnection, rotate, remove, add },
   providerClientsApi: { get: providerClients },
-  mappingApi: { googleAuthorize, dropboxAuthorize },
+  mappingApi: { googleAuthorize, dropboxAuthorize, microsoftAuthorize },
 }));
 
 import Connections from './Connections.tsx';
@@ -101,9 +103,10 @@ beforeEach(() => {
   list.mockReset();
   testConnection.mockReset();
   rotate.mockReset();
-  providerClients.mockReset().mockResolvedValue({ google: 'connection', dropbox: 'connection' });
+  providerClients.mockReset().mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'connection' });
   googleAuthorize.mockReset();
   dropboxAuthorize.mockReset();
+  microsoftAuthorize.mockReset();
   add.mockReset();
   remove.mockReset();
 });
@@ -495,7 +498,7 @@ describe('adding a connection through the front door', () => {
     // the pair sits behind a disclosure, both halves inside it, and the
     // default form is the address and the token. Which kinds fold is the
     // descriptor's answer — an id paired with its secret — not a list here.
-    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection' });
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
     await open();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     const fold = (
@@ -512,7 +515,7 @@ describe('adding a connection through the front door', () => {
     // Owner step 4, 2026-09-02: the fold took the pair away (#709) and left
     // no way to obtain the token — on a managed deployment this door's Gmail
     // and Drive paths were dead ends. The wizard's consent, on this door.
-    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection' });
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
     googleAuthorize.mockResolvedValue({
       url: 'https://accounts.google.com/o/oauth2/v2/auth?scope=x',
       redirectUri: 'https://app.example.test/api/migrations/google/callback',
@@ -564,7 +567,7 @@ describe('adding a connection through the front door', () => {
   });
 
   it('the account kind asks for the faces ticked, and nothing with none ticked', async () => {
-    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection' });
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
     googleAuthorize.mockResolvedValue({ url: 'https://accounts.google.com/x', redirectUri: 'r', scope: 'x' });
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
     try {
@@ -625,13 +628,65 @@ describe('adding a connection through the front door', () => {
     expect(screen.getByPlaceholderText('…apps.googleusercontent.com').closest('details')).toBeNull();
   });
 
+  it('offers Connect with Microsoft, asks for the ticked faces only, and never falls through to Google', async () => {
+    // Owner ask 2026-09-03: "make the south grants button for Microsoft like
+    // o365 mail, OneDrive, calendar, and the other kinds we support."
+    //
+    // The assertion that matters most is the LAST one. Before workplan 0114
+    // this page chose its consent with `grantProvider === 'dropbox' ? dropbox
+    // : google`, whose else branch would have sent a Microsoft customer to
+    // GOOGLE's consent screen and reported success. A two-way condition
+    // meeting a third provider does not fail to compile.
+    providerClients.mockResolvedValue({
+      google: 'connection',
+      dropbox: 'connection',
+      microsoft: 'deployment',
+    });
+    microsoftAuthorize.mockResolvedValue({
+      url: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=x',
+      redirectUri: 'https://app.example.test/api/migrations/microsoft/callback',
+    });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'someone@contoso.example' },
+      });
+      const button = await screen.findByRole('button', { name: /Connect with Microsoft/ });
+      // An ACCOUNT kind, so the faces come first: the consent asks for exactly
+      // what is ticked, and nothing ticked is nothing to ask for.
+      expect(button).toBeDisabled();
+      fireEvent.click(screen.getByRole('checkbox', { name: /Calendar/i }));
+      await waitFor(() => expect(button).toBeEnabled());
+      expect(screen.queryByRole('button', { name: /Connect with Google/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Connect with Dropbox/ })).toBeNull();
+
+      // Microsoft's words on the fold, and its own three fields inside it.
+      const fold = screen.getByText('Use your own app registration instead').closest('details');
+      expect(fold).not.toBeNull();
+      expect(fold).toHaveTextContent(/has its own Microsoft app registration/);
+
+      fireEvent.click(button);
+      await waitFor(() => expect(microsoftAuthorize).toHaveBeenCalled());
+      // The deployment's registration: no pair sent, not even empty strings —
+      // and the ticked face, not a default somebody never chose.
+      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar'] });
+      expect(googleAuthorize).not.toHaveBeenCalled();
+      expect(dropboxAuthorize).not.toHaveBeenCalled();
+      expect(opened.mock.calls[0]?.[1]).toBe('ownpace-microsoft-consent');
+    } finally {
+      opened.mockRestore();
+    }
+  });
+
   it('offers Connect with Dropbox where the deployment carries a Dropbox app, folds the App key pair away, and a consent that lands saves and tests in one go', async () => {
     // Owner ask 2026-09-02: "add the grant button for Dropbox, similar to how
     // we now have Google". Which kinds have a button is the descriptor's
     // answer (`consent` on the token field), so Dropbox's arrival changed no
     // list in this page — and the fact is Dropbox's own: a deployment with
     // no Google client and a Dropbox app folds Dropbox's pair, not Google's.
-    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'deployment' });
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'deployment', microsoft: 'connection' });
     dropboxAuthorize.mockResolvedValue({
       url: 'https://www.dropbox.com/oauth2/authorize?client_id=x&token_access_type=offline',
       redirectUri: 'https://app.example.test/api/migrations/dropbox/callback',
@@ -739,7 +794,7 @@ describe('adding a connection through the front door', () => {
     // The consent saves and tests in one go, and the save needs the address:
     // pressed before it was typed, the door answered "Still needed: username"
     // to a form whose button had just said yes.
-    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'deployment' });
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'deployment', microsoft: 'connection' });
     await open();
     fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
     const button = await screen.findByRole('button', { name: /Connect with Dropbox/ });

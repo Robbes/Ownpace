@@ -54,7 +54,7 @@ export interface CredentialField {
    * it. A screen reads it to know which button to offer; a list of kinds
    * kept in the page would be a second copy of this table.
    */
-  readonly consent?: 'google' | 'dropbox';
+  readonly consent?: 'google' | 'dropbox' | 'microsoft';
   /** A pasted key file rather than a one-line value. */
   readonly multiline?: boolean;
   /**
@@ -154,6 +154,52 @@ function googleFields(): ReadonlyArray<CredentialField> {
     { ...SECRET, required: false },
     { ...REFRESH, consent: 'google' },
     SERVICE_ACCOUNT_KEY,
+  ];
+}
+
+/**
+ * The `microsoft` ACCOUNT type (workplan 0114) — one Entra grant, four faces.
+ *
+ * `googleFields()`'s sibling, and deliberately NOT `o365Fields()` below. Those
+ * two ask a customer for their own app registration and require every part of
+ * it; this one is the grant-button shape, where the deployment may carry the
+ * application and the person carries only the consent (ADR-0041).
+ *
+ * Three differences from Google's, each with a reason:
+ *
+ *  - **The refresh token is `required`.** Google's four types can also be fed a
+ *    service-account key, so its token is optional; there is no service-account
+ *    equivalent here. Without the token there is no credential at all.
+ *  - **No `serviceAccountKey`.** Graph's application flow is a client secret
+ *    with `.default`, which `graph`/`oauth2` already offer. Putting a field
+ *    here that this row's builders never read would be offering something that
+ *    cannot work — the same rule that keeps the app-password field on `gmail`
+ *    alone.
+ *  - **`tenantId` is present and OPTIONAL**, which is the whole asymmetry with
+ *    `o365Fields()`. A row that took the grant button has no directory of its
+ *    own and the deployment's authority answers for it (`common` unless an
+ *    operator declared otherwise). A customer using their own single-tenant
+ *    registration types theirs here and it wins — sending them to `common`
+ *    fails at Entra with a message about the application not being found,
+ *    which reads like a typo and is not one (0114 T1).
+ */
+function microsoftAccountFields(): ReadonlyArray<CredentialField> {
+  return [
+    USER,
+    {
+      key: 'clientId',
+      labelKey: 'wizard.clientId',
+      placeholder: '00000000-0000-0000-0000-000000000000',
+      pairedWith: 'clientSecret',
+    },
+    { ...SECRET, required: false },
+    { ...REFRESH, required: true, consent: 'microsoft', placeholder: '0.AXoA…' },
+    {
+      key: 'tenantId',
+      labelKey: 'wizard.tenantId',
+      placeholder: 'contoso.onmicrosoft.com',
+      hintKey: 'wizard.microsoft.tenantId.hint',
+    },
   ];
 }
 
@@ -261,6 +307,11 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
   // set, which is the authorize route's business and not a field anybody
   // types.
   google: googleFields(),
+  // The Microsoft ACCOUNT kind (workplan 0114), cohabiting with `graph` and
+  // `oauth2` exactly as `google` cohabits with its four single-purpose types:
+  // a customer who registered their own Entra application keeps using it, and
+  // a person who just wants their mail presses a button.
+  microsoft: microsoftAccountFields(),
   graph: o365Fields(),
   oauth2: o365Fields(),
   imap: [
@@ -430,6 +481,7 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   // how it authenticates, not how it connects — the distinction a person
   // picking between the two actually needs.
   oauth2: 'Microsoft 365 (IMAP)',
+  microsoft: 'Microsoft 365 account',
   graph: 'Microsoft 365 (Graph API)',
   'google-drive': 'Google Drive',
   gmail: 'Gmail',

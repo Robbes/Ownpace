@@ -81,6 +81,7 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
       'src/routes/migrations/operating-routes.ts',
       'src/routes/migrations/google-oauth-routes.ts',
       'src/routes/migrations/dropbox-oauth-routes.ts',
+      'src/routes/migrations/microsoft-oauth-routes.ts',
       'src/routes/migrations/link-routes.ts',
     ],
   },
