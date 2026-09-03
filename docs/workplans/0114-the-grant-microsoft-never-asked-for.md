@@ -61,7 +61,7 @@ pattern for a third time, over connectors that need no change at all.
 | T2b The two routes that use it | 📋 Not started | **`microsoft-consent.ts` has no consumer.** There is no `microsoft-oauth-routes.ts` beside `google-oauth-routes.ts` and `dropbox-oauth-routes.ts`, so `POST /microsoft/authorize` and `GET /microsoft/callback` do not exist. T2 was planned as "the consent round trip" and delivered the module half; this is the other half, and it is the #721 lesson's home (the callback answers under its own headers). |
 | T3 The `microsoft` account kind | ✅ Done | One row in `PROVIDER_ACCOUNT_KINDS` and one in `PROVIDER_ACCOUNT_DOMAINS`. The table was built for this. |
 | T4 The token reaches the connectors | ✅ Done, and it was already wired | The expectation held: no connector, factory or token-provider change. What the task produced instead is `a-consent-that-asks-for-a-different-scope`, pinning `MICROSOFT_DOMAIN_SCOPES` against `DELEGATED_SCOPES` and the inline mail scope, both directions, plus no writers. |
-| T5a The three faces the managed path never wired | ✅ Done | One face table (`source-face-builders.ts`), three seams rewritten as switches over it, the Graph refusals threaded with the managed vocabulary, `googleDavServes`/`googleDriveServes` retired into it, and a guard pairing the table against `PROVIDER_ACCOUNT_DOMAINS` in both directions. Proved by restoring the old fall-through, which reproduced the defect verbatim. |
+| T5a The four faces the managed path never wired | ✅ Done | **Four, not three — the mail face was found while testing the other three.** One face table (`source-face-builders.ts`), four seams reading it, the Graph refusals threaded with the managed vocabulary, `MicrosoftAccountSource` as the config type, `googleDavServes`/`googleDriveServes` retired into the table, and a guard pairing it against `PROVIDER_ACCOUNT_DOMAINS` in both directions. Proved by restoring each old path, which reproduced both defects verbatim. |
 | T5b The kind in the tables a kind lives in | 📋 Not started | `credential-fields`, `providerClientFacts`, the `microsoft365` front-door family, the icon registry, the source config. T3 put `microsoft` in the account-kind table; a kind is not one row. |
 | T5c The button, in both doors | 📋 Not started | Wizard and Connections add-form, folding the client pair away when the deployment carries it, one-go save+test. **The two `grantProvider === 'dropbox' ? … : …` ternaries become a table first** — that is a two-provider condition with a third provider arriving, and its `else` branch runs Google's authorize for anything that is not Dropbox. |
 | T6 The refusals speak | 📋 Not started | `AADSTS65001`/`AADSTS90094` rendered as sentences, per #722's treatment of Google's `accessNotConfigured`. |
@@ -81,12 +81,18 @@ The MANAGED path is `build-deps-from-mapping.ts`, which builds a source from a
 stored connection's decrypted credentials. What it can build for Microsoft is
 `graph-mail`, and nothing else:
 
-| Seam | What it asks | Microsoft's answer |
+| Seam | What it asked | Microsoft's answer |
 |---|---|---|
-| mail | `sourceConfig.type === 'graph-mail'` | ✅ built |
+| mail | `sourceConfig.type === 'graph-mail'` | ❌ refused: *"only supports imap-oauth2, graph-mail, gmail and google mail sources, got: microsoft"* |
 | calendar | `googleDavServes(kind, 'calendar') ? Google : DAV` | ❌ falls to DAV |
 | contact | `googleDavServes(kind, 'contact') ? Google : DAV` | ❌ falls to DAV |
 | file | `dropbox / box / googleDriveServes / DAV` | ❌ falls to DAV |
+
+**The mail row was wrong when this section was first written** — it said
+"✅ built", because `graph-mail` is wired and the survey stopped there. A
+`microsoft` account row's config type is `microsoft`, not `graph-mail`, so it
+never reached that branch. Found by writing the test file for the other
+three, which is the argument for writing them.
 
 A `microsoft` account row reaching any of the last three would be handed to
 `davEndpointFromCreds`, which would refuse it for a missing username and
