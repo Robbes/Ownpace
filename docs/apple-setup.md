@@ -102,37 +102,78 @@ archive with a date on it, not a live account.
 
 ### What Apple's export actually gives you
 
-Read from Apple's own request flow on 4 September 2026, so this is measured
-rather than repeated. There are **two different routes** on that page, and
-people confuse them:
+From Apple's own request flow and its support page
+[HT102208](https://support.apple.com/102208) (published 24 April 2026), read on
+4 September 2026 — so this is measured rather than repeated. There are **two
+different routes**, and people confuse them:
 
 **Request a copy of your data** — the download. You tick categories, Apple
-prepares them, and you get a link. Apple's own wording: *"this process can take
-up to seven days"*, which it uses to verify the request came from you. The
-maximum file size is a choice — **1, 2, 5, 10 or 25 GB** — and Apple splits the
-data into parts no larger than that. What comes back:
+verifies the request came from you, and then puts the files on your Data &
+Privacy page. Two clocks:
 
-- **documents, photos and videos in their original format** — this is the part
-  that matters, and it is why the export is the answer for iCloud Drive;
+- **up to seven days** to prepare, which is the verification period;
+- **fourteen days** to download once it is ready. After that Apple deletes it
+  from that page and you request it again from scratch.
+
+The maximum file size is your choice — **1, 2, 5, 10 or 25 GB** — and Apple
+splits the data into parts no larger than that.
+
+What comes back, in Apple's own description:
+
+- **photos, videos and documents in their original formats** — the part that
+  matters, and why the export is the answer for iCloud Drive;
 - **contacts, calendars, bookmarks and mail as `.vcf`, `.ics`, `.html` and
   `.eml`** — ordinary interchange formats, not an Apple-only container;
+- notes and reminders, which live in iCloud alongside them;
 - app usage and activity as spreadsheets or `.json`, `.csv`, `.pdf`.
 
-It does **not** include purchases of apps, books, films, TV programmes or
-music. The iCloud categories you can tick include iCloud Drive files and
-documents, iCloud Mail, iCloud Photos, iCloud Calendars **and Reminders**,
-iCloud Contacts, and iCloud bookmarks and reading list.
+Timestamps throughout are **UTC**, so nothing has to be guessed from a local
+offset.
 
-Apple does offer a **recurring** schedule — but only for App Store information
-and app-install activity. **Nothing in iCloud can be scheduled**, so an export
-of your Drive or Photos is a one-off you request again by hand.
+Apple is unusually direct about what this is for: asked whether you can move
+the data to another provider, its answer is *"Yes. We provide your data in
+industry-standard formats designed to be easy to import into other services."*
 
-**Transfer a copy of your data** — a direct hand-off to another service, with
-no download in between. Worth knowing about, and worth knowing its limits:
-Apple currently offers it for **iCloud Photos → Google Photos** and **Apple
-Music playlists → YouTube Music**, and nowhere else. If your photos are going
-to Google, that route is simpler than anything this product can offer. If they
-are going anywhere else, it does not apply.
+### What the export does not contain, and one thing to check
+
+- **Messages.** iMessage and SMS are encrypted on your device and cannot be
+  read by anyone without your passcode. They are not in the export, and no
+  migration can carry them.
+- **Purchased apps, books, films, TV or music.** You get the *list* of what you
+  bought; the content itself is re-downloadable from the store instead.
+- **Some fields are masked.** Apple masks certain information in the files it
+  hands over — card and bank details, device identifiers and **email
+  addresses** — as fraud protection. Whether that masking reaches the contact
+  cards themselves is **not something to assume in either direction**: it would
+  make the `.vcf` files useless for the portability Apple describes above, so
+  it most likely applies to the activity and transaction data. Check your own
+  export before planning a contacts move around it.
+
+### Two limits worth knowing before you start
+
+- **It is not available everywhere.** Apple says access to this feature varies
+  by country and region. If the option is not on your Data & Privacy page, it
+  is not offered where you are.
+- **You cannot re-request a category while one is in flight.** To ask again for
+  something you already requested, wait until the current request finishes
+  *and* has been removed from the page. That matters if you want a second,
+  later export to catch what changed.
+- If your Apple Account is **managed by a school**, the administrator has to
+  permit you to sign in to the Data & Privacy page before any of this works.
+
+A **recurring** schedule does exist, and it is narrow: in the European Union,
+the United Kingdom and Japan you can schedule a repeating download — daily for
+30 days, or weekly for 180 days — for **App Store information and app-install
+and push-notification activity**. Nothing in iCloud can be scheduled, so an
+export of your Drive or Photos is a one-off you request again by hand.
+
+**Transfer a copy of your data** — the second route: a direct hand-off to
+another service with no download in between. Apple currently offers it for
+**iCloud Photos → Google Photos** and **Apple Music playlists → YouTube
+Music**, and nowhere else. If your photos are going to Google, that route is
+simpler than anything this product can offer; if they are going anywhere else,
+it does not apply. Transfers run in both directions and their status shows on
+the same Data & Privacy page.
 
 ### Which route you actually want
 
