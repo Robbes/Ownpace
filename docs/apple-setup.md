@@ -75,8 +75,8 @@ about **who you are**; the password on this page is about **what may be read**.
 Apple's Reminders are `VTODO` objects living on the same CalDAV host as your
 calendars, so one credential reaches both — but they are **not** events, and
 this product does not pretend otherwise. Tasks are their own domain, with their
-own natural key and their own ledger (workplan 0113). Filing a reminder as a
-calendar event would produce something that looks migrated and is wrong.
+own natural key and their own ledger. Filing a reminder as a calendar event
+would produce something that looks migrated and is wrong.
 
 That means the target must also carry tasks. A CalDAV target that advertises
 only `VEVENT` in its `supported-calendar-component-set` cannot take them, and
@@ -97,8 +97,49 @@ product reads, iCloud Drive's contents cannot be reached from the account.
 The only route to those files is **your own Data & Privacy export** at
 [`privacy.apple.com`](https://privacy.apple.com), which Apple hands to *you* as
 a download link. Teaching this product to take such an export and deliver it to
-a target is [workplan 0116](workplans/0116-the-data-they-give-the-person-not-us.md), and it is a different shape of thing
-entirely: an archive with a date on it, not a live account.
+a target is being built, and it is a different shape of thing entirely: an
+archive with a date on it, not a live account.
+
+### What Apple's export actually gives you
+
+Read from Apple's own request flow on 4 September 2026, so this is measured
+rather than repeated. There are **two different routes** on that page, and
+people confuse them:
+
+**Request a copy of your data** — the download. You tick categories, Apple
+prepares them, and you get a link. Apple's own wording: *"this process can take
+up to seven days"*, which it uses to verify the request came from you. The
+maximum file size is a choice — **1, 2, 5, 10 or 25 GB** — and Apple splits the
+data into parts no larger than that. What comes back:
+
+- **documents, photos and videos in their original format** — this is the part
+  that matters, and it is why the export is the answer for iCloud Drive;
+- **contacts, calendars, bookmarks and mail as `.vcf`, `.ics`, `.html` and
+  `.eml`** — ordinary interchange formats, not an Apple-only container;
+- app usage and activity as spreadsheets or `.json`, `.csv`, `.pdf`.
+
+It does **not** include purchases of apps, books, films, TV programmes or
+music. The iCloud categories you can tick include iCloud Drive files and
+documents, iCloud Mail, iCloud Photos, iCloud Calendars **and Reminders**,
+iCloud Contacts, and iCloud bookmarks and reading list.
+
+Apple does offer a **recurring** schedule — but only for App Store information
+and app-install activity. **Nothing in iCloud can be scheduled**, so an export
+of your Drive or Photos is a one-off you request again by hand.
+
+**Transfer a copy of your data** — a direct hand-off to another service, with
+no download in between. Worth knowing about, and worth knowing its limits:
+Apple currently offers it for **iCloud Photos → Google Photos** and **Apple
+Music playlists → YouTube Music**, and nowhere else. If your photos are going
+to Google, that route is simpler than anything this product can offer. If they
+are going anywhere else, it does not apply.
+
+### Which route you actually want
+
+If you are moving **mail, calendars, contacts or reminders**, use the
+connection above — it is live, it is incremental, and nothing waits a week.
+The export's unique value is exactly the two faces the connection cannot
+reach: **iCloud Drive and Photos**.
 
 If somebody tells you iCloud Drive can be migrated automatically, ask which API
 they used.
@@ -122,8 +163,9 @@ outliving the move.
 
 ## What is measured, and what is reasoned
 
-Per this repository's never-guess rule (workplan 0105), it is worth being plain
-about which sentences above are which.
+This product does not guess a server address or a provider's behaviour — it
+measures them, or says it has not. So it is worth being plain about which
+sentences above are which.
 
 - The **hosts and ports** are Apple's published values, cited in
   `PROVIDER_ENDPOINTS` with the day they were read.
