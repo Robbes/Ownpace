@@ -30,7 +30,20 @@ eighth fan-out happened, one commit earlier. Guard:
 `packages/engines/src/a-task-filed-under-the-calendar.unit.test.ts`, proved by breaking
 four ways.
 
-**Both of these were invisible for the same reason**, and it is worth saying once: a
+Telling the writer its domain moved the double count rather than removing it: the next
+run reported `task: itemsSynced 16` for eight tasks. Both rows were now under `task`,
+under two different HASHES — the loop's `naturalKeyForTask` (`todo:`) and this writer's
+hard-coded `calendarNaturalKeyHash` (`cal:`). `recordIfAbsent` collapses a duplicate only
+when the key matches, and it did not. The writer now derives its key through the same
+`naturalKeyForCalendar`/`naturalKeyForTask` the two passes hand in as their `naturalKey`,
+on the same `item` object, so the pair cannot drift again — RECURRENCE-ID included, which
+neither side populates today and both would pick up together on the day one does.
+
+**The domain and the key are one decision.** Whichever of the two a writer gets wrong,
+the result is the same: two ledger rows for one object, and a domain reporting twice what
+it moved. They are pinned in one file for that reason.
+
+**All of these were invisible for the same reason**, and it is worth saying once: a
 domain that never runs cannot be wrong in a way anything notices. Every list, type and
 branch 0113 added was correct; what was missing was one run.
 

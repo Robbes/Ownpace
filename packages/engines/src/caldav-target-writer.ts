@@ -20,8 +20,15 @@ import type {
   TargetEntry,
   RemovalResult,
   DiscoveryDomain,
+  CalendarEvent,
 } from '@openmig/shared';
-import { calendarNaturalKeyHash, calendarContentHash, isOnTarget, neutraliseScheduling } from '@openmig/shared';
+import {
+  naturalKeyForCalendar,
+  naturalKeyForTask,
+  calendarContentHash,
+  isOnTarget,
+  neutraliseScheduling,
+} from '@openmig/shared';
 import { CALENDAR_COMPONENTS, componentOfIcalendar } from '@openmig/shared';
 import type { CalendarComponent } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
@@ -156,6 +163,35 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   }
 
   /**
+   * THE SAME LEDGER KEY THE SYNC LOOP WILL COMPUTE FOR THIS OBJECT.
+   *
+   * Both write a row for every item — the loop through `recordIfAbsent`, this
+   * writer through the same call one layer down, first-writer-wins. That only
+   * yields ONE row if the two agree on the key, and this writer used to hash
+   * everything with `calendarNaturalKeyHash` regardless.
+   *
+   * For a calendar event they agreed, so nothing ever showed. For a task they
+   * did not: `naturalKeyForTask` carries the `todo:` prefix (a VTODO and a
+   * VEVENT may share a UID — see `taskNaturalKeyHash`), so every task got TWO
+   * ledger rows under two hashes, and the task domain reported exactly twice
+   * its corpus. Found by the self-hosted gate on 2026-09-04, in the run that
+   * first let the task domain reach a real server.
+   *
+   * Delegates to the same helpers `runCalendarSync` and `runTaskSync` pass as
+   * their `naturalKey`, on the same `item` object, so the two cannot drift
+   * again — including over RECURRENCE-ID, which neither side populates today
+   * and both would pick up together on the day one does.
+   */
+  private ledgerKeyFor(raw: RawCalendarEvent, uid: string): string {
+    // `uid` from the iCalendar bytes rather than `raw.item.uid`: those bytes
+    // are what lands on the target, and a caller may hand this writer a raw
+    // object with no `item` at all. Everything else about the key comes from
+    // the item when there is one.
+    const keyed = { ...(raw.item ?? {}), uid } as CalendarEvent;
+    return this.domain === 'task' ? naturalKeyForTask(keyed) : naturalKeyForCalendar(keyed);
+  }
+
+  /**
    * Idempotently write a calendar event to the target.
    * Uses ledger fast-path and target-side UID check to ensure idempotency.
    */
@@ -166,8 +202,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   ): Promise<UpsertResult> {
     // Extract UID from iCalendar data
     const uid = this.extractUidFromIcalendar(raw.icalendar);
+    // The UID, as the SERVER knows it: matched against `calendar-data` in the
+    // existence REPORT and used as the key of the per-collection snapshot. Not
+    // a ledger key — that is the hash below.
     const naturalKey = uid;
-    const naturalKeyHash = calendarNaturalKeyHash(naturalKey);
+    const naturalKeyHash = this.ledgerKeyFor(raw, uid);
 
     // UPDATE PATH: the source event changed after we copied it, so rewrite it.
     //
@@ -427,9 +466,10 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
    * way to read a calendar target and reported the whole domain
    * NOT_VERIFIABLE — blocking any cutover that had actually copied events.
    *
-   * `naturalKey` is the VEVENT UID, exactly what `upsertCalendarEvent` hashes
-   * with `calendarNaturalKeyHash`. `targetId` is the resource href, matching
-   * what that method records as the ledger's target id.
+   * `naturalKey` is the component's UID — the same string `upsertCalendarEvent`
+   * hashes, through `ledgerKeyFor`, under this writer's own domain. `targetId`
+   * is the resource href, matching what that method records as the ledger's
+   * target id.
    *
    * @param mailboxId Restrict to one calendar collection path. Omitted, every
    *   calendar under this account's home set is walked.

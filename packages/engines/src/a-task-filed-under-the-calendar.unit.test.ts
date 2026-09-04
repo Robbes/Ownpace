@@ -29,6 +29,19 @@
  *    domain, where it can never be, so it missed every task on every pass and
  *    paid a target probe for each one.
  *
+ * ## And the same defect one field over
+ *
+ * Telling the writer its domain fixed the filing and moved the double count
+ * rather than removing it: the next run reported `task: itemsSynced 16` for
+ * eight tasks. Both rows were now under `task`, under two different HASHES —
+ * the loop's `naturalKeyForTask` (`todo:`) and this writer's hard-coded
+ * `calendarNaturalKeyHash` (`cal:`). `recordIfAbsent` collapses a duplicate
+ * only when the key matches, and it did not.
+ *
+ * So the domain and the key are pinned together below. They are one decision:
+ * whichever of the two the writer gets wrong, the result is two ledger rows
+ * for one object and a domain reporting twice what it moved.
+ *
  * ## What is pinned
  *
  * The writer records under the domain it was BUILT for, not the one its class
@@ -37,7 +50,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { asTenantId, asMappingId, type Ledger, type LedgerRecord } from '@openmig/shared';
+import {
+  asTenantId,
+  asMappingId,
+  calendarNaturalKeyHash,
+  taskNaturalKeyHash,
+  type Ledger,
+  type LedgerRecord,
+} from '@openmig/shared';
 import { CalDAVTargetWriter, type HttpClient } from './caldav-target-writer.ts';
 
 const TENANT = asTenantId('6b420000-e29b-41d4-a716-4466554461b1' as never);
@@ -53,10 +73,12 @@ const VEVENT =
 function writerFor(domain: 'calendar' | 'task') {
   const recorded: LedgerRecord[] = [];
   const lookedUpIn: string[] = [];
+  const lookedUpHashes: string[] = [];
 
   const ledger = {
-    find: async (_t: unknown, _m: unknown, itemType: string) => {
+    find: async (_t: unknown, _m: unknown, itemType: string, hash: string) => {
       lookedUpIn.push(itemType);
+      lookedUpHashes.push(hash);
       return undefined;
     },
     recordIfAbsent: async (row: LedgerRecord) => {
@@ -77,7 +99,7 @@ function writerFor(domain: 'calendar' | 'task') {
     { url: BASE, username: 'alice', password: 'pw' },
     { domain, ledger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
   );
-  return { writer, recorded, lookedUpIn };
+  return { writer, recorded, lookedUpIn, lookedUpHashes };
 }
 
 describe('the writer files under the domain it was built for', () => {
@@ -131,6 +153,54 @@ describe('the writer files under the domain it was built for', () => {
       lookedUpIn,
       'the fast path asked the calendar domain about a `todo:` key, which can never be there',
     ).not.toContain('calendar');
+  });
+});
+
+describe('the writer keys under its own domain, not the calendar one', () => {
+  const UID = 'todo-1@dev.local';
+
+  it('hashes a task with the todo: prefix the sync loop uses', async () => {
+    const { writer, recorded } = writerFor('task');
+
+    await writer.upsertCalendarEvent(`${BASE}/calendars/alice/e2e-tasks/`, {
+      item: { uid: UID, type: 'todo', icalendar: VTODO },
+      icalendar: VTODO,
+    } as never);
+
+    expect(
+      recorded[0]!.naturalKeyHash,
+      'the writer hashed a task under `cal:`. The sync loop hashes it under `todo:`, and ' +
+        '`recordIfAbsent` only collapses a duplicate when the key matches — so the task gets ' +
+        'TWO rows and its domain reports twice the corpus it moved',
+    ).toBe(taskNaturalKeyHash(UID));
+    expect(recorded[0]!.naturalKeyHash).not.toBe(calendarNaturalKeyHash(UID));
+  });
+
+  it('still hashes a calendar event with the cal: prefix', async () => {
+    // The control, and the compatibility guarantee: every calendar row ever
+    // written carries this hash, so a writer that started keying events any
+    // other way would orphan the whole ledger and re-copy every event.
+    const { writer, recorded } = writerFor('calendar');
+
+    await writer.upsertCalendarEvent(`${BASE}/calendars/alice/personal/`, {
+      item: { uid: 'event-1@dev.local', type: 'event', icalendar: VEVENT },
+      icalendar: VEVENT,
+    } as never);
+
+    expect(recorded[0]!.naturalKeyHash).toBe(calendarNaturalKeyHash('event-1@dev.local'));
+  });
+
+  it('asks the fast path for the key it is about to write', async () => {
+    // The two must agree, or the writer looks up one key and records another —
+    // which is a probe that can never hit and a row that never adopts.
+    const { writer, recorded, lookedUpHashes } = writerFor('task');
+
+    await writer.upsertCalendarEvent(`${BASE}/calendars/alice/e2e-tasks/`, {
+      item: { uid: UID, type: 'todo', icalendar: VTODO },
+      icalendar: VTODO,
+    } as never);
+
+    expect(lookedUpHashes).toContain(recorded[0]!.naturalKeyHash);
   });
 });
 
