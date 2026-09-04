@@ -1,8 +1,37 @@
 # Workplan 0113 — A task is not an event
 
-## Status — 2026-09-03 (update this block at the end of every session)
+## Status — 2026-09-04 (update this block at the end of every session)
 
-**2026-09-03 (latest): the SEVENTH fan-out — the task domain ran a FILE sync and was
+**2026-09-04: the EIGHTH fan-out — the parser between the config and the reader.**
+E2E (self-hosted) #176 was the first run to reach the restart-resume gate since #765
+unbroke the workflow, and it failed at exactly one domain:
+
+```
+task: state=skipped, itemsSynced=0, itemsFailed=0, lastSyncedAt=never
+[Worker] running 2 domain lanes in parallel: email | calendar+contact+file
+```
+
+`DomainsConfig` had `tasks`. `runAllDomains` read `config.domains?.tasks?.enabled`. The
+fixture ticked it. `parseDomainsConfig` in `packages/shared/src/config.ts` — the parser
+*between* them — still had exactly four hand-written `if` blocks, so the parsed config had
+no `tasks` at all and the appliance skipped a domain the mapping had asked for.
+
+**Nothing could have gone red.** T5 added `task` to five lists and this was not one of them,
+because it is not a list: it is four near-identical blocks, and an optional key nobody
+assigns is legal TypeScript. So the type said five, the reader asked for five, the parser
+produced four, and the word for the difference was `skipped` — which on the status endpoint
+means "your call, nobody checked". Every file-configured migration that ticked Tasks between
+2026-09-03 and 2026-09-04 copied nothing and reported no error.
+
+Fixed by making it a list: `DOMAIN_CONFIG_KEY` (`Record<DiscoveryDomain, keyof
+DomainsConfig>`) is now the single place the two vocabularies meet, the parser loops over it,
+and `runAllDomains`/`planDomainLanes` read it — so a sixth domain is a compile error in one
+map. A key under `domains` that names no domain is now **refused at start-up** naming the
+keys that exist, because `"task"` for `"tasks"` is the same silence by another route. Guard:
+`packages/orchestration/src/a-domain-the-mapping-ticked-that-never-ran.unit.test.ts`,
+generated over `DISCOVERY_DOMAINS` and proved by breaking six ways.
+
+**2026-09-03: the SEVENTH fan-out — the task domain ran a FILE sync and was
 marked completed.** The one the whole workplan was written to prevent, found on the owner's
 Spark by T7's task-lane assertion — the only thing in the system that asked the question.
 
@@ -323,7 +352,7 @@ not a missing feature, it is a wrong answer, and §"What happens today" measures
 | T5 The domain surfaces | ✅ Done | The matrices (`caldav` → calendar+task, `soverin` gains task, Google gains nothing at any scope tier), the qualification's fifth face measured through the same CalDAV endpoint with `component: 'VTODO'` and counted in its own `taskList` unit, the wizard's fifth tick, the discovery counts, the confirm screen, the verification gate's fifth row, EN/NL strings and an icon. Plus the four per-domain fan-outs in `orchestration.ts` that no compile error could have named — sync, discovery, delta, verification — with a counting guard so the sixth domain cannot slip past them. Four vocabularies collapsed into one on the way (`QUALIFICATION_KEYS`, `domain-words.ts`, three zod enums). A pre-T5 record's missing face reads as `?`, never as a crash. Proved by breaking, eight ways. |
 | T6 Google Tasks | 📋 Optional (needs T0 decision 3) | Google's CalDAV carries no VTODO at all: tasks live behind the separate Tasks REST API, whose model is thinner than VTODO. A face of its own, or out of scope for v1. |
 | T7 The gate (managed) | ✅ Done | The demo Nextcloud source carries a VTODO-only collection, made by MKCALENDAR with a `supported-calendar-component-set` and seeded with two VTODOs; demo tenant B selects `task`; and `smoke-managed.sh` asserts BY NAME that VTODO rows copied under the run's own tag, failing with the four causes a zero can have. `--remove` takes the tasks back with the rest, so the gate stays net zero. Proved by breaking, five ways — two of which did not discriminate at first and were rewritten. |
-| T8 The gate (self-hosted) | ✅ Done | `seed-dav-source.mjs` MKCALENDARs a VTODO-only collection (405 read as "already there", so a `SEED_OFFSET` re-seed converges) and fills it with VTODOs; `e2e.yml` enables `cfg.domains.tasks` against the same DAV root, leaving the collection for discovery to find; `mapping.json.example` documents the shape for operators. A new guard pairs the seeder with the workflow, because nothing else could: one is Node, the other YAML, and a domain configured-but-unseeded passes vacuously. Proved by breaking, three ways. **Followed up the same day:** enabling a domain is not asserting one — both gates in that workflow defaulted `E2E_DOMAINS` to four, so the task lane ran every night and nothing asked about it. See the latest status entry. |
+| T8 The gate (self-hosted) | ✅ Done (and it caught one) | `seed-dav-source.mjs` MKCALENDARs a VTODO-only collection (405 read as "already there", so a `SEED_OFFSET` re-seed converges) and fills it with VTODOs; `e2e.yml` enables `cfg.domains.tasks` against the same DAV root, leaving the collection for discovery to find; `mapping.json.example` documents the shape for operators. A new guard pairs the seeder with the workflow, because nothing else could: one is Node, the other YAML, and a domain configured-but-unseeded passes vacuously. Proved by breaking, three ways. **Followed up the same day:** enabling a domain is not asserting one — both gates in that workflow defaulted `E2E_DOMAINS` to four, so the task lane ran every night and nothing asked about it. **And on 2026-09-04 the gate earned its place**: the first run that reached it reported `task: state=skipped`, which is how the parser's missing fifth branch was found. See the latest status entry. |
 
 ## Why this exists
 

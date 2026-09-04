@@ -10,6 +10,7 @@ export class ConfigError extends Error {
 // Import ThrottleConfig from throttling module for type reference
 import type { ThrottleConfig } from './throttling.ts';
 import type { SpecialUse } from './mail.ts';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain } from './discovery.ts';
 
 export type SourceAuth =
   | { readonly kind: 'xoauth2'; readonly tokenFromEnv: string }
@@ -452,6 +453,39 @@ export interface DomainsConfig {
    */
   tasks?: DomainConfig;
 }
+
+/**
+ * The `domains` key each sync domain is configured under — the ONE place the
+ * two vocabularies meet.
+ *
+ * They differ (`email`/`mail`, `contact`/`contacts`, `file`/`files`,
+ * `task`/`tasks`) for historical reasons, and every translation between them
+ * used to be written out by hand. `parseDomainsConfig` was one of those hand
+ * copies, and on 2026-09-03 it was the copy that did not learn about tasks:
+ * `DomainsConfig` declared `tasks`, `runAllDomains` read
+ * `config.domains?.tasks?.enabled`, and the parser in between never filled it.
+ * An OPTIONAL key nobody assigns is perfectly legal TypeScript, so nothing
+ * compiled red — a mapping saying `"tasks": { "enabled": true }` simply had
+ * its tasks reported `skipped`, forever, with no error anywhere.
+ *
+ * Keyed by `DiscoveryDomain`, so a sixth domain is a compile error HERE and
+ * every reader below gains it for free.
+ */
+export const DOMAIN_CONFIG_KEY: Readonly<Record<DiscoveryDomain, keyof DomainsConfig>> = {
+  email: 'mail',
+  calendar: 'calendar',
+  contact: 'contacts',
+  file: 'files',
+  task: 'tasks',
+};
+
+/**
+ * Every key a `domains` block may carry, in domain order — which is also the
+ * order a person ticks them, so a refusal lists them the way the wizard does.
+ */
+export const DOMAIN_CONFIG_KEYS: ReadonlyArray<keyof DomainsConfig> = DISCOVERY_DOMAINS.map(
+  (d) => DOMAIN_CONFIG_KEY[d],
+);
 
 export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | GoogleAccountSource | MicrosoftAccountSource | DropboxSource | BoxSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
@@ -1048,55 +1082,52 @@ export function parseMappingConfig(input: unknown): MappingConfig {
   };
 }
 
-/** Parse and validate the domains configuration block */
+/**
+ * Parse and validate the domains configuration block.
+ *
+ * Driven by `DOMAIN_CONFIG_KEYS` rather than one hand-written `if` per domain.
+ * The hand-written version had four, `DomainsConfig` had five, and the missing
+ * one was `tasks` — so from the day the task domain shipped (0113) until
+ * 2026-09-04 every file-configured migration that ticked Tasks reported them
+ * `skipped` and copied nothing. Nothing threw and nothing compiled red: an
+ * optional key the parser never assigns is legal TypeScript, and
+ * `runAllDomains` reads a missing key as "not enabled".
+ */
 function parseDomainsConfig(obj: Record<string, unknown>): DomainsConfig {
   const domains: DomainsConfig = {};
 
-  // Parse mail domain
-  if (obj.mail !== undefined) {
-    const mail = asRecord(obj.mail, 'domains.mail');
-    domains.mail = {
-      enabled: reqBoolean(mail, 'enabled', 'domains.mail.enabled'),
-      source: parseSource(asRecord(mail.source, 'domains.mail.source')),
-      target: parseTarget(asRecord(mail.target, 'domains.mail.target')),
-      ...(mail.concurrency !== undefined ? { concurrency: reqInt(mail, 'concurrency', 'domains.mail.concurrency') } : {}),
-      ...(mail.throttleConfig !== undefined ? { throttleConfig: parseThrottleConfig(asRecord(mail.throttleConfig, 'domains.mail.throttleConfig')) } : {}),
-    };
+  // A key under `domains` that names no domain is REFUSED, not ignored —
+  // deliberately unlike the root of the config, which ignores unknown keys so
+  // a mapping can carry its own annotations. Nothing under `domains` is an
+  // annotation: every key there is a body of data somebody expects to be
+  // migrated, and the failure mode of ignoring one is silence in exactly the
+  // shape that hid the missing `tasks` branch. `"task"` for `"tasks"` now says
+  // so at start-up instead of at the end of a migration with nothing in it.
+  const known = new Set<string>(DOMAIN_CONFIG_KEYS);
+  const stranger = Object.keys(obj).find((key) => !known.has(key));
+  if (stranger !== undefined) {
+    throw new ConfigError(
+      `domains.${stranger}: no such domain (expected one of ${DOMAIN_CONFIG_KEYS.join(', ')})`,
+    );
   }
 
-  // Parse calendar domain
-  if (obj.calendar !== undefined) {
-    const calendar = asRecord(obj.calendar, 'domains.calendar');
-    domains.calendar = {
-      enabled: reqBoolean(calendar, 'enabled', 'domains.calendar.enabled'),
-      source: parseSource(asRecord(calendar.source, 'domains.calendar.source')),
-      target: parseTarget(asRecord(calendar.target, 'domains.calendar.target')),
-      ...(calendar.concurrency !== undefined ? { concurrency: reqInt(calendar, 'concurrency', 'domains.calendar.concurrency') } : {}),
-      ...(calendar.throttleConfig !== undefined ? { throttleConfig: parseThrottleConfig(asRecord(calendar.throttleConfig, 'domains.calendar.throttleConfig')) } : {}),
-    };
-  }
-
-  // Parse contacts domain
-  if (obj.contacts !== undefined) {
-    const contacts = asRecord(obj.contacts, 'domains.contacts');
-    domains.contacts = {
-      enabled: reqBoolean(contacts, 'enabled', 'domains.contacts.enabled'),
-      source: parseSource(asRecord(contacts.source, 'domains.contacts.source')),
-      target: parseTarget(asRecord(contacts.target, 'domains.contacts.target')),
-      ...(contacts.concurrency !== undefined ? { concurrency: reqInt(contacts, 'concurrency', 'domains.contacts.concurrency') } : {}),
-      ...(contacts.throttleConfig !== undefined ? { throttleConfig: parseThrottleConfig(asRecord(contacts.throttleConfig, 'domains.contacts.throttleConfig')) } : {}),
-    };
-  }
-
-  // Parse files domain
-  if (obj.files !== undefined) {
-    const files = asRecord(obj.files, 'domains.files');
-    domains.files = {
-      enabled: reqBoolean(files, 'enabled', 'domains.files.enabled'),
-      source: parseSource(asRecord(files.source, 'domains.files.source')),
-      target: parseTarget(asRecord(files.target, 'domains.files.target')),
-      ...(files.concurrency !== undefined ? { concurrency: reqInt(files, 'concurrency', 'domains.files.concurrency') } : {}),
-      ...(files.throttleConfig !== undefined ? { throttleConfig: parseThrottleConfig(asRecord(files.throttleConfig, 'domains.files.throttleConfig')) } : {}),
+  for (const key of DOMAIN_CONFIG_KEYS) {
+    if (obj[key] === undefined) continue;
+    const block = asRecord(obj[key], `domains.${key}`);
+    domains[key] = {
+      enabled: reqBoolean(block, 'enabled', `domains.${key}.enabled`),
+      source: parseSource(asRecord(block.source, `domains.${key}.source`)),
+      target: parseTarget(asRecord(block.target, `domains.${key}.target`)),
+      ...(block.concurrency !== undefined
+        ? { concurrency: reqInt(block, 'concurrency', `domains.${key}.concurrency`) }
+        : {}),
+      ...(block.throttleConfig !== undefined
+        ? {
+            throttleConfig: parseThrottleConfig(
+              asRecord(block.throttleConfig, `domains.${key}.throttleConfig`),
+            ),
+          }
+        : {}),
     };
   }
 
