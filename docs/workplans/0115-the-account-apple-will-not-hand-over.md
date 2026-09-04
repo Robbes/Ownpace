@@ -21,6 +21,27 @@ opinions, and this document is mostly about the second.
   Calendar, Contacts, Reminders or iCloud Drive to anybody outside Apple. Sign in with
   Apple grants `name` and `email`, which is an identity and not a mailbox.
 
+### T1 landed — 2026-09-04
+
+`normalizeDavHref` and `davPathOf` now live in `dav-http.types.ts`, and both DAV
+sources' private `normalizePath` delegates to the first, so **every one of its five
+call sites became host-preserving at once**: the redirect `Location`, the home-set
+href, the collection hrefs in a multistatus, and both branches of
+`buildCollectionPath`. CardDAV's "skip the home set itself" check compares
+`davPathOf` on each side, because once the home set may carry a host and the hrefs
+beside it may not, a string comparison says "different" about the same collection
+and offers the home set as an address book to migrate.
+
+Proved by breaking, four ways, each restored: host preservation removed (3 red),
+`davPathOf` comparing raw strings (2 red), CardDAV keeping its own copy of the slash
+logic (1 red), and the home-set skip back to string comparison (1 red).
+
+**Not measured against a live iCloud account** — nobody here has one. The behaviour
+is read from Apple's documented partitioning and from the code path; the fixture is
+iCloud-shaped rather than iCloud-captured. T4's Test against a real account is what
+would turn this from reasoned to measured, and until then this is a defect fixed on
+reasoning, which is worth saying out loud.
+
 ## The shape Apple actually has
 
 Apple's account is **Soverin's shape, not Google's**: protocols and a password, discovered
@@ -121,7 +142,7 @@ Two things make this worth its own task rather than a line in another one:
 | # | Task | Notes |
 |---|---|---|
 | T0 | This document | The finding: no button is possible, and why |
-| T1 | The home set may change host | `parseCalendarHomeSetResponse` + the CardDAV twin; a test with an iCloud-shaped absolute href, proved by breaking. **Blocks T3 onward** |
+| T1 | The home set may change host | **Done 2026-09-04.** `normalizeDavHref` and `davPathOf` in `dav-http.types.ts`; both sources delegate. Proved by breaking, four ways |
 | T2 | The `apple` provider account kind | `PROVIDER_ACCOUNT_KINDS`, `PROVIDER_ACCOUNT_DOMAINS` = email, calendar, contact, task; the fourteen tables 0114 enumerated |
 | T3 | The face table | `ACCOUNT_FACE_BUILDERS.apple` = `{ email: 'imap', calendar: 'dav', contact: 'dav', task: 'dav' }` — Soverin's row, different provider |
 | T4 | The provider directory row | `imap.mail.me.com` 993, the DAV hosts, and the username quirk: Apple's IMAP wants the local part (`johnappleseed`), falling back to the full address |
