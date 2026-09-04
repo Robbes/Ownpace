@@ -239,3 +239,59 @@ export function entraFlowNotChosen(
       `${refreshTokenField} (gedelegeerde stroom).`,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Shape D — a credential the PROVIDER rejected, where we know what they mean
+// ---------------------------------------------------------------------------
+
+/**
+ * The refusal Apple gives, said in words that name the fix (workplan 0115 T5).
+ *
+ * Every Apple Account has two-factor authentication, and a two-factor
+ * account's OWN password is refused by IMAP, CalDAV and CardDAV **by design**.
+ * So the single most likely first attempt — typing the password you sign in to
+ * Apple with — fails, and what came back was Apple's own opaque wording:
+ * `AUTHENTICATIONFAILED`, or a bare `401`. Rendered verbatim, per 0080's
+ * render-the-provider's-words rule, it tells a person their password is wrong.
+ * It is not wrong. It is the wrong KIND of password, and no amount of retyping
+ * it will help.
+ *
+ * This is the exception 0083's rule already anticipated: the sentence a person
+ * needs here is OURS, not Apple's, because we know something Apple's error
+ * does not say. It returns a `BilingualRefusal` so the existing
+ * `credentialsRefused` path renders it in Dutch on a Dutch screen — no new
+ * plumbing, and the appliance gets it too.
+ *
+ * NARROW ON PURPOSE. Only for `apple`, and only for messages that actually
+ * look like an authentication rejection — a timeout, a DNS failure or a 500
+ * must keep Apple's own words, because for those the provider's text is the
+ * more useful sentence and guessing would be worse than silence.
+ */
+export function appleAuthRefusal(kind: string, message: string): BilingualRefusal | undefined {
+  if (kind !== 'apple') return undefined;
+  const looksLikeAuth =
+    /authenticationfailed|invalid credentials|login failed|authentication failed|\b401\b|unauthori[sz]ed/i.test(
+      message,
+    );
+  if (!looksLikeAuth) return undefined;
+  return {
+    code: 'appleAppPasswordRequired',
+    fields: ['password'],
+    en:
+      'Apple refused these credentials. If you typed the password you use to sign in to Apple, ' +
+      'that is why: every Apple Account has two-factor authentication, and Apple refuses the ' +
+      'account password over IMAP, CalDAV and CardDAV by design. Make an app-specific password ' +
+      'at account.apple.com \u2192 Sign-In and Security \u2192 App-Specific Passwords, and paste that ' +
+      'instead. Keep the dashes Apple shows. If you already used an app-specific password, check ' +
+      'it has not been revoked, and that the Apple ID above is the address the account signs in ' +
+      'with.',
+    nl:
+      'Apple heeft deze gegevens geweigerd. Als u het wachtwoord hebt getypt waarmee u bij Apple ' +
+      'inlogt, is dat de reden: elk Apple Account heeft tweefactorauthenticatie, en Apple weigert ' +
+      'het accountwachtwoord bij IMAP, CalDAV en CardDAV met opzet. Maak een app-specifiek ' +
+      'wachtwoord aan op account.apple.com \u2192 Inloggen en beveiliging \u2192 App-specifieke ' +
+      'wachtwoorden, en plak dat in plaats daarvan. Laat de streepjes staan die Apple toont. Als ' +
+      'u al een app-specifiek wachtwoord gebruikte: controleer of het niet is ingetrokken, en of ' +
+      'de Apple ID hierboven het adres is waarmee het account inlogt.',
+  };
+}
