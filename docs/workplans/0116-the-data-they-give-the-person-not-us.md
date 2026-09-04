@@ -2,6 +2,13 @@
 
 ## Status — 2026-09-04 (update this block at the end of every session)
 
+**2026-09-04, later: all six decisions answered, still nothing built.** The owner took every
+recommendation, D5 confirmed explicitly as *files and photos only*. **The first slice is
+T1+T2+T3a+T7** — the frame, the reader seam, Google's Takeout reader, and the measure —
+because that slice is what makes 0112's own long-undecided T0 decidable: a customer can
+finally *see* what an archive holds before anyone commits to importing it. T3b stays blocked
+until an Apple export has actually been opened; the owner's was requested the same day.
+
 **2026-09-04: drafted for the owner's decision, nothing built.** The owner asked, after
 0115 established that iCloud Drive has no third-party API at all: *"for the files part,
 draft a workplan for Google Photos and iCloud Drive (possibly others later on) that helps
@@ -19,16 +26,16 @@ If the owner decides only one thing here, decide **D1**.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 | 📋 Owner decision | §"The owner's decisions" D1–D6. Nothing below starts without D1. |
-| T1 The archive, as a kind of connection | 📋 Planned | `ArchiveSource`: a source whose credential is an archive's LOCATION, not an account. Front door, wizard, connection card, probe, three-state record. Provider-agnostic. |
-| T2 The reader seam | 📋 Planned (needs T1) | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
-| T3a The Takeout reader (Google Photos) | 📋 Planned (needs T2) | 0112 T1's reader, unchanged, behind the T2 interface. |
+| T0 | ✅ **Answered 2026-09-04** | All six decided — see §"The owner's decisions". The first slice is **T1+T2+T3a+T7**. |
+| T1 The archive, as a kind of connection | 🔨 **Next — first slice** | `ArchiveSource`: a source whose credential is an archive's LOCATION, not an account. Front door, wizard, connection card, probe, three-state record. Provider-agnostic. |
+| T2 The reader seam | 🔨 **Next — first slice** (needs T1) | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
+| T3a The Takeout reader (Google Photos) | 🔨 **Next — first slice** (needs T2) | 0112 T1's reader, unchanged, behind the T2 interface. |
 | T3b The Data & Privacy reader (Apple) | 📋 **Blocked on a real export** | Nobody here has opened one. T3b starts by opening one and writing down what is inside — see §"What is not known". |
-| T4 Getting the archive to us | 📋 Planned (needs T1, D3) | The hard part, and it differs per provider. Google delivers into Drive/Dropbox and we already read those. **Apple hands the person a download link and nothing else.** |
+| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first** | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
 | T5 Placement and the manifest | 📋 Planned (needs T2) | Where items land on the target, albums/folders as folders, and one manifest row per item so nothing the provider knew is lost. 0112 §3 is this task's design for photos. |
 | T6 Idempotency by content hash | 📋 Planned (needs T2) | A second import of the same archive writes nothing; an overlapping archive writes only what is new. The file domain's existing ledger rule, applied to archives. |
-| T7 Measure before the move | 📋 Planned (needs T2) | Items, bytes, folders, the export's date range on the Measured line, with the sentence that an archive is a SNAPSHOT WITH A DATE. |
-| T8 The walkthrough | 📋 Planned (needs D1) | `docs/archive-import.md`: how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
+| T7 Measure before the move | 🔨 **Next — first slice** (needs T2) | Items, bytes, folders, the export's date range on the Measured line, with the sentence that an archive is a SNAPSHOT WITH A DATE. |
+| T8 The walkthrough | 📋 Planned | `docs/archive-import.md`: how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
 | T10 The gate | 📋 Planned | A tiny fixture archive of each shape in the E2E, imported end to end, asserting item count, hashes and a second import writing nothing. |
 
@@ -269,26 +276,29 @@ here, in the guide, and on the connection card — never left for a customer to 
 
 ## The owner's decisions
 
-- **D1 — Build it, and in which order.** Everything is gated on this. Recommendation:
+> **All six answered by the owner on 2026-09-04, each taking the recommendation.**
+> They are kept in full below — a decision is worth less without the reasoning it
+> was made against, and the recommendations are what was actually agreed to.
+
+- **D1 — ✅ DECIDED: build it, recommended order.** Everything is gated on this. Recommendation:
   T1+T2+T3a+T7 first (the frame, the seam, Google's reader, the measure), because that slice
   makes 0112's undecided T0 decidable by letting a customer *see* what an archive holds.
   Apple's reader (T3b) follows once an export has been opened.
-- **D2 — Does this supersede 0112, or sit over it?** Recommendation: 0112 stays as the Google
+- **D2 — ✅ DECIDED: sits over 0112.**  Recommendation as agreed: 0112 stays as the Google
   Photos instance and keeps its own decisions 2–6; 0116 owns the frame. 0112's T0 becomes D1
   here. Two plans, one build.
-- **D3 — Which placement is built first, and does the managed edition accept uploads at all?**
-  Recommendation: local path (self-host) and cloud-we-already-read (Google) first; the managed
+- **D3 — ✅ DECIDED: local path and cloud-we-already-read first.**  Recommendation as agreed: local path (self-host) and cloud-we-already-read (Google) first; the managed
   multi-GB upload is its own slice with its own egress cost, and may reasonably never be built.
-- **D4 — Does an archive import become a mapping domain, or a one-shot job?** It has no
+- **D4 — ✅ DECIDED: mapping domain for Google, one-shot for Apple, `provider` decides.** It has no
   schedule for Apple and a two-month one for Google, which fits neither the domain model nor
   the job model cleanly. Recommendation: a mapping domain for Google (the pickup is a
   schedule), a one-shot for Apple, and the `provider` field is what decides.
-- **D5 — Is Apple's export offered for FILES only, or for everything in it?** Apple's archive
+- **D5 — ✅ DECIDED: files and photos only.** Apple's archive
   also contains mail, contacts, calendars and reminders — which the Apple account kind already
   migrates live, far better. Recommendation: **files and photos only**, and the wizard says
   why: the live account is the better route for everything else, and importing both would
   duplicate a person's mail.
-- **D6 — What is this called on screen?** Not "sync", for Apple. Recommendation: *"Import an
+- **D6 — ✅ DECIDED: "Import an export", with the provider's own words beneath.** Not "sync", for Apple. Recommendation: *"Import an
   export"* as the family, and per provider *"Google Takeout archive"* / *"Apple Data & Privacy
   export"* — the provider's own words, so a search engine and a support conversation match.
 
