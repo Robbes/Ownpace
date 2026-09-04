@@ -131,7 +131,14 @@ export type WizardSourceType =
   // One Microsoft 365 ACCOUNT (workplan 0114), the same shape a provider
   // later. It cohabits with `oauth2` and `graph` above for the same reason:
   // a customer with their own app registration keeps it.
-  | 'microsoft';
+  | 'microsoft'
+  // One Apple ACCOUNT (workplan 0115), and nothing to cohabit with: there has
+  // never been an `icloud` or `apple-mail` kind, because Apple has never
+  // published an API one could have been built on. It constrains nothing here
+  // for the same reason the O365 mail sources do not — one app-specific
+  // password reaches mail, calendars, contacts and reminders alike, so no
+  // domain is aimed at an API the credential does not serve.
+  | 'apple';
 
 /** Domains a wizard source can serve, where the source constrains it at all. */
 export const SOURCE_TYPE_DOMAINS: Partial<

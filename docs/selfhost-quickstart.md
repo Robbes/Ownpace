@@ -3,8 +3,8 @@
 The self-host edition is a **single-tenant appliance**: one small bundled
 Postgres + one app container that migrates itself on startup, discovers what a
 new mapping will move, waits for you to review and confirm it, then runs on an
-in-process schedule and serves a local status endpoint. It runs **all four
-domains** (mail / calendar / contacts / files) with the same engines as the
+in-process schedule and serves a local status endpoint. It runs **all five
+domains** (mail / calendar / contacts / tasks / files) with the same engines as the
 managed edition, and loads **none** of the managed-only machinery (no Trigger.dev,
 no billing). Container-first per **ADR-0019**; Postgres-backed per **ADR-0023**.
 
@@ -114,8 +114,10 @@ cp deploy/selfhost/config/mapping.json.example \
 Edit `mapping.json` — set the source/target hosts and users, point
 `tokenFromEnv` / `passwordFromEnv` at the variable names you defined in `.env`,
 and set a `schedule.cron` (default is every 15 min). The mail domain uses the
-top-level `source`/`target`; to also sync calendar/contacts/files, add a
-`domains` block (see `packages/shared/src/config.ts` for the schema). Invalid or
+top-level `source`/`target`; to also sync calendar/contacts/tasks/files, add a
+`domains` block (see `packages/shared/src/config.ts` for the schema — the keys
+are `mail`, `calendar`, `contacts`, `files`, `tasks`, and a key that is none of
+those is refused at startup rather than ignored). Invalid or
 duplicate-`mappingId` files fail fast on startup with the offending path.
 
 **Several sources into one target?** Two mappings sharing the target's

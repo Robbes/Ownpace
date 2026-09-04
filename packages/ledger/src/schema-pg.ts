@@ -117,6 +117,12 @@ export const connection = pgTable(
         // ask for and which may carry application permissions this delegated
         // grant never will.
         'microsoft',
+        // The first account kind with no consent screen behind it (0115):
+        // Apple publishes no OAuth scope for its own Mail, Calendar, Contacts,
+        // Reminders or Drive, so this row is reached with an app-specific
+        // password over IMAP and DAV — `soverin`'s shape, not `google`'s.
+        // Migration 0038 widens the check constraint to match.
+        'apple',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),

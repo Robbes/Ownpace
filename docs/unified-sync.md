@@ -193,12 +193,21 @@ const { items, nextCursor } = await webdavSource.listSince(folders[0], cursor);
 
 The optional `domains` block enables per-domain configuration for multi-domain sync. When absent, the root `source` and `target` are used (backward compatible).
 
+A key under `domains` that names no domain is **refused at start-up**, naming
+the keys that exist — unlike the root of the config, which ignores unknown keys
+so a mapping can carry its own notes. Nothing under `domains` is a note: from
+2026-09-03 to 2026-09-04 the parser had four branches where the type had five,
+and a mapping asking for `tasks` had them reported `skipped` with nothing
+copied and no error anywhere.
+
 ```typescript
 interface DomainsConfig {
   readonly mail?: DomainConfig;
   readonly calendar?: DomainConfig;
   readonly contacts?: DomainConfig;
   readonly files?: DomainConfig;
+  /** VTODO components in a CalDAV collection — Reminders, to-dos (0113). */
+  readonly tasks?: DomainConfig;
 }
 
 interface DomainConfig {

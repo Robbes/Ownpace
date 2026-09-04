@@ -53,3 +53,74 @@ export interface HttpResponse {
 export function wellKnownUrl(baseUrl: string, service: 'caldav' | 'carddav'): string {
   return new URL(`/.well-known/${service}`, baseUrl).toString();
 }
+
+/**
+ * A DAV href, normalised for USE AS A REQUEST TARGET — **host preserved**.
+ *
+ * Workplan 0115 T1. Both DAV sources carried a private `normalizePath` whose
+ * whole job was to guarantee a leading and a trailing slash, and whose
+ * unwritten assumption was that its argument is a PATH. It was handed three
+ * things that can be absolute URLs instead: a redirect's `Location`, a
+ * `calendar-home-set`/`addressbook-home-set` href, and a collection href in a
+ * multistatus. For every provider this product had, all three arrive as paths
+ * on the host already configured, so the assumption held and nothing failed.
+ *
+ * **iCloud is the provider it does not hold for.** Apple partitions accounts
+ * across hundreds of hosts and answers the home set with an absolute URL on the
+ * one that holds yours (`https://p34-caldav.icloud.com/1234567890/calendars/`).
+ * Prefixing that with `/` produced
+ * `/https://p34-caldav.icloud.com/1234567890/calendars/` — a path, on
+ * `caldav.icloud.com`, that does not exist — so every request after discovery
+ * went somewhere with no calendars in it. No test caught it and none could:
+ * Soverin and Nextcloud return same-host, path-only hrefs, so the whole DAV
+ * suite passes either way. That is #597's family, and this time the assumption
+ * that met a third provider was the TYPE OF AN ARGUMENT.
+ *
+ * An absolute `http(s)` URL keeps its origin and has only its path normalised;
+ * anything else is treated as a path, exactly as before. Query and fragment are
+ * dropped: a DAV collection is a path, and an href carrying either is not one
+ * this code can address.
+ */
+export function normalizeDavHref(hrefOrUrl: string): string {
+  const trimmed = hrefOrUrl.trim();
+  const absolute = asAbsoluteDavUrl(trimmed);
+  if (absolute) return `${absolute.origin}${normalizeDavPath(absolute.pathname)}`;
+  return normalizeDavPath(trimmed);
+}
+
+/**
+ * The PATH of a DAV href, whoever it names — for COMPARING two of them.
+ *
+ * A multistatus lists the collection it was asked about beside the collections
+ * under it, and both sources drop that first entry by comparing its href with
+ * the home set. Once the home set may carry a host and the hrefs beside it may
+ * not (iCloud answers exactly that way), comparing the two as strings says
+ * "different" about the same collection, and the home set itself is offered as
+ * a calendar or an address book to migrate. Compare paths, and it is one
+ * question about one thing.
+ */
+export function davPathOf(hrefOrUrl: string): string {
+  const trimmed = hrefOrUrl.trim();
+  const absolute = asAbsoluteDavUrl(trimmed);
+  return normalizeDavPath(absolute ? absolute.pathname : trimmed);
+}
+
+/** `new URL` when the string really is an absolute http(s) URL, else undefined. */
+function asAbsoluteDavUrl(value: string): URL | undefined {
+  if (!/^https?:\/\//i.test(value)) return undefined;
+  try {
+    return new URL(value);
+  } catch {
+    // A malformed absolute-looking href is not one this code can address, and
+    // treating it as a path is what every version before 0115 did.
+    return undefined;
+  }
+}
+
+/** Leading and trailing slash, backslashes folded — the old `normalizePath`. */
+function normalizeDavPath(path: string): string {
+  let normalized = path.replace(/\\/g, '/');
+  if (!normalized.startsWith('/')) normalized = '/' + normalized;
+  if (!normalized.endsWith('/')) normalized += '/';
+  return normalized;
+}

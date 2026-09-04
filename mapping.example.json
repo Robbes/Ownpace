@@ -18,7 +18,8 @@
   "concurrency": 4,
   "_note": "Placeholders only. Never commit real credentials; secrets are read from the named env vars.",
   "_note_baseUrl": "target.baseUrl is the server ROOT - scheme, host, port, NO path. The session URL is built as ${baseUrl}/.well-known/jmap (RFC 8620 2.2), so a trailing /jmap here asks for /jmap/.well-known/jmap and 404s in a way that looks like the server is wrong. This file carried internal dev-compose values (http://stalwart:8080, target@dev.local) until 2026-08-13; README.md carried the trailing-/jmap form until the same day.",
-  "_note_multi_domain": "The optional 'domains' block enables multi-domain sync (calendar, contacts, files). When absent, only the root source/target is used (backward compatible).",
+  "_note_multi_domain": "The optional 'domains' block enables multi-domain sync (calendar, tasks, contacts, files). When absent, only the root source/target is used (backward compatible). The keys are exactly mail, calendar, contacts, files and tasks - a key that is none of those is REFUSED at startup, naming the ones that exist, because a domain block nobody reads is a body of data that silently does not move.",
+  "_note_tasks": "Reminders / to-dos are VTODO components in a CalDAV collection, on the same DAV root as the calendar. Discovery tells the two apart by the collection's declared component set, so the block below names the root and not the list.",
   "domains": {
     "mail": {
       "enabled": true,
@@ -38,6 +39,22 @@
       "concurrency": 4
     },
     "calendar": {
+      "enabled": true,
+      "source": {
+        "type": "caldav",
+        "url": "https://caldav.example.com/dav/",
+        "user": "user@example.com",
+        "auth": { "kind": "xoauth2", "tokenFromEnv": "CALDAV_ACCESS_TOKEN" }
+      },
+      "target": {
+        "type": "caldav",
+        "url": "https://caldav.example.net/dav/",
+        "user": "target@example.net",
+        "auth": { "kind": "basic", "passwordFromEnv": "TARGET_CALENDAR_PASSWORD" }
+      },
+      "concurrency": 2
+    },
+    "tasks": {
       "enabled": true,
       "source": {
         "type": "caldav",

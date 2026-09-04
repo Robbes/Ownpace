@@ -97,7 +97,11 @@ describe('partitionFrontDoor — the one algorithm both doors render', () => {
       'google-contacts',
       'google-drive',
     ]);
-    expect(p.providers).toEqual(['box', 'dropbox']);
+    // `apple` is a STANDALONE provider, not a family (workplan 0115): there is
+    // no `icloud` or `apple-mail` kind beside it to collect, because Apple has
+    // never published an API one could have been built on. Alphabetical among
+    // the standalones, like box and dropbox.
+    expect(p.providers).toEqual(['apple', 'box', 'dropbox']);
     expect(p.protocols).toEqual(['imap']);
   });
 

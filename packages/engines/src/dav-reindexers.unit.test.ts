@@ -123,7 +123,7 @@ function calWriter(routes: Parameters<typeof fakeHttp>[0]) {
   const { client, calls } = fakeHttp(routes);
   const writer = new CalDAVTargetWriter(
     { url: CAL_BASE, username: 'alice', password: 'pw' },
-    { ledger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+    { domain: 'calendar', ledger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
   );
   return { writer, calls };
 }

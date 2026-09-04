@@ -49,6 +49,7 @@ import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps, type LedgerOptions } from './build-deps.ts';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery.ts';
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, DOMAIN_CONFIG_KEY } from '@openmig/shared';
 
 /**
  * Feed one completed pass into the Prometheus registry (§19 dashboards).
@@ -192,20 +193,15 @@ export function planDomainLanes(
   config: MappingConfig,
   domains: ReadonlyArray<DiscoveryDomain>,
 ): DiscoveryDomain[][] {
-  const configFor: Record<DiscoveryDomain, { source?: unknown; target?: unknown } | undefined> = {
-    email: config.domains?.mail,
-    calendar: config.domains?.calendar,
-    contact: config.domains?.contacts,
-    file: config.domains?.files,
-    task: config.domains?.tasks,
-  };
+  const configFor = (domain: DiscoveryDomain): { source?: unknown; target?: unknown } | undefined =>
+    config.domains?.[DOMAIN_CONFIG_KEY[domain]];
 
   // host -> index of the lane that already claimed it.
   const laneOfHost = new Map<string, number>();
   const lanes: DiscoveryDomain[][] = [];
 
   for (const domain of domains) {
-    const domainConfig = configFor[domain];
+    const domainConfig = configFor(domain);
     const hosts = [
       endpointHost(domainConfig?.source ?? config.source),
       endpointHost(domainConfig?.target ?? config.target),
@@ -275,6 +271,39 @@ function isTopLevelMailSource(type: MappingConfig['source']['type']): boolean {
   return type === 'imap-oauth2' || type === 'gmail';
 }
 
+/**
+ * Which domains a mapping config runs, and which it does not.
+ *
+ * Extracted from `runAllDomains` on 2026-09-04 so the answer can be asked
+ * without a database, a container or a connector — because for a day nobody
+ * could ask it at all, and the answer was wrong. Each domain reads the
+ * `domains` key `DOMAIN_CONFIG_KEY` gives it, which is the same key the parser
+ * fills, so this list and the config block cannot disagree about which domains
+ * exist.
+ *
+ * Tasks get their own entry and their own lane, not a seat on the calendar's
+ * (0113 T0, the owner: *"yes, correct that tasks move with task tick"*): a
+ * mapping that ticked Calendar and not Tasks copies events and no to-dos, and
+ * the reverse.
+ */
+export function domainsFromConfig(
+  config: MappingConfig,
+): Array<{ name: DiscoveryDomain; enabled: boolean }> {
+  const domains = DISCOVERY_DOMAINS.map((name) => ({
+    name,
+    enabled: config.domains?.[DOMAIN_CONFIG_KEY[name]]?.enabled ?? false,
+  }));
+
+  // Backward compatibility: a config with no domains block but an IMAP source
+  // runs mail only.
+  const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
+  if (!hasDomainConfig && isTopLevelMailSource(config.source.type)) {
+    domains.find((d) => d.name === 'email')!.enabled = true;
+  }
+
+  return domains;
+}
+
 /** Run all enabled domains for one mapping config, with status tracking. */
 export async function runAllDomains(
   config: MappingConfig,
@@ -282,24 +311,7 @@ export async function runAllDomains(
   ledger?: LedgerOptions,
 ): Promise<DomainSyncResult[]> {
   const results: DomainSyncResult[] = [];
-  const domains: Array<{ name: DiscoveryDomain; enabled: boolean }> = [
-    { name: 'email', enabled: config.domains?.mail?.enabled ?? false },
-    { name: 'calendar', enabled: config.domains?.calendar?.enabled ?? false },
-    { name: 'contact', enabled: config.domains?.contacts?.enabled ?? false },
-    { name: 'file', enabled: config.domains?.files?.enabled ?? false },
-    // Its own lane, not a passenger on the calendar's (0113 T0, the owner:
-    // *"yes, correct that tasks move with task tick"*). A mapping that ticked
-    // Calendar and not Tasks copies events and no to-dos, and the reverse.
-    { name: 'task', enabled: config.domains?.tasks?.enabled ?? false },
-  ];
-
-  // Backward compatibility: a config with no domains block but an IMAP source
-  // runs mail only.
-  const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
-  const runMailOnly = !hasDomainConfig && isTopLevelMailSource(config.source.type);
-  if (runMailOnly) {
-    domains[0]!.enabled = true;
-  }
+  const domains = domainsFromConfig(config);
 
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;

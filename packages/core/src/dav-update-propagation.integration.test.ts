@@ -253,7 +253,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
   beforeEach(async () => {
     target = new CalDAVTargetWriter(
       { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
-      { ledger, tenantId: CAL_TENANT, mappingId: CAL_MAPPING },
+      { domain: 'calendar', ledger, tenantId: CAL_TENANT, mappingId: CAL_MAPPING },
     );
     await remove(`${BASE}/${CAL_PATH}/`);
     await seedMappingRows({
@@ -396,7 +396,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
       // snapshot of the collection and is never invalidated.
       target: new CalDAVTargetWriter(
         { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
-        { ledger, tenantId: CAL_TENANT, mappingId: CAL_MAPPING },
+        { domain: 'calendar', ledger, tenantId: CAL_TENANT, mappingId: CAL_MAPPING },
       ),
       ledger,
       concurrency: 1,
@@ -422,7 +422,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
       source: new StubCalendarSource(folder, [calendarEvent(uid, 'Moved again', 'etag-3')]),
       target: new CalDAVTargetWriter(
         { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
-        { ledger, tenantId: CAL_TENANT, mappingId: CAL_MAPPING },
+        { domain: 'calendar', ledger, tenantId: CAL_TENANT, mappingId: CAL_MAPPING },
       ),
       ledger,
       concurrency: 1,
@@ -917,7 +917,7 @@ describe('An item moved between source collections (real CalDAV target) Integrat
   beforeEach(async () => {
     target = new CalDAVTargetWriter(
       { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
-      { ledger, tenantId: MOVE_TENANT, mappingId: MOVE_MAPPING },
+      { domain: 'calendar', ledger, tenantId: MOVE_TENANT, mappingId: MOVE_MAPPING },
     );
     await remove(`${BASE}/${targetPathFor(MOVE_A)}/`);
     await remove(`${BASE}/${targetPathFor(MOVE_B)}/`);
