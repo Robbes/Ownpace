@@ -73,6 +73,7 @@ import {
   type GraphEntraCredsAsFound,
 } from './graph-domain-source-factory.ts';
 import { sourceFaceBuilder, type SourceFaceBuilder } from './source-face-builders.ts';
+import { publishedEndpoint, isProviderAccountKind } from '@openmig/shared';
 import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
@@ -633,7 +634,7 @@ export async function buildDomainDepsFromMapping(
       return withClose(
         {
           ...common,
-          source: buildTaskSource(davEndpointFromCreds('source', src.config, src.creds)),
+          source: buildTaskSourceFromConnection(src),
           target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps),
         } satisfies CalendarSyncDeps,
         db,
@@ -717,10 +718,37 @@ export function buildCalendarSourceFromConnection(src: {
         STORED_GRAPH_FIELD_NAMING,
       );
     case 'dav':
-      return buildCalendarSource(davEndpointFromCreds('source', src.config, src.creds));
+      return buildCalendarSource(
+        davEndpointFromCreds('source', src.config, src.creds, src.kind, 'calendar'),
+      );
     default:
       throw faceHasNoBuilder('calendar', src.kind, builder);
   }
+}
+
+/**
+ * The calendar builder's sibling over the TASK face (workplan 0115 T4).
+ *
+ * Extracted from the inline `domain === 'task'` branch so every face a
+ * provider account claims has exactly one entry point — which is what
+ * `a-face-no-account-can-actually-build` needs in order to ask its question
+ * about all five, rather than about the four that happened to be exported.
+ *
+ * `dav` and nothing else, deliberately. A to-do list IS a calendar collection
+ * declaring VTODO (RFC 4791 §5.2.3, 0113 T5), so there is no Google branch
+ * (its CalDAV serves neither VTODO nor VJOURNAL, per its own guide) and no
+ * Graph branch (To Do is not CalDAV — 0114 T9). A kind whose task face
+ * resolves to anything else is a defect, and this refuses by name rather than
+ * falling through.
+ */
+export function buildTaskSourceFromConnection(src: {
+  config: Record<string, unknown>;
+  creds: Record<string, string>;
+  kind: string;
+}): ReturnType<typeof buildTaskSource> {
+  const builder = sourceFaceBuilder(src.kind, 'task');
+  if (builder !== 'dav') throw faceHasNoBuilder('task', src.kind, builder);
+  return buildTaskSource(davEndpointFromCreds('source', src.config, src.creds, src.kind, 'task'));
 }
 
 /** The calendar builder's sibling over the contact face — same three, same rule. */
@@ -745,7 +773,9 @@ export function buildContactSourceFromConnection(src: {
         STORED_GRAPH_FIELD_NAMING,
       );
     case 'dav':
-      return buildContactSource(davEndpointFromCreds('source', src.config, src.creds));
+      return buildContactSource(
+        davEndpointFromCreds('source', src.config, src.creds, src.kind, 'contact'),
+      );
     default:
       throw faceHasNoBuilder('contact', src.kind, builder);
   }
@@ -906,6 +936,44 @@ export function buildFileSourceFromConnection(src: {
  * Exported for unit tests: the branch-per-type and its refusals are the
  * behavior worth pinning, and they need no database to prove.
  */
+/**
+ * Where an ACCOUNT KIND's mail face connects — a rule, not a lookup.
+ *
+ * Exported and pure so the rule can be ASSERTED rather than only observed not
+ * to throw: aiming IMAP at the wrong host builds perfectly well and fails at
+ * connect, which is the shape of failure this product treats as worst.
+ *
+ * `mailHost` first, and that is the whole point. An account kind holds ONE row
+ * for several faces, so its DAV host and its IMAP host both live in it —
+ * `soverin` stores `host: caldav.soverin.net` beside `mailHost:
+ * imap.soverin.net` (0106 T4b). Reading `host` for the mail face would send
+ * IMAP to the calendar service. Then the published endpoint, for a kind whose
+ * hosts nobody types (`apple`). Then the generic `host`, for a row that
+ * carries only one.
+ */
+export function accountMailEndpoint(
+  kind: string,
+  config: object,
+): { host: string; port: number } {
+  const stored = config as {
+    host?: unknown;
+    port?: unknown;
+    mailHost?: unknown;
+    mailPort?: unknown;
+  };
+  const published = publishedEndpoint(kind, 'email');
+  const host =
+    String(stored.mailHost ?? '').trim() || published?.host || String(stored.host ?? '').trim();
+  if (!host) {
+    throw new Error(
+      `A '${kind}' mail source has no IMAP host: the connection stores neither mailHost nor ` +
+        'host, and no published endpoint is known for this kind. Add one to PROVIDER_ENDPOINTS, ' +
+        'or store a host on the connection.',
+    );
+  }
+  return { host, port: Number(stored.mailPort ?? published?.port ?? stored.port ?? 993) };
+}
+
 export function buildSourceConnectorFromCredentials(
   sourceConfig: SourceConfig,
   credentials: Record<string, string>,
@@ -973,6 +1041,34 @@ export function buildSourceConnectorFromCredentials(
       credentials,
       STORED_GMAIL_CREDENTIAL_NAMES,
       undefined,
+      byteMeter,
+    );
+  }
+  if (isProviderAccountKind(sourceConfig.type) && sourceFaceBuilder(sourceConfig.type, 'email') === 'imap') {
+    // AN ACCOUNT KIND WHOSE MAIL FACE IS PLAIN IMAP (workplan 0115 T4).
+    //
+    // Off the face table, like the Graph arm above, and for the same reason:
+    // `apple` claims `email`, the table answers `imap`, and this function used
+    // to refuse it with "only supports imap-oauth2, graph-mail, gmail and
+    // google mail sources, got: apple" — verbatim the sentence 0114 T5a hit
+    // for `microsoft`, from the same cause one provider later.
+    //
+    // The IMAP builder below already accepts a plain password; all it insists
+    // on is the config SHAPE. So the host and port come from the published
+    // endpoints (nobody types Apple's — see `PROVIDER_ENDPOINTS`), the address
+    // from the row, and the credential from the store. A kind that reaches
+    // here with no published endpoint and no stored host refuses by name
+    // rather than connecting to nothing.
+    const { host, port } = accountMailEndpoint(sourceConfig.type, sourceConfig);
+    return buildImapSourceFromCredentials(
+      {
+        type: 'imap-oauth2',
+        host,
+        port,
+        user: String((sourceConfig as { user?: unknown }).user ?? credentials.username ?? ''),
+      } as SourceConfig,
+      credentials,
+      throttleLimiter,
       byteMeter,
     );
   }
