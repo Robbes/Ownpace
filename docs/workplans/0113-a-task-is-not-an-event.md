@@ -43,6 +43,39 @@ neither side populates today and both would pick up together on the day one does
 the result is the same: two ledger rows for one object, and a domain reporting twice what
 it moved. They are pinned in one file for that reason.
 
+### The TENTH fan-out — the read side, which had it backwards
+
+With the ledger finally right, the verification gate (step 21, its first execution since
+run #174) declared all eight tasks lost:
+
+```
+tasks: sourceCount 8, targetCount 0, matched 0, missingOnTarget 8, bytes source=1952 target=0
+```
+
+on a target that provably held
+`calendars/e2e-target/restart-resume-seed-tasks/dav-seed-task-1..8@dev.local.ics`, in a
+collection whose `supported-calendar-component-set` says `VTODO` — written there by our
+own writer, exactly as T4 intended. **`canProceedToCutover: false` on a migration that had
+copied everything.**
+
+`CalDAVTargetWriter.listEventsIn` built its `calendar-query` naming VEVENT, VTODO and
+VJOURNAL as SIBLING comp-filters, on the reading that this asks for any of them. RFC 4791
+§9.7.1 makes a comp-filter's children a **conjunction**: it asks for a VCALENDAR
+containing all three, which is no object anybody has. Sabre's PDO backend — Nextcloud's —
+is more forgiving and indexes on the FIRST child, which was VEVENT. So the query worked
+for four domains and one entire workplan, and could never have worked for the fifth.
+
+The reindexer now asks for the one component its domain owns. Scoped rather than unioned,
+because that is also the right answer for the other half of verification: a calendar
+reindexer that listed VTODOs would report every migrated task as "extra on target", and no
+domain owns VJOURNAL at all.
+
+**This one was found by diagnostics rather than by inference,** and the difference is
+worth recording. Two earlier defects in this list were diagnosed by subtracting byte
+totals — 4913 minus 1952 is nine events — which is not a method. The gate's diagnostics
+now dump the `item` table by domain and status, and ask the target what it holds the way
+the reindexer asks it. One run named a cause that two rounds of arithmetic could not.
+
 **All of these were invisible for the same reason**, and it is worth saying once: a
 domain that never runs cannot be wrong in a way anything notices. Every list, type and
 branch 0113 added was correct; what was missing was one run.

@@ -534,6 +534,31 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
 
   /** Every calendar resource in one collection, as ledger-shaped entries. */
   private async *listEventsIn(calendarPath: string): AsyncIterable<TargetEntry> {
+    // ONE COMPONENT, THIS WRITER'S OWN — not all three at once.
+    //
+    // This filter used to name VEVENT, VTODO and VJOURNAL as sibling
+    // comp-filters, on the reading that it was asking for any of them. It is
+    // not: RFC 4791 §9.7.1 makes a comp-filter's children a conjunction, so
+    // "a VCALENDAR containing a VEVENT and a VTODO and a VJOURNAL" describes
+    // no object anybody has. Sabre's PDO backend — Nextcloud's — is more
+    // forgiving and simply takes the FIRST child as the component to index on,
+    // which is why the query appeared to work for four domains and one
+    // workplan: the first child was VEVENT, so events came back and nothing
+    // else ever did.
+    //
+    // The self-hosted gate met the consequence on 2026-09-04, the first run
+    // where the task domain reached a real server: eight VTODOs sitting in
+    // `restart-resume-seed-tasks/` (a collection whose
+    // `supported-calendar-component-set` says VTODO, written there by this
+    // very class), and a verification report reading `tasks: targetCount 0,
+    // missingOnTarget 8` — every migrated task declared lost, and
+    // `canProceedToCutover: false` on a migration that had copied everything.
+    //
+    // Scoped to the domain rather than unioned over all three, because that is
+    // also the right answer for the other half of verification: a calendar
+    // reindexer that listed VTODOs would report every task as "extra on
+    // target", and no domain owns VJOURNAL at all.
+    const component = this.domain === 'task' ? 'VTODO' : 'VEVENT';
     // Partial retrieval (RFC 4791 §9.6): ask for the UID rather than the whole
     // event body. Enumeration is metadata-only by contract and a mailbox-sized
     // calendar should not be downloaded in full to count it.
@@ -544,19 +569,15 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
           <D:getcontentlength/>
           <C:calendar-data>
             <C:comp name="VCALENDAR">
-              ${CALENDAR_COMPONENTS.map(
-                (component) => `<C:comp name="${component}">
+              <C:comp name="${component}">
                 <C:prop name="UID"/>
-              </C:comp>`,
-              ).join('\n              ')}
+              </C:comp>
             </C:comp>
           </C:calendar-data>
         </D:prop>
         <C:filter>
           <C:comp-filter name="VCALENDAR">
-            ${CALENDAR_COMPONENTS.map((component) => `<C:comp-filter name="${component}"/>`).join(
-              '\n            ',
-            )}
+            <C:comp-filter name="${component}"/>
           </C:comp-filter>
         </C:filter>
       </C:calendar-query>`;

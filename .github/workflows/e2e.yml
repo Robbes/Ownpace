@@ -602,8 +602,13 @@ jobs:
               2>&1 || true
             echo
             echo "===== target VTODOs, asked for by themselves ====="
+            # The same PROPFIND as above, BODY AND ALL. Sent without one it is an
+            # allprop, and the collections whose props are expensive came back
+            # abbreviated: the first version of this loop found three of the six
+            # collections and asked none of the ones that mattered.
             for col in $(curl -s -u "${NEXTCLOUD_TARGET_USER}:${TARGET_DAV_PASSWORD}" -X PROPFIND \
-                           -H 'Depth: 1' \
+                           -H 'Depth: 1' -H 'Content-Type: application/xml' \
+                           --data '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>' \
                            "http://127.0.0.1:${DEV_NEXTCLOUD_PORT}/remote.php/dav/calendars/${NEXTCLOUD_TARGET_USER}/" \
                          | grep -o '/remote.php/dav/calendars/[^<]*/' | sort -u); do
               echo "--- ${col}"
@@ -611,7 +616,16 @@ jobs:
                 -H 'Depth: 1' -H 'Content-Type: application/xml' \
                 --data '<?xml version="1.0"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VTODO"/></c:comp-filter></c:filter></c:calendar-query>' \
                 "http://127.0.0.1:${DEV_NEXTCLOUD_PORT}${col}" \
-                | grep -o '<d:href>[^<]*</d:href>' | head -20
+                | grep -o '<d:href>[^<]*</d:href>'
+              # And what is actually IN it, whatever component. A collection the
+              # component query answers empty but PROPFIND says holds eight
+              # resources is the read side lying, not the write side failing —
+              # which is exactly the distinction that cost run #180.
+              curl -s -u "${NEXTCLOUD_TARGET_USER}:${TARGET_DAV_PASSWORD}" -X PROPFIND \
+                -H 'Depth: 1' -H 'Content-Type: application/xml' \
+                --data '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getcontentlength/></d:prop></d:propfind>' \
+                "http://127.0.0.1:${DEV_NEXTCLOUD_PORT}${col}" \
+                | grep -o '<d:href>[^<]*\.ics</d:href>' | wc -l | sed 's/^/    resources: /'
             done 2>&1 || true
           } 2>&1 | tee diagnostics/e2e-diagnostics.txt
 

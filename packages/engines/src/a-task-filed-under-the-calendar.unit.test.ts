@@ -42,6 +42,26 @@
  * whichever of the two the writer gets wrong, the result is two ledger rows
  * for one object and a domain reporting twice what it moved.
  *
+ * ## And the READ side, which had it backwards
+ *
+ * With the ledger finally right, verification then declared all eight tasks
+ * lost: `tasks: targetCount 0, missingOnTarget 8`, on a target that provably
+ * held `restart-resume-seed-tasks/dav-seed-task-1..8@dev.local.ics` in a
+ * collection whose `supported-calendar-component-set` says VTODO.
+ *
+ * `listEventsIn`'s `calendar-query` named VEVENT, VTODO and VJOURNAL as
+ * SIBLING comp-filters, on the reading that this asks for any of them. RFC
+ * 4791 §9.7.1 makes a comp-filter's children a conjunction, so it asks for a
+ * VCALENDAR containing all three — which is no object anybody has. Sabre's PDO
+ * backend is more forgiving and indexes on the FIRST child, which was VEVENT:
+ * so the query worked for four domains and one whole workplan, and could never
+ * have worked for the fifth.
+ *
+ * The reindexer now asks for the one component its domain owns. That is also
+ * the right answer for the other half of verification — a calendar reindexer
+ * that listed VTODOs would report every task as "extra on target" — and no
+ * domain owns VJOURNAL at all.
+ *
  * ## What is pinned
  *
  * The writer records under the domain it was BUILT for, not the one its class
@@ -234,5 +254,94 @@ describe('the two factories build two different filings', () => {
       factories.indexOf('export function buildTaskTarget'),
     );
     expect(calendarFactory).toContain("domain: 'calendar'");
+  });
+});
+
+describe('the reindexer asks the target for the component its domain owns', () => {
+  /** A stub that records the REPORT bodies and answers an empty multistatus. */
+  function reportsFrom(domain: 'calendar' | 'task') {
+    const bodies: string[] = [];
+    const client = {
+      async request(o: { method: string; body?: unknown }) {
+        if (o.method === 'REPORT') bodies.push(String(o.body ?? ''));
+        if (o.method === 'PROPFIND') {
+          // One calendar collection, so listEntries has somewhere to look.
+          return {
+            status: 207,
+            body:
+              '<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">' +
+              '<d:response><d:href>/remote.php/dav/calendars/alice/only/</d:href>' +
+              '<d:propstat><d:prop><d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>' +
+              '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+            headers: {},
+          };
+        }
+        return { status: 207, body: '<d:multistatus xmlns:d="DAV:"></d:multistatus>', headers: {} };
+      },
+    } as unknown as HttpClient;
+
+    const writer = new CalDAVTargetWriter(
+      { url: BASE, username: 'alice', password: 'pw' },
+      {
+        domain,
+        ledger: { find: async () => undefined, recordIfAbsent: async () => undefined } as unknown as Ledger,
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        httpClient: client,
+      },
+    );
+    return { writer, bodies };
+  }
+
+  const drain = async (writer: CalDAVTargetWriter) => {
+    for await (const _ of writer.listEntries()) void _;
+  };
+
+  it('a task reindexer asks for VTODO, and for nothing else', async () => {
+    const { writer, bodies } = reportsFrom('task');
+    await drain(writer);
+
+    expect(bodies.length).toBeGreaterThan(0);
+    const body = bodies.join('');
+    expect(
+      body,
+      'the task reindexer did not ask the target for VTODO, so every migrated task reads as ' +
+        'missing on target and the verification gate refuses a cutover that copied everything',
+    ).toContain('<C:comp-filter name="VTODO"/>');
+    expect(
+      body,
+      'the filter names more than one component. RFC 4791 §9.7.1 makes a comp-filter\'s ' +
+        'children a CONJUNCTION, and Sabre indexes on the first — either way the second ' +
+        'component is never returned',
+    ).not.toContain('<C:comp-filter name="VEVENT"/>');
+  });
+
+  it('a calendar reindexer asks for VEVENT, and for nothing else', async () => {
+    // The control, and the reason this is scoped rather than unioned: a
+    // calendar reindexer that also listed VTODOs would report every task the
+    // task domain migrated as an extra item on the target.
+    const { writer, bodies } = reportsFrom('calendar');
+    await drain(writer);
+
+    const body = bodies.join('');
+    expect(body).toContain('<C:comp-filter name="VEVENT"/>');
+    expect(body).not.toContain('<C:comp-filter name="VTODO"/>');
+    expect(body).not.toContain('<C:comp-filter name="VJOURNAL"/>');
+  });
+
+  it('asks for exactly one component per query', async () => {
+    // The shape of the defect, stated directly: more than one comp-filter under
+    // VCALENDAR is the bug, whichever components they name.
+    for (const domain of ['calendar', 'task'] as const) {
+      const { writer, bodies } = reportsFrom(domain);
+      await drain(writer);
+      for (const body of bodies) {
+        expect(
+          (body.match(/<C:comp-filter name="V[A-Z]+"\/>/g) ?? []).length,
+          `the ${domain} reindexer sent ${body.split('comp-filter name="V').length - 1} component ` +
+            'filters in one query; siblings are ANDed, so at most one of them can ever match',
+        ).toBe(1);
+      }
+    }
   });
 });
