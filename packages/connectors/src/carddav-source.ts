@@ -19,7 +19,11 @@ import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@open
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types.ts';
 import { davRefusalBody } from './gdata-refusal.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
-import { wellKnownUrl as buildWellKnownUrl } from './dav-http.types.ts';
+import {
+  wellKnownUrl as buildWellKnownUrl,
+  normalizeDavHref,
+  davPathOf,
+} from './dav-http.types.ts';
 import { parseRemovedHrefs } from './dav-removals.ts';
 
 /**
@@ -483,7 +487,10 @@ export class CarddavSource implements ContactSource {
       const path = this.normalizePath(hrefMatch[1].trim());
       
       // Skip if this is the home set itself
-      if (path === this.normalizePath(homeSet)) continue;
+      // Paths, not strings: iCloud answers the home set with a host and the
+      // hrefs beside it without one (0115 T1), and comparing those as strings
+      // offers the home set itself as an address book to migrate.
+      if (davPathOf(path) === davPathOf(homeSet)) continue;
 
       // Extract display name - namespace-agnostic
       const displayNameMatch = responseContent.match(/<[A-Za-z]+:displayname[^>]*>([^<]*)<\/[A-Za-z]+:displayname>/i);
@@ -1071,15 +1078,10 @@ export class CarddavSource implements ContactSource {
   /**
    * Normalize path to ensure consistent format.
    */
-  private normalizePath(path: string): string {
-    let normalized = path.replace(/\\/g, '/');
-    if (!normalized.startsWith('/')) {
-      normalized = '/' + normalized;
-    }
-    if (!normalized.endsWith('/')) {
-      normalized += '/';
-    }
-    return normalized;
+  private normalizePath(hrefOrUrl: string): string {
+    // 0115 T1: an absolute URL keeps its host. See `normalizeDavHref` for the
+    // iCloud partition host this used to turn into a path that cannot exist.
+    return normalizeDavHref(hrefOrUrl);
   }
 
   /**

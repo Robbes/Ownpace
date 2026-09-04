@@ -29,7 +29,7 @@ import {
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
 import { davRefusalBody } from './gdata-refusal.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
-import { wellKnownUrl as buildWellKnownUrl } from './dav-http.types.ts';
+import { wellKnownUrl as buildWellKnownUrl, normalizeDavHref } from './dav-http.types.ts';
 import { parseRemovedHrefs } from './dav-removals.ts';
 
 /**
@@ -1002,15 +1002,10 @@ export class CalDAVSource implements CalendarSource {
   /**
    * Normalize path to ensure consistent format.
    */
-  private normalizePath(path: string): string {
-    let normalized = path.replace(/\\/g, '/');
-    if (!normalized.startsWith('/')) {
-      normalized = '/' + normalized;
-    }
-    if (!normalized.endsWith('/')) {
-      normalized += '/';
-    }
-    return normalized;
+  private normalizePath(hrefOrUrl: string): string {
+    // 0115 T1: an absolute URL keeps its host. See `normalizeDavHref` for the
+    // iCloud partition host this used to turn into a path that cannot exist.
+    return normalizeDavHref(hrefOrUrl);
   }
 
   /**
