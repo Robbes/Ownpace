@@ -170,6 +170,9 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-}" \
   DROPBOX_OAUTH_CLIENT_ID="${DROPBOX_OAUTH_CLIENT_ID:-}" \
   DROPBOX_OAUTH_CLIENT_SECRET="${DROPBOX_OAUTH_CLIENT_SECRET:-}" \
+  MICROSOFT_OAUTH_CLIENT_ID="${MICROSOFT_OAUTH_CLIENT_ID:-}" \
+  MICROSOFT_OAUTH_CLIENT_SECRET="${MICROSOFT_OAUTH_CLIENT_SECRET:-}" \
+  MICROSOFT_OAUTH_TENANT="${MICROSOFT_OAUTH_TENANT:-}" \
   SMTP_HOST="${SMTP_HOST:-}" \
   SMTP_PORT="${SMTP_PORT:-}" \
   SMTP_SECURE="${SMTP_SECURE:-}" \
@@ -220,6 +223,13 @@ const { envvars } = require("@trigger.dev/sdk");
     "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
     // And the deployment-owned Dropbox app (2026-09-02), for the same reason.
     "DROPBOX_OAUTH_CLIENT_ID", "DROPBOX_OAUTH_CLIENT_SECRET",
+    // And the Entra registration (workplan 0114). The TENANT travels with the
+    // pair rather than being re-derived worker-side: the two halves of a
+    // consent must use the same authority, and a worker that guessed `common`
+    // for a single-tenant registration would fail at the token endpoint with
+    // a message about the application not being found.
+    "MICROSOFT_OAUTH_CLIENT_ID", "MICROSOFT_OAUTH_CLIENT_SECRET",
+    "MICROSOFT_OAUTH_TENANT",
     "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD",
     "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
     "LEDGER_RETENTION_DAYS", "TRIGGER_API_URL_IN_NETWORK", "LOG_LEVEL",

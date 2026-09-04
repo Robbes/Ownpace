@@ -1139,6 +1139,73 @@ key names, and a Google connection is never given Dropbox's app. `GET
 /api/provider-clients` answers `dropbox: deployment` once both halves are set,
 which is what the wizard reads before it offers the button.
 
+#### The deployment's own Entra registration (workplan 0114)
+
+The same idea a third time, for Microsoft — and with **one extra value nobody
+else has**, which is where this one goes wrong.
+
+1. **[Entra admin centre](https://entra.microsoft.com) → App registrations →
+   New registration.**
+
+   **Supported account types: *multitenant + personal Microsoft accounts*.**
+   Read that again before clicking. A single-tenant registration works for
+   you, works in your testing, works for everyone in your own directory, and
+   fails for the first customer in another organisation with
+   `AADSTS700016: Application with identifier '…' was not found in the
+   directory '…'` — which reads like a typo in the client id and is not one.
+   No value in `.env` can compensate: `MICROSOFT_OAUTH_TENANT` chooses the
+   *authority*, and no authority finds an application the registration never
+   offered to that directory.
+
+2. **API permissions → Microsoft Graph → Delegated:** `Mail.Read`,
+   `Calendars.Read`, `Contacts.Read`, `Files.Read`, `offline_access`. Nothing
+   else, and specifically **not** the `.All` variants — `Files.Read.All` reads
+   the whole tenant's OneDrive where `Files.Read` reads the signed-in user's
+   own. Do **not** grant admin consent: these are delegated, and the person
+   being migrated approves them for themselves, which is the point of the
+   button.
+
+3. **Authentication → Redirect URIs, platform *Web*.** Add
+   `https://<your API host>/api/migrations/microsoft/callback` — the exact
+   string `GET /api/redirect-uris` lists, built from `API_URL` like the other
+   two.
+
+4. **The pair, and the tenant, in `deploy/compose/.env`:**
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env \
+     MICROSOFT_OAUTH_CLIENT_ID=<Application (client) ID> \
+     MICROSOFT_OAUTH_CLIENT_SECRET=<the secret VALUE, not its id>
+   ./deploy/compose/bootstrap-managed.sh --only app
+   ./deploy/compose/set-task-env.sh
+   ./deploy/compose/deploy-tasks.sh
+   ```
+
+   **Leave `MICROSOFT_OAUTH_TENANT` empty** unless the registration is
+   deliberately single-tenant; empty means `common`, which is what a
+   deployment serving other organisations needs. Entra shows a client secret's
+   **Value** once — copy it then, not its Secret ID.
+
+   The last two commands are the same second place that bites for Google and
+   Dropbox: a task container inherits nothing from compose, and a pair the
+   worker cannot see is a consent that succeeds and a migration that cannot
+   mint a token. The tenant travels with the pair for the same reason — the
+   authorize and token halves must use one authority.
+
+Every rule of the other two pairs holds: the connection stores neither half; a
+connection's own pair wins, and its own `tenantId` travels with it rather than
+being replaced by the deployment's; both or neither, refused as half a pair at
+every door; and the pair is handed only to a `microsoft` row. `GET
+/api/provider-clients` answers `microsoft: deployment` once both halves are
+set, which is what the wizard reads before it offers the button.
+
+**What a customer sees when their tenant says no.** Two refusals are a tenant
+policy rather than anything you configured: `AADSTS65001` (an administrator
+must approve the application first) and `AADSTS90094` (the tenant forbids user
+consent entirely). Both render as sentences, so the person knows to ask
+somebody rather than press the button again. `docs/microsoft-setup.md` is the
+customer-facing version of all of this.
+
 ### 9. `tasks` — the task environment, then the deploy
 
 ```bash

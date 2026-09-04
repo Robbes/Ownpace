@@ -834,6 +834,13 @@ services:
       # same second place: set-task-env.sh carries them to the worker.
       DROPBOX_OAUTH_CLIENT_ID: ${DROPBOX_OAUTH_CLIENT_ID:-}
       DROPBOX_OAUTH_CLIENT_SECRET: ${DROPBOX_OAUTH_CLIENT_SECRET:-}
+      # The deployment's own Entra registration (workplan 0114), same rule and
+      # same second place. MICROSOFT_OAUTH_TENANT travels with the pair — the
+      # authorize and token halves must use one authority, and `common` is the
+      # default because a shared deployment serves other organisations.
+      MICROSOFT_OAUTH_CLIENT_ID: ${MICROSOFT_OAUTH_CLIENT_ID:-}
+      MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
+      MICROSOFT_OAUTH_TENANT: ${MICROSOFT_OAUTH_TENANT:-}
       API_URL: ${API_URL:-http://localhost:3001}
       # How long a backup of this database is kept. Not a schedule — it is what
       # the close endpoint TELLS a customer about when their erasure actually
