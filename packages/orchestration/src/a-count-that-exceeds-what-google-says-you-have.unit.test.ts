@@ -129,6 +129,17 @@ async function mixedTakeout(): Promise<string> {
   return root;
 }
 
+/** The COMMON library: photos, no edits, no motion. */
+async function originalsOnlyTakeout(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'takeout-plain-'));
+  made.push(root);
+  const photos = join(root, 'Takeout', 'Google Photos', 'Photos from 2024');
+  await mkdir(photos, { recursive: true });
+  await writeFile(join(photos, 'IMG_0001.jpg'), Buffer.from('one'));
+  await writeFile(join(photos, 'IMG_0002.jpg'), Buffer.from('two'));
+  return root;
+}
+
 describe('the breakdown adds up', () => {
   it('counts four items as two originals, one edit and one clip', async () => {
     const reader = createTakeoutArchiveReader();
@@ -140,11 +151,9 @@ describe('the breakdown adds up', () => {
     expect(summary.byKind).toEqual({ original: 2, edited: 1, motion: 1 });
   });
 
-  it('sums to the total, and carries every kind even at zero', async () => {
+  it('sums to the total', async () => {
     // A breakdown that does not add up makes the TOTAL look wrong too, which
-    // is worse than showing no breakdown at all. And a missing key renders as
-    // a blank beside two real numbers, which reads as a failure rather than a
-    // zero.
+    // is worse than showing no breakdown at all.
     const reader = createTakeoutArchiveReader();
     const handle = await reader.open({ provider: 'google-takeout', path: await mixedTakeout() });
     const summary = await reader.summary(handle);
@@ -152,9 +161,44 @@ describe('the breakdown adds up', () => {
 
     const total = Object.values(summary.byKind).reduce((n, c) => n + c, 0);
     expect(total, 'the breakdown does not sum to the item count').toBe(summary.items);
+  });
+
+  it('carries every kind at ZERO, on a library that has none of them', async () => {
+    // The fixture matters here and the first draft of this file got it wrong:
+    // asserted against `mixedTakeout`, which contains all three, the claim
+    // passes whether the counts are seeded or merely counted up — a test that
+    // agreed for the wrong reason. An originals-only export is what proves it,
+    // and it is also the COMMON case: most people have never edited a photo.
+    //
+    // What a missing key costs: a screen reading `byKind.motion` gets
+    // `undefined` and renders a blank beside two real numbers, which reads as
+    // a failure rather than as "you have none".
+    const reader = createTakeoutArchiveReader();
+    const handle = await reader.open({
+      provider: 'google-takeout',
+      path: await originalsOnlyTakeout(),
+    });
+    const summary = await reader.summary(handle);
+    await handle.close();
+
+    expect(summary.items).toBe(2);
+    expect(summary.byKind).toEqual({ original: 2, edited: 0, motion: 0 });
     for (const kind of ARCHIVE_ITEM_KINDS) {
       expect(summary.byKind[kind], `${kind} is missing from the breakdown`).toBeTypeOf('number');
     }
+  });
+
+  it('says nothing about an excess there is none of', async () => {
+    // The other half of the same point: the "MORE than your library shows"
+    // sentence must NOT appear for a library whose count matches what Google
+    // reports. An explanation of a discrepancy that does not exist invents one.
+    const q = await qualifyArchive('archive', {
+      type: 'archive',
+      provider: 'google-takeout',
+      path: await originalsOnlyTakeout(),
+    });
+    expect(q!.domains.file.detail).not.toMatch(/MORE than your library shows/);
+    expect(q!.domains.file.detail).toContain('2 items');
   });
 });
 
