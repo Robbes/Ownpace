@@ -106,6 +106,19 @@ and `developers.google.com/data-portability/user-guide/scopes`, both read 2026-0
 Italian proceeding from AGCM's own press release of 2026-06-16. This section states what those
 pages say on that day and nothing about what they will say later.
 
+### One claim not checked, and it would matter
+
+It is reported — by secondary sources, not read in Google's own terms — that the Google Photos
+API terms **forbid using it to build a directly competing photo service**. This product is a
+migration tool rather than a photo service, so on the face of it the restriction does not
+reach us; but "on the face of it" is not a reading of the terms, and a licence restriction
+discovered late is expensive in a way a missing endpoint is not.
+
+It does not block anything today, because the API route is closed to us anyway and this plan
+does not use it. **It becomes a gating question the moment anybody proposes reaching Photos
+through the Picker API instead of an archive** — and at that point somebody reads the actual
+terms rather than a summary of them.
+
 ## The two providers are not the same shape
 
 This is the finding that makes 0116 more than "0112 again with Apple in it". The two exports
@@ -123,7 +136,8 @@ differ in the one dimension that decides the product shape.
 Two consequences, and they are the whole design:
 
 1. **For Google, the archive route can be a slow sync.** Takeout delivers into a Drive we
-   already read, on a schedule, incrementally. 0112 T4 is real.
+   already read — or a Dropbox, a OneDrive or a Box, all three of which we also read — on a
+   schedule, incrementally. 0112 T4 is real.
 2. **For Apple, the archive route is a CUTOVER ASSIST, not a sync.** No schedule, no
    incremental, no delivery into anything we can read. One snapshot, taken once, moved once.
    Saying otherwise would be selling a sync that cannot exist.
@@ -200,9 +214,22 @@ Three placements, in order of how well they work:
 
 | Placement | Google | Apple |
 |---|---|---|
-| **In a cloud we already read** (Drive, Dropbox) | Native: Takeout delivers there. **Recommended** | Only if the person re-uploads it themselves |
+| **In a cloud we already read** | Native: Takeout delivers there. **Recommended** | Only if the person re-uploads it themselves |
 | **Uploaded through the product** | Works, worst for multi-GB | **The only direct route** |
 | **A local path** (self-host) | Fine on an appliance | Fine on an appliance, and probably the best Apple answer |
+
+**And the first row is better than it looks.** Takeout's delivery choices are an emailed link,
+**Google Drive, Dropbox, Microsoft OneDrive and Box** (verified 2026-09-04) — and *every one of
+those four is a file source this product already reads*: `google-drive`, `dropbox`,
+`graph-drive` and `box`. So for Google there is no transport to build at all. The person picks
+a destination inside Takeout, connects that account here through a door that already works,
+and the archive is in reach with nothing new written. Takeout can even do it on a schedule,
+which is what makes 0112 T4's two-monthly pickup real rather than aspirational.
+
+That is the asymmetry stated exactly: **Google has four zero-work delivery routes and a
+scheduler; Apple has none.** Apple hands the person a link, and everything after it is ours to
+build or the appliance's to sidestep. T4's difficulty is entirely Apple's half, which is worth
+knowing before anybody estimates it as one task.
 
 0112 ranked "upload through the product" last, correctly, for Google. **For Apple it may be
 the only option**, which changes its priority — and raises a real engineering question this
