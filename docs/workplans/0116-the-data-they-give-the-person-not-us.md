@@ -2,6 +2,13 @@
 
 ## Status — 2026-09-04 (update this block at the end of every session)
 
+**2026-09-04, later still: §5 rewritten as T6's design** after the owner asked whether the
+content hash could carry the delta across a series of exports. It can, it is the only thing
+that could, and the ledger already remembers what is needed — but absence between two archives
+is weaker evidence than this product's weakest deletion class, so the delta **may only add**.
+Two ways it can be wrong are recorded, one of them measurable against the export now in
+flight.
+
 **2026-09-04, later: all six decisions answered, still nothing built.** The owner took every
 recommendation, D5 confirmed explicitly as *files and photos only*. **The first slice is
 T1+T2+T3a+T7** — the frame, the reader seam, Google's Takeout reader, and the measure —
@@ -33,7 +40,7 @@ If the owner decides only one thing here, decide **D1**.
 | T3b The Data & Privacy reader (Apple) | 📋 **Blocked on a real export** | Nobody here has opened one. T3b starts by opening one and writing down what is inside — see §"What is not known". |
 | T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first** | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
 | T5 Placement and the manifest | 📋 Planned (needs T2) | Where items land on the target, albums/folders as folders, and one manifest row per item so nothing the provider knew is lost. 0112 §3 is this task's design for photos. |
-| T6 Idempotency by content hash | 📋 Planned (needs T2) | A second import of the same archive writes nothing; an overlapping archive writes only what is new. The file domain's existing ledger rule, applied to archives. |
+| T6 Idempotency by content hash | 📋 Planned (needs T2) | A second import writes nothing; an overlapping archive writes only what is new. The file domain's existing ledger rule, applied to archives — **and the delta across a series of archives**, which needs no new store. §5 carries the design, including the rule that an archive delta may only ADD. |
 | T7 Measure before the move | 🔨 **Next — first slice** (needs T2) | Items, bytes, folders, the export's date range on the Measured line, with the sentence that an archive is a SNAPSHOT WITH A DATE. |
 | T8 The walkthrough | 📋 Planned | `docs/archive-import.md`: how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
@@ -265,14 +272,67 @@ rule 2). Metadata travels two ways, as 0112 §3 designed for photos:
 Deliberately not attempted, for either provider: reproducing sharing state, face/people
 tagging, or any provider-side "recently deleted" notion.
 
-### 5. Idempotency, and what an archive can never tell us
+### 5. Idempotency, the delta across archives, and what an archive can never tell us
 
 Content hash in the ledger, exactly as the file domain already keys its copies. A second
 import of the same archive writes nothing. Two archives that overlap write the union once.
 
-**Deletions never propagate, for either provider.** An export says what exists; it says
-nothing about what was removed. A target keeps what the source no longer has. This is stated
-here, in the guide, and on the connection card — never left for a customer to discover.
+#### The delta needs no new machinery, and could use nothing else
+
+Takeout ships **no manifest, no cursor and no change feed**. Between two archives the content
+hash is the only identity they share, so it is not merely *a* way to find what is new — it is
+the only one available.
+
+And the memory already exists. The delta is **not** archive N diffed against archive N+1 —
+that is impossible anyway, because N's download link expired. It is:
+
+> read archive N+1, ask the **ledger** whether each hash is known, import the unknown.
+
+Which is T6 as already written, and it makes T9's pickup nearly free: no second store, no
+retained archives, no bookkeeping the file domain does not already do.
+
+#### The rule that makes it safe: an archive delta may only ADD
+
+**Absence between two archives is not evidence of deletion, and it is weaker than this
+product's weakest class.** `DeletionEvidence` ranks `reported` > `trashed` > `inferred`, and
+`ports.ts` is explicit that *only the first two may ever gate a destructive action*. An archive
+supplies neither: nothing reports a removal, and there is no bin to look in.
+
+It does not even reach `inferred`, which means `DELETION_CONFIRMATIONS` consecutive **complete
+scans of the source**. An archive is not a scan. It is a snapshot whose scope the person chose,
+whose parts may have failed to download, and whose categories they may have deselected between
+requests. Deleted, deselected and truncated present identically.
+
+So the rule is absolute and belongs in the code rather than in a reviewer's memory: **an
+archive import adds and updates; it never removes, and it does not report a removal as a
+suspicion either.** A target keeps what an archive no longer mentions. Stated here, in the
+guide, and on the connection card — never left for a customer to discover.
+
+#### Two ways the delta can be wrong, and only one is cheap
+
+**A re-encoded item reads as a new one.** If Takeout re-compresses, or rewrites EXIF, or
+changes a container between exports, the bytes change and so does the hash — and the delta
+reports as new an item already held. This is the shape of a lesson this repository has already
+paid for once: `contentHashFor` was **withdrawn** for calendar and contacts (#143) because
+CalDAV servers re-serialize what they store, so a hash computed on the source can never equal
+one computed off the target. Files are *usually* carried byte-for-byte through Takeout.
+**"Usually" is exactly the word that has to be measured before T6 leans on it** — two archives
+of an unchanged library, and every hash equal, or this section is wrong.
+
+**A metadata-only change is invisible.** Rename an album, edit a description, move a photo
+between albums: the bytes are identical, the hash is identical, and the delta says nothing
+happened. That is the correct answer for *content* and the wrong one for *organisation*.
+Whether album membership should follow a later archive is a real question and not answered
+here; the seam preserves `metadata` verbatim precisely so it stays answerable.
+
+#### The cadence is the provider's, not ours
+
+Google's scheduled export is **every two months for a year**, so the natural pickup is
+bi-monthly rather than monthly — the schedule is Takeout's and this product only reads what
+lands. **Apple has no cadence at all**: every request is a fresh full snapshot, nothing can be
+scheduled, and a category cannot be re-requested while a request for it is in flight, so two
+Apple exports are a fortnight apart at best. That asymmetry is D4's whole reason for a mapping
+domain on one side and a one-shot on the other.
 
 ## The owner's decisions
 
