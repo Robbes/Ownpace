@@ -12,6 +12,50 @@ the day read, exactly as `PROVIDER_ENDPOINTS` does. **An answer that is not
 written down did not happen**, and an unmeasured value stays `unknown` with
 words rather than becoming a confident sentence (0105).
 
+## Part 0 is done — the owner walked it 2026-09-04
+
+**Folded away rather than deleted**, because what it asked for is now answered
+and the answers are the point. The owner opened `privacy.apple.com` and read
+the request flow; everything in this section is measured, from Apple's own
+screens, on 4 September 2026.
+
+| Asked | Apple's answer |
+|---|---|
+| How long to prepare | *"Dit proces kan tot zeven dagen duren"* — up to seven days, used to verify the request came from you |
+| Part sizes offered | **1, 2, 5, 10, 25 GB** — a choice, and 25 GB is the maximum rather than the unit |
+| Link life | **Still unmeasured** — not shown on the request screens; it appears when the export is ready |
+| What is inside | documents, photos and videos **in original format**; contacts, calendars, bookmarks and mail as **`.vcf`, `.ics`, `.html`, `.eml`**; app usage as json/csv/pdf. No purchases of apps, books, films, TV or music |
+| Can it be scheduled | **Recurring exists, and not for iCloud.** Only App Store information and app-install activity offer a repeating download |
+
+Two corrections this forces on what was written from secondary sources:
+
+- *"no incremental, no scheduling"* was very nearly right and not exactly
+  right. Apple does offer a recurring schedule — for two App Store categories,
+  neither of which is content anybody migrates.
+- **There are two routes, not one.** Beside *Request a copy of your data* there
+  is *Transfer a copy of your data*, a direct hand-off with no download in
+  between — and it goes to **Google Photos** (from iCloud Photos) and
+  **YouTube Music** (from Apple Music playlists), and nowhere else. That is
+  Apple's own service, it is better than anything this product can offer for
+  that one journey, and a customer moving photos to Google should be told to
+  use it.
+
+The third correction is the largest, and it is about scope rather than fact:
+**the export is not a file archive.** It carries contacts, calendars and mail
+in the same interchange formats this product already reads. That does not make
+it the right route for them — the live connection is incremental and does not
+wait a week — but it does mean an archive reader is reading a whole account,
+not a folder of documents.
+
+### What is still to do here
+
+The request itself. Tick **iCloud Drive files and documents** and, if you are
+willing, **iCloud Photos**; choose **1 GB** as the maximum file size, so the
+archive is forced to SPLIT and how the parts relate can be seen. Then wait.
+
+<details>
+<summary>The original Part 0, as written before any of this was known</summary>
+
 ## Part 0 — fire the export request FIRST, today
 
 Everything else here takes minutes. This takes **about a week**, so it goes
@@ -39,6 +83,8 @@ first or the week is lost.
    is what makes them sayable — or corrects them.
 
 Then close the tab and forget it for a week. Parts 1 and 2 do not wait on it.
+
+</details>
 
 ### On what is actually in that archive
 
@@ -127,6 +173,12 @@ by-the-way at the end of a measurement.
 
 Five questions, and they are the whole of 0116 T3b. Everything else in that
 workplan is designed and blocked on these.
+
+**Two of the five are now half-answered** by the request flow itself (above):
+Photos and Drive are separate tick-boxes, so they are separate requests and
+almost certainly separate archives (Q3), and the parts are cut at a size the
+person chose rather than a fixed one (Q4) — what remains is whether those parts
+are independent zips or one archive split.
 
 1. **The layout.** What is the top-level directory tree? Do iCloud Drive files
    keep their original folder structure, or are they flattened?
