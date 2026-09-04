@@ -37,6 +37,7 @@ import operatingRoutes from './operating-routes.ts';
 import { googleAccountScopeSentence } from './google-account-consent.ts';
 import googleOauthRoutes from './google-oauth-routes.ts';
 import dropboxOauthRoutes from './dropbox-oauth-routes.ts';
+import microsoftOauthRoutes from './microsoft-oauth-routes.ts';
 // The owner's grant-link surface (workplan 0108 T3): issue, list, revoke, all
 // under /api/migrations/:mappingId/links. The link HOLDER's routes are not
 // here and never will be — they authenticate a link, not a session, so they
@@ -54,6 +55,8 @@ import {
   halfGoogleClientPairProblem,
   halfDropboxClientPairProblem,
   dropboxDeploymentClient,
+  microsoftDeploymentClient,
+  halfMicrosoftClientPairProblem,
   resolveGoogleClient,
   resolveDropboxClient,
   parseGoogleDriveSource,
@@ -75,8 +78,8 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 
 /** Map the web source type to a connection.kind (protocol-based). */
 export function sourceKindFor(
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box',
-): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'google' | 'dropbox' | 'box' {
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box',
+): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'google' | 'microsoft' | 'dropbox' | 'box' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
   // added, and the literal build-deps-from-mapping branches on
   // (GOOGLE_DRIVE_CONNECTION_KIND) — underscore, unlike the wizard's hyphen,
@@ -97,6 +100,12 @@ export function sourceKindFor(
   // translate: the wizard word and the connection kind are the same word,
   // which is why `wizardTypeForConnectionKind` needs no case for it either.
   if (sourceType === 'google') return 'google';
+  // The Microsoft ACCOUNT kind (workplan 0114, migration 0037). Same shape as
+  // `google` above and for the same reason: new on both sides at once, so the
+  // wizard word and the connection kind are one word. NOT 'o365' — that kind
+  // means "the customer's own Entra registration", which is the credential
+  // shape `oauth2` and `graph` carry and this row deliberately does not.
+  if (sourceType === 'microsoft') return 'microsoft';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
@@ -545,6 +554,8 @@ export class DuplicateMappingError extends Error {
 router.use('/', operatingRoutes);
 router.use('/', googleOauthRoutes);
 router.use('/', dropboxOauthRoutes);
+// Connect with Microsoft (workplan 0114 T2b), mounted beside the other two.
+router.use('/', microsoftOauthRoutes);
 router.use('/', linkRoutes);
 
 // Global pool - created once and reused
@@ -570,7 +581,7 @@ function getSharedPool() {
  *  nothing, and neither side errors at runtime. */
 export const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
-  sourceType: z.enum(['imap', 'oauth2', 'graph', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'google', 'dropbox', 'box']),
+  sourceType: z.enum(['imap', 'oauth2', 'graph', 'microsoft', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'google', 'dropbox', 'box']),
   /**
    * Reuse a connection that already exists instead of creating another
    * (workplan 0064). When set, the credentials and provider config come from
@@ -851,6 +862,54 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     );
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
+    }
+  } else if (body.sourceType === 'microsoft') {
+    // The Microsoft ACCOUNT (workplan 0114). Named here rather than left to
+    // the Azure catch-all below, and that distinction is the whole point of
+    // the kind: `oauth2` and `graph` demand tenantId + clientId + clientSecret
+    // because they ARE the customer's own app registration. This row is a
+    // delegated grant — the deployment may carry the application, the tenant
+    // is optional, and a client secret is not required at all when the
+    // deployment's pair answers.
+    //
+    // `scripts/a-source-type-the-validator-never-names.unit.test.ts` is what
+    // makes the omission impossible: everything the API accepts must be named
+    // here or written down as a deliberate member of the Azure set.
+    const missing = (
+      microsoftDeploymentClient() === null
+        ? (['clientId', 'clientSecret', 'refreshToken'] as const)
+        : (['refreshToken'] as const)
+    ).filter((k) => !body.sourceConfig[k]);
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', missing[0]!],
+        message:
+          "A 'microsoft' source authenticates with a delegated refresh token from a Microsoft " +
+          `consent: sourceConfig is missing ${missing.join(', ')}. ` +
+          (microsoftDeploymentClient() === null
+            ? 'This deployment carries no Microsoft app registration of its own, so the ' +
+              'Application (client) ID and client secret travel with the request. Where each ' +
+              'comes from is docs/microsoft-setup.md.'
+            : "This deployment carries its own app registration, so only the token is needed — " +
+              'press Connect with Microsoft, or paste one you already have.'),
+      });
+    }
+    // Half a pair is refused rather than completed with the deployment's other
+    // half, at this door as at every other (ADR-0041). The client id somebody
+    // typed does not belong to the deployment's secret, and Entra would refuse
+    // the pair at its token endpoint — hours later, from a sync pass.
+    const halfPair = halfMicrosoftClientPairProblem(body.sourceConfig);
+    if (halfPair) {
+      ctx.addIssue({ code: 'custom', path: ['sourceConfig', 'clientSecret'], message: halfPair });
+    }
+    const microsoftRefusal = sourceDomainRefusal(
+      body.sourceType,
+      body.syncConfig.domains,
+      providerAccountDomains('microsoft'),
+    );
+    if (microsoftRefusal) {
+      ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: microsoftRefusal });
     }
   } else if (body.sourceType === 'dropbox') {
     // Dropbox's App Console calls these "App key" and "App secret"; they ride

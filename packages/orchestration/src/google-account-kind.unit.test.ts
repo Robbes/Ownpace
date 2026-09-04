@@ -12,7 +12,9 @@
  *
  * Three seams had to learn the kind, and each is asserted here:
  *
- *  - the source builders, through `googleDavServes`;
+ *  - the source builders, through the face table (`sourceFaceBuilder`, 0114
+ *    T5a — it was `googleDavServes` until Microsoft became the third provider
+ *    and a two-way condition stopped being enough);
  *  - the connection PROBE, so Test says something true rather than "no probe
  *    exists for a 'google' source connection";
  *  - the grant qualification, so an account row's faces are MEASURED. That one
@@ -33,9 +35,8 @@ import {
   GOOGLE_ACCOUNT_CONNECTION_KIND,
   GOOGLE_CALENDAR_CONNECTION_KIND,
   GOOGLE_CONTACTS_CONNECTION_KIND,
-  googleDavServes,
-  googleDriveServes,
 } from './google-dav-source-factory.ts';
+import { sourceFaceBuilder } from './source-face-builders.ts';
 import { buildSourceConnectorFromCredentials } from './build-deps-from-mapping.ts';
 
 /**
@@ -48,13 +49,13 @@ const seams = readFileSync(join(import.meta.dirname, 'build-deps-from-mapping.ts
 import { probeSourceConnection } from './probe-connection.ts';
 import { isGoogleGrantKind } from './account-qualification.ts';
 
-describe('googleDavServes reads the table, and there is no fork', () => {
-  it('serves exactly the faces PROVIDER_ACCOUNT_DOMAINS.google names', () => {
-    for (const domain of ['calendar', 'contact'] as const) {
+describe('the face table answers for the google account, and there is no fork', () => {
+  it('gives every face PROVIDER_ACCOUNT_DOMAINS.google names a Google builder', () => {
+    for (const domain of PROVIDER_ACCOUNT_DOMAINS.google) {
       expect(
-        googleDavServes(GOOGLE_ACCOUNT_CONNECTION_KIND, domain),
-        `the account kind should ${PROVIDER_ACCOUNT_DOMAINS.google.includes(domain) ? '' : 'not '}serve ${domain}`,
-      ).toBe(PROVIDER_ACCOUNT_DOMAINS.google.includes(domain));
+        sourceFaceBuilder(GOOGLE_ACCOUNT_CONNECTION_KIND, domain),
+        `the account kind claims ${domain} and must not fall through to a protocol builder`,
+      ).toMatch(/^(gmail|google-)/);
     }
   });
 
@@ -62,17 +63,17 @@ describe('googleDavServes reads the table, and there is no fork', () => {
     // Cohabitation, in the owner's own word: the account kind does not
     // capture a `google_calendar` row's contact face, and a mapping created
     // before today keeps behaving exactly as it did.
-    expect(googleDavServes(GOOGLE_CALENDAR_CONNECTION_KIND, 'calendar')).toBe(true);
-    expect(googleDavServes(GOOGLE_CALENDAR_CONNECTION_KIND, 'contact')).toBe(false);
-    expect(googleDavServes(GOOGLE_CONTACTS_CONNECTION_KIND, 'contact')).toBe(true);
-    expect(googleDavServes(GOOGLE_CONTACTS_CONNECTION_KIND, 'calendar')).toBe(false);
+    expect(sourceFaceBuilder(GOOGLE_CALENDAR_CONNECTION_KIND, 'calendar')).toBe('google-dav');
+    expect(sourceFaceBuilder(GOOGLE_CALENDAR_CONNECTION_KIND, 'contact')).toBe('dav');
+    expect(sourceFaceBuilder(GOOGLE_CONTACTS_CONNECTION_KIND, 'contact')).toBe('google-dav');
+    expect(sourceFaceBuilder(GOOGLE_CONTACTS_CONNECTION_KIND, 'calendar')).toBe('dav');
   });
 
   it('says no to a kind that is not Google at all', () => {
     // The generic DAV branch must keep every ordinary caldav/carddav row.
     for (const kind of ['caldav', 'carddav', 'soverin', 'nextcloud', 'imap']) {
-      expect(googleDavServes(kind, 'calendar')).toBe(false);
-      expect(googleDavServes(kind, 'contact')).toBe(false);
+      expect(sourceFaceBuilder(kind, 'calendar')).toBe('dav');
+      expect(sourceFaceBuilder(kind, 'contact')).toBe('dav');
     }
   });
 });
@@ -134,17 +135,17 @@ describe('the SEAMS read the predicate, not a kind literal', () => {
   // account row again, and the symptom would be a credential error naming
   // fields nobody typed, arriving inside a pass.
 
-  it('routes both Google DAV faces through googleDavServes', () => {
-    expect(seams).toContain("googleDavServes(src.kind, 'calendar')");
-    expect(seams).toContain("googleDavServes(src.kind, 'contact')");
+  it('routes both DAV faces through the face table', () => {
+    expect(seams).toContain("sourceFaceBuilder(src.kind, 'calendar')");
+    expect(seams).toContain("sourceFaceBuilder(src.kind, 'contact')");
   });
 
-  it('routes the FILE face through googleDriveServes', () => {
+  it('routes the FILE face through the face table', () => {
     // The same seam rule, one face later. The account row's file face is
     // Drive, reached with the same OAuth trio under the same stored names —
     // and a `src.kind === GOOGLE_DRIVE_CONNECTION_KIND` here is what would
     // exclude it again.
-    expect(seams).toContain('googleDriveServes(src.kind)');
+    expect(seams).toContain("sourceFaceBuilder(src.kind, 'file')");
   });
 
   it('compares no kind to a Google DRIVE literal in the file seam either', () => {
@@ -203,15 +204,18 @@ describe('the account row wears its mail and file faces too', () => {
   });
 
   it('builds the file face with the Drive builder', () => {
-    expect(googleDriveServes(GOOGLE_ACCOUNT_CONNECTION_KIND)).toBe(true);
-    expect(googleDriveServes('google_drive')).toBe(true);
+    expect(sourceFaceBuilder(GOOGLE_ACCOUNT_CONNECTION_KIND, 'file')).toBe('google-drive');
+    expect(sourceFaceBuilder('google_drive', 'file')).toBe('google-drive');
   });
 
   it('leaves the file face of everything else alone', () => {
     // Dropbox and Box have their own builders in the same seam, and a
     // predicate that swept them in would aim a Google client at a Dropbox row.
     for (const kind of ['dropbox', 'box', 'webdav', 'nextcloud', 'gmail', 'google_calendar']) {
-      expect(googleDriveServes(kind), `${kind} must not take the Drive builder`).toBe(false);
+      expect(
+        sourceFaceBuilder(kind, 'file'),
+        `${kind} must not take the Drive builder`,
+      ).not.toBe('google-drive');
     }
   });
 

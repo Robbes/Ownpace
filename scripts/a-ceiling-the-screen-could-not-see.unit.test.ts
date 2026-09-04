@@ -147,16 +147,25 @@ describe('the second fact the screen could not see (ADR-0041, owner decision 202
   // (2026-09-02) the fact has a route of its own, one answer per provider,
   // because Dropbox has no account kind for its answer to ride on.
   it('the answer carries where each application comes from, and the wizard reads it', () => {
-    expect(read('packages/shared/src/provider-clients.ts')).toContain(
-      "google: googleDeploymentClient(env) ? 'deployment' : 'connection'",
-    );
-    expect(read('packages/shared/src/provider-clients.ts')).toContain(
-      "dropbox: dropboxDeploymentClient(env) ? 'deployment' : 'connection'",
-    );
+    // The facts were two inline ternaries until workplan 0114 made them a
+    // probe table over `GRANT_PROVIDERS` — a hand-written object per provider
+    // is the fan-out family in its quietest form, and Microsoft's absence
+    // from it was live on the branch that added Microsoft. What is pinned is
+    // the PROPERTY, one provider wider: each provider's answer comes from its
+    // own deployment-client module, and the list is what the answer is built
+    // from. `scripts/a-consent-nobody-can-answer.unit.test.ts` pairs that
+    // list against the descriptors and the browser's schema.
+    const clients = read('packages/shared/src/provider-clients.ts');
+    for (const probe of [
+      'googleDeploymentClient(env) !== null',
+      'dropboxDeploymentClient(env) !== null',
+      'microsoftDeploymentClient(env) !== null',
+    ]) {
+      expect(clients, `provider-clients.ts no longer probes with ${probe}`).toContain(probe);
+    }
+    expect(clients).toContain("DEPLOYMENT_CLIENTS[provider](env) ? 'deployment' : 'connection'");
     expect(read('apps/api/src/index.ts')).toContain("app.use('/api/provider-clients'");
-    expect(read('apps/web/src/services/mapping-service.ts')).toContain(
-      "google: z.enum(['deployment', 'connection'])",
-    );
+    expect(read('apps/web/src/services/mapping-service.ts')).toContain('google: CLIENT_SOURCE');
     // Compared against 'deployment', never against 'connection': an absent,
     // unparsable or still-pending answer must keep demanding the pair. And
     // indexed by the provider the source's descriptor names — a Google
@@ -191,12 +200,21 @@ describe('a fact the server computed and the screen must show', () => {
     // the thing you obviously need, and the other field is the one you need
     // only when it has already gone wrong.
     const wizard = read(WIZARD);
-    // Both providers' answers land in the same destructuring (2026-09-02):
-    // Dropbox's route returns the address for the same reason Google's does.
+    // EVERY provider's answer lands in the same destructuring. This pinned the
+    // `dropbox ? … : google…` chain verbatim until workplan 0114 turned it
+    // into a per-provider table — a two-way condition meeting a third provider
+    // takes its else branch and asks the wrong company. So what is pinned now
+    // is the PROPERTY rather than the shape: one destructuring, naming both
+    // fields, over whatever the table returned.
     expect(wizard, 'the authorize answer is being destructured without its redirect').toMatch(
-      /const \{ url, redirectUri \} =\s*grantProvider === 'dropbox'\s*\? await mappingApi\.dropboxAuthorize\([^)]*\)\s*: await mappingApi\.googleAuthorize\(/,
+      /const \{ url, redirectUri \} = await begin\(\)/,
     );
     expect(wizard, 'kept but never stored').toContain('setConsentRedirect(');
+    // And every row of that table must be able to answer with one: a provider
+    // whose ask drops `redirectUri` re-creates the original defect for itself
+    // alone, which is harder to notice than the version that broke for
+    // everybody.
+    expect(wizard).toMatch(/beginConsent: Record<string, \(\) => Promise<\{ url: string; redirectUri\?: string \}>>/);
   });
 
   it('and RENDERS it, because a value in state nobody can read is the same defect', () => {

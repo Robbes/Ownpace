@@ -58,7 +58,7 @@ vi.mock('../services/mapping-service', () => ({
   // per provider since Connect with Dropbox (2026-09-02). Neither by
   // default: every pair in plain view, as on an appliance.
   providerClientsApi: {
-    get: vi.fn().mockResolvedValue({ google: 'connection', dropbox: 'connection' }),
+    get: vi.fn().mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'connection' }),
   },
 }));
 
@@ -974,7 +974,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
   // The client fact has a route of its own since Connect with Dropbox
   // (2026-09-02): one answer per provider, and Google's is not Dropbox's.
   const clients = (google: 'deployment' | 'connection') =>
-    ({ google, dropbox: 'connection' }) as const;
+    ({ google, dropbox: 'connection', microsoft: 'connection' }) as const;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1168,7 +1168,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
   // (`consent` on the token field), so no list in the wizard grew by one.
   const dropboxAuthorize = vi.mocked(mappingApi.dropboxAuthorize);
   const clients = (dropbox: 'deployment' | 'connection') =>
-    ({ google: 'connection', dropbox }) as const;
+    ({ google: 'connection', dropbox, microsoft: 'connection' }) as const;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1265,7 +1265,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
 
   it('keeps demanding the pair where the deployment carries a Google client but no Dropbox app', async () => {
     // The fact is per provider: Google's client is not Dropbox's app.
-    vi.mocked(providerClientsApi.get).mockResolvedValue({ google: 'deployment', dropbox: 'connection' });
+    vi.mocked(providerClientsApi.get).mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
     renderWizard();
     pickDropbox();
     await waitFor(() => expect(providerClientsApi.get).toHaveBeenCalled());

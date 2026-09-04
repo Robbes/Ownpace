@@ -79,10 +79,35 @@ describe('the app a request may use', () => {
 
 describe('the provider-clients facts', () => {
   it('says which providers this deployment carries an application for, never the values', () => {
-    expect(providerClientFacts({ ...PAIR })).toEqual({ google: 'connection', dropbox: 'deployment' });
+    // Every provider, every time — `GRANT_PROVIDERS` is what the answer is
+    // derived from, so a third one arriving (Microsoft, workplan 0114) shows
+    // up here rather than being silently absent from a hand-written object.
+    // That absence was the defect: an unknown key reads `undefined`, which is
+    // not `'deployment'`, so the client pair never folds and the form asks a
+    // customer for an application id and secret beside the button that made
+    // them unnecessary.
+    expect(providerClientFacts({ ...PAIR })).toEqual({
+      google: 'connection',
+      dropbox: 'deployment',
+      microsoft: 'connection',
+    });
     expect(
       providerClientFacts({ GOOGLE_OAUTH_CLIENT_ID: 'g', GOOGLE_OAUTH_CLIENT_SECRET: 'gs' }),
-    ).toEqual({ google: 'deployment', dropbox: 'connection' });
+    ).toEqual({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
+    expect(
+      providerClientFacts({
+        MICROSOFT_OAUTH_CLIENT_ID: 'm',
+        MICROSOFT_OAUTH_CLIENT_SECRET: 'ms',
+      }),
+    ).toEqual({ google: 'connection', dropbox: 'connection', microsoft: 'deployment' });
     expect(JSON.stringify(providerClientFacts({ ...PAIR }))).not.toContain('dbx');
+    expect(
+      JSON.stringify(
+        providerClientFacts({
+          MICROSOFT_OAUTH_CLIENT_ID: 'm',
+          MICROSOFT_OAUTH_CLIENT_SECRET: 'ms',
+        }),
+      ),
+    ).not.toContain('ms');
   });
 });

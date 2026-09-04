@@ -92,7 +92,19 @@ interface PendingConsent {
    * wizard is waiting for", never a code exchanged at the wrong endpoint.
    * Absent means Google, which is every state begun before Dropbox existed.
    */
-  readonly provider?: 'google' | 'dropbox';
+  readonly provider?: 'google' | 'dropbox' | 'microsoft';
+  /**
+   * WHICH DIRECTORY this consent was begun against (workplan 0114).
+   *
+   * Microsoft alone needs it: its authorize and token endpoints are
+   * tenant-scoped, so the callback must exchange the code at the SAME
+   * authority the authorize call used. Carried here rather than recomputed at
+   * the callback because the deployment's `MICROSOFT_OAUTH_TENANT` could
+   * change between the two halves, and a code exchanged at a different
+   * authority fails with a message about the application not being found —
+   * which reads like a typo and is not one.
+   */
+  readonly tenant?: string;
   /**
    * Present when the consent was begun by a LINK holder rather than by the
    * owner in the wizard (workplan 0108 T4). It is what the callback branches
@@ -445,7 +457,7 @@ export function consentResultPage(p: {
     | { readonly ok: true; readonly refreshToken: string; readonly grantedScopes: ReadonlyArray<string> }
     | { readonly ok: false; readonly reason: string };
   /** Whose consent — decides the message type the wizard listens for. Google unless said. */
-  provider?: 'google' | 'dropbox';
+  provider?: 'google' | 'dropbox' | 'microsoft';
 }): string {
   if (!p.outcome.ok) {
     return (

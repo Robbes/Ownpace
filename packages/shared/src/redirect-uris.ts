@@ -136,6 +136,25 @@ export function redirectUris(env: RedirectUriEnv = process.env): ReadonlyArray<R
         'and that path registers nothing.',
     },
     {
+      id: 'microsoft.migration',
+      group: 'migration',
+      provider:
+        'Microsoft Entra admin centre → App registrations → your app → Authentication → ' +
+        'Redirect URIs (platform: Web)',
+      // Built the way the Microsoft consent route builds it, from the same
+      // variable (workplan 0114 T2b).
+      uri: api === null ? null : `${api}/api/migrations/microsoft/callback`,
+      unconfigured: api === null,
+      why:
+        'Where Microsoft returns the browser after somebody approves a Microsoft 365 account ' +
+        'consent. Built from API_URL, like the Google and Dropbox ones. Registering it is ' +
+        'necessary and NOT sufficient: the registration must also be multi-tenant unless the ' +
+        'deployment sets MICROSOFT_OAUTH_TENANT, and a single-tenant one fails for the first ' +
+        'customer in another organisation with a message about the application not being ' +
+        'found — which reads like a typo in this address and is not one ' +
+        '(docs/microsoft-setup.md).',
+    },
+    {
       id: 'box.migration',
       group: 'migration',
       provider: 'Box Developer Console',

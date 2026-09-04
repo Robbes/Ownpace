@@ -156,3 +156,74 @@ describe('the client fact beside the domains (ADR-0041, owner decision 2026-09-0
     expect(providerAccountFacts('imap', pair)).toEqual({ domains: [] });
   });
 });
+
+/**
+ * THE THIRD PROVIDER ACCOUNT, AND THE FAN-OUT ITS ARRIVAL CREATED.
+ *
+ * Workplan 0114 T3. `microsoft` joining the table is one row and needs no
+ * branch — that is what the table is for. What DID need care is
+ * `providerAccountFacts`: it answered `client` with `if (kind !== 'google')`,
+ * which is a condition while there are two providers and a fan-out the moment
+ * there are three. It is now a probe table, and the last test here is the one
+ * that keeps it honest when a fourth arrives.
+ */
+describe('the microsoft account kind (0114 T3)', () => {
+  it('serves four faces — the asymmetry with Google running the other way', () => {
+    const faces = providerAccountDomains('microsoft', {});
+    expect(faces).toEqual(['email', 'calendar', 'contact', 'file']);
+    // Google offers two by default because mail and files are restricted
+    // scopes; Microsoft's delegated equivalents carry no such tier.
+    expect(providerAccountDomains('google', {})).toEqual(['calendar', 'contact']);
+  });
+
+  it('does not claim a task face it has no connector for', () => {
+    // Microsoft HAS one at /me/todo/lists — unlike Google, which has none at
+    // any scope tier. Ours is missing, not theirs, and 0114 T9 is where it
+    // arrives. Claiming it here would offer a tick nothing could carry.
+    expect(providerAccountServes('microsoft', 'task', {})).toBe(false);
+  });
+
+  it('answers where its OAuth application comes from, like google and unlike soverin', () => {
+    const withPair = {
+      MICROSOFT_OAUTH_CLIENT_ID: 'id',
+      MICROSOFT_OAUTH_CLIENT_SECRET: 'secret',
+    };
+    expect(providerAccountFacts('microsoft', withPair).client).toBe('deployment');
+    expect(providerAccountFacts('microsoft', {}).client).toBe('connection');
+    // Soverin has no OAuth client to speak of; claiming 'connection' would be
+    // a claim about a thing that does not exist.
+    expect(providerAccountFacts('soverin', withPair).client).toBeUndefined();
+  });
+
+  it('half a pair is not a deployment client, here as everywhere', () => {
+    expect(
+      providerAccountFacts('microsoft', { MICROSOFT_OAUTH_CLIENT_ID: 'id' }).client,
+    ).toBe('connection');
+  });
+
+  it("does not answer google's client from microsoft's application, or the reverse", () => {
+    // `clientId`/`clientSecret` are shared key names across providers; the
+    // env vars are not, and this is what keeps them apart.
+    const onlyMicrosoft = {
+      MICROSOFT_OAUTH_CLIENT_ID: 'id',
+      MICROSOFT_OAUTH_CLIENT_SECRET: 'secret',
+    };
+    expect(providerAccountFacts('google', onlyMicrosoft).client).toBe('connection');
+    const onlyGoogle = { GOOGLE_OAUTH_CLIENT_ID: 'id', GOOGLE_OAUTH_CLIENT_SECRET: 'secret' };
+    expect(providerAccountFacts('microsoft', onlyGoogle).client).toBe('connection');
+  });
+
+  it('every kind gets an answer, and no kind gets a crash', () => {
+    // The fan-out guard. A fourth provider kind added to
+    // PROVIDER_ACCOUNT_KINDS without a row in PROVIDER_ACCOUNT_DOMAINS, or
+    // one whose facts throw, fails HERE rather than on a screen.
+    for (const kind of PROVIDER_ACCOUNT_KINDS) {
+      const facts = providerAccountFacts(kind, {});
+      expect(facts.domains.length, `${kind} serves no face`).toBeGreaterThan(0);
+      // `client` is undefined or one of the two sources — never a third thing.
+      if (facts.client !== undefined) {
+        expect(['deployment', 'connection']).toContain(facts.client);
+      }
+    }
+  });
+});

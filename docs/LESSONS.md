@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 85 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 88 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -103,6 +103,10 @@ reading a file drops off its entry by itself.
 - [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts) — The create-mapping validator ends in a catch-all that asks for AZURE credentials, and nothing pairs it against the source types that exist.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
+### `apps/api/src/routes/migrations/microsoft-consent.ts`
+
+- [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
+
 ### `apps/api/src/routes/provider-accounts.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -191,6 +195,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/services/mapping-service.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `apps/web/src/services/oidc.ts`
@@ -569,6 +574,14 @@ reading a file drops off its entry by itself.
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
+### `packages/orchestration/src/graph-domain-source-factory.ts`
+
+- [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
+
+### `packages/orchestration/src/mail-source-factory.ts`
+
+- [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
+
 ### `packages/orchestration/src/orchestration.ts`
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
@@ -578,9 +591,17 @@ reading a file drops off its entry by itself.
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
+### `packages/orchestration/src/source-face-builders.ts`
+
+- [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts) — A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
+
 ### `packages/shared/src/config.ts`
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
+
+### `packages/shared/src/credential-fields.ts`
+
+- [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 
 ### `packages/shared/src/discovery.ts`
 
@@ -599,6 +620,7 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+- [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts) — A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
 
 ### `packages/shared/src/provider-accounts.unit.test.ts`
 
@@ -607,6 +629,7 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/provider-clients.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 
 ### `packages/shared/src/qualification-gate.unit.test.ts`
 
@@ -629,6 +652,10 @@ reading a file drops off its entry by itself.
 ### `scripts/a-check-that-was-never-valid.unit.test.ts`
 
 - [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts) — A REFUSAL THAT NAMES NOTHING IS A RUN SOMEBODY HAS TO REPEAT TO LEARN ANYTHING.
+
+### `scripts/a-consent-nobody-can-answer.unit.test.ts`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
 ### `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
 
@@ -812,6 +839,7 @@ Reads:
 - `packages/shared/src/provider-accounts.ts`
 - `packages/shared/src/provider-clients.ts`
 - `packages/shared/src/target-domains.unit.test.ts`
+- `scripts/a-consent-nobody-can-answer.unit.test.ts`
 - `scripts/a-scope-class-the-product-does-not-decide.unit.test.ts`
 
 ### [a-check-that-was-never-valid](../scripts/a-check-that-was-never-valid.unit.test.ts)
@@ -850,6 +878,26 @@ Reads:
 - `docs/rls-guide.md`
 - `scripts/a-sentence-two-files-must-agree-on.unit.test.ts`
 - `scripts/adr-operative.unit.test.ts`
+
+### [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts)
+
+A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
+
+Reads:
+
+- `apps/web/src/services/mapping-service.ts`
+- `packages/shared/src/credential-fields.ts`
+- `packages/shared/src/provider-clients.ts`
+
+### [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts)
+
+A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
+
+Reads:
+
+- `apps/api/src/routes/migrations/microsoft-consent.ts`
+- `packages/orchestration/src/graph-domain-source-factory.ts`
+- `packages/orchestration/src/mail-source-factory.ts`
 
 ### [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts)
 
@@ -921,6 +969,15 @@ Reads:
 - `packages/shared/src/target-domains.unit.test.ts`
 - `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+
+### [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts)
+
+A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
+
+Reads:
+
+- `packages/orchestration/src/source-face-builders.ts`
+- `packages/shared/src/provider-accounts.ts`
 
 ### [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts)
 

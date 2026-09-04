@@ -25,12 +25,10 @@ import {
   CREDENTIAL_STORE_NL,
   CredentialRefusalError,
   missingAccountAddress,
-  PROVIDER_ACCOUNT_DOMAINS,
 } from '@openmig/shared';
 import type { CalendarSource, ContactSource, TokenProvider } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, GoogleTokenProvider } from '@openmig/connectors';
 import {
-  GOOGLE_DRIVE_CONNECTION_KIND,
   type GoogleCredentialNaming,
   type GoogleCredentialsAsFound,
 } from './drive-source-factory.ts';
@@ -111,50 +109,26 @@ export const GOOGLE_CONTACTS_CONNECTION_KIND = 'google_contacts';
 export const GOOGLE_ACCOUNT_CONNECTION_KIND = 'google';
 
 /**
- * Does this source connection serve that DAV face with the Google builders?
+ * `googleDavServes` and `googleDriveServes` USED TO LIVE HERE.
  *
- * **Read off the table, never off a fork.** The single-purpose kinds each
- * answer for their own domain; the account kind answers for whichever faces
- * `PROVIDER_ACCOUNT_DOMAINS.google` currently names. So Google gaining mail or
- * files when the restricted-scope assessment is bought is a row edit there,
- * and this function follows it — which is the whole point of T3b being
- * provider-shaped rather than Google-shaped.
+ * They answered "does this kind serve that face with the Google builder?" for
+ * the two DAV faces and for Drive, and the three seams in
+ * `build-deps-from-mapping.ts` asked them. Microsoft became the third provider
+ * (0114 T5a) and a boolean per provider stops working at three: the seam
+ * becomes a `?:` chain whose last branch does the wrong work silently.
  *
- * Kind stays PROTOCOL RESOLUTION and capability stays read off the account's
- * measured record (the #597 guard, kept). This says which BUILDER speaks for a
- * row, not what that row can carry.
+ * `sourceFaceBuilder` in `source-face-builders.ts` replaced both. It answers
+ * with a NAME rather than a boolean, so the seams switch on it, an unhandled
+ * builder is a refusal that names both halves of the disagreement, and
+ * `scripts/a-face-a-provider-account-cannot-build.unit.test.ts` pairs the
+ * table against `PROVIDER_ACCOUNT_DOMAINS` in both directions.
+ *
+ * Removed rather than kept beside it: a second answer to the same question,
+ * with its own passing tests, is the "decision function fully green while the
+ * caller ignores it" defect that `google-account-kind.unit.test.ts` was
+ * written about.
  */
-export function googleDavServes(kind: string, domain: 'calendar' | 'contact'): boolean {
-  if (kind === GOOGLE_ACCOUNT_CONNECTION_KIND) {
-    return PROVIDER_ACCOUNT_DOMAINS.google.includes(domain);
-  }
-  return domain === 'calendar'
-    ? kind === GOOGLE_CALENDAR_CONNECTION_KIND
-    : kind === GOOGLE_CONTACTS_CONNECTION_KIND;
-}
 
-/**
- * Does this source connection serve its FILE face with the Drive builder?
- *
- * The sibling of `googleDavServes`, and it exists for the same reason: the
- * file seam in `build-deps-from-mapping.ts` must not compare `src.kind` to a
- * Google literal. A comparison there is what excluded the account row from the
- * DAV branches before workplan 0106 T3b, and the symptom was a credential
- * error naming fields nobody typed, arriving inside a pass.
- *
- * HERE RATHER THAN IN `drive-source-factory.ts`, which is where the Drive
- * constants live and would be the obvious home. That file is the lower layer —
- * this one imports it — and making it import back to learn about the ACCOUNT
- * kind would be a cycle for a two-line predicate. The account kind's faces
- * belonging together also reads better: one place says what a `google` row
- * covers.
- *
- * NO DOMAIN ARGUMENT because there is one file face and no ambiguity: unlike
- * the DAV pair, nothing else could be meant.
- */
-export function googleDriveServes(kind: string): boolean {
-  return kind === GOOGLE_ACCOUNT_CONNECTION_KIND || kind === GOOGLE_DRIVE_CONNECTION_KIND;
-}
 
 /** Test seam, same shape as the Gmail factory's. */
 export type GoogleDavTokenProviderFactory = (

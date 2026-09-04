@@ -1194,6 +1194,102 @@ paths:
             text/html:
               schema: { type: string }
 
+  /api/migrations/microsoft/authorize:
+    post:
+      tags: [Migrations]
+      summary: Start a Microsoft consent — Connect with Microsoft
+      description: |
+        The Google consent's shape, for Microsoft (workplan 0114). Returns the
+        URL to send a browser to, plus the redirect URI the app registration
+        must have registered (Entra → App registrations → Authentication →
+        Redirect URIs) — a wrong one fails at Microsoft's screen, so the caller
+        is given the exact string.
+
+        **Whose registration.** The caller's whole pair (`clientId`,
+        `clientSecret`) wins, and their own `tenantId` travels with it; with
+        none sent, the deployment's own registration
+        (`MICROSOFT_OAUTH_CLIENT_ID`/`MICROSOFT_OAUTH_CLIENT_SECRET`, both or
+        neither) is used against `MICROSOFT_OAUTH_TENANT` (default `common`).
+        Half a pair is refused before anything is begun.
+
+        **The scopes come from `domains`.** Exactly the faces asked for, so the
+        consent screen and the ticks cannot disagree; an empty set is refused
+        rather than defaulted. `offline_access` is a SCOPE here rather than a
+        parameter — without it Microsoft mints no refresh token — and
+        `prompt=select_account` is pinned so a person already signed in to the
+        wrong account cannot grant it silently. Every scope is read-only. The
+        secret never appears in the URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domains]
+              properties:
+                domains:
+                  type: array
+                  minItems: 1
+                  items: { type: string, enum: [email, calendar, contact, file] }
+                  description: Which faces to consent for; each maps to one Graph read scope.
+                clientId: { type: string, description: The Application (client) ID. }
+                clientSecret: { type: string, description: The client secret. }
+                tenantId:
+                  type: string
+                  description: The directory, when this caller brings their own registration.
+      responses:
+        '200':
+          description: Where to send the browser, and the address the registration must carry.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, redirectUri]
+                properties:
+                  url: { type: string }
+                  redirectUri: { type: string }
+        '400':
+          description: |
+            `invalid_body`, `half_client_pair` (one half of a client pair),
+            `no_microsoft_client` (nothing sent and nothing configured, naming
+            both ways forward), `raw_ip_callback` or `unreachable_callback`.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/migrations/microsoft/callback:
+    get:
+      tags: [Migrations]
+      summary: Where Microsoft returns the person's browser
+      description: |
+        Public by nature and trusted by nothing except the signed, single-use,
+        expiring `state` — and only a state begun at the Microsoft door: one
+        begun at Google's is "not one the wizard is waiting for" here, and
+        spent. The code is exchanged at the SAME directory the authorize half
+        used, carried on that state rather than recomputed. Answers an HTML
+        page under its own headers that hands the refresh token to the opening
+        window as `ownpace-microsoft-consent`.
+
+        An `AADSTS` refusal is rendered as a sentence rather than a code: a
+        tenant may require an administrator to approve the application, or
+        forbid user consent entirely, and neither is something the person can
+        fix by trying again.
+      security: []
+      parameters:
+        - { name: state, in: query, schema: { type: string } }
+        - { name: code, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+        - { name: error_description, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: The result page — granted, or Microsoft's own refusal in words.
+          content:
+            text/html:
+              schema: { type: string }
+        '400':
+          description: No state this server is waiting for, or no authorization code.
+          content:
+            text/html:
+              schema: { type: string }
+
   /api/connections:
     get:
       tags: [Connections]

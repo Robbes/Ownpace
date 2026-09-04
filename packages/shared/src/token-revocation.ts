@@ -113,6 +113,23 @@ export const REVOCATION_CAPABILITIES: Readonly<Record<string, RevocationCapabili
     reason:
       'Microsoft identity platform publishes no OAuth revocation endpoint. Access is withdrawn by removing the app consent, which only the customer or their admin can do.',
   },
+  // The Microsoft ACCOUNT kind (workplan 0114). The SAME answer as `o365`
+  // above, and worth its own row rather than sharing one: the reason is the
+  // provider's, not the credential shape's. `google` gained a row here (see
+  // above) because its account kind holds the same revocable refresh token as
+  // its four single-purpose kinds; Microsoft's account kind holds a token
+  // nobody can revoke over the wire, exactly like the app-registration kinds,
+  // and the sentence must say so for both.
+  //
+  // A row rather than the default, because the default says "no revocation is
+  // IMPLEMENTED" — which reads as our omission. This is Microsoft's design,
+  // and an erasure receipt that blames the wrong party sends the customer
+  // looking in the wrong place.
+  microsoft: {
+    revocable: false,
+    reason:
+      'Microsoft identity platform publishes no OAuth revocation endpoint. Access is withdrawn by removing the app consent, which only the customer or their admin can do.',
+  },
   dropbox: {
     revocable: false,
     reason:

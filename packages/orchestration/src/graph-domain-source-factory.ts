@@ -48,6 +48,38 @@ export interface GraphEntraCredsAsFound {
   readonly refreshToken?: string | undefined;
 }
 
+/**
+ * WHICH WORDS A REFUSAL USES, because the two editions have different ones.
+ *
+ * The appliance reads `OAUTH2_*` from its environment; a managed connection
+ * carries `clientId`/`clientSecret`/`refreshToken` in its encrypted credential
+ * store. Hard rule 5 says the two editions refuse for the same reasons — it
+ * does not say they refuse in the same vocabulary, and they must not: telling
+ * a managed operator to set `OAUTH2_CLIENT_SECRET` is advice they cannot act
+ * on. `buildGraphMailSourceFromCredentials` already fixed exactly this for the
+ * mail face and its comment says so in as many words; the other three faces
+ * had no managed caller to fix it for until 0114 T5a.
+ */
+export interface GraphFieldNaming {
+  readonly clientId: string;
+  readonly clientSecret: string;
+  readonly refreshToken: string;
+}
+
+/** The appliance's words — the default, because it is the older caller. */
+export const ENV_GRAPH_FIELD_NAMING: GraphFieldNaming = {
+  clientId: 'OAUTH2_CLIENT_ID',
+  clientSecret: 'OAUTH2_CLIENT_SECRET',
+  refreshToken: 'OAUTH2_REFRESH_TOKEN',
+};
+
+/** A managed connection's words — the keys in its credential store (0114 T5a). */
+export const STORED_GRAPH_FIELD_NAMING: GraphFieldNaming = {
+  clientId: 'clientId',
+  clientSecret: 'clientSecret',
+  refreshToken: 'refreshToken',
+};
+
 /** The delegated scope per product; client-credentials always uses `.default`. */
 const DELEGATED_SCOPES = {
   calendar: 'https://graph.microsoft.com/Calendars.Read offline_access',
@@ -60,12 +92,13 @@ function graphTokenProviderFor(
   productLabel: string,
   endpoint: GraphDomainEndpoint,
   creds: GraphEntraCredsAsFound,
+  naming: GraphFieldNaming,
 ) {
   if (!creds.clientId) {
-    throw entraClientIdMissing(productLabel, 'OAUTH2_CLIENT_ID');
+    throw entraClientIdMissing(productLabel, naming.clientId);
   }
   if (!creds.clientSecret && !creds.refreshToken) {
-    throw entraFlowNotChosen(productLabel, 'OAUTH2_CLIENT_SECRET', 'OAUTH2_REFRESH_TOKEN');
+    throw entraFlowNotChosen(productLabel, naming.clientSecret, naming.refreshToken);
   }
   // The mail factory's lesson, verbatim in spirit: a /users/{address} read is
   // only possible under application permissions, and with a refresh token
@@ -80,8 +113,8 @@ function graphTokenProviderFor(
     throw delegatedFlowCannotReadMailbox({
       subject: productLabel,
       mailbox: endpoint.mailbox,
-      refreshTokenField: 'OAUTH2_REFRESH_TOKEN',
-      clientSecretField: 'OAUTH2_CLIENT_SECRET',
+      refreshTokenField: naming.refreshToken,
+      clientSecretField: naming.clientSecret,
       store: 'store',
     });
   }
@@ -99,8 +132,9 @@ export function buildGraphCalendarSourceFrom(
   endpoint: GraphDomainEndpoint,
   creds: GraphEntraCredsAsFound,
   throttleLimiter?: ThrottleLimiter,
+  naming: GraphFieldNaming = ENV_GRAPH_FIELD_NAMING,
 ): CalendarSource {
-  const tokenProvider = graphTokenProviderFor('calendar', 'graph-calendar source', endpoint, creds);
+  const tokenProvider = graphTokenProviderFor('calendar', 'graph-calendar source', endpoint, creds, naming);
   return new GraphCalendarSource(tokenProvider, endpoint.tenantId, {
     ...(endpoint.baseUrl === undefined ? {} : { baseUrl: endpoint.baseUrl }),
     ...(throttleLimiter === undefined ? {} : { throttleLimiter }),
@@ -112,8 +146,9 @@ export function buildGraphContactsSourceFrom(
   endpoint: GraphDomainEndpoint,
   creds: GraphEntraCredsAsFound,
   throttleLimiter?: ThrottleLimiter,
+  naming: GraphFieldNaming = ENV_GRAPH_FIELD_NAMING,
 ): ContactSource {
-  const tokenProvider = graphTokenProviderFor('contacts', 'graph-contacts source', endpoint, creds);
+  const tokenProvider = graphTokenProviderFor('contacts', 'graph-contacts source', endpoint, creds, naming);
   return new GraphContactsSource(tokenProvider, endpoint.tenantId, {
     ...(endpoint.baseUrl === undefined ? {} : { baseUrl: endpoint.baseUrl }),
     ...(throttleLimiter === undefined ? {} : { throttleLimiter }),
@@ -126,8 +161,9 @@ export function buildGraphDriveSourceFrom(
   endpoint: GraphDomainEndpoint,
   creds: GraphEntraCredsAsFound,
   throttleLimiter?: ThrottleLimiter,
+  naming: GraphFieldNaming = ENV_GRAPH_FIELD_NAMING,
 ): FileSource {
-  const tokenProvider = graphTokenProviderFor('drive', 'graph-drive source', endpoint, creds);
+  const tokenProvider = graphTokenProviderFor('drive', 'graph-drive source', endpoint, creds, naming);
   return new GraphDriveSource(
     {
       tokenProvider,

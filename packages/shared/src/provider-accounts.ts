@@ -44,6 +44,10 @@
 
 import type { DiscoveryDomain } from './discovery.ts';
 import { googleDeploymentClient, type GoogleClientEnv } from './google-deployment-client.ts';
+import {
+  microsoftDeploymentClient,
+  type MicrosoftClientEnv,
+} from './microsoft-deployment-client.ts';
 
 /**
  * Connection kinds that hold ONE account and can serve several of its faces.
@@ -53,7 +57,7 @@ import { googleDeploymentClient, type GoogleClientEnv } from './google-deploymen
  * server does. These are the kinds where one credential provably reaches more
  * than one domain.
  */
-export const PROVIDER_ACCOUNT_KINDS = ['google', 'soverin'] as const;
+export const PROVIDER_ACCOUNT_KINDS = ['google', 'soverin', 'microsoft'] as const;
 export type ProviderAccountKind = (typeof PROVIDER_ACCOUNT_KINDS)[number];
 
 /**
@@ -84,6 +88,22 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   // VTODO in its `supported-calendar-component-set` (RFC 4791 §5.2.3) — so
   // this is a face already measured, now named (workplan 0113 T5).
   soverin: ['email', 'calendar', 'contact', 'task'],
+  // FOUR, and the asymmetry with Google runs the OTHER way (workplan 0114).
+  // Google offers two by default because `https://mail.google.com/` and
+  // `drive.readonly` are restricted scopes needing an annual third-party
+  // security assessment. Microsoft's delegated equivalents — Mail.Read,
+  // Calendars.Read, Contacts.Read, Files.Read over the signed-in user's own
+  // data — carry no such tier, so one consent can honestly offer all four
+  // without pushing anybody into a review they did not ask for.
+  //
+  // 'task' is absent, and unlike Google's absence it is ours rather than the
+  // provider's: Microsoft HAS a tasks face at `/me/todo/lists` under
+  // Tasks.Read (0114 T9). A To Do list is not a CalDAV collection, so it needs
+  // a source connector that does not exist yet — `graph-*-source` covers these
+  // four. When `graph-todo-source` lands and has been MEASURED, 'task' joins
+  // this array and one row joins MICROSOFT_DOMAIN_SCOPES. Never on an
+  // announcement: 0105's never-guess rule.
+  microsoft: ['email', 'calendar', 'contact', 'file'],
 };
 
 /**
@@ -174,8 +194,12 @@ export type ProviderClientSource = 'deployment' | 'connection';
  * and a create without the pair since it became configurable; the screen kept
  * refusing to press the button, because nothing had told it.
  *
- * Present for `google` only. Soverin has no OAuth client to speak of, and a
- * `'connection'` there would be a claim about a thing that does not exist.
+ * Present for the kinds that HAVE one. Soverin has no OAuth client to speak
+ * of, and a `'connection'` there would be a claim about a thing that does not
+ * exist. `microsoft` joined `google` in 0114, which is why the answer is a
+ * table below rather than a second `if`: two providers is a condition, three
+ * is a fan-out, and a fan-out that grows one branch at a time is how a
+ * provider ends up silently missing from a screen.
  *
  * `'deployment'` is answered only for a COMPLETE pair — the rule
  * `googleDeploymentClient` already follows. Half a pair is no client, and
@@ -187,13 +211,29 @@ export interface ProviderAccountFacts {
   readonly client?: ProviderClientSource;
 }
 
+/**
+ * Which kinds carry a deployment-level OAuth application, and how to ask.
+ *
+ * A kind absent from this table has no application to speak of — that is the
+ * answer, not an omission — so `client` stays undefined for it rather than
+ * claiming `'connection'` about a thing that does not exist.
+ */
+const DEPLOYMENT_CLIENT_PROBES: Readonly<
+  Partial<Record<ProviderAccountKind, (env: ProviderAccountEnv & GoogleClientEnv & MicrosoftClientEnv) => boolean>>
+> = {
+  google: (env) => googleDeploymentClient(env) !== null,
+  microsoft: (env) => microsoftDeploymentClient(env) !== null,
+};
+
 export function providerAccountFacts(
   kind: string,
-  env: ProviderAccountEnv & GoogleClientEnv = process.env,
+  env: ProviderAccountEnv & GoogleClientEnv & MicrosoftClientEnv = process.env,
 ): ProviderAccountFacts {
   const domains = providerAccountDomains(kind, env);
-  if (kind !== 'google') return { domains };
-  return { domains, client: googleDeploymentClient(env) ? 'deployment' : 'connection' };
+  if (!isProviderAccountKind(kind)) return { domains };
+  const probe = DEPLOYMENT_CLIENT_PROBES[kind];
+  if (!probe) return { domains };
+  return { domains, client: probe(env) ? 'deployment' : 'connection' };
 }
 
 /**
