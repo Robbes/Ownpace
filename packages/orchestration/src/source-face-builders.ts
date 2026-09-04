@@ -119,6 +119,19 @@ const ACCOUNT_FACE_BUILDERS: Readonly<
     contact: 'graph-contacts',
     file: 'graph-drive',
   },
+  // Soverin's row, a different provider (workplan 0115). Apple publishes no
+  // OAuth scope for its own data, so an Apple account is reached with an
+  // app-specific password over IMAP and DAV — which makes these the SAME
+  // builders `soverin` uses, and that is the finding rather than a shortcut:
+  // this row needed no new connector at all. `task` is DAV because Reminders
+  // are VTODO in the calendar account (0113 T5), which is why Apple's task
+  // face works on the day the kind arrives and Microsoft's still does not.
+  apple: {
+    email: 'imap',
+    calendar: 'dav',
+    contact: 'dav',
+    task: 'dav',
+  },
 };
 
 /**

@@ -42,6 +42,56 @@ iCloud-shaped rather than iCloud-captured. T4's Test against a real account is w
 would turn this from reasoned to measured, and until then this is a defect fixed on
 reasoning, which is worth saying out loud.
 
+### T2 and T3 landed — 2026-09-04, and the guards did NOT catch it
+
+`apple` went into `PROVIDER_ACCOUNT_KINDS` and **the entire 6,048-test suite stayed
+green.** Nineteen files named `microsoft` as a kind; `apple` was in two of them. The
+database would have refused the row.
+
+**Why 0114's guards were silent, correctly.** Every one of them pairs the kind
+against the CONSENT machinery — `GRANT_PROVIDERS`, the deployment-client probes,
+the `consent:` descriptors, the web's zod schema. Apple has no consent screen, so
+it is rightly absent from all of them, and each guard rightly said nothing. **The
+tables a kind must be in are the ones with nothing to do with consent**, and no
+guard paired against those, because for `google`, `soverin` and `microsoft` the two
+sets happened to overlap. `soverin` proves they need not: it has no consent either
+and was added by hand, correctly, by somebody who remembered.
+
+`scripts/a-kind-with-nowhere-to-live.unit.test.ts` closes it — the ledger enum, the
+credential descriptors, the front door. Three tables, three different failures,
+none of them a compile error.
+
+**Writing the guard caught two of my own errors**, both worth recording because
+both are the shape that weakens a guard until somebody deletes it:
+
+1. A **false positive on `soverin`**, twice: the front-door and credential matchers
+   searched for a quoted `'soverin'` while both maps key a kind bare when the name
+   is a valid identifier. Fixed by reading the maps' KEYS rather than the file's
+   text.
+2. A **fourth check that demanded a `SourceConfig` union member** — which `soverin`
+   failed, correctly. A kind needs `<Kind>AccountSource` only when its faces resolve
+   to PROVIDER-API builders; a kind whose faces are PROTOCOL builders stores a
+   protocol-shaped config and needs no member. Apple is the second of those. The
+   check was removed rather than satisfied: a guard demanding a type that should not
+   exist is worse than no guard, because somebody will write the type to make it
+   quiet.
+
+**The sharpest single find** was one an existing guard did catch:
+`a-source-type-the-validator-never-names` requires every accepted source type to be
+named in the create validator, or written down as a deliberate member of the
+Azure-credentials set. Without its branch, an `apple` row would have been refused
+for **a missing tenant ID and client secret** — three values that do not exist for
+this provider — asked of somebody whose entire credential is an address and an
+app-specific password.
+
+Proved by breaking, four ways, each restored: apple out of the ledger enum (1 red),
+out of the credential descriptors (1 red), off the front door (1 red), and the
+validator branch removed (2 red).
+
+Still open: T4 the provider-directory row, T5's refusal wording beyond the field
+hint, T6 files as a measured no, T7 `docs/apple-setup.md`, T8 the wizard/Connections
+surfaces beyond the card, T9 the managed gate.
+
 ## The shape Apple actually has
 
 Apple's account is **Soverin's shape, not Google's**: protocols and a password, discovered
@@ -143,8 +193,8 @@ Two things make this worth its own task rather than a line in another one:
 |---|---|---|
 | T0 | This document | The finding: no button is possible, and why |
 | T1 | The home set may change host | **Done 2026-09-04.** `normalizeDavHref` and `davPathOf` in `dav-http.types.ts`; both sources delegate. Proved by breaking, four ways |
-| T2 | The `apple` provider account kind | `PROVIDER_ACCOUNT_KINDS`, `PROVIDER_ACCOUNT_DOMAINS` = email, calendar, contact, task; the fourteen tables 0114 enumerated |
-| T3 | The face table | `ACCOUNT_FACE_BUILDERS.apple` = `{ email: 'imap', calendar: 'dav', contact: 'dav', task: 'dav' }` — Soverin's row, different provider |
+| T2 | The `apple` provider account kind | **Done 2026-09-04.** The kind, migration 0038, the credential descriptors, the front door, the validator branch, revocation and erasure, both languages. New guard `a-kind-with-nowhere-to-live` |
+| T3 | The face table | **Done 2026-09-04.** Soverin's row, different provider — no new connector |
 | T4 | The provider directory row | `imap.mail.me.com` 993, the DAV hosts, and the username quirk: Apple's IMAP wants the local part (`johnappleseed`), falling back to the full address |
 | T5 | The credential is an app-specific password | Field label and help that name it; a refusal that says an Apple Account password will not work and where to make the right one — never a bare "authentication failed" |
 | T6 | Files: a measured no | `qualifyApple` answers `file: no` with the reason, and names the Data & Privacy export as the only route |

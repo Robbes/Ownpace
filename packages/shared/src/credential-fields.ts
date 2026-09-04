@@ -204,6 +204,45 @@ function microsoftAccountFields(): ReadonlyArray<CredentialField> {
 }
 
 /**
+ * The `apple` ACCOUNT type (workplan 0115) — one app-specific password, four
+ * faces, and NO BUTTON.
+ *
+ * The shortest descriptor of any provider account, and the shape is the
+ * finding rather than an omission. `googleFields()` and
+ * `microsoftAccountFields()` both carry a client pair and a refresh token
+ * because a consent screen fills them. **Apple publishes no OAuth scope for
+ * Mail, Calendar, Contacts, Reminders or iCloud Drive to anybody outside
+ * Apple**, so there is no client to carry, no token to receive and nothing for
+ * a `consent:` to name. Sign in with Apple grants a name and an email address,
+ * which is an identity and not a mailbox — this product offers it as a way to
+ * SIGN IN and it reaches no data at all.
+ *
+ * So: an address and a password, like `imap` — and one field's hint doing real
+ * work. Apple requires two-factor authentication on every Apple Account, and a
+ * two-factor account's own password is refused by IMAP, CalDAV and CardDAV BY
+ * DESIGN. Somebody who types their Apple Account password gets a rejection
+ * from Apple that says only that the password is wrong, which it is not: it is
+ * the right password of a kind that cannot be used here. The hint is the
+ * difference between a five-minute setup and a support ticket, which is why it
+ * names the page rather than describing it.
+ */
+function appleAccountFields(): ReadonlyArray<CredentialField> {
+  return [
+    { ...USER, placeholder: 'you@icloud.com' },
+    {
+      key: 'password',
+      labelKey: 'wizard.appleAppPassword',
+      required: true,
+      secret: true,
+      placeholder: 'abcd-efgh-ijkl-mnop',
+      hintKey: 'wizard.appleAppPassword.hint',
+      autoComplete: 'new-password',
+      revealable: true,
+    },
+  ];
+}
+
+/**
  * oauth2 and graph authenticate with the customer's OWN Entra app
  * registration (0037 T6, ADR-0006's row-14 model), so what they ask for is a
  * registration and a mailbox — never a server address.
@@ -312,6 +351,11 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
   // a customer who registered their own Entra application keeps using it, and
   // a person who just wants their mail presses a button.
   microsoft: microsoftAccountFields(),
+  // The Apple ACCOUNT kind (workplan 0115). No cohabiting kinds to explain:
+  // there has never been an `icloud` or an `apple-*` type, because there is no
+  // Apple API to have built one on. This row IS Apple, and it reaches four
+  // faces over three protocols with one password.
+  apple: appleAccountFields(),
   graph: o365Fields(),
   oauth2: o365Fields(),
   imap: [
@@ -482,6 +526,7 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   // picking between the two actually needs.
   oauth2: 'Microsoft 365 (IMAP)',
   microsoft: 'Microsoft 365 account',
+  apple: 'Apple account (iCloud)',
   graph: 'Microsoft 365 (Graph API)',
   'google-drive': 'Google Drive',
   gmail: 'Gmail',
