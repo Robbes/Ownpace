@@ -99,9 +99,27 @@ jobs:
           # character. Same reasoning as ci.yml being in the migrations filter
           # below: code we ship proves green on its own pull request.
           #
+          # `docs/*-setup.md` added 2026-09-04, and it is the exception that
+          # proves the docs-only skip right everywhere else. Those files are
+          # not just prose: `end-user-docs.unit.test.tsx` reads them through
+          # the SAME `import.meta.glob('../../../../docs/*-setup.md')` the
+          # customer-facing /docs page uses, and asserts they cite no workplan,
+          # no ADR and no edition aside — because a customer cannot open any of
+          # those. So a docs-ONLY change to a customer guide could break a unit
+          # test that this filter then skipped, and `ci-complete` reported
+          # success over a red guard. Observed on PR #772, which was green
+          # while `apple-setup.md` cited three workplans; the failure only
+          # surfaced on a later branch that happened to touch code.
+          #
+          # Deliberately NOT `docs/**`: workplans, ADRs and architecture notes
+          # are read by nothing, and un-skipping the suite for them would give
+          # every prose commit a nine-minute test run for no assertion. The
+          # rule is narrow on purpose — a doc a TEST reads is code's business.
+          #
           # Comments belong HERE and not inside the block scalar below, where a
           # `#` line is a PATTERN rather than a comment.
           files: |
+            docs/*-setup.md
             **.ts
             **.tsx
             **.js
