@@ -33,7 +33,9 @@ import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import {
   ArchiveUnreadable,
+  ARCHIVE_ITEM_KINDS,
   ARCHIVE_PROVIDERS,
+  type ArchiveItemKind,
   type ArchiveHandle,
   type ArchiveItem,
   type ArchiveLocation,
@@ -87,6 +89,11 @@ function referenceReader(entries: ReadonlyArray<FakeEntry> = LAID_OUT): ArchiveR
       sizeBytes: entry.bytes.byteLength,
       folders,
       ...(entry.createdAt ? { createdAt: entry.createdAt } : {}),
+      // Every entry in this fixture is an original. The reference reader does
+      // not classify — recognising `-edited` is Takeout's own convention and
+      // belongs to Takeout's reader (0116 T7), not to the seam. What the seam
+      // says is that the field EXISTS and that a summary breaks down by it.
+      kind: 'original' as const,
       metadata: { laidOutAs: entry.path },
     }));
   };
@@ -105,10 +112,16 @@ function referenceReader(entries: ReadonlyArray<FakeEntry> = LAID_OUT): ArchiveR
     async summary(): Promise<ArchiveSummary> {
       const items = collapse();
       const dates = items.map((i) => i.createdAt).filter((d): d is string => Boolean(d)).sort();
+      const byKind = Object.fromEntries(ARCHIVE_ITEM_KINDS.map((k) => [k, 0])) as Record<
+        ArchiveItemKind,
+        number
+      >;
+      for (const item of items) byKind[item.kind] += 1;
       return {
         items: items.length,
         bytes: items.reduce((n, i) => n + i.sizeBytes, 0),
         folders: new Set(items.flatMap((i) => i.folders)).size,
+        byKind,
         ...(dates[0] ? { earliest: dates[0] } : {}),
         ...(dates.at(-1) ? { latest: dates.at(-1)! } : {}),
       };

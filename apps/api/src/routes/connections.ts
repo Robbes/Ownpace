@@ -36,6 +36,7 @@ import {
   isGoogleGrantKind,
   isQualifiableKind,
   qualifyAccount,
+  qualifyArchive,
   qualifyDropbox,
   qualifyGoogleGrant,
   type AccountQualification,
@@ -141,12 +142,19 @@ async function qualifyAndRememberNow(
     // AND THE DROPBOX ACCOUNT (2026-09-02): one face, its top-level count
     // and the bytes in use — the Measured line the owner asked for on Drive,
     // on the connection he tested next.
+    // AND THE EXPORT ARCHIVE (workplan 0116 T7): items, bytes, folders, the
+    // span the export covers and the count broken down — the whole point of
+    // the archive's first slice, which is that somebody sees what their
+    // export holds BEFORE anyone commits to importing 25 GB of it. It takes
+    // no credentials, which is why it is the one qualifier here that is
+    // passed the config alone.
     const qualification =
       (await qualifyAccount(kind, config, creds)) ??
       (await qualifyGoogleGrant(kind, creds, {
         reach: { user: String(config.user ?? ''), config },
       })) ??
-      (await qualifyDropbox(kind, config, creds));
+      (await qualifyDropbox(kind, config, creds)) ??
+      (await qualifyArchive(kind, config));
     if (!qualification) return undefined;
     await withTenantDb(tenantId, pool(), async (db) => {
       await db
