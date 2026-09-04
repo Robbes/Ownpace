@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 90 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 91 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -486,6 +486,10 @@ reading a file drops off its entry by itself.
 
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
+### `docs/apple-setup.md`
+
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
 ### `docs/dav-sync.md`
 
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
@@ -937,6 +941,7 @@ Reads:
 
 - `.github/workflows/ci.yml`
 - `apps/web/src/pages/end-user-docs.unit.test.tsx`
+- `docs/apple-setup.md`
 - `docs/workplans/0115-the-account-apple-will-not-hand-over.md`
 
 ### [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts)
