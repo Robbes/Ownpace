@@ -40,7 +40,7 @@ import {
   withDeploymentDropboxClient,
   withDeploymentGoogleClient,
 } from '@openmig/shared';
-import { QUALIFICATION_KEYS, type QualificationKey } from '@openmig/shared';
+import { QUALIFICATION_KEYS, publishedEndpoint, type QualificationKey } from '@openmig/shared';
 import type { DiscoveryDomain, ProbeUnit } from '@openmig/shared';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint.ts';
@@ -128,7 +128,23 @@ export interface AccountQualification {
 
 /** The kinds this measuring half covers — the Basic-auth account families.
  *  OAuth families are grant-qualified instead (0106 T1). */
-export const QUALIFIABLE_KINDS = ['caldav', 'carddav', 'webdav', 'nextcloud', 'soverin', 'imap', 'jmap'] as const;
+export const QUALIFIABLE_KINDS = [
+  'caldav',
+  'carddav',
+  'webdav',
+  'nextcloud',
+  'soverin',
+  // Apple rides the DAV family branch below rather than getting a qualifier of
+  // its own (workplan 0115 T6). It is Soverin's shape — protocols and a
+  // password, discovered rather than granted — and a `qualifyApple` beside
+  // `qualifyGoogleGrant` would be a third copy of the same measuring code,
+  // which is how a face ends up measured one way in one place and another way
+  // somewhere else. What Apple needs from that branch is two things it did not
+  // do: PER-FACE endpoints, and its own sentence for the file face.
+  'apple',
+  'imap',
+  'jmap',
+] as const;
 
 export function isQualifiableKind(kind: string): boolean {
   return (QUALIFIABLE_KINDS as ReadonlyArray<string>).includes(kind);
@@ -220,6 +236,39 @@ function notAFaceOf(kind: string, face: string): QualifiedDomain {
 }
 
 /**
+ * The same measured `no`, for the faces where the product knows WHY and the
+ * why is worth a customer's time.
+ *
+ * `notAFaceOf` says a face is not one this account carries, which is true and
+ * enough for most of them: a Soverin account has no file store because Soverin
+ * sells no file store, and there is nothing further to explain.
+ *
+ * Apple's file face is the one where that sentence, while true, is unhelpful
+ * and slightly misleading. The person HAS an iCloud Drive, very likely a large
+ * one — macOS offers to sync a Mac's whole Desktop and Documents into it — so
+ * "not a face of this connection" reads as if we had simply not bothered.
+ * What is actually true is narrower and worth saying: Apple publishes no API
+ * for it to anyone, CloudKit reaches an application's own container rather
+ * than the person's files, and the only route to those bytes is the person's
+ * own Data & Privacy export (workplan 0116, undecided).
+ *
+ * Returns `undefined` where the generic sentence is the right one, so this
+ * stays a list of exceptions rather than a second vocabulary.
+ */
+function reasonedNo(kind: string, face: DiscoveryDomain): QualifiedDomain | undefined {
+  if (kind === 'apple' && face === 'file') {
+    return {
+      answer: 'no',
+      detail:
+        'Apple publishes no API for iCloud Drive — to anyone, not just to us — so these files ' +
+        'cannot be read from the account the way mail, calendars, contacts and reminders can. ' +
+        'The only route to them is your own Data & Privacy export at privacy.apple.com.',
+    };
+  }
+  return undefined;
+}
+
+/**
  * Qualify one account connection. `kind` is the connection.kind as stored;
  * config/creds are the SAME shapes the probe and the passes read, so the
  * qualification cannot describe a different account than the one that would
@@ -276,14 +325,70 @@ export async function qualifyAccount(
   // and address-book collections — as file folders. Five of them, on an
   // account with no file store at all. Same shape as the `[Gmail]` container
   // counted as a mail folder: a service collection read as content.
-  const endpoint = davEndpointFromCreds('target', config, creds);
-  const fileEndpoint = fileEndpointFromCreds('target', config, creds, kind);
+  // ONE ENDPOINT PER FACE, NOT ONE FOR ALL OF THEM (workplan 0115 T6).
+  //
+  // Every DAV provider before Apple put calendars and address books under one
+  // root, so a single resolution served both and nothing said otherwise. Apple
+  // does not: `caldav.icloud.com` carries calendars and reminders,
+  // `contacts.icloud.com` carries contacts. Measured through one endpoint, the
+  // contact face asks the CALENDAR service for address books, is refused, and
+  // — correctly, under the three-state rule — records `unknown`. The card then
+  // shows Contacts `?` on an account that carries them perfectly well, and per
+  // 0106 T3a an unknown never constrains, so the wizard offers the tick anyway
+  // and the migration finds out later.
+  //
+  // The #597 family again, and the same shape as everything workplan 0113 hit:
+  // a two-way assumption meeting a third provider. Nothing changes for the
+  // kinds that do share a root — `davUrl` returns the stored `url` when the
+  // config has one, so per-face resolution gives them the same answer three
+  // times — and the only rows that differ are the ones whose faces genuinely
+  // live apart.
+  const endpointFor = (face: DiscoveryDomain) =>
+    davEndpointFromCreds('target', config, creds, kind, face);
+  const calendarEndpoint = endpointFor('calendar');
+  const contactEndpoint = endpointFor('contact');
+  // Reminders are VTODO in the CALENDAR account, so the task face rides the
+  // calendar endpoint by name rather than by luck — `publishedDavUrl` maps
+  // `task` onto `calendar` for exactly this reason (0115 T4).
+  const taskEndpoint = endpointFor('task');
+  // LAZY, because a kind with no file face must not need a file ADDRESS to be
+  // qualified at all. Resolved eagerly, this threw for `apple` — which has no
+  // file face by design, and therefore no published file root — and took the
+  // whole qualification down with it, so an Apple connection got no record and
+  // every one of its four real faces read `?`. The face that is not asked must
+  // cost nothing to not ask; `davFace` already takes a thunk for exactly this.
+  const fileEndpoint = () => fileEndpointFromCreds('target', config, creds, kind);
   // The soverin ACCOUNT kind may also NAME its mail server (0106 T4b:
   // `mailHost`, typed by the person, never guessed) — when it does, the
   // mail face is measured with the same credential the DAV faces use; when
   // it does not, the unmeasured sentence carries the remedy.
-  const mailHost =
-    kind === 'soverin' && typeof config.mailHost === 'string' ? config.mailHost.trim() : '';
+  // THE MAIL HOST, TYPED OR PUBLISHED (0106 T4b, widened by 0115 T6).
+  //
+  // Soverin's is typed, because its mail server is a fact about one customer's
+  // account and this product never guesses one. Apple's is not a customer
+  // choice at all — every iCloud account is at `imap.mail.me.com` — so asking
+  // somebody to type it would be asking them to prove they know something we
+  // already know.
+  //
+  // DELIBERATELY NOT `accountMailEndpoint`, which is the rule the PASSES use,
+  // and the difference is the point. That rule ends `?? stored.host`, which is
+  // right for a mapping config (a top-level `host` on an imap mapping IS the
+  // mail server) and wrong here: a `soverin` CONNECTION stores
+  // `host: caldav.soverin.net`, so borrowing that fallback would point an IMAP
+  // probe at a calendar server, collect its refusal, and render `unknown` with
+  // a connection error — replacing a sentence that tells the person exactly
+  // what to add. That is #133's mistake in a new place: reading whatever an
+  // endpoint happens to expose instead of measuring the face at its own
+  // address. A qualification that cannot ask must say so, not ask the wrong
+  // server. It also must not throw: the pass rule refuses when it finds no
+  // host, because it is about to connect; here "nobody could ask" is a legal
+  // answer and the whole reason the third state exists.
+  const publishedMail = publishedEndpoint(kind, 'email');
+  const typedMailHost = typeof config.mailHost === 'string' ? config.mailHost.trim() : '';
+  const mailHost = accountServes(kind, 'email')
+    ? typedMailHost || publishedMail?.host || ''
+    : '';
+  const mailPort = Number(config.mailPort ?? publishedMail?.port ?? 993);
   // A FACE THIS ACCOUNT KIND HAS NOT GOT IS NOT MEASURED, IT IS ANSWERED.
   // `providerAccountDomains` is the product's own statement of what a NAMED
   // provider carries from one account row — soverin: email, calendar,
@@ -302,12 +407,19 @@ export async function qualifyAccount(
     build: () => Listable,
     unit: ProbeUnit,
   ): Promise<QualifiedDomain> =>
-    accountServes(kind, face) ? askListable(build, unit) : Promise.resolve(notAFaceOf(kind, word));
+    accountServes(kind, face)
+      ? askListable(build, unit)
+      : Promise.resolve(reasonedNo(kind, face) ?? notAFaceOf(kind, word));
   const [calendar, task, contact, file, mailMeasured] = await Promise.all([
     davFace(
       'calendar',
       'a calendar',
-      () => new CalDAVSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password }),
+      () =>
+        new CalDAVSource({
+          url: calendarEndpoint.url,
+          username: calendarEndpoint.username,
+          password: calendarEndpoint.password,
+        }),
       'calendar',
     ),
     // THE SAME ENDPOINT, A DIFFERENT COMPONENT (workplan 0113 T5). A task list
@@ -324,9 +436,9 @@ export async function qualifyAccount(
       'a task list',
       () =>
         new CalDAVSource({
-          url: endpoint.url,
-          username: endpoint.username,
-          password: endpoint.password,
+          url: taskEndpoint.url,
+          username: taskEndpoint.username,
+          password: taskEndpoint.password,
           component: 'VTODO',
         }),
       'taskList',
@@ -334,29 +446,33 @@ export async function qualifyAccount(
     davFace(
       'contact',
       'an address book',
-      () => new CarddavSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password }),
+      () =>
+        new CarddavSource({
+          url: contactEndpoint.url,
+          username: contactEndpoint.username,
+          password: contactEndpoint.password,
+        }),
       'addressBook',
     ),
     davFace(
       'file',
       'a file store',
       () =>
-        new WebdavFileSource({
-          url: fileEndpoint.url,
-          username: fileEndpoint.username,
-          password: fileEndpoint.password,
-        }),
+        (() => {
+          const e = fileEndpoint();
+          return new WebdavFileSource({ url: e.url, username: e.username, password: e.password });
+        })(),
       'folder',
     ),
     mailHost
       ? askListable(
           () =>
             deps.imapListable
-              ? deps.imapListable({ host: mailHost, port: config.mailPort ?? 993 }, creds)
+              ? deps.imapListable({ host: mailHost, port: mailPort }, creds)
               : buildImapSourceFrom(
                   {
                     host: mailHost,
-                    port: Number(config.mailPort ?? 993),
+                    port: mailPort,
                     tls: config.useSsl !== false,
                     user: String(config.user ?? creds.username ?? ''),
                   },
@@ -371,7 +487,11 @@ export async function qualifyAccount(
   // calendar nobody reached would be a sentence about nothing.
   const scheduling =
     calendar.answer === 'yes'
-      ? await measureTargetScheduling(endpoint.url, endpoint.username, endpoint.password)
+      ? await measureTargetScheduling(
+          calendarEndpoint.url,
+          calendarEndpoint.username,
+          calendarEndpoint.password,
+        )
       : undefined;
   const mail: QualifiedDomain =
     mailMeasured ??

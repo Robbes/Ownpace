@@ -2,6 +2,42 @@
 
 ## Status — 2026-09-04
 
+### T6 landed — 2026-09-04
+
+Apple is qualifiable, and the owner's "paste a password" question is answered by what
+already shipped: **there is no button and there will be none** — `appleAccountFields()` gave
+the kind an Apple ID and an app-specific password in T2, which is the whole credential. The
+owner, 2026-09-04: *"I don't want a 'paste a password' button... we already have form fields
+for that, right?"* Correct, and this plan's T0 finding stands unchanged.
+
+**No `qualifyApple`.** Apple rides the DAV-family branch, because it is Soverin's shape and a
+third copy of the measuring code beside `qualifyGoogleGrant` and `qualifyDropbox` is how a
+face ends up measured one way in one place and another way somewhere else. What that branch
+needed was three things it did not do:
+
+- **One endpoint per face.** It resolved ONE and measured calendars, tasks and contacts
+  through it, because every DAV provider before Apple put all three under one root. Apple
+  does not — `caldav.icloud.com` and `contacts.icloud.com` — so the contact face asked the
+  calendar service for address books, was refused, and recorded `unknown`: Contacts `?` on an
+  account that carries them, and per 0106 T3a an unknown does not constrain, so the wizard
+  would offer the tick anyway. The #597 family, exactly as T1's was.
+- **A file endpoint nobody needs must not be resolved.** It was built eagerly, before
+  `davFace` decided whether to ask — and Apple, having no file face, has no published file
+  root, so it threw and took the whole qualification with it. Every one of the four real
+  faces would have read `?` because of the one face that does not exist.
+- **The file face's own sentence.** `notAFaceOf` says "not a face of this connection", which
+  is true and reads as if we had not bothered. `reasonedNo` names what is actually true:
+  Apple publishes no iCloud Drive API to anyone, and the Data & Privacy export is the only
+  route. Workplan 0116 is that route, undecided.
+
+Mail is measured from the published host rather than a typed one, and **deliberately not**
+through `accountMailEndpoint` — the rule the passes use ends `?? stored.host`, and a soverin
+connection stores its CalDAV host there, so borrowing it would point an IMAP probe at a
+calendar server. #133's mistake in a new place.
+
+Proved by breaking, five ways, each restored. Still **not measured against a live iCloud
+account** — the fixtures are iCloud-shaped, not iCloud-captured.
+
 Drafted. The owner asked (2026-09-04) for "the apple-id social button for login. and then
 add apple as source to migrate away from … add the one-click button and so forth, just like
 we have for Google and Microsoft now."
@@ -246,7 +282,7 @@ Two things make this worth its own task rather than a line in another one:
 | T3 | The face table | **Done 2026-09-04.** Soverin's row, different provider — no new connector |
 | T4 | Apple's endpoints, and a guard that builds | **Done 2026-09-04.** `PROVIDER_ENDPOINTS` (not a directory row — see below), the DAV and mail seams, `buildTaskSourceFromConnection`, `accountMailEndpoint`, and `a-face-no-account-can-actually-build` across every kind |
 | T5 | The credential is an app-specific password | Field label and help that name it; a refusal that says an Apple Account password will not work and where to make the right one — never a bare "authentication failed" |
-| T6 | Files: a measured no | `qualifyApple` answers `file: no` with the reason, and names the Data & Privacy export as the only route |
+| T6 | Files: a measured no | **Done 2026-09-04.** No `qualifyApple` — the DAV family branch, given per-face endpoints, a lazy file endpoint and `reasonedNo`. New guard `a-face-measured-at-the-wrong-host` |
 | T7 | `docs/apple-setup.md` | The app-specific password walk-through, why there is no button, what Reminders bring, and that revocation is at account.apple.com and not here |
 | T8 | Front door, icons, feature matrix, i18n | The `apple` card beside the Google and Microsoft ones, en + nl |
 | T9 | The managed gate | A sentinel Apple row that never reaches Apple, asserting the kind's fourteen tables agree |
