@@ -434,6 +434,15 @@ account to read, and so a different kind of migration than the account faces on 
 If you need your photos moved, say so; it decides whether an archive-import route is worth
 building, and nothing here will quietly pretend to cover it.
 
+**And the obvious hope does not rescue it.** Google publishes a Data Portability API for
+people in the European Economic Area, built to satisfy the Digital Markets Act, which sounds
+like exactly the answer. Its full list of scopes was read on 4 September 2026 and **Google
+Photos is not among them** — nor is Drive, Gmail, Contacts or Calendar. What it carries is
+search and activity history, Chrome, Maps contributions, Play and YouTube. The two scopes
+that look like photos are not: one is what you posted *on Maps*, the other is Street View
+uploads. So a photo library now has two separate reasons to be out of reach, and Takeout is
+not a workaround while something better arrives — it is the only complete route there is.
+
 **Device backups** (the "Back-up van apparaat" line in Google's storage overview) are Android's
 own app-and-settings backups, readable only by an Android device signing in. They are not data
 this product can or should read, and they stay where they are.
