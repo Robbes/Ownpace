@@ -7,13 +7,28 @@
  */
 
 import type { DavEndpoint } from './dav-factories.ts';
+import { publishedDavUrl } from '@openmig/shared';
 
-/** Build a DAV endpoint URL from a stored connection config (url/baseUrl/host+port). */
-export function davUrl(config: Record<string, unknown>): string {
+/**
+ * Build a DAV endpoint URL from a stored connection config (url/baseUrl/host+port).
+ *
+ * `kind` and `face` are how a row with NO endpoint in its config still gets
+ * one (workplan 0115 T4). Apple's hosts are not a customer choice — every
+ * iCloud account is at the same two roots — so its door asks for no host, and
+ * this is where the published root is read instead. Every other kind carries
+ * its own, and passing neither argument keeps the pre-0115 behaviour exactly:
+ * a config with nothing in it refuses, by name.
+ */
+export function davUrl(config: Record<string, unknown>, kind?: string, face?: string): string {
   if (typeof config.url === 'string') return config.url;
   if (typeof config.baseUrl === 'string') return config.baseUrl;
   const host = config.host;
   if (typeof host !== 'string' || !host) {
+    // The stored config wins over the published root wherever it says
+    // anything, so a customer who somehow needs a different address keeps
+    // being able to say so — this is a fallback, never an override.
+    const published = kind && face ? publishedDavUrl(kind, face) : undefined;
+    if (published) return published;
     throw new Error('DAV connection config is missing url/baseUrl/host');
   }
   const scheme = config.useSsl === false ? 'http' : 'https';
@@ -31,6 +46,8 @@ export function davEndpointFromCreds(
   role: 'source' | 'target',
   config: Record<string, unknown>,
   creds: Record<string, string>,
+  kind?: string,
+  face?: string,
 ): DavEndpoint {
   const username = creds.username;
   const password = creds.password;
@@ -40,7 +57,7 @@ export function davEndpointFromCreds(
         `in the decrypted secret (got username=${username ? 'set' : 'missing'}, password=${password ? 'set' : 'missing'}).`,
     );
   }
-  return { url: davUrl(config), username, password };
+  return { url: davUrl(config, kind, face), username, password };
 }
 
 /**

@@ -92,6 +92,55 @@ Still open: T4 the provider-directory row, T5's refusal wording beyond the field
 hint, T6 files as a measured no, T7 `docs/apple-setup.md`, T8 the wizard/Connections
 surfaces beyond the card, T9 the managed gate.
 
+### T4 landed — 2026-09-04, and T2/T3 shipped a card that could not build
+
+Probing an `apple` row after opening its PR:
+
+```
+calendar / contact   DAV connection config is missing url/baseUrl/host
+mail                 buildDepsFromMapping only supports imap-oauth2, graph-mail,
+                     gmail and google mail sources, got: apple
+```
+
+That mail sentence is **verbatim 0114 T5a's**, one provider later. Every table
+agreed, every guard was green, the card was on the front door and the database
+would have taken the row — and not one face could be built.
+
+**Not a `PROVIDER_DIRECTORY` row.** That table pre-fills FORM BOXES, and its own
+guard holds that a row may only name boxes its door asks for; an Apple row naming
+`host` would fail it, correctly, because the Apple door asks for no host. The two
+tables answer different questions — *what to put in the box* versus *where to go
+when there is no box* — so `PROVIDER_ENDPOINTS` is its own file, carrying the same
+provenance (the page, the day) that 0105's never-guess rule requires. Nothing in
+it is trusted: Test measures it like any typed value.
+
+`davUrl` gained an optional kind and face, so a row with no endpoint of its own
+reads the published root; **the stored config still wins wherever it says
+anything**, so this is a fallback and never an override. The mail face needed no
+new connector — `buildImapSourceFromCredentials` already accepts a plain password
+and only insists on the config SHAPE, so the arm synthesises it from the published
+host and the row's address.
+
+**Two defects of my own, one caught by an existing test and one it could not
+see.** The first arm matched `sourceFaceBuilder(type,'email') === 'imap'`, which
+is true of `caldav` too — the face table's DEFAULT is not a CLAIMED face — so a
+`caldav` source lost its honest refusal. `build-deps-from-mapping.unit.test.ts`
+caught that. Narrowing to `isProviderAccountKind` exposed the second: the arm read
+`stored.host`, and an account kind holds one row for several faces, so `soverin`'s
+`host` is `caldav.soverin.net` while its mail lives at `mailHost`. **That builds
+perfectly and fails at connect, against a calendar server.** No "did not throw"
+test can see it, so the rule is now a pure exported `accountMailEndpoint` with its
+own assertions.
+
+The guard is per KIND rather than per provider, which is the lesson:
+`the-microsoft-account-row-builds-its-faces` existed because Microsoft needed it
+that night, so Apple was born uncovered. Adding a kind now adds its cases
+automatically.
+
+Proved by breaking, three ways, each restored: `davUrl` ignoring the published
+root (3 red — apple's calendar, contact, task), the mail arm removed (2 red —
+apple AND soverin), and the mail face reading `host` before `mailHost` (2 red).
+
 ## The shape Apple actually has
 
 Apple's account is **Soverin's shape, not Google's**: protocols and a password, discovered
@@ -195,7 +244,7 @@ Two things make this worth its own task rather than a line in another one:
 | T1 | The home set may change host | **Done 2026-09-04.** `normalizeDavHref` and `davPathOf` in `dav-http.types.ts`; both sources delegate. Proved by breaking, four ways |
 | T2 | The `apple` provider account kind | **Done 2026-09-04.** The kind, migration 0038, the credential descriptors, the front door, the validator branch, revocation and erasure, both languages. New guard `a-kind-with-nowhere-to-live` |
 | T3 | The face table | **Done 2026-09-04.** Soverin's row, different provider — no new connector |
-| T4 | The provider directory row | `imap.mail.me.com` 993, the DAV hosts, and the username quirk: Apple's IMAP wants the local part (`johnappleseed`), falling back to the full address |
+| T4 | Apple's endpoints, and a guard that builds | **Done 2026-09-04.** `PROVIDER_ENDPOINTS` (not a directory row — see below), the DAV and mail seams, `buildTaskSourceFromConnection`, `accountMailEndpoint`, and `a-face-no-account-can-actually-build` across every kind |
 | T5 | The credential is an app-specific password | Field label and help that name it; a refusal that says an Apple Account password will not work and where to make the right one — never a bare "authentication failed" |
 | T6 | Files: a measured no | `qualifyApple` answers `file: no` with the reason, and names the Data & Privacy export as the only route |
 | T7 | `docs/apple-setup.md` | The app-specific password walk-through, why there is no button, what Reminders bring, and that revocation is at account.apple.com and not here |
