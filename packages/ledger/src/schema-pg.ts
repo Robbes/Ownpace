@@ -106,6 +106,17 @@ export const connection = pgTable(
         // and files wait on Google's restricted-scope assessment, so a person
         // migrating a mailbox still uses `gmail` today.
         'google',
+        // One Microsoft 365 ACCOUNT (workplan 0114), the same shape a provider
+        // later and with the asymmetry running the other way: it carries all
+        // FOUR faces from the first day, because Microsoft's delegated read
+        // scopes have no equivalent of Google's restricted tier. Allowed by
+        // the CHECK since 0037.
+        //
+        // `o365` above stays and cohabits, and means something different: the
+        // customer's own Entra app registration, which `oauth2` and `graph`
+        // ask for and which may carry application permissions this delegated
+        // grant never will.
+        'microsoft',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),

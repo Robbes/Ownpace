@@ -48,7 +48,7 @@ import {
   missingCredentialFields,
   serverMessage,
 } from '../services/api.ts';
-import { QUALIFICATION_KEYS } from '@openmig/shared';
+import { QUALIFICATION_KEYS, isProviderAccountKind } from '@openmig/shared';
 import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
@@ -464,7 +464,18 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   // button per provider the descriptor names, in that provider's words.
   // The ACCOUNT kind asks for the faces ticked and nothing else (0106 T3b);
   // a connection has no mapping yet to read them from, so it asks here.
-  const isAccountKind = grantProvider === 'google' && type === 'google';
+  // WHICH KINDS ARE ACCOUNTS — the faces are asked here because a connection
+  // has no mapping yet to read them from (0106 T3b). Was `grantProvider ===
+  // 'google' && type === 'google'`, a two-provider condition with Microsoft
+  // arriving third (workplan 0114).
+  //
+  // Read off `PROVIDER_ACCOUNT_KINDS` rather than a shape that happens to
+  // hold: the first attempt here asked whether the type equalled its own
+  // grant provider, which is true of `google` and `microsoft` — and also of
+  // `dropbox`, which is a SINGLE-face source. That version disabled Dropbox's
+  // button waiting for face ticks it never shows. An account kind is the one
+  // the table calls an account, and nothing else.
+  const isAccountKind = isProviderAccountKind(type);
   const [domains, setDomains] = React.useState<DiscoveryDomain[]>([]);
   const [consentNote, setConsentNote] = React.useState<string | null>(null);
   const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
@@ -514,21 +525,40 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const startConsent = async () => {
     setConsentNote(null);
     try {
-      const { url, redirectUri } =
-        grantProvider === 'dropbox'
-          ? await mappingApi.dropboxAuthorize(ownPair)
-          : await mappingApi.googleAuthorize(
-              isAccountKind
-                ? { domains, ...ownPair }
-                : {
-                    sourceType: type as
-                      | 'gmail'
-                      | 'google-calendar'
-                      | 'google-contacts'
-                      | 'google-drive',
-                    ...ownPair,
-                  },
-            );
+      // ONE ASK PER PROVIDER, off a table rather than a `?:` chain (workplan
+      // 0114). The chain here was `dropbox ? … : google…`, whose else branch
+      // ran GOOGLE's authorize for anything that was not Dropbox — so a third
+      // provider would not have failed to compile, it would have asked the
+      // wrong provider for a consent and reported success.
+      const beginConsent: Record<string, () => Promise<{ url: string; redirectUri?: string }>> = {
+        dropbox: () => mappingApi.dropboxAuthorize(ownPair),
+        // The ACCOUNT asks for exactly the faces ticked, so the consent screen
+        // and the ticks cannot disagree; the single-purpose kinds ask for
+        // their own one scope.
+        microsoft: () => mappingApi.microsoftAuthorize({ domains, ...ownPair }),
+        google: () =>
+          mappingApi.googleAuthorize(
+            isAccountKind
+              ? { domains, ...ownPair }
+              : {
+                  sourceType: type as
+                    | 'gmail'
+                    | 'google-calendar'
+                    | 'google-contacts'
+                    | 'google-drive',
+                  ...ownPair,
+                },
+          ),
+      };
+      const begin = grantProvider === undefined ? undefined : beginConsent[grantProvider];
+      if (!begin) {
+        // Never silently Google's. A descriptor naming a provider this table
+        // has no row for is a defect, and saying so beats consenting to the
+        // wrong company on somebody's behalf.
+        setConsentNote(t('wizard.consent.noProvider'));
+        return;
+      }
+      const { url, redirectUri } = await begin();
       // The address this consent used, shown on every attempt: it has to be
       // registered with the provider BEFORE the first one can work.
       setConsentRedirect(redirectUri ?? null);

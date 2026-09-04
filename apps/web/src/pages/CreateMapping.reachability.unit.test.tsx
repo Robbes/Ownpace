@@ -47,7 +47,7 @@ vi.mock('../services/mapping-service', () => ({
   // per provider since Connect with Dropbox (2026-09-02). Neither here:
   // every pair stays in plain view, as on an appliance.
   providerClientsApi: {
-    get: vi.fn().mockResolvedValue({ google: 'connection', dropbox: 'connection' }),
+    get: vi.fn().mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'connection' }),
   },
 }));
 

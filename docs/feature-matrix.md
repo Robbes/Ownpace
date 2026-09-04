@@ -80,6 +80,18 @@ client alone — an appliance registers its own OAuth client and does its own ve
 (ADR-0041). Which faces any account kind serves lives in one table
 (`PROVIDER_ACCOUNT_DOMAINS`), so a provider gaining one is a row edit rather than a branch.
 
+Also a source: **Microsoft 365** (`microsoft`, workplan 0114) — the third account kind, and
+the asymmetry with `google` runs the **other way**. It carries **all four faces from the
+first day** — mail, calendars, contacts and OneDrive — because Microsoft's delegated read
+scopes over the signed-in user's own data (`Mail.Read`, `Calendars.Read`, `Contacts.Read`,
+`Files.Read`) carry no equivalent of Google's restricted tier and its annual third-party
+security assessment. The one face it does **not** carry is tasks, and that absence is ours
+rather than the provider's: Graph serves Microsoft To Do at `/me/todo/lists` under
+`Tasks.Read`, and no connector reads them yet (0114 T9). `oauth2` and `graph` **stay and
+cohabit** — they mean "the customer's own Entra app registration", which may carry
+application permissions this delegated grant never will, and which is what an administrator
+migrating other people's mailboxes needs.
+
 What migrates: events as **iCal objects**, with recurring series and their exceptions
 preserved over CalDAV; incremental sync via RFC 6578 sync-tokens (ctag fallback); the
 shadow-sync **update path** rewrites an event the source changed — unless the target's copy

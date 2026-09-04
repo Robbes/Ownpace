@@ -37,6 +37,11 @@ export const FRONT_DOOR_GROUPS: Readonly<Record<string, FrontDoorGroup>> = {
   carddav: 'protocol',
   webdav: 'protocol',
   // Providers — a named place people migrate from or to.
+  //
+  // The Microsoft ACCOUNT (workplan 0114) leads its family for the same
+  // reason `google` leads its own: one credential, one consent, the faces you
+  // tick. The two app-registration methods stay beside it.
+  microsoft: 'provider',
   oauth2: 'provider',
   graph: 'provider',
   // The Google ACCOUNT (workplan 0106 T3b) — a provider like the four
@@ -65,7 +70,10 @@ export interface FrontDoorFamily {
 }
 
 export const FRONT_DOOR_FAMILIES: ReadonlyArray<FrontDoorFamily> = [
-  { id: 'microsoft365', members: ['oauth2', 'graph'] },
+  // The ACCOUNT first, the same rule Google's family follows below: the usual
+  // choice leads, and the two app-registration methods stay beside it for the
+  // customer who has one (workplan 0114 T5b).
+  { id: 'microsoft365', members: ['microsoft', 'oauth2', 'graph'] },
   // The account first — "the usual choice first", the same rule that puts
   // oauth2 before graph. The four single-purpose products stay beside it and
   // are the only way to mail and files until Google's restricted-scope
@@ -116,6 +124,10 @@ export const FRONT_DOOR_ICONS: Readonly<Record<string, FrontDoorIcon>> = {
   webdav: { kind: 'glyph', glyph: 'files' },
   // Microsoft 365's two methods share the provider's one mark — same
   // account, same face; the card text says how it connects.
+  //
+  // The ACCOUNT wears the same mark, for the reason spelled out under `google`
+  // below: it is not a third method, it is the account the other two reach.
+  microsoft: M365_MARK,
   oauth2: M365_MARK,
   graph: M365_MARK,
   // The Google products keep the G and wear their product's own color —

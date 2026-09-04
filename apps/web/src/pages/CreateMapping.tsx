@@ -64,7 +64,7 @@ type Step = 'source' | 'target' | 'migration' | 'review';
 
 interface FormData {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
@@ -944,24 +944,36 @@ const CreateMapping: React.FC = () => {
       // rather than substituting a default, which is why the button is
       // disabled until something is ticked. Dropbox asks for no scope at
       // all: its app's permissions decide (2026-09-02: Connect with Dropbox).
-      const { url, redirectUri } =
-        grantProvider === 'dropbox'
-          ? await mappingApi.dropboxAuthorize(ownClientPair)
-          : await mappingApi.googleAuthorize(
-              isGoogleAccountSource
-                ? {
-                    domains: formData.domains,
-                    ...ownClientPair,
-                  }
-                : {
-                    sourceType: formData.sourceType as
-                      | 'gmail'
-                      | 'google-calendar'
-                      | 'google-contacts'
-                      | 'google-drive',
-                    ...ownClientPair,
-                  },
-            );
+      // ONE ASK PER PROVIDER, off a table (workplan 0114). The chain here was
+      // `dropbox ? … : google…`, whose else branch ran GOOGLE's authorize for
+      // anything that was not Dropbox — so a third provider would not have
+      // failed to compile, it would have asked the wrong company for a consent
+      // and reported success.
+      const beginConsent: Record<string, () => Promise<{ url: string; redirectUri?: string }>> = {
+        dropbox: () => mappingApi.dropboxAuthorize(ownClientPair),
+        microsoft: () =>
+          mappingApi.microsoftAuthorize({ domains: formData.domains, ...ownClientPair }),
+        google: () =>
+          mappingApi.googleAuthorize(
+            isGoogleAccountSource
+              ? { domains: formData.domains, ...ownClientPair }
+              : {
+                  sourceType: formData.sourceType as
+                    | 'gmail'
+                    | 'google-calendar'
+                    | 'google-contacts'
+                    | 'google-drive',
+                  ...ownClientPair,
+                },
+          ),
+      };
+      const begin = grantProvider === undefined ? undefined : beginConsent[grantProvider];
+      if (!begin) {
+        // Never silently Google's — see the Connections door, same rule.
+        setConsentNote(t('wizard.consent.noProvider'));
+        return;
+      }
+      const { url, redirectUri } = await begin();
       /**
        * THE ADDRESS THIS CONSENT USED, kept rather than discarded.
        *

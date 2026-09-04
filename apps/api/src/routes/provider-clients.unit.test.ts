@@ -17,11 +17,11 @@ afterEach(() => {
 describe('GET /api/provider-clients', () => {
   it('reads the environment at the moment it is asked, one fact per provider, never a value', async () => {
     let res = await request(app).get('/api/provider-clients');
-    expect(res.body).toEqual({ google: 'connection', dropbox: 'connection' });
+    expect(res.body).toEqual({ google: 'connection', dropbox: 'connection', microsoft: 'connection' });
     process.env.DROPBOX_OAUTH_CLIENT_ID = 'dbx-key';
     process.env.DROPBOX_OAUTH_CLIENT_SECRET = 'dbx-secret';
     res = await request(app).get('/api/provider-clients');
-    expect(res.body).toEqual({ google: 'connection', dropbox: 'deployment' });
+    expect(res.body).toEqual({ google: 'connection', dropbox: 'deployment', microsoft: 'connection' });
     expect(res.text).not.toContain('dbx-');
   });
 });

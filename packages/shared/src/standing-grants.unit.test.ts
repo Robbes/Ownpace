@@ -26,9 +26,26 @@ import {
 
 describe('standing grants', () => {
   it('names a grant for the providers that keep one', () => {
-    // The four where consent outlives the token: an Entra admin consent, a
-    // Google account authorization, a Dropbox app link, a Box admin auth.
-    expect([...grantIds()].sort()).toEqual(['box', 'dropbox', 'google', 'microsoft']);
+    // The five where consent outlives the token: an Entra ADMIN consent, a
+    // Microsoft USER consent, a Google account authorization, a Dropbox app
+    // link, a Box admin auth.
+    //
+    // Microsoft appears twice on purpose (workplan 0114). The two grants share
+    // a provider and nothing else: `microsoft` is the admin consent an
+    // administrator removes in an Entra tenant, often over other people's
+    // mailboxes; `microsoft-account` is the signed-in person's own delegated
+    // consent, removed by them, in a different console, over their own data.
+    // Telling somebody who pressed a button that they need an administrator is
+    // a dead end at the moment they are trying to leave — and the reverse is
+    // worse, leaving a tenant-wide permission live while an admin believes it
+    // is gone.
+    expect([...grantIds()].sort()).toEqual([
+      'box',
+      'dropbox',
+      'google',
+      'microsoft',
+      'microsoft-account',
+    ]);
   });
 
   it('answers in BOTH vocabularies, because this product uses both', () => {

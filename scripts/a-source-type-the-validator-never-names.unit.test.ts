@@ -103,10 +103,15 @@ function namedInValidator(): Set<string> {
 }
 
 describe('every source type the API accepts is named by the validator', () => {
-  it('declares ten source types, so the list has not silently moved', () => {
+  it('declares eleven source types, so the list has not silently moved', () => {
     // A canary on the canary: if the enum shrinks or grows, the reasoning in
     // this file's header is stale and should be re-read rather than trusted.
-    expect(declaredSourceTypes()).toHaveLength(10);
+    // Eleven since workplan 0114 added `microsoft` — the Microsoft ACCOUNT
+    // kind, which is NOT one of the two Azure-by-design types below: it takes
+    // a delegated grant, its tenant is optional, and its client pair may be
+    // the deployment's. Falling into that catch-all would have demanded a
+    // tenantId and a client secret from somebody who pressed a button.
+    expect(declaredSourceTypes()).toHaveLength(11);
   });
 
   it.each(
