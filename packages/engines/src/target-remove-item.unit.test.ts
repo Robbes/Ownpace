@@ -44,7 +44,7 @@ describe('CalDAVTargetWriter.removeItem', () => {
     const c = client();
     const writer = new CalDAVTargetWriter(
       { url: 'https://cloud.example.com/remote.php/dav', username: 'alice', password: 'pw' },
-      { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
+      { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
     );
 
     const result = await writer.removeItem('calendars/alice/personal/evt-1.ics');
@@ -65,7 +65,7 @@ describe('CalDAVTargetWriter.removeItem', () => {
     const c = client();
     const writer = new CalDAVTargetWriter(
       { url: 'https://cloud.example.com/remote.php/dav', username: 'alice', password: 'pw' },
-      { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
+      { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
     );
 
     const result = await writer.removeItem('files/alice/evt-1.ics');
@@ -141,7 +141,7 @@ describe('all three refuse nothing silently on a real failure', () => {
     const c = client(500);
     const writer = new CalDAVTargetWriter(
       { url: 'https://cloud.example.com/remote.php/dav', username: 'alice', password: 'pw' },
-      { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
+      { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
     );
 
     await expect(writer.removeItem('calendars/alice/personal/evt-1.ics')).rejects.toThrow();

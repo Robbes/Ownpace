@@ -19,8 +19,16 @@ import type {
   TargetReindexer,
   TargetEntry,
   RemovalResult,
+  DiscoveryDomain,
+  CalendarEvent,
 } from '@openmig/shared';
-import { calendarNaturalKeyHash, calendarContentHash, isOnTarget, neutraliseScheduling } from '@openmig/shared';
+import {
+  naturalKeyForCalendar,
+  naturalKeyForTask,
+  calendarContentHash,
+  isOnTarget,
+  neutraliseScheduling,
+} from '@openmig/shared';
 import { CALENDAR_COMPONENTS, componentOfIcalendar } from '@openmig/shared';
 import type { CalendarComponent } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
@@ -58,6 +66,15 @@ export interface CalDAVTargetConfig {
 }
 
 /**
+ * The two domains a CalDAV writer can be filing for.
+ *
+ * Narrower than `DiscoveryDomain` on purpose: this writer speaks CalDAV, so
+ * `email`, `contact` and `file` are not answers it could ever want, and a
+ * union that admitted them would let a caller hand one over by mistake.
+ */
+export type CalDavLedgerDomain = Extract<DiscoveryDomain, 'calendar' | 'task'>;
+
+/**
  * CalDAV target writer implementation
  */
 export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer {
@@ -65,6 +82,26 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   private readonly ledger: Ledger;
   private readonly tenantId: TenantId;
   private readonly mappingId: MappingId;
+  /**
+   * WHICH DOMAIN'S ROWS THIS WRITER FILES — and the only field on it that is
+   * not about talking to a server.
+   *
+   * On the wire a task is a calendar object, so ONE class writes both and both
+   * factories return it. In the LEDGER they are separate domains, and this
+   * class used to write `itemType: 'calendar'` for every object it touched.
+   * That went unnoticed for as long as the task domain never ran: on
+   * 2026-09-04, the first self-hosted run where it did, the calendar domain
+   * reported `itemsSynced: 17` against a source holding 9 events — the extra 8
+   * being the 8 tasks, filed here under `calendar` while the sync loop filed
+   * them again under `task`. Two rows per task, calendar's counts and bytes
+   * inflated by the whole task corpus, and the `find` fast path below looking
+   * for a `todo:` key in the wrong domain, so it never hit.
+   *
+   * Required rather than defaulted, deliberately: an optional key nobody
+   * assigns is exactly how the parser lost the tasks domain in the first
+   * place (see `DOMAIN_CONFIG_KEY`). Forgetting it here is a compile error.
+   */
+  private readonly domain: CalDavLedgerDomain;
   private readonly httpClient: HttpClient;
   /**
    * Per-collection snapshot of what the target already holds, natural key ->
@@ -87,6 +124,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       ledger: Ledger;
       tenantId: TenantId;
       mappingId: MappingId;
+      domain: CalDavLedgerDomain;
       httpClient?: HttpClient;
     },
   ) {
@@ -94,6 +132,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     this.ledger = deps.ledger;
     this.tenantId = deps.tenantId;
     this.mappingId = deps.mappingId;
+    this.domain = deps.domain;
     this.httpClient = deps.httpClient ?? createDefaultHttpClient();
   }
 
@@ -124,6 +163,35 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   }
 
   /**
+   * THE SAME LEDGER KEY THE SYNC LOOP WILL COMPUTE FOR THIS OBJECT.
+   *
+   * Both write a row for every item — the loop through `recordIfAbsent`, this
+   * writer through the same call one layer down, first-writer-wins. That only
+   * yields ONE row if the two agree on the key, and this writer used to hash
+   * everything with `calendarNaturalKeyHash` regardless.
+   *
+   * For a calendar event they agreed, so nothing ever showed. For a task they
+   * did not: `naturalKeyForTask` carries the `todo:` prefix (a VTODO and a
+   * VEVENT may share a UID — see `taskNaturalKeyHash`), so every task got TWO
+   * ledger rows under two hashes, and the task domain reported exactly twice
+   * its corpus. Found by the self-hosted gate on 2026-09-04, in the run that
+   * first let the task domain reach a real server.
+   *
+   * Delegates to the same helpers `runCalendarSync` and `runTaskSync` pass as
+   * their `naturalKey`, on the same `item` object, so the two cannot drift
+   * again — including over RECURRENCE-ID, which neither side populates today
+   * and both would pick up together on the day one does.
+   */
+  private ledgerKeyFor(raw: RawCalendarEvent, uid: string): string {
+    // `uid` from the iCalendar bytes rather than `raw.item.uid`: those bytes
+    // are what lands on the target, and a caller may hand this writer a raw
+    // object with no `item` at all. Everything else about the key comes from
+    // the item when there is one.
+    const keyed = { ...(raw.item ?? {}), uid } as CalendarEvent;
+    return this.domain === 'task' ? naturalKeyForTask(keyed) : naturalKeyForCalendar(keyed);
+  }
+
+  /**
    * Idempotently write a calendar event to the target.
    * Uses ledger fast-path and target-side UID check to ensure idempotency.
    */
@@ -134,8 +202,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   ): Promise<UpsertResult> {
     // Extract UID from iCalendar data
     const uid = this.extractUidFromIcalendar(raw.icalendar);
+    // The UID, as the SERVER knows it: matched against `calendar-data` in the
+    // existence REPORT and used as the key of the per-collection snapshot. Not
+    // a ledger key — that is the hash below.
     const naturalKey = uid;
-    const naturalKeyHash = calendarNaturalKeyHash(naturalKey);
+    const naturalKeyHash = this.ledgerKeyFor(raw, uid);
 
     // UPDATE PATH: the source event changed after we copied it, so rewrite it.
     //
@@ -172,7 +243,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     }
 
     // LEDGER FAST-PATH: Check if already migrated
-    const known = await this.ledger.find(this.tenantId, this.mappingId, 'calendar', naturalKeyHash);
+    const known = await this.ledger.find(this.tenantId, this.mappingId, this.domain, naturalKeyHash);
     // `isOnTarget`, not merely "a row exists". A `failed` row means we tried and
     // did not copy it; short-circuiting on one told the sync loop the retry had
     // succeeded, and the loop then recorded the row as 'updated' — clearing the
@@ -201,7 +272,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
         tenantId: this.tenantId,
-        itemType: 'calendar',
+        itemType: this.domain,
         mappingId: this.mappingId,
         naturalKeyHash,
         contentHash: contentHashValue,
@@ -248,7 +319,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // RECORD IN LEDGER
     await this.ledger.recordIfAbsent({
       tenantId: this.tenantId,
-        itemType: 'calendar',
+        itemType: this.domain,
       mappingId: this.mappingId,
       naturalKeyHash,
       contentHash: contentHashValue,
@@ -395,9 +466,10 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
    * way to read a calendar target and reported the whole domain
    * NOT_VERIFIABLE — blocking any cutover that had actually copied events.
    *
-   * `naturalKey` is the VEVENT UID, exactly what `upsertCalendarEvent` hashes
-   * with `calendarNaturalKeyHash`. `targetId` is the resource href, matching
-   * what that method records as the ledger's target id.
+   * `naturalKey` is the component's UID — the same string `upsertCalendarEvent`
+   * hashes, through `ledgerKeyFor`, under this writer's own domain. `targetId`
+   * is the resource href, matching what that method records as the ledger's
+   * target id.
    *
    * @param mailboxId Restrict to one calendar collection path. Omitted, every
    *   calendar under this account's home set is walked.
@@ -462,6 +534,31 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
 
   /** Every calendar resource in one collection, as ledger-shaped entries. */
   private async *listEventsIn(calendarPath: string): AsyncIterable<TargetEntry> {
+    // ONE COMPONENT, THIS WRITER'S OWN — not all three at once.
+    //
+    // This filter used to name VEVENT, VTODO and VJOURNAL as sibling
+    // comp-filters, on the reading that it was asking for any of them. It is
+    // not: RFC 4791 §9.7.1 makes a comp-filter's children a conjunction, so
+    // "a VCALENDAR containing a VEVENT and a VTODO and a VJOURNAL" describes
+    // no object anybody has. Sabre's PDO backend — Nextcloud's — is more
+    // forgiving and simply takes the FIRST child as the component to index on,
+    // which is why the query appeared to work for four domains and one
+    // workplan: the first child was VEVENT, so events came back and nothing
+    // else ever did.
+    //
+    // The self-hosted gate met the consequence on 2026-09-04, the first run
+    // where the task domain reached a real server: eight VTODOs sitting in
+    // `restart-resume-seed-tasks/` (a collection whose
+    // `supported-calendar-component-set` says VTODO, written there by this
+    // very class), and a verification report reading `tasks: targetCount 0,
+    // missingOnTarget 8` — every migrated task declared lost, and
+    // `canProceedToCutover: false` on a migration that had copied everything.
+    //
+    // Scoped to the domain rather than unioned over all three, because that is
+    // also the right answer for the other half of verification: a calendar
+    // reindexer that listed VTODOs would report every task as "extra on
+    // target", and no domain owns VJOURNAL at all.
+    const component = this.domain === 'task' ? 'VTODO' : 'VEVENT';
     // Partial retrieval (RFC 4791 §9.6): ask for the UID rather than the whole
     // event body. Enumeration is metadata-only by contract and a mailbox-sized
     // calendar should not be downloaded in full to count it.
@@ -472,19 +569,15 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
           <D:getcontentlength/>
           <C:calendar-data>
             <C:comp name="VCALENDAR">
-              ${CALENDAR_COMPONENTS.map(
-                (component) => `<C:comp name="${component}">
+              <C:comp name="${component}">
                 <C:prop name="UID"/>
-              </C:comp>`,
-              ).join('\n              ')}
+              </C:comp>
             </C:comp>
           </C:calendar-data>
         </D:prop>
         <C:filter>
           <C:comp-filter name="VCALENDAR">
-            ${CALENDAR_COMPONENTS.map((component) => `<C:comp-filter name="${component}"/>`).join(
-              '\n            ',
-            )}
+            <C:comp-filter name="${component}"/>
           </C:comp-filter>
         </C:filter>
       </C:calendar-query>`;

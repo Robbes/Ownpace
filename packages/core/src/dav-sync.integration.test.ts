@@ -195,7 +195,7 @@ describe('Calendar domain sync (real CalDAV target) Integration', () => {
 
     target = new CalDAVTargetWriter(
       { url: NEXTCLOUD_WEBDAV_URL!, username: NEXTCLOUD_USERNAME, password: NEXTCLOUD_PASSWORD },
-      { ledger, tenantId: CALENDAR_TENANT_ID, mappingId: CALENDAR_MAPPING_ID },
+      { domain: 'calendar', ledger, tenantId: CALENDAR_TENANT_ID, mappingId: CALENDAR_MAPPING_ID },
     );
 
     readBackSource = new CalDAVSource({

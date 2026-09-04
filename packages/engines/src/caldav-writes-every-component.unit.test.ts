@@ -15,6 +15,27 @@
  * declares VEVENT,VTODO — already carries tasks through this writer today. A
  * customer migrating that calendar has been rewriting their to-do list on
  * every pass since the first one.
+ *
+ * ## CORRECTED 2026-09-04: "all three at once" was not a fix
+ *
+ * T4's remedy was to name VEVENT, VTODO and VJOURNAL as sibling comp-filters,
+ * and this file pinned it. That reads as "any of them" and is not: RFC 4791
+ * §9.7.1 makes a comp-filter's children a CONJUNCTION, so the query asks for a
+ * VCALENDAR holding all three — no object anybody has. Sabre's PDO backend is
+ * more forgiving and indexes on the FIRST child, VEVENT, which is how the
+ * widened form went on behaving exactly like the narrow one it replaced.
+ *
+ * These tests could not see it because they assert what we ASK, not what comes
+ * back — deliberately, and still the right call, but it means the ask has to be
+ * right in the RFC's terms and not merely in ours. The self-hosted gate found
+ * the truth on 2026-09-04: eight VTODOs on the target, `targetCount 0` in the
+ * verification report.
+ *
+ * The writer now asks for the ONE component its domain owns — VTODO for the
+ * task domain, VEVENT for the calendar domain — which is a single-component
+ * query in every case, and correct under both the RFC and Sabre. The mixed
+ * collection above is still handled, by the domain that owns the component
+ * rather than by one query trying to own all of them.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -42,7 +63,13 @@ interface Call {
  * comes back.
  */
 function recordingServer(
-  options: { putStatus?: number; componentSet?: string; listingFails?: boolean } = {},
+  options: {
+    putStatus?: number;
+    componentSet?: string;
+    listingFails?: boolean;
+    /** Which domain this writer files and queries for. Defaults to calendar. */
+    domain?: 'calendar' | 'task';
+  } = {},
 ) {
   const calls: Call[] = [];
   const client = {
@@ -77,7 +104,13 @@ function recordingServer(
   } as unknown as HttpClient;
   const writer = new CalDAVTargetWriter(
     { url: BASE, username: 'alice', password: 'pw' },
-    { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+    {
+      domain: options.domain ?? 'calendar',
+      ledger: emptyLedger,
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      httpClient: client,
+    },
   );
   return { writer, calls };
 }
@@ -127,18 +160,33 @@ describe('the read-back follows the component being written', () => {
 });
 
 describe('the collection listing covers every component', () => {
-  it('the snapshot that decides "already there" asks for all three, not for events only', async () => {
-    const { writer, calls } = recordingServer();
+  it('the snapshot that decides "already there" asks for the writer\'s own component', async () => {
+    // A TASK writer, writing a VTODO: the snapshot must ask for VTODO. It used
+    // to ask for VEVENT (blind to the task), then for all three at once (which
+    // Sabre reads as VEVENT, so still blind). One component, the right one.
+    const { writer, calls } = recordingServer({ domain: 'task' });
     await writer.upsertCalendarEvent('calendars/alice/personal/', object('VTODO', 'buy-milk') as never);
+
     const listing = calls.find((c) => c.method === 'REPORT' && c.body.includes('<C:comp-filter name="VTODO"/>'));
-    expect(listing, 'the listing REPORT should filter on every component').toBeDefined();
-    for (const component of ['VEVENT', 'VTODO', 'VJOURNAL']) {
-      expect(listing?.body, component).toContain(`<C:comp-filter name="${component}"/>`);
-      // Partial retrieval is kept: the UID under each component, never the
-      // whole object — a mailbox-sized calendar is not downloaded to count it.
-      expect(listing?.body, component).toContain(`<C:comp name="${component}">`);
-    }
+    expect(listing, 'the listing REPORT should filter on VTODO for a task writer').toBeDefined();
+    // Partial retrieval is kept: the UID under that component, never the whole
+    // object — a mailbox-sized calendar is not downloaded to count it.
+    expect(listing?.body).toContain('<C:comp name="VTODO">');
     expect(listing?.body).toContain('<C:prop name="UID"/>');
+    // And nothing else, because siblings are ANDed and the first one wins on
+    // Sabre — either way a second component is dead weight that changes the
+    // meaning of the query.
+    expect(listing?.body).not.toContain('<C:comp-filter name="VEVENT"/>');
+    expect(listing?.body).not.toContain('<C:comp-filter name="VJOURNAL"/>');
+  });
+
+  it('a calendar writer\'s snapshot asks for VEVENT', async () => {
+    const { writer, calls } = recordingServer({ domain: 'calendar' });
+    await writer.upsertCalendarEvent('calendars/alice/personal/', object('VEVENT', 'standup') as never);
+
+    const listing = calls.find((c) => c.method === 'REPORT' && c.body.includes('<C:comp-filter name="VEVENT"/>'));
+    expect(listing).toBeDefined();
+    expect(listing?.body).not.toContain('<C:comp-filter name="VTODO"/>');
   });
 });
 
