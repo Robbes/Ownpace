@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 89 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 90 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -20,6 +20,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/ci.yml`
 
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
 
@@ -180,6 +181,10 @@ reading a file drops off its entry by itself.
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
+
+### `apps/web/src/pages/end-user-docs.unit.test.tsx`
+
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
 ### `apps/web/src/services/api.ts`
 
@@ -522,6 +527,10 @@ reading a file drops off its entry by itself.
 ### `docs/windows-appliance-runbook.md`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+
+### `docs/workplans/0115-the-account-apple-will-not-hand-over.md`
+
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
 ### `packages/connectors/src/google-token-provider.ts`
 
@@ -918,6 +927,16 @@ Reads:
 - `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 - `scripts/local-pg.sh`
 - `vitest.global-setup.ts`
+
+### [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts)
+
+A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `apps/web/src/pages/end-user-docs.unit.test.tsx`
+- `docs/workplans/0115-the-account-apple-will-not-hand-over.md`
 
 ### [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts)
 

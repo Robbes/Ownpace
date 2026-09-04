@@ -22,7 +22,12 @@
  * nothing anywhere.
  */
 
-import { isCredentialRefusal, withDeploymentDropboxClient, withDeploymentGoogleClient } from '@openmig/shared';
+import {
+  appleAuthRefusal,
+  isCredentialRefusal,
+  withDeploymentDropboxClient,
+  withDeploymentGoogleClient,
+} from '@openmig/shared';
 import { isGoogleGrantKind } from './account-qualification.ts';
 import type { SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { CalDAVSource, CarddavSource, DropboxFileSource, WebdavFileSource } from '@openmig/connectors';
@@ -154,7 +159,7 @@ export function withProbeDeadline(
  * `reason` is the English either way, so nothing that only knows about
  * `reason` changes.
  */
-function providerRefused(err: unknown): ProbeResult {
+function providerRefused(err: unknown, kind?: string): ProbeResult {
   if (isCredentialRefusal(err)) {
     return {
       ok: false,
@@ -162,14 +167,32 @@ function providerRefused(err: unknown): ProbeResult {
       outcome: { code: 'credentialsRefused', refusal: err.refusal },
     };
   }
+  // A THIRD CASE, between the two above (workplan 0115 T5): the provider's
+  // error IS theirs, and we still know what it means better than they said it.
+  // Apple refuses an Apple Account password over IMAP and DAV by design, and
+  // says `AUTHENTICATIONFAILED` — which, rendered verbatim, tells a person
+  // their password is wrong when it is merely the wrong kind of password.
+  // Answering with our own bilingual sentence puts it on the same path as
+  // every refusal we author, so the Dutch and the appliance come free.
+  const text = err instanceof Error ? err.message : String(err);
+  const known = kind ? appleAuthRefusal(kind, text) : undefined;
+  if (known) {
+    return { ok: false, reason: known.en, outcome: { code: 'credentialsRefused', refusal: known } };
+  }
   return {
     ok: false,
-    reason: err instanceof Error ? err.message : String(err),
+    reason: text,
     outcome: { code: 'providerRefused' },
   };
 }
 
-async function probeListable(build: () => Listable, unit: ProbeUnit): Promise<ProbeResult> {
+async function probeListable(
+  build: () => Listable,
+  unit: ProbeUnit,
+  /** The connection kind, so a refusal we can say better than the provider is
+   *  recognised — see `providerRefused` (workplan 0115 T5). */
+  kind?: string,
+): Promise<ProbeResult> {
   try {
     const folders = await build().listFolders();
     return {
@@ -178,11 +201,15 @@ async function probeListable(build: () => Listable, unit: ProbeUnit): Promise<Pr
       outcome: { code: 'connected', count: folders.length, unit },
     };
   } catch (err) {
-    return providerRefused(err);
+    return providerRefused(err, kind);
   }
 }
 
-async function probeBounded(build: () => BoundedListable, unit: ProbeUnit): Promise<ProbeResult> {
+async function probeBounded(
+  build: () => BoundedListable,
+  unit: ProbeUnit,
+  kind?: string,
+): Promise<ProbeResult> {
   try {
     const { folders, truncated } = await build().listTopLevelFolders();
     return {
@@ -196,7 +223,7 @@ async function probeBounded(build: () => BoundedListable, unit: ProbeUnit): Prom
       },
     };
   } catch (err) {
-    return providerRefused(err);
+    return providerRefused(err, kind);
   }
 }
 
@@ -246,7 +273,7 @@ async function probeSourceNow(
         'folder',
       );
     case GOOGLE_DRIVE_CONNECTION_KIND:
-      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder');
+      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder', kind);
     case DROPBOX_CONNECTION_KIND:
       // The same builder a pass uses (workplan 0055), a CHEAPER question
       // (2026-09-02): `listFolders` is one recursive listing of the whole
@@ -263,7 +290,7 @@ async function probeSourceNow(
     case BOX_CONNECTION_KIND:
       // Box (workplan 0056): same route again — the builder holds the CCG
       // branching, so test-connection proves exactly what a pass builds.
-      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder');
+      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder', kind);
     // The ACCOUNT kind answers with its CALENDAR face (workplan 0106 T3b),
     // the same choice T4a made for `soverin` and for the same reason: it is
     // the face the scheduling verdict belongs to, and a headline probe has to
@@ -280,6 +307,30 @@ async function probeSourceNow(
         () => buildGoogleContactsDavSourceFrom(user, creds, STORED_GOOGLE_DAV_CREDENTIAL_NAMES),
         'addressBook',
       );
+    // THE APPLE ACCOUNT ANSWERS WITH ITS CALENDAR FACE (workplan 0115 T5),
+    // the choice T4a made for `soverin` and 0106 T3b for `google`, for the
+    // same reason: a headline probe has to pick one face, and the calendar is
+    // the one the scheduling verdict belongs to. The other three are not
+    // guessed from it — the qualification measures each at its own host (T6)
+    // and the badges report all of them.
+    //
+    // Without this branch the kind fell to `default`, and Test on a card the
+    // front door offers answered "No probe exists for a 'apple' source
+    // connection" — an honest sentence about a gap, which is not the same as
+    // a product that works.
+    case 'apple': {
+      const endpoint = davEndpointFromCreds('source', config, creds, kind, 'calendar');
+      return probeListable(
+        () =>
+          new CalDAVSource({
+            url: endpoint.url,
+            username: endpoint.username,
+            password: endpoint.password,
+          }),
+        'calendar',
+        kind,
+      );
+    }
     case 'imap':
     case 'o365':
       // The managed mail builder handles both: a password, a static token, or
@@ -288,6 +339,7 @@ async function probeSourceNow(
       return probeListable(
         () => buildSourceConnectorFromCredentials(config as unknown as SourceConfig, creds),
         'folder',
+        kind,
       );
     default:
       return {

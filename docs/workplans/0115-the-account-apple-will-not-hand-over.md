@@ -2,6 +2,72 @@
 
 ## Status — 2026-09-04
 
+### T5 landed — 2026-09-04
+
+The fields shipped in T2; what was missing was the **refusal**, and a probe at all.
+
+`probeSourceNow` had no `apple` branch, so Test on a card the front door offers answered
+*"No probe exists for a 'apple' source connection"* — an honest sentence about a gap, which
+is not the same as a product that works. It now answers with its CALENDAR face, the choice
+T4a made for `soverin` and 0106 T3b for `google`: a headline probe picks one face, and the
+other three are measured separately by T6.
+
+And the sentence. Every Apple Account has two-factor authentication, so the account's own
+password is refused over IMAP and DAV **by design** — which makes the most likely first
+attempt fail with `AUTHENTICATIONFAILED` or a bare `401`. Rendered verbatim, per 0080, that
+tells a person their password is wrong. It is not wrong; it is the wrong KIND of password,
+and retyping it cannot help. `appleAuthRefusal` answers with a `BilingualRefusal` instead, so
+it rides the `credentialsRefused` path every refusal we author already uses and the Dutch and
+the appliance come free.
+
+Narrow on purpose: only `apple`, and only for messages that look like an authentication
+rejection. A timeout, a DNS failure or a 500 keeps Apple's own words, because for those the
+provider's text is the more useful sentence and ours would be a guess wearing a confident
+face. Proved by breaking, four ways.
+
+**One thing I proposed and did NOT build**: stripping the dashes from the app-specific
+password. Apple displays `abcd-efgh-ijkl-mnop`, and whether its servers accept the dashless
+form is not something this repository has measured — so normalising it would be a guess in
+the credential path, which is the worst place for one. The hint and the refusal both say to
+keep the dashes. If a live account ever shows Apple accepts both, that is the moment to
+soften it, with the day it was measured.
+
+### T6 landed — 2026-09-04
+
+Apple is qualifiable, and the owner's "paste a password" question is answered by what
+already shipped: **there is no button and there will be none** — `appleAccountFields()` gave
+the kind an Apple ID and an app-specific password in T2, which is the whole credential. The
+owner, 2026-09-04: *"I don't want a 'paste a password' button... we already have form fields
+for that, right?"* Correct, and this plan's T0 finding stands unchanged.
+
+**No `qualifyApple`.** Apple rides the DAV-family branch, because it is Soverin's shape and a
+third copy of the measuring code beside `qualifyGoogleGrant` and `qualifyDropbox` is how a
+face ends up measured one way in one place and another way somewhere else. What that branch
+needed was three things it did not do:
+
+- **One endpoint per face.** It resolved ONE and measured calendars, tasks and contacts
+  through it, because every DAV provider before Apple put all three under one root. Apple
+  does not — `caldav.icloud.com` and `contacts.icloud.com` — so the contact face asked the
+  calendar service for address books, was refused, and recorded `unknown`: Contacts `?` on an
+  account that carries them, and per 0106 T3a an unknown does not constrain, so the wizard
+  would offer the tick anyway. The #597 family, exactly as T1's was.
+- **A file endpoint nobody needs must not be resolved.** It was built eagerly, before
+  `davFace` decided whether to ask — and Apple, having no file face, has no published file
+  root, so it threw and took the whole qualification with it. Every one of the four real
+  faces would have read `?` because of the one face that does not exist.
+- **The file face's own sentence.** `notAFaceOf` says "not a face of this connection", which
+  is true and reads as if we had not bothered. `reasonedNo` names what is actually true:
+  Apple publishes no iCloud Drive API to anyone, and the Data & Privacy export is the only
+  route. Workplan 0116 is that route, undecided.
+
+Mail is measured from the published host rather than a typed one, and **deliberately not**
+through `accountMailEndpoint` — the rule the passes use ends `?? stored.host`, and a soverin
+connection stores its CalDAV host there, so borrowing it would point an IMAP probe at a
+calendar server. #133's mistake in a new place.
+
+Proved by breaking, five ways, each restored. Still **not measured against a live iCloud
+account** — the fixtures are iCloud-shaped, not iCloud-captured.
+
 Drafted. The owner asked (2026-09-04) for "the apple-id social button for login. and then
 add apple as source to migrate away from … add the one-click button and so forth, just like
 we have for Google and Microsoft now."
@@ -245,11 +311,52 @@ Two things make this worth its own task rather than a line in another one:
 | T2 | The `apple` provider account kind | **Done 2026-09-04.** The kind, migration 0038, the credential descriptors, the front door, the validator branch, revocation and erasure, both languages. New guard `a-kind-with-nowhere-to-live` |
 | T3 | The face table | **Done 2026-09-04.** Soverin's row, different provider — no new connector |
 | T4 | Apple's endpoints, and a guard that builds | **Done 2026-09-04.** `PROVIDER_ENDPOINTS` (not a directory row — see below), the DAV and mail seams, `buildTaskSourceFromConnection`, `accountMailEndpoint`, and `a-face-no-account-can-actually-build` across every kind |
-| T5 | The credential is an app-specific password | Field label and help that name it; a refusal that says an Apple Account password will not work and where to make the right one — never a bare "authentication failed" |
-| T6 | Files: a measured no | `qualifyApple` answers `file: no` with the reason, and names the Data & Privacy export as the only route |
-| T7 | `docs/apple-setup.md` | The app-specific password walk-through, why there is no button, what Reminders bring, and that revocation is at account.apple.com and not here |
-| T8 | Front door, icons, feature matrix, i18n | The `apple` card beside the Google and Microsoft ones, en + nl |
-| T9 | The managed gate | A sentinel Apple row that never reaches Apple, asserting the kind's fourteen tables agree |
+| T5 | The credential is an app-specific password | **Done 2026-09-04.** Fields in T2; `appleAuthRefusal` and the source probe here. New guard `a-refusal-that-blames-the-password` |
+| T6 | Files: a measured no | **Done 2026-09-04.** No `qualifyApple` — the DAV family branch, given per-face endpoints, a lazy file endpoint and `reasonedNo`. New guard `a-face-measured-at-the-wrong-host` |
+| T7 | `docs/apple-setup.md` | **Done 2026-09-04.** The walk-through, the no-button finding beside Sign in with Apple, Reminders, revocation at Apple. Plus **Apple's export in Apple's own words** — the owner walked `privacy.apple.com` the same day |
+| T8 | Front door, icons, feature matrix, i18n | **Done 2026-09-04.** Feature-matrix rows in four domains + three gap rows. The icon half needed nothing: `apple` already carries a mark and the front-door guard already asserts every placed id wears one. Corrected the stale "Tasks (VTODO) not built" line while there |
+| T9 | The managed gate | **Redirected 2026-09-04, and it found a defect instead.** No gate: the create door probes, so a sentinel Apple row would fire a bogus password at Apple nightly. The fourteenth table (`sourceConnectionConfig`) was missing `microsoft` AND `apple` — both stored as `imap-oauth2`. Fixed for every account kind, new guard `an-account-stored-as-a-product-it-is-not` |
+
+### T5 through T9 landed — 2026-09-04
+
+**T7's page is the first thing in this plan that is measured about Apple rather
+than reasoned.** The owner opened `privacy.apple.com` and read the request
+flow, which this environment's egress proxy blocks. Seven days is Apple's own
+figure; the part size is a CHOICE (1, 2, 5, 10, 25 GB) and 25 GB is its maximum
+rather than its unit; the export carries documents, photos and videos in
+original format and contacts, calendars, bookmarks and mail as `.vcf`, `.ics`,
+`.html`, `.eml`. The link's fourteen-day life is **still** unmeasured and stays
+`unknown` rather than being filled in from the forums.
+
+Two things that were written here from secondary sources are now corrected:
+
+- *"No scheduling"* was very nearly right. Apple offers a **recurring**
+  download — for App Store information and app-install activity, and for
+  nothing in iCloud.
+- **There are two routes.** Beside the download, `privacy.apple.com` offers a
+  direct transfer to another service: **iCloud Photos → Google Photos** and
+  **Apple Music playlists → YouTube Music**, and nowhere else. It is Apple's
+  own service and it is better than anything this product can offer for that
+  one journey, so the guide says so.
+
+And the correction that matters most is about scope rather than fact: **the
+export is not a file archive.** It carries contacts, calendars and mail in the
+same interchange formats this product already reads. The live connection stays
+the right route for those — incremental, no week of waiting — but 0116's reader
+is reading a whole account, not a folder of documents.
+
+**T9 did not produce the gate it asked for**, and the reason is worth keeping.
+A sentinel Apple row cannot be created without reaching Apple: `POST
+/api/connections` probes before it stores, and the source config schema carries
+no `mailHost`, so the mail face cannot be pointed anywhere unroutable either.
+Widening the product schema to make a test possible is the wrong reason to
+widen it, and "never reaches Apple" has to mean provably rather than *the
+runner happens to have no egress*. So the tables are asserted at unit level and
+the live row is made once, by hand, in the supervised sitting.
+
+Reading the fourteenth table to write that gate is what found the defect —
+which is the wrong way round, and is exactly what T2's guard exists to prevent
+happening again.
 
 ### Deliberately not in this plan
 

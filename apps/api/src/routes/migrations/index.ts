@@ -16,7 +16,7 @@ import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgMigrationStatusStore, PgLedger, RunStore } from '@openmig/ledger';
-import { DISCOVERY_DOMAINS, buildDomainStatusReports, log } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, buildDomainStatusReports, isProviderAccountKind, log } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
@@ -172,17 +172,31 @@ export function sourceConnectionConfig(
   if (body.sourceType === 'google-contacts') {
     return { type: 'google-contacts', user: cfg.username };
   }
-  if (body.sourceType === 'google') {
-    // The ACCOUNT (workplan 0106 T3b): the same one field, and deliberately
-    // the same one field — a Google account row serves several faces from ONE
-    // address, and which faces it serves is the mapping's ticked domains
-    // crossed with PROVIDER_ACCOUNT_DOMAINS, never something stored here.
-    //
-    // The per-domain seams build from the connection's KIND and this `user`;
-    // nothing reads `type` on the DAV path. It is stored anyway because the
-    // GET detail route echoes this object and a config with no type reads as
-    // a row nobody can identify.
-    return { type: 'google', user: cfg.username };
+  // EVERY PROVIDER ACCOUNT, not one of them (workplan 0115 T9).
+  //
+  // An account row serves several faces from ONE address, and which faces it
+  // serves is the mapping's ticked domains crossed with
+  // `PROVIDER_ACCOUNT_DOMAINS` — never something stored here. So the config is
+  // the kind and the address and nothing else: no host, because an account
+  // kind's endpoints are the provider's (published, or discovered), and no
+  // port for the same reason.
+  //
+  // This read `sourceType === 'google'` alone, and `microsoft` and `apple`
+  // fell through to the Azure catch-all at the bottom — which stored them as
+  // `{type: 'imap-oauth2', host: undefined, tls, useSsl}`. **An O365
+  // IMAP+XOAUTH2 mail source**, for an account whose faces are Graph builders
+  // in one case and DAV+IMAP in the other, with no host, no tenant and no
+  // client. Nothing failed where anybody would see it, because
+  // `sourceFaceBuilder` branches on the connection's KIND and never on this
+  // `type` — which is exactly why it lasted. What it did reach: the GET detail
+  // route echoes this object, so the row identified itself as a product it is
+  // not, and the rotate panel prefills from it.
+  //
+  // The type is stored for the reason `google`'s own comment gave (0106 T3b)
+  // and the two silent kinds proved: a config that cannot identify its row is
+  // one nobody can read back, and one that identifies it WRONGLY is worse.
+  if (isProviderAccountKind(body.sourceType)) {
+    return { type: body.sourceType, user: cfg.username };
   }
   if (body.sourceType === 'graph') {
     // Graph REST transport: the tenant + mailbox are the address — there is

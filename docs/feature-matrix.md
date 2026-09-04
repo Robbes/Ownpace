@@ -5,7 +5,7 @@ coherence matrices (`SOURCE_TYPE_DOMAINS` / `TARGET_TYPE_DOMAINS` in
 `packages/shared/src/target-domains.ts`) — the same tables the wizard constrains with and
 the create API refuses against. When this document and the code disagree, the code is right
 and this file has a bug; the per-domain detail links the ADR or workplan that carries each
-decision. Last reconciled: 2026-08-16 (after PR #416).
+decision. Last reconciled: 2026-09-04 (after PR #767 — the task domain — and workplan 0115).
 
 Legend: ✅ migrates · 🔁 detected & reported, owner decides (never acted on silently) ·
 ⏳ built, awaiting first contact with reality (owner runbook stage named) ·
@@ -24,6 +24,15 @@ Also a target: **JMAP** (`jmap` — Stalwart / La Suite / mosa.cloud), and **Sov
 (`soverin`, workplan 0106 T4b) — the account kind's mail face: the IMAP half of `imap-dav`,
 driven from the mail server the person STORED on the connection (`mailHost` — demanded by
 name when email is ticked, never guessed from the provider's name).
+
+Also a source: **Apple** (`apple`, workplan 0115) — the mail face of the iCloud account
+kind, over IMAP at `imap.mail.me.com:993`. Where Soverin's mail face is driven from a host
+the person **stored**, Apple's is driven from a host Apple **publishes**: `apple` is the
+only kind in `PROVIDER_ENDPOINTS` today, so its card carries no server field at all and the
+person types an address and a password and nothing else. The credential is an
+**app-specific password**, because every Apple Account has two-factor authentication and a
+two-factor account's own password is refused by IMAP, CalDAV and CardDAV by design — see
+[`apple-setup.md`](apple-setup.md).
 
 What migrates: messages as **verbatim RFC822 bytes**, the folder tree, and the four flags the
 engines map (`$seen`, `$flagged`, `$draft`, `$answered` — the last one absent from the Graph
@@ -80,6 +89,16 @@ client alone — an appliance registers its own OAuth client and does its own ve
 (ADR-0041). Which faces any account kind serves lives in one table
 (`PROVIDER_ACCOUNT_DOMAINS`), so a provider gaining one is a row edit rather than a branch.
 
+Also a source: **Apple** (`apple`, workplan 0115) — the fourth account kind, and the one
+with **no button at all**. Google and Microsoft carry a consent screen; Apple publishes no
+OAuth scope for Mail, Calendar, Contacts, Reminders or iCloud Drive to anybody outside
+Apple, so there is nothing for a button to do and the connection is an address and an
+app-specific password. It carries **four faces — mail, calendars, contacts and reminders**
+— and refuses the fifth with a reason rather than a `?` (see Files). Calendars and contacts
+sit on **two different hosts** (`caldav.icloud.com`, `contacts.icloud.com`), and iCloud
+partitions accounts across hundreds of hosts, answering the home set with an absolute URL
+naming yours — which is why every DAV href is normalised host-preservingly (0115 T1).
+
 Also a source: **Microsoft 365** (`microsoft`, workplan 0114) — the third account kind, and
 the asymmetry with `google` runs the **other way**. It carries **all four faces from the
 first day** — mail, calendars, contacts and OneDrive — because Microsoft's delegated read
@@ -107,8 +126,17 @@ Not (yet) migrated:
 - 🚫 **Live invitation state** — events are copied as data; nobody is re-invited, no
   organiser is re-pinged. That is the correct behaviour for a migration and it is stated
   here so nobody expects otherwise.
-- ⛔ **Tasks (VTODO) and calendar sharing/ACLs, colours, notification defaults** — the
-  engines carry events; per-calendar server settings stay where they are.
+- ⛔ **Calendar sharing/ACLs, colours, notification defaults** — the engines carry events;
+  per-calendar server settings stay where they are.
+
+**Tasks are their own domain now** (workplan 0113), not a calendar footnote: ✅ `VTODO`
+objects over CalDAV, with their own natural key and their own ledger rows, because filing a
+reminder as an event produces something that looks migrated and is wrong. The target must
+advertise `VTODO` in its `supported-calendar-component-set` to receive them, and the domain
+step says so before a run rather than halfway through one. **Apple's Reminders** are the
+first provider-named source of them (`apple`, 0115) — `VTODO`s on the same CalDAV host as
+the calendars, reached by the same credential. Microsoft To Do is served by Graph under
+`Tasks.Read` and no connector reads it yet (0114 T9); Google Tasks needs its own API.
 
 ## Contacts
 
@@ -119,6 +147,12 @@ Not (yet) migrated:
 
 Also a target: **JMAP** (workplan 0031 T2), and **Soverin** (`soverin`) — the account kind's
 contact face, riding the same CardDAV writer (see Calendars).
+
+Also a source: **Apple** (`apple`, workplan 0115) — the contact face of the iCloud account,
+at `contacts.icloud.com`. Worth stating separately because it is a **different host** to the
+calendars on the same credential: one `host` for both would send CardDAV to the calendar
+service, so each face is measured at its own endpoint (0115 T6) rather than at a shared
+root the way Soverin's are.
 
 What migrates: contacts as **vCards** (photos ride inside), with the same
 update/conflict/adoption behaviour as calendars, incremental sync, and `reported` deletion
@@ -138,6 +172,17 @@ Not (yet) migrated:
 | **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target | 🚫 never a target | 🚫 never a target |
 
 Also a target: **JMAP files** (workplan 0031 T3).
+
+**Not a source, and it is a measured no rather than a `?`: iCloud Drive** (`apple`,
+workplan 0115). Apple publishes **no API for iCloud Drive — to anyone**, not just to us:
+there is no endpoint, no scope and no documented protocol a third party could implement.
+Every other file store in this table is read over a published API; this one cannot be. So
+the Apple card answers the file face with **no, and a sentence** — the distinction being
+that a `?` means *we could not find out* and a **no** means *we found out*. The only route
+to those files is the customer's own Data & Privacy export at `privacy.apple.com`, which
+Apple hands to the person and not to us; teaching this product to accept such an archive is
+workplan 0116, and an archive with a date on it is a different shape of thing to a live
+account.
 
 What migrates: file **bytes, verbatim**, hashed (`contentHash`) so unchanged files are never
 re-sent and changed ones are updated (with the same edited-on-target conflict protection);
@@ -276,4 +321,7 @@ These hold across all object types, and are features rather than gaps:
 | Whole-tenant Google migration (domain-wide delegation, opt-in) | ⏳ built, awaiting first contact with a real Workspace | ADR-0033; workplan 0053 |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |
+| Apple (iCloud) against a real Apple Account — the app-specific password's dashed form, the username's local-part-vs-address question, and the first live face counts | ⏳ built, unproven | `apple-supervised-run.md`; workplan 0115 |
+| iCloud Drive as a live source | 🚫 impossible — Apple publishes no API to anyone | Files section above; the archive route is workplan 0116 |
+| Microsoft To Do / Google Tasks as task sources | ⛔ not built (the domain and the CalDAV `VTODO` path are) | workplan 0113; 0114 T9 |
 | Sieve rules, signatures, OOF, ACLs, invitation state, version history | 🚫 out of scope, stated per domain above | this document |
