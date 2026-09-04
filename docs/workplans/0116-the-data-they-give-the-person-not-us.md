@@ -440,10 +440,58 @@ domain on one side and a one-shot on the other.
   zip they uploaded, are both zips. It is a small, well-understood category of library; it is
   still a supply-chain decision and so it is yours. Recommendation: **defer it** until the
   appliance route has carried a real archive, because the measurement may change what is
-  wanted, and nothing before T4 is blocked.
+  wanted, and nothing before T4 is blocked. §"What D7 is actually choosing between" below
+  lays out the three options and the one measurement that should precede the decision.
 - **D6 — ✅ DECIDED: "Import an export", with the provider's own words beneath.** Not "sync", for Apple. Recommendation: *"Import an
   export"* as the family, and per provider *"Google Takeout archive"* / *"Apple Data & Privacy
   export"* — the provider's own words, so a search engine and a support conversation match.
+
+### What D7 is actually choosing between
+
+Written 2026-09-04 so the decision can be taken in a minute rather than researched again.
+**Nothing here is a recommendation to build anything** — it is what the options cost.
+
+**The starting fact, measured rather than assumed:** Node ships no ZIP reader. `node:zlib`
+gives DEFLATE and gzip — the *compression*, not the *container* — and there is no `node:zip`
+in any release line (checked on this repository's own Node, 22.22.2, on 2026-09-04; the repo
+targets ≥24, where the same is true). So reading a `.zip` without extracting it is either a
+dependency or code of ours. There is no third door where the platform already does it.
+
+| | What it costs | What it buys |
+|---|---|---|
+| **1. Extract first** — today's answer, and what T3a does | Transiently **twice the disk**, and a step the person has to perform | Nothing to decide, nothing to audit, nothing to keep patched |
+| **2. A ZIP library** | One runtime dependency in `packages/connectors`, which today has four non-workspace ones. On a product whose pitch is custody of other people's data, that is a real cost and not a formality | Random access into a multi-gigabyte archive with no extraction, and somebody else's edge cases already handled |
+| **3. Read the central directory ourselves** | Perhaps 250–350 lines, and the ZIP64 extensions a >4 GB part needs. Hand-rolled parsers of somebody else's format age badly | No dependency at all. And the read path is genuinely narrow: locate the end-of-central-directory record, walk the entries, seek to each local header, inflate with `createInflateRaw` |
+
+Option 3 is more defensible here than it would usually be, for one reason worth stating: **we
+only ever READ.** A parser that gets something wrong fails to produce an item, loudly, on an
+archive nothing is being written to — which is a very different blast radius from a
+hand-rolled *writer*. It is still more code to own than a dependency is to audit once.
+
+#### The measurement that should come first, and it is already in flight
+
+**Are the parts independent zips, or one archive split across several files?** This is the
+question that decides how hard options 2 and 3 are, and neither has been checked:
+
+- **Independent zips** — each part carries its own central directory and is openable alone.
+  Option 3 becomes tractable, option 2 becomes a small library rather than a large one, and
+  even option 1 is unremarkable.
+- **A split (spanned) archive** — the central directory lives in the last part and entries
+  run across part boundaries. Hand-rolling that is a different order of difficulty, and a
+  good many libraries decline to support it at all.
+
+The owner's own exports settle it: a Takeout was to be requested shortly and an Apple export
+was requested on 2026-09-04. **When they land, record three things before D7 is answered:**
+
+1. does each part open on its own, or only as a set;
+2. does any single part exceed 4 GB (which is what makes ZIP64 mandatory rather than
+   incidental);
+3. is the layout the same for both providers, or does each need its own answer.
+
+Until then D7 is not merely deferrable, it is **premature**: the option costs above are known
+and the thing that would tip between them is not. And §3 already notes that the managed
+multi-gigabyte upload "is its own slice and may never be built" — so this may be a decision
+that never has to be taken at all.
 
 ## Not in this plan
 
