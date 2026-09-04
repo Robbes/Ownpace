@@ -55,7 +55,12 @@ import {
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
-import { SOURCE_CARDS, TARGET_CARDS } from '../components/front-door-cards.ts';
+import {
+  SOURCE_CARDS,
+  TARGET_CARDS,
+  migratableSourceCards,
+  type MigratableSourceCard,
+} from '../components/front-door-cards.ts';
 import { useMutation } from '@tanstack/react-query';
 import type { DiscoveryDomain } from '@openmig/shared';
 
@@ -1734,7 +1739,11 @@ const CreateMapping: React.FC = () => {
       ? { ...card, hintKey: RESTRICTED_GOOGLE_HINT }
       : card;
 
-  const onPickSource = (type: (typeof SOURCE_CARDS)[number]) => {
+  // A MIGRATABLE card, not any card (0116 T1): `connectionOnly` kinds are
+  // ones this product can connect to and cannot yet migrate from, and their
+  // ids are not in `CreateMappingInput['sourceType']`. Widening this parameter
+  // is what the compiler refuses, which is the point.
+  const onPickSource = (type: MigratableSourceCard) => {
       // A verdict about the OLD provider must not survive the
       // switch (0073) — it is a statement about a credential
       // this screen no longer asks for.
@@ -1857,7 +1866,11 @@ const CreateMapping: React.FC = () => {
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectSource')}</h3>
               <FrontDoorChooser
-                cards={SOURCE_CARDS}
+                // Not SOURCE_CARDS: a `connectionOnly` kind is one this
+                // product can CONNECT to and cannot yet MIGRATE from, and
+                // walking six steps to a refusal is a worse answer than not
+                // being offered (0116 T1). The Connections page shows them.
+                cards={migratableSourceCards()}
                 selectedId={formData.sourceType}
                 onPick={onPickSource}
                 gridClass="sm:grid-cols-2"

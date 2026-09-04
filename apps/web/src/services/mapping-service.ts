@@ -204,6 +204,11 @@ export const CreateMappingResponseSchema = z.object({
     'google',
     'dropbox',
     'box',
+    // An EXPORT ARCHIVE (workplan 0116 T1). Present in the READ enum although
+    // the wizard cannot create one: this schema parses what the server
+    // returns, and an archive row exists as a connection the moment somebody
+    // adds one on the Connections page.
+    'archive',
   ]),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin']),
   status: MappingLifecycleSchema,

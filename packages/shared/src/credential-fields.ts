@@ -25,6 +25,8 @@
  * adds no new translations to drift.
  */
 
+import { ARCHIVE_PROVIDERS, ARCHIVE_PROVIDER_NAMES } from './archive-providers.ts';
+
 export interface CredentialField {
   /**
    * The name this value has in the create route's `sourceConfig` /
@@ -57,6 +59,26 @@ export interface CredentialField {
   readonly consent?: 'google' | 'dropbox' | 'microsoft';
   /** A pasted key file rather than a one-line value. */
   readonly multiline?: boolean;
+  /**
+   * A value CHOSEN from a closed list rather than typed (workplan 0116 T1).
+   *
+   * The first field that needed it is the archive connection's `provider`, and
+   * the reason it is a value rather than a connection kind per export is 0116
+   * §2: a third export must be a new reader and nothing else. That decision is
+   * what puts a closed vocabulary in a credential form for the first time.
+   *
+   * A door that does not understand this flag renders a text box, which is
+   * wrong but not dangerous — the create route validates the value against the
+   * same list either way, so a typo is refused rather than stored. That is why
+   * the list is here as data and the refusal is not: two copies of a
+   * vocabulary is the drift this file exists to prevent, and the SERVER is the
+   * one that must never be the copy.
+   *
+   * `label` is verbatim in every language, like the provider names beside it:
+   * "Google Takeout" is the heading on Google's own page, and translating it
+   * would send somebody looking for a page that does not exist.
+   */
+  readonly options?: ReadonlyArray<{ readonly value: string; readonly label: string }>;
   /**
    * The example value shown in the empty box, VERBATIM (workplan 0075).
    *
@@ -243,6 +265,52 @@ function appleAccountFields(): ReadonlyArray<CredentialField> {
 }
 
 /**
+ * The `archive` type (workplan 0116 T1) — TWO fields, and neither is a secret.
+ *
+ * Every other entry in this file asks for something that proves who you are.
+ * This one asks WHICH export and WHERE it is, because a gatekeeper's answer to
+ * a data-portability request is a file rather than an account. The consequence
+ * worth stating out loud is that `secretFieldKeys('source', 'archive')`
+ * answers `[]` — that is this kind's truth, not a descriptor somebody forgot
+ * to mark up, and the rotation panel offering nothing to rotate is correct.
+ *
+ * `provider` is `perMapping: false` (the default) because it is a property of
+ * the archive itself: one connection, one export, one reader. `path` is
+ * per-mapping for the reason `rootFolderId` is — a second migration from the
+ * same person's exports points at the NEXT archive, and 0116 §5's delta is
+ * precisely the case of two archives from one provider two months apart.
+ *
+ * The hint carries the address the person has to visit before any of this
+ * exists, per provider, because the hard part of an archive import is the
+ * twenty minutes on somebody else's site and not the form.
+ */
+function archiveFields(): ReadonlyArray<CredentialField> {
+  return [
+    {
+      key: 'provider',
+      labelKey: 'wizard.archiveProvider',
+      required: true,
+      // Derived from the shared vocabulary rather than written out: this list
+      // and `ARCHIVE_PROVIDERS` disagreeing would mean a form offering an
+      // export the create door refuses, or hiding one it accepts.
+      options: ARCHIVE_PROVIDERS.map((value) => ({
+        value,
+        label: ARCHIVE_PROVIDER_NAMES[value],
+      })),
+      hintKey: 'wizard.archiveProvider.hint',
+    },
+    {
+      key: 'path',
+      labelKey: 'wizard.archivePath',
+      required: true,
+      placeholder: '/srv/exports/takeout-20260904',
+      hintKey: 'wizard.archivePath.hint',
+      perMapping: true,
+    },
+  ];
+}
+
+/**
  * oauth2 and graph authenticate with the customer's OWN Entra app
  * registration (0037 T6, ADR-0006's row-14 model), so what they ask for is a
  * registration and a mailbox — never a server address.
@@ -267,6 +335,10 @@ function o365Fields(): ReadonlyArray<CredentialField> {
 }
 
 const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = {
+  // The export archive (workplan 0116 T1). First in the map only because the
+  // map is alphabetical; first in this product's history as a source whose
+  // credential is a path.
+  archive: archiveFields(),
   box: [
     USER,
     { key: 'clientId', labelKey: 'wizard.clientId', required: true },
@@ -537,6 +609,11 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   google: 'Google account',
   dropbox: 'Dropbox',
   box: 'Box',
+  // Named for what it IS rather than for either gatekeeper, because one card
+  // covers both and a third export joins it without renaming anything. Which
+  // export a particular connection holds is on the connection
+  // (`archiveProviderName`), where it can be right about one of them.
+  archive: 'Export archive',
   jmap: 'JMAP',
   caldav: 'CalDAV',
   carddav: 'CardDAV',

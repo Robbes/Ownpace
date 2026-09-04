@@ -11,6 +11,7 @@ export class ConfigError extends Error {
 import type { ThrottleConfig } from './throttling.ts';
 import type { SpecialUse } from './mail.ts';
 import { DISCOVERY_DOMAINS, type DiscoveryDomain } from './discovery.ts';
+import { ARCHIVE_PROVIDERS, isArchiveProvider, type ArchiveProvider } from './archive-providers.ts';
 
 export type SourceAuth =
   | { readonly kind: 'xoauth2'; readonly tokenFromEnv: string }
@@ -321,6 +322,44 @@ export interface BoxSource {
   readonly rootFolderId?: string;
 }
 
+/**
+ * An EXPORT ARCHIVE as a source (workplan 0116 T1).
+ *
+ * The one source in this file whose credential is not a credential. Every
+ * other member of `SourceConfig` names an account and something that proves
+ * it; this one names **a file with a date on it**, because that is all a
+ * gatekeeper hands the person. Google's Takeout and Apple's Data & Privacy
+ * download are the two exports read today (`ARCHIVE_PROVIDERS`).
+ *
+ * There are consequences worth being explicit about, because a reader who
+ * assumes the other members' shape will get them wrong:
+ *
+ *  - **It is a SNAPSHOT.** Every other source can be asked again and answers
+ *    with today's state. An archive answers with the day it was prepared,
+ *    forever. Nothing downstream may infer a deletion from an item's absence
+ *    between two archives — 0116 §5's rule that an archive delta may only ADD.
+ *  - **Nothing here is secret.** A path is not a password, so this config
+ *    carries no encrypted half at all and the connection's credential record
+ *    is empty. `secretFieldKeys('source', 'archive')` answering `[]` is the
+ *    truth about this kind, not a gap in its descriptor.
+ *  - **`provider` selects the reader.** It is not decoration and it is not
+ *    derivable from the path: a folder full of `.zip` files says nothing about
+ *    who made them, and opening an Apple export with Google's reader would
+ *    report zero items rather than fail.
+ */
+export interface ArchiveSource {
+  readonly type: 'archive';
+  /** WHICH export, and therefore which reader opens it. */
+  readonly provider: ArchiveProvider;
+  /**
+   * WHERE the archive is: a directory the appliance can read, or a path
+   * inside a file source this product already reads (a Drive, a Dropbox —
+   * every place Takeout will deliver to). Resolving one of those to bytes is
+   * the caller's job, per 0116 §3; the reader's job starts at the inside.
+   */
+  readonly path: string;
+}
+
 /** Microsoft Graph Calendar source */
 export interface GraphCalendarSource {
   readonly type: 'graph-calendar';
@@ -487,7 +526,7 @@ export const DOMAIN_CONFIG_KEYS: ReadonlyArray<keyof DomainsConfig> = DISCOVERY_
   (d) => DOMAIN_CONFIG_KEY[d],
 );
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | GoogleAccountSource | MicrosoftAccountSource | DropboxSource | BoxSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | GoogleAccountSource | MicrosoftAccountSource | DropboxSource | BoxSource | ArchiveSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -860,6 +899,9 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
         : { rootPath: reqString(obj, 'rootPath', 'source.rootPath') }),
     };
   }
+  if (type === 'archive') {
+    return parseArchiveSource(obj);
+  }
   if (type === 'box') {
     return {
       type: 'box',
@@ -959,6 +1001,40 @@ export function parseGoogleDriveSource(obj: Record<string, unknown>): GoogleDriv
     ...(obj['nativeFilePolicy'] === undefined
       ? {}
       : { nativeFilePolicy: parseNativeFilePolicy(obj['nativeFilePolicy']) }),
+  };
+}
+
+/**
+ * Validate an EXPORT ARCHIVE source (workplan 0116 T1), for both editions.
+ *
+ * Exported for the same reason `parseGoogleDriveSource` is: the managed create
+ * route stores this blob through this function rather than casting into the
+ * untyped `config` column, so an archive the appliance's mapping file would
+ * refuse is not one the API quietly writes (hard rule 5).
+ *
+ * BOTH fields are required and the provider is checked against the list rather
+ * than cast. That check is the one that matters here, because getting it wrong
+ * does not throw: opening an Apple export with Google's reader finds no
+ * `Takeout/Google Photos` tree and reports an archive containing nothing. To
+ * somebody who has just waited a week for a 25 GB download that reads as "your
+ * export is empty", which is both the most alarming answer available and the
+ * one they cannot act on.
+ *
+ * `type` is not required in the input — a stored connection carries its kind in
+ * its own column, not in the blob — and is always set on the way out.
+ */
+export function parseArchiveSource(obj: Record<string, unknown>): ArchiveSource {
+  const provider = reqString(obj, 'provider', 'source.provider');
+  if (!isArchiveProvider(provider)) {
+    throw new ConfigError(
+      `source.provider: expected one of ${ARCHIVE_PROVIDERS.join(', ')} — the export this ` +
+        `archive came from, which is what selects the reader that can open it — got ${provider}`,
+    );
+  }
+  return {
+    type: 'archive',
+    provider,
+    path: reqString(obj, 'path', 'source.path'),
   };
 }
 

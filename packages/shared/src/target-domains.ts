@@ -138,7 +138,14 @@ export type WizardSourceType =
   // for the same reason the O365 mail sources do not — one app-specific
   // password reaches mail, calendars, contacts and reminders alike, so no
   // domain is aimed at an API the credential does not serve.
-  | 'apple';
+  | 'apple'
+  // An EXPORT ARCHIVE (workplan 0116 T1) — the first source type that is not
+  // an account at all. Its credential is a LOCATION, and WHICH export it is
+  // (`ARCHIVE_PROVIDERS`) is a value on the connection rather than a type of
+  // its own, deliberately: 0116 §2 requires that a third export be a new
+  // reader and nothing else, and a type per export would drag every table in
+  // this file back into the diff each time one arrived.
+  | 'archive';
 
 /** Domains a wizard source can serve, where the source constrains it at all. */
 export const SOURCE_TYPE_DOMAINS: Partial<
@@ -150,6 +157,16 @@ export const SOURCE_TYPE_DOMAINS: Partial<
   'google-contacts': ['contact'],
   dropbox: ['file'],
   box: ['file'],
+  // FILES ONLY, and photos are files (owner decision D5, 2026-09-04). Both
+  // exports contain more than that — Takeout will hand over mail as `.mbox`
+  // and contacts as `.vcf`, Apple's ships `.ics`, `.vcf` and `.eml` — and this
+  // product deliberately does not read them from an archive. The reason is
+  // that mail, calendars and contacts have LIVE routes here already, and a
+  // snapshot import of them would compete with the live one: two doors writing
+  // the same mailbox, one of them stuck on the day the export was prepared.
+  // Photos and iCloud Drive have no live route at all, which is why they are
+  // the ones worth the archive's compromises.
+  archive: ['file'],
   // NOT written out here: read from PROVIDER_ACCOUNT_DOMAINS, so a provider
   // gaining a face is one row edit rather than two that can disagree. Two
   // copies of a capability list is the drift 0106 T1b just removed from the
@@ -174,6 +191,16 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
   Record<WizardSourceType, { name: string; reads: string }>
 > = {
   'google-drive': { name: 'Google Drive', reads: 'the Drive API only' },
+  archive: {
+    name: 'an export archive',
+    // The honest asymmetry with every other line here: the others say what a
+    // CREDENTIAL reaches. This one says what the PRODUCT chose to read out of
+    // a file that contains more, so the sentence names the live route rather
+    // than implying the archive lacks the data.
+    reads:
+      'files and photos only — mail, calendars and contacts are migrated from the account '
+      + 'itself, live, rather than from a snapshot taken on the day the export was prepared',
+  },
   gmail: { name: 'Gmail', reads: 'mail only (the https://mail.google.com/ scope)' },
   'google-calendar': {
     name: 'Google Calendar',

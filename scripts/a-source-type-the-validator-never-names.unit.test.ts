@@ -103,9 +103,14 @@ function namedInValidator(): Set<string> {
 }
 
 describe('every source type the API accepts is named by the validator', () => {
-  it('declares eleven source types, so the list has not silently moved', () => {
+  it('declares twelve source types, so the list has not silently moved', () => {
     // A canary on the canary: if the enum shrinks or grows, the reasoning in
     // this file's header is stale and should be re-read rather than trusted.
+    // Thirteen since workplan 0116 T1 added `archive`, and its stake is
+    // different in kind from every predecessor: an archive has no account, no
+    // tenant, no client and no secret — its whole credential is a path — so
+    // the Azure catch-all would have demanded three values that do not exist
+    // for a folder on a disk.
     // Twelve since workplan 0115 added `apple`, whose stake in being named
     // here is the sharpest yet: the catch-all would refuse it for a missing
     // tenant ID and client secret, neither of which exists for a provider
@@ -115,7 +120,7 @@ describe('every source type the API accepts is named by the validator', () => {
     // a delegated grant, its tenant is optional, and its client pair may be
     // the deployment's. Falling into that catch-all would have demanded a
     // tenantId and a client secret from somebody who pressed a button.
-    expect(declaredSourceTypes()).toHaveLength(12);
+    expect(declaredSourceTypes()).toHaveLength(13);
   });
 
   it.each(

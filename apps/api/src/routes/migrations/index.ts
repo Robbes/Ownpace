@@ -16,7 +16,17 @@ import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgMigrationStatusStore, PgLedger, RunStore } from '@openmig/ledger';
-import { DISCOVERY_DOMAINS, buildDomainStatusReports, isProviderAccountKind, log } from '@openmig/shared';
+import {
+  ARCHIVE_PROVIDERS,
+  ARCHIVE_PROVIDER_ORIGINS,
+  archiveProviderName,
+  buildDomainStatusReports,
+  DISCOVERY_DOMAINS,
+  isArchiveProvider,
+  isProviderAccountKind,
+  log,
+  parseArchiveSource,
+} from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
@@ -78,8 +88,8 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 
 /** Map the web source type to a connection.kind (protocol-based). */
 export function sourceKindFor(
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'apple' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box',
-): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'google' | 'microsoft' | 'apple' | 'dropbox' | 'box' {
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'apple' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box' | 'archive',
+): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'google' | 'microsoft' | 'apple' | 'dropbox' | 'box' | 'archive' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
   // added, and the literal build-deps-from-mapping branches on
   // (GOOGLE_DRIVE_CONNECTION_KIND) — underscore, unlike the wizard's hyphen,
@@ -113,6 +123,11 @@ export function sourceKindFor(
   // port somebody typed; a `imap` row would ask for the wrong things and
   // reach one face of the four.
   if (sourceType === 'apple') return 'apple';
+  // The EXPORT ARCHIVE (workplan 0116 T1, migration 0039). One word on both
+  // sides, like the three account kinds above — and unlike them it is not an
+  // account at all: the row's credential is a path, and WHICH export it is
+  // lives in the config so a third export needs no nineteenth kind here.
+  if (sourceType === 'archive') return 'archive';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
@@ -147,6 +162,19 @@ export function sourceConnectionConfig(
     // The config carries only WHERE the migration is rooted; credentials live
     // encrypted on the connection. Engine shape, like every source here.
     return { type: 'dropbox', ...(cfg.rootPath ? { rootPath: cfg.rootPath } : {}) };
+  }
+  if (body.sourceType === 'archive') {
+    // WHICH export and WHERE — and nothing encrypted beside it, because there
+    // is nothing on an archive connection to encrypt (0116 T1). Run through
+    // the SHARED parser, like `google-drive` above and for the same reason
+    // (hard rule 5): an unknown `provider` the appliance's mapping file would
+    // refuse must not be one this door stores. The superRefine has already
+    // said so with a field-anchored message, so a throw here is a coding
+    // error rather than an input one.
+    return parseArchiveSource({
+      provider: cfg.provider,
+      path: cfg.path,
+    }) as unknown as Record<string, unknown>;
   }
   if (body.sourceType === 'box') {
     // WHERE it is rooted and WHOSE files (the CCG subject — one subject per
@@ -432,6 +460,15 @@ export function sourceConfigOverride(
       // empty and the merge would silently fall back to whoever the shared
       // connection was created for.
       return keep({ userId: cfg.userId, rootFolderId: cfg.rootFolderId });
+    case 'archive':
+      // WHERE, not which export (0116 T1). A reused archive connection is one
+      // person's export series, and the second migration from it points at
+      // the NEXT archive — the two-month Takeout the owner will have — so the
+      // path is the mapping's to answer. `provider` is not: an archive that
+      // changed provider is a different connection, and letting a mapping
+      // override it would let one row's export be opened by the other's
+      // reader, which reports emptiness rather than failing (0116 §5).
+      return keep({ path: cfg.path });
     case 'gmail':
     case 'google-calendar':
     case 'google-contacts':
@@ -474,6 +511,17 @@ export function sourceCredentialRecord(
       username: body.sourceConfig.username,
       ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
     };
+  }
+  if (body.sourceType === 'archive') {
+    // EMPTY, and that is this kind's truth rather than a gap (0116 T1). An
+    // archive's credential is a LOCATION, and a path is not a password: there
+    // is nothing here to encrypt, nothing to mask on the detail route and
+    // nothing for a rotation panel to offer. Returned explicitly rather than
+    // by falling through, because the catch-all below reads `username` and
+    // `password` off the config and an archive has neither — a `{username:
+    // undefined}` record would be a credential-shaped nothing that later
+    // reads as a broken row instead of an honest one.
+    return {};
   }
   if (body.sourceType === 'box') {
     // Client id + secret ONLY — no refresh token by DESIGN: Box rotates
@@ -602,7 +650,7 @@ function getSharedPool() {
  *  nothing, and neither side errors at runtime. */
 export const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
-  sourceType: z.enum(['imap', 'oauth2', 'graph', 'microsoft', 'apple', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'google', 'dropbox', 'box']),
+  sourceType: z.enum(['imap', 'oauth2', 'graph', 'microsoft', 'apple', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'google', 'dropbox', 'box', 'archive']),
   /**
    * Reuse a connection that already exists instead of creating another
    * (workplan 0064). When set, the credentials and provider config come from
@@ -642,6 +690,16 @@ export const CreateMappingBase = z.object({
     rootPath: z.string().optional(),
     /** Box only (workplan 0056): the NUMERIC user id whose files the CCG token reads. */
     userId: z.string().optional(),
+    /**
+     * Archive only (workplan 0116 T1): WHICH export this is. Validated
+     * against `ARCHIVE_PROVIDERS` in the superRefine rather than as a
+     * `z.enum` here, so the refusal can name the list and say where each
+     * export is requested — the part of an archive import that actually
+     * takes somebody twenty minutes.
+     */
+    provider: z.string().optional(),
+    /** Archive only: WHERE the archive is. Not a secret — a path is not a password. */
+    path: z.string().optional(),
     /** Google Drive only: what happens to Docs/Sheets/Slides. The VALUES are
      *  validated by the shared parser in the superRefine, not re-enumerated
      *  here — one authority, both editions. */
@@ -993,6 +1051,72 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
     }
+  } else if (body.sourceType === 'archive') {
+    // THE EXPORT ARCHIVE (workplan 0116 T1), named here rather than left to
+    // the Azure catch-all — which would refuse it for a missing tenant id,
+    // client id and client secret, three values that have no meaning for a
+    // folder on a disk. `a-source-type-the-validator-never-names` is what
+    // turns that into a failing test rather than a support ticket.
+    //
+    // Two required fields and no credential at all. That is the kind's whole
+    // shape: a gatekeeper's answer to a portability request is a file, so
+    // there is nothing to sign in as and nothing to encrypt.
+    const missing = (['provider', 'path'] as const).filter((k) => !body.sourceConfig[k]);
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', missing[0]!],
+        message:
+          "An 'archive' source is an EXPORT you already downloaded, not an account: " +
+          `sourceConfig is missing ${missing.join(', ')}. \`provider\` says which export ` +
+          `(${ARCHIVE_PROVIDERS.join(' or ')}) and \`path\` says where it is. ` +
+          'docs/archive-import.md walks requesting each one.',
+      });
+    }
+    // The provider is validated against the list BY NAME, because getting it
+    // wrong does not fail: the wrong reader finds none of its own landmarks
+    // and reports an archive containing nothing. "Your export is empty" is
+    // the most alarming thing this product could say to somebody who waited a
+    // week for a 25 GB download, and the least actionable.
+    if (body.sourceConfig.provider && !isArchiveProvider(body.sourceConfig.provider)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', 'provider'],
+        message:
+          `'${body.sourceConfig.provider}' is not an export this product can read. ` +
+          `Expected ${ARCHIVE_PROVIDERS.join(' or ')} — the provider is what SELECTS the ` +
+          'reader, so the wrong one does not fail, it reports an archive containing nothing. ' +
+          Object.entries(ARCHIVE_PROVIDER_ORIGINS)
+            .map(([id, url]) => `${archiveProviderName(id)} exports are requested at ${url}`)
+            .join('; ') + '.',
+      });
+    }
+    const archiveRefusal = sourceDomainRefusal('archive', body.syncConfig.domains);
+    if (archiveRefusal) {
+      ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: archiveRefusal });
+    }
+    // AND THEN THE HONEST GAP. An archive connection can be added, tested and
+    // MEASURED today (0116 T1 + T7) — which is the point of this slice: a
+    // person sees what their export holds before anyone commits to importing
+    // it. Copying items OUT of one is T5 (placement) and T6 (idempotency by
+    // content hash), and neither is built.
+    //
+    // Refused rather than accepted-and-ignored, and refused as NOT BUILT
+    // rather than as impossible — the same distinction `mode: 'one_time'`
+    // draws a few hundred lines above, for the same reason. A mapping stored
+    // here would build a source face that does not exist and report a
+    // successful migration of nothing, which is #597's shape and the exact
+    // failure this repository has learned to fear.
+    ctx.addIssue({
+      code: 'custom',
+      path: ['sourceType'],
+      message:
+        'An export archive can be connected, tested and measured, but MIGRATING from one is ' +
+        'not built yet. Add it on the Connections page to see what it holds — how many items, ' +
+        'how many bytes, which folders and what date range the export covers — and the ' +
+        'migration itself follows in a later release. This is a gap, not a limit of the ' +
+        'archive: nothing about your export prevents it.',
+    });
   } else if (body.sourceType === 'box') {
     // No refreshToken demanded, by DESIGN: Box rotates refresh tokens on
     // every use, so the Client Credentials Grant is used and the subject
