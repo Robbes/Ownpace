@@ -2,6 +2,36 @@
 
 ## Status — 2026-09-04
 
+### T5 landed — 2026-09-04
+
+The fields shipped in T2; what was missing was the **refusal**, and a probe at all.
+
+`probeSourceNow` had no `apple` branch, so Test on a card the front door offers answered
+*"No probe exists for a 'apple' source connection"* — an honest sentence about a gap, which
+is not the same as a product that works. It now answers with its CALENDAR face, the choice
+T4a made for `soverin` and 0106 T3b for `google`: a headline probe picks one face, and the
+other three are measured separately by T6.
+
+And the sentence. Every Apple Account has two-factor authentication, so the account's own
+password is refused over IMAP and DAV **by design** — which makes the most likely first
+attempt fail with `AUTHENTICATIONFAILED` or a bare `401`. Rendered verbatim, per 0080, that
+tells a person their password is wrong. It is not wrong; it is the wrong KIND of password,
+and retyping it cannot help. `appleAuthRefusal` answers with a `BilingualRefusal` instead, so
+it rides the `credentialsRefused` path every refusal we author already uses and the Dutch and
+the appliance come free.
+
+Narrow on purpose: only `apple`, and only for messages that look like an authentication
+rejection. A timeout, a DNS failure or a 500 keeps Apple's own words, because for those the
+provider's text is the more useful sentence and ours would be a guess wearing a confident
+face. Proved by breaking, four ways.
+
+**One thing I proposed and did NOT build**: stripping the dashes from the app-specific
+password. Apple displays `abcd-efgh-ijkl-mnop`, and whether its servers accept the dashless
+form is not something this repository has measured — so normalising it would be a guess in
+the credential path, which is the worst place for one. The hint and the refusal both say to
+keep the dashes. If a live account ever shows Apple accepts both, that is the moment to
+soften it, with the day it was measured.
+
 ### T6 landed — 2026-09-04
 
 Apple is qualifiable, and the owner's "paste a password" question is answered by what
@@ -281,7 +311,7 @@ Two things make this worth its own task rather than a line in another one:
 | T2 | The `apple` provider account kind | **Done 2026-09-04.** The kind, migration 0038, the credential descriptors, the front door, the validator branch, revocation and erasure, both languages. New guard `a-kind-with-nowhere-to-live` |
 | T3 | The face table | **Done 2026-09-04.** Soverin's row, different provider — no new connector |
 | T4 | Apple's endpoints, and a guard that builds | **Done 2026-09-04.** `PROVIDER_ENDPOINTS` (not a directory row — see below), the DAV and mail seams, `buildTaskSourceFromConnection`, `accountMailEndpoint`, and `a-face-no-account-can-actually-build` across every kind |
-| T5 | The credential is an app-specific password | Field label and help that name it; a refusal that says an Apple Account password will not work and where to make the right one — never a bare "authentication failed" |
+| T5 | The credential is an app-specific password | **Done 2026-09-04.** Fields in T2; `appleAuthRefusal` and the source probe here. New guard `a-refusal-that-blames-the-password` |
 | T6 | Files: a measured no | **Done 2026-09-04.** No `qualifyApple` — the DAV family branch, given per-face endpoints, a lazy file endpoint and `reasonedNo`. New guard `a-face-measured-at-the-wrong-host` |
 | T7 | `docs/apple-setup.md` | The app-specific password walk-through, why there is no button, what Reminders bring, and that revocation is at account.apple.com and not here |
 | T8 | Front door, icons, feature matrix, i18n | The `apple` card beside the Google and Microsoft ones, en + nl |
