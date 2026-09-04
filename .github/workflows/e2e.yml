@@ -176,7 +176,7 @@ jobs:
       # integration-tests job never hits this class of collision.
       - name: Pick free host ports
         run: |
-          node -e '
+          node <<'NODE'
             const net = require("node:net");
             const fs = require("node:fs");
             function freePort() {
@@ -200,7 +200,7 @@ jobs:
               fs.appendFileSync(process.env.GITHUB_ENV, lines.join("\n") + "\n");
               console.log("Picked free ports:\n" + lines.join("\n"));
             })().catch((err) => { console.error(err); process.exit(1); });
-          '
+          NODE
 
       - name: Start Stalwart (source + target)
         run: ./deploy/selfhost/setup-stalwart.sh
@@ -293,7 +293,18 @@ jobs:
           # container traffic uses each service's fixed internal port (Stalwart
           # 8080/993, Nextcloud 80), not whatever dynamic host port it's published
           # under, so no port substitution needed for either.
-          node -e '
+          # A HEREDOC with a QUOTED delimiter, not `node -e '…'`. Nothing inside
+          # is shell-interpreted, which is the whole point: the single-quoted
+          # form worked until a comment said "the collection's declared
+          # component" (0113 T8). That apostrophe CLOSED the shell string, bash
+          # parsed the remaining JavaScript as commands, and the step died with
+          #     syntax error near unexpected token `('
+          # before the appliance was ever built — every gate after it skipped.
+          # The run was red for a reason that had nothing to do with migrating
+          # anything, and it STAYED red because this workflow only runs
+          # nightly. `scripts/a-workflow-step-bash-cannot-parse.unit.test.ts`
+          # now parses every run: block in CI, so prose cannot break a gate.
+          node <<'NODE'
             const fs = require("node:fs");
             const cfg = JSON.parse(fs.readFileSync("test/e2e/fixtures/selfhost-restart-resume.mapping.json", "utf8"));
             cfg.source.host = "stalwart";
@@ -337,7 +348,7 @@ jobs:
             // against real servers; every other e2e run leaves it unset.
             cfg.allowApplyDeletions = true;
             fs.writeFileSync("deploy/selfhost/config/mapping.json", JSON.stringify(cfg, null, 2));
-          '
+          NODE
           cat > deploy/selfhost/.env <<ENV
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
           SOURCE_IMAP_PASSWORD=${SOURCE_IMAP_PASSWORD}
