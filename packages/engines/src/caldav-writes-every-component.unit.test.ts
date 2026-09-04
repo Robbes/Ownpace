@@ -77,7 +77,7 @@ function recordingServer(
   } as unknown as HttpClient;
   const writer = new CalDAVTargetWriter(
     { url: BASE, username: 'alice', password: 'pw' },
-    { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+    { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
   );
   return { writer, calls };
 }

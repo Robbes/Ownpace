@@ -19,6 +19,7 @@ import type {
   TargetReindexer,
   TargetEntry,
   RemovalResult,
+  DiscoveryDomain,
 } from '@openmig/shared';
 import { calendarNaturalKeyHash, calendarContentHash, isOnTarget, neutraliseScheduling } from '@openmig/shared';
 import { CALENDAR_COMPONENTS, componentOfIcalendar } from '@openmig/shared';
@@ -58,6 +59,15 @@ export interface CalDAVTargetConfig {
 }
 
 /**
+ * The two domains a CalDAV writer can be filing for.
+ *
+ * Narrower than `DiscoveryDomain` on purpose: this writer speaks CalDAV, so
+ * `email`, `contact` and `file` are not answers it could ever want, and a
+ * union that admitted them would let a caller hand one over by mistake.
+ */
+export type CalDavLedgerDomain = Extract<DiscoveryDomain, 'calendar' | 'task'>;
+
+/**
  * CalDAV target writer implementation
  */
 export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer {
@@ -65,6 +75,26 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   private readonly ledger: Ledger;
   private readonly tenantId: TenantId;
   private readonly mappingId: MappingId;
+  /**
+   * WHICH DOMAIN'S ROWS THIS WRITER FILES — and the only field on it that is
+   * not about talking to a server.
+   *
+   * On the wire a task is a calendar object, so ONE class writes both and both
+   * factories return it. In the LEDGER they are separate domains, and this
+   * class used to write `itemType: 'calendar'` for every object it touched.
+   * That went unnoticed for as long as the task domain never ran: on
+   * 2026-09-04, the first self-hosted run where it did, the calendar domain
+   * reported `itemsSynced: 17` against a source holding 9 events — the extra 8
+   * being the 8 tasks, filed here under `calendar` while the sync loop filed
+   * them again under `task`. Two rows per task, calendar's counts and bytes
+   * inflated by the whole task corpus, and the `find` fast path below looking
+   * for a `todo:` key in the wrong domain, so it never hit.
+   *
+   * Required rather than defaulted, deliberately: an optional key nobody
+   * assigns is exactly how the parser lost the tasks domain in the first
+   * place (see `DOMAIN_CONFIG_KEY`). Forgetting it here is a compile error.
+   */
+  private readonly domain: CalDavLedgerDomain;
   private readonly httpClient: HttpClient;
   /**
    * Per-collection snapshot of what the target already holds, natural key ->
@@ -87,6 +117,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       ledger: Ledger;
       tenantId: TenantId;
       mappingId: MappingId;
+      domain: CalDavLedgerDomain;
       httpClient?: HttpClient;
     },
   ) {
@@ -94,6 +125,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     this.ledger = deps.ledger;
     this.tenantId = deps.tenantId;
     this.mappingId = deps.mappingId;
+    this.domain = deps.domain;
     this.httpClient = deps.httpClient ?? createDefaultHttpClient();
   }
 
@@ -172,7 +204,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     }
 
     // LEDGER FAST-PATH: Check if already migrated
-    const known = await this.ledger.find(this.tenantId, this.mappingId, 'calendar', naturalKeyHash);
+    const known = await this.ledger.find(this.tenantId, this.mappingId, this.domain, naturalKeyHash);
     // `isOnTarget`, not merely "a row exists". A `failed` row means we tried and
     // did not copy it; short-circuiting on one told the sync loop the retry had
     // succeeded, and the loop then recorded the row as 'updated' — clearing the
@@ -201,7 +233,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
         tenantId: this.tenantId,
-        itemType: 'calendar',
+        itemType: this.domain,
         mappingId: this.mappingId,
         naturalKeyHash,
         contentHash: contentHashValue,
@@ -248,7 +280,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // RECORD IN LEDGER
     await this.ledger.recordIfAbsent({
       tenantId: this.tenantId,
-        itemType: 'calendar',
+        itemType: this.domain,
       mappingId: this.mappingId,
       naturalKeyHash,
       contentHash: contentHashValue,

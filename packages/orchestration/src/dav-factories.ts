@@ -49,7 +49,10 @@ export function buildCalendarSource(e: DavEndpoint, throttleLimiter?: ThrottleLi
   });
 }
 export function buildCalendarTarget(e: DavEndpoint, d: DavTargetDeps): CalendarTargetWriter {
-  return new CalDAVTargetWriter({ url: e.url, username: e.username, password: e.password }, d);
+  return new CalDAVTargetWriter(
+    { url: e.url, username: e.username, password: e.password },
+    { ...d, domain: 'calendar' },
+  );
 }
 
 /**
@@ -81,7 +84,15 @@ export function buildTaskSource(e: DavEndpoint, throttleLimiter?: ThrottleLimite
  * the server about whichever it has.
  */
 export function buildTaskTarget(e: DavEndpoint, d: DavTargetDeps): CalendarTargetWriter {
-  return new CalDAVTargetWriter({ url: e.url, username: e.username, password: e.password }, d);
+  // THE SAME CLASS, TOLD WHICH DOMAIN IT IS FILING FOR. Identical on the wire,
+  // separate in the ledger: without this the writer recorded every task under
+  // `calendar` while the sync loop recorded it under `task`, so each task got
+  // two rows and the calendar domain's counts and bytes carried the whole task
+  // corpus on top of its own.
+  return new CalDAVTargetWriter(
+    { url: e.url, username: e.username, password: e.password },
+    { ...d, domain: 'task' },
+  );
 }
 
 export function buildContactSource(e: DavEndpoint, throttleLimiter?: ThrottleLimiter): ContactSource {

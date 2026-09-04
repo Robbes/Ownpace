@@ -2,6 +2,38 @@
 
 ## Status — 2026-09-04 (update this block at the end of every session)
 
+**2026-09-04 (latest): the NINTH fan-out — one writer, two domains, one hard-coded
+filing.** Found by the very next run, once the eighth fix let the task lane run at all.
+E2E #178's restart-resume gate reported:
+
+```
+calendar: itemsSynced 17, bytesTransferred 4913
+task:     itemsSynced  8, bytesTransferred 1952
+```
+
+against a source holding **nine** events. The appliance's own pass log was right all
+along — `calendar sync complete: created=6` then `created=3` — so nothing had been
+copied twice. The extra 8 were LEDGER ROWS: on the wire a task is a calendar object, so
+`buildCalendarTarget` and `buildTaskTarget` return the same `CalDAVTargetWriter`, and
+that class recorded `itemType: 'calendar'` for every object it touched. The sync loop
+recorded the same task under `task`. Two rows per task; the calendar domain's count and
+bytes carrying the whole task corpus on top of its own; and the writer's
+already-migrated fast path looking for a `todo:`-prefixed key in the `calendar` domain,
+where it can never be — so it missed every task on every pass and paid a target probe
+for each.
+
+T4 made the writer follow the component it is GIVEN. Its ledger bookkeeping still said
+calendar, and no test could see it while the task domain never ran. The writer is now
+told which domain it files for, as a REQUIRED constructor field — the compiler named all
+fifteen construction sites — because an optional key nobody assigns is exactly how the
+eighth fan-out happened, one commit earlier. Guard:
+`packages/engines/src/a-task-filed-under-the-calendar.unit.test.ts`, proved by breaking
+four ways.
+
+**Both of these were invisible for the same reason**, and it is worth saying once: a
+domain that never runs cannot be wrong in a way anything notices. Every list, type and
+branch 0113 added was correct; what was missing was one run.
+
 **2026-09-04: the EIGHTH fan-out — the parser between the config and the reader.**
 E2E (self-hosted) #176 was the first run to reach the restart-resume gate since #765
 unbroke the workflow, and it failed at exactly one domain:

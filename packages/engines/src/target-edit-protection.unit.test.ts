@@ -112,7 +112,7 @@ const VCF = 'BEGIN:VCARD\r\nVERSION:3.0\r\nUID:card-1\r\nFN:Corrected\r\nEND:VCA
 function calWriter(client: HttpClient) {
   return new CalDAVTargetWriter(
     { url: BASE, username: 'alice', password: 'pw' },
-    { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+    { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
   );
 }
 

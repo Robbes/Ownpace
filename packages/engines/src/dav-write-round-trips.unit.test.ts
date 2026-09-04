@@ -84,7 +84,7 @@ function calServer(existing: string[]) {
 
   const writer = new CalDAVTargetWriter(
     { url: BASE, username: 'alice', password: 'pw' },
-    { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+    { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
   );
   return { writer, calls, present };
 }
@@ -224,7 +224,7 @@ describe('CalDAV overwrite', () => {
     } as unknown as HttpClient;
     const writer = new CalDAVTargetWriter(
       { url: BASE, username: 'alice', password: 'pw' },
-      { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+      { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
     );
 
     await expect(
@@ -267,6 +267,7 @@ describe('CalDAV overwrite', () => {
             recorded.push(row);
           },
         } as unknown as Ledger,
+        domain: 'calendar',
         tenantId: TENANT,
         mappingId: MAPPING,
         httpClient: client,
@@ -360,7 +361,7 @@ describe('CalDAV write cost', () => {
 
     const writer = new CalDAVTargetWriter(
       { url: BASE, username: 'alice', password: 'pw' },
-      { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
+      { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
     );
 
     const result = await writer.upsertCalendarEvent('/calendars/alice/personal/', event('e1') as never);
