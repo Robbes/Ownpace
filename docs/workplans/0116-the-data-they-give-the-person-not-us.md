@@ -2,6 +2,15 @@
 
 ## Status — 2026-09-04 (update this block at the end of every session)
 
+**2026-09-04, later again: two more owner answers folded in.** Edited versions and motion
+clips are **distinct items carrying a link to their original**, not attributes of one record —
+because Google Photos shows the edited version by default, so a single-record design discards
+the very version the person means to keep. And the unzip question is answered per edition:
+appliance unzips (there is no upload), managed keeps it zipped (a 25 GB stream beats tens of
+thousands of small files, and the zip's per-entry CRCs are an integrity check a loose tree
+throws away). Both converge on one open decision — **whether to take an archive dependency so
+a zip can be read without extracting** — which gates the managed edition and nothing else.
+
 **2026-09-04, later still: §5 rewritten as T6's design** after the owner asked whether the
 content hash could carry the delta across a series of exports. It can, it is the only thing
 that could, and the ledger already remembers what is needed — but absence between two archives
@@ -39,9 +48,9 @@ If the owner decides only one thing here, decide **D1**.
 | T3a The Takeout reader (Google Photos) | 🔨 **Next — first slice** (needs T2) | 0112 T1's reader, unchanged, behind the T2 interface. |
 | T3b The Data & Privacy reader (Apple) | 📋 **Blocked on a real export** | Nobody here has opened one. T3b starts by opening one and writing down what is inside — see §"What is not known". |
 | T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first** | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
-| T5 Placement and the manifest | 📋 Planned (needs T2) | Where items land on the target, albums/folders as folders, and one manifest row per item so nothing the provider knew is lost. 0112 §3 is this task's design for photos. |
+| T5 Placement and the manifest | 📋 Planned (needs T2) | Where items land, albums/folders as folders, one manifest row per item. 0112 §3 is the photo design. **Decided 2026-09-04:** edited versions and motion clips are distinct items linked to their original, never attributes of one record — §4 says why. |
 | T6 Idempotency by content hash | 📋 Planned (needs T2) | A second import writes nothing; an overlapping archive writes only what is new. The file domain's existing ledger rule, applied to archives — **and the delta across a series of archives**, which needs no new store. §5 carries the design, including the rule that an archive delta may only ADD. |
-| T7 Measure before the move | 🔨 **Next — first slice** (needs T2) | Items, bytes, folders, the export's date range on the Measured line, with the sentence that an archive is a SNAPSHOT WITH A DATE. |
+| T7 Measure before the move | 🔨 **Next — first slice** (needs T2) | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
 | T8 The walkthrough | 📋 Planned | `docs/archive-import.md`: how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
 | T10 The gate | 📋 Planned | A tiny fixture archive of each shape in the E2E, imported end to end, asserting item count, hashes and a second import writing nothing. |
@@ -255,6 +264,47 @@ on the person's own machine, so the archive is already there. **A local path is 
 correct Apple route and should probably be T4's first slice**, with the managed upload behind
 D3.
 
+#### Should the person unzip it first? Appliance yes, managed no
+
+**Asked by the owner 2026-09-04, and the answer differs by edition — which is why it is worth
+writing down rather than deciding twice.**
+
+**On the appliance: unzip, and it costs nothing.** There is no upload at all; the archive is
+already on the person's disk. They extract it, point the appliance at the folder, and the
+reader (T3a) takes exactly that today. This is the natural path and the reason D3 put the
+local path first.
+
+**On the managed edition: keep it zipped, and the reason is not the one people expect.** A
+Takeout archive holds JPEGs, HEICs and MP4s, which are *already compressed* — the zip is a
+container rather than a compressor, and unzipping saves almost no bytes. What it does is turn
+**one 25 GB stream into tens of thousands of small files**: one connection becomes tens of
+thousands of round trips, and a byte-offset resume becomes per-file bookkeeping. Over a slow
+or lossy link that is dramatically worse, and the multi-gigabyte upload is already the hardest
+part of T4.
+
+There is a second reason, and it is about honesty rather than speed: **a zip carries a CRC per
+entry.** A truncated or corrupted transfer is detectable. Extracted to a loose tree, that check
+is thrown away — and this plan's whole posture is that a part-finished download must be
+distinguishable from an empty library.
+
+**For Google, the better answer is not to upload at all**: Takeout delivers into Drive,
+Dropbox, OneDrive or Box, every one of which is already a source this product reads. Nothing
+is uploaded and nothing is unzipped by hand.
+
+#### The one piece of work all of this converges on
+
+Every managed route — the zip sitting in someone's Drive, and the zip they uploaded — needs
+the same capability: **reading inside a zip without extracting it.** T3a deliberately does not
+have it; it takes an extracted directory, because adding an archive dependency is a
+supply-chain decision and not one to take inside a first slice.
+
+That decision is **open and belongs to the owner.** It is a small, well-understood category of
+library, and the appliance route works without it — so it gates the managed edition of this
+feature and nothing else.
+
+**Apple stays the hard case whatever is decided.** Its export is a download link and nothing
+else: no delivery into a cloud we read, so for Apple-on-managed it really is upload-or-nothing.
+
 The 14-day link window is a product constraint, not just a fact: whatever we build has to be
 usable inside two weeks of the mail arriving, by somebody who is mid-migration. T8's
 walkthrough should tell them to start the request *before* they need it.
@@ -268,6 +318,30 @@ rule 2). Metadata travels two ways, as 0112 §3 designed for photos:
   them; mtime for files), never into the archive;
 - **into a manifest** beside the tree, one row per item, carrying everything the provider knew
   — so nothing is lost even where no target field exists.
+
+#### Edited versions and motion clips: everything is written, and linked
+
+**Decided by the owner 2026-09-04, and it is a data-loss question rather than a tidiness
+one.** Takeout ships an edited photo as `<name>-edited.<ext>` beside the original, and a
+motion photo as a JPEG plus an MP4 with the same stem.
+
+The tempting design — 0112's phrasing — is **one record with `hasEdited: true`**. It has a
+trap: **Google Photos shows the EDITED version by default.** It is the one the person has
+been looking at for years and thinks of as their photo. A single record that writes the
+original's bytes therefore discards exactly the version they meant to keep, and nothing
+anywhere reports it. A motion clip is a different case again: an MP4 is not a duplicate of a
+JPEG by any reading.
+
+So each is **a distinct item with its own hash and its own bytes**, carrying a `relatedTo` in
+its metadata naming the original it belongs to. Nothing is lost, placement gets to decide
+what to do with the relationship (side by side, or edits in a subfolder), and the worst case
+is a slightly noisier folder — **visible, and something a person can undo.** The alternative's
+worst case is silent data loss, which is neither.
+
+The consequence has to be priced in rather than discovered: **the item count will exceed what
+Google Photos tells the person they have.** A three-thousand-photo library may measure as four
+thousand items. T7's Measured line breaks that down — originals, edited versions, motion clips
+— instead of showing one number that reads as an error.
 
 Deliberately not attempted, for either provider: reproducing sharing state, face/people
 tagging, or any provider-side "recently deleted" notion.
@@ -358,6 +432,15 @@ domain on one side and a one-shot on the other.
   migrates live, far better. Recommendation: **files and photos only**, and the wizard says
   why: the live account is the better route for everything else, and importing both would
   duplicate a person's mail.
+- **D7 — ⏳ OPEN: do we take an archive dependency, so a zip can be read without extracting
+  it?** Created by the 2026-09-04 answers rather than present from the start. **It gates the
+  managed edition of this feature and nothing else** — the appliance route works without it,
+  because there the person extracts the archive themselves and T3a reads a directory today.
+  Every managed route needs it and needs the same thing: the zip in someone's Drive, and the
+  zip they uploaded, are both zips. It is a small, well-understood category of library; it is
+  still a supply-chain decision and so it is yours. Recommendation: **defer it** until the
+  appliance route has carried a real archive, because the measurement may change what is
+  wanted, and nothing before T4 is blocked.
 - **D6 — ✅ DECIDED: "Import an export", with the provider's own words beneath.** Not "sync", for Apple. Recommendation: *"Import an
   export"* as the family, and per provider *"Google Takeout archive"* / *"Apple Data & Privacy
   export"* — the provider's own words, so a search engine and a support conversation match.
