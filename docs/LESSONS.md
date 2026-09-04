@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 87 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 88 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -40,6 +40,7 @@ reading a file drops off its entry by itself.
 - [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts) — The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+- [a-workflow-step-bash-cannot-parse](../scripts/a-workflow-step-bash-cannot-parse.unit.test.ts) — AN APOSTROPHE IN A COMMENT TOOK THE WHOLE GATE DOWN.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `.github/workflows/images.yml`
@@ -1219,6 +1220,14 @@ THE BUILD STAMP WAS ON EVERY PAGE EXCEPT THE ONES YOU CAN SEE.
 Reads:
 
 - `apps/web/src/AppRoutes.tsx`
+
+### [a-workflow-step-bash-cannot-parse](../scripts/a-workflow-step-bash-cannot-parse.unit.test.ts)
+
+AN APOSTROPHE IN A COMMENT TOOK THE WHOLE GATE DOWN.
+
+Reads:
+
+- `.github/workflows/e2e.yml`
 
 ### [adr-operative](../scripts/adr-operative.unit.test.ts)
 
