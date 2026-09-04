@@ -2562,6 +2562,53 @@ if [ -n "$gate_dbx_id" ] && [ -n "$gate_dbx_secret" ]; then
 else
   report_json "provider clients (dropbox)" "/api/provider-clients" '.dropbox' connection
 fi
+# THE APPLE ACCOUNT KIND, ASSERTED WITHOUT EVER REACHING APPLE (workplan 0115 T9).
+#
+# Every other provider block above uses a sentinel credential that is built into
+# a URL and never followed. Apple has no consent screen and therefore no URL to
+# build, so that trick is unavailable — and the obvious alternative, creating a
+# sentinel Apple connection, is exactly what must NOT happen here:
+# `POST /api/connections` PROBES BEFORE IT STORES, so a sentinel row would fire
+# a bogus app-specific password at `caldav.icloud.com` and `imap.mail.me.com` on
+# every nightly run. The source config schema carries no `mailHost`, so the mail
+# face cannot be pointed at an unroutable host either.
+#
+# "Never reaches Apple" has to mean PROVABLY, not "the runner happens to have no
+# egress". So this block asserts only the two doors that REFUSE BEFORE THE PROBE
+# — both refusals are computed from tables, return before any network call, and
+# store nothing. Net-zero by construction rather than by hope.
+#
+# What that buys, and it is the part unit tests cannot: these tables reached the
+# DEPLOYED image. `credentialFieldsFor` and the wizard type enum are compiled
+# into the API container, and a kind that got dropped from either during a build
+# would answer differently here while every unit test stayed green.
+r="$(http POST "$API/api/connections" "$TOK_R" \
+  '{"role":"target", "type":"apple", "displayName":"gate: apple is not a target", "values":{"username":"gate@example.invalid","password":"never-sent-to-apple"}}')"
+code="${r%% *}"; body="${r#* }"
+if [ "$code" = "400" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "unknown_type" ]; then
+  echo "apple as a TARGET: HTTP 400 unknown_type — Apple is not a place you migrate to, and the deployed image agrees"
+else
+  echo "apple as a TARGET: HTTP $code — ${body:0:200} (expected 400 unknown_type)"
+  fail_at
+fi
+
+# And the source door demands the app-specific password BY NAME. This is the
+# credential descriptor (0115 T2) proving it survived into the image: if
+# `appleAccountFields` were dropped, `credentialFieldsFor` would answer with an
+# empty list and this would come back `unknown_type` instead — a different
+# refusal, which is why the assertion pins WHICH one.
+r="$(http POST "$API/api/connections" "$TOK_R" \
+  '{"role":"source", "type":"apple", "displayName":"gate: apple with no password", "values":{"username":"gate@example.invalid"}}')"
+code="${r%% *}"; body="${r#* }"
+if [ "$code" = "400" ] \
+  && [ "$(jq -r '.error // empty' <<<"$body")" = "missing_fields" ] \
+  && [ "$(jq -r '[.fields[]? | select(. == "password")] | length' <<<"$body")" = "1" ]; then
+  echo "apple source with no app-specific password: HTTP 400 missing_fields naming 'password', before anything is probed or stored"
+else
+  echo "apple source with no password: HTTP $code — ${body:0:200} (expected 400 missing_fields with 'password' in .fields)"
+  fail_at
+fi
+
 report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
 report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Before you start"
 # A mailbox is required and the demo owner's is the one address this tenant is
