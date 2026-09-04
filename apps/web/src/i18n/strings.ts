@@ -330,6 +330,24 @@ const en = {
     'own directory setting, which accepts any work, school or personal Microsoft account. A ' +
     'single-tenant registration sent to the wrong directory fails with a message about the ' +
     'application not being found — which reads like a typo and is not one.',
+  // Apple's ONE credential field, and the hint carries the whole setup
+  // (workplan 0115). Somebody who types their Apple Account password gets a
+  // rejection saying the password is wrong — which it is not; it is the right
+  // password of a kind Apple refuses on these protocols by design, because the
+  // account has two-factor authentication and every Apple Account does. So the
+  // hint names the page rather than describing the rule.
+  'wizard.proto.apple.hint':
+    'One Apple Account — mail, calendars, contacts and reminders, whichever you tick. There ' +
+    'is no Connect with Apple button because Apple offers no such consent for its own data: ' +
+    'you make an app-specific password instead, which takes a minute and you can revoke at ' +
+    'any time. iCloud Drive files cannot be migrated by anyone — Apple publishes no API for ' +
+    'them.',
+  'wizard.appleAppPassword': 'App-specific password',
+  'wizard.appleAppPassword.hint':
+    'Not your Apple Account password — Apple refuses that one here, by design. Make an ' +
+    'app-specific password at account.apple.com → Sign-In and Security → App-Specific ' +
+    'Passwords, and paste it. It reaches your mail, calendars, contacts and reminders, and ' +
+    'you can revoke it there on its own whenever you like.',
   // The ACCOUNT card. Four faces, and the sentence says why that is more than
   // Google offers rather than leaving it looking like an oversight there.
   'wizard.proto.microsoft.hint':
@@ -1896,6 +1914,18 @@ const nl: Record<keyof typeof en, string> = {
     'deze installatie, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een ' +
     'registratie voor één tenant die naar de verkeerde map wordt gestuurd, mislukt met een ' +
     'melding dat de toepassing niet is gevonden — wat op een typefout lijkt en het niet is.',
+  'wizard.proto.apple.hint':
+    'Eén Apple-account — e-mail, agenda\u0027s, contacten en herinneringen, wat u maar ' +
+    'aanvinkt. Er is geen Verbinden met Apple-knop omdat Apple die toestemming voor zijn ' +
+    'eigen gegevens niet aanbiedt: u maakt in plaats daarvan een app-specifiek wachtwoord, ' +
+    'wat een minuut kost en dat u altijd weer kunt intrekken. iCloud Drive-bestanden kan ' +
+    'niemand migreren — Apple publiceert daar geen API voor.',
+  'wizard.appleAppPassword': 'App-specifiek wachtwoord',
+  'wizard.appleAppPassword.hint':
+    'Niet uw Apple-accountwachtwoord — dat weigert Apple hier, met opzet. Maak een ' +
+    'app-specifiek wachtwoord aan op account.apple.com → Aanmelden en beveiliging → ' +
+    'App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda\u0027s, ' +
+    'contacten en herinneringen, en u kunt het daar los weer intrekken wanneer u wilt.',
   'wizard.proto.microsoft.hint':
     'Eén Microsoft 365-account, één keer aanmelden — e-mail, agenda\u0027s, contacten en ' +
     'OneDrive, wat u ook aanvinkt. De twee kaarten ernaast zijn voor een klant die al een ' +

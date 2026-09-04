@@ -194,6 +194,8 @@ export const CreateMappingResponseSchema = z.object({
     'graph',
     // One Microsoft 365 ACCOUNT, four faces (workplan 0114).
     'microsoft',
+    // One Apple ACCOUNT, four faces and no consent screen (workplan 0115).
+    'apple',
     'google-drive',
     'gmail',
     'google-calendar',
@@ -223,6 +225,8 @@ export interface CreateMappingInput {
     | 'oauth2'
     | 'graph'
     | 'microsoft'
+    // One Apple ACCOUNT, four faces and no consent screen (workplan 0115).
+    | 'apple'
     | 'google-drive'
     | 'gmail'
     | 'google-calendar'

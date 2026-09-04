@@ -140,6 +140,18 @@ export const REVOCATION_CAPABILITIES: Readonly<Record<string, RevocationCapabili
     reason:
       'Box client-credentials tokens are minted from our own client secret and are short-lived; there is no long-lived customer credential to revoke. Deleting our copy is the whole story.',
   },
+  // A row rather than PASSWORD_KINDS, and the difference is a whole sentence
+  // the customer can act on (workplan 0115). Apple's app-specific password IS
+  // an app password, so the shared reason would be true — "a password is
+  // revoked by changing it" — and it would send somebody to change their APPLE
+  // ACCOUNT password, which is the one credential this does not affect and the
+  // most disruptive thing they could do about it. An app-specific password is
+  // revoked ON ITS OWN, from a list, without touching anything else.
+  apple: {
+    revocable: false,
+    reason:
+      'Apple publishes no revocation endpoint for app-specific passwords. The customer revokes this one on its own at account.apple.com under Sign-In and Security, without changing their Apple Account password or disturbing any other app.',
+  },
 } as const;
 
 /** Password-shaped kinds: nothing to revoke, and one shared reason. */

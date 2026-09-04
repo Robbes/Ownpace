@@ -551,6 +551,10 @@ reading a file drops off its entry by itself.
 
 - [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
 
+### `packages/ledger/src/schema-pg.ts`
+
+- [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+
 ### `packages/managed/src/pricing.ts`
 
 - [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
@@ -603,11 +607,16 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/credential-fields.ts`
 
 - [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
+- [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
 
 ### `packages/shared/src/discovery.ts`
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `packages/shared/src/front-door.ts`
+
+- [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
 
 ### `packages/shared/src/google-deployment-client.unit.test.ts`
 
@@ -622,6 +631,7 @@ reading a file drops off its entry by itself.
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 - [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts) — A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
+- [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
 
 ### `packages/shared/src/provider-accounts.unit.test.ts`
 
@@ -1004,6 +1014,17 @@ Reads:
 
 - `deploy/compose/managed.yml`
 - `deploy/compose/www.yml`
+
+### [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts)
+
+A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+
+Reads:
+
+- `packages/ledger/src/schema-pg.ts`
+- `packages/shared/src/credential-fields.ts`
+- `packages/shared/src/front-door.ts`
+- `packages/shared/src/provider-accounts.ts`
 
 ### [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts)
 

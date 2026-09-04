@@ -59,6 +59,13 @@ export const SOURCE_CARDS = [
   { id: 'google-contacts', name: 'Google Contacts', hintKey: 'wizard.proto.googleContacts.hint' },
   { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint' },
   { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint' },
+  // The Apple ACCOUNT (workplan 0115). A card on its own, not a family: there
+  // is no second Apple method to sit beside it, because Apple publishes no API
+  // one could have been built on. Its hint has to do more work than the
+  // others' — it is the only source card where the credential is not obvious
+  // from the name, and the first question everyone asks is why there is no
+  // button.
+  { id: 'apple', name: 'Apple account (iCloud)', hintKey: 'wizard.proto.apple.hint' },
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export const TARGET_CARDS = [

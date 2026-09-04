@@ -57,7 +57,7 @@ import {
  * server does. These are the kinds where one credential provably reaches more
  * than one domain.
  */
-export const PROVIDER_ACCOUNT_KINDS = ['google', 'soverin', 'microsoft'] as const;
+export const PROVIDER_ACCOUNT_KINDS = ['google', 'soverin', 'microsoft', 'apple'] as const;
 export type ProviderAccountKind = (typeof PROVIDER_ACCOUNT_KINDS)[number];
 
 /**
@@ -104,6 +104,24 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   // this array and one row joins MICROSOFT_DOMAIN_SCOPES. Never on an
   // announcement: 0105's never-guess rule.
   microsoft: ['email', 'calendar', 'contact', 'file'],
+  // FOUR AGAIN, and a different four (workplan 0115). Apple is the first
+  // provider account with NO consent screen behind it: Apple publishes no
+  // OAuth scope for Mail, Calendar, Contacts, Reminders or iCloud Drive to
+  // anybody outside Apple, so this row is reached with an app-specific
+  // password over IMAP, CalDAV and CardDAV. Soverin's shape, not Google's.
+  //
+  // 'task' is here on the day the kind arrives, which no other provider
+  // account managed: Apple Reminders are VTODO components in the same CalDAV
+  // account, which is exactly what 0113 taught this product to read. Google
+  // Tasks needs its own API and Microsoft To Do needs `graph-todo-source`;
+  // Apple needs nothing new.
+  //
+  // 'file' is absent and it is APPLE'S absence, not ours: there is no
+  // third-party API — public, partner or paid — that reads a person's iCloud
+  // Drive. CloudKit Web Services reaches an application's own container,
+  // never the user's Drive. So this is a measured no with a reason rather
+  // than a face waiting on work, and no amount of connector would change it.
+  apple: ['email', 'calendar', 'contact', 'task'],
 };
 
 /**

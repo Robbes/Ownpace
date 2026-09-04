@@ -78,8 +78,8 @@ function firstOrThrow<T>(rows: T[], what: string): T {
 
 /** Map the web source type to a connection.kind (protocol-based). */
 export function sourceKindFor(
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box',
-): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'google' | 'microsoft' | 'dropbox' | 'box' {
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'apple' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box',
+): 'imap' | 'o365' | 'google_drive' | 'gmail' | 'google_calendar' | 'google_contacts' | 'google' | 'microsoft' | 'apple' | 'dropbox' | 'box' {
   // 'google_drive' is the CHECK-constrained connection.kind migration 0008
   // added, and the literal build-deps-from-mapping branches on
   // (GOOGLE_DRIVE_CONNECTION_KIND) — underscore, unlike the wizard's hyphen,
@@ -106,6 +106,13 @@ export function sourceKindFor(
   // means "the customer's own Entra registration", which is the credential
   // shape `oauth2` and `graph` carry and this row deliberately does not.
   if (sourceType === 'microsoft') return 'microsoft';
+  // The Apple ACCOUNT kind (workplan 0115, migration 0038). One word on both
+  // sides again — and NOT 'imap', although its mail face is IMAP. The kind is
+  // what tells the credential validation that this row carries an
+  // app-specific password reaching three protocols, rather than one host and
+  // port somebody typed; a `imap` row would ask for the wrong things and
+  // reach one face of the four.
+  if (sourceType === 'apple') return 'apple';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
@@ -581,7 +588,7 @@ function getSharedPool() {
  *  nothing, and neither side errors at runtime. */
 export const CreateMappingBase = z.object({
   name: z.string().min(1).max(255),
-  sourceType: z.enum(['imap', 'oauth2', 'graph', 'microsoft', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'google', 'dropbox', 'box']),
+  sourceType: z.enum(['imap', 'oauth2', 'graph', 'microsoft', 'apple', 'google-drive', 'gmail', 'google-calendar', 'google-contacts', 'google', 'dropbox', 'box']),
   /**
    * Reuse a connection that already exists instead of creating another
    * (workplan 0064). When set, the credentials and provider config come from
@@ -910,6 +917,42 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     );
     if (microsoftRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: microsoftRefusal });
+    }
+  } else if (body.sourceType === 'apple') {
+    // The Apple ACCOUNT (workplan 0115). Named here for the same reason
+    // `microsoft` is, and with more at stake: left to the Azure catch-all
+    // below, an Apple row would be refused for a MISSING TENANT ID AND CLIENT
+    // SECRET — three values that do not exist for this provider, demanded of
+    // somebody whose whole credential is an address and an app-specific
+    // password. `a-source-type-the-validator-never-names` is what turned that
+    // into a failing test instead of a support ticket.
+    //
+    // There is no client pair to half-refuse and no deployment application to
+    // fall back on, because Apple publishes no OAuth scope for its own Mail,
+    // Calendar, Contacts, Reminders or Drive to anybody outside Apple. Two
+    // fields, both required, and the refusal says which page makes the second
+    // one — a person who types their Apple Account password here is told by
+    // Apple only that the password is wrong, which it is not.
+    const missing = (['username', 'password'] as const).filter((k) => !body.sourceConfig[k]);
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', missing[0]!],
+        message:
+          "An 'apple' source authenticates with an app-specific password over IMAP, CalDAV " +
+          `and CardDAV: sourceConfig is missing ${missing.join(', ')}. Apple refuses an Apple ` +
+          'Account password on these protocols by design, because every Apple Account has ' +
+          'two-factor authentication. Make an app-specific password at account.apple.com ' +
+          '(Sign-In and Security → App-Specific Passwords) — docs/apple-setup.md walks it.',
+      });
+    }
+    const appleRefusal = sourceDomainRefusal(
+      body.sourceType,
+      body.syncConfig.domains,
+      providerAccountDomains('apple'),
+    );
+    if (appleRefusal) {
+      ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: appleRefusal });
     }
   } else if (body.sourceType === 'dropbox') {
     // Dropbox's App Console calls these "App key" and "App secret"; they ride

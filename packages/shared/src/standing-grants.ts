@@ -274,6 +274,26 @@ export interface CredentialRetirement {
 
 const CREDENTIALS: readonly CredentialRetirement[] = [
   {
+    // A CREDENTIAL, not a grant, and that is the whole shape of the Apple kind
+    // (workplan 0115): there is no consent to withdraw because Apple never
+    // offered one for its own data. What the customer holds is an
+    // app-specific password they made, and it keeps working until they say
+    // otherwise.
+    id: 'apple',
+    impliedBy: ['apple'],
+    whatTheyCallIt: 'Sign-In and Security → App-Specific Passwords',
+    where: 'account.apple.com → Sign-In and Security → App-Specific Passwords',
+    en:
+      'The app-specific password you created for this migration still works on your Apple ' +
+      'Account. Deleting our copy does not revoke it at Apple — remove it from the list to ' +
+      'end it. It ends on its own, without changing your Apple Account password.',
+    nl:
+      'Het app-specifieke wachtwoord dat u voor deze migratie hebt aangemaakt werkt nog ' +
+      'steeds op uw Apple-account. Het verwijderen van onze kopie trekt het bij Apple niet ' +
+      'in — verwijder het uit de lijst om het te beëindigen. Dat kan zonder uw ' +
+      'Apple-accountwachtwoord te wijzigen.',
+  },
+  {
     id: 'nextcloud',
     impliedBy: ['nextcloud'],
     whatTheyCallIt: 'Settings → Security → Devices & sessions',
