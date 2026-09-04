@@ -23,7 +23,7 @@ screens, on 4 September 2026.
 |---|---|
 | How long to prepare | *"Dit proces kan tot zeven dagen duren"* — up to seven days, used to verify the request came from you |
 | Part sizes offered | **1, 2, 5, 10, 25 GB** — a choice, and 25 GB is the maximum rather than the unit |
-| Link life | **Still unmeasured** — not shown on the request screens; it appears when the export is ready |
+| Link life | **Fourteen days** once the export is ready, then Apple deletes it and the request starts over (HT102208). Two clocks, not one |
 | What is inside | documents, photos and videos **in original format**; contacts, calendars, bookmarks and mail as **`.vcf`, `.ics`, `.html`, `.eml`**; app usage as json/csv/pdf. No purchases of apps, books, films, TV or music |
 | Can it be scheduled | **Recurring exists, and not for iCloud.** Only App Store information and app-install activity offer a repeating download |
 
@@ -47,11 +47,27 @@ it the right route for them — the live connection is incremental and does not
 wait a week — but it does mean an archive reader is reading a whole account,
 not a folder of documents.
 
-### What is still to do here
+### The request is in flight
 
-The request itself. Tick **iCloud Drive files and documents** and, if you are
-willing, **iCloud Photos**; choose **1 GB** as the maximum file size, so the
-archive is forced to SPLIT and how the parts relate can be seen. Then wait.
+Fired 2026-09-04 with **iCloud Photos** and **iCloud Drive files and
+documents** selected. Apple confirmed it is preparing them and will mail when
+ready; status is on `privacy.apple.com/account`. Nothing more to do here for
+about a week.
+
+### What HT102208 adds, beyond the request screens
+
+The support page (published 24 April 2026) carries three things the flow does
+not, and each changes a plan:
+
+- **The link lives fourteen days.** The last figure carried on faith is now
+  Apple's own.
+- **A category cannot be re-requested while a request for it is in flight.**
+  You wait for the current one to finish *and* be removed from the page. That
+  is a hard constraint on Part 3 below, and it means the two-export experiment
+  is at least a fortnight, not a week.
+- **Apple masks email addresses** in what it hands over, alongside card details
+  and device identifiers, as fraud protection. **This is now a sixth question
+  and possibly the most important one** — see Part 2.
 
 <details>
 <summary>The original Part 0, as written before any of this was known</summary>
@@ -180,6 +196,15 @@ almost certainly separate archives (Q3), and the parts are cut at a size the
 person chose rather than a fixed one (Q4) — what remains is whether those parts
 are independent zips or one archive split.
 
+0. **Are email addresses masked in the `.vcf` files?** Apple says it masks
+   email addresses in the data it provides, as fraud protection. If that
+   reaches the contact cards, **the archive route cannot carry contacts at
+   all** — and a reader that imported them would produce address books full of
+   blanks that look migrated. It most likely applies to the activity and
+   transaction data, because masking them would contradict the portability
+   Apple describes on the same page. **Guessing either way is the expensive
+   mistake here.** One `grep` for `@` in one `.vcf` answers it.
+
 1. **The layout.** What is the top-level directory tree? Do iCloud Drive files
    keep their original folder structure, or are they flattened?
 2. **Sidecars.** Is there any per-file metadata beside the bytes — a JSON,
@@ -207,9 +232,13 @@ changed* — needs **two** exports about a week apart. It is the difference
 between an import that can be run twice safely and one that duplicates
 everything (0116 T6).
 
-Only worth doing if Part 2 shows the archive is readable at all. If we get
-there, request the second one the day Part 2 finishes, so the week runs in the
-background again.
+Only worth doing if Part 2 shows the archive is readable at all.
+
+**And it cannot be started early.** HT102208 is explicit: a second request for
+a category already requested waits until the first is complete *and* removed
+from the Data & Privacy page. So the second export begins after the first is
+collected — the two-export experiment is a fortnight of wall-clock, and there
+is no way to run the two weeks concurrently.
 
 ## What lands where
 
