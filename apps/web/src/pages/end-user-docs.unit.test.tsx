@@ -121,6 +121,13 @@ describe('the guides mention what the connector actually needs', () => {
     serviceAccountKey: /service\s*account/i,
     username: /user\s*name|email address|mailbox|\baccount\b/i,
     password: /password/i,
+    // The export archive's two fields (0116 T8). Neither is a credential, and
+    // that is exactly why they need entries here: without one, a guide could
+    // ship saying nothing about WHICH export or WHERE it is — the only two
+    // things a person has to arrive with — and this test would pass, because
+    // an unknown key is deliberately not judged.
+    provider: /which export|google takeout|apple data & privacy/i,
+    path: /folder|extracted/i,
   };
 
   const cases = connectableTypes('source')
