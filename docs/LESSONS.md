@@ -540,6 +540,10 @@ reading a file drops off its entry by itself.
 
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
+### `packages/connectors/src/takeout-archive-reader.unit.test.ts`
+
+- [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
+
 ### `packages/core/src/apply-deletion.ts`
 
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
@@ -1336,6 +1340,7 @@ Reads:
 - `.github/workflows/e2e-o365.yml`
 - `.github/workflows/e2e.yml`
 - `apps/api/src/routes/migrations/index.ts`
+- `packages/connectors/src/takeout-archive-reader.unit.test.ts`
 - `packages/shared/src/config.ts`
 - `scripts/gate-coverage.unit.test.ts`
 

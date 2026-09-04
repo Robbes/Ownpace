@@ -101,7 +101,14 @@ describe('partitionFrontDoor — the one algorithm both doors render', () => {
     // no `icloud` or `apple-mail` kind beside it to collect, because Apple has
     // never published an API one could have been built on. Alphabetical among
     // the standalones, like box and dropbox.
-    expect(p.providers).toEqual(['apple', 'box', 'dropbox']);
+    //
+    // `archive` joined them on 2026-09-04 (0116 T1) and is standalone for a
+    // different reason: it is ONE card covering BOTH gatekeepers' exports,
+    // because which export it is lives on the connection rather than in the
+    // vocabulary. A family would have been the wrong shape twice over — it has
+    // no members to collect, and collecting it under Google or Apple would
+    // hide the half of it that is not theirs.
+    expect(p.providers).toEqual(['apple', 'archive', 'box', 'dropbox']);
     expect(p.protocols).toEqual(['imap']);
   });
 

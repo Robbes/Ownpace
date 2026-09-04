@@ -28,6 +28,25 @@ export interface FrontDoorCard {
   /** …a translated one, for the two Microsoft 365 methods. */
   readonly nameKey?: StringKey;
   readonly hintKey: StringKey;
+  /**
+   * Offered on the CONNECTIONS page but not in the migration wizard
+   * (workplan 0116 T1).
+   *
+   * The two doors are not the same question. "Add a connection" asks whether
+   * this product can reach something; "create a migration" asks it to copy
+   * out of it, and a kind can honestly answer the first and not yet the
+   * second. The export archive is the first such kind: it connects, it is
+   * tested, and its measure is read — items, bytes, folders, the date range
+   * the export covers — which is precisely what somebody wants before
+   * committing to a multi-gigabyte import. Copying items out is 0116 T5/T6
+   * and is not built, and the create route refuses an archive source by name.
+   *
+   * So the wizard does not offer the card. A card that walks six steps and
+   * ends in a refusal is worse than one that is not there: it spends
+   * somebody's attention to tell them no. The Connections page shows it,
+   * where every one of its answers is true.
+   */
+  readonly connectionOnly?: boolean;
 }
 
 /**
@@ -66,6 +85,16 @@ export const SOURCE_CARDS = [
   // from the name, and the first question everyone asks is why there is no
   // button.
   { id: 'apple', name: 'Apple account (iCloud)', hintKey: 'wizard.proto.apple.hint' },
+  // The EXPORT ARCHIVE (workplan 0116 T1) — one card for both exports, because
+  // which export it is (`ARCHIVE_PROVIDERS`) is a field ON the connection and
+  // not a kind of its own. Named for what it is rather than for either
+  // gatekeeper, so a third export joins it without renaming anything.
+  {
+    id: 'archive',
+    name: 'Export archive',
+    hintKey: 'wizard.proto.archive.hint',
+    connectionOnly: true,
+  },
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export const TARGET_CARDS = [
@@ -78,6 +107,20 @@ export const TARGET_CARDS = [
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export type SourceCard = (typeof SOURCE_CARDS)[number];
+
+/**
+ * A source card the migration WIZARD may offer — every card that is not
+ * `connectionOnly` (workplan 0116 T1).
+ *
+ * A type rather than a runtime check alone, and that is the load-bearing half:
+ * the wizard's `FormData.sourceType` is `CreateMappingInput['sourceType']`,
+ * which the create route's enum defines and which does NOT include `archive`.
+ * Handing the chooser plain `SourceCard`s made the wizard fail to compile —
+ * correctly — because it could then have set a source type the API refuses.
+ * With this, the compiler is what keeps the wizard out of the archive, rather
+ * than a filter somebody could quietly drop.
+ */
+export type MigratableSourceCard = Exclude<SourceCard, { connectionOnly: true }>;
 export type TargetCard = (typeof TARGET_CARDS)[number];
 
 /**
@@ -91,4 +134,25 @@ export type TargetCard = (typeof TARGET_CARDS)[number];
  */
 export function frontDoorCards(role: 'source' | 'target'): ReadonlyArray<FrontDoorCard> {
   return role === 'target' ? TARGET_CARDS : SOURCE_CARDS;
+}
+
+/**
+ * The cards the MIGRATION WIZARD may offer — everything a mapping can be
+ * created from (workplan 0116 T1).
+ *
+ * A function rather than a second list, so the two doors keep reading one
+ * table: the connections page shows `frontDoorCards`, the wizard shows this,
+ * and the difference between them is a flag somebody wrote down with a reason
+ * beside it rather than a card that exists in one file and not the other.
+ */
+export function migratableSourceCards(): ReadonlyArray<MigratableSourceCard> {
+  // `'connectionOnly' in c` rather than `c.connectionOnly`, and the awkwardness
+  // is the `as const` earning its keep: each card narrows to its own literal
+  // type, so the flag is not a property of the others — and reading it through
+  // `in` is what keeps every `id` a LITERAL here. Widening to `FrontDoorCard`
+  // would compile and would quietly turn the wizard's `sourceType` back into
+  // `string`, which is exactly what that `as const` exists to prevent.
+  return SOURCE_CARDS.filter(
+    (c): c is MigratableSourceCard => !('connectionOnly' in c && c.connectionOnly),
+  );
 }

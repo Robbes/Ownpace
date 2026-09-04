@@ -39,6 +39,7 @@ export * from './rate-budget.ts';
 export * from './credential-refusals.ts';
 export * from './failure-category.ts';
 export * from './provider-accounts.ts';
+export * from './archive-providers.ts';
 export * from './provider-directory.ts';
 export * from './provider-endpoints.ts';
 export * from './google-deployment-client.ts';

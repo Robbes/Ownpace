@@ -13,7 +13,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { connectableTypes } from '@openmig/shared';
-import { SOURCE_CARDS, TARGET_CARDS, frontDoorCards } from './front-door-cards.ts';
+import {
+  SOURCE_CARDS,
+  TARGET_CARDS,
+  frontDoorCards,
+  migratableSourceCards,
+} from './front-door-cards.ts';
 
 describe('the front door offers exactly what the product accepts', () => {
   it.each([['source', SOURCE_CARDS] as const, ['target', TARGET_CARDS] as const])(
@@ -24,6 +29,30 @@ describe('the front door offers exactly what the product accepts', () => {
       expect(offered, `a ${role} kind has no card, or a card has no kind`).toEqual(accepted);
     },
   );
+
+  it('a connection-only kind is offered on the connections page and NOT in the wizard', () => {
+    // The two doors ask different questions (workplan 0116 T1). "Add a
+    // connection" asks whether this product can REACH something; "create a
+    // migration" asks it to copy OUT of it, and a kind can honestly answer the
+    // first and not the second. The export archive is the first such kind:
+    // it connects, tests and measures, and the create route refuses it as a
+    // mapping source by name.
+    //
+    // A card walking six wizard steps to a refusal is worse than one that is
+    // not there — it spends somebody's attention to tell them no.
+    expect(SOURCE_CARDS.map((c) => c.id)).toContain('archive');
+    expect(migratableSourceCards().map((c) => c.id)).not.toContain('archive');
+  });
+
+  it('the wizard drops ONLY the connection-only cards — not a hand-copied list', () => {
+    // Stated from the other side, so a filter that quietly grew a second
+    // condition (or a card that quietly gained the flag) fails here rather
+    // than removing a working source from the wizard in silence.
+    const dropped = SOURCE_CARDS.filter(
+      (c) => !migratableSourceCards().some((m) => m.id === c.id),
+    );
+    expect(dropped.every((c) => 'connectionOnly' in c && c.connectionOnly)).toBe(true);
+  });
 
   it('frontDoorCards answers per side', () => {
     expect(frontDoorCards('source')).toBe(SOURCE_CARDS);

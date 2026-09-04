@@ -184,6 +184,27 @@ Apple hands to the person and not to us; teaching this product to accept such an
 workplan 0116, and an archive with a date on it is a different shape of thing to a live
 account.
 
+**A file source that is not an account: the EXPORT ARCHIVE** (`archive`, workplan 0116 T1).
+Every column in the table above is a live service reached with a credential. This one is a
+**file the person already downloaded** — a Google Takeout archive or an Apple Data & Privacy
+download — and its credential is a *location*, not an account. It exists because it is the
+only route to two bodies of data no API here can reach: **Google Photos** (Google closed the
+Library API to general access on 31 March 2025) and **iCloud Drive** (never open at all).
+Which export a connection holds is a value on the row (`google-takeout` / `apple-privacy`),
+not a connection kind of its own, so a third export is a new reader and nothing else.
+
+Today it **connects, tests and measures**: how many distinct items, how many bytes, how many
+folders, and the date range the export covers — which is what somebody wants before
+committing to a multi-gigabyte import. **Migrating from one is not built** (0116 T5/T6), and
+the create-mapping door refuses an archive source by name rather than accepting it and
+copying nothing. Two properties hold from the start and are the reason the shape is worth
+being careful about: an archive that cannot be opened reads as **unknown with the reason**
+and never as an empty archive, and an archive is a **snapshot with a date** — so nothing may
+ever infer a deletion from an item's absence between two of them. The Google reader is
+built (0116 T3a); the Apple reader waits on somebody opening a real export (0116 T3b), and
+is deliberately absent rather than stubbed, because a stub answering "0 items" is
+indistinguishable from an export that really was empty.
+
 What migrates: file **bytes, verbatim**, hashed (`contentHash`) so unchanged files are never
 re-sent and changed ones are updated (with the same edited-on-target conflict protection);
 the folder tree; optional `targetFolderPrefix` to merge several sources into one account

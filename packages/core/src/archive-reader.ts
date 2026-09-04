@@ -68,9 +68,16 @@ export interface ArchiveLocation {
  * A union rather than a string, because `provider` is not decoration: it selects
  * the reader and it decides which sentences the surfaces show. It is the field
  * that stops an Apple card promising Google's two-monthly schedule.
+ *
+ * DECLARED IN SHARED SINCE T1, and re-exported here so nothing that imported it
+ * from this seam has to move. The list was born beside the reader, which was
+ * right while the reader was its only consumer; the wizard, `SourceConfig` and
+ * the create door's refusal are three more, and `packages/shared` is the only
+ * package all four can reach. A second copy of this array is the exact drift
+ * `PROVIDER_ACCOUNT_DOMAINS` exists to prevent one layer up.
  */
-export const ARCHIVE_PROVIDERS = ['google-takeout', 'apple-privacy'] as const;
-export type ArchiveProvider = (typeof ARCHIVE_PROVIDERS)[number];
+import { ARCHIVE_PROVIDERS, type ArchiveProvider } from '@openmig/shared';
+export { ARCHIVE_PROVIDERS, type ArchiveProvider };
 
 /** An opened archive. Opaque to the caller; the reader's own bookkeeping. */
 export interface ArchiveHandle {

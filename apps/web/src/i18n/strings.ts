@@ -348,6 +348,27 @@ const en = {
     'app-specific password at account.apple.com → Sign-In and Security → App-Specific ' +
     'Passwords, and paste it. It reaches your mail, calendars, contacts and reminders, and ' +
     'you can revoke it there on its own whenever you like.',
+  // THE EXPORT ARCHIVE (workplan 0116 T1). One card for two exports, and the
+  // hint has to carry the thing the card name cannot: this is a SNAPSHOT with
+  // a date on it, not a live account, and it is offered on this page and not
+  // in the migration wizard because reaching it and copying out of it are two
+  // different promises and only the first is kept today.
+  'wizard.proto.archive.hint':
+    'A Google Takeout or Apple Data & Privacy export you already downloaded — for photos and ' +
+    'files, which neither company offers any other way. Connect it here to see what it holds: ' +
+    'how many items, how many bytes, which folders, and the dates the export covers. An ' +
+    'archive is a snapshot of the day it was prepared, not a live account, so migrating from ' +
+    'one is a separate step and is not built yet.',
+  'wizard.archiveProvider': 'Which export',
+  'wizard.archiveProvider.hint':
+    'Which company made this archive. It decides how we read it, and there is no way to tell ' +
+    'from the files themselves — the wrong choice finds nothing rather than saying so. ' +
+    'Google exports are requested at takeout.google.com; Apple exports at privacy.apple.com.',
+  'wizard.archivePath': 'Where the archive is',
+  'wizard.archivePath.hint':
+    'The folder you extracted the download into — not the .zip itself. If the export arrived ' +
+    'in several parts, extract them all into the same folder first. Nothing is written there: ' +
+    'we only read.',
   // The ACCOUNT card. Four faces, and the sentence says why that is more than
   // Google offers rather than leaving it looking like an oversight there.
   'wizard.proto.microsoft.hint':
@@ -1926,6 +1947,24 @@ const nl: Record<keyof typeof en, string> = {
     'app-specifiek wachtwoord aan op account.apple.com → Aanmelden en beveiliging → ' +
     'App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda\u0027s, ' +
     'contacten en herinneringen, en u kunt het daar los weer intrekken wanneer u wilt.',
+  'wizard.proto.archive.hint':
+    'Een Google Takeout- of Apple Data en Privacy-export die u al hebt gedownload — voor ' +
+    'foto\u0027s en bestanden, waarvoor geen van beide bedrijven een andere weg biedt. ' +
+    'Koppel hem hier om te zien wat erin zit: hoeveel items, hoeveel bytes, welke mappen en ' +
+    'welke periode de export beslaat. Een archief is een momentopname van de dag waarop het ' +
+    'is klaargezet, geen live account, dus migreren vanuit een archief is een aparte stap en ' +
+    'is nog niet gebouwd.',
+  'wizard.archiveProvider': 'Welke export',
+  'wizard.archiveProvider.hint':
+    'Welk bedrijf dit archief heeft gemaakt. Dat bepaalt hoe wij het lezen, en aan de ' +
+    'bestanden zelf is dat niet te zien — bij de verkeerde keuze vinden we niets in plaats ' +
+    'van dat we het zeggen. Google-exports vraagt u aan op takeout.google.com, ' +
+    'Apple-exports op privacy.apple.com.',
+  'wizard.archivePath': 'Waar het archief staat',
+  'wizard.archivePath.hint':
+    'De map waarin u de download hebt uitgepakt — niet het .zip-bestand zelf. Bestaat de ' +
+    'export uit meerdere delen, pak die dan eerst allemaal uit in dezelfde map. Er wordt ' +
+    'niets naar geschreven: wij lezen alleen.',
   'wizard.proto.microsoft.hint':
     'Eén Microsoft 365-account, één keer aanmelden — e-mail, agenda\u0027s, contacten en ' +
     'OneDrive, wat u ook aanvinkt. De twee kaarten ernaast zijn voor een klant die al een ' +

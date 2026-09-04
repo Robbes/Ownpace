@@ -48,6 +48,7 @@ import {
   isProviderAccountKind,
   type ProviderAccountKind,
 } from '@openmig/shared';
+import { ARCHIVE_CONNECTION_KIND } from './archive-source-factory.ts';
 import { BOX_CONNECTION_KIND } from './box-source-factory.ts';
 import { DROPBOX_CONNECTION_KIND } from './dropbox-source-factory.ts';
 import { GOOGLE_DRIVE_CONNECTION_KIND } from './drive-source-factory.ts';
@@ -75,6 +76,15 @@ export type SourceFaceBuilder =
   | 'graph-drive'
   | 'dropbox'
   | 'box'
+  // An EXPORT ARCHIVE's file face (workplan 0116 T1). Named here BEFORE the
+  // builder exists, deliberately: without a name of its own an `archive` row
+  // falls to `protocolDefault('file')` and is handed to `dav`, which aims a
+  // WebDAV client at a folder on a disk and refuses it for a missing password.
+  // That is #597's shape exactly — a fan-out whose absence is invisible until
+  // somebody runs one. With a name, the file seam has an arm that says what is
+  // actually true: placement (T5) and idempotency (T6) are not built, so an
+  // archive connects, tests and measures but does not yet migrate.
+  | 'archive'
   | 'imap'
   | 'dav';
 
@@ -151,6 +161,10 @@ const SINGLE_PURPOSE_FACES: Readonly<
   [GOOGLE_DRIVE_CONNECTION_KIND]: { file: 'google-drive' },
   [DROPBOX_CONNECTION_KIND]: { file: 'dropbox' },
   [BOX_CONNECTION_KIND]: { file: 'box' },
+  // The export archive (0116 T1). In the single-purpose table rather than the
+  // account table because it is emphatically not an account — one row, one
+  // export, one face — which is the same reason `google_drive` sits here.
+  [ARCHIVE_CONNECTION_KIND]: { file: 'archive' },
 };
 
 /**
