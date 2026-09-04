@@ -252,6 +252,32 @@ export interface GoogleAccountSource {
 }
 
 /**
+ * The `microsoft` ACCOUNT source (workplan 0114) — one Entra grant, four faces.
+ *
+ * `GoogleAccountSource`'s sibling, and the same shape for the same reason: the
+ * per-domain builders resolve from the connection's KIND rather than from this
+ * `type`, so one config serves mail, calendar, contacts and OneDrive without a
+ * branch. `type` is here because the config is echoed by the detail route and
+ * parsed by the same reader an appliance's mapping file goes through — a
+ * source config with no type reads as a row nobody can identify.
+ *
+ * `tenantId` is OPTIONAL, which is where it differs from `graph`/`oauth2`.
+ * Those ask a customer for their own Entra registration and cannot work
+ * without knowing the directory. An account row that took the grant button has
+ * no tenant of its own: the deployment's authority answers for it, which is
+ * `common` unless an operator declared otherwise (ADR-0041, 0114 T1). A row
+ * that DOES carry one keeps it — a customer using their own single-tenant
+ * registration must not be sent to `common`.
+ */
+export interface MicrosoftAccountSource {
+  readonly type: 'microsoft';
+  /** The Microsoft 365 account whose mail, calendars, contacts and files are read. */
+  readonly user: string;
+  /** The directory to authenticate against, when this row carries its own. */
+  readonly tenantId?: string;
+}
+
+/**
  * Microsoft OneDrive/SharePoint file source (workplan 0054) — the Graph drive
  * connector, wired at last. Same Entra registration and flow rules as the
  * other Graph sources; `mailbox` unset reads the signed-in user's drive
@@ -427,7 +453,7 @@ export interface DomainsConfig {
   tasks?: DomainConfig;
 }
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | GoogleAccountSource | DropboxSource | BoxSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | GoogleAccountSource | MicrosoftAccountSource | DropboxSource | BoxSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -855,7 +881,19 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       user: reqString(obj, 'user', 'source.user'),
     };
   }
-  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-mail", "google-drive", "gmail", "google-calendar", "google-contacts", or "google")`);
+  if (type === 'microsoft') {
+    // `tenantId` optional and only set when present — the deployment's
+    // authority answers for a row that took the grant button, and an empty
+    // string here would build `login.microsoftonline.com//oauth2/v2.0/…`
+    // (0114 T1's first refusal).
+    const tenantId = (obj.tenantId === undefined ? '' : String(obj.tenantId)).trim();
+    return {
+      type: 'microsoft',
+      user: reqString(obj, 'user', 'source.user'),
+      ...(tenantId === '' ? {} : { tenantId }),
+    };
+  }
+  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-mail", "google-drive", "gmail", "google-calendar", "google-contacts", "google", or "microsoft")`);
 }
 
 /**

@@ -23,6 +23,7 @@ import {
   DEFAULT_CONCURRENCY,
   parseGoogleDriveSource,
   withDeploymentDropboxClient, withDeploymentGoogleClient,
+  microsoftTenant,
   log,
 } from '@openmig/shared';
 import { isGoogleGrantKind } from './account-qualification.ts';
@@ -54,18 +55,24 @@ import {
   buildDropboxSourceFrom,
 } from './dropbox-source-factory.ts';
 import {
-  BOX_CONNECTION_KIND,
   STORED_BOX_CREDENTIAL_NAMES,
   buildBoxSourceFrom,
 } from './box-source-factory.ts';
 import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory.ts';
 import {
-  googleDavServes,
-  googleDriveServes,
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
   buildGoogleCalendarDavSourceFrom,
   buildGoogleContactsDavSourceFrom,
 } from './google-dav-source-factory.ts';
+import {
+  STORED_GRAPH_FIELD_NAMING,
+  buildGraphCalendarSourceFrom,
+  buildGraphContactsSourceFrom,
+  buildGraphDriveSourceFrom,
+  type GraphDomainEndpoint,
+  type GraphEntraCredsAsFound,
+} from './graph-domain-source-factory.ts';
+import { sourceFaceBuilder, type SourceFaceBuilder } from './source-face-builders.ts';
 import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
@@ -599,22 +606,13 @@ export async function buildDomainDepsFromMapping(
       return withClose(
         {
           ...common,
-          // Google Calendar (workplan 0045): CalDAV with OAuth — the stored
-          // Google client + refresh token mint Bearer tokens, and the fixed
-          // principal URL is derived from the config's `user`, so it must not
-          // ride the credential resolver (no password exists to resolve).
-          // `googleDavServes` and not a kind comparison (workplan 0106 T3b):
-          // the ACCOUNT kind `google` serves whichever faces
-          // PROVIDER_ACCOUNT_DOMAINS names, so a face arriving there needs no
-          // edit here. The single-purpose kinds keep answering for themselves.
-          source:
-            googleDavServes(src.kind, 'calendar')
-              ? buildGoogleCalendarDavSourceFrom(
-                  String((src.config as { user?: unknown }).user ?? ''),
-                  src.creds,
-                  STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
-                )
-              : buildCalendarSource(davEndpointFromCreds('source', src.config, src.creds)),
+          // Off the builder TABLE, not a kind comparison and no longer a
+          // two-way condition (0106 T3b's rule, 0114 T5a's mechanism): the
+          // seam asks which builder speaks for this row's calendar face and
+          // the answer is a name. A provider arriving is a row there, and a
+          // provider MISSING from there is a failing guard rather than a
+          // silent fall-through to DAV.
+          source: buildCalendarSourceFromConnection(src),
           target: buildCalendarTarget(calendarTargetEndpoint, targetDeps),
           // The verdict, recorded before the mapping's first calendar write
           // (0105 T0) — measured on the SAME endpoint the writer just got.
@@ -645,15 +643,8 @@ export async function buildDomainDepsFromMapping(
       return withClose(
         {
           ...common,
-          // Google Contacts (workplan 0045): CardDAV with OAuth, same argument.
-          source:
-            googleDavServes(src.kind, 'contact')
-              ? buildGoogleContactsDavSourceFrom(
-                  String((src.config as { user?: unknown }).user ?? ''),
-                  src.creds,
-                  STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
-                )
-              : buildContactSource(davEndpointFromCreds('source', src.config, src.creds)),
+          // The calendar seam's argument, verbatim, over the contact face.
+          source: buildContactSourceFromConnection(src),
           // Contacts can go over JMAP where the target speaks it (0031 T2).
           // Read off the connection's own `kind`, which has allowed `jmap`
           // since the 0001 baseline, so this needs no migration and no new
@@ -691,6 +682,135 @@ export async function buildDomainDepsFromMapping(
 }
 
 /**
+ * Choose and build the CALENDAR source a stored connection describes.
+ *
+ * Three builders and no fall-through. `google-dav` is CalDAV with OAuth — the
+ * stored Google client and refresh token mint Bearer tokens, and the fixed
+ * principal URL is derived from the config's `user`, so it must not ride the
+ * credential resolver (no password exists to resolve). `graph-calendar` is the
+ * same shape over Entra, reachable from a stored connection since 0114 T5a and
+ * from the appliance's environment since 0054. `dav` is the protocol row every
+ * connection was before either.
+ *
+ * Exported for unit tests, on the precedent of
+ * `buildFileSourceFromConnection`: the choice and its refusal are the
+ * behaviour worth pinning, and they need no database to prove.
+ */
+export function buildCalendarSourceFromConnection(src: {
+  config: Record<string, unknown>;
+  creds: Record<string, string>;
+  kind: string;
+}): ReturnType<typeof buildCalendarSource> {
+  const builder = sourceFaceBuilder(src.kind, 'calendar');
+  switch (builder) {
+    case 'google-dav':
+      return buildGoogleCalendarDavSourceFrom(
+        String((src.config as { user?: unknown }).user ?? ''),
+        src.creds,
+        STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
+      );
+    case 'graph-calendar':
+      return buildGraphCalendarSourceFrom(
+        graphEndpointFromConnection(src),
+        graphCredsFromConnection(src.creds),
+        undefined,
+        STORED_GRAPH_FIELD_NAMING,
+      );
+    case 'dav':
+      return buildCalendarSource(davEndpointFromCreds('source', src.config, src.creds));
+    default:
+      throw faceHasNoBuilder('calendar', src.kind, builder);
+  }
+}
+
+/** The calendar builder's sibling over the contact face — same three, same rule. */
+export function buildContactSourceFromConnection(src: {
+  config: Record<string, unknown>;
+  creds: Record<string, string>;
+  kind: string;
+}): ReturnType<typeof buildContactSource> {
+  const builder = sourceFaceBuilder(src.kind, 'contact');
+  switch (builder) {
+    case 'google-dav':
+      return buildGoogleContactsDavSourceFrom(
+        String((src.config as { user?: unknown }).user ?? ''),
+        src.creds,
+        STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
+      );
+    case 'graph-contacts':
+      return buildGraphContactsSourceFrom(
+        graphEndpointFromConnection(src),
+        graphCredsFromConnection(src.creds),
+        undefined,
+        STORED_GRAPH_FIELD_NAMING,
+      );
+    case 'dav':
+      return buildContactSource(davEndpointFromCreds('source', src.config, src.creds));
+    default:
+      throw faceHasNoBuilder('contact', src.kind, builder);
+  }
+}
+
+/**
+ * The Entra endpoint a STORED connection describes (0114 T5a).
+ *
+ * `tenantId` is read from the credentials first and the config second, and
+ * falls back to the deployment's authority — `common` unless an operator said
+ * otherwise. That order is deliberate: a connection carrying its own Entra
+ * registration carries its own directory with it (T1's rule, and the reason a
+ * caller's `tenantId` is never replaced by the deployment's), while a
+ * connection that took the grant button has no tenant of its own to name.
+ *
+ * NO `mailbox`. A stored connection reaches Graph with a delegated refresh
+ * token, and `/users/{address}` is only readable under application
+ * permissions — the factory refuses the combination, in a sentence written
+ * for exactly this. Reading the signed-in user's own store is what a consent
+ * button grants and all a `microsoft` account row ever means.
+ */
+function graphEndpointFromConnection(src: {
+  config: Record<string, unknown>;
+  creds: Record<string, string>;
+}): GraphDomainEndpoint {
+  const cfg = src.config as { tenantId?: unknown; baseUrl?: unknown };
+  const tenantId =
+    (src.creds.tenantId ?? '').trim() ||
+    String(cfg.tenantId ?? '').trim() ||
+    microsoftTenant();
+  const baseUrl = typeof cfg.baseUrl === 'string' ? cfg.baseUrl : undefined;
+  return { tenantId, ...(baseUrl === undefined ? {} : { baseUrl }) };
+}
+
+/** The three values the Entra flows are chosen by, under the stored names. */
+function graphCredsFromConnection(creds: Record<string, string>): GraphEntraCredsAsFound {
+  return {
+    clientId: creds.clientId,
+    clientSecret: creds.clientSecret,
+    refreshToken: creds.refreshToken,
+  };
+}
+
+/**
+ * The refusal for a face resolved to a builder that cannot serve it.
+ *
+ * The `default` arm of each seam below, and deliberately a THROW rather than a
+ * fall-through to DAV. A fall-through is what this task exists to remove: it
+ * does the wrong work and reports success, and the person who finds out is a
+ * customer mid-migration. This refuses at BUILD time and names both halves of
+ * the disagreement, so the fix — a row in `ACCOUNT_FACE_BUILDERS` or a face
+ * withdrawn from `PROVIDER_ACCOUNT_DOMAINS` — is legible from the message.
+ *
+ * `scripts/a-face-a-provider-account-cannot-build.unit.test.ts` is what makes
+ * this unreachable in practice; this is what happens if it ever is not.
+ */
+function faceHasNoBuilder(domain: string, kind: string, builder: SourceFaceBuilder): Error {
+  return new Error(
+    `connection kind "${kind}" resolves its ${domain} face to the "${builder}" builder, which ` +
+      `does not build ${domain} sources. Either ACCOUNT_FACE_BUILDERS names the wrong builder ` +
+      `for ${kind}.${domain}, or PROVIDER_ACCOUNT_DOMAINS claims a face this provider cannot serve`,
+  );
+}
+
+/**
  * Choose and build the FILE source a stored connection describes (0042 T5).
  *
  * Two providers, and the difference is not a URL — it is whether the connection
@@ -713,52 +833,67 @@ export function buildFileSourceFromConnection(src: {
   creds: Record<string, string>;
   kind: string;
 }): FileSource {
-  if (src.kind === DROPBOX_CONNECTION_KIND) {
-    // Dropbox (workplan 0055): stored under the shared trio keys, mapped to
-    // Dropbox's own words by the naming (see the factory).
-    return buildDropboxSourceFrom(
-      { rootPath: (src.config as { rootPath?: string }).rootPath },
-      {
-        appKey: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appKey],
-        appSecret: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appSecret],
-        refreshToken: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.refreshToken],
-      },
-      STORED_DROPBOX_CREDENTIAL_NAMES,
-    );
+  const builder = sourceFaceBuilder(src.kind, 'file');
+  switch (builder) {
+    case 'graph-drive':
+      // OneDrive from a stored connection (0114 T5a) — the face that existed
+      // in `build-deps.ts` from the appliance's environment and had no managed
+      // caller at all.
+      return buildGraphDriveSourceFrom(
+        graphEndpointFromConnection(src),
+        graphCredsFromConnection(src.creds),
+        undefined,
+        STORED_GRAPH_FIELD_NAMING,
+      );
+    case 'dropbox':
+      // Dropbox (workplan 0055): stored under the shared trio keys, mapped to
+      // Dropbox's own words by the naming (see the factory).
+      return buildDropboxSourceFrom(
+        { rootPath: (src.config as { rootPath?: string }).rootPath },
+        {
+          appKey: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appKey],
+          appSecret: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appSecret],
+          refreshToken: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.refreshToken],
+        },
+        STORED_DROPBOX_CREDENTIAL_NAMES,
+      );
+    case 'box': {
+      // Box (workplan 0056): client id + secret from the stored credentials;
+      // the SUBJECT user id rides the source config — one subject per mapping,
+      // never a secret (see the factory).
+      const cfg = src.config as { userId?: string; rootFolderId?: string };
+      return buildBoxSourceFrom(
+        { ...(cfg.rootFolderId === undefined ? {} : { rootFolderId: cfg.rootFolderId }) },
+        {
+          clientId: src.creds[STORED_BOX_CREDENTIAL_NAMES.clientId],
+          clientSecret: src.creds[STORED_BOX_CREDENTIAL_NAMES.clientSecret],
+          subjectUserId: cfg.userId,
+        },
+        STORED_BOX_CREDENTIAL_NAMES,
+      );
+    }
+    case 'google-drive':
+      // The ACCOUNT kind's file face is Drive (workplan 0106 T3b), reached
+      // with the same OAuth trio under the same stored names as the
+      // single-purpose row — one arm, not two.
+      //
+      // `parseGoogleDriveSource` reads the blob rather than trusting it and
+      // does NOT require `type`, because a stored connection carries its
+      // provider in its own `kind` column: an account row's
+      // `{ type: 'google', user }` comes back as a Drive source rooted at My
+      // Drive, which is what an account with no folder chosen means.
+      return buildGoogleDriveSourceFrom(
+        parseGoogleDriveSource(src.config),
+        src.creds,
+        STORED_GOOGLE_CREDENTIAL_NAMES,
+      );
+    case 'dav':
+      return buildFileSource(fileEndpointFromCreds('source', src.config, src.creds, src.kind));
+    default:
+      throw faceHasNoBuilder('file', src.kind, builder);
   }
-  if (src.kind === BOX_CONNECTION_KIND) {
-    // Box (workplan 0056): client id + secret from the stored credentials;
-    // the SUBJECT user id rides the source config — one subject per mapping,
-    // never a secret (see the factory).
-    const cfg = src.config as { userId?: string; rootFolderId?: string };
-    return buildBoxSourceFrom(
-      { ...(cfg.rootFolderId === undefined ? {} : { rootFolderId: cfg.rootFolderId }) },
-      {
-        clientId: src.creds[STORED_BOX_CREDENTIAL_NAMES.clientId],
-        clientSecret: src.creds[STORED_BOX_CREDENTIAL_NAMES.clientSecret],
-        subjectUserId: cfg.userId,
-      },
-      STORED_BOX_CREDENTIAL_NAMES,
-    );
-  }
-  if (googleDriveServes(src.kind)) {
-    // The ACCOUNT kind's file face is Drive (workplan 0106 T3b), reached with
-    // the same OAuth trio under the same stored names — one branch, for
-    // `buildSourceConnectorFromCredentials`'s reason above.
-    //
-    // `parseGoogleDriveSource` reads the blob rather than trusting it and does
-    // NOT require `type`, because a stored connection carries its provider in
-    // its own `kind` column: an account row's `{ type: 'google', user }` comes
-    // back as a Drive source rooted at My Drive, which is what an account with
-    // no folder chosen means.
-    return buildGoogleDriveSourceFrom(
-      parseGoogleDriveSource(src.config),
-      src.creds,
-      STORED_GOOGLE_CREDENTIAL_NAMES,
-    );
-  }
-  return buildFileSource(fileEndpointFromCreds('source', src.config, src.creds, src.kind));
 }
+
 
 /**
  * Build source connector from config and decrypted credentials.
@@ -781,6 +916,35 @@ export function buildSourceConnectorFromCredentials(
     // No byteMeter: 0090's verified ceiling belongs to Gmail's IMAP endpoint,
     // and inventing one for Graph would be the plan's own warning realised.
     return buildGraphMailSourceFromCredentials(sourceConfig, credentials, throttleLimiter);
+  }
+  if (sourceFaceBuilder(sourceConfig.type, 'email') === 'graph-mail') {
+    // THE ACCOUNT KIND'S MAIL FACE (0114 T5a), and one branch rather than two
+    // for the same reason the Gmail arm below takes `google` alongside
+    // `gmail`: a `microsoft` row's mail is Graph mail against `/me/messages`,
+    // under the same three stored credentials, so a second builder differing
+    // only in the string it matched would be the #597 defect again.
+    //
+    // Read off the FACE TABLE rather than compared to `'microsoft'`. This is
+    // the seam that made the point: `PROVIDER_ACCOUNT_DOMAINS.microsoft`
+    // claimed `email`, `ACCOUNT_FACE_BUILDERS` answered `graph-mail`, and this
+    // function still refused with "only supports imap-oauth2, graph-mail,
+    // gmail and google mail sources, got: microsoft" — a table nothing reads
+    // is the same defect one level up.
+    //
+    // NEVER a `mailbox`. A delegated token reads the signed-in user's own
+    // store; `/users/{address}` needs application permissions, and the factory
+    // refuses the combination in a sentence written for exactly that.
+    return buildGraphMailSourceFromCredentials(
+      {
+        type: 'graph-mail',
+        tenantId:
+          (credentials.tenantId ?? '').trim() ||
+          String((sourceConfig as { tenantId?: unknown }).tenantId ?? '').trim() ||
+          microsoftTenant(),
+      },
+      credentials,
+      throttleLimiter,
+    );
   }
   if (sourceConfig.type === 'gmail' || sourceConfig.type === 'google') {
     // The credential-store half only: name the stored fields and hand off. The

@@ -100,6 +100,21 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   // needs not only a Google account but a consent screen approved for SEVERAL
   // scopes at once — the thing no CI job can press.
   google: { uncoverable: 'same Google account, same reason as gmail — and its consent is multi-scope.' },
+  // The MICROSOFT account kind (workplan 0114). `uncoverable` and not `owed`,
+  // which is the opposite verdict from the four `graph-*` types above, and the
+  // difference is the FLOW rather than the tenant. Those are owed because the
+  // reference tenant is real and client-credentials could reach it unattended.
+  // This row exists to carry a DELEGATED refresh token — the whole point of
+  // the grant button — and a delegated token comes from a person pressing a
+  // consent screen. Nothing in CI can press one. 0114 T8's managed-gate
+  // assertions use a sentinel pair that is never followed to Microsoft: they
+  // cover the client CONFIGURATION and deliberately not a sync, so they must
+  // never be read as driving this.
+  microsoft: {
+    uncoverable:
+      'needs a Microsoft 365 account and a delegated consent screen somebody presses. ' +
+      'Client-credentials cannot substitute: this row exists for the delegated flow.',
+  },
   dropbox: { uncoverable: 'needs a Dropbox app and a real account. Same class as gmail.' },
   box: { uncoverable: 'needs a Box app and a real account. Same class as gmail.' },
 };
