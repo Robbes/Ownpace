@@ -36,6 +36,7 @@ import {
   isGoogleGrantKind,
   isQualifiableKind,
   qualifyAccount,
+  isArchiveKind,
   qualifyArchive,
   qualifyDropbox,
   qualifyGoogleGrant,
@@ -114,7 +115,24 @@ async function qualifyAndRemember(
   actor: string,
   deadlineAt: number,
 ): Promise<AccountQualification | 'pending' | undefined> {
-  if (!isQualifiableKind(kind) && !isGoogleGrantKind(kind) && !isDropboxKind(kind)) {
+  // EVERY KIND THAT HAS A QUALIFIER, and this list is the whole reason the
+  // dispatch below can be trusted. It is also where 0116 T7 was briefly
+  // broken: `qualifyArchive` was wired into `qualifyAndRememberNow` and an
+  // `archive` row still never reached it, because this guard did not name the
+  // kind and returned `undefined` one function earlier. Nothing failed — the
+  // connection stored fine, the probe answered fine, and the Measured line
+  // simply never appeared. The unit tests called `qualifyArchive` directly and
+  // were green throughout.
+  //
+  // That is the family this repository keeps meeting: a new kind must reach
+  // every table, and the tables that GATE are the ones whose absence is
+  // invisible. `smoke-managed.sh` is what turned it into a failure.
+  if (
+    !isQualifiableKind(kind) &&
+    !isGoogleGrantKind(kind) &&
+    !isDropboxKind(kind) &&
+    !isArchiveKind(kind)
+  ) {
     return undefined;
   }
   return withinBudget(
