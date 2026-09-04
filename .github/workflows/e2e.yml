@@ -573,6 +573,46 @@ jobs:
             docker logs ownpace-dev-stalwart --tail 150 2>&1 || true
             echo "===== Nextcloud logs (tail) ====="
             docker logs ownpace-dev-nextcloud --tail 150 2>&1 || true
+            # THE LEDGER, BY DOMAIN. Every defect this gate found on 2026-09-04
+            # was about which domain a row was filed under and which key it
+            # carried, and none of it was visible above: the /status counts are
+            # a JOIN over these rows, so a wrong `domain` reads as a plausible
+            # number rather than an error. Two runs were spent inferring this
+            # table from byte totals. It costs one query.
+            echo "===== ledger item rows, by domain and status ====="
+            docker compose $SELFHOST_COMPOSE_FILES exec -T postgres \
+              psql -U "${POSTGRES_USER:-openmigrate}" -d "${POSTGRES_DB:-openmigrate}" -c \
+              "SELECT domain, status, count(*), sum(size_bytes) AS bytes FROM item GROUP BY 1,2 ORDER BY 1,2;" \
+              2>&1 || echo "(no postgres service — the pglite backend, or the stack is down)"
+            echo "===== ledger item rows, by domain and target collection ====="
+            docker compose $SELFHOST_COMPOSE_FILES exec -T postgres \
+              psql -U "${POSTGRES_USER:-openmigrate}" -d "${POSTGRES_DB:-openmigrate}" -c \
+              "SELECT domain, collection, count(*) FROM item GROUP BY 1,2 ORDER BY 1,2;" \
+              2>&1 || true
+            # WHAT THE TARGET ACTUALLY HOLDS, asked the way the verification
+            # reindexer asks. A domain whose ledger rows all say `copied` while
+            # the target answers an empty multistatus is the difference between
+            # "never written" and "written but not readable back", and the
+            # appliance's own log cannot tell those apart.
+            echo "===== target calendar collections + component sets ====="
+            curl -s -u "${NEXTCLOUD_TARGET_USER}:${TARGET_DAV_PASSWORD}" -X PROPFIND \
+              -H 'Depth: 1' -H 'Content-Type: application/xml' \
+              --data '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:displayname/><d:resourcetype/><c:supported-calendar-component-set/></d:prop></d:propfind>' \
+              "http://127.0.0.1:${DEV_NEXTCLOUD_PORT}/remote.php/dav/calendars/${NEXTCLOUD_TARGET_USER}/" \
+              2>&1 || true
+            echo
+            echo "===== target VTODOs, asked for by themselves ====="
+            for col in $(curl -s -u "${NEXTCLOUD_TARGET_USER}:${TARGET_DAV_PASSWORD}" -X PROPFIND \
+                           -H 'Depth: 1' \
+                           "http://127.0.0.1:${DEV_NEXTCLOUD_PORT}/remote.php/dav/calendars/${NEXTCLOUD_TARGET_USER}/" \
+                         | grep -o '/remote.php/dav/calendars/[^<]*/' | sort -u); do
+              echo "--- ${col}"
+              curl -s -u "${NEXTCLOUD_TARGET_USER}:${TARGET_DAV_PASSWORD}" -X REPORT \
+                -H 'Depth: 1' -H 'Content-Type: application/xml' \
+                --data '<?xml version="1.0"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VTODO"/></c:comp-filter></c:filter></c:calendar-query>' \
+                "http://127.0.0.1:${DEV_NEXTCLOUD_PORT}${col}" \
+                | grep -o '<d:href>[^<]*</d:href>' | head -20
+            done 2>&1 || true
           } 2>&1 | tee diagnostics/e2e-diagnostics.txt
 
       - name: Upload diagnostics
