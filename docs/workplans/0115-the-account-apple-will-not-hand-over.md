@@ -313,9 +313,50 @@ Two things make this worth its own task rather than a line in another one:
 | T4 | Apple's endpoints, and a guard that builds | **Done 2026-09-04.** `PROVIDER_ENDPOINTS` (not a directory row — see below), the DAV and mail seams, `buildTaskSourceFromConnection`, `accountMailEndpoint`, and `a-face-no-account-can-actually-build` across every kind |
 | T5 | The credential is an app-specific password | **Done 2026-09-04.** Fields in T2; `appleAuthRefusal` and the source probe here. New guard `a-refusal-that-blames-the-password` |
 | T6 | Files: a measured no | **Done 2026-09-04.** No `qualifyApple` — the DAV family branch, given per-face endpoints, a lazy file endpoint and `reasonedNo`. New guard `a-face-measured-at-the-wrong-host` |
-| T7 | `docs/apple-setup.md` | The app-specific password walk-through, why there is no button, what Reminders bring, and that revocation is at account.apple.com and not here |
-| T8 | Front door, icons, feature matrix, i18n | The `apple` card beside the Google and Microsoft ones, en + nl |
-| T9 | The managed gate | A sentinel Apple row that never reaches Apple, asserting the kind's fourteen tables agree |
+| T7 | `docs/apple-setup.md` | **Done 2026-09-04.** The walk-through, the no-button finding beside Sign in with Apple, Reminders, revocation at Apple. Plus **Apple's export in Apple's own words** — the owner walked `privacy.apple.com` the same day |
+| T8 | Front door, icons, feature matrix, i18n | **Done 2026-09-04.** Feature-matrix rows in four domains + three gap rows. The icon half needed nothing: `apple` already carries a mark and the front-door guard already asserts every placed id wears one. Corrected the stale "Tasks (VTODO) not built" line while there |
+| T9 | The managed gate | **Redirected 2026-09-04, and it found a defect instead.** No gate: the create door probes, so a sentinel Apple row would fire a bogus password at Apple nightly. The fourteenth table (`sourceConnectionConfig`) was missing `microsoft` AND `apple` — both stored as `imap-oauth2`. Fixed for every account kind, new guard `an-account-stored-as-a-product-it-is-not` |
+
+### T5 through T9 landed — 2026-09-04
+
+**T7's page is the first thing in this plan that is measured about Apple rather
+than reasoned.** The owner opened `privacy.apple.com` and read the request
+flow, which this environment's egress proxy blocks. Seven days is Apple's own
+figure; the part size is a CHOICE (1, 2, 5, 10, 25 GB) and 25 GB is its maximum
+rather than its unit; the export carries documents, photos and videos in
+original format and contacts, calendars, bookmarks and mail as `.vcf`, `.ics`,
+`.html`, `.eml`. The link's fourteen-day life is **still** unmeasured and stays
+`unknown` rather than being filled in from the forums.
+
+Two things that were written here from secondary sources are now corrected:
+
+- *"No scheduling"* was very nearly right. Apple offers a **recurring**
+  download — for App Store information and app-install activity, and for
+  nothing in iCloud.
+- **There are two routes.** Beside the download, `privacy.apple.com` offers a
+  direct transfer to another service: **iCloud Photos → Google Photos** and
+  **Apple Music playlists → YouTube Music**, and nowhere else. It is Apple's
+  own service and it is better than anything this product can offer for that
+  one journey, so the guide says so.
+
+And the correction that matters most is about scope rather than fact: **the
+export is not a file archive.** It carries contacts, calendars and mail in the
+same interchange formats this product already reads. The live connection stays
+the right route for those — incremental, no week of waiting — but 0116's reader
+is reading a whole account, not a folder of documents.
+
+**T9 did not produce the gate it asked for**, and the reason is worth keeping.
+A sentinel Apple row cannot be created without reaching Apple: `POST
+/api/connections` probes before it stores, and the source config schema carries
+no `mailHost`, so the mail face cannot be pointed anywhere unroutable either.
+Widening the product schema to make a test possible is the wrong reason to
+widen it, and "never reaches Apple" has to mean provably rather than *the
+runner happens to have no egress*. So the tables are asserted at unit level and
+the live row is made once, by hand, in the supervised sitting.
+
+Reading the fourteenth table to write that gate is what found the defect —
+which is the wrong way round, and is exactly what T2's guard exists to prevent
+happening again.
 
 ### Deliberately not in this plan
 
