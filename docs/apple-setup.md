@@ -185,6 +185,15 @@ reach: **iCloud Drive and Photos**.
 If somebody tells you iCloud Drive can be migrated automatically, ask which API
 they used.
 
+**One thing that is easy to misread.** Apple *does* publish a data-portability
+API for people in the European Union, built for the Digital Markets Act and
+open to services you authorise. It would be reasonable to assume that is the
+answer here. It is not: as of 4 September 2026 that API carries **App Store
+data** — your purchase history and app downloads — and no iCloud content at
+all. Apple built the mechanism and pointed it somewhere else. Whether it is
+ever widened to iCloud is a regulatory question rather than a technical one,
+and nothing here waits on it.
+
 ## Revoking it, at Apple and not here
 
 An app-specific password is **revoked at `account.apple.com` → Sign-In and
