@@ -2,8 +2,8 @@
 
 ## Status — 2026-09-03 (update this block at the end of every session)
 
-**T1 to T4 are on PR #759; T5a on #760; T2b, T5b and T5c on #761. The button
-exists.** T5 was split into three and T2 into two — see "What the survey missed" below for the first and
+**T1 to T4 are on PR #759; T5a on #760; T2b, T5b and T5c on #761; T7 on #762.
+The button exists, and an operator can configure it without asking anybody.** T5 was split into three and T2 into two — see "What the survey missed" below for the first and
 the T2b row for the second. Both splits are corrections to this plan rather
 than new scope: T2 was written as "the consent round trip" and delivered the
 consent MODULE, which has no consumer; T5 was written as "the button" over a
@@ -65,7 +65,7 @@ pattern for a third time, over connectors that need no change at all.
 | T5b The kind in the tables a kind lives in | ✅ Done | Fourteen tables, and the guards named every one: credential fields, provider-client facts (derived from `GRANT_PROVIDERS` now), the front-door family/lane/icon/card, the source config, the create enum + validator branch, `sourceKindFor`, the drizzle enum, migration 0037, `WizardSourceType` + its two constraint tables, revocation, standing grants, the feature matrix, and the gate-coverage verdict. |
 | T5c The button, in both doors | ✅ Done | Both `grantProvider === 'dropbox' ? … : …` ternaries are per-provider tables; `isAccountKind` reads `PROVIDER_ACCOUNT_KINDS`; strings en+nl; a door test proved by restoring the old fall-through, which sent the Microsoft customer to Google. |
 | T6 The refusals speak | 📋 Not started | `AADSTS65001`/`AADSTS90094` rendered as sentences, per #722's treatment of Google's `accessNotConfigured`. |
-| T7 Docs and env plumbing | 📋 Not started | `managed.yml`, `set-task-env`, `env.example`, redirect-URIs page, an operator guide and a customer guide. |
+| T7 Docs and env plumbing | ✅ Done | `managed.yml`, `set-task-env.sh` (both places), `managed.env.example`, the redirect-URIs table, `docs/microsoft-setup.md` for customers and a bring-up section for operators. **`MICROSOFT_OAUTH_TENANT` travels with the pair** — the two halves of a consent must use one authority. Both guides lead with the multi-tenant radio button, because it is the setting that works for the operator and fails for their first customer. |
 | T8 The gate | 📋 Not started | Managed smoke assertions with a sentinel pair never followed to Microsoft, mirroring #729. |
 | T9 Microsoft To Do | 📋 Optional, not in v1 | **Yes, Microsoft has a tasks face** — Graph exposes `/me/todo/lists` under `Tasks.Read`, unlike Google, whose CalDAV carries no VTODO at any scope tier (0113 T5/T6). It is deliberately out of the grant's first version; the reasoning is under "What this deliberately leaves out", and the owner asked about it directly on 2026-09-03, which is why it is a row here rather than only a paragraph. |
 
