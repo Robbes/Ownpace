@@ -53,6 +53,59 @@ macOS's Desktop & Documents sync puts a Mac's entire working life into iCloud Dr
 default, so the Apple customers most likely to want their files are exactly the ones we
 currently cannot serve at all.
 
+## The law was checked, and it does not remove this plan
+
+The obvious objection to building an archive reader is that European law is closing this gap
+and the work will be obsolete. The owner asked it directly (2026-09-04), so it was measured
+rather than argued.
+
+**Both gatekeepers already ship a DMA Article 6(9) portability API. Neither carries a single
+byte of what this product migrates.**
+
+| | The API | What it actually carries |
+|---|---|---|
+| **Apple** | Account Data Transfer API, EU-only, for third parties a user authorises | **App Store data** — purchase history, app downloads. No iCloud content of any kind |
+| **Google** | Data Portability API, EEA-only, OAuth-scoped per resource group | Activity logs, Chrome, Maps contributions, Play, YouTube, Search UGC |
+
+Google's scope list was read in full on 2026-09-04. Of the six domains this product carries —
+mail, calendar, contacts, files, tasks, photos — **not one appears**. The two scopes that look
+like photos are not: `maps.photos_videos` is what a person posted *on Maps*, and
+`streetview.imagery` is Street View uploads. There is no Gmail scope, no Drive scope, no
+Contacts scope, no Calendar scope, and **no Google Photos scope**.
+
+That last absence is the load-bearing one. Google Photos now has **two independent reasons**
+to be unreachable: the Library API's full-library scopes were removed on 31 March 2025, and
+the portability API built specifically to satisfy the DMA does not include it either. Takeout
+is not the route of last resort while we wait for something better — as of today it is the
+only route there is.
+
+Apple is the same shape with less openness around it. Google at least reaches mail, Drive,
+calendars and contacts through long-standing product APIs, which this product already uses;
+Apple reaches mail, calendars, contacts and reminders over IMAP and DAV and iCloud Drive not
+at all. In both cases the DMA API is beside the point rather than the answer.
+
+### What this means for the plan
+
+- **Do not wait.** The obligation exists; the implementations point elsewhere, and widening
+  them is a regulatory question with a multi-year clock, not a technical one.
+- **The archive route is not a stopgap.** For Google Photos and iCloud Drive it is *the*
+  route, and the law has not changed that.
+- **It stays necessary even if that changes.** Both APIs are EU/EEA-only; a customer outside
+  that perimeter has the archive or has nothing.
+
+### Where the pressure actually is, for the record
+
+Italy's competition authority opened the first national DMA proceeding against Apple on
+9 June 2026, and it must conclude by 31 March 2027. It is about **Article 6(7)** — rival
+consumer clouds being denied the iOS backup features iCloud enjoys — rather than Article 6(9)
+portability. Adjacent problem, different article: it is about competing *with* iCloud on the
+device, not reading iCloud from outside it. Worth watching, not worth planning around.
+
+**Sources, per the never-guess rule:** `developer.apple.com/support/account-data-transfer-api-eu`
+and `developers.google.com/data-portability/user-guide/scopes`, both read 2026-09-04; the
+Italian proceeding from AGCM's own press release of 2026-06-16. This section states what those
+pages say on that day and nothing about what they will say later.
+
 ## The two providers are not the same shape
 
 This is the finding that makes 0116 more than "0112 again with Apple in it". The two exports
