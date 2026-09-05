@@ -840,3 +840,62 @@ describe('a credential that fails is still kept, and says so', () => {
     expect(screen.queryByText(/The details were kept/)).toBeNull();
   });
 });
+
+/**
+ * Every TARGET type gets past its own step (workplan 0067 T7 (b)).
+ *
+ * The reachability table above covered sources only; the six target cards
+ * had no equivalent walk, so whether each one could be got past was a guess
+ * about a gate rather than a finding. Same shape as the source walk: pick the
+ * card, fill exactly what it marks required, and Next must enable — and while
+ * it is disabled, the blocked-reason line may name only fields on screen.
+ */
+const TARGET_CREDS: [RegExp, string][] = [
+  [/^Target Username/, 'anna@new.example'],
+  [/^Target Password/, 'shh-target'],
+];
+const TARGET_TYPES: { name: string; required: [RegExp, string][] }[] = [
+  { name: 'JMAP', required: [[/^Host$/, 'jmap.new.example'], ...TARGET_CREDS] },
+  { name: 'IMAP', required: [[/^Host$/, 'imap.new.example'], ...TARGET_CREDS] },
+  { name: 'CalDAV', required: [[/^Host$/, 'dav.new.example'], ...TARGET_CREDS] },
+  { name: 'CardDAV', required: [[/^Host$/, 'dav.new.example'], ...TARGET_CREDS] },
+  { name: 'WebDAV', required: [[/^Host$/, 'cloud.new.example'], ...TARGET_CREDS] },
+  // The provider card pre-fills its published host and port (0106 T5), so
+  // the account is all it still asks for.
+  { name: 'Soverin', required: TARGET_CREDS },
+];
+
+/** Past the source step on the plain IMAP walk, onto the target step. */
+const toTargetStep = () => {
+  renderWizard();
+  fill(/^Host$/, 'mail.acme.example');
+  fill(/^Source Username/, 'anna@acme.example');
+  fireEvent.click(nextButton());
+};
+
+describe('every target type gets past its own step (0067 T7 (b))', () => {
+  it.each(TARGET_TYPES)('$name', async ({ name, required }) => {
+    toTargetStep();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${name}`) }));
+
+    for (const [label, value] of required) fill(label, value);
+
+    await waitFor(() => expect(nextButton()).toBeEnabled());
+  });
+
+  it.each(TARGET_TYPES)('$name: a disabled Next names only fields on screen', ({ name }) => {
+    toTargetStep();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${name}`) }));
+
+    const reason = blockedReason();
+    if (reason === null) return; // nothing blocks it — a real answer
+
+    for (const label of [...GATE_LABELS, 'Target Username', 'Target Password']) {
+      if (!reason.includes(label)) continue;
+      expect(
+        queryFieldFor(new RegExp(`^${label}`)),
+        `the blocked-reason line names "${label}", which this step does not render`,
+      ).not.toBeNull();
+    }
+  });
+});
