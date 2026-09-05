@@ -1306,16 +1306,17 @@ const en = {
   'connections.delete': 'Delete',
   'connections.rotate': 'Replace credentials',
   'connections.rotate.hint':
-    'Paste the new values. They are checked before they replace the old ones — if the check fails, nothing changes and your migrations keep whatever was working.',
+    'Paste the new values; they are checked before replacing the old.',
+  'connections.rotate.why':
+    'If the check fails, nothing changes and your migrations keep whatever was working.',
   'connections.rotate.save': 'Check and replace',
   'connections.add': 'Add a connection',
   'connections.addAndTest': 'Add and test',
-  'connections.role': 'Is this a source or a target?',
+  'connections.role': 'Source or target?',
   'connections.type': 'Provider',
-  'connections.name': 'Name it (so you recognise it later)',
+  'connections.name': 'Connection name',
   'connections.title': 'Connections',
-  'connections.intro':
-    'The source and target accounts your migrations sign in with. Test one to check its credentials are still good — that runs the same read-only check a migration would, and shows exactly what the provider says.',
+  'connections.intro': 'The accounts your migrations sign in with. Test checks them read-only.',
   'connections.none': 'No connections yet. Creating your first migration adds them.',
   'connections.sources': 'Sources',
   'connections.targets': 'Targets',
@@ -1335,7 +1336,7 @@ const en = {
   // Only where the connection is the thing to act on; the category does not
   // say which of a migration's two connections failed.
   'connections.standing.whichSide':
-    'It signs in with this connection and one other, and the failure does not say which \u2014 Test this one to find out.',
+    'Signs in with this and one other connection; Test this one to find out which.',
   // And when the pass could tell (second slice): no guessing left to do.
   'connections.standing.thisSide': 'It failed on this connection.',
   // What a probe FOUND, rendered from its outcome code (workplan 0080).
@@ -1349,12 +1350,11 @@ const en = {
   'probe.targetStatus.refused': 'It is reachable and refused the credentials.',
   'probe.targetStatus.check': 'Check the target host and port.',
   'probe.noProbe':
-    'This build has no check for a {kind} connection. That is a gap on our side, not a problem with your credentials.',
+    'No check exists for a {kind} connection yet; that is our gap, not your credentials.',
   // The deadline (2026-09-02): unknown, not refused, and the connection is
   // kept so it can be tested again.
   'probe.timedOut':
-    'The test did not answer within {seconds} seconds. The connection is kept; test it again ' +
-    'later, or give it a narrower root folder.',
+    'No answer within {seconds} seconds; kept anyway, so test later or narrow the root folder.',
   'probe.measuring': 'Still measuring what this account can carry — refresh in a minute.',
   'probe.unit.folder.one': 'folder',
   'probe.unit.folder.many': 'folders',
@@ -1401,6 +1401,8 @@ const en = {
   // `mailbox_mapping.name` is nullable, so a migration can genuinely have no
   // name to quote. Saying so beats dropping back to the server's English.
   'connections.inUse.unnamed': 'a migration with no name',
+  'connections.inUse.reason':
+    'Deleting it would delete what those migrations recorded; remove them under Migrations first.',
   // Filled in, but not usable — distinct from "still needed" (0072).
   'connections.invalidValues.lead': 'These values cannot be used as they are:',
   // The duplicate-migration refusal (workplan 0071 T6, owner decision
@@ -1411,8 +1413,6 @@ const en = {
   'createMapping.duplicate.why':
     'Two migrations copying the same items into the same place would put everything on the target twice. Give this one a different target folder, or open the existing migration.',
   'createMapping.duplicate.open': 'Open the existing migration',
-  'connections.inUse.why':
-    'Deleting it would also delete what those migrations have recorded, so remove them under Migrations first.',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'Provider setup',
   'setup.intro':
@@ -2710,16 +2710,18 @@ const nl: Record<keyof typeof en, string> = {
   'connections.delete': 'Verwijderen',
   'connections.rotate': 'Inloggegevens vervangen',
   'connections.rotate.hint':
-    'Plak de nieuwe waarden. Ze worden gecontroleerd vóór ze de oude vervangen — mislukt de controle, dan verandert er niets en houden uw migraties wat werkte.',
+    'Plak de nieuwe waarden; ze worden gecontroleerd vóór ze de oude vervangen.',
+  'connections.rotate.why':
+    'Mislukt de controle, dan verandert er niets en houden uw migraties wat werkte.',
   'connections.rotate.save': 'Controleren en vervangen',
   'connections.add': 'Verbinding toevoegen',
   'connections.addAndTest': 'Toevoegen en testen',
-  'connections.role': 'Is dit een bron of een doel?',
+  'connections.role': 'Bron of doel?',
   'connections.type': 'Aanbieder',
-  'connections.name': 'Geef het een naam (zodat u het later herkent)',
+  'connections.name': 'Naam van de verbinding',
   'connections.title': 'Verbindingen',
   'connections.intro':
-    'De bron- en doelaccounts waarmee uw migraties inloggen. Test er een om te controleren of de inloggegevens nog werken — dat voert dezelfde alleen-lezen controle uit als een migratie en toont precies wat de aanbieder zegt.',
+    'De accounts waarmee uw migraties inloggen. Test controleert ze alleen-lezen.',
   'connections.none': 'Nog geen verbindingen. Bij het aanmaken van uw eerste migratie worden ze toegevoegd.',
   'connections.sources': 'Bronnen',
   'connections.targets': 'Doelen',
@@ -2731,7 +2733,7 @@ const nl: Record<keyof typeof en, string> = {
   'connections.standing.migration': 'Migratie',
   'connections.standing.stopped': 'is {when} gestopt ({domains}):',
   'connections.standing.whichSide':
-    'Die logt in met deze verbinding en \u00e9\u00e9n andere, en de fout zegt niet welke \u2014 test deze om het te weten.',
+    'Logt in met deze en één andere verbinding; test deze om te weten welke.',
   'connections.standing.thisSide': 'Het ging mis op deze verbinding.',
   'probe.connected': 'Verbonden. {count} {unit} zichtbaar.',
   'probe.connected.floor': 'Verbonden. Ten minste {count} {unit} zichtbaar.',
@@ -2740,10 +2742,9 @@ const nl: Record<keyof typeof en, string> = {
   'probe.targetStatus.refused': 'Hij is bereikbaar en weigerde de inloggegevens.',
   'probe.targetStatus.check': 'Controleer de host en poort van het doel.',
   'probe.noProbe':
-    'Deze versie heeft geen controle voor een {kind}-verbinding. Dat is een gat aan onze kant, geen probleem met uw inloggegevens.',
+    'Er is nog geen controle voor een {kind}-verbinding; dat is ons gat, niet uw inloggegevens.',
   'probe.timedOut':
-    'De test antwoordde niet binnen {seconds} seconden. De verbinding is bewaard; test later ' +
-    'opnieuw, of geef een kleinere hoofdmap op.',
+    'Geen antwoord binnen {seconds} seconden; toch bewaard, dus test later opnieuw of verklein de hoofdmap.',
   'probe.measuring': 'Er wordt nog gemeten wat dit account kan dragen — ververs over een minuut.',
   'probe.unit.folder.one': 'map',
   'probe.unit.folder.many': 'mappen',
@@ -2777,13 +2778,13 @@ const nl: Record<keyof typeof en, string> = {
   'connections.failed': 'Kon deze niet bereiken.',
   'connections.inUse.lead': 'Nog in gebruik door',
   'connections.inUse.unnamed': 'een migratie zonder naam',
+  'connections.inUse.reason':
+    'Verwijderen wist ook wat die migraties vastlegden; verwijder ze eerst onder Migraties.',
   'connections.invalidValues.lead': 'Deze waarden kunnen zo niet worden gebruikt:',
   'createMapping.duplicate.lead': 'U heeft al een migratie tussen deze twee accounts:',
   'createMapping.duplicate.why':
     'Twee migraties die dezelfde items naar dezelfde plek kopiëren, zetten alles dubbel op het doel. Geef deze een andere doelmap, of open de bestaande migratie.',
   'createMapping.duplicate.open': 'Open de bestaande migratie',
-  'connections.inUse.why':
-    'Verwijderen wist ook wat die migraties hebben vastgelegd; verwijder ze eerst onder Migraties.',
   // ---- Provider setup checklist (workplan 0061) ----
   'setup.title': 'Aanbieder instellen',
   'setup.intro':

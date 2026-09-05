@@ -2,6 +2,13 @@
 
 ## Status — 2026-09-05 (update this block at the end of every session)
 
+**2026-09-05, later: T2 built — the Connections page**, stacked on T1's PR. Small, as measured:
+thirty `connections.` keys with three over budget and thirty-three `probe.` keys with five, three
+of which are the invitation-safety sentences that stay verbatim and now sit in the guard's
+allowance by name. One key changed its name: `connections.inUse.why` was a visible refusal
+frame, not a fold, and a `.why` suffix would have exempted it from the budget; it is
+`connections.inUse.reason` now, shortened to thirteen words.
+
 **2026-09-05: T1 built — the wizard and the setup checklist.** The owner read the screens and
 said what every reviewer of this product had been too close to see:
 
@@ -20,10 +27,10 @@ T1 is this document's first slice and the proof that the rule can be kept by a t
 | Task | Status | Notes |
 |---|---|---|
 | T1 The wizard and the setup checklist | ✅ Done 2026-09-05 | Visible words under `wizard.*` + `setup.*`: **2 671 → 1 363**; longest visible line **96 → 15 words**; 36 strings over twenty words → 0. Nothing deleted that said something: 1 282 words now sit under folds (532 before). The `Hint` component and the budget guard land here. |
-| T2 Connections | 📋 Planned | The page intro (36 words), eight grey hints, four panels; the test panel's sentences. Same rule, same guard — add `connections.` to `BUDGETED_PREFIXES`. |
+| T2 Connections | ✅ Done 2026-09-05 | Intro 36 → 11 words; the rotate hint folds its consequence under *Why?*; the "which side" tail 23 → 14; two labels; two probe sentences (no check for this kind, timed out) to 15. `connections.` and `probe.` under the guard; `probe.scheduling.*` named in `ALLOWED_OVER`. The add form was already behind its button, so nothing to fold there. |
 | T3 The migration's own pages — Confirm, MappingDetail, Finish | 📋 Planned | `confirm.noMappings.how` (52), `confirm.snapshot.note` (29), `finish.intro` (29), `finish.step4.body` (30), ten Finish panels. Finish's step bodies are instructions: fold under How?, as the checklist does. |
 | T4 Support, billing, sharing, moves, verify, login | 📋 Planned | `sharing.intro` (44), `moves.intro` (30), `verify.intro` (28), `login.noOrganisation.already` (33). Short screens; mostly intros that say what the heading already says. |
-| T5 The verbatim set | 📋 Planned | `grant.readOnly`, `grant.disclosure`, the `failure.*` remedies, the `probe.scheduling.*` lines: **not shortened** (owner, 2026-09-05). When their prefixes come under the guard they go into `ALLOWED_OVER` with that reason. |
+| T5 The verbatim set | 🔨 In progress | `grant.readOnly`, `grant.disclosure`, the `failure.*` remedies, the `probe.scheduling.*` lines: **not shortened** (owner, 2026-09-05). Each goes into `ALLOWED_OVER` with that reason as its prefix comes under the guard — `probe.scheduling.*` did in T2. |
 
 ## 1. Why this exists
 

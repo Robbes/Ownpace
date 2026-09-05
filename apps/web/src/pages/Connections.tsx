@@ -99,7 +99,7 @@ const useRefusalText = (fields: ReadonlyArray<{ key: string; labelKey: string }>
         inUse.names.length > 0
           ? inUse.names.map((n) => `“${n}”`).join(', ')
           : t('connections.inUse.unnamed');
-      return `${t('connections.inUse.lead')} ${named}. ${t('connections.inUse.why')}`;
+      return `${t('connections.inUse.lead')} ${named}. ${t('connections.inUse.reason')}`;
     }
     return serverMessage(err);
   };
@@ -357,7 +357,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
 
       {rotating && (
         <div className="mt-3 border-t border-gray-200 pt-3">
-          <p className="text-sm text-gray-600">{t('connections.rotate.hint')}</p>
+          <Hint className="" text={t('connections.rotate.hint')} why={t('connections.rotate.why')} />
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
             {rotatableFields.map((field) => (
               <label key={field.key} className="text-sm">
