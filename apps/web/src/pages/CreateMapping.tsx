@@ -1,6 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import React, { useState } from 'react';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
+import { Hint, whyKeyOf } from '../components/Hint.tsx';
 import {
   measuredText,
   probeText,
@@ -503,6 +504,7 @@ const CreateMapping: React.FC = () => {
     suffix:
       | 'connect'
       | 'connect.hint'
+      | 'connect.why'
       | 'connect.needsClient'
       | 'connect.halfClient'
       | 'deploymentClient'
@@ -1123,6 +1125,23 @@ const CreateMapping: React.FC = () => {
   // An EXPORT ARCHIVE (workplan 0116 T5/T6): no username, no secret — which
   // export and where it is, and nothing else.
   const isArchiveSource = formData.sourceType === 'archive';
+  /**
+   * What the picked source IS — one line after the card, the rest under
+   * More (0118 T1). Six amber panels of forty to seventy words stood here
+   * before; the facts are the same (which client or app it signs in with,
+   * what that costs, what cannot be migrated), the paragraph now opens on
+   * request, and the checklist link below still remembers the steps.
+   */
+  const aboutSource: StringKey | undefined =
+    (isO365Source && 'wizard.about.o365') ||
+    (isDriveSource && 'wizard.about.googleDrive') ||
+    (isDropboxSource && 'wizard.about.dropbox') ||
+    (isBoxSource && 'wizard.about.box') ||
+    (isGmailSource && 'wizard.about.gmail') ||
+    (isGoogleDavSource && 'wizard.about.googleDav') ||
+    (formData.sourceType === 'apple' && 'wizard.about.apple') ||
+    (isArchiveSource && 'wizard.about.archive') ||
+    undefined;
   // One half of a pair typed is a pair being typed, not a pair left to the
   // deployment: the server refuses the half rather than completing it, and a
   // customer's id with the deployment's secret would fail at the provider's
@@ -1500,6 +1519,11 @@ const CreateMapping: React.FC = () => {
      * here. `htmlFor`/`id` pair kept (0068 T10) so a screen reader can attach
      * the label to its box.
      */
+    /** The folded twin of a descriptor hint, by the `.why` convention. */
+    const fieldWhy = (hintKey: string): string | undefined => {
+      const key = whyKeyOf(hintKey);
+      return key ? t(key) : undefined;
+    };
     const fieldControl = (field: CredentialField): React.ReactNode => {
       const formKey = isSource ? SOURCE_FORM_FIELD[field.key] : TARGET_FORM_FIELD[field.key];
       if (!formKey) return null;
@@ -1572,15 +1596,14 @@ const CreateMapping: React.FC = () => {
             />
           )}
           {field.hintKey && (
-            <p
-              className={
-                field.key === 'serviceAccountKey'
-                  ? 'mt-1 text-xs text-amber-800'
-                  : 'mt-1 text-sm text-gray-500'
-              }
-            >
-              {t(field.hintKey as StringKey)}
-            </p>
+            // One line under the box; the why, where the dictionary has one,
+            // folds beneath it (0118 T1). The service-account key keeps its
+            // amber: it is the one line to read before pasting.
+            <Hint
+              text={t(field.hintKey as StringKey)}
+              why={fieldWhy(field.hintKey)}
+              tone={field.key === 'serviceAccountKey' ? 'caution' : 'muted'}
+            />
           )}
         </div>
       );
@@ -1717,9 +1740,11 @@ const CreateMapping: React.FC = () => {
           >
             {probing ? t('wizard.testing') : t('wizard.testConnections')}
           </button>
-          <p className="text-sm text-gray-500">
-            {chosen ? t('wizard.testConnections.reused') : t('wizard.testConnections.hint')}
-          </p>
+          <Hint
+            className=""
+            text={chosen ? t('wizard.testConnections.reused') : t('wizard.testConnections.hint')}
+            why={chosen ? undefined : t('wizard.testConnections.why')}
+          />
         </div>
         {r && (
           <div className="mt-3 flex items-start gap-2 text-sm">
@@ -1940,56 +1965,13 @@ const CreateMapping: React.FC = () => {
                 gridClass="sm:grid-cols-2"
                 cardFor={sourceCardFor}
               />
-              {/* 0037 T6, answered 2026-08-10: oauth2/graph use the
-                  per-customer Entra app registration (ADR-0006's row-14
-                  model) — say what these fields ARE and where the rest of
-                  the registration goes, instead of the retired interim
-                  confession that only username+password were collected. */}
-              {isO365Source && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.appRegistration')}
-                </p>
-              )}
-              {/* Workplan 0042: the customer's own Google OAuth client, a
-                  delegated read-only token, and the doc that walks all of it.
-                  Also the one place to say what happens to Google Docs —
-                  reported un-migratable one by one, by design, until export
-                  byte-stability is measured (T3). */}
-              {isDriveSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.driveSetup')}
-                </p>
-              )}
-              {/* Workplan 0055: Dropbox's App Console words mapped onto the
-                  shared credential fields, said up front. */}
-              {isDropboxSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.dropboxSetup')}
-                </p>
-              )}
-              {/* Workplan 0056: Box's Client Credentials Grant — why there is
-                  no refresh-token field, and where the admin authorization
-                  happens, said up front. */}
-              {isBoxSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.boxSetup')}
-                </p>
-              )}
-              {/* Workplan 0044: the same Google OAuth client as Drive, but the
-                  refresh token must be consented with the mail scope — the one
-                  mistake this box exists to prevent. */}
-              {isGmailSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.gmailSetup')}
-                </p>
-              )}
-              {/* Workplan 0045: same OAuth client, per-product consent — the
-                  scope each token must carry is the mistake this box exists
-                  to prevent, exactly like Gmail's. */}
-              {isGoogleDavSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.googleDavSetup')}
-                </p>
+              {aboutSource && (
+                <Hint
+                  className="mt-4"
+                  label="more"
+                  text={t(aboutSource)}
+                  why={t(`${aboutSource}.more` as StringKey)}
+                />
               )}
             </div>
 
@@ -2091,7 +2073,7 @@ const CreateMapping: React.FC = () => {
                   >
                     {ps('connect')}
                   </button>
-                  <p className="mt-1 text-sm text-gray-500">{ps('connect.hint')}</p>
+                  <Hint text={ps('connect.hint')} why={ps('connect.why')} />
                   {consentNote && (
                     <p
                       className={`mt-1 text-sm ${
@@ -2179,7 +2161,7 @@ const CreateMapping: React.FC = () => {
                   className="input w-full"
                   placeholder={t('wizard.targetPrefix.placeholder')}
                 />
-                <p className="mt-1 text-sm text-gray-500">{t('wizard.targetPrefix.hint')}</p>
+                <Hint text={t('wizard.targetPrefix.hint')} why={t('wizard.targetPrefix.why')} />
               </div>
             </div>
             {renderProbe('target')}
@@ -2206,14 +2188,12 @@ const CreateMapping: React.FC = () => {
                 className="input w-full"
                 placeholder="My Migration"
               />
-              <p className="mt-1 text-sm text-gray-500">{t('wizard.migrationNameHint')}</p>
             </div>
 
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-900">
                 {t('wizard.selectDataTypes')}
               </h3>
-              <p className="text-sm text-gray-500">{t('wizard.selectDataTypesHint')}</p>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {dataTypes.map((type) => {
@@ -2406,11 +2386,13 @@ const CreateMapping: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm text-yellow-800">
-                  <strong>{t('wizard.review.noteLead')}</strong> {t('wizard.review.note')}
-                </p>
-              </div>
+              <Hint
+                className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"
+                tone="note"
+                label="more"
+                text={t('wizard.review.note')}
+                why={t('wizard.review.why')}
+              />
             </div>
           </div>
         );
@@ -2424,7 +2406,6 @@ const CreateMapping: React.FC = () => {
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">{t('wizard.title')}</h1>
-        <p className="text-gray-500 mt-1">{t('wizard.subtitle')}</p>
       </div>
 
       {/* Progress Steps */}
