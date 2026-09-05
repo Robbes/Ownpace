@@ -23,6 +23,12 @@ T7 carries §4's price out loud: the item count legitimately EXCEEDS what Google
 the person they have, so the Measured line breaks it down — originals, edited versions,
 motion clips — and says why in the same breath, before they can be surprised by it.
 
+T8 landed with it, and closed a hole T1 had opened: the create door's refusal already told
+people to read `docs/archive-import.md`, **which did not exist**. It is `archive-setup.md`
+now, because that suffix is what the app actually serves at `/docs`, and the end-user guard
+was widened so a guide that never says WHICH export or WHERE it is fails there rather than in
+front of somebody at step four.
+
 **2026-09-04, later again: two more owner answers folded in.** Edited versions and motion
 clips are **distinct items carrying a link to their original**, not attributes of one record —
 because Google Photos shows the edited version by default, so a single-record design discards
@@ -72,7 +78,7 @@ If the owner decides only one thing here, decide **D1**.
 | T5 Placement and the manifest | 📋 Planned (needs T2) | Where items land, albums/folders as folders, one manifest row per item. 0112 §3 is the photo design. **Decided 2026-09-04:** edited versions and motion clips are distinct items linked to their original, never attributes of one record — §4 says why. |
 | T6 Idempotency by content hash | 📋 Planned (needs T2) | A second import writes nothing; an overlapping archive writes only what is new. The file domain's existing ledger rule, applied to archives — **and the delta across a series of archives**, which needs no new store. §5 carries the design, including the rule that an archive delta may only ADD. |
 | T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
-| T8 The walkthrough | 📋 Planned | `docs/archive-import.md`: how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
+| T8 The walkthrough | ✅ **Built 2026-09-04** | `docs/archive-setup.md` (the `-setup` suffix is what the app serves at `/docs`): how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
 | T10 The gate | 📋 Planned | A tiny fixture archive of each shape in the E2E, imported end to end, asserting item count, hashes and a second import writing nothing. |
 

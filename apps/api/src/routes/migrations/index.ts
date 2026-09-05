@@ -1070,7 +1070,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           "An 'archive' source is an EXPORT you already downloaded, not an account: " +
           `sourceConfig is missing ${missing.join(', ')}. \`provider\` says which export ` +
           `(${ARCHIVE_PROVIDERS.join(' or ')}) and \`path\` says where it is. ` +
-          'docs/archive-import.md walks requesting each one.',
+          'docs/archive-setup.md walks requesting each one.',
       });
     }
     // The provider is validated against the list BY NAME, because getting it
