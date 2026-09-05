@@ -67,6 +67,7 @@ import {
 import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
 import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
 
 /**
@@ -87,9 +88,12 @@ const ONCE = {
 const Disclosure: React.FC = () => {
   const t = useT();
   return (
-    <p className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
-      {t('support.recorded')}
-    </p>
+    <Hint
+      className="mb-4 rounded-md bg-amber-50 px-3 py-2"
+      tone="caution"
+      text={t('support.recorded')}
+      why={t('support.recorded.why')}
+    />
   );
 };
 
@@ -372,7 +376,7 @@ export const SupportTenants: React.FC = () => {
     <div>
       <Heading title={t('support.heading')} />
       <Disclosure />
-      <p className="mb-4 text-sm text-gray-600">{t('support.metadataOnly')}</p>
+      <Hint className="mb-4" text={t('support.metadataOnly')} why={t('support.metadataOnly.why')} />
 
       {/* Reachable from here because it is reachable from nowhere else: the
           organisations it concerns have been erased, so no tenant row leads to
@@ -531,7 +535,7 @@ const TenantUsage: React.FC<{ usage: SupportTenantUsage }> = ({ usage }) => {
             </tr>
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-gray-500">{t('support.usage.note')}</p>
+        <Hint className="mt-2" text={t('support.usage.note')} why={t('support.usage.why')} />
       </div>
     </Section>
   );

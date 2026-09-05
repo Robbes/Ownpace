@@ -2,6 +2,22 @@
 
 ## Status — 2026-09-05 (update this block at the end of every session)
 
+**2026-09-05, night: T4b built — the operator's and sign-in screens**, stacked on T4, and with
+it **every key in the dictionary is under the guard**: the prefix list is gone from the test,
+and the exceptions are named one by one. Thirty-seven strings across nine prefixes; ten folds
+(the support disclosure, the access-queue help, the redirect-URI intro and its unconfigured
+warning among them). The guard's first run refused seven English and four Dutch lines counted
+one word short by eye — a placeholder and a bracketed aside each count as a word, which is the
+rule's one surprise. One line was reworded rather than cut: the sign-in alert about a build
+without its issuer had to keep "identity provider" as two words, because its test reads it that
+way, and VITE_OIDC_ISSUER in the same alert.
+
+Two lessons for the record. The `unit` project's `scripts/` guards read this dictionary as
+text and pinned a verb on the redirect-URI line; T1 went red on CI for it. Every slice since
+runs `npx vitest run --project unit scripts/` before pushing, and so should any change to the
+dictionary. And a fold must not repeat its line: two tests found the same phrase twice on one
+screen, and the folds were reworded.
+
 **2026-09-05, evening: T4 built — the queues, Verify, Sharing and the small screens**, stacked on
 T3. Thirty-one strings to budget across sixteen prefixes, nine of them with the rest under a fold;
 the queue page shell grew a `more` prop so a queue's intro can fold too. The failure remedies and
@@ -49,7 +65,7 @@ T1 is this document's first slice and the proof that the rule can be kept by a t
 | T2 Connections | ✅ Done 2026-09-05 | Intro 36 → 11 words; the rotate hint folds its consequence under *Why?*; the "which side" tail 23 → 14; two labels; two probe sentences (no check for this kind, timed out) to 15. `connections.` and `probe.` under the guard; `probe.scheduling.*` named in `ALLOWED_OVER`. The add form was already behind its button, so nothing to fold there. |
 | T3 The migration's own pages — Confirm, the hub, Finish, grant links, shared addresses | ✅ Done 2026-09-05 | Eighteen strings to budget; the appliance how-to (52), the grant-link blurb (41) and the shared-addresses empty state (40) fold. The snapshot note was already inside a fold and is `confirm.snapshot.more` now, so its suffix says so. Step 4's "nobody can check this for you" folds under *More*; its warning and step 5's promise stay verbatim in `ALLOWED_OVER`. Six prefixes join the guard. |
 | T4 The queues, Verify, Sharing, the permissions handover, the small screens | ✅ Done 2026-09-05 | `sharing.intro` 44 → 12 with the settle-each-row paragraph under *More*; `permissions.body` 57 → 15 and `permissions.blindSpot` 69 → 12, the Exchange and file-platform detail under *More*; `autoApply.hint` 59 → 12 with its four conditions under *Why?*; the delete-migration sentence keeps its promise on the line. Sixteen prefixes under the guard, plus every zero-over prefix (dashboard, receipts, state words). |
-| T4b The operator's and sign-in screens — support, tenants, login, queue, billing, access, invite, notifications, redirects | 📋 Planned | `support.` 9 over (recorded, metadataOnly, notArrivedYet, seededDemoAccount at 27–30 words), `login.noOrganisation.already` (33), `redirects.intro` (45), `queue.tellThemHelp` and `queue.alreadyOwnsHelp` (44 each), `tenants.notify.intro` (30). Same rule, last prefixes into the guard. |
+| T4b The operator's and sign-in screens — support, tenants, login, queue, billing, access, invite, notifications, redirects | ✅ Done 2026-09-05 | `support.recorded` 27 → 15 with the read-log detail under *Why?*; `support.usage.note` 40 → 15; `queue.tellThemHelp` and `queue.alreadyOwnsHelp` 44 → 15 each, the public-form and double-press reasoning under *Why?*; `redirects.intro` 45 → 14 and `redirects.unconfigured` 35 → 13, the rest under *More* and *Why?*; `login.noOrganisation.already` 33 → 14. The guard now covers the whole dictionary. |
 | T5 The verbatim set | 🔨 In progress | `grant.readOnly`, `grant.disclosure`, the `failure.*` remedies, the `probe.scheduling.*` lines: **not shortened** (owner, 2026-09-05). Each goes into `ALLOWED_OVER` with that reason as its prefix comes under the guard — `probe.scheduling.*` in T2, Finish's warning and promise in T3. |
 
 ## 1. Why this exists
@@ -90,12 +106,12 @@ still open starts open — the one somebody is on.
 ### 2.2 The guard
 
 `apps/web/src/i18n/words-that-fit-on-one-line.unit.test.ts` runs the budgets over every key
-under `BUDGETED_PREFIXES`, in both languages: `.hint` 12 words and one sentence, `.intro` 15,
+in the dictionary, in both languages: `.hint` 12 words and one sentence, `.intro` 15,
 `.placeholder` 8, `.title` 8, anything else that stays on screen 15; `.why`, `.more` and a
 checklist `.detail` are folded and have no budget. The counter is pinned on its own snippets
 first (a thirteen-word hint, a two-sentence hint, a placeholder that is a sentence), so a green
-tree cannot be a counter that counts nothing. Each later slice adds its prefix; a sentence
-that must run over is named in `ALLOWED_OVER` with its reason.
+tree cannot be a counter that counts nothing. A sentence that must run over is named in
+`ALLOWED_OVER` with its reason; since T4b there is no prefix list, only that allowance.
 
 Proof by breaking, in the order it happened: the guard's first run over the rewritten
 dictionary refused two English lines — `wizard.connectionName.taken` at 16 words and

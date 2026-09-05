@@ -32,6 +32,7 @@ import { Mail, Check, X } from 'lucide-react';
 import { answerInvitation, fetchMe, type Invitation } from '../services/session.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 
 const Invitations: React.FC = () => {
@@ -175,7 +176,7 @@ const Invitations: React.FC = () => {
           </ul>
         )}
 
-        <p className="text-xs text-gray-500">{t('invite.skipHelp')}</p>
+        <Hint className="" text={t('invite.skipHelp')} why={t('invite.skipHelp.why')} />
 
         {/* Outside `Layout`, so the sidebar's stamp never reaches this page —
             and this is a page somebody sees BEFORE they are inside the app,
