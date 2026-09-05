@@ -2,6 +2,14 @@
 
 ## Status — 2026-09-05 (update this block at the end of every session)
 
+**2026-09-05, later still: T3 built — the migration's own pages**, stacked on T2. Confirm,
+the hub, Finish, the grant-link panel and the shared-addresses block: eighteen strings over
+budget, three of them long (the appliance's how-to at 52 words, the grant-link blurb at 41, the
+shared-addresses empty state at 40), each now one line with the rest under *More* or *Why?*.
+Two sentences on the Finish screen are named in the guard's allowance and untouched: what
+finishing before delivery has moved costs, and the promise that finishing removes nothing. The
+hub's intro said "five screens" above a list of six; it says neither number now.
+
 **2026-09-05, later: T2 built — the Connections page**, stacked on T1's PR. Small, as measured:
 thirty `connections.` keys with three over budget and thirty-three `probe.` keys with five, three
 of which are the invitation-safety sentences that stay verbatim and now sit in the guard's
@@ -28,9 +36,9 @@ T1 is this document's first slice and the proof that the rule can be kept by a t
 |---|---|---|
 | T1 The wizard and the setup checklist | ✅ Done 2026-09-05 | Visible words under `wizard.*` + `setup.*`: **2 671 → 1 363**; longest visible line **96 → 15 words**; 36 strings over twenty words → 0. Nothing deleted that said something: 1 282 words now sit under folds (532 before). The `Hint` component and the budget guard land here. |
 | T2 Connections | ✅ Done 2026-09-05 | Intro 36 → 11 words; the rotate hint folds its consequence under *Why?*; the "which side" tail 23 → 14; two labels; two probe sentences (no check for this kind, timed out) to 15. `connections.` and `probe.` under the guard; `probe.scheduling.*` named in `ALLOWED_OVER`. The add form was already behind its button, so nothing to fold there. |
-| T3 The migration's own pages — Confirm, MappingDetail, Finish | 📋 Planned | `confirm.noMappings.how` (52), `confirm.snapshot.note` (29), `finish.intro` (29), `finish.step4.body` (30), ten Finish panels. Finish's step bodies are instructions: fold under How?, as the checklist does. |
+| T3 The migration's own pages — Confirm, the hub, Finish, grant links, shared addresses | ✅ Done 2026-09-05 | Eighteen strings to budget; the appliance how-to (52), the grant-link blurb (41) and the shared-addresses empty state (40) fold. The snapshot note was already inside a fold and is `confirm.snapshot.more` now, so its suffix says so. Step 4's "nobody can check this for you" folds under *More*; its warning and step 5's promise stay verbatim in `ALLOWED_OVER`. Six prefixes join the guard. |
 | T4 Support, billing, sharing, moves, verify, login | 📋 Planned | `sharing.intro` (44), `moves.intro` (30), `verify.intro` (28), `login.noOrganisation.already` (33). Short screens; mostly intros that say what the heading already says. |
-| T5 The verbatim set | 🔨 In progress | `grant.readOnly`, `grant.disclosure`, the `failure.*` remedies, the `probe.scheduling.*` lines: **not shortened** (owner, 2026-09-05). Each goes into `ALLOWED_OVER` with that reason as its prefix comes under the guard — `probe.scheduling.*` did in T2. |
+| T5 The verbatim set | 🔨 In progress | `grant.readOnly`, `grant.disclosure`, the `failure.*` remedies, the `probe.scheduling.*` lines: **not shortened** (owner, 2026-09-05). Each goes into `ALLOWED_OVER` with that reason as its prefix comes under the guard — `probe.scheduling.*` in T2, Finish's warning and promise in T3. |
 
 ## 1. Why this exists
 

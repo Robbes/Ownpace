@@ -288,7 +288,7 @@ describe('the per-mapping mode (workplan 0019 T5)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Run a pass now/ }));
     await waitFor(() => expect(requestFinalPass).toHaveBeenCalledWith('acme-mail'));
-    expect(await screen.findByText(/Queued\. The pass runs as a job/)).toBeInTheDocument();
+    expect(await screen.findByText(/Queued as a job/)).toBeInTheDocument();
   });
 });
 
