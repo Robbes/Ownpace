@@ -1,6 +1,12 @@
 # Workplan 0091 — the names on one box
 
-## Status — 2026-08-20 (update this block at the end of every session)
+## Status — 2026-09-05 (update this block at the end of every session)
+
+**2026-09-05: T5 is stated.** `docs/managed-bring-up.md` gained *What cannot work on a
+mesh-only host* — Mollie's webhooks, Google's verification fetch with the redirect-URI
+exception, and the rule behind both (our browser, fine; their server, not) — placed before the
+mail section, where an operator on a mesh box reads it before wondering why a payment never
+confirmed. T1, T3 and T4 are unchanged: T1 waits on the rename itself, T3 on T1, T4 on the owner.
 
 | Task | Status | Evidence |
 |---|---|---|
@@ -8,7 +14,7 @@
 | T2 `www` — the site | ✅ **Done 2026-08-20** | `site/build.mjs` generates 10 pages — landing, how-it-works, pricing, privacy, terms — in **EN and NL** (ADR-0013), into `site/dist/`, with no workspace import and no npm dependency. Served by `deploy/compose/www.yml`. 6 guards in `site/site.unit.test.ts`, one of which caught a wrong price on its first run. |
 | T3 `ota` — the stack that already exists, under its own name | 📋 Planned (needs T1) — the identity provider's own name (`id.ota.…`) is worked through in `managed.env.example` since 0099 | Nothing to build; the stack runs. What changes is the address it believes it has. |
 | T4 `app` stays dark until it means production | 📋 Planned (owner decision) | The wildcard already resolves it *to the test box*, so the URI registered as production points at development. |
-| T5 What cannot work on the spark, said rather than discovered | 📋 Planned | Mollie's webhooks and Google's verification fetch both need public reachability; a mesh-only host has none. |
+| T5 What cannot work on the spark, said rather than discovered | ✅ **Stated 2026-09-05** | A section in `docs/managed-bring-up.md` (*What cannot work on a mesh-only host*): Mollie's webhooks need a public `API_URL` — the API's own production refusal is named beside it; Google's verification fetch reads the policy and home page from the public internet, and the redirect URI is the one exception because Google 302s the browser rather than resolving the host; and the rule for everything else. Said as what a mesh is for, not as a defect. |
 
 ## Why this exists
 

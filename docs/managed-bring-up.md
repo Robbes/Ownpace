@@ -1319,6 +1319,34 @@ be wrong silently. Neither side is the safe side; being told is.
 If you are ever unsure which environment a served `dist` was built for, read the
 host out of a *Request access* link in the page source.
 
+## What cannot work on a mesh-only host
+
+A box that is reachable only over a private mesh (NetBird, Tailscale, a
+WireGuard peer address) serves everything **your browser** asks of it, and
+nothing that **somebody else's server** has to ask of it. That one rule
+decides the following, and it is better read here than discovered:
+
+- **Mollie's payment webhooks.** `API_URL` is the address Mollie's servers call
+  to confirm a payment. A mesh address is not reachable by them, so payments
+  complete on Mollie's side while invoices never leave `sent`. That is why the
+  API refuses to boot in production with `MOLLIE_API_KEY` set and a
+  localhost `API_URL` (phase 2 above). Billing end to end needs a publicly
+  reachable host, and nobody has walked that journey on a mesh-only one.
+- **Google's verification fetch.** The OAuth verification review reads the
+  privacy policy and the home page from the public internet; a mesh-only
+  `www` is invisible to it. **The redirect URI is the one exception**: Google
+  302s *the browser* there and never resolves that host itself, so a consent
+  round trip works on the mesh while the review does not. The exception does
+  not extend to anything else on the domain.
+- **Anything else that expects an inbound connection from a third party** —
+  a provider's callback, a status checker somebody else runs, a mail server
+  delivering to you. Same rule each time: our browser, fine; their server,
+  not.
+
+None of this is a defect to fix on the box. It is what a mesh is for. When
+one of these has to work, the piece that needs it moves to a host with a
+public address, and the mesh keeps everything that never needed one.
+
 ## Mail: caught, not delivered
 
 Every mail this stack sends goes to **Mailpit**, a catcher on the compose
