@@ -278,7 +278,7 @@ const en = {
   // always in the route's answer and the wizard threw it away, so
   // `redirect_uri_mismatch` arrived naming no address (2026-09-01).
   'wizard.google.redirectUri':
-    'Add this exact address to your Google client under Authorised redirect URIs:',
+    'Register this exact address in your Google client under Authorised redirect URIs:',
   // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
   'wizard.dropbox.connect': 'Connect with Dropbox',
   'wizard.dropbox.connect.hint': 'Opens Dropbox’s consent screen and fills in the refresh token.',
@@ -289,7 +289,7 @@ const en = {
     'This deployment has its own Dropbox app; enter both to use yours instead.',
   'wizard.dropbox.ownClient': 'Use your own Dropbox app',
   'wizard.dropbox.redirectUri':
-    'Add this exact address to your Dropbox app under OAuth 2 → Redirect URIs:',
+    'Register this exact address in your Dropbox app under OAuth 2 → Redirect URIs:',
   // Connect with Microsoft (workplan 0114): the same button a third time.
   // Two things say Microsoft rather than Google or Dropbox — the words
   // "app registration" and "Microsoft Entra ID", which are the provider's
@@ -307,7 +307,7 @@ const en = {
     'This deployment has its own Microsoft app registration; enter both to use yours instead.',
   'wizard.microsoft.ownClient': 'Use your own app registration',
   'wizard.microsoft.redirectUri':
-    'Add this exact address to your app registration under Authentication → Redirect URIs:',
+    'Register this exact address in your app registration under Authentication → Redirect URIs:',
   // The tenant, which is the field Google and Dropbox have no equivalent of.
   // Empty is the RIGHT answer for almost everybody, and a hint that only said
   // "optional" would leave the one person it matters to guessing.
@@ -1891,7 +1891,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.google.ownClient': 'Uw eigen Google-client gebruiken',
   // Zie het Engelse blok.
   'wizard.google.redirectUri':
-    'Voeg dit exacte adres toe aan uw Google-client onder Geautoriseerde omleidings-URI’s:',
+    'Registreer dit exacte adres in uw Google-client onder Geautoriseerde omleidings-URI’s:',
   'wizard.dropbox.connect': 'Verbinden met Dropbox',
   'wizard.dropbox.connect.hint':
     'Opent het toestemmingsscherm van Dropbox en vult het vernieuwingstoken in.',
@@ -1903,7 +1903,7 @@ const nl: Record<keyof typeof en, string> = {
     'Deze installatie heeft een eigen Dropbox-app; vul beide in om uw eigen te gebruiken.',
   'wizard.dropbox.ownClient': 'Uw eigen Dropbox-app gebruiken',
   'wizard.dropbox.redirectUri':
-    'Voeg dit exacte adres toe aan uw Dropbox-app onder OAuth 2 → Redirect URIs:',
+    'Registreer dit exacte adres in uw Dropbox-app onder OAuth 2 → Redirect URIs:',
   'wizard.microsoft.connect': 'Verbinden met Microsoft',
   'wizard.microsoft.connect.hint':
     'Opent het toestemmingsscherm van Microsoft en vult het vernieuwingstoken in.',
@@ -1917,7 +1917,7 @@ const nl: Record<keyof typeof en, string> = {
     'Deze installatie heeft een eigen Microsoft-appregistratie; vul beide in om uw eigen te gebruiken.',
   'wizard.microsoft.ownClient': 'Uw eigen appregistratie gebruiken',
   'wizard.microsoft.redirectUri':
-    'Voeg dit exacte adres toe aan uw appregistratie onder Verificatie → Omleidings-URI’s:',
+    'Registreer dit exacte adres in uw appregistratie onder Verificatie → Omleidings-URI’s:',
   'wizard.microsoft.tenantId.hint': 'Laat leeg tenzij uw appregistratie voor één tenant is.',
   'wizard.microsoft.tenantId.why':
     'Leeg betekent de mapinstelling van deze installatie, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een registratie voor één tenant die naar de verkeerde map wordt gestuurd, mislukt met een melding dat de toepassing niet is gevonden, wat op een typefout lijkt en het niet is.',
