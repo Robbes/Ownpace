@@ -47,7 +47,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { LifeBuoy, ArrowLeft, AlertTriangle, Clock } from 'lucide-react';
-import { isFailureCategory } from '@openmig/shared';
+import { isFailureCategory, isFailureSide } from '@openmig/shared';
 import {
   listSupportTenants,
   getSupportTenant,
@@ -67,7 +67,7 @@ import {
 import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
 import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
-import { FAILURE_KEY } from '../i18n/failure-key.ts';
+import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
 
 /**
  * One fetch per screen, and no refetching.
@@ -805,7 +805,14 @@ const Remedy: React.FC<{ domain: SupportMigrationDomain }> = ({ domain }) => {
   // CHECK, so a value written by an older or newer build must not become a
   // category this screen has no sentence for.
   if (!isFailureCategory(domain.last_error_category)) return null;
-  return <p className="mt-1 text-sm text-gray-700">{t(FAILURE_KEY[domain.last_error_category])}</p>;
+  return (
+    <p className="mt-1 text-sm text-gray-700">
+      {t(FAILURE_KEY[domain.last_error_category])}
+      {/* And the side, when the pass could tell (0094 T5, second slice) — the
+          same map the customer's screen reads, so the two agree. */}
+      {isFailureSide(domain.failed_side) && <> {t(FAILURE_SIDE_KEY[domain.failed_side])}</>}
+    </p>
+  );
 };
 
 export const SupportMigrationDetail: React.FC = () => {

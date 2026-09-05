@@ -315,7 +315,7 @@ router.get(
 
         const domains = await db.execute(
           sql`SELECT domain, state, started_at, updated_at, completed_at,
-                     last_error_category, last_pass_metrics
+                     last_error_category, failed_side, last_pass_metrics
                 FROM public.support_migration_domains
                WHERE mapping_id = ${mappingId}::uuid ORDER BY domain`,
         );

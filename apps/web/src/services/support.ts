@@ -95,6 +95,8 @@ export interface SupportMigrationDomain {
   readonly completed_at: string | null;
   readonly last_error_category: string | null;
   readonly last_pass_metrics: unknown;
+  /** Which side the pass named (0094 T5). Absent on a view that predates it. */
+  readonly failed_side?: string | null;
 }
 
 /**

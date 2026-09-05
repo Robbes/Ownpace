@@ -231,6 +231,7 @@ describe('one migration', () => {
         completed_at: null,
         last_error_category: 'auth_expired',
         last_pass_metrics: null,
+        failed_side: 'source',
       },
     ],
   };
@@ -242,7 +243,19 @@ describe('one migration', () => {
     // cannot leave the operator and the customer reading different advice.
     migrationMock.mockResolvedValue(MIGRATION);
     mount(<SupportMigrationDetail />, '/support/migrations/m1', '/support/migrations/:mappingId');
-    expect(await screen.findByText(STRINGS.en['failure.authExpired'])).toBeInTheDocument();
+    expect(await screen.findByText(new RegExp(STRINGS.en['failure.authExpired'].slice(0, 40)))).toBeInTheDocument();
+    // And the side the pass named (0094 T5) — the same words the customer reads.
+    expect(screen.getByText(new RegExp(STRINGS.en['failure.side.source']))).toBeInTheDocument();
+  });
+
+  it('says nothing about the side when the view predates it, or the pass could not tell', async () => {
+    migrationMock.mockResolvedValue({
+      ...MIGRATION,
+      domains: [{ ...MIGRATION.domains[0]!, failed_side: null }],
+    });
+    mount(<SupportMigrationDetail />, '/support/migrations/m1', '/support/migrations/:mappingId');
+    expect(await screen.findByText(new RegExp(STRINGS.en['failure.authExpired'].slice(0, 40)))).toBeInTheDocument();
+    expect(screen.queryByText(/side\./)).not.toBeInTheDocument();
   });
 
   it('says there is no screen below this one', async () => {
