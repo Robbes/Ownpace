@@ -842,6 +842,12 @@ services:
       MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
       MICROSOFT_OAUTH_TENANT: ${MICROSOFT_OAUTH_TENANT:-}
       API_URL: ${API_URL:-http://localhost:3001}
+      # Where the API reads the status page's own endpoint list, for the
+      # operator's support screen (0110 T5): the gatus container on this
+      # stack's network. The screen shows what the public page shows and no
+      # more. No `depends_on` on gatus for the same reason gatus has none on
+      # us — a page that does not answer is one of the screen's answers.
+      STATUS_URL: ${STATUS_URL:-http://gatus:8080}
       # How long a backup of this database is kept. Not a schedule — it is what
       # the close endpoint TELLS a customer about when their erasure actually
       # completes (0085 T5). Unset means the 7-day default in @openmig/shared.

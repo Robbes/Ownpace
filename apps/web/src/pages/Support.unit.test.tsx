@@ -36,8 +36,10 @@ import {
   getSupportMigration,
   searchSupportPeople,
   recordPersonOpened,
+  getSupportPlatform,
   type SupportTenantUsage,
   type SupportTenantMember,
+  type PlatformStatus,
 } from '../services/support.ts';
 import { STRINGS } from '../i18n/strings.ts';
 
@@ -47,6 +49,7 @@ vi.mock('../services/support.ts', () => ({
   getSupportMigration: vi.fn(),
   searchSupportPeople: vi.fn(),
   recordPersonOpened: vi.fn(),
+  getSupportPlatform: vi.fn(),
 }));
 
 /**
@@ -80,6 +83,13 @@ vi.mock('../services/idp-console.ts', async (importOriginal) => {
 const listMock = vi.mocked(listSupportTenants);
 const tenantMock = vi.mocked(getSupportTenant);
 const migrationMock = vi.mocked(getSupportMigration);
+const platformMock = vi.mocked(getSupportPlatform);
+
+/** A healthy platform, which is what every tenant-screen case not about it gets. */
+const PLATFORM_OK: PlatformStatus = {
+  ready: { status: 'ok', database: 'up', signIn: 'up' },
+  statusPage: { state: 'off' },
+};
 
 const TENANT = {
   tenant_id: 'a1b2c3d4-0000-0000-0000-000000000001',
@@ -108,6 +118,7 @@ beforeEach(() => {
   listMock.mockReset();
   tenantMock.mockReset();
   migrationMock.mockReset();
+  platformMock.mockReset().mockResolvedValue(PLATFORM_OK);
 });
 
 describe('the list of organisations', () => {
@@ -718,5 +729,69 @@ describe('finding a person', () => {
     searchMock.mockResolvedValue({ people: [], limit: 50 });
     await search('nobody');
     expect(await screen.findByText(STRINGS.en['support.noPeopleFound'])).toBeInTheDocument();
+  });
+});
+
+describe('the platform status the customer sees (workplan 0110 T5)', () => {
+  const DETAIL_FOR_PLATFORM = {
+    tenant: TENANT,
+    connections: [],
+    migrations: [],
+    invoices: [],
+    usage: null,
+    members: [],
+  };
+  const show = () => {
+    tenantMock.mockResolvedValue(DETAIL_FOR_PLATFORM as never);
+    mount(<SupportTenantDetail />, `/support/tenants/${TENANT.tenant_id}`, '/support/tenants/:tenantId');
+  };
+
+  it('reads readiness and the page, grouped as the page groups them, with a down endpoint called out', async () => {
+    platformMock.mockResolvedValue({
+      ready: { status: 'degraded', database: 'up', signIn: 'down' },
+      statusPage: {
+        state: 'up',
+        endpoints: [
+          { group: 'Sources', name: 'Google Workspace', state: 'down', checkedAt: '2026-09-05T13:05:00Z' },
+          { group: 'Ownpace', name: 'Identity provider', state: 'up', checkedAt: '2026-09-05T13:05:00Z' },
+          { group: 'Ownpace', name: 'Website', state: 'unchecked', checkedAt: null },
+        ],
+      },
+    });
+    show();
+
+    expect(await screen.findByText(STRINGS.en['support.platform'])).toBeInTheDocument();
+    // The data arrives after the heading: wait for the first line of it.
+    expect(await screen.findByText('Google Workspace down')).toBeInTheDocument();
+    expect(screen.getByText('Google Workspace down').className).toContain('text-red-700');
+    expect(screen.getByText('Identity provider up')).toBeInTheDocument();
+    expect(screen.getByText('Website not checked yet')).toBeInTheDocument();
+    expect(screen.getByText('Sources:')).toBeInTheDocument();
+    expect(screen.getByText('Ownpace:')).toBeInTheDocument();
+    // Readiness, component by component — never the roll-up alone.
+    expect(screen.getByText('Sign-in').nextElementSibling?.textContent).toBe('down');
+    expect(screen.getByText(/^Checked /)).toBeInTheDocument();
+  });
+
+  it('says a deployment without a page has none, rather than showing an empty list', async () => {
+    show();
+    expect(await screen.findByText(STRINGS.en['support.platform.page.off'])).toBeInTheDocument();
+    expect(screen.queryByText(/^Checked /)).toBeNull();
+  });
+
+  it('says when the page did not answer — on a stack that has one, that is news', async () => {
+    platformMock.mockResolvedValue({ ...PLATFORM_OK, statusPage: { state: 'unreachable' } });
+    show();
+    expect(
+      await screen.findByText(STRINGS.en['support.platform.page.unreachable']),
+    ).toBeInTheDocument();
+  });
+
+  it('does not take the tenant screen down with it when it cannot be read', async () => {
+    platformMock.mockRejectedValue(new Error('boom'));
+    show();
+    expect(await screen.findByText(STRINGS.en['support.platform.unread'])).toBeInTheDocument();
+    // The tenant's own facts are still there.
+    expect(screen.getByText('Alpha BV')).toBeInTheDocument();
   });
 });

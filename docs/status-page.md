@@ -38,6 +38,17 @@ the same conversation.
 moment somebody wanted to read it. So the page can still tell you what happened
 last Tuesday even though it could not tell you at the time.
 
+## The operator's screen reads the same page
+
+The support screen's tenant view carries *Platform, as the customer sees it*:
+readiness, component by component, and this page's own endpoint list — group,
+name, up or down, and when — read from the `gatus` container over the compose
+network (`STATUS_URL`, defaulting to it). Nothing more than the page shows
+leaves that way: the probed hostnames, condition text and error strings in
+Gatus's JSON stay on the box. A stack without a page says so on that screen; a
+page that does not answer is reported as exactly that, which on a stack that
+has one is news in itself.
+
 ## What the groups mean
 
 | Group | What a red light means |

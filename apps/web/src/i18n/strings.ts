@@ -1007,6 +1007,20 @@ const en = {
   'support.noConnections': 'No connections.',
   'support.noMigrations': 'No migrations.',
   'support.noInvoices': 'No invoices.',
+  // The platform status the customer sees (workplan 0110 T5): readiness and
+  // the status page's endpoints. The group names are the page's own.
+  'support.platform': 'Platform, as the customer sees it',
+  'support.platform.database': 'Database',
+  'support.platform.signIn': 'Sign-in',
+  'support.platform.state.up': 'up',
+  'support.platform.state.down': 'down',
+  'support.platform.state.off': 'off',
+  'support.platform.state.unchecked': 'not checked yet',
+  'support.platform.page.off': 'This deployment has no status page.',
+  'support.platform.page.unreachable':
+    'The status page did not answer. On a stack that has one, that is news in itself.',
+  'support.platform.unread': 'The platform status could not be read.',
+  'support.platform.checked': 'Checked {when}.',
   'support.noDomains': 'Nothing has run yet.',
   'support.waiting.none': 'Nothing is waiting on them.',
   'support.waiting.some':
@@ -1665,6 +1679,18 @@ const nl: Record<keyof typeof en, string> = {
   'support.noConnections': 'Geen verbindingen.',
   'support.noMigrations': 'Geen migraties.',
   'support.noInvoices': 'Geen facturen.',
+  'support.platform': 'Platform, zoals de klant het ziet',
+  'support.platform.database': 'Database',
+  'support.platform.signIn': 'Inloggen',
+  'support.platform.state.up': 'in orde',
+  'support.platform.state.down': 'uitgevallen',
+  'support.platform.state.off': 'uit',
+  'support.platform.state.unchecked': 'nog niet gecontroleerd',
+  'support.platform.page.off': 'Deze installatie heeft geen statuspagina.',
+  'support.platform.page.unreachable':
+    'De statuspagina antwoordde niet. Op een omgeving die er een heeft, is dat op zichzelf nieuws.',
+  'support.platform.unread': 'De platformstatus kon niet worden gelezen.',
+  'support.platform.checked': 'Gecontroleerd {when}.',
   'support.noDomains': 'Er is nog niets gedraaid.',
   'support.waiting.none': 'Er wacht niets op hen.',
   'support.waiting.some':

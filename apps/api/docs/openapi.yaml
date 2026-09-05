@@ -3568,6 +3568,68 @@ paths:
                     items: { $ref: '#/components/schemas/SupportRetainedInvoice' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /api/support/platform:
+    get:
+      tags: [Support]
+      summary: The platform status the customer sees
+      description: |
+        The operator's second level owes "the platform status the customer
+        sees" (workplan 0110 T5, owner's answer 3: platform-wide is enough).
+        Two sources, both of which the customer can already read: readiness
+        (`/api/ready`, called in-process rather than fetched) and the status
+        page's own endpoint list, shaped to the four things the public page
+        shows — group, name, up or down, and when. Gatus's JSON also carries
+        the probed hostname, condition text and error strings; none of that
+        leaves here.
+
+        The one support operation that is NOT a read of a customer: it needs
+        no operator predicate (everything it serves is public already) and
+        records no `support_read` row (the log names whose data was looked
+        at, and this is of nobody). Signed in all the same.
+
+        `statusPage.state` is `off` when the deployment has no status page
+        (`STATUS_URL` unset — the self-host edition), `unreachable` when it
+        has one that did not answer within the deadline, and `up` with the
+        endpoints otherwise. No reason travels with either absence; the log
+        has it.
+      responses:
+        '200':
+          description: Readiness, and the status page's endpoints or why there are none.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ready, statusPage]
+                properties:
+                  ready:
+                    type: object
+                    required: [status, database, signIn]
+                    properties:
+                      status: { type: string, enum: [ok, degraded, down] }
+                      database: { type: string, enum: [up, down, off] }
+                      signIn: { type: string, enum: [up, down, off] }
+                  statusPage:
+                    type: object
+                    required: [state]
+                    properties:
+                      state: { type: string, enum: [up, off, unreachable] }
+                      endpoints:
+                        type: array
+                        description: Present only when `state` is `up`. The newest result decides each state.
+                        items:
+                          type: object
+                          required: [group, name, state, checkedAt]
+                          properties:
+                            group: { type: string }
+                            name: { type: string }
+                            state: { type: string, enum: [up, down, unchecked] }
+                            checkedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                              description: When the newest result was taken; null when none has been.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
 components:
   securitySchemes:
     bearerAuth:

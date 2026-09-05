@@ -262,3 +262,42 @@ export function recordPersonOpened(tenantId: string, userId: string): void {
       console.error('could not record that an account was opened', err);
     });
 }
+
+/** One of readiness's two checks, or the status page's answer for one endpoint. */
+export type PlatformCheck = 'up' | 'down' | 'off';
+
+/**
+ * The platform status the customer sees (workplan 0110 T5): readiness and
+ * the status page's endpoints — group, name, state and when, the four things
+ * the public page shows. Never a probed hostname: the route builds those four
+ * fields and nothing else. `off` is a deployment without a page (the
+ * self-host edition); `unreachable` is a page that did not answer.
+ */
+export interface PlatformStatus {
+  readonly ready: {
+    readonly status: 'ok' | 'degraded' | 'down';
+    readonly database: PlatformCheck;
+    readonly signIn: PlatformCheck;
+  };
+  readonly statusPage:
+    | {
+        readonly state: 'up';
+        readonly endpoints: ReadonlyArray<{
+          readonly group: string;
+          readonly name: string;
+          readonly state: 'up' | 'down' | 'unchecked';
+          readonly checkedAt: string | null;
+        }>;
+      }
+    | { readonly state: 'off' }
+    | { readonly state: 'unreachable' };
+}
+
+/**
+ * Not a level and not a customer: the one call here that writes no
+ * `support_read` row, because what it reads is of nobody.
+ */
+export async function getSupportPlatform(): Promise<PlatformStatus> {
+  const response = await apiClient.get<PlatformStatus>('/support/platform');
+  return response.data;
+}
