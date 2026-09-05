@@ -58,6 +58,8 @@ import { recordSupportRead, observedTier } from '@openmig/managed';
 import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
+import { readiness } from './ready.ts';
+import { readStatusPage, type PlatformStatus } from './platform-status.ts';
 
 const router = Router();
 
@@ -549,5 +551,38 @@ router.get(
     }
   },
 );
+
+/**
+ * THE PLATFORM STATUS THE CUSTOMER SEES (workplan 0110 T5, the last half).
+ *
+ * The one route here that is not a read of a customer, and the two rules in
+ * this file's header bend for it — each for a reason said here rather than
+ * assumed, so that nobody later "fixes" the omission:
+ *
+ *  - **No view and no operator predicate**, because what it serves is public
+ *    already: `/api/ready` answers unauthenticated, and the status page IS the
+ *    public page. This shapes those for the screen and strips the internal
+ *    names Gatus's JSON carries (`platform-status.ts`). There is nothing here
+ *    an operator may see and a customer may not, so a predicate would guard
+ *    nothing. Signed in all the same: it is the support surface's door.
+ *  - **No `support_read` row**, because the log records what was looked at,
+ *    of whom. A platform status is of nobody, and a row naming no
+ *    organisation for every visit to a tenant screen would dilute the record
+ *    it exists to be.
+ *
+ * Readiness is CALLED rather than fetched: same process, same pool, and a
+ * fetch of our own address would only prove the container reaches itself.
+ */
+router.get('/platform', authenticateSubject, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const [ready, statusPage] = await Promise.all([
+      readiness(),
+      readStatusPage(process.env.STATUS_URL),
+    ]);
+    res.json({ ready, statusPage } satisfies PlatformStatus);
+  } catch (error) {
+    serverFault(res, 'platform_failed', 'reading the platform status', error);
+  }
+});
 
 export default router;
