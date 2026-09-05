@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 90 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 91 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -670,6 +670,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/shared/src/verification-report.ts`
 
+- [a-domain-the-readme-forgot](../scripts/a-domain-the-readme-forgot.unit.test.ts) — DOCUMENTATION IS A FAN-OUT SITE, AND PROSE HAS NO TYPE CHECKER.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 
 ### `packages/testing/fixtures/stalwart/config.json`
@@ -967,6 +968,14 @@ Reads:
 
 - `packages/orchestration/src/orchestration.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+
+### [a-domain-the-readme-forgot](../scripts/a-domain-the-readme-forgot.unit.test.ts)
+
+DOCUMENTATION IS A FAN-OUT SITE, AND PROSE HAS NO TYPE CHECKER.
+
+Reads:
+
+- `packages/shared/src/verification-report.ts`
 
 ### [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts)
 
