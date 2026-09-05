@@ -20,13 +20,20 @@ import { describe, it, expect } from 'vitest';
 import { STRINGS, LOCALES, type StringKey } from './strings.ts';
 
 /** The screens brought under the rule so far. */
-export const BUDGETED_PREFIXES: ReadonlyArray<string> = ['wizard.', 'setup.', 'fold.'];
+export const BUDGETED_PREFIXES: ReadonlyArray<string> = ['wizard.', 'setup.', 'fold.', 'connections.', 'probe.'];
 
 /** Folded copy: opens under a word, so it has no budget. */
 const FOLDED = /\.(why|more|detail)$/;
 
 /** key → why it may run over. Keep this SHORT. */
-const ALLOWED_OVER: Readonly<Record<string, string>> = {};
+const ALLOWED_OVER: Readonly<Record<string, string>> = {
+  // The three invitation-safety sentences on a calendar target (0106 T0):
+  // measured, unmeasured, absent. Safety sentences stay verbatim — owner,
+  // 2026-09-05 — because a shorter one would promise less than is measured.
+  'probe.scheduling.autoSchedule': 'safety sentence, verbatim by owner decision',
+  'probe.scheduling.none': 'safety sentence, verbatim by owner decision',
+  'probe.scheduling.unknown': 'safety sentence, verbatim by owner decision',
+};
 
 export type Budget = { readonly words: number; readonly oneSentence: boolean };
 

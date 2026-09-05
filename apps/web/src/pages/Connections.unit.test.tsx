@@ -398,7 +398,7 @@ describe('deleting a connection', () => {
     expect(screen.getByText(/Acme files/)).toBeTruthy();
     // ...and the frame is the dictionary's, which is what makes it Dutch
     // under nl rather than a paragraph nobody translated.
-    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.why']))).toBeTruthy();
+    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.reason']))).toBeTruthy();
   });
 
   it('says it in Dutch even when the migration has no name (0072)', async () => {
@@ -420,7 +420,7 @@ describe('deleting a connection', () => {
     fireEvent.click(await screen.findByText('Delete'));
 
     expect(await screen.findByText(new RegExp(STRINGS.en['connections.inUse.unnamed']))).toBeTruthy();
-    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.why']))).toBeTruthy();
+    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.reason']))).toBeTruthy();
     // The server's English sentence must NOT be what reaches the screen.
     expect(screen.queryByText(/still used by 1 mailbox/)).toBeNull();
   });
@@ -509,7 +509,7 @@ describe('adding a connection through the front door', () => {
     fireEvent.change(screen.getByLabelText(/^Where the archive is/), {
       target: { value: '/srv/exports/takeout-20260904' },
     });
-    fireEvent.change(screen.getByLabelText(/^Name it/), { target: { value: 'my photos' } });
+    fireEvent.change(screen.getByLabelText(/^Connection name/), { target: { value: 'my photos' } });
     add.mockResolvedValue({ ok: true });
     fireEvent.click(screen.getByRole('button', { name: 'Add and test' }));
     await waitFor(() => expect(add).toHaveBeenCalled());
