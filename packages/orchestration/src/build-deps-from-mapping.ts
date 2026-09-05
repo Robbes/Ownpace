@@ -58,6 +58,7 @@ import {
   STORED_BOX_CREDENTIAL_NAMES,
   buildBoxSourceFrom,
 } from './box-source-factory.ts';
+import { buildArchiveSourceFrom } from './archive-source-factory.ts';
 import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory.ts';
 import {
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
@@ -918,23 +919,14 @@ export function buildFileSourceFromConnection(src: {
         STORED_GOOGLE_CREDENTIAL_NAMES,
       );
     case 'archive':
-      // AN HONEST GAP, not a fall-through (workplan 0116 T1). An export
-      // archive can be connected, tested and measured today; copying items OUT
-      // of one is T5 (placement — where items land, albums as folders, the
-      // manifest) and T6 (idempotency by content hash), and neither is built.
-      //
-      // The create-mapping door refuses an archive source by name, so nothing
-      // should reach here. This is the second wall, and it exists because the
-      // first one is a validator somebody could widen: without this arm the
-      // face resolves to `dav`, a WebDAV client is aimed at a folder on a
-      // disk, and the failure blames a missing password for a kind that has
-      // none.
-      throw new Error(
-        'migrating FROM an export archive is not built yet: an archive connection can be ' +
-          'tested and measured (how many items, how many bytes, which folders, what date ' +
-          'range the export covers), and the import itself follows in a later release. ' +
-          'This is a gap in this product, not a limit of the export.',
-      );
+      // THE EXPORT ARCHIVE (workplan 0116 T5/T6): a file source over whichever
+      // reader knows this export, with placement and the manifest inside it and
+      // the loop's absence-counting switched off by the source itself — see
+      // `ArchiveFileSource`. No credential is read, because the row stores
+      // none: the config IS the credential, a location. This arm existed as a
+      // refusal from T1, so that a kind claiming the file face could never
+      // fall through to `dav` and aim a WebDAV client at a folder on a disk.
+      return buildArchiveSourceFrom(src.config);
     case 'dav':
       return buildFileSource(fileEndpointFromCreds('source', src.config, src.creds, src.kind));
     default:

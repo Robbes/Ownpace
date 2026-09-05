@@ -168,6 +168,16 @@ const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
       CREDS.secret,
     ],
   },
+  // The export archive (workplan 0116 T5/T6): no username, no secret. Which
+  // export is a CHOICE — the `<select>` takes a change event like any input —
+  // and where it is, is a path.
+  {
+    name: 'Export archive',
+    required: [
+      [/^Which export/, 'google-takeout'],
+      [/^Where the archive is/, '/srv/exports/takeout-20260904'],
+    ],
+  },
 ];
 
 /** Field labels a blocked-reason line is allowed to name, per the strings. */
@@ -181,6 +191,8 @@ const GATE_LABELS = [
   'Source Username',
   'Source client secret',
   'Refresh token',
+  'Which export',
+  'Where the archive is',
 ];
 
 describe('every source type gets past its own first step', () => {

@@ -35,16 +35,16 @@ export interface FrontDoorCard {
    * The two doors are not the same question. "Add a connection" asks whether
    * this product can reach something; "create a migration" asks it to copy
    * out of it, and a kind can honestly answer the first and not yet the
-   * second. The export archive is the first such kind: it connects, it is
-   * tested, and its measure is read — items, bytes, folders, the date range
-   * the export covers — which is precisely what somebody wants before
-   * committing to a multi-gigabyte import. Copying items out is 0116 T5/T6
-   * and is not built, and the create route refuses an archive source by name.
+   * second. The export archive was the first such kind: for one slice it
+   * connected, tested and measured — items, bytes, folders, the date range
+   * the export covers — while copying items out (0116 T5/T6) was not built
+   * and the create route refused an archive source by name. Since T5/T6 it
+   * migrates, and no card carries this flag.
    *
-   * So the wizard does not offer the card. A card that walks six steps and
-   * ends in a refusal is worse than one that is not there: it spends
-   * somebody's attention to tell them no. The Connections page shows it,
-   * where every one of its answers is true.
+   * The flag stays, for the next kind that arrives in that state. A card that
+   * walks six steps and ends in a refusal is worse than one that is not
+   * there: it spends somebody's attention to tell them no. The Connections
+   * page shows it, where every one of its answers is true.
    */
   readonly connectionOnly?: boolean;
 }
@@ -88,13 +88,9 @@ export const SOURCE_CARDS = [
   // The EXPORT ARCHIVE (workplan 0116 T1) — one card for both exports, because
   // which export it is (`ARCHIVE_PROVIDERS`) is a field ON the connection and
   // not a kind of its own. Named for what it is rather than for either
-  // gatekeeper, so a third export joins it without renaming anything.
-  {
-    id: 'archive',
-    name: 'Export archive',
-    hintKey: 'wizard.proto.archive.hint',
-    connectionOnly: true,
-  },
+  // gatekeeper, so a third export joins it without renaming anything. It was
+  // `connectionOnly` for one slice; since T5/T6 the wizard offers it too.
+  { id: 'archive', name: 'Export archive', hintKey: 'wizard.proto.archive.hint' },
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export const TARGET_CARDS = [
@@ -114,11 +110,11 @@ export type SourceCard = (typeof SOURCE_CARDS)[number];
  *
  * A type rather than a runtime check alone, and that is the load-bearing half:
  * the wizard's `FormData.sourceType` is `CreateMappingInput['sourceType']`,
- * which the create route's enum defines and which does NOT include `archive`.
- * Handing the chooser plain `SourceCard`s made the wizard fail to compile —
- * correctly — because it could then have set a source type the API refuses.
- * With this, the compiler is what keeps the wizard out of the archive, rather
- * than a filter somebody could quietly drop.
+ * which the create route's enum defines. While the archive was connection-only
+ * that union did not include it, so handing the chooser plain `SourceCard`s
+ * made the wizard fail to compile — correctly — because it could then have set
+ * a source type the API refuses. The compiler, not a filter somebody could
+ * quietly drop, is what keeps the wizard out of a kind in that state.
  */
 export type MigratableSourceCard = Exclude<SourceCard, { connectionOnly: true }>;
 export type TargetCard = (typeof TARGET_CARDS)[number];

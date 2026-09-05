@@ -348,17 +348,19 @@ const en = {
     'app-specific password at account.apple.com → Sign-In and Security → App-Specific ' +
     'Passwords, and paste it. It reaches your mail, calendars, contacts and reminders, and ' +
     'you can revoke it there on its own whenever you like.',
-  // THE EXPORT ARCHIVE (workplan 0116 T1). One card for two exports, and the
-  // hint has to carry the thing the card name cannot: this is a SNAPSHOT with
-  // a date on it, not a live account, and it is offered on this page and not
-  // in the migration wizard because reaching it and copying out of it are two
-  // different promises and only the first is kept today.
+  // THE EXPORT ARCHIVE (workplan 0116 T1; a migration source since T5/T6).
+  // One card for two exports, and the hint has to carry the two things the
+  // card name cannot: this is a SNAPSHOT with a date on it, not a live
+  // account — and because it is, a later export only ever ADDS: nothing is
+  // removed from the target because an export no longer mentions it (§5).
   'wizard.proto.archive.hint':
     'A Google Takeout or Apple Data & Privacy export you already downloaded — for photos and ' +
-    'files, which neither company offers any other way. Connect it here to see what it holds: ' +
-    'how many items, how many bytes, which folders, and the dates the export covers. An ' +
-    'archive is a snapshot of the day it was prepared, not a live account, so migrating from ' +
-    'one is a separate step and is not built yet.',
+    'files, which neither company offers any other way. Connecting it shows what it holds: ' +
+    'how many items, how many bytes, which albums, and the dates it covers. Migrating from it ' +
+    'copies the photos into folders named after your albums, once per album, with one file ' +
+    'listing everything Google knew about each. An archive is a snapshot of the day it was ' +
+    'prepared, so a later export only adds — nothing is ever removed because an export no ' +
+    'longer mentions it.',
   'wizard.archiveProvider': 'Which export',
   'wizard.archiveProvider.hint':
     'Which company made this archive. It decides how we read it, and there is no way to tell ' +
@@ -1950,10 +1952,12 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.archive.hint':
     'Een Google Takeout- of Apple Data en Privacy-export die u al hebt gedownload — voor ' +
     'foto\u0027s en bestanden, waarvoor geen van beide bedrijven een andere weg biedt. ' +
-    'Koppel hem hier om te zien wat erin zit: hoeveel items, hoeveel bytes, welke mappen en ' +
-    'welke periode de export beslaat. Een archief is een momentopname van de dag waarop het ' +
-    'is klaargezet, geen live account, dus migreren vanuit een archief is een aparte stap en ' +
-    'is nog niet gebouwd.',
+    'Koppelen laat zien wat erin zit: hoeveel items, hoeveel bytes, welke albums en welke ' +
+    'periode de export beslaat. Migreren kopieert de foto\u0027s naar mappen met de namen ' +
+    'van uw albums, één keer per album, met één bestand waarin alles staat wat Google over ' +
+    'elke foto wist. Een archief is een momentopname van de dag waarop het is klaargezet, ' +
+    'dus een latere export voegt alleen toe — er wordt nooit iets verwijderd omdat een ' +
+    'export het niet meer noemt.',
   'wizard.archiveProvider': 'Welke export',
   'wizard.archiveProvider.hint':
     'Welk bedrijf dit archief heeft gemaakt. Dat bepaalt hoe wij het lezen, en aan de ' +

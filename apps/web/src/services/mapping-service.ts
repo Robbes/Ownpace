@@ -204,10 +204,7 @@ export const CreateMappingResponseSchema = z.object({
     'google',
     'dropbox',
     'box',
-    // An EXPORT ARCHIVE (workplan 0116 T1). Present in the READ enum although
-    // the wizard cannot create one: this schema parses what the server
-    // returns, and an archive row exists as a connection the moment somebody
-    // adds one on the Connections page.
+    // An EXPORT ARCHIVE (workplan 0116 T1; a mapping source since T5/T6).
     'archive',
   ]),
   targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin']),
@@ -238,7 +235,11 @@ export interface CreateMappingInput {
     | 'dropbox'
     | 'box'
     | 'google-contacts'
-    | 'google';
+    | 'google'
+    // An EXPORT ARCHIVE (workplan 0116 T5/T6): a mapping can be created from
+    // one since placement and idempotency were built. Its credential is a
+    // location, carried in `sourceConfig.provider` and `.path`.
+    | 'archive';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
   /** Reuse a stored connection instead of creating one (workplan 0064). When
    *  set, its credentials are used and none need re-sending. */
@@ -263,6 +264,10 @@ export interface CreateMappingInput {
     rootFolderId?: string;
     /** Box only (workplan 0056): the numeric user id the CCG token reads for. */
     userId?: string;
+    /** Archive only (workplan 0116): WHICH export — `google-takeout` or `apple-privacy`. */
+    provider?: string;
+    /** Archive only: WHERE the extracted export is. Not a secret. */
+    path?: string;
   };
   targetConfig: {
     host: string;

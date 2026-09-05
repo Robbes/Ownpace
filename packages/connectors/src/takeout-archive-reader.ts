@@ -181,8 +181,23 @@ interface Found {
   readonly mediaName: string;
 }
 
+/** One walk of the tree, and everything the walk learned. */
+interface Collapsed {
+  readonly items: ReadonlyArray<ArchiveItem>;
+  /** Content hash → the absolute path of ONE copy of those bytes. */
+  readonly whereabouts: ReadonlyMap<string, string>;
+}
+
 interface TakeoutHandle extends ArchiveHandle {
   readonly root: string;
+  /**
+   * The collapse, ONCE per open handle (workplan 0116 T5). `summary()` and
+   * `items()` used to walk and hash the whole tree each on their own, which
+   * was tolerable while the measure was the only caller and is not once the
+   * import asks for every item's bytes after them. Held on the handle rather
+   * than the reader so two archives opened by one reader never share a walk.
+   */
+  collapsed?: Promise<Collapsed>;
 }
 
 async function listFolders(photosRoot: string): Promise<string[]> {
@@ -223,7 +238,7 @@ function takenAt(sidecar: Sidecar | undefined): string | undefined {
 }
 
 export function createTakeoutArchiveReader(): ArchiveReader {
-  const collapse = async (handle: TakeoutHandle): Promise<ArchiveItem[]> => {
+  const collapse = async (handle: TakeoutHandle): Promise<Collapsed> => {
     const photosRoot = join(handle.root, PHOTOS_ROOT);
     const found = await findMedia(photosRoot);
 
@@ -248,9 +263,12 @@ export function createTakeoutArchiveReader(): ArchiveReader {
     const stills = stillsByStem(found.map((f) => f.mediaName));
 
     const items: ArchiveItem[] = [];
+    const whereabouts = new Map<string, string>();
     for (const [contentHash, { copies, sizeBytes }] of byHash) {
       const first = copies[0]!;
+      whereabouts.set(contentHash, first.absolutePath);
       const folders = copies.map((c) => c.folder);
+      const albums = folders.filter((f) => !YEAR_FOLDER.test(f));
       // EVERY copy is asked, not just the first one met. Takeout writes the
       // sidecar beside ONE of the copies — often the year folder's — and which
       // copy `readdir` returns first is alphabetical accident. Looking only
@@ -274,19 +292,26 @@ export function createTakeoutArchiveReader(): ArchiveReader {
         path: first.mediaName,
         sizeBytes,
         folders,
+        // The person's albums, or — for a photo in none — the year folder,
+        // which is then the only home the export gave it (0116 T5; 0112 §3's
+        // "the year folder is not reproduced" is about a photo that HAS an
+        // album, so the album is not written twice).
+        placeIn: albums.length > 0 ? albums : folders.filter((f) => YEAR_FOLDER.test(f)),
         ...(createdAt ? { createdAt } : {}),
         metadata: {
           // Verbatim (0116 T2, rule 3): this reader cannot know which field a
           // later task needs, and the archive's link expires.
           ...(sidecar ? { sidecar } : {}),
-          albums: folders.filter((f) => !YEAR_FOLDER.test(f)),
+          albums,
           years: folders.filter((f) => YEAR_FOLDER.test(f)),
           sidecarFound: sidecar !== undefined,
         },
       });
     }
-    return items;
+    return { items, whereabouts };
   };
+  const collapsedOnce = (handle: TakeoutHandle): Promise<Collapsed> =>
+    (handle.collapsed ??= collapse(handle));
 
   return {
     provider: 'google-takeout',
@@ -316,13 +341,27 @@ export function createTakeoutArchiveReader(): ArchiveReader {
     },
 
     async *items(handle: ArchiveHandle): AsyncIterable<ArchiveItem> {
-      yield* await collapse(handle as TakeoutHandle);
+      yield* (await collapsedOnce(handle as TakeoutHandle)).items;
+    },
+
+    async content(handle: ArchiveHandle, item: ArchiveItem): Promise<Uint8Array> {
+      // By hash, not by name: the same bytes sit under up to four names, and
+      // any one of them serves. An item this handle never listed is a caller
+      // mixing two archives, which is a bug worth a sentence and not a
+      // silent read of whatever happens to be at a guessed path.
+      const at = (await collapsedOnce(handle as TakeoutHandle)).whereabouts.get(item.contentHash);
+      if (!at) {
+        throw new Error(
+          `This archive holds no item with hash ${item.contentHash.slice(0, 12)}… (${item.path}).`,
+        );
+      }
+      return new Uint8Array(await readFile(at));
     },
 
     async summary(handle: ArchiveHandle): Promise<ArchiveSummary> {
       // Derived from the SAME collapse the iteration uses, so the measure can
       // never promise a number the import then contradicts.
-      const items = await collapse(handle as TakeoutHandle);
+      const { items } = await collapsedOnce(handle as TakeoutHandle);
       const dates = items.map((i) => i.createdAt).filter((d): d is string => Boolean(d)).sort();
       // Seeded with every kind at zero rather than counted up from what is
       // present, so a breakdown always has all three keys: a surface reading

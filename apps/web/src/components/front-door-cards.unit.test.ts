@@ -30,18 +30,15 @@ describe('the front door offers exactly what the product accepts', () => {
     },
   );
 
-  it('a connection-only kind is offered on the connections page and NOT in the wizard', () => {
+  it('the export archive is offered at BOTH doors now that it migrates (0116 T5/T6)', () => {
     // The two doors ask different questions (workplan 0116 T1). "Add a
     // connection" asks whether this product can REACH something; "create a
-    // migration" asks it to copy OUT of it, and a kind can honestly answer the
-    // first and not the second. The export archive is the first such kind:
-    // it connects, tests and measures, and the create route refuses it as a
-    // mapping source by name.
-    //
-    // A card walking six wizard steps to a refusal is worse than one that is
-    // not there — it spends somebody's attention to tell them no.
+    // migration" asks it to copy OUT of it. For one slice the archive could
+    // honestly answer only the first, and the wizard did not offer it — a
+    // card walking six steps to a refusal spends somebody's attention to tell
+    // them no. Since T5/T6 it copies out, so both doors offer it.
     expect(SOURCE_CARDS.map((c) => c.id)).toContain('archive');
-    expect(migratableSourceCards().map((c) => c.id)).not.toContain('archive');
+    expect(migratableSourceCards().map((c) => c.id)).toContain('archive');
   });
 
   it('the wizard drops ONLY the connection-only cards — not a hand-copied list', () => {
