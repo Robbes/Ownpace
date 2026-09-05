@@ -114,7 +114,7 @@ describe('the setup checklist screen', () => {
       expect(setStep).toHaveBeenCalledWith('source', 'box', 'create_app', 'done'),
     );
     // ...and the refreshed answer is what gets rendered.
-    expect(await screen.findByText(/you can complete the wizard/)).toBeTruthy();
+    expect(await screen.findByText(/complete the wizard/)).toBeTruthy();
   });
 
   it('skipping is a first-class answer, recorded rather than hidden', async () => {
@@ -138,7 +138,22 @@ describe('the setup checklist screen', () => {
     );
     renderPage();
 
-    expect(await screen.findByText(/needs nothing set up in advance/)).toBeTruthy();
+    expect(await screen.findByText(/Nothing to set up in advance/)).toBeTruthy();
+  });
+
+  it('opens the step you are on and folds the rest — the how-to waits under "How?" (0118 T1)', async () => {
+    get.mockResolvedValue(checklist());
+    renderPage();
+    await screen.findByText(/Client ID and a Client Secret/);
+
+    const folds = document.querySelectorAll('details');
+    expect(folds).toHaveLength(2);
+    // The first step still open is the one somebody is on: open. The next waits.
+    expect(folds[0]!.open).toBe(true);
+    expect(folds[1]!.open).toBe(false);
+    // The words are all there for whoever opens them — folded, not cut.
+    expect(screen.getByText(/Custom Apps Manager/)).toBeTruthy();
+    expect(screen.getAllByText('How?')).toHaveLength(2);
   });
 });
 
@@ -186,7 +201,7 @@ describe('Setup — names the provider, and goes back where you came from (0074)
     get.mockResolvedValue(checklist());
     renderPage();
 
-    const back = await screen.findByText(/Back to the migration wizard/);
+    const back = await screen.findByText(/Back to the wizard/);
     expect(back.getAttribute('href')).toBe('/mappings/new');
   });
 });

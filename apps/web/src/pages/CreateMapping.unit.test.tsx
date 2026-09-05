@@ -266,7 +266,7 @@ describe('CreateMapping — field-level honesty on the credentials and review st
 
     // One honest sentence about what happens to the secrets, on the step that
     // collects them rather than one the person may never scroll back to.
-    expect(screen.getByText(/encrypted at rest/)).toBeInTheDocument();
+    expect(screen.getByText(/Encrypted at rest/)).toBeInTheDocument();
     expect(screen.getByText(/never shown again/)).toBeInTheDocument();
   };
 
@@ -636,7 +636,11 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     // domain and a file-capable target — the same constraint the server
     // refuses by name, spared as a dead end three steps later.
     fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
-    expect(screen.getByText(/google-workspace-setup\.md/)).toBeInTheDocument();
+    // One line says what this source signs in with; the paragraph that
+    // used to be an amber panel — Docs, Sheets and Slides reported one by
+    // one, the guide that proves the values — is under More (0118 T1).
+    expect(screen.getByText(/Uses your own Google OAuth client and a read-only token/)).toBeVisible();
+    expect(screen.getByText(/Google Docs, Sheets and Slides are reported as un-migratable/)).not.toBeVisible();
     // No host/port for a Drive — the OAuth client ID gates instead.
     expect(screen.queryByPlaceholderText('imap.example.com')).not.toBeInTheDocument();
     expect(nextButton()).toBeDisabled();
@@ -1008,7 +1012,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       // says what it is for, and the sentence about the deployment's client
       // is in there with them. The default screen is the address, the token
       // and the button.
-      const fold = screen.getByText('Use your own Google application instead').closest('details');
+      const fold = screen.getByText('Use your own Google client').closest('details');
       expect(fold).not.toBeNull();
       expect(fold).toContainElement(screen.getByPlaceholderText('…apps.googleusercontent.com'));
       expect(fold).toContainElement(screen.getByPlaceholderText('••••••••'));
@@ -1133,7 +1137,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
     );
     expect(screen.queryByText(/has its own Google client/)).not.toBeInTheDocument();
     // And no fold: the pair is required here, so it is in plain view.
-    expect(screen.queryByText('Use your own Google application instead')).not.toBeInTheDocument();
+    expect(screen.queryByText('Use your own Google client')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('…apps.googleusercontent.com').closest('details')).toBeNull();
   });
 
@@ -1196,7 +1200,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
       });
       await waitFor(() => expect(connectButton()).toBeEnabled());
       expect(screen.queryByRole('button', { name: /Connect with Google/i })).toBeNull();
-      const fold = screen.getByText('Use your own Dropbox app instead').closest('details');
+      const fold = screen.getByText('Use your own Dropbox app').closest('details');
       expect(fold).not.toBeNull();
       expect(fold).toHaveTextContent(/has its own Dropbox app/);
       expect(fold).toContainElement(screen.getByLabelText(/App key/));
@@ -1276,7 +1280,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
       'title',
       expect.stringContaining('Enter the App key and App secret first'),
     );
-    expect(screen.queryByText('Use your own Dropbox app instead')).not.toBeInTheDocument();
+    expect(screen.queryByText('Use your own Dropbox app')).not.toBeInTheDocument();
     expect(screen.getByLabelText(/App key/).closest('details')).toBeNull();
   });
 
@@ -1395,5 +1399,16 @@ describe('the provider directory pre-fills a named provider’s boxes', () => {
     expect(screen.getByDisplayValue('443')).toBeTruthy();
     expect(screen.queryByDisplayValue('imap.soverin.net')).toBeNull();
     expect(screen.queryByText(/Pre-filled from/)).toBeNull();
+  });
+
+  it('one line under the target folder, the rest under Why? — folded, not cut (0118 T1)', () => {
+    toTargetStep();
+    expect(screen.getByText(/Everything lands under this folder/)).toBeVisible();
+    // The paragraph that used to sit here in full is still here in full —
+    // under the fold, invisible until somebody asks.
+    const why = screen.getByText(/Sent and Drafts arrive as ordinary folders/);
+    expect(why).not.toBeVisible();
+    fireEvent.click(why.closest('details')!.querySelector('summary')!);
+    expect(why).toBeVisible();
   });
 });

@@ -329,8 +329,8 @@ describe('the domain step reads the account’s record (0106 T3a)', () => {
     fireEvent.click(nextButton());
     // Target: the account kind, reusing the stored (qualified) connection.
     fireEvent.click(await screen.findByRole('button', { name: /^Soverin/ }));
-    await waitFor(() => expect(queryFieldFor(/^Use a target connection/)).not.toBeNull());
-    fireEvent.change(fieldFor(/^Use a target connection/), {
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved target connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Reuse a saved target connection/), {
       target: { value: soverinTarget.id },
     });
     await waitFor(() => expect(nextButton()).toBeEnabled());
@@ -342,7 +342,7 @@ describe('the domain step reads the account’s record (0106 T3a)', () => {
     // locked, the short line on the card, the account's own evidence on hover.
     const contactsCard = await screen.findByRole('button', { name: /Contacts/ });
     expect(contactsCard).toBeDisabled();
-    expect(contactsCard.textContent).toContain('This account answered it cannot carry this');
+    expect(contactsCard.textContent).toContain('This account cannot carry this');
     expect(screen.getByTitle(/does not advertise contacts/)).toBeTruthy();
     // Unknown NEVER locks (a refusal is never a no, and neither is silence):
     // email is unmeasured — hinted, still tickable.
@@ -372,8 +372,8 @@ describe('reusing a stored connection', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
     // The picker must be HERE, on the step that gates the client id it makes
     // unnecessary. Offering it two steps later is offering it never.
-    await waitFor(() => expect(queryFieldFor(/^Use a source connection/)).not.toBeNull());
-    fireEvent.change(fieldFor(/^Use a source connection/), {
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Reuse a saved source connection/), {
       target: { value: boxConnection.id },
     });
   };
@@ -387,7 +387,7 @@ describe('reusing a stored connection', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
 
     const picker = await waitFor(() => {
-      const el = queryFieldFor(/^Use a source connection/);
+      const el = queryFieldFor(/^Reuse a saved source connection/);
       expect(el).not.toBeNull();
       return el as HTMLSelectElement;
     });
@@ -476,7 +476,7 @@ describe('reusing a stored connection', () => {
 
     // Back to "enter new credentials": the verdict belonged to the connection
     // that is no longer selected.
-    fireEvent.change(fieldFor(/^Use a source connection/), { target: { value: '' } });
+    fireEvent.change(fieldFor(/^Reuse a saved source connection/), { target: { value: '' } });
 
     expect(screen.queryByText(/Listed 12 folders/)).toBeNull();
   });
@@ -623,7 +623,7 @@ describe('naming the connection that testing saves', () => {
 
   it('saves under the name that was typed', async () => {
     filledImapSource();
-    fill(/^Name this connection/, 'Acme old mail server');
+    fill(/^Connection name/, 'Acme old mail server');
 
     fireEvent.click(screen.getByRole('button', { name: /Test/i }));
 
@@ -661,11 +661,11 @@ describe('naming the connection that testing saves', () => {
       },
     ]);
     filledImapSource();
-    fill(/^Name this connection/, 'Acme old mail server');
+    fill(/^Connection name/, 'Acme old mail server');
 
     // A warning, not a refusal: nothing keys off the name, and blocking here
     // would be friction at the worst moment — you have just proved a credential.
-    expect(await screen.findByText(/already have a connection with this name/)).toBeTruthy();
+    expect(await screen.findByText(/already taken/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Test/i }));
     await waitFor(() => expect(connectionsApi.add).toHaveBeenCalled());
   });
@@ -684,12 +684,12 @@ describe('naming the connection that testing saves', () => {
       },
     ]);
     renderWizard();
-    await waitFor(() => expect(queryFieldFor(/^Use a source connection/)).not.toBeNull());
-    fireEvent.change(fieldFor(/^Use a source connection/), {
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Reuse a saved source connection/), {
       target: { value: 'c0000000-0000-4000-8000-00000000000b' },
     });
 
-    expect(queryFieldFor(/^Name this connection/)).toBeNull();
+    expect(queryFieldFor(/^Connection name/)).toBeNull();
   });
 });
 
@@ -795,7 +795,7 @@ describe('a credential that fails is still kept, and says so', () => {
 
     // The provider's words, verbatim — and then ours, saying it is not lost.
     expect(await screen.findByText(/AUTHENTICATIONFAILED/)).toBeTruthy();
-    expect(screen.getByText(/kept even though the check failed/)).toBeTruthy();
+    expect(screen.getByText(/The details were kept/)).toBeTruthy();
   });
 
   it('does not claim to have kept anything when the check passes', async () => {
@@ -809,7 +809,7 @@ describe('a credential that fails is still kept, and says so', () => {
     fireEvent.click(screen.getByRole('button', { name: /Test/i }));
 
     expect(await screen.findByText(/Listed 12 folders/)).toBeTruthy();
-    expect(screen.queryByText(/kept even though the check failed/)).toBeNull();
+    expect(screen.queryByText(/The details were kept/)).toBeNull();
   });
 
   it('does not say it about a connection that was only READ', async () => {
@@ -831,12 +831,12 @@ describe('a credential that fails is still kept, and says so', () => {
     listMock.mockResolvedValue([stored]);
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
-    await waitFor(() => expect(queryFieldFor(/^Use a source connection/)).not.toBeNull());
-    fireEvent.change(fieldFor(/^Use a source connection/), { target: { value: stored.id } });
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Reuse a saved source connection/), { target: { value: stored.id } });
 
     fireEvent.click(screen.getByRole('button', { name: /Test/i }));
 
     expect(await screen.findByText(/invalid_client/)).toBeTruthy();
-    expect(screen.queryByText(/kept even though the check failed/)).toBeNull();
+    expect(screen.queryByText(/The details were kept/)).toBeNull();
   });
 });

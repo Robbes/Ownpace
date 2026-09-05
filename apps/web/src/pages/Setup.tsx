@@ -34,8 +34,10 @@ import { serverMessage } from '../services/api.ts';
 const StepRow: React.FC<{
   status: SetupStepStatusDto;
   busy: boolean;
+  /** The first step still open — the one somebody is on, so its how-to starts open. */
+  current: boolean;
   onSet: (state: 'open' | 'done' | 'skipped') => void;
-}> = ({ status, busy, onSet }) => {
+}> = ({ status, busy, current, onSet }) => {
   const t = useT();
   const { relativeToNow, dateTime } = useFormatters();
   const { step, state } = status;
@@ -75,7 +77,13 @@ const StepRow: React.FC<{
           )}
         </div>
 
-        <p className="mt-1 text-sm text-gray-600">{t(step.detailKey as StringKey)}</p>
+        {/* The how-to folds under the title (0118 T1): the step somebody is
+            on is open, the others wait. Eight paragraphs in a row were a
+            wall; what each step yields stays in plain view. */}
+        <details className="mt-1 text-sm" open={current}>
+          <summary className="cursor-pointer text-gray-500 select-none">{t('fold.how')}</summary>
+          <p className="mt-1 text-gray-600">{t(step.detailKey as StringKey)}</p>
+        </details>
 
         {step.yieldsKey && (
           <p className="mt-1 text-sm text-blue-800">
@@ -320,19 +328,23 @@ const Setup: React.FC = () => {
               adminAnswer === 'no'
                 ? data.steps.filter((s) => s.step.needsAnotherPerson)
                 : [];
-            const list = (rows: typeof data.steps) => (
-              <ul className="mt-4 space-y-3">
-                {rows.map((s) => (
-                  <li key={s.step.key} className="list-none">
-                    <StepRow
-                      status={s}
-                      busy={busyKey === s.step.key}
-                      onSet={(state) => set(s.step.key, state)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            );
+            const list = (rows: typeof data.steps) => {
+              const current = rows.find((s) => s.state === 'open')?.step.key;
+              return (
+                <ul className="mt-4 space-y-3">
+                  {rows.map((s) => (
+                    <li key={s.step.key} className="list-none">
+                      <StepRow
+                        status={s}
+                        busy={busyKey === s.step.key}
+                        current={s.step.key === current}
+                        onSet={(state) => set(s.step.key, state)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              );
+            };
             return (
               <>
                 {adminAnswer === 'no' && mine.length > 0 && (

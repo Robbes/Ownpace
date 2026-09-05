@@ -56,6 +56,7 @@ import {
 } from '../services/api.ts';
 import { QUALIFICATION_KEYS, isProviderAccountKind } from '@openmig/shared';
 import type { DiscoveryDomain } from '@openmig/shared';
+import { Hint } from '../components/Hint.tsx';
 
 /**
  * A refusal in the reader's own language wherever we authored it (0071).
@@ -497,6 +498,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     suffix:
       | 'connect'
       | 'connect.hint'
+      | 'connect.why'
       | 'connect.needsClient'
       | 'connect.halfClient'
       | 'deploymentClient'
@@ -856,7 +858,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           >
             {ps('connect')}
           </button>
-          <p className="mt-1 text-sm text-gray-500">{ps('connect.hint')}</p>
+          <Hint text={ps('connect.hint')} why={ps('connect.why')} />
           {consentNote && (
             <p className={`mt-1 text-sm ${consentNote === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
               {consentNote === 'received' ? t('wizard.consent.received') : consentNote}
