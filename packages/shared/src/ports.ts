@@ -1,5 +1,5 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
-import type { FailureCategory } from './failure-category.ts';
+import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { TenantId, MappingId } from './ids.ts';
 import type { BudgetPause, DownloadMeter } from './rate-budget.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
@@ -2002,6 +2002,13 @@ export interface MigrationStatus {
    * no subject.
    */
   readonly lastErrorCategory?: FailureCategory;
+  /**
+   * Which SIDE the last failure happened on — source or target — recorded by
+   * the pass at the closure that threw (0094 T5, second slice). Absent when
+   * the pass could not tell, or nothing has failed; a screen must then say
+   * "one of the two" rather than guess.
+   */
+  readonly failedSide?: FailureSide;
   /** Where the last completed pass spent its wall time. Absent until one has. */
   readonly lastPassMetrics?: PassMetrics;
 }
@@ -2059,7 +2066,14 @@ export interface MigrationStatusStore {
   /**
    * Mark a domain sync as failed with an error.
    */
-  markFailed(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain, error: string): Promise<void>;
+  markFailed(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    error: string,
+    /** Which side the error came from, when the pass could tell (0094 T5). */
+    side?: FailureSide,
+  ): Promise<void>;
 
   /**
    * Mark a domain sync as skipped (e.g., disabled or no work).

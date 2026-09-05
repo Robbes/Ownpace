@@ -10,7 +10,7 @@
 | T2 The page itself | ✅ **Done 2026-08-22** | `deploy/compose/gatus.yaml` — three groups, ten endpoints — and the `gatus` service in `managed.yml`. 9 guard cases in `scripts/status-page.unit.test.ts`. |
 | T3 Say what it cannot do | ✅ **Done 2026-08-22** | `docs/status-page.md`, linked from a button beside the page's heading. The guard asserts the button exists, that it points at that file, and that the file leads with the limitation rather than burying it. |
 | T4 Move it to its own host | 📋 Planned — when there are customers | A deploy change, not a rewrite: `gatus.yaml` and every endpoint in it stay as they are, pointed at the same public URLs from a machine that is not this one. Keep it in the EU — see below. |
-| T5 Per-tenant connection health | 🟡 **First slice 2026-09-05** — the connection card says what is standing against it | Different page, different audience: "*your* Gmail credential is failing" is dashboard work and must not be public. `GET /api/connections` now carries `standingFailures` per connection, folded from `migration_status.last_error_category` of every migration that signs in with it; the card renders one line per migration and category, with the category's remedy sentence and the Replace-credentials button beside it. Guarded against a real database (`connections-standing-failures.unit.test.ts`) and on the page (`Connections.unit.test.tsx`). See *T5* below for what the second slice still owes: which SIDE failed. |
+| T5 Per-tenant connection health | ✅ **Done 2026-09-05, in two slices** — the connection card says what is standing against it, and on which side | Different page, different audience: "*your* Gmail credential is failing" is dashboard work and must not be public. `GET /api/connections` now carries `standingFailures` per connection, folded from `migration_status.last_error_category` of every migration that signs in with it; the card renders one line per migration and category, with the category's remedy sentence and the Replace-credentials button beside it. Guarded against a real database (`connections-standing-failures.unit.test.ts`) and on the page (`Connections.unit.test.tsx`). **Second slice, same day:** the pass tags a failure at the closure that threw (`withSides` over the shared domain pass, mail included), `markFailed` writes it to `migration_status.failed_side` (migration 0040, both editions' catch sites pinned), and the fold puts a sided entry on one card, the tail saying so; an unsided one still lands on both. Guards: `failure-side.unit.test.ts` (the tag, the cause chain, the seam), the ledger's stored-category test extended, `failure-side-recorded.unit.test.ts`, and the API and page guards extended. |
 
 ## T5 — the connection card says what is standing against it
 
@@ -58,7 +58,7 @@ map the migration page and the operator's support screen read, so all three
 say the same words — and the Replace-credentials button is the remedy,
 already beside it.
 
-### Which side failed is not yet recorded, so the card says so
+### Which side failed: recorded where it happens, and the card says which case it shows
 
 A migration signs in with two connections and the category does not say which
 one failed. `target_refused` is not the exception it looks like: the
@@ -67,16 +67,35 @@ classifier files any 403 there, and a source that refuses a read (Graph's
 like a target that refuses a write. Parsing `last_error` for the side would be
 the text-matching 0110 T3 drew the line at, on prose that carries addresses.
 
-So the line appears on **both** cards and, for the three categories where the
-connection is the thing to act on (`auth_expired`, `target_refused`,
-`unknown`), says that Test tells which of the two it was. For the three that
-resolve on their own (`rate_limited`, `quota_exceeded`, `network`) the
-sentence already says "no action needed", and a tail inviting a Test would
-contradict it — pinned.
+The first slice therefore put the line on **both** cards and, for the three
+categories where the connection is the thing to act on (`auth_expired`,
+`target_refused`, `unknown`), said that Test tells which of the two it was.
+For the three that resolve on their own (`rate_limited`, `quota_exceeded`,
+`network`) the sentence already says "no action needed", and a tail inviting
+a Test would contradict it — pinned.
 
-**Second slice:** record the failing side at the seam that knows — the
-connector that threw, through `markFailed` — as its own column beside the
-category, never derived from the prose. Then the line lands on one card.
+**The second slice records the side at the one seam that knows it.** Every
+closure the shared domain pass calls is one side or the other — listing,
+reading and fetching are the source; ensuring a collection and writing an item
+are the target — so `runDomainSync` wraps them once (`withSides`) and an error
+coming out of a closure carries its side as a non-enumerable property under a
+well-known symbol: the error keeps its class, message and stack, logs and JSON
+never see the tag, and a `PassAbortError` carries it through its `cause`. No
+connector knows this exists, and mail is covered because the mail pass runs
+through the same function. The pure closures (keys, hashes, versions) stay
+untagged: a bad natural key is nobody's credential.
+
+Both editions' catch sites hand `failureSideOf(err)` to `markFailed`, which
+writes `migration_status.failed_side` (migration 0040: two values and a CHECK,
+unlike the category's revisable six; NULL when the pass could not tell) and
+clears it with the category on the next clean pass. The fold then puts a sided
+entry on that connection only, with `side` set, and the card's tail says *"It
+failed on this connection."* instead of inviting a Test. An unsided row — an
+older build's, or a failure on neither side — still lands on both cards with
+the first slice's tail, so a screen never guesses.
+
+Not done, and named: the migration's own page and the operator's support view
+still show the category without the side. Both are one field away.
 
 ## Why this exists
 
@@ -183,6 +202,10 @@ to visit.
 `pnpm test:integration` covers `/ready` against a live Postgres, in both
 directions. The sandbox has no Docker, so CI is the only place those five cases
 run.
+
+**2026-09-05 (T5, second slice):** `pnpm lint` on the touched files · `pnpm typecheck` ·
+the core, ledger, orchestration, api and web unit chunks — green; guards proved by
+breaking as the PR records.
 
 **2026-09-05 (T5, first slice):** `pnpm lint` on the touched files · `pnpm typecheck` ·
 `npx vitest run --project unit apps/api` (60 files) and `--project unit-browser

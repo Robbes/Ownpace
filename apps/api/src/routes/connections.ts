@@ -62,10 +62,17 @@ import {
   halfDropboxClientPairProblem,
   isArchiveProvider,
   isFailureCategory,
+  isFailureSide,
   log,
   wizardTypeForConnectionKind,
 } from '@openmig/shared';
-import type { CredentialField, DiscoveryDomain, FailureCategory, TenantId } from '@openmig/shared';
+import type {
+  CredentialField,
+  DiscoveryDomain,
+  FailureCategory,
+  FailureSide,
+  TenantId,
+} from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 // The SHAPE builders stay the create route's, deliberately: what a connection
@@ -237,6 +244,12 @@ export interface StandingFailure {
   readonly domains: DiscoveryDomain[];
   /** When the newest of those rows last changed — ISO. */
   readonly asOf: string;
+  /**
+   * Which side the pass named (0094 T5, second slice): set when the entry is
+   * on THIS connection because the failure happened here; null when the
+   * pass could not tell and the entry is on both cards.
+   */
+  readonly side: FailureSide | null;
 }
 
 /** A `migration_status` row with the two connections its migration signs in with. */
@@ -247,6 +260,7 @@ export interface StandingRow {
   readonly targetConnectionId: string | null;
   readonly domain: DiscoveryDomain;
   readonly category: string | null;
+  readonly failedSide: string | null;
   readonly asOf: Date;
 }
 
@@ -254,15 +268,18 @@ export interface StandingRow {
  * Fold status rows into one entry per connection, migration and category,
  * latest first.
  *
- * BOTH SIDES, deliberately. A category does not say which of the two
- * connections failed — `target_refused` included, since the classifier files
- * a source's 403 there too — and guessing would put the line on the wrong
- * card. The page says so and offers Test as the way to find out; the side is
- * the second slice's column, recorded where the failure happens rather than
- * parsed out of prose.
+ * ONE SIDE when the pass named it, BOTH when it could not. The pass tags a
+ * failure at the closure that threw (`failed_side`, 0094 T5's second slice),
+ * and a row that carries a side lands on that connection only. A row without
+ * one — an older build's, or a failure on neither side — still lands on both
+ * cards, because a category does not say which of the two connections failed
+ * (`target_refused` included: the classifier files a source's 403 there too)
+ * and guessing would put the line on the wrong card. The page says which
+ * case it is showing.
  *
  * A category this build has no sentence for (a value written by an older or
- * newer one) is skipped — the rule `MigrationStatusStore` reads by.
+ * newer one) is skipped — the rule `MigrationStatusStore` reads by. A side it
+ * has no word for is read as none.
  */
 export function standingFailuresByConnection(
   rows: ReadonlyArray<StandingRow>,
@@ -274,11 +291,23 @@ export function standingFailuresByConnection(
     category: FailureCategory;
     domains: Set<DiscoveryDomain>;
     asOf: Date;
+    side: FailureSide | null;
   }
   const perConnection = new Map<string, Map<string, Folded>>();
   for (const row of rows) {
     if (!isFailureCategory(row.category)) continue;
-    for (const connectionId of [row.sourceConnectionId, row.targetConnectionId]) {
+    const side = isFailureSide(row.failedSide) ? row.failedSide : null;
+    // Where this row lands, and what it says about why it landed there.
+    const landings: ReadonlyArray<readonly [string | null, FailureSide | null]> =
+      side === 'source'
+        ? [[row.sourceConnectionId, 'source']]
+        : side === 'target'
+          ? [[row.targetConnectionId, 'target']]
+          : [
+              [row.sourceConnectionId, null],
+              [row.targetConnectionId, null],
+            ];
+    for (const [connectionId, placedBy] of landings) {
       if (!connectionId || !connectionIds.has(connectionId)) continue;
       let byKey = perConnection.get(connectionId);
       if (!byKey) perConnection.set(connectionId, (byKey = new Map()));
@@ -287,6 +316,8 @@ export function standingFailuresByConnection(
       if (seen) {
         seen.domains.add(row.domain);
         if (row.asOf > seen.asOf) seen.asOf = row.asOf;
+        // A named side is a fact; an unnamed one is an absence. The fact wins.
+        seen.side ??= placedBy;
       } else {
         byKey.set(key, {
           mappingId: row.mappingId,
@@ -294,6 +325,7 @@ export function standingFailuresByConnection(
           category: row.category,
           domains: new Set([row.domain]),
           asOf: row.asOf,
+          side: placedBy,
         });
       }
     }
@@ -309,6 +341,7 @@ export function standingFailuresByConnection(
           category: f.category,
           domains: DISCOVERY_DOMAINS.filter((d) => f.domains.has(d)),
           asOf: f.asOf.toISOString(),
+          side: f.side,
         }))
         .sort((a, b) => b.asOf.localeCompare(a.asOf) || a.category.localeCompare(b.category)),
     );
@@ -364,8 +397,8 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
 
       // What is STANDING against each connection (workplan 0094 T5): the
       // categorised failure on every domain row of every migration that
-      // signs in with it, both sides — `standingFailuresByConnection` says
-      // why both. `done` migrations are over: a rotation would fix nothing
+      // signs in with it — on the side the pass named, or on both when it
+      // could not; `standingFailuresByConnection` says why. `done` migrations are over: a rotation would fix nothing
       // for them. Paused ones stay; pausing is what a person does when a
       // pass keeps failing. Read-only: no column, no migration.
       const sourceBox = alias(schema.mailbox, 'source_box');
@@ -378,6 +411,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
           targetConnectionId: targetBox.connectionId,
           domain: schema.migrationStatus.domain,
           category: schema.migrationStatus.lastErrorCategory,
+          failedSide: schema.migrationStatus.failedSide,
           asOf: schema.migrationStatus.updatedAt,
         })
         .from(schema.migrationStatus)
