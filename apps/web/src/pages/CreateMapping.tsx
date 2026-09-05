@@ -69,7 +69,7 @@ type Step = 'source' | 'target' | 'migration' | 'review';
 
 interface FormData {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'apple' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'apple' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box' | 'archive';
   targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
@@ -98,6 +98,10 @@ interface FormData {
   sourceRootPath: string;
   /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
   sourceBoxUserId: string;
+  /** Export archive (workplan 0116): WHICH export, from `ARCHIVE_PROVIDERS`. */
+  sourceArchiveProvider: string;
+  /** Export archive: WHERE the extracted folder is — this mapping's own answer. */
+  sourceArchivePath: string;
   /**
    * What to CALL the connection this side saves (workplan 0076).
    *
@@ -144,6 +148,8 @@ const initialFormData: FormData = {
   sourceRootFolderId: '',
   sourceRootPath: '',
   sourceBoxUserId: '',
+  sourceArchiveProvider: '',
+  sourceArchivePath: '',
   sourceConnectionName: '',
   targetConnectionName: '',
   sourceConnectionId: '',
@@ -256,6 +262,8 @@ function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
     sourceRootFolderId: '',
     sourceRootPath: '',
     sourceBoxUserId: '',
+    sourceArchiveProvider: '',
+    sourceArchivePath: '',
     sourceConnectionId: '',
   };
 }
@@ -328,6 +336,8 @@ const DRAFT_FIELDS = [
   'sourceRootFolderId',
   'sourceRootPath',
   'sourceBoxUserId',
+  'sourceArchiveProvider',
+  'sourceArchivePath',
   'sourceTenantId',
   'targetHost',
   'targetPort',
@@ -503,7 +513,17 @@ const CreateMapping: React.FC = () => {
   // 0046) — the probe must run on exactly what create would post, or "test
   // passed, create failed" becomes possible by construction.
   const builtSourceConfig = () =>
-    isDropboxSource
+    isArchiveSource
+      ? {
+          // No account behind it (0116 T1): the schema's `username` is
+          // posted empty and read by nothing on this kind, and the two values
+          // that ARE the connection — which export, where it is — travel as
+          // the create door names them.
+          username: '',
+          provider: formData.sourceArchiveProvider,
+          path: formData.sourceArchivePath.trim(),
+        }
+      : isDropboxSource
           ? {
               username: formData.sourceUsername,
               clientId: formData.sourceClientId,
@@ -1090,6 +1110,9 @@ const CreateMapping: React.FC = () => {
   // uses the Client Credentials Grant (Box rotates refresh tokens, so none is
   // stored) — client id + secret plus the numeric subject user id.
   const isBoxSource = formData.sourceType === 'box';
+  // An EXPORT ARCHIVE (workplan 0116 T5/T6): no username, no secret — which
+  // export and where it is, and nothing else.
+  const isArchiveSource = formData.sourceType === 'archive';
   // One half of a pair typed is a pair being typed, not a pair left to the
   // deployment: the server refuses the half rather than completing it, and a
   // customer's id with the deployment's secret would fail at the provider's
@@ -1144,10 +1167,15 @@ const CreateMapping: React.FC = () => {
     if (formData.sourceConnectionId) return out;
 
     // WHICH account, always — it names the mailbox or drive this migration
-    // moves, and no shared connection can know it.
-    if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
+    // moves, and no shared connection can know it. Except for an export
+    // archive, which is not an account and has no address to ask for
+    // (0116 T1): its two questions are which export and where it is.
+    if (!isArchiveSource && !formData.sourceUsername) out.push(t('wizard.sourceUsername'));
 
-    if (isDropboxSource) {
+    if (isArchiveSource) {
+      if (formData.sourceArchiveProvider === '') out.push(t('wizard.archiveProvider'));
+      if (formData.sourceArchivePath.trim() === '') out.push(t('wizard.archivePath'));
+    } else if (isDropboxSource) {
       // Labelled as the Dropbox App Console labels it, which is not "Client
       // ID". The pair is the deployment's where it carries a Dropbox app
       // (2026-09-02: Connect with Dropbox); the token is always this
@@ -1307,6 +1335,9 @@ const CreateMapping: React.FC = () => {
     rootFolderId: 'sourceRootFolderId',
     rootPath: 'sourceRootPath',
     userId: 'sourceBoxUserId',
+    // The export archive's two fields (0116 T5/T6): which export, and where.
+    provider: 'sourceArchiveProvider',
+    path: 'sourceArchivePath',
   };
 
   /**
@@ -1483,6 +1514,19 @@ const CreateMapping: React.FC = () => {
               rows={4}
               placeholder={placeholder}
             />
+          ) : field.options ? (
+            // A CLOSED LIST IS A CHOICE, not a box to spell an id into
+            // (0116 T1's `options`). Which export an archive is selects the
+            // reader, and a misspelt `google-takeout` is not refused — the
+            // wrong reader finds none of its landmarks and reports nothing.
+            <select id={id} value={value} onChange={(e) => set(e.target.value)} className="input w-full">
+              <option value="">—</option>
+              {field.options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           ) : field.revealable ? (
             <div className="relative">
               <input
@@ -1739,10 +1783,11 @@ const CreateMapping: React.FC = () => {
       ? { ...card, hintKey: RESTRICTED_GOOGLE_HINT }
       : card;
 
-  // A MIGRATABLE card, not any card (0116 T1): `connectionOnly` kinds are
-  // ones this product can connect to and cannot yet migrate from, and their
-  // ids are not in `CreateMappingInput['sourceType']`. Widening this parameter
-  // is what the compiler refuses, which is the point.
+  // A MIGRATABLE card, not any card (0116 T1): a `connectionOnly` kind is one
+  // this product can connect to and not yet migrate from, and its id is not
+  // in `CreateMappingInput['sourceType']`. Widening this parameter is what the
+  // compiler refuses, which is the point. (The export archive was the first
+  // such kind and migrates since 0116 T5/T6; no card carries the flag today.)
   const onPickSource = (type: MigratableSourceCard) => {
       // A verdict about the OLD provider must not survive the
       // switch (0073) — it is a statement about a credential
@@ -1759,7 +1804,12 @@ const CreateMapping: React.FC = () => {
       // effect, and it is left as one rather than rewritten —
       // reshaping a live nested ternary is the edit 0070 T6
       // records going wrong.
-      void (type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
+      void (type.id === 'google-drive' ||
+      type.id === 'dropbox' ||
+      type.id === 'box' ||
+      // The export archive (0116 T5/T6) carries files and photos and nothing
+      // else, so it pins the same domain and the same targets Drive does.
+      type.id === 'archive'
         ? setFormData((prev) => ({
             ...prev,
             ...clearedSourceFields(prev, type.id),

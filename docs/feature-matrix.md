@@ -193,17 +193,24 @@ Library API to general access on 31 March 2025) and **iCloud Drive** (never open
 Which export a connection holds is a value on the row (`google-takeout` / `apple-privacy`),
 not a connection kind of its own, so a third export is a new reader and nothing else.
 
-Today it **connects, tests and measures**: how many distinct items, how many bytes, how many
-folders, and the date range the export covers — which is what somebody wants before
-committing to a multi-gigabyte import. **Migrating from one is not built** (0116 T5/T6), and
-the create-mapping door refuses an archive source by name rather than accepting it and
-copying nothing. Two properties hold from the start and are the reason the shape is worth
-being careful about: an archive that cannot be opened reads as **unknown with the reason**
-and never as an empty archive, and an archive is a **snapshot with a date** — so nothing may
-ever infer a deletion from an item's absence between two of them. The Google reader is
-built (0116 T3a); the Apple reader waits on somebody opening a real export (0116 T3b), and
-is deliberately absent rather than stubbed, because a stub answering "0 items" is
-indistinguishable from an export that really was empty.
+It **connects, tests and measures** — how many distinct items, how many bytes, how many
+folders, and the date range the export covers, which is what somebody wants before committing
+to a multi-gigabyte import — and since 0116 T5/T6 it **migrates**: albums become folders under
+the target root, a photo in several albums is written under each (0112 decision 5), a photo in
+none lands under its year, edited versions and motion clips are distinct files beside their
+originals, and one manifest at the root carries everything the export knew about every item.
+Idempotency is the file domain's own ledger rule applied to the archive: a second import
+writes nothing, a later export in the series writes only what is new. Two properties hold
+from the start and are the reason the shape is worth being careful about: an archive that
+cannot be opened reads as **unknown with the reason** and never as an empty archive, and an
+archive is a **snapshot with a date** — so an archive import **only ever adds**. The source
+declares itself a snapshot (`FileSource.snapshot`) and the sync loop's absence-counting is off
+for it, so nothing is inferred, reported or even suspected from an item's absence between two
+exports. The Google reader is built (0116 T3a); the Apple reader waits on somebody opening a
+real export (0116 T3b), and is deliberately absent rather than stubbed, because a stub
+answering "0 items" is indistinguishable from an export that really was empty. Not yet:
+taken-time and GPS written into the copy's EXIF (0112 T3), reading a zip without extracting
+it (0116 D7), and the managed gate's import half (0116 T10).
 
 What migrates: file **bytes, verbatim**, hashed (`contentHash`) so unchanged files are never
 re-sent and changed ones are updated (with the same edited-on-target conflict protection);

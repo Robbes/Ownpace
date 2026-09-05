@@ -6,7 +6,7 @@ are the two that matter most: there is no key you can give us that opens them.
 
 What both companies *do* offer is a copy for **you**. You ask, they prepare a download, and a
 few days later you have your photos and files as ordinary files. This page is about getting
-that download and pointing us at it.
+that download, pointing us at it, and what happens when you move it.
 
 An export is a **snapshot**. It contains everything up to the day it was prepared and nothing
 after, which is worth knowing before you start: take the export when you are ready to move,
@@ -143,6 +143,45 @@ not read it.** Those are different answers and you deserve the true one.
 
 ---
 
+## Moving it
+
+Once the test shows what the archive holds, create a migration from it the way you would from
+any account: choose **Export archive** as the source, pick the connection you added, choose
+where the files should go, and start it. Files and photos are the only kind of data an archive
+carries, so that is the only box to tick.
+
+### Where things land
+
+- **Every album becomes a folder**, named as you named it, holding the photos that were in
+  it. A photo you put in three albums is written into all three — that is what you expect to
+  find when you open them, and it costs only the space.
+- **A photo in no album lands in a folder for its year**, such as `Photos from 2019`, because
+  that is the only place the export filed it.
+- **A photo that is in an album is not also written under its year.** The year folders are
+  Google's index of your library, not something you organised, and writing everything twice
+  would double your storage for nothing.
+- **Edited versions and motion clips sit beside their originals**, as separate files.
+- **One file at the top lists everything the export knew** about every photo — the date you
+  corrected, the place you added, the description you typed, the albums it was in — because a
+  photo file has no place for most of that, and the export's download link expires. Its name
+  starts with `export-archive-manifest-`; it is plain text and you can open it.
+
+Nothing is written into the photos themselves yet: a date or place that only Google knew stays
+in that file for now.
+
+### Doing it twice
+
+Running the migration again with the same archive **changes nothing**: every file it would
+write is already there, and it says so. Pointing a later export at the same place **adds what
+is new and touches nothing else** — which is exactly what the every-two-months option is for.
+
+**Nothing is ever removed because an export no longer mentions it.** A photo you deleted in
+Google Photos between two exports stays where we put it; so does one that a missing download
+part left out of the newer export. An export cannot tell us which of those happened, and we
+will not guess with your photos. If you want something gone, delete it where it landed.
+
+---
+
 ## What happens to the archive afterwards
 
 Nothing. We only ever read it — the files are never changed, moved or deleted, and we keep no
@@ -174,4 +213,9 @@ screen says so.
 
 **Can I do it again later with a newer export?**
 That is exactly what the every-two-months option is for. A later export overlaps the earlier
-one heavily, and we only add what is new.
+one heavily; we add what is new and remove nothing — see *Doing it twice* above.
+
+**Where do the photos end up, exactly?**
+In a folder per album, with the photos that were in it; photos in no album in a folder for
+their year; and one file at the top listing everything the export knew about each photo. See
+*Where things land* above.

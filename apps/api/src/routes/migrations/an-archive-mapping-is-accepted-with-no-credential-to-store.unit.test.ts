@@ -1,30 +1,28 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * AN ARCHIVE YOU CAN CONNECT, AND CANNOT YET MIGRATE.
+ * AN ARCHIVE MAPPING IS ACCEPTED, AND HAS NO CREDENTIAL TO STORE.
  *
- * Workplan 0116 T1. The `archive` kind ships in an unusual state on purpose:
- * it can be added, tested and measured, and it CANNOT be the source of a
- * mapping, because placement (T5) and idempotency by content hash (T6) are not
- * built. That is the whole point of the first slice — a person sees what their
- * export holds before anybody commits to importing 25 GB of it.
+ * Workplan 0116 T1 shipped the `archive` kind half-built on purpose: it could
+ * be added, tested and measured, and it could NOT be the source of a mapping,
+ * because placement (T5) and idempotency by content hash (T6) were not built.
+ * This file held that refusal shut — and held its WORDING, because "not
+ * supported" reads as *your export cannot be migrated*, which was false.
  *
- * A half-built kind is a fine thing to ship and a dangerous thing to leave
- * unguarded, because there are exactly two ways to get it wrong and this file
- * holds both shut.
+ * T5/T6 are built, so the refusal is gone and this file now holds the door
+ * open in the shape it has to have:
  *
- * **The loud way**: the create door accepts an archive mapping. Then
- * `sourceFaceBuilder` hands the file face to a builder that does not exist,
- * and either the pass throws from inside a worker — a stack trace where a
- * sentence belonged — or, worse, it falls through to `dav`, aims a WebDAV
- * client at a folder on a disk, and reports a successful migration of nothing.
- * That second one is #597's exact shape.
- *
- * **The quiet way**: the refusal happens but says the wrong thing. "Not
- * supported" reads as *your export cannot be migrated*, which is false and
- * discouraging; the archive is fine, the product is unfinished. So the sentence
- * has to say which of those it is, the way `mode: 'one_time'` distinguishes NOT
- * WITHDRAWN from NOT BUILT a few hundred lines from here.
+ * - a complete archive mapping is ACCEPTED, with no issue at all — the file
+ *   face resolves to `ArchiveFileSource` and the pass copies out of it;
+ * - the two fields the kind has are still demanded by name, so the add-form
+ *   and the wizard refuse a half-filled one before anything is stored;
+ * - a REUSED archive connection carries `provider` and is not asked for it
+ *   again; the `path` stays each mapping's own, because a reused connection
+ *   is one person's export series and every migration points at the next
+ *   archive in it;
+ * - an export this product does not read is refused naming the ones it does,
+ *   and where each is requested — because the wrong reader does not fail, it
+ *   reports an archive containing nothing.
  *
  * The rest is the shape an archive is STORED in — no credential at all, which
  * is this kind's truth rather than an omission somebody should later "fix".
@@ -82,33 +80,15 @@ describe('the wizard vocabulary reaches the connection kind', () => {
   });
 });
 
-describe('a mapping FROM an archive is refused, and says which kind of no it is', () => {
-  it('refuses, rather than storing a mapping nothing can run', () => {
-    const paths = issuesFor(MAPPING).map((i) => i.path);
-    expect(
-      paths,
-      'an archive mapping was accepted. Nothing builds an archive file source yet, so the ' +
-        'pass would either throw from inside a worker or fall through to the DAV builder and ' +
-        'report a successful migration of nothing.',
-    ).toContain('sourceType');
+describe('a mapping FROM an archive is accepted (0116 T5/T6)', () => {
+  it('accepts a complete one with no issue at all', () => {
+    // Until T5/T6 this body was refused by name as NOT BUILT. Now the file
+    // face builds `ArchiveFileSource` and the pass copies out of the export;
+    // a refusal left here would be a door shut on a room that exists.
+    expect(issuesFor(MAPPING)).toEqual([]);
   });
 
-  it('says NOT BUILT, and says the export is not the problem', () => {
-    const message = issuesFor(MAPPING).find((i) => i.path === 'sourceType')?.message ?? '';
-    // "Not supported" would read as *your archive cannot be migrated*, which
-    // is false. The archive is fine; this product is unfinished, and only one
-    // of those is worth somebody re-downloading an export over.
-    expect(message).toMatch(/not built yet/i);
-    expect(message).toMatch(/a gap, not a limit of the archive/i);
-    expect(message).toMatch(/nothing about your export prevents it/i);
-    // And it names what CAN be done today, so the refusal ends somewhere.
-    expect(message).toMatch(/connected, tested and measured/i);
-  });
-
-  it('still demands both fields, so the Connections door refuses a half-filled one', () => {
-    // The mapping refusal above fires for every archive body; these two must
-    // fire independently, because the add-form validates the same schema and
-    // never reaches the mapping refusal.
+  it('demands both fields by name, so the doors refuse a half-filled one before storing it', () => {
     for (const missing of ['provider', 'path'] as const) {
       const body = { ...MAPPING, sourceConfig: { ...ARCHIVE_CONFIG, [missing]: '' } };
       expect(
@@ -116,6 +96,19 @@ describe('a mapping FROM an archive is refused, and says which kind of no it is'
         `a '${missing}'-less archive was not refused by name`,
       ).toContain(`sourceConfig.${missing}`);
     }
+  });
+
+  it('asks a REUSED connection for the path only — which export it is belongs to the row', () => {
+    const reused = {
+      ...MAPPING,
+      sourceConnectionId: '11111111-1111-4111-8111-111111111111',
+      sourceConfig: { ...ARCHIVE_CONFIG, provider: '' },
+    };
+    expect(issuesFor(reused)).toEqual([]);
+    // And the path is still this mapping's to answer: the next export in the
+    // series is a different folder, and nothing stored can know which.
+    const pathless = { ...reused, sourceConfig: { ...ARCHIVE_CONFIG, provider: '', path: '' } };
+    expect(issuesFor(pathless).map((i) => i.path)).toContain('sourceConfig.path');
   });
 
   it('refuses an unknown export by naming the ones it reads, and where to get them', () => {
@@ -128,10 +121,15 @@ describe('a mapping FROM an archive is refused, and says which kind of no it is'
     expect(message).toContain('takeout.google.com');
     expect(message).toContain('privacy.apple.com');
   });
+
+  it('refuses a domain the archive does not carry — it is files and photos, nothing else', () => {
+    const body = { ...MAPPING, syncConfig: { domains: ['email'] } };
+    expect(issuesFor(body).map((i) => i.path)).toContain('syncConfig.domains');
+  });
 });
 
 describe('what an archive connection stores', () => {
-  it('stores which export and where, in the engine\'s own shape', () => {
+  it("stores which export and where, in the engine's own shape", () => {
     expect(
       sourceConnectionConfig({ sourceType: 'archive', sourceConfig: { ...ARCHIVE_CONFIG } as never }),
     ).toEqual({

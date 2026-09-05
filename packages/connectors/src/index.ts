@@ -112,3 +112,6 @@ export * from './caldav-scheduling-probe.ts';
 // A reader rather than a connector: it opens a file the person downloaded,
 // reaches no network at all, and answers the `ArchiveReader` interface.
 export * from './takeout-archive-reader.ts';
+// An export archive as a FileSource (workplan 0116 T5/T6): placement, the manifest, and
+// a snapshot's refusal to report deletions — over whichever reader opened it.
+export * from './archive-file-source.ts';

@@ -841,6 +841,21 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
           'not whose files to read. See docs/box-setup.md.',
       });
     }
+    // And WHICH archive (0116 T5/T6). A reused archive connection is one
+    // person's export series, and each migration points at the next archive
+    // in it: the provider is the row's, the path is this mapping's own. With
+    // no path the merge falls back to the connection's stored one — the FIRST
+    // export, imported again under a new name, and nothing would say so.
+    if (body.sourceType === 'archive' && !body.sourceConfig.path) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', 'path'],
+        message:
+          "Reusing an export archive connection still needs WHERE this migration's archive " +
+          'is (path): the connection says which export it reads, and each migration points ' +
+          'at one archive — the next one in the series. See docs/archive-setup.md.',
+      });
+    }
   } else if (body.sourceType === 'google-drive') {
     // A service-account key selects domain-wide delegation (ADR-0033): the
     // refresh-token trio is not required, but a SUBJECT is — the username
@@ -1095,28 +1110,6 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     if (archiveRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: archiveRefusal });
     }
-    // AND THEN THE HONEST GAP. An archive connection can be added, tested and
-    // MEASURED today (0116 T1 + T7) — which is the point of this slice: a
-    // person sees what their export holds before anyone commits to importing
-    // it. Copying items OUT of one is T5 (placement) and T6 (idempotency by
-    // content hash), and neither is built.
-    //
-    // Refused rather than accepted-and-ignored, and refused as NOT BUILT
-    // rather than as impossible — the same distinction `mode: 'one_time'`
-    // draws a few hundred lines above, for the same reason. A mapping stored
-    // here would build a source face that does not exist and report a
-    // successful migration of nothing, which is #597's shape and the exact
-    // failure this repository has learned to fear.
-    ctx.addIssue({
-      code: 'custom',
-      path: ['sourceType'],
-      message:
-        'An export archive can be connected, tested and measured, but MIGRATING from one is ' +
-        'not built yet. Add it on the Connections page to see what it holds — how many items, ' +
-        'how many bytes, which folders and what date range the export covers — and the ' +
-        'migration itself follows in a later release. This is a gap, not a limit of the ' +
-        'archive: nothing about your export prevents it.',
-    });
   } else if (body.sourceType === 'box') {
     // No refreshToken demanded, by DESIGN: Box rotates refresh tokens on
     // every use, so the Client Credentials Grant is used and the subject

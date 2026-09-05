@@ -23,9 +23,15 @@
  * forward to us and one that makes them re-download 25 GB.
  */
 
-import { ARCHIVE_PROVIDERS, type ArchiveProvider } from '@openmig/shared';
+import {
+  ARCHIVE_PROVIDERS,
+  archiveProviderName,
+  parseArchiveSource,
+  type ArchiveProvider,
+  type FileSource,
+} from '@openmig/shared';
 import type { ArchiveReader } from '@openmig/core/archive-reader';
-import { createTakeoutArchiveReader } from '@openmig/connectors';
+import { ArchiveFileSource, createTakeoutArchiveReader } from '@openmig/connectors';
 
 /**
  * The `connection.kind` an archive row carries (migration 0039).
@@ -60,4 +66,33 @@ export function archiveReaderFor(provider: string): ArchiveReader | undefined {
 /** The exports a reader exists for — what a surface may honestly offer today. */
 export function archiveProvidersWithReaders(): ReadonlyArray<ArchiveProvider> {
   return ARCHIVE_PROVIDERS.filter((p) => READERS[p] !== undefined);
+}
+
+/**
+ * The file source over a stored archive connection (workplan 0116 T5/T6).
+ *
+ * The other builders in this directory refuse at BUILD TIME when a credential
+ * is missing. This one has no credential to be missing — the config IS the
+ * credential, a location — so the only refusals are the shared parser's (an
+ * export this product does not read, a path that is not a string) and the
+ * one below: a reader that is not built yet. That last sentence has to say
+ * which of the two it is, because "your export cannot be migrated" is false
+ * and would send somebody back to re-download 25 GB for nothing.
+ *
+ * `config` is the connection's blob merged with the mapping's override, so
+ * the `path` is this mapping's archive — the next export in a series — while
+ * `provider` stays the connection's (`sourceConfigOverride` keeps it out of
+ * the override for exactly that reason).
+ */
+export function buildArchiveSourceFrom(config: Record<string, unknown>): FileSource {
+  const location = parseArchiveSource(config);
+  const reader = archiveReaderFor(location.provider);
+  if (!reader) {
+    throw new Error(
+      `No reader is built for ${archiveProviderName(location.provider)} exports yet, so this ` +
+        'archive cannot be migrated from. This is a wiring gap in this product, not a problem ' +
+        'with your export — nothing about it prevents reading it once the reader exists.',
+    );
+  }
+  return new ArchiveFileSource(reader, location);
 }

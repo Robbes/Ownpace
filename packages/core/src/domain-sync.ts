@@ -368,6 +368,14 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * to your own live mail is a stop, not something to push through.
    */
   readonly downloadMeter?: DownloadMeter;
+  /**
+   * The source is a SNAPSHOT whose scope the person chose, not a scan of what
+   * they have (`FileSource.snapshot`, workplan 0116 §5). Absence-counting is
+   * then off for the whole pass: no ledger row is counted absent and no
+   * path-keyed move or deletion is reported, whatever the listing looked
+   * like. Reported removals and a bin, being positive evidence, still count.
+   */
+  readonly snapshot?: boolean;
   /** List folders on the source */
   readonly listFolders: () => Promise<ReadonlyArray<Folder>>;
   /** List items in a folder since a cursor */
@@ -668,6 +676,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     listCollectionKeys,
     listDiscardedKeys,
     downloadMeter,
+    snapshot,
   } = deps;
 
   const phases = startPhaseTiming();
@@ -744,8 +753,16 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * mailbox moved. Completeness comes from one of two things: the folder was
    * listed from the beginning (no cursor), or the source answered
    * `listCollectionKeys` for it.
+   *
+   * And never for a SNAPSHOT (0116 §5). An archive's listing is complete in
+   * the only sense that matters here — every item in it is known — and still
+   * says nothing about what the person has, because they chose the export's
+   * scope and a part of it may never have downloaded. Starting false is what
+   * turns "an archive delta may only ADD" from a rule in a reviewer's memory
+   * into one the loop cannot break: a cursor-less pass, the exact case in
+   * which absence-counting would otherwise run, counts nothing.
    */
-  let fullyEnumerated = true;
+  let fullyEnumerated = snapshot !== true;
 
   /**
    * Set the moment the download meter reads empty (0090 T4), and never

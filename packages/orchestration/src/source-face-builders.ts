@@ -76,14 +76,14 @@ export type SourceFaceBuilder =
   | 'graph-drive'
   | 'dropbox'
   | 'box'
-  // An EXPORT ARCHIVE's file face (workplan 0116 T1). Named here BEFORE the
-  // builder exists, deliberately: without a name of its own an `archive` row
-  // falls to `protocolDefault('file')` and is handed to `dav`, which aims a
-  // WebDAV client at a folder on a disk and refuses it for a missing password.
-  // That is #597's shape exactly — a fan-out whose absence is invisible until
-  // somebody runs one. With a name, the file seam has an arm that says what is
-  // actually true: placement (T5) and idempotency (T6) are not built, so an
-  // archive connects, tests and measures but does not yet migrate.
+  // An EXPORT ARCHIVE's file face (workplan 0116 T1, built out in T5/T6).
+  // Named here BEFORE the builder existed, deliberately: without a name of its
+  // own an `archive` row falls to `protocolDefault('file')` and is handed to
+  // `dav`, which aims a WebDAV client at a folder on a disk and refuses it for
+  // a missing password. That is #597's shape exactly — a fan-out whose absence
+  // is invisible until somebody runs one. The arm was a named refusal first
+  // and is `ArchiveFileSource` now: placement, the manifest, and a snapshot's
+  // refusal to report deletions, over whichever reader opened the export.
   | 'archive'
   | 'imap'
   | 'dav';

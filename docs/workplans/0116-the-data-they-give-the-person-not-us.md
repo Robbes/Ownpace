@@ -1,6 +1,57 @@
 # Workplan 0116 — The data they give the person, not us
 
-## Status — 2026-09-04 (update this block at the end of every session)
+## Status — 2026-09-05 (update this block at the end of every session)
+
+**2026-09-05, the second slice is BUILT: an archive mapping actually imports (T5 + T6).**
+`ArchiveFileSource` makes whatever a reader answers look like any other file source, so the
+file domain's loop, ledger and targets copy out of an export exactly as they do out of a Drive.
+The reader seam grew the two members the import needed and nothing else: `placeIn` (which of
+an item's folders are the PERSON's — placement's whole input) and `content()` (the bytes, by
+item, so placement never has to know an archive's layout). A third export is still a new
+reader and nothing else; this file has no `switch` on `provider`.
+
+**Placement, as built.** Every album is a folder under the import root and a photo in several
+albums is written under each (0112 decision 5). A photo in an album is NOT written under its
+year as well; a photo in NO album lands under its year — the only home the export gave it, and
+the alternative is thousands of files flat at the root where two cameras' `IMG_0001.jpg`
+collide. **That second half is a reading of 0112 §3 the owner should confirm**: §3 says the
+year folder is not reproduced, and this build takes that to be about a photo that has an
+album. Edited versions and motion clips are placed like any item, beside their originals. One
+manifest at the root — `export-archive-manifest-<fingerprint>.json`, fingerprinted by the
+archive's hashes so the same archive is the same file — carries everything the export knew
+about every item: sidecar verbatim, every folder, kind, `relatedTo`. EXIF into the copy is
+still 0112 T3 and not touched.
+
+**Idempotency and the delta needed nothing new (T6, §5)**, which was the claim and is now the
+proof: the ledger's existing path-plus-hash rule skips a second import entirely (0 created, all
+skipped, nothing fetched) and writes only what is new in a later export. **The rule that an
+archive delta may only ADD found the one place it could have broken**: the loop's
+absence-counting runs on every cursor-less pass — the exact shape of an archive import — and a
+source that merely declined `listKeys` would still have been counted there. So `FileSource`
+grew `snapshot`, `ArchiveFileSource` sets it, and `runDomainSync` starts a snapshot's pass with
+absence-counting off. Proved through the real loop and the real Takeout reader: Y missing from
+the later export across more passes than a live account needs to call an absence a deletion —
+drift 0, deletions none, Y still on the target; and the control with the flag stripped counts
+it at once.
+
+**The doors opened.** The create door's NOT-BUILT refusal is gone (its guard is renamed and
+now holds the door open, including a reused connection being asked for the path and not the
+provider); the wizard offers the card, pins the file domain and a file-capable target, asks
+which export as a choice and where it is as a path, and demands no username of a kind that has
+none. `docs/archive-setup.md` gained *Moving it* — where things land, doing it twice, and the
+sentence that nothing is ever removed because an export no longer mentions it.
+
+**Found on the way, fixed in #787 (stacked under this):** E2E (managed) #154 — the first run
+ever to post an honest archive body to `POST /api/connections` — was refused for a `username`
+the kind does not have. The connections door now follows the descriptor, refuses an unknown
+export by name, and the add-form renders "Which export" as a choice.
+
+**What is left.** T10's import half: the managed smoke has no self-contained
+create-a-mapping-and-run-a-pass path (its mappings are seeded), so importing the fixture
+Takeout into the demo Nextcloud end to end is its own small slice. T3b still waits on an Apple
+export; T4's managed half on D7; T9 on T4.
+
+### Earlier — 2026-09-04
 
 **2026-09-04, the first slice is BUILT.** T1+T2+T3a+T7 all landed. An export archive is a
 connection kind whose credential is a location; the reader seam takes one implementation per
@@ -88,12 +139,12 @@ If the owner decides only one thing here, decide **D1**.
 | T3a The Takeout reader (Google Photos) | ✅ **Built 2026-09-04** | 0112 T1's reader, unchanged, behind the T2 interface. |
 | T3b The Data & Privacy reader (Apple) | 📋 **Blocked on a real export** | Nobody here has opened one. T3b starts by opening one and writing down what is inside — see §"What is not known". |
 | T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first** | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
-| T5 Placement and the manifest | 📋 Planned (needs T2) | Where items land, albums/folders as folders, one manifest row per item. 0112 §3 is the photo design. **Decided 2026-09-04:** edited versions and motion clips are distinct items linked to their original, never attributes of one record — §4 says why. |
-| T6 Idempotency by content hash | 📋 Planned (needs T2) | A second import writes nothing; an overlapping archive writes only what is new. The file domain's existing ledger rule, applied to archives — **and the delta across a series of archives**, which needs no new store. §5 carries the design, including the rule that an archive delta may only ADD. |
+| T5 Placement and the manifest | ✅ **Built 2026-09-05** | `ArchiveFileSource` over the seam's new `placeIn` and `content()`: albums as folders, a photo written once per album (0112 decision 5), a photo in no album under its year, one fingerprinted manifest at the root with everything the export knew. Edited versions and motion clips are distinct items linked to their original (decided 2026-09-04, §4). EXIF into the copy stays 0112 T3. |
+| T6 Idempotency by content hash | ✅ **Built 2026-09-05** | Nothing new: the ledger's path-plus-hash rule, proved through the real loop — a second import writes nothing, a later export writes only what is new. **An archive delta may only ADD** is enforced by `FileSource.snapshot`, which switches the loop's absence-counting off; proved with the flag on and, as the control, stripped. |
 | T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
 | T8 The walkthrough | ✅ **Built 2026-09-04** | `docs/archive-setup.md` (the `-setup` suffix is what the app serves at `/docs`): how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
-| T10 The gate | 🔨 **Half built 2026-09-04** | A tiny fixture archive of each shape in the E2E, imported end to end, asserting item count, hashes and a second import writing nothing. |
+| T10 The gate | 🔨 **Half built 2026-09-04** (connect + measure) | A tiny fixture archive in the managed E2E, connected and measured on the real stack. The IMPORT half — the fixture imported into the demo Nextcloud, a second import writing nothing — is unblocked by T5/T6 and needs the smoke to create a mapping and run a pass itself, which it does not do today (its mappings are seeded). |
 
 ## Why this exists
 

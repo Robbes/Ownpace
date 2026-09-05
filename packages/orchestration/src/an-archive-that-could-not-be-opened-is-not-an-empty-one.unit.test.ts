@@ -21,14 +21,16 @@
  * the one they can do least about — there is no credential to fix and no
  * setting to change, only a wrong conclusion stated confidently.
  *
- * ## And the second half: the face nothing builds
+ * ## And the second half: the face the archive builder serves
  *
  * `archive` claims the `file` domain. Without an arm of its own, the file seam
  * resolves it through `protocolDefault('file')` to `dav` and aims a WebDAV
  * client at a folder on a disk — refused, eventually, for a missing password
  * that this kind does not have. That is the #597 family exactly: a fan-out
- * whose absence is invisible until somebody runs one. The arm exists so the
- * error names the real state of the world instead.
+ * whose absence is invisible until somebody runs one. The arm was a named
+ * refusal from T1 and builds the real source since T5/T6 — a SNAPSHOT, so the
+ * loop never counts an absence against it (0116 §5) — and still refuses by
+ * name where no reader is built, so the sentence says which of the two it is.
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -151,16 +153,31 @@ describe('the file face an archive claims', () => {
     expect(sourceFaceBuilder(ARCHIVE_CONNECTION_KIND, 'file')).not.toBe('dav');
   });
 
-  it('refuses to build one, naming what is missing rather than what is broken', () => {
-    // The second wall. The create-mapping door already refuses an archive
-    // source by name, so nothing should reach here — but that door is a
-    // validator somebody could widen, and this is what stands behind it.
+  it('builds a file source that is a SNAPSHOT, from the config alone — no credential read', () => {
+    // Placement and idempotency ride inside `ArchiveFileSource`; what the seam
+    // has to get right is that the source declares itself a snapshot, so the
+    // loop never counts an absence against a row (0116 §5), and that it asks
+    // for no credential a location-shaped row does not have.
+    const source = buildFileSourceFromConnection({
+      kind: ARCHIVE_CONNECTION_KIND,
+      config: { type: 'archive', provider: 'google-takeout', path: '/srv/exports/x' },
+      creds: {},
+    });
+    expect(source.snapshot).toBe(true);
+    expect(source.listKeys).toBeUndefined();
+    expect(source.listTrashedPaths).toBeUndefined();
+  });
+
+  it('refuses, by name, an export no reader is built for — a wiring gap, not a limit of the export', () => {
+    // The Apple reader is absent on purpose (T3b). The sentence has to say
+    // it is OUR gap: "your export cannot be migrated" is false, and would
+    // send somebody back to re-download 25 GB for nothing.
     expect(() =>
       buildFileSourceFromConnection({
         kind: ARCHIVE_CONNECTION_KIND,
-        config: { type: 'archive', provider: 'google-takeout', path: '/srv/exports/x' },
+        config: { type: 'archive', provider: 'apple-privacy', path: '/srv/exports/x' },
         creds: {},
       }),
-    ).toThrow(/not built yet/);
+    ).toThrow(/wiring gap in this product, not a problem with your export/);
   });
 });

@@ -221,6 +221,24 @@ export interface FileSource {
    */
   fetch(item: FileItem): Promise<RawFileItem>;
   /**
+   * A SNAPSHOT, not a scan (workplan 0116 §5).
+   *
+   * Set by a source whose complete listing is NOT a complete listing of what
+   * the person has: an export archive, whose scope the person chose, whose
+   * parts may have failed to download, and whose categories they may have
+   * deselected between two requests. Deleted, deselected and truncated present
+   * identically in it, so an item's absence from the listing is evidence of
+   * nothing — weaker than `inferred`, this product's weakest deletion class,
+   * which needs consecutive complete scans of a live account.
+   *
+   * The sync loop then never counts an absence against a ledger row and never
+   * reports a deletion, even as a suspicion: an import from such a source adds
+   * and updates, and a target keeps what a later snapshot no longer mentions.
+   * Reported removals (`listSince().removed`) and a bin (`listTrashedPaths`)
+   * are positive evidence and stay usable — a snapshot has neither.
+   */
+  readonly snapshot?: true;
+  /**
    * Every file path currently in this collection, ignoring any cursor.
    *
    * Optional, and it exists for exactly one purpose: telling a file that MOVED

@@ -374,5 +374,8 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
           : folder,
       ),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
+    // A snapshot's absences are evidence of nothing (0116 §5) — the source
+    // says so about itself, and the loop turns its absence-counting off.
+    ...(source.snapshot ? { snapshot: true } : {}),
   });
 }
