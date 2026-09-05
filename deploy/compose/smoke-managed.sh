@@ -2562,6 +2562,86 @@ if [ -n "$gate_dbx_id" ] && [ -n "$gate_dbx_secret" ]; then
 else
   report_json "provider clients (dropbox)" "/api/provider-clients" '.dropbox' connection
 fi
+# THE DEPLOYMENT'S OWN MICROSOFT APP REGISTRATION (workplan 0114 T8), the
+# Google block's three questions asked of Microsoft's door: the facts say
+# `deployment`; a consent without a pair answers a URL at Entra's endpoint for
+# THIS client id, asking offline_access and exactly the faces named — a face
+# nobody ticked is not a scope somebody has to explain to a consent screen —
+# with no secret in it; half a pair is refused. The gate's pair is a sentinel
+# that never reaches Microsoft: the URL is built, never opened. A stack that
+# carries no pair reports `connection` and refuses `no_microsoft_client`,
+# asserted in its own right rather than skipped.
+gate_ms_id="$(grep -E '^MICROSOFT_OAUTH_CLIENT_ID=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+gate_ms_secret="$(grep -E '^MICROSOFT_OAUTH_CLIENT_SECRET=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+if [ -n "$gate_ms_id" ] && [ -n "$gate_ms_secret" ]; then
+  report_json "provider clients (microsoft)" "/api/provider-clients" '.microsoft' deployment
+
+  r="$(http POST "$API/api/migrations/microsoft/authorize" "$TOK_R" '{"domains":["email","file"]}')"
+  code="${r%% *}"; body="${r#* }"
+  ms_url="$(jq -r '.url // empty' <<<"$body" 2>/dev/null || true)"
+  case "$code:$ms_url" in
+    "200:https://login.microsoftonline.com/"*"client_id=${gate_ms_id}"*)
+      echo "microsoft consent without a pair: HTTP 200, the URL is Entra's and carries the deployment's client id" ;;
+    *)
+      echo "microsoft consent without a pair: HTTP $code, url '${ms_url:0:120}' — ${body:0:200}"
+      fail_at ;;
+  esac
+  # The scope is the faces named plus offline_access (the refresh token's own
+  # scope), and nothing else: the two faces asked for, present; the three not
+  # asked for, absent.
+  for want in offline_access Mail.Read Files.Read; do
+    case "$ms_url" in
+      *"$want"*) ;;
+      *) echo "microsoft consent without a pair: the URL does not ask ${want} — '${ms_url:0:160}'"; fail_at ;;
+    esac
+  done
+  case "$ms_url" in
+    *Calendars.Read*|*Contacts.Read*|*Tasks.Read*)
+      echo "microsoft consent without a pair: the URL asks a face nobody named — '${ms_url:0:160}'"; fail_at ;;
+    *) echo "microsoft consent without a pair: the scope is the two faces named and offline_access, nothing more" ;;
+  esac
+  case "$body" in
+    *"$gate_ms_secret"*) echo "the microsoft consent answer CARRIES THE CLIENT SECRET"; fail_at ;;
+  esac
+
+  r="$(http POST "$API/api/migrations/microsoft/authorize" "$TOK_R" \
+    "$(jq -nc --arg c "$gate_ms_id" '{clientId:$c, domains:["email"]}')")"
+  code="${r%% *}"; body="${r#* }"
+  if [ "$code" = "400" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "half_client_pair" ]; then
+    echo "microsoft consent with half a pair: HTTP 400 half_client_pair"
+  else
+    echo "microsoft consent with half a pair: HTTP $code — ${body:0:200} (expected 400 half_client_pair)"
+    fail_at
+  fi
+else
+  report_json "provider clients (microsoft)" "/api/provider-clients" '.microsoft' connection
+  r="$(http POST "$API/api/migrations/microsoft/authorize" "$TOK_R" '{"domains":["email"]}')"
+  code="${r%% *}"; body="${r#* }"
+  if [ "$code" = "400" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "no_microsoft_client" ]; then
+    echo "microsoft consent without a pair, on a stack without a client: HTTP 400 no_microsoft_client"
+  else
+    echo "microsoft consent without a pair: HTTP $code — ${body:0:200} (expected 400 no_microsoft_client)"
+    fail_at
+  fi
+fi
+# The Microsoft callback page, under its own headers — the same page and the
+# same `callbackPageHeaders` as Google's (above), asked of the deployed stack
+# through the web origin for the same reason: a proxy that put helmet's
+# defaults back would take the popup's opener and script away, and this is
+# where that shows up rather than on somebody's phone. A bogus state stores
+# nothing, exchanges nothing, and opens nothing.
+ms_cb_headers="$(curl -sS -o /dev/null -D - --max-time 15 \
+  "${WEB}/api/migrations/microsoft/callback?state=not-a-state" 2>/dev/null || true)"
+if grep -q '^HTTP/[0-9.]* 400' <<<"$ms_cb_headers" \
+  && grep -qi '^cross-origin-opener-policy: *unsafe-none' <<<"$ms_cb_headers" \
+  && grep -qi '^content-security-policy:.*script-src' <<<"$ms_cb_headers" \
+  && ! grep -qi "^content-security-policy:.*script-src 'self'" <<<"$ms_cb_headers"; then
+  echo "microsoft consent callback page: HTTP 400 for a bogus state, served under its own headers (opener kept, script by hash)"
+else
+  echo "microsoft consent callback page: the defaults reached the browser — the popup cannot hand the token back"
+  echo "    $(grep -i '^HTTP/\|^cross-origin-opener-policy\|^content-security-policy' <<<"$ms_cb_headers" | tr -d '\r' | paste -sd '|' -)"
+  fail_at
+fi
 # THE APPLE ACCOUNT KIND, ASSERTED WITHOUT EVER REACHING APPLE (workplan 0115 T9).
 #
 # Every other provider block above uses a sentinel credential that is built into

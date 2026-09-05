@@ -277,15 +277,20 @@ jobs:
           # a pair is refused at the consent and at the connection door —
           # and the SIGN-IN provider, so configure_idp has a provider to find
           # on a second run, which is the path that grew nine buttons on the
-          # owner's box (#711). None of it is a credential: the consent URL is
-          # built and never opened, and nobody presses the sign-in button. The
-          # secrets are random per runner, so nothing in this file reads as
-          # one. `--if-absent`: a runner that carries a real pair keeps it.
+          # owner's box (#711). The Dropbox App and the Microsoft app
+          # registration (workplan 0114 T8) get the same treatment: the smoke
+          # asks each door the same three questions. None of it is a
+          # credential: the consent URLs are built and never opened, and
+          # nobody presses the sign-in button. The secrets are random per
+          # runner, so nothing in this file reads as one. `--if-absent`: a
+          # runner that carries a real pair keeps it.
           ./deploy/compose/env-upsert.sh --if-absent deploy/compose/.env \
             "GOOGLE_OAUTH_CLIENT_ID=gate-migration-client.apps.googleusercontent.com" \
             "GOOGLE_OAUTH_CLIENT_SECRET=gate-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')" \
             "DROPBOX_OAUTH_CLIENT_ID=gatedropboxappkey" \
             "DROPBOX_OAUTH_CLIENT_SECRET=gate-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')" \
+            "MICROSOFT_OAUTH_CLIENT_ID=gate-microsoft-app-registration" \
+            "MICROSOFT_OAUTH_CLIENT_SECRET=gate-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')" \
             "IDP_GOOGLE_CLIENT_ID=gate-signin-client.apps.googleusercontent.com" \
             "IDP_GOOGLE_CLIENT_SECRET=gate-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 
