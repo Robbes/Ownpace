@@ -625,6 +625,24 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           value={values[field.key] ?? ''}
           onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
         />
+      ) : field.options ? (
+        // A CLOSED LIST IS A CHOICE, not a box to spell an id into (0116 T1's
+        // `options`, first rendered here after E2E (managed) #154 found the
+        // kind could be offered and not added). Which export an archive is
+        // selects the reader, and a misspelt `google-takeout` is not refused
+        // — the wrong reader finds none of its landmarks and reports nothing.
+        <select
+          className="input w-full"
+          value={values[field.key] ?? ''}
+          onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+        >
+          <option value="">—</option>
+          {field.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       ) : (
         <input
           // Secrets are masked here for the same reason they are never

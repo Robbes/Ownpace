@@ -492,6 +492,35 @@ describe('adding a connection through the front door', () => {
     }
   });
 
+  it('the export archive asks WHICH export as a choice, and posts no username (0116 T1; E2E #154)', async () => {
+    // The kind whose credential is a location. Its descriptor has no username
+    // field, so the body this form posts must carry none — the managed gate's
+    // honest body was refused for exactly that until the door followed the
+    // descriptor. And "which export" is a CLOSED list: a misspelt id is not
+    // refused, it is a reader that finds none of its landmarks.
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Export archive/ }));
+    const which = screen.getByLabelText(/^Which export/) as HTMLSelectElement;
+    expect(which.tagName, 'which export is a box to spell an id into').toBe('SELECT');
+    expect([...which.options].map((o) => o.value)).toEqual(['', 'google-takeout', 'apple-privacy']);
+    expect([...which.options].map((o) => o.textContent)).toContain('Google Takeout');
+
+    fireEvent.change(which, { target: { value: 'google-takeout' } });
+    fireEvent.change(screen.getByLabelText(/^Where the archive is/), {
+      target: { value: '/srv/exports/takeout-20260904' },
+    });
+    fireEvent.change(screen.getByLabelText(/^Name it/), { target: { value: 'my photos' } });
+    add.mockResolvedValue({ ok: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Add and test' }));
+    await waitFor(() => expect(add).toHaveBeenCalled());
+    expect(add.mock.calls[0]![0]).toEqual({
+      role: 'source',
+      type: 'archive',
+      displayName: 'my photos',
+      values: { provider: 'google-takeout', path: '/srv/exports/takeout-20260904' },
+    });
+  });
+
   it('folds the Google client pair away where the deployment carries the client (ADR-0041)', async () => {
     // The owner's remark of 2026-09-02: on a managed deployment a person
     // grants Ownpace's own application; "use your own" is the exception. So
