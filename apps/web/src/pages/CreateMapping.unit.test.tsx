@@ -231,7 +231,7 @@ describe('CreateMapping — the wizard reaches submit and says what failed', () 
 
     // The dictionary frame + the server's sentence verbatim.
     expect(
-      await screen.findByText(/The migration was not created/),
+      await screen.findByText(/Not created; your entries are still here/),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/sync mode must be 'mirror'/),

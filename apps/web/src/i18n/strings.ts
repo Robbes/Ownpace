@@ -21,7 +21,7 @@ const en = {
   'status.link': 'Service status',
   'notFound.heading': 'Nothing here.',
   'notFound.lede':
-    'That address does not match any screen in Ownpace. It may have been renamed, or it may never have existed \u2014 either way, your migrations are untouched.',
+    'No screen has that address; renamed or never there, your migrations are untouched.',
   'notFound.back': 'Back to the dashboard',
   'nav.dashboard': 'Dashboard',
   'nav.mappings': 'Migrations',
@@ -53,12 +53,12 @@ const en = {
   'discovery.th.existing': 'Already on the destination',
   'discovery.keptAsIs': 'kept as-is',
   'discovery.generatedId.pre.one':
-    'message arrived without a Message-ID, which is what we use to copy each message exactly once. We will generate one and add it to',
+    'message arrived without a Message-ID; we generate one and add it to',
   'discovery.generatedId.pre.many':
-    'messages arrived without a Message-ID, which is what we use to copy each message exactly once. We will generate one and add it to',
+    'messages arrived without a Message-ID; we generate one and add it to',
   'discovery.generatedId.strong': 'the copy on your new server',
   'discovery.generatedId.post':
-    '— the original on your old server is not changed. These messages are included in the counts above and will be migrated.',
+    '— the original on your old server is not changed; they migrate with the rest.',
   'discovery.colliding.pre.one': 'item already on your destination matches something in your source. We will',
   'discovery.colliding.pre.many': 'items already on your destination match something in your source. We will',
   'discovery.colliding.strong': "keep the destination's copy",
@@ -75,11 +75,9 @@ const en = {
   'applyFlag.turnOnArmed': 'Confirm: enable deletions',
   'autoApply.on': 'Auto-applying relocations is ON for this migration.',
   'autoApply.off': 'Auto-applying relocations is OFF for this migration (the default).',
-  'autoApply.hint':
-    'When on, each file pass removes the OLD copies of moved or renamed files by itself — ' +
-    'only where the same bytes are confirmed present under the new name, the pairing is ' +
-    'unique, the report survived a full pass, and no mass event is suspected. Everything it ' +
-    'refuses stays in this queue for you. Deletions are never applied automatically.',
+  'autoApply.hint': 'Old copies of moved files go after strict checks; deletions never do.',
+  'autoApply.why':
+    'Only where the same bytes are confirmed present under the new name, the pairing is unique, the report survived a full pass, and no mass event is suspected. Everything it refuses stays in this queue for you. Deletions are never applied automatically.',
   'autoApply.turnOn': 'Enable auto-apply for relocations',
   'autoApply.turnOnArmed': 'Confirm: auto-apply relocations unattended',
   'scope.migrates': 'Migrates',
@@ -586,10 +584,9 @@ const en = {
   // mail, calendars and files at either provider are not reached at all.
   // Saying which is which is the part that makes one press enough.
   'mappings.delete.explain':
-    'This removes the migration itself: its settings, and the record of what it has ' +
-    'already copied. Nothing at your source or your destination is touched — no mail, ' +
-    'no calendars, no contacts, no files are deleted anywhere. Setting the same ' +
-    'migration up again starts a fresh record and copies nothing twice.',
+    'Removes the migration’s settings and record; nothing at your source or destination is touched.',
+  'mappings.delete.more':
+    'No mail, calendars, contacts or files are deleted anywhere. Setting the same migration up again starts a fresh record and copies nothing twice.',
   'mappings.delete.confirm': 'Delete migration',
   'mappings.delete.cancel': 'Cancel',
   'mappings.delete.failed': 'The migration was not deleted.',
@@ -598,11 +595,9 @@ const en = {
   'domain.contact': 'Contacts',
   'domain.file': 'Files',
   'domain.task': 'Tasks',
-  'evidence.reported.title': 'The source itself told us the object was gone.',
-  'evidence.trashed.title':
-    "We found it in the owner's Deleted Items — the old system's own record that they deleted it.",
-  'evidence.inferred.title':
-    'It stopped appearing in consecutive complete scans. A suspicion, not a fact — this can never be applied.',
+  'evidence.reported.title': 'The source itself reported the object gone.',
+  'evidence.trashed.title': 'Found in the owner’s Deleted Items.',
+  'evidence.inferred.title': 'Missing from complete scans: a suspicion, never applied.',
   'guidance.summary': 'What this means and what you can do',
   'receipt.queued': 'Removal queued — the job re-checks every gate before touching anything.',
   'receipt.applied.binned':
@@ -628,11 +623,12 @@ const en = {
   'hub.sharing.blurb':
     'Who could reach what on the old system; a checklist worked after finishing.',
   'sharing.title': 'Sharing checklist',
-  'sharing.intro':
-    'Everything somebody else could reach on the old system, one row per grant. Settle each row: create the share on the new system, tick it off as done by hand, or skip it on purpose — every settled row keeps who decided, and when.',
+  'sharing.intro': 'Everything somebody else could reach on the old system, one row per grant.',
+  'sharing.intro.more':
+    'Settle each row: create the share on the new system, tick it off as done by hand, or skip it on purpose. Every settled row keeps who decided, and when.',
   'sharing.progressSettled': 'settled',
   'sharing.openManualNote':
-    'row(s) are marked manual — steps for you on the new system; tick them off here when done.',
+    'row(s) marked manual: your steps on the new system; tick them off here when done.',
   'sharing.rescan': 'Refresh from the source…',
   'sharing.blindSpots': 'Could not be inventoried — capture these by hand:',
   'sharing.empty': 'No shares on the list yet. Refresh from the source to scan.',
@@ -644,7 +640,7 @@ const en = {
   'sharing.manualBadge': 'manual',
   'sharing.granteeLabel': 'share with',
   'sharing.inviteNote':
-    'Applying creates the share on the new system, which then sends its own invitation to this address — check the address first.',
+    'Applying creates the share, and the new system invites this address itself; check it first.',
   'sharing.state.applied': 'shared on the new system',
   'sharing.state.doneManual': 'done by hand',
   'sharing.state.skipped': 'skipped',
@@ -733,7 +729,8 @@ const en = {
   'queue.alreadyDecided': 'Already decided',
   'moves.title': 'Moved on the old system',
   'moves.intro':
-    'Items the owner has filed somewhere other than where they came from. The new system still has them where we put them, and nothing has been changed on either side.',
+    'Items the owner filed elsewhere since the copy; nothing has changed on either side.',
+  'moves.intro.more': 'The new system still has them where we put them; each row is your call.',
   'moves.empty.open': 'Nothing has moved.',
   'moves.empty.acknowledged': 'Nothing has been decided yet.',
   'moves.keep': 'Leave it where it is',
@@ -741,27 +738,24 @@ const en = {
   'moves.applyArmed': 'Confirm removal',
   'moves.renamedTo': 'renamed',
   'failures.title': 'Could not be copied',
-  'failures.intro':
-    'Items that did not make it across, what went wrong, and how many times we tried.',
+  'failures.intro': 'Items that did not make it across, what went wrong, and how often we tried.',
   'failures.empty.needsDecision': 'Nothing is waiting on a decision.',
   'failures.acceptedLeave':
-    'Accepted items no longer appear here — accepting migrates without the item, and the ledger stops counting it as failed.',
+    'Accepted items no longer appear here; migration continues without them, no longer counted as failed.',
   'failures.seeRuns': 'See the pass that failed (run history)',
   'failures.stillTrying': 'Still trying',
   'failures.empty.retrying': 'Nothing is being retried.',
   'failures.retry': 'Try again',
   'failures.retryCost':
-    // Sourced from domain-sync.ts's own cursor comment (~line 1158): an
-    // operator retry clears the mapping's cursors, forcing the full re-list
-    // that puts the item back in front of the loop. If the engine changes,
-    // change this sentence WITH it — the two must not disagree.
-    'Retrying clears this migration\u2019s sync cursors, so the next pass re-lists everything to reach this item again. That pass takes longer; nothing already copied is copied twice.',
+    'Retrying re-lists everything to reach this item again, so the next pass takes longer.',
+  'failures.retryCost.why':
+    'It clears this migration’s sync cursors, so the whole source is listed again; nothing already copied is copied twice.',
   'failures.accept': 'Migrate without it',
   'failures.try.one': 'try',
   'failures.try.many': 'tries',
   'deletions.title': 'Deleted on the old system',
   'deletions.intro':
-    'Items the owner has deleted where they came from, which the new system still has. Nothing has been removed from either side.',
+    'Items the owner deleted at the source; the new system still has them, untouched.',
   'deletions.empty.confirmed': 'Nothing is waiting on a decision.',
   'deletions.watching': 'Watching',
   'deletions.empty.watching': 'Nothing is being watched.',
@@ -773,17 +767,17 @@ const en = {
   'common.cancel': 'Cancel',
   'docs.title': 'Setup guides',
   'docs.all': '← All setup guides',
-  'docs.notFound': 'There is no guide by that name. These are the ones that ship with this version:',
+  'docs.notFound': 'There is no guide by that name; these ship with this version:',
   'mappings.lastSync': 'Last sync:',
   'mappings.never': 'Never',
   'mappings.filtered.lead': 'Showing only:',
   'mappings.filtered.clear': 'Show all migrations',
   'mappings.loadFailed': 'Could not load the migrations list.',
   'mappings.loadFailedNotEmpty':
-    'This is not the same as having no migrations — mappings may exist that could not be read.',
+    'Not the same as having no migrations; some may exist that could not be read.',
   'mappings.syncFailed': 'The sync request did not complete.',
   'createMapping.createFailed':
-    'The migration was not created. Your entries are still here — fix what the message names and try again.',
+    'Not created; your entries are still here, so fix what the message names and retry.',
   'dashboard.runsReadFailed': 'Could not read the run history:',
   'dashboard.noRunsYet': 'No passes yet',
   'dashboard.runItems': 'items',
@@ -1027,7 +1021,7 @@ const en = {
   'confirm.starting': 'Starting…',
   'verify.title': 'Check the migration',
   'verify.intro':
-    'Compares what the old system has against what the new one has, and samples the contents to confirm they match. Read-only — it never writes to either side.',
+    'Compares old against new and samples contents; read-only, it never writes to either side.',
   'verify.run': 'Run the check',
   'verify.runAgain': 'Check again',
   'verify.durationHint': 'Reads the whole destination — on a large mailbox this takes minutes.',
@@ -1036,7 +1030,7 @@ const en = {
   'verify.runningSince': 'Running since',
   'verify.didNotComplete': 'The check did not complete.',
   'verify.notAResult':
-    "Nothing is known about the migration's completeness either way — this is not a result.",
+    'Nothing is known about the migration’s completeness either way; this is not a result.',
   'verify.restarted': 'The appliance restarted while the check ran. Run it again.',
   'verify.didNotStart': 'The check did not start.',
   'verify.ready': 'This migration is ready to cut over.',
@@ -1053,17 +1047,16 @@ const en = {
   'verify.differed': 'differed',
   'verify.notComparable': 'not comparable',
   'verify.notMeasured': 'not measured',
-  'verify.notMeasured.title':
-    'The target exposes no per-item size, so nothing was measured on that side. Not the same as a match.',
+  'verify.notMeasured.title': 'Target gives no per-item size; not a match.',
   'verify.issues': 'Issues',
   'verify.whatToDo': 'What to do',
   'verify.help.PASS': 'Counts matched and the sampled content compared clean.',
   'verify.help.WARN': 'Discrepancies within tolerance. Read the issues before proceeding.',
   'verify.help.FAIL': 'Items are missing on the target, or sampled content did not match.',
   'verify.help.SKIPPED':
-    'You turned this domain off in the config. Your call, so it does not block cutover — but nobody checked it.',
+    'Turned off in the config; it does not block cutover, but nobody checked it.',
   'verify.help.NOT_VERIFIABLE':
-    'This domain IS enabled, but there is no way to read the target for it, so nothing could be checked. This blocks cutover — an unchecked domain has not passed.',
+    'Enabled, but the target cannot be read for it; unchecked, so it blocks cutover.',
   'finish.title': 'Finish a migration',
   'finish.intro': 'Finishing stops the copying and the reporting; work the steps in order.',
   'finish.unknown.pre': 'No migration with id',
@@ -1131,9 +1124,9 @@ const en = {
   'finish.button.disabledTitle':
     'Confirm step 4 first — finishing before delivery has moved loses anything that arrives afterwards.',
   'createMapping.target.userOperated':
-    'The destination server is yours to run. We migrate your data into it — we do not ' +
-    'operate, monitor or back it up, and it carries no service level from us. ' +
-    'If it is a managed European platform, its own provider is responsible for it.',
+    'The destination server is yours to run; we carry no service level for it.',
+  'createMapping.target.userOperated.more':
+    'We migrate your data into it; we do not operate, monitor or back it up. If it is a managed European platform, its own provider is responsible for it.',
   'tenants.title': 'Team & organization',
   'tenants.intro':
     'Who can sign in to this organization, and what they are allowed to do. Changes apply immediately.',
@@ -1193,29 +1186,25 @@ const en = {
   'nav.decisions': 'Attention',
   'decisions.presets.heading': 'Standing answers',
   'decisions.presets.intro':
-    'Categories set to answer themselves are still recorded here — you can see what was ' +
-    'noticed and what closed it — but nobody is interrupted about them.',
+    'Categories set to answer themselves are still recorded here, but nobody is interrupted about them.',
+  'decisions.presets.intro.more': 'You can see what was noticed and what closed it.',
   'decisions.presets.newMailbox': 'When a mailbox appears that nothing migrates',
   'decisions.presets.ask': 'Ask me',
   'decisions.presets.auto': 'Answer automatically',
   'decisions.presets.saved': 'Saved.',
   'decisions.presets.readError':
-    'Could not read the standing answers, so this queue may be answering some categories ' +
-    'without showing you which.',
+    'Could not read the standing answers; some categories may be answered without showing which.',
   'decisions.presets.readOnly': 'An owner or admin sets these.',
   // The permission handover, on Finish (workplan 0029 T4, SAD §14.2).
   'permissions.heading': 'Carry the permissions across before you move delivery',
   'permissions.body':
-    'Who could see whose calendar, who had access to which shared files — none of that moves ' +
-    'with the mail. Get the list, work through it on the new system, and do it before delivery ' +
-    'moves: rights added afterwards were missing for however long that took. The list names ' +
-    'what it could not read, at the top.',
+    'Sharing rights do not move with the mail; work the list before delivery moves.',
+  'permissions.body.more':
+    'Who could see whose calendar, who had access to which shared files: none of that moves. Get the list, work through it on the new system, and do it before delivery moves; rights added afterwards were missing for however long that took. The list names what it could not read, at the top.',
   'permissions.blindSpot':
-    'Two things the list may not tell you. Who had FullAccess or Send-As on a mailbox: ' +
-    'Microsoft does not expose that to us at all, so you have to read it out of Exchange ' +
-    'yourself. And sharing on OneDrive and SharePoint, which is only included when this ' +
-    'installation was given that extra permission. The document says which of the two it ' +
-    'actually read, and how to cover the rest.',
+    'Two blind spots: mailbox FullAccess or Send-As, and OneDrive and SharePoint sharing.',
+  'permissions.blindSpot.more':
+    'Who had full access to a mailbox or could send as it: Microsoft does not expose that to us at all, so you have to read it out of Exchange yourself. Sharing on the two file platforms is only included when this installation was given that extra permission. The document says which of the two it actually read, and how to cover the rest.',
   'permissions.download': 'Get the permission list',
   'permissions.failed': 'The permission list could not be fetched.',
   // Shared addresses, on Review & confirm (workplan 0027 T4).
@@ -1249,8 +1238,7 @@ const en = {
   'decisions.sharedAddress.shared_s': 'One shared mailbox',
   'decisions.sharedAddress.distribution_d': 'A distribution list',
   'decisions.empty.noDetectors':
-    'Nothing is waiting. The watchers for new mailboxes and shared addresses run once a day; a ' +
-    'source they could not read is reported as a blind spot rather than counted as "no changes".',
+    'Nothing waiting; watchers run once a day, reporting an unreadable source as a blind spot.',
   'decisions.empty.answered': 'Nothing has been decided yet.',
   'decisionCategory.new_mailbox': 'New mailbox',
   'decisionCategory.deleted_mailbox': 'Deleted mailbox',
@@ -1573,7 +1561,7 @@ const nl: Record<keyof typeof en, string> = {
   'status.link': 'Storingsstatus',
   'notFound.heading': 'Hier staat niets.',
   'notFound.lede':
-    'Dit adres hoort niet bij een scherm in Ownpace. Misschien is het hernoemd, misschien heeft het nooit bestaan \u2014 hoe dan ook, uw migraties zijn ongemoeid.',
+    'Geen scherm heeft dit adres; hernoemd of nooit bestaan, uw migraties zijn ongemoeid.',
   'notFound.back': 'Terug naar het overzicht',
   'nav.dashboard': 'Overzicht',
   'nav.mappings': 'Migraties',
@@ -1730,12 +1718,12 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.th.existing': 'Al op de bestemming',
   'discovery.keptAsIs': 'blijven ongewijzigd',
   'discovery.generatedId.pre.one':
-    'bericht is aangekomen zonder Message-ID — daarmee kopiëren we elk bericht precies één keer. We genereren er een en voegen die toe aan',
+    'bericht kwam aan zonder Message-ID; we genereren er een en voegen die toe aan',
   'discovery.generatedId.pre.many':
-    'berichten zijn aangekomen zonder Message-ID — daarmee kopiëren we elk bericht precies één keer. We genereren er een en voegen die toe aan',
+    'berichten kwamen aan zonder Message-ID; we genereren er een en voegen die toe aan',
   'discovery.generatedId.strong': 'de kopie op uw nieuwe server',
   'discovery.generatedId.post':
-    '— het origineel op uw oude server verandert niet. Deze berichten tellen mee in de aantallen hierboven en worden gemigreerd.',
+    '— het origineel op uw oude server verandert niet; ze migreren met de rest mee.',
   'discovery.colliding.pre.one': 'item dat al op uw bestemming staat, komt overeen met iets in uw bron. We',
   'discovery.colliding.pre.many': 'items die al op uw bestemming staan, komen overeen met iets in uw bron. We',
   'discovery.colliding.strong': 'behouden de kopie op de bestemming',
@@ -1747,17 +1735,15 @@ const nl: Record<keyof typeof en, string> = {
   'applyFlag.refusesUntilOn':
     'De server weigert elke verwijderknop op dit scherm totdat dit is ingeschakeld.',
   'applyFlag.config.pre': 'Op deze appliance staat de waarde in het configuratiebestand van de mapping',
-  'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen. Geen enkele API past dit aan.',
+  'applyFlag.config.post': '; bewerk het bestand en herstart om dit te wijzigen. Geen API past dit aan.',
   'applyFlag.turnOn': 'Toepassen van verwijderingen inschakelen',
   'applyFlag.turnOnArmed': 'Bevestig: verwijderingen inschakelen',
   'autoApply.on': 'Automatisch toepassen van verplaatsingen staat AAN voor deze migratie.',
   'autoApply.off': 'Automatisch toepassen van verplaatsingen staat UIT voor deze migratie (de standaard).',
   'autoApply.hint':
-    'Indien ingeschakeld verwijdert elke bestandsronde zelf de OUDE kopieën van verplaatste of ' +
-    'hernoemde bestanden — alleen wanneer dezelfde bytes aantoonbaar onder de nieuwe naam ' +
-    'aanwezig zijn, de koppeling uniek is, de melding een volledige ronde heeft doorstaan en ' +
-    'er geen massale gebeurtenis wordt vermoed. Alles wat wordt geweigerd blijft in deze ' +
-    'wachtrij voor u staan. Verwijderingen worden nooit automatisch toegepast.',
+    'Oude kopieën van verplaatste bestanden gaan na strenge controles; verwijderingen nooit.',
+  'autoApply.why':
+    'Alleen wanneer dezelfde bytes aantoonbaar onder de nieuwe naam aanwezig zijn, de koppeling uniek is, de melding een volledige ronde heeft doorstaan en er geen massale gebeurtenis wordt vermoed. Alles wat wordt geweigerd blijft in deze wachtrij voor u staan. Verwijderingen worden nooit automatisch toegepast.',
   'autoApply.turnOn': 'Automatisch toepassen van verplaatsingen inschakelen',
   'autoApply.turnOnArmed': 'Bevestig: verplaatsingen onbeheerd automatisch toepassen',
   'scope.migrates': 'Migreert',
@@ -2152,10 +2138,9 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.action.reviewAndStart': 'Controleren en starten',
   'mappings.action.delete': 'Verwijderen',
   'mappings.delete.explain':
-    'Dit verwijdert de migratie zelf: de instellingen en de registratie van wat er al ' +
-    'gekopieerd is. Bij uw bron of bestemming wordt niets aangeraakt — er wordt nergens ' +
-    'e-mail, agenda, contact of bestand verwijderd. Dezelfde migratie opnieuw instellen ' +
-    'begint met een nieuwe registratie en kopieert niets dubbel.',
+    'Verwijdert instellingen en registratie van de migratie; bij uw bron of bestemming wordt niets aangeraakt.',
+  'mappings.delete.more':
+    'Er wordt nergens e-mail, agenda, contact of bestand verwijderd. Dezelfde migratie opnieuw instellen begint met een nieuwe registratie en kopieert niets dubbel.',
   'mappings.delete.confirm': 'Migratie verwijderen',
   'mappings.delete.cancel': 'Annuleren',
   'mappings.delete.failed': 'De migratie is niet verwijderd.',
@@ -2164,22 +2149,20 @@ const nl: Record<keyof typeof en, string> = {
   'domain.contact': 'Contacten',
   'domain.file': 'Bestanden',
   'domain.task': 'Taken',
-  'evidence.reported.title': 'Het bronsysteem heeft zelf gemeld dat het object weg is.',
-  'evidence.trashed.title':
-    'We vonden het in de map Verwijderde items van de eigenaar — het eigen bewijs van het oude systeem dat het is verwijderd.',
-  'evidence.inferred.title':
-    'Het verscheen niet meer in opeenvolgende volledige scans. Een vermoeden, geen feit — dit kan nooit worden toegepast.',
+  'evidence.reported.title': 'De bron zelf meldde het object als weg.',
+  'evidence.trashed.title': 'Gevonden in Verwijderde items van de eigenaar.',
+  'evidence.inferred.title': 'Ontbreekt in volledige scans: een vermoeden, nooit toegepast.',
   'guidance.summary': 'Wat dit betekent en wat u kunt doen',
   'receipt.queued':
-    'Verwijdering in de wachtrij — de taak controleert elk controlepunt opnieuw voordat er iets wordt aangeraakt.',
+    'Verwijdering in de wachtrij; de taak controleert elk controlepunt opnieuw voordat iets wordt aangeraakt.',
   'receipt.applied.binned':
-    'Verwijderd — verplaatst naar de prullenbak van het doelsysteem; daar is mogelijk nog een kopie terug te halen.',
+    'Verwijderd; nu in de prullenbak van het doel, mogelijk daar nog terug te halen.',
   'receipt.applied.deleted': 'Verwijderd — weg, zonder herstelmogelijkheid vanaf hier.',
   'receipt.applied.unknown':
     'Verwijderd. Hoe definitief de verwijdering was, staat niet op het ontvangstbewijs.',
   'receipt.failedPrefix': 'De verwijdertaak is mislukt:',
   'lifecycle.paused':
-    'Deze migratie is nog niet gestart, dus er is niets gekopieerd en er kan niets zijn afgeweken.',
+    'Deze migratie is niet gestart, dus er is niets gekopieerd en niets kan zijn afgeweken.',
   'hub.fallbackTitle': 'Migratie',
   'hub.orderIntro':
     'De schermen hieronder staan in cutover-volgorde; werk ze van boven naar beneden af.',
@@ -2199,14 +2182,15 @@ const nl: Record<keyof typeof en, string> = {
   'hub.sharing.blurb':
     'Wie wat kon bereiken op het oude systeem; een checklist voor na het afronden.',
   'sharing.title': 'Deel-checklist',
-  'sharing.intro':
-    'Alles wat iemand anders kon bereiken op het oude systeem, één regel per recht. Werk elke regel af: maak het delen aan op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over — elke afgewerkte regel onthoudt wie besliste, en wanneer.',
+  'sharing.intro': 'Alles wat iemand anders kon bereiken op het oude systeem, één regel per recht.',
+  'sharing.intro.more':
+    'Werk elke regel af: maak het delen aan op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over. Elke afgewerkte regel onthoudt wie besliste, en wanneer.',
   'sharing.progressSettled': 'afgewerkt',
   'sharing.openManualNote':
-    'regel(s) staan op handmatig — stappen voor u op het nieuwe systeem; vink ze hier af zodra gedaan.',
+    'regel(s) op handmatig: uw stappen op het nieuwe systeem; vink ze hier af zodra gedaan.',
   'sharing.rescan': 'Opnieuw inlezen van de bron…',
   'sharing.blindSpots': 'Kon niet worden geïnventariseerd — leg deze handmatig vast:',
-  'sharing.empty': 'Nog geen gedeelde rechten op de lijst. Lees opnieuw in van de bron om te scannen.',
+  'sharing.empty': 'Nog geen gedeelde rechten. Lees opnieuw in van de bron om te scannen.',
   'sharing.apply': 'Delen aanmaken op nieuw systeem',
   'sharing.applyArmed': 'Klik nogmaals — dit deelt ÉN nodigt uit',
   'sharing.done': 'Afvinken',
@@ -2215,7 +2199,7 @@ const nl: Record<keyof typeof en, string> = {
   'sharing.manualBadge': 'handmatig',
   'sharing.granteeLabel': 'delen met',
   'sharing.inviteNote':
-    'Toepassen maakt het delen aan op het nieuwe systeem, dat vervolgens zelf de uitnodiging naar dit adres stuurt — controleer eerst het adres.',
+    'Toepassen maakt het delen aan; het nieuwe systeem nodigt dit adres uit, controleer het eerst.',
   'sharing.state.applied': 'gedeeld op het nieuwe systeem',
   'sharing.state.doneManual': 'handmatig gedaan',
   'sharing.state.skipped': 'overgeslagen',
@@ -2302,7 +2286,9 @@ const nl: Record<keyof typeof en, string> = {
   'queue.alreadyDecided': 'Al beslist',
   'moves.title': 'Verplaatst op het oude systeem',
   'moves.intro':
-    'Items die de eigenaar ergens anders heeft ondergebracht dan waar ze vandaan kwamen. Het nieuwe systeem heeft ze nog waar wij ze plaatsten; aan geen van beide kanten is iets veranderd.',
+    'Items die de eigenaar elders onderbracht; aan geen van beide kanten is iets veranderd.',
+  'moves.intro.more':
+    'Het nieuwe systeem heeft ze nog waar wij ze plaatsten; elke regel is uw beslissing.',
   'moves.empty.open': 'Er is niets verplaatst.',
   'moves.empty.acknowledged': 'Er is nog niets beslist.',
   'moves.keep': 'Laat het waar het staat',
@@ -2314,19 +2300,21 @@ const nl: Record<keyof typeof en, string> = {
     'Items die niet zijn overgekomen, wat er misging, en hoe vaak we het hebben geprobeerd.',
   'failures.empty.needsDecision': 'Er wacht niets op een beslissing.',
   'failures.acceptedLeave':
-    'Geaccepteerde items verschijnen hier niet meer — accepteren migreert zonder het item, en het grootboek telt het niet langer als mislukt.',
+    'Geaccepteerde items verdwijnen hier; de migratie gaat zonder ze verder, niet als mislukt geteld.',
   'failures.seeRuns': 'Bekijk de mislukte ronde (uitvoeringsgeschiedenis)',
   'failures.stillTrying': 'Wordt nog geprobeerd',
   'failures.empty.retrying': 'Er wordt niets opnieuw geprobeerd.',
   'failures.retry': 'Probeer opnieuw',
   'failures.retryCost':
-    'Opnieuw proberen wist de synchronisatiecursors van deze migratie, zodat de volgende ronde alles opnieuw doorloopt om dit item weer te bereiken. Die ronde duurt langer; er wordt niets dubbel gekopieerd.',
+    'Opnieuw proberen doorloopt alles opnieuw tot dit item, dus de volgende ronde duurt langer.',
+  'failures.retryCost.why':
+    'Het wist de synchronisatiecursors van deze migratie, zodat de hele bron opnieuw wordt doorlopen; er wordt niets dubbel gekopieerd.',
   'failures.accept': 'Migreer zonder dit item',
   'failures.try.one': 'poging',
   'failures.try.many': 'pogingen',
   'deletions.title': 'Verwijderd op het oude systeem',
   'deletions.intro':
-    'Items die de eigenaar heeft verwijderd waar ze vandaan kwamen, maar die het nieuwe systeem nog heeft. Er is aan geen van beide kanten iets verwijderd.',
+    'Items die de eigenaar bij de bron verwijderde; het nieuwe systeem heeft ze nog, onaangeroerd.',
   'deletions.empty.confirmed': 'Er wacht niets op een beslissing.',
   'deletions.watching': 'Wordt in de gaten gehouden',
   'deletions.empty.watching': 'Er wordt niets in de gaten gehouden.',
@@ -2338,17 +2326,17 @@ const nl: Record<keyof typeof en, string> = {
   'common.cancel': 'Annuleren',
   'docs.title': 'Instelhandleidingen',
   'docs.all': '← Alle instelhandleidingen',
-  'docs.notFound': 'Er is geen handleiding met die naam. Dit zijn de handleidingen die bij deze versie horen:',
+  'docs.notFound': 'Er is geen handleiding met die naam; deze horen bij deze versie:',
   'mappings.lastSync': 'Laatste synchronisatie:',
   'mappings.never': 'Nooit',
   'mappings.filtered.lead': 'Alleen zichtbaar:',
   'mappings.filtered.clear': 'Toon alle migraties',
   'mappings.loadFailed': 'De migratielijst kon niet worden geladen.',
   'mappings.loadFailedNotEmpty':
-    'Dit is niet hetzelfde als geen migraties — er kunnen migraties bestaan die niet gelezen konden worden.',
+    'Niet hetzelfde als geen migraties; er kunnen er bestaan die niet gelezen konden worden.',
   'mappings.syncFailed': 'Het synchronisatieverzoek is niet voltooid.',
   'createMapping.createFailed':
-    'De migratie is niet aangemaakt. Uw invoer staat er nog — herstel wat de melding noemt en probeer het opnieuw.',
+    'Niet aangemaakt; uw invoer staat er nog. Herstel wat de melding noemt en probeer opnieuw.',
   'dashboard.runsReadFailed': 'De uitvoeringsgeschiedenis kon niet worden gelezen:',
   'dashboard.noRunsYet': 'Nog geen rondes',
   'dashboard.runItems': 'items',
@@ -2435,7 +2423,7 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.starting': 'Bezig met starten…',
   'verify.title': 'Verifieer de migratie',
   'verify.intro':
-    'Vergelijkt wat het oude systeem heeft met wat het nieuwe heeft, en controleert steekproeven van de inhoud. Alleen-lezen — er wordt aan geen van beide kanten iets geschreven.',
+    'Vergelijkt oud met nieuw en controleert steekproeven; alleen-lezen, er wordt aan geen kant geschreven.',
   'verify.run': 'Voer de verificatie uit',
   'verify.runAgain': 'Verifieer opnieuw',
   'verify.durationHint':
@@ -2445,7 +2433,7 @@ const nl: Record<keyof typeof en, string> = {
   'verify.runningSince': 'Bezig sinds',
   'verify.didNotComplete': 'De verificatie is niet voltooid.',
   'verify.notAResult':
-    'Er is in geen van beide richtingen iets bekend over de volledigheid van de migratie — dit is geen resultaat.',
+    'Over de volledigheid is niets bekend, in geen van beide richtingen; dit is geen resultaat.',
   'verify.restarted': 'De appliance is herstart terwijl de verificatie liep. Voer hem opnieuw uit.',
   'verify.didNotStart': 'De verificatie is niet gestart.',
   'verify.ready': 'Deze migratie is klaar voor cutover.',
@@ -2462,8 +2450,7 @@ const nl: Record<keyof typeof en, string> = {
   'verify.differed': 'afwijkend',
   'verify.notComparable': 'niet vergelijkbaar',
   'verify.notMeasured': 'niet gemeten',
-  'verify.notMeasured.title':
-    'Het doelsysteem geeft geen grootte per item, dus aan die kant is niets gemeten. Niet hetzelfde als een overeenkomst.',
+  'verify.notMeasured.title': 'Doel geeft geen grootte per item; geen overeenkomst.',
   'verify.issues': 'Problemen',
   'verify.whatToDo': 'Wat te doen',
   'verify.help.PASS': 'De aantallen kwamen overeen en de gecontroleerde inhoud was gelijk.',
@@ -2472,9 +2459,9 @@ const nl: Record<keyof typeof en, string> = {
   'verify.help.FAIL':
     'Er ontbreken items op het doelsysteem, of gecontroleerde inhoud kwam niet overeen.',
   'verify.help.SKIPPED':
-    'U heeft dit domein uitgeschakeld in de configuratie. Uw keuze, dus het blokkeert de cutover niet — maar niemand heeft het gecontroleerd.',
+    'Uitgeschakeld in de configuratie; blokkeert de cutover niet, maar niemand controleerde het.',
   'verify.help.NOT_VERIFIABLE':
-    'Dit domein staat WEL aan, maar het doelsysteem kan er niet voor worden gelezen, dus er kon niets worden gecontroleerd. Dit blokkeert de cutover — een ongecontroleerd domein is niet geslaagd.',
+    'Ingeschakeld, maar het doel is er niet voor te lezen; ongecontroleerd blokkeert de cutover.',
   'finish.title': 'Rond een migratie af',
   'finish.intro':
     'Afronden stopt het kopiëren en het rapporteren; doorloop de stappen in volgorde.',
@@ -2545,10 +2532,9 @@ const nl: Record<keyof typeof en, string> = {
   'finish.button.disabledTitle':
     'Bevestig eerst stap 4; afronden voordat de bezorging is omgezet, verliest alles wat daarna binnenkomt.',
   'createMapping.target.userOperated':
-    'De doelserver beheert u zelf. Wij zetten uw gegevens erin over — wij beheren, ' +
-    'bewaken of back-uppen hem niet, en er geldt van onze kant geen serviceniveau voor. ' +
-    'Is het een beheerd Europees platform, dan is de aanbieder ervan ' +
-    'verantwoordelijk.',
+    'De doelserver beheert u zelf; van onze kant geldt er geen serviceniveau voor.',
+  'createMapping.target.userOperated.more':
+    'Wij zetten uw gegevens erin over; wij beheren, bewaken of back-uppen hem niet. Is het een beheerd Europees platform, dan is de aanbieder ervan verantwoordelijk.',
   'tenants.title': 'Team & organisatie',
   'tenants.intro':
     'Wie zich bij deze organisatie kan aanmelden, en wat ze mogen doen. Wijzigingen gelden direct.',
@@ -2608,28 +2594,24 @@ const nl: Record<keyof typeof en, string> = {
   'nav.decisions': 'Aandacht',
   'decisions.presets.heading': 'Vaste antwoorden',
   'decisions.presets.intro':
-    'Categorieën die zichzelf beantwoorden worden hier nog steeds vastgelegd — u ziet wat ' +
-    'is opgemerkt en waardoor het is afgesloten — maar niemand wordt erover gestoord.',
+    'Categorieën die zichzelf beantwoorden worden hier nog vastgelegd, maar niemand wordt erover gestoord.',
+  'decisions.presets.intro.more': 'U ziet wat is opgemerkt en waardoor het is afgesloten.',
   'decisions.presets.newMailbox': 'Als er een postvak verschijnt waarvoor niets migreert',
   'decisions.presets.ask': 'Vraag het mij',
   'decisions.presets.auto': 'Automatisch beantwoorden',
   'decisions.presets.saved': 'Opgeslagen.',
   'decisions.presets.readError':
-    'De vaste antwoorden konden niet worden gelezen; deze wachtrij beantwoordt mogelijk ' +
-    'categorieën zonder te tonen welke.',
+    'De vaste antwoorden zijn niet gelezen; sommige categorieën worden mogelijk beantwoord zonder te tonen welke.',
   'decisions.presets.readOnly': 'Een eigenaar of beheerder stelt dit in.',
   'permissions.heading': 'Zet de rechten over voordat u de e-mailbezorging omzet',
   'permissions.body':
-    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden — dat verhuist ' +
-    'niet mee met de mail. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat ' +
-    'vóórdat u de e-mailbezorging omzet: rechten die daarna worden toegevoegd, ontbraken zolang dat ' +
-    'duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
+    'Deelrechten verhuizen niet mee met de mail; werk de lijst door vóór het omzetten.',
+  'permissions.body.more':
+    'Wie wiens agenda kon zien, wie toegang had tot welke gedeelde bestanden: dat verhuist niet mee. Haal de lijst op, werk hem door op het nieuwe systeem, en doe dat vóór het omzetten van de bezorging; rechten die daarna worden toegevoegd, ontbraken zolang dat duurde. Bovenaan de lijst staat wat er niet gelezen kon worden.',
   'permissions.blindSpot':
-    'Twee dingen kan de lijst u mogelijk niet vertellen. Wie FullAccess of Send-As op een ' +
-    'postvak had: Microsoft geeft ons dat helemaal niet, dat moet u zelf uit Exchange halen. ' +
-    'En het delen op OneDrive en SharePoint, dat alleen meekomt als deze installatie die ' +
-    'extra machtiging heeft gekregen. Het document zegt welke van de twee het werkelijk ' +
-    'gelezen heeft, en hoe u de rest afdekt.',
+    'Twee blinde vlekken: FullAccess of Send-As op een postvak, en delen op OneDrive en SharePoint.',
+  'permissions.blindSpot.more':
+    'Wie volledige toegang tot een postvak had of eruit kon verzenden: Microsoft geeft ons dat helemaal niet, dat moet u zelf uit Exchange halen. Delen op de twee bestandsplatforms komt alleen mee als deze installatie die extra machtiging heeft gekregen. Het document zegt welke van de twee het werkelijk gelezen heeft, en hoe u de rest afdekt.',
   'permissions.download': 'Haal de rechtenlijst op',
   'permissions.failed': 'De rechtenlijst kon niet worden opgehaald.',
   'sharedAddresses.heading': 'Gevonden gedeelde adressen',
@@ -2649,15 +2631,13 @@ const nl: Record<keyof typeof en, string> = {
   'sharedAddresses.runbook.failed': 'De stappen konden niet worden opgehaald.',
   'decisions.title': 'Vraagt om een beslissing',
   'decisions.intro':
-    'Veranderingen die de synchronisatie opmerkte en waarover alleen u kunt beslissen. Er gebeurt niets totdat u antwoordt.',
+    'Veranderingen die de synchronisatie opmerkte en waarover alleen u beslist; niets gebeurt tot u antwoordt.',
   'decisions.readError': 'De beslissingswachtrij kon niet worden gelezen.',
   'decisions.dismiss': 'Terzijde leggen',
   'decisions.sharedAddress.shared_s': 'Eén gedeeld postvak',
   'decisions.sharedAddress.distribution_d': 'Een distributielijst',
   'decisions.empty.noDetectors':
-    'Er wacht niets. De detectoren voor nieuwe postvakken en gedeelde adressen draaien eenmaal per ' +
-    'dag; een bron die zij niet konden lezen wordt gemeld als blinde vlek en niet geteld als ' +
-    '"geen veranderingen".',
+    'Niets wacht; detectoren draaien eenmaal per dag en melden een onleesbare bron als blinde vlek.',
   'decisions.empty.answered': 'Er is nog niets beslist.',
   'decisionCategory.new_mailbox': 'Nieuw postvak',
   'decisionCategory.deleted_mailbox': 'Verwijderd postvak',

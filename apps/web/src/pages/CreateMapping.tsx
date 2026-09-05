@@ -2117,9 +2117,13 @@ const CreateMapping: React.FC = () => {
                   THEIRS. We migrate into it; we do not run it, monitor it,
                   back it up, or carry an SLA for it. Said before the
                   connection details are typed, not after. */}
-              <p className="mt-4 text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                {t('createMapping.target.userOperated')}
-              </p>
+              <Hint
+                className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3"
+                tone="body"
+                label="more"
+                text={t('createMapping.target.userOperated')}
+                why={t('createMapping.target.userOperated.more')}
+              />
             </div>
 
             <ConnectionPicker

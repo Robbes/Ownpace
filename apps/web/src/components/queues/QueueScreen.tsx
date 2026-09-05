@@ -21,6 +21,7 @@ import StateChip from '../StateChip.tsx';
 import AsOf from '../AsOf.tsx';
 import { useT } from '../../i18n/index.tsx';
 import { DecisionRefusedError } from '../../services/operating-service.ts';
+import { Hint } from '../Hint.tsx';
 
 /**
  * What happened to one item after the operator acted on it.
@@ -38,6 +39,8 @@ export type ItemOutcome =
 export interface QueueScreenProps<T extends QueueEnvelope> {
   readonly title: string;
   readonly intro: string;
+  /** What folds under the intro (0118 T4): a page with more to say than one line says it here. */
+  readonly more?: string;
   readonly queryKey: string;
   readonly fetcher: () => Promise<Readonly<Record<string, T>>>;
   readonly renderMapping: (
@@ -55,6 +58,7 @@ export interface QueueScreenProps<T extends QueueEnvelope> {
 export function QueueScreen<T extends QueueEnvelope>({
   title,
   intro,
+  more,
   queryKey,
   fetcher,
   renderMapping,
@@ -156,7 +160,7 @@ export function QueueScreen<T extends QueueEnvelope>({
           <AsOf timestamp={dataUpdatedAt} onRefresh={() => void refetch()} refreshing={isFetching} />
         )}
       </div>
-      <p className="mt-1 mb-6 text-sm text-gray-600">{intro}</p>
+      <Hint className="mt-1 mb-6" label="more" text={intro} why={more} />
 
       {mappings.length === 0 && <p className="text-sm text-gray-500">{t('queue.noMappings')}</p>}
 

@@ -41,6 +41,7 @@ import {
 import MappingHubLink from '../components/MappingHubLink.tsx';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
+import { Hint } from '../components/Hint.tsx';
 
 const StateBadge: React.FC<{ row: ShareGrantRow }> = ({ row }) => {
   const t = useT();
@@ -248,7 +249,7 @@ const Sharing: React.FC = () => {
     <div>
       <MappingHubLink mappingId={mappingId} />
       <h2 className="text-lg font-semibold text-gray-900">{t('sharing.title')}</h2>
-      <p className="mt-1 text-sm text-gray-600">{t('sharing.intro')}</p>
+      <Hint className="mt-1" label="more" text={t('sharing.intro')} why={t('sharing.intro.more')} />
 
       <div className="mt-3 flex items-center gap-3 flex-wrap">
         {summary && summary.total > 0 && (

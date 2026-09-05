@@ -21,6 +21,7 @@ import React from 'react';
 import { KeyRound } from 'lucide-react';
 import { useT } from '../../i18n/index.tsx';
 import { fetchPermissionReport } from '../../services/operating-service.ts';
+import { Hint } from '../Hint.tsx';
 
 export const PermissionsHandover: React.FC<{
   /** Which migration's mailbox to report on. */
@@ -65,11 +66,11 @@ export const PermissionsHandover: React.FC<{
         <KeyRound className="w-4 h-4" />
         {t('permissions.heading')}
       </h3>
-      <p className="mt-1 text-sm text-amber-900">{t('permissions.body')}</p>
+      <Hint className="mt-1" tone="caution" label="more" text={t('permissions.body')} why={t('permissions.body.more')} />
       {/* Said here, not only inside the document: the one class of right that
           cannot be read at all is the one most likely to break, and somebody
           who never opens the report should still learn it. */}
-      <p className="mt-1 text-sm text-amber-800">{t('permissions.blindSpot')}</p>
+      <Hint className="mt-1" tone="caution" label="more" text={t('permissions.blindSpot')} why={t('permissions.blindSpot.more')} />
       <button
         onClick={download}
         disabled={busy}
