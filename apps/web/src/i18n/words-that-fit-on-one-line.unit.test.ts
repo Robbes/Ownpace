@@ -20,7 +20,19 @@ import { describe, it, expect } from 'vitest';
 import { STRINGS, LOCALES, type StringKey } from './strings.ts';
 
 /** The screens brought under the rule so far. */
-export const BUDGETED_PREFIXES: ReadonlyArray<string> = ['wizard.', 'setup.', 'fold.', 'connections.', 'probe.'];
+export const BUDGETED_PREFIXES: ReadonlyArray<string> = [
+  'wizard.',
+  'setup.',
+  'fold.',
+  'connections.',
+  'probe.',
+  'confirm.',
+  'finish.',
+  'hub.',
+  'runs.',
+  'grantLink.',
+  'sharedAddresses.',
+];
 
 /** Folded copy: opens under a word, so it has no budget. */
 const FOLDED = /\.(why|more|detail)$/;
@@ -33,6 +45,11 @@ const ALLOWED_OVER: Readonly<Record<string, string>> = {
   'probe.scheduling.autoSchedule': 'safety sentence, verbatim by owner decision',
   'probe.scheduling.none': 'safety sentence, verbatim by owner decision',
   'probe.scheduling.unknown': 'safety sentence, verbatim by owner decision',
+  // What finishing before delivery has moved costs, and the promise that
+  // finishing removes nothing: the two sentences on the Finish screen a
+  // person must read in full before pressing the button.
+  'finish.step4.warn.post': 'safety sentence, verbatim by owner decision',
+  'finish.step5.nothingChanges.post': 'safety promise, verbatim by owner decision',
 };
 
 export type Budget = { readonly words: number; readonly oneSentence: boolean };

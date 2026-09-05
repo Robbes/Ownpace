@@ -96,7 +96,7 @@ describe('issuing', () => {
     expect((field as HTMLInputElement).value).toBe('https://app.example/grant/link-1.sekrit');
     expect(screen.getByText(/only time it can be shown/)).toBeInTheDocument();
     // ADR-0035's division of labour, on the screen rather than only in an ADR.
-    expect(screen.getByText(/Send it to them yourself/)).toBeInTheDocument();
+    expect(screen.getByText(/Send it yourself/)).toBeInTheDocument();
   });
 
   it('passes the chosen expiry rather than always the default', async () => {

@@ -28,7 +28,7 @@ export const Hint: React.FC<{
   /** The word on the fold: "Why?" for a hint, "How?" for a step, "More" for a choice. */
   label?: FoldLabel;
   /** Grey by default; `caution` for the one line that must be read before typing. */
-  tone?: 'muted' | 'caution' | 'info' | 'note';
+  tone?: 'muted' | 'caution' | 'info' | 'note' | 'body';
   /** Wraps the pair; defaults to the field-hint spacing. */
   className?: string;
   /** Open on first render — for the step somebody is on right now. */
@@ -40,6 +40,7 @@ export const Hint: React.FC<{
     caution: 'text-amber-800',
     info: 'text-blue-900',
     note: 'text-yellow-800',
+    body: 'text-gray-700',
   }[tone];
   const foldClass = tone === 'note' ? 'text-yellow-800' : 'text-gray-500';
   return (

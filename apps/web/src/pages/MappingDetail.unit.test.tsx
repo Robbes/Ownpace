@@ -66,7 +66,7 @@ describe('the per-mapping navigation', () => {
 
     // Numbered since 0034 T4 — the list IS the cutover sequence and says so.
     expect(await screen.findByText('1. Deletions')).toBeInTheDocument();
-    expect(screen.getByText(/in the order a cutover runs/)).toBeInTheDocument();
+    expect(screen.getByText(/in cutover order/)).toBeInTheDocument();
     const expected: Record<string, string> = {
       Deletions: '/mappings/acme-mail/deletions',
       Moves: '/mappings/acme-mail/moves',

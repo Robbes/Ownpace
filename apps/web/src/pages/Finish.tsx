@@ -45,6 +45,7 @@ import {
   FinishRefusedError,
 } from '../services/operating-service.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 import MappingHubLink from '../components/MappingHubLink.tsx';
 import PermissionsHandover from '../components/finish/PermissionsHandover.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
@@ -512,7 +513,7 @@ const Finish: React.FC = () => {
                   instead of assumed understood.
                 */}
                 <Step n={4} title={t('finish.step4.title')} done={deliveryMoved[id]}>
-                  <p>{t('finish.step4.body')}</p>
+                  <Hint className="" tone="body" label="more" text={t('finish.step4.body')} why={t('finish.step4.more')} />
                   <p className="mt-1 text-amber-800">
                     <b>{t('finish.step4.warn.pre')}</b>
                     {t('finish.step4.warn.post')}

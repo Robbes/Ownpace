@@ -613,13 +613,11 @@ const en = {
   'lifecycle.paused':
     'This migration has not started, so nothing has been copied and nothing can have diverged.',
   'hub.fallbackTitle': 'Migration',
-  'hub.orderIntro':
-    'The five screens below are in the order a cutover runs — work the list top to bottom.',
+  'hub.orderIntro': 'The screens below are in cutover order; work them top to bottom.',
   'hub.noId': 'No mapping id in the address.',
   'hub.detailError': "Could not read this migration's details — the screens below still work.",
   'hub.deletions.name': 'Deletions',
-  'hub.deletions.blurb':
-    'Items deleted on the old system that the new one still has. Your call, per item.',
+  'hub.deletions.blurb': 'Deleted on the old system, still on the new; your call, per item.',
   'hub.moves.name': 'Moves',
   'hub.moves.blurb':
     'Items the old system reorganised since they were copied. Reported, never acted on.',
@@ -628,7 +626,7 @@ const en = {
     'Items that could not be copied and now wait on a person. These block finishing.',
   'hub.sharing.name': 'Sharing',
   'hub.sharing.blurb':
-    'Who could reach what on the old system — carried over, done by hand, or deliberately not. A checklist, worked after finishing.',
+    'Who could reach what on the old system; a checklist worked after finishing.',
   'sharing.title': 'Sharing checklist',
   'sharing.intro':
     'Everything somebody else could reach on the old system, one row per grant. Settle each row: create the share on the new system, tick it off as done by hand, or skip it on purpose — every settled row keeps who decided, and when.',
@@ -669,7 +667,9 @@ const en = {
   'runs.events': 'Log',
   'grantLink.title': 'Grant links',
   'grantLink.blurb':
-    'A link lets the person being migrated give access to their own account, without an Ownpace account and without ever sending you their password. You send the link to them yourself — Ownpace never does, and never learns who they are.',
+    'The person being migrated grants access themselves, without sending you a password.',
+  'grantLink.why':
+    'They need no Ownpace account. You send the link to them yourself; Ownpace never does, and never learns who they are.',
   'grantLink.expiryLabel': 'The link works for',
   'grantLink.expiry.1': '1 day',
   'grantLink.expiry.7': '7 days',
@@ -680,7 +680,7 @@ const en = {
   'grantLink.issued.urlLabel': 'The grant link',
   'grantLink.issued.until': 'It works until {date}.',
   'grantLink.issued.youSend':
-    'Send it to them yourself, however you normally reach them. It cannot be shown again — if it goes astray, revoke it and make another.',
+    'Send it yourself; it cannot be shown again, so revoke and reissue if lost.',
   'grantLink.copy': 'Copy',
   'grantLink.copied': 'Copied',
   'grantLink.empty': 'No links yet for this migration.',
@@ -840,8 +840,9 @@ const en = {
   'confirm.intro': 'Nothing has been copied yet. Review what will migrate, then start it.',
   'confirm.readError': 'Could not read the migrations.',
   'confirm.noMappings': 'No mappings configured.',
-  'confirm.noMappings.how':
-    'The appliance reads mappings as JSON files from its config directory (on Docker the mounted config folder; on Windows C:\\ProgramData\\OpenMigrate\\config). Copy mapping.json.example, fill in your source and target, reference secrets by environment-variable name, and restart the appliance — it reads the directory once at start. The full walkthrough is docs/selfhost-quickstart.md, step 3.',
+  'confirm.noMappings.how': 'The appliance reads mappings from JSON files in its config directory.',
+  'confirm.noMappings.more':
+    'On Docker that is the mounted config folder; on Windows C:\\ProgramData\\OpenMigrate\\config. Copy mapping.json.example, fill in your source and target, reference secrets by environment-variable name, and restart the appliance: it reads the directory once at start. The full walkthrough is docs/selfhost-quickstart.md, step 3.',
   'confirm.start': 'Start migration',
   'confirm.startError': 'Could not start it:',
   'confirm.startErrorFallback': 'the request failed',
@@ -851,7 +852,7 @@ const en = {
   'confirm.note.cutover': 'In cutover.',
   'confirm.note.done': 'Finished. This migration no longer syncs.',
   'confirm.introStarted':
-    'Migrations here have started. Live progress is shown per migration; the pre-start scan is kept as a snapshot.',
+    'Migrations here have started. Live progress is per migration; the scan stays as a snapshot.',
   // The six failure categories (workplan 0110 T3). Each is a SENTENCE with a
   // remedy, not a label: the owner's reframing made the customer the primary
   // reader, and nobody can act on the words "auth expired". The raw provider
@@ -1015,8 +1016,8 @@ const en = {
   'confirm.progress.failed': 'failed',
   'confirm.progress.retrying': 'retrying',
   'confirm.snapshot.heading': 'Pre-start scan (snapshot)',
-  'confirm.snapshot.note':
-    'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update — live progress above is the ledger speaking.',
+  'confirm.snapshot.more':
+    'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update; live progress above is the ledger speaking.',
   'confirm.state.pending': 'Pending',
   'confirm.state.in_progress': 'Syncing',
   'confirm.state.completed': 'Completed',
@@ -1064,11 +1065,10 @@ const en = {
   'verify.help.NOT_VERIFIABLE':
     'This domain IS enabled, but there is no way to read the target for it, so nothing could be checked. This blocks cutover — an unchecked domain has not passed.',
   'finish.title': 'Finish a migration',
-  'finish.intro':
-    'Finishing stops the copying and the reporting. Work through the steps in order — the last one is the only one that cannot be undone by simply carrying on.',
+  'finish.intro': 'Finishing stops the copying and the reporting; work the steps in order.',
   'finish.unknown.pre': 'No migration with id',
   'finish.unknown.post':
-    'answered. Check the address — this is not the same as a migration with nothing to finish.',
+    'answered. Check the address; this is not a migration with nothing to finish.',
   'finish.readError.one': 'Could not read the migration.',
   'finish.readError.many': 'Could not read the migrations.',
   'finish.note.paused':
@@ -1093,7 +1093,7 @@ const en = {
   'finish.step2.readFailed': 'Could not read a queue:',
   'finish.step2.notSameAsClear': '— not the same as clear.',
   'finish.step3.failedFramed':
-    'The request failed — a pass may still be running. Give it a moment, then re-check the queues above.',
+    'The request failed; a pass may still be running, so re-check the queues shortly.',
   'finish.retryButton': 'Try finishing again',
   'finish.aftermath.title': 'What remains available',
   'finish.aftermath.verify': 'Verification report',
@@ -1105,17 +1105,19 @@ const en = {
   'finish.step2.deletions': 'deleted on the old system',
   'finish.step2.moves': 'moved',
   'finish.step2.onlyFirstBlocks':
-    '. Only the first of these blocks finishing — the other two are already answered by the new system keeping its copy.',
+    '. Only the first blocks finishing; the new system’s copy answers the other two.',
   'finish.step3.title': 'Run one final pass',
   'finish.step3.body': 'So the new system reflects the old one as of right now.',
   'finish.step3.run': 'Run a pass now',
   'finish.step3.runAgain': 'Run another',
   'finish.step3.finished': 'The pass has run and finished.',
   'finish.step3.queued':
-    'Queued. The pass runs as a job and lands in the run history — give it a moment, then re-check the queues above.',
+    'Queued as a job; it lands in the run history, so re-check the queues shortly.',
   'finish.step4.title': 'Move delivery to the new system',
   'finish.step4.body':
-    'Change MX/DNS and reconfigure clients so new mail arrives on the new system. This happens outside this tool, so it is the one step here nobody can check for you.',
+    'Change MX/DNS and reconfigure clients so new mail arrives on the new system.',
+  'finish.step4.more':
+    'This happens outside this tool, so it is the one step here nobody can check for you.',
   'finish.step4.warn.pre': 'If you finish before this is done',
   'finish.step4.warn.post':
     ', anything that arrives on the old system afterwards will not be copied, and nothing will report it — the tool has stopped watching.',
@@ -1225,16 +1227,14 @@ const en = {
   // Not "0 members": the list could not be read, and recreating a group from
   // an unread list would produce an empty one on the target.
   'sharedAddresses.membersUnknown': 'members could not be read',
-  'sharedAddresses.empty':
-    'Nothing found. This is not "your organisation has none" — an IMAP source cannot list groups ' +
-    'at all, and a Microsoft 365 source needs application permissions before it can. Shared ' +
-    'addresses can also be migrated by adding them by hand.',
+  'sharedAddresses.empty': 'Nothing listed; this source may not be able to list groups at all.',
+  'sharedAddresses.empty.why':
+    'An IMAP source cannot list groups at all, and a Microsoft 365 source needs application permissions before it can. Shared addresses can also be added by hand.',
   'sharedAddresses.readError': 'Could not read the discovered shared addresses.',
   // Pattern D recreation is entirely manual: no target platform this tool
   // supports exposes an interface for creating a mail group.
   'sharedAddresses.runbook.intro':
-    'Distribution lists have to be recreated on the target by hand — no target platform here ' +
-    'offers a way to do it for you.',
+    'Distribution lists are recreated on the target by hand; no target offers a way.',
   'sharedAddresses.runbook.download': 'Get the step-by-step list',
   'sharedAddresses.runbook.failed': 'The steps could not be fetched.',
   'decisions.title': 'Needs a decision',
@@ -2182,22 +2182,22 @@ const nl: Record<keyof typeof en, string> = {
     'Deze migratie is nog niet gestart, dus er is niets gekopieerd en er kan niets zijn afgeweken.',
   'hub.fallbackTitle': 'Migratie',
   'hub.orderIntro':
-    'De vijf schermen hieronder staan in de volgorde waarin een cutover verloopt — werk de lijst van boven naar beneden af.',
+    'De schermen hieronder staan in cutover-volgorde; werk ze van boven naar beneden af.',
   'hub.noId': 'Geen mapping-id in het adres.',
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen — de schermen hieronder werken nog.',
   'hub.deletions.name': 'Verwijderingen',
   'hub.deletions.blurb':
-    'Items die op het oude systeem zijn verwijderd maar op het nieuwe nog bestaan. Uw beslissing, per item.',
+    'Verwijderd op het oude systeem, nog op het nieuwe; uw beslissing, per item.',
   'hub.moves.name': 'Verplaatsingen',
   'hub.moves.blurb':
     'Items die het oude systeem heeft herschikt sinds ze zijn gekopieerd. Gemeld, nooit uitgevoerd.',
   'hub.failures.name': 'Mislukkingen',
   'hub.failures.blurb':
-    'Items die niet konden worden gekopieerd en nu op een persoon wachten. Deze blokkeren het afronden.',
+    'Items die niet gekopieerd konden worden en op een persoon wachten; ze blokkeren het afronden.',
   'hub.sharing.name': 'Delen',
   'hub.sharing.blurb':
-    'Wie wat kon bereiken op het oude systeem — overgezet, handmatig gedaan, of bewust niet. Een checklist, af te werken na het afronden.',
+    'Wie wat kon bereiken op het oude systeem; een checklist voor na het afronden.',
   'sharing.title': 'Deel-checklist',
   'sharing.intro':
     'Alles wat iemand anders kon bereiken op het oude systeem, één regel per recht. Werk elke regel af: maak het delen aan op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over — elke afgewerkte regel onthoudt wie besliste, en wanneer.',
@@ -2225,7 +2225,7 @@ const nl: Record<keyof typeof en, string> = {
     'Vergelijk de twee systemen en controleer steekproeven van de inhoud, achter één knop.',
   'hub.finish.name': 'Afronden',
   'hub.finish.blurb':
-    'De cutover-checklist. Beëindigt de migratie — in volgorde, met de ene stap die u zelf moet bevestigen.',
+    'De cutover-checklist; beëindigt de migratie in volgorde, met de ene stap die u zelf bevestigt.',
   'runs.title': 'Uitvoeringsgeschiedenis',
   'runs.blurb':
     'Elke synchronisatieronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
@@ -2238,7 +2238,9 @@ const nl: Record<keyof typeof en, string> = {
   'runs.events': 'Logboek',
   'grantLink.title': 'Toegangslinks',
   'grantLink.blurb':
-    'Met een link kan degene die gemigreerd wordt zelf toegang geven tot het eigen account, zonder Ownpace-account en zonder u ooit een wachtwoord te sturen. U stuurt de link zelf naar die persoon — Ownpace doet dat nooit en weet ook niet om wie het gaat.',
+    'Degene die gemigreerd wordt geeft zelf toegang, zonder u een wachtwoord te sturen.',
+  'grantLink.why':
+    'Een Ownpace-account is niet nodig. U stuurt de link zelf; Ownpace doet dat nooit en weet ook niet om wie het gaat.',
   'grantLink.expiryLabel': 'De link werkt',
   'grantLink.expiry.1': '1 dag',
   'grantLink.expiry.7': '7 dagen',
@@ -2249,7 +2251,7 @@ const nl: Record<keyof typeof en, string> = {
   'grantLink.issued.urlLabel': 'De toegangslink',
   'grantLink.issued.until': 'Hij werkt tot {date}.',
   'grantLink.issued.youSend':
-    'Stuur hem zelf, op de manier waarop u die persoon normaal bereikt. Hij kan niet nogmaals getoond worden — als hij op de verkeerde plek belandt, trekt u hem in en maakt u een nieuwe.',
+    'Stuur hem zelf; niet opnieuw te tonen, dus bij verlies intrekken en opnieuw maken.',
   'grantLink.copy': 'Kopiëren',
   'grantLink.copied': 'Gekopieerd',
   'grantLink.empty': 'Nog geen links voor deze migratie.',
@@ -2260,7 +2262,7 @@ const nl: Record<keyof typeof en, string> = {
   'grantLink.revokedOn': 'U hebt hem ingetrokken op {date}.',
   'grantLink.expiredOn': 'Op {date} verlopen zonder gebruikt te zijn.',
   'grantLink.expiredNudge':
-    'Niemand is toegekomen aan het geven van toegang. Maak een nieuwe link en stuur die opnieuw.',
+    'Niemand heeft toegang gegeven. Maak een nieuwe link en stuur die opnieuw.',
   'grantLink.revoke': 'Intrekken',
   'grantLink.revokeArmed': 'Bevestig intrekken',
   'grant.title': 'Verbind uw account',
@@ -2404,7 +2406,9 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.readError': 'De migraties konden niet worden gelezen.',
   'confirm.noMappings': 'Geen migraties geconfigureerd.',
   'confirm.noMappings.how':
-    'De appliance leest migraties als JSON-bestanden uit de configuratiemap (op Docker de gekoppelde config-map; op Windows C:\\ProgramData\\OpenMigrate\\config). Kopieer mapping.json.example, vul uw bron en doel in, verwijs naar geheimen via de naam van een omgevingsvariabele en herstart de appliance — de map wordt eenmalig bij het starten gelezen. De volledige uitleg staat in docs/selfhost-quickstart.md, stap 3.',
+    'De appliance leest migraties als JSON-bestanden uit de configuratiemap.',
+  'confirm.noMappings.more':
+    'Op Docker is dat de gekoppelde config-map; op Windows C:\\ProgramData\\OpenMigrate\\config. Kopieer mapping.json.example, vul uw bron en doel in, verwijs naar geheimen via de naam van een omgevingsvariabele en herstart de appliance: de map wordt eenmalig bij het starten gelezen. De volledige uitleg staat in docs/selfhost-quickstart.md, stap 3.',
   'confirm.start': 'Start migratie',
   'confirm.startError': 'Kon niet starten:',
   'confirm.startErrorFallback': 'het verzoek is mislukt',
@@ -2414,14 +2418,14 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.note.cutover': 'In cutover.',
   'confirm.note.done': 'Afgerond. Deze migratie synchroniseert niet meer.',
   'confirm.introStarted':
-    'Migraties hier zijn gestart. De live voortgang staat per migratie; de scan van voor de start blijft bewaard als momentopname.',
+    'Migraties hier zijn gestart. Live voortgang staat per migratie; de scan blijft als momentopname.',
   'confirm.progress.heading': 'Live voortgang',
   'confirm.progress.synced': 'gesynchroniseerd',
   'confirm.progress.failed': 'mislukt',
   'confirm.progress.retrying': 'in nieuwe poging',
   'confirm.snapshot.heading': 'Scan van voor de start (momentopname)',
-  'confirm.snapshot.note':
-    'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet — de live voortgang hierboven komt uit het grootboek.',
+  'confirm.snapshot.more':
+    'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet; de live voortgang hierboven komt uit het grootboek.',
   'confirm.state.pending': 'In afwachting',
   'confirm.state.in_progress': 'Synchroniseert',
   'confirm.state.completed': 'Voltooid',
@@ -2473,14 +2477,14 @@ const nl: Record<keyof typeof en, string> = {
     'Dit domein staat WEL aan, maar het doelsysteem kan er niet voor worden gelezen, dus er kon niets worden gecontroleerd. Dit blokkeert de cutover — een ongecontroleerd domein is niet geslaagd.',
   'finish.title': 'Rond een migratie af',
   'finish.intro':
-    'Afronden stopt het kopiëren en het rapporteren. Doorloop de stappen in volgorde — alleen de laatste kan niet ongedaan worden gemaakt door gewoon door te gaan.',
+    'Afronden stopt het kopiëren en het rapporteren; doorloop de stappen in volgorde.',
   'finish.unknown.pre': 'Geen migratie met id',
   'finish.unknown.post':
-    'gaf antwoord. Controleer het adres — dit is niet hetzelfde als een migratie zonder iets af te ronden.',
+    'gaf antwoord. Controleer het adres; dit is geen migratie zonder iets af te ronden.',
   'finish.readError.one': 'De migratie kon niet worden gelezen.',
   'finish.readError.many': 'De migraties konden niet worden gelezen.',
   'finish.note.paused':
-    'Nooit gestart, dus er is niets af te ronden. Verwijder de migratie om deze op te ruimen.',
+    'Nooit gestart, dus niets af te ronden. Verwijder de migratie om op te ruimen.',
   'finish.note.active':
     'Synchroniseert volgens schema. Items die nog op het oude systeem binnenkomen, worden gekopieerd.',
   'finish.note.cutover': 'In cutover. Synchroniseert nog totdat u afrondt.',
@@ -2502,7 +2506,7 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step2.readFailed': 'Een wachtrij kon niet worden gelezen:',
   'finish.step2.notSameAsClear': '— niet hetzelfde als leeg.',
   'finish.step3.failedFramed':
-    'Het verzoek is mislukt — mogelijk loopt er nog een ronde. Wacht even en controleer daarna de wachtrijen hierboven opnieuw.',
+    'Het verzoek is mislukt; mogelijk loopt er nog een ronde, controleer de wachtrijen straks opnieuw.',
   'finish.retryButton': 'Probeer opnieuw af te ronden',
   'finish.aftermath.title': 'Wat beschikbaar blijft',
   'finish.aftermath.verify': 'Verificatierapport',
@@ -2514,17 +2518,19 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step2.deletions': 'verwijderd op het oude systeem',
   'finish.step2.moves': 'verplaatst',
   'finish.step2.onlyFirstBlocks':
-    '. Alleen de eerste hiervan blokkeert het afronden — de andere twee zijn al beantwoord doordat het nieuwe systeem zijn kopie behoudt.',
+    '. Alleen de eerste blokkeert; de kopie op het nieuwe systeem beantwoordt de andere twee.',
   'finish.step3.title': 'Voer één laatste ronde uit',
   'finish.step3.body': 'Zodat het nieuwe systeem het oude weerspiegelt zoals het nu is.',
   'finish.step3.run': 'Voer nu een ronde uit',
   'finish.step3.runAgain': 'Voer er nog een uit',
   'finish.step3.finished': 'De ronde is uitgevoerd en voltooid.',
   'finish.step3.queued':
-    'In de wachtrij. De ronde draait als taak en verschijnt in de uitvoeringsgeschiedenis — geef het even, en controleer daarna de wachtrijen hierboven opnieuw.',
+    'In de wachtrij als taak; het komt in de uitvoeringsgeschiedenis, controleer de wachtrijen straks opnieuw.',
   'finish.step4.title': 'Zet de e-mailbezorging om naar het nieuwe systeem',
   'finish.step4.body':
-    'Wijzig MX/DNS en configureer de clients opnieuw zodat nieuwe e-mail op het nieuwe systeem aankomt. Dit gebeurt buiten dit programma, dus dit is de ene stap die niemand hier voor u kan controleren.',
+    'Wijzig MX/DNS en configureer de clients opnieuw zodat nieuwe e-mail op het nieuwe systeem aankomt.',
+  'finish.step4.more':
+    'Dit gebeurt buiten dit programma, dus dit is de ene stap die niemand hier voor u kan controleren.',
   'finish.step4.warn.pre': 'Als u afrondt voordat dit is gedaan',
   'finish.step4.warn.post':
     ', wordt alles wat daarna op het oude systeem binnenkomt niet gekopieerd, en niets zal het melden — het programma kijkt niet meer mee.',
@@ -2537,7 +2543,7 @@ const nl: Record<keyof typeof en, string> = {
   'finish.forceButton': 'Rond toch af en laat ze achter',
   'finish.button': 'Rond deze migratie af',
   'finish.button.disabledTitle':
-    'Bevestig eerst stap 4 — afronden voordat de e-mailbezorging is omgezet, verliest alles wat daarna binnenkomt.',
+    'Bevestig eerst stap 4; afronden voordat de bezorging is omgezet, verliest alles wat daarna binnenkomt.',
   'createMapping.target.userOperated':
     'De doelserver beheert u zelf. Wij zetten uw gegevens erin over — wij beheren, ' +
     'bewaken of back-uppen hem niet, en er geldt van onze kant geen serviceniveau voor. ' +
@@ -2633,13 +2639,12 @@ const nl: Record<keyof typeof en, string> = {
   'sharedAddresses.members': 'leden',
   'sharedAddresses.membersUnknown': 'leden konden niet worden gelezen',
   'sharedAddresses.empty':
-    'Niets gevonden. Dit betekent niet "uw organisatie heeft er geen": een IMAP-bron kan groepen ' +
-    'helemaal niet opsommen, en een Microsoft 365-bron heeft daarvoor toepassingsmachtigingen ' +
-    'nodig. Gedeelde adressen kunnen ook met de hand worden toegevoegd.',
+    'Niets gevonden; deze bron kan groepen misschien helemaal niet opsommen.',
+  'sharedAddresses.empty.why':
+    'Een IMAP-bron kan groepen helemaal niet opsommen, en een Microsoft 365-bron heeft daarvoor toepassingsmachtigingen nodig. Gedeelde adressen kunnen ook met de hand worden toegevoegd.',
   'sharedAddresses.readError': 'De gevonden gedeelde adressen konden niet worden gelezen.',
   'sharedAddresses.runbook.intro':
-    'Distributielijsten moeten met de hand op de bestemming opnieuw worden aangemaakt — geen ' +
-    'van de bestemmingen hier biedt een manier om dat voor u te doen.',
+    'Distributielijsten maakt u met de hand opnieuw aan; geen bestemming doet dat voor u.',
   'sharedAddresses.runbook.download': 'Haal de stappenlijst op',
   'sharedAddresses.runbook.failed': 'De stappen konden niet worden opgehaald.',
   'decisions.title': 'Vraagt om een beslissing',
