@@ -11,6 +11,15 @@ then one row in the scope map — and the claim under "What this deliberately le
 `task: 'Tasks.Read'`, and `MICROSOFT_CONSENT_DOMAINS` grew with it because T2 derived it from
 the map.
 
+**T8 is BUILT: the managed gate asks Microsoft's door the three questions.** The same three the
+Google block (#729) and the Dropbox block ask, with a sentinel app registration the workflow
+upserts and never follows: the facts say `deployment`, a consent without a pair answers a URL at
+Entra's endpoint carrying the client id, `offline_access` and exactly the faces named — a face
+nobody ticked is not a scope somebody has to explain to a consent screen — with no secret in the
+answer, and half a pair is refused. A stack without a pair reports `connection` and refuses
+`no_microsoft_client`, asserted rather than skipped. With T6 (the Graph refusals as sentences)
+beside it, every row of this plan is done or recorded as decided (T0).
+
 **What the source is.** `graph-todo-source` answers in `CalendarSource`'s shape, because that
 is what the task domain reads (0113): a To Do list is a folder at `/todo/lists/{id}`, a task
 is a `RawCalendarEvent` whose `icalendar` is a VTODO built here from Graph's JSON — Graph
@@ -97,7 +106,7 @@ pattern for a third time, over connectors that need no change at all.
 | T5c The button, in both doors | ✅ Done | Both `grantProvider === 'dropbox' ? … : …` ternaries are per-provider tables; `isAccountKind` reads `PROVIDER_ACCOUNT_KINDS`; strings en+nl; a door test proved by restoring the old fall-through, which sent the Microsoft customer to Google. |
 | T6 The refusals speak | ✅ **Built 2026-09-05** | The consent-screen half was T2's (`microsoftConsentRefusal`: AADSTS65001/90094/700016/900023 as sentences). This is the other half — what a face meets at its FIRST REQUEST. `graph-refusal.ts` mirrors #722's `davRefusalBody` for Graph's JSON: `graphRefusalBody` keeps Graph's code and message and drops the envelope and the request ids; `graphRefusalHint` adds the way forward on a 401/403 that says the consent did not include the face — the scope by name, the tick to make, and the administrator's once-per-tenant grant when the organisation blocks user consent; `graphFailure` is the one line. Wired at all seventeen sites in the Graph connectors that quoted the raw body (the five faces with their scope, the directory/groups/permission scans envelope-only). The To Do source's own hint from T9 became the shared one. Pinned in `graph-refusal.unit.test.ts` and, for the wiring, a 403 through the calendar source. |
 | T7 Docs and env plumbing | ✅ Done | `managed.yml`, `set-task-env.sh` (both places), `managed.env.example`, the redirect-URIs table, `docs/microsoft-setup.md` for customers and a bring-up section for operators. **`MICROSOFT_OAUTH_TENANT` travels with the pair** — the two halves of a consent must use one authority. Both guides lead with the multi-tenant radio button, because it is the setting that works for the operator and fails for their first customer. |
-| T8 The gate | 📋 Not started | Managed smoke assertions with a sentinel pair never followed to Microsoft, mirroring #729. |
+| T8 The gate | ✅ **Built 2026-09-05** | `smoke-managed.sh` asks Microsoft's door the Google block's three questions with a sentinel pair the workflow upserts (`MICROSOFT_OAUTH_CLIENT_ID=gate-microsoft-app-registration`, a random secret per runner, `--if-absent`): `/api/provider-clients` says `deployment`; a consent without a pair answers a URL at `login.microsoftonline.com` carrying the client id, `offline_access` and exactly the faces named (`email`,`file` → `Mail.Read`, `Files.Read`; no `Calendars.Read`/`Contacts.Read`/`Tasks.Read`), with no secret in the answer; half a pair is refused `half_client_pair`. A stack without a pair reports `connection` and refuses `no_microsoft_client`, asserted rather than skipped. The URL is built, never opened. |
 | T9 Microsoft To Do | ✅ **Built 2026-09-05** | `graph-todo-source` (VTODO built from Graph's JSON), `microsoft.task → graph-todo` in the face table, `task: 'Tasks.Read'` in the scope map, `task` in `PROVIDER_ACCOUNT_DOMAINS.microsoft`, and a `graph-todo` source type for the appliance. Unmeasured against a live tenant: nothing in CI can press the consent. |
 
 ## What the survey missed
