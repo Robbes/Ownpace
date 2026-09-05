@@ -77,7 +77,7 @@ describe('what retry costs (0036 T4)', () => {
     renderScreen();
 
     expect(
-      await screen.findByText(/next pass re-lists everything to reach this item again/),
+      await screen.findByText(/re-lists everything to reach this item again/),
     ).toBeInTheDocument();
     // And the button itself carries the sentence for hover/AT.
     expect(screen.getByRole('button', { name: 'Try again' }).getAttribute('title')).toContain(

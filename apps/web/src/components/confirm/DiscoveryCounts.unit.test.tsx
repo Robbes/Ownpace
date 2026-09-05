@@ -73,7 +73,7 @@ describe('the two things the customer has to be told', () => {
     expect(note).toHaveTextContent(/the copy on your new server/);
     expect(note).toHaveTextContent(/original on your old server is not changed/);
     // And that they are still migrated — otherwise it reads as items being lost.
-    expect(note).toHaveTextContent(/are.*included in the counts above/);
+    expect(note).toHaveTextContent(/migrate with the rest/);
   });
 
   it('warns that matching items on the destination are KEPT, not overwritten', () => {

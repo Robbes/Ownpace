@@ -16,6 +16,7 @@ import { mappingApi } from '../services/mapping-service.ts';
 import { serverMessage } from '../services/api.ts';
 import StateChip from '../components/StateChip.tsx';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 
 const Mappings: React.FC = () => {
   const t = useT();
@@ -326,7 +327,7 @@ const Mappings: React.FC = () => {
                           inside a sync or a gated apply (ADR-0024), never
                           from a screen. So the honest gate is two presses and
                           a sentence saying exactly that. */}
-                      <p>{t('mappings.delete.explain')}</p>
+                      <Hint className="" tone="body" label="more" text={t('mappings.delete.explain')} why={t('mappings.delete.more')} />
                       <div className="mt-2 flex items-center gap-2">
                         <button
                           onClick={() => void handleDelete(mapping.id)}

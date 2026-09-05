@@ -89,7 +89,7 @@ describe('the checklist', () => {
     renderScreen();
 
     expect(await screen.findByText(/1 \/ 3 settled/)).toBeInTheDocument();
-    expect(screen.getByText(/manual — steps for you/)).toBeInTheDocument();
+    expect(screen.getByText(/marked manual: your steps/)).toBeInTheDocument();
   });
 
   it('apply sends the address the owner corrected, not the source address', async () => {

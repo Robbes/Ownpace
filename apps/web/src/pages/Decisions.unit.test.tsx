@@ -280,7 +280,7 @@ describe('the standing-answer control', () => {
     fetchPresets.mockRejectedValue(new Error('boom'));
     renderScreen();
 
-    expect(await screen.findByText(/may be answering some categories/)).toBeInTheDocument();
+    expect(await screen.findByText(/some categories may be answered/)).toBeInTheDocument();
   });
 
   it('does not hide the queue when the presets fail', async () => {

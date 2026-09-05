@@ -32,6 +32,39 @@ export const BUDGETED_PREFIXES: ReadonlyArray<string> = [
   'runs.',
   'grantLink.',
   'sharedAddresses.',
+  'verify.',
+  'sharing.',
+  'moves.',
+  'deletions.',
+  'failures.',
+  'decisions.',
+  'mappings.',
+  'createMapping.',
+  'permissions.',
+  'autoApply.',
+  'discovery.',
+  'evidence.',
+  'notFound.',
+  'docs.',
+  'failure.',
+  'grant.',
+  'applyFlag.',
+  'receipt.',
+  'dashboard.',
+  'domain.',
+  'state.',
+  'role.',
+  'memberStatus.',
+  'decisionCategory.',
+  'decisionStatus.',
+  'scope.',
+  'asof.',
+  'common.',
+  'language.',
+  'nav.',
+  'status.',
+  'guidance.',
+  'lifecycle.',
 ];
 
 /** Folded copy: opens under a word, so it has no budget. */
@@ -50,6 +83,18 @@ const ALLOWED_OVER: Readonly<Record<string, string>> = {
   // person must read in full before pressing the button.
   'finish.step4.warn.post': 'safety sentence, verbatim by owner decision',
   'finish.step5.nothingChanges.post': 'safety promise, verbatim by owner decision',
+  // The failure remedies (0110 T3): what a person can DO about each
+  // category. Remedies stay verbatim — owner, 2026-09-05.
+  'failure.authExpired': 'remedy sentence, verbatim by owner decision',
+  'failure.rateLimited': 'remedy sentence, verbatim by owner decision',
+  'failure.quotaExceeded': 'remedy sentence, verbatim by owner decision',
+  'failure.targetRefused': 'remedy sentence, verbatim by owner decision',
+  'failure.unknown': 'remedy sentence, verbatim by owner decision',
+  // The consent page (0089): what the person being migrated reads before
+  // granting. Consent sentences stay verbatim — owner, 2026-09-05.
+  'grant.asking': 'consent sentence, verbatim by owner decision',
+  'grant.readOnly': 'consent sentence, verbatim by owner decision',
+  'grant.withdraw': 'consent sentence, verbatim by owner decision',
 };
 
 export type Budget = { readonly words: number; readonly oneSentence: boolean };

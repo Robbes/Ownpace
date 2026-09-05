@@ -166,7 +166,9 @@ describe('the 0035 T5 copy corrections stay corrected', () => {
   });
 
   it('EN: moves.intro has its comparator back', () => {
-    expect(STRINGS.en['moves.intro']).toContain('somewhere other than where they came from');
+    // 0118 T4 shortened the line; the comparator survives as "elsewhere" —
+    // filed ELSEWHERE than where the copy put them, which is the whole queue.
+    expect(STRINGS.en['moves.intro']).toContain('filed elsewhere');
   });
 });
 
