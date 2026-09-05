@@ -26,6 +26,13 @@ services:
   app:
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      # The archive-import gate's fixture Takeout (workplan 0116 T10), READ-ONLY
+      # and mounted here rather than baked beside the config: the Dockerfile
+      # copies deploy/selfhost/config into the PRODUCT image, and a fixture
+      # has no business shipping to a customer. The appliance only ever reads
+      # an archive (hard rule 2), and `:ro` makes the kernel say so too.
+      - ../../test/e2e/fixtures/takeout:/data/fixtures/takeout:ro
     # List both networks explicitly rather than relying on Compose's list-merge
     # behavior for this key across -f files — unambiguous either way it merges.
     networks:

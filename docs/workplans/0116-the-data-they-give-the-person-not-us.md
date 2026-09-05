@@ -46,10 +46,20 @@ ever to post an honest archive body to `POST /api/connections` — was refused f
 the kind does not have. The connections door now follows the descriptor, refuses an unknown
 export by name, and the add-form renders "Which export" as a choice.
 
-**What is left.** T10's import half: the managed smoke has no self-contained
-create-a-mapping-and-run-a-pass path (its mappings are seeded), so importing the fixture
-Takeout into the demo Nextcloud end to end is its own small slice. T3b still waits on an Apple
-export; T4's managed half on D7; T9 on T4.
+**2026-09-05, later: T10's import half, and the hole it found on its first read.** The
+import is gated in the SELF-HOST E2E, not the managed one, and the reason is a measurement
+worth keeping: the managed edition's run containers get a network and nothing else, so a
+folder the API can read is not a folder a pass can read — a local path is the appliance's
+route alone (T4). The gate mounts a five-file Takeout read-only into the appliance, loads a
+second mapping PAUSED beside the main one, green-lights it in the LAST gate so nothing it
+writes is on the target while the other gates measure it, and asserts against the real
+Nextcloud: the album copy is there, the year duplicate is not, the manifest reads back with
+the sidecar in it, and a second pass writes nothing. Writing it found that the APPLIANCE's file
+arm had no `archive` case — T5/T6 wired the managed seam only, so an archive mapping on the
+appliance would have been handed to the DAV resolver and refused for a URL it never had. Fixed
+in the same change; the gate is what would have said so.
+
+**What is left.** T3b still waits on an Apple export; T4's managed half on D7; T9 on T4.
 
 ### Earlier — 2026-09-04
 
@@ -138,13 +148,13 @@ If the owner decides only one thing here, decide **D1**.
 | T2 The reader seam | ✅ **Built 2026-09-04** | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
 | T3a The Takeout reader (Google Photos) | ✅ **Built 2026-09-04** | 0112 T1's reader, unchanged, behind the T2 interface. |
 | T3b The Data & Privacy reader (Apple) | 📋 **Blocked on a real export** | Nobody here has opened one. T3b starts by opening one and writing down what is inside — see §"What is not known". |
-| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first** | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
+| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first.** **Measured 2026-09-05:** the managed edition's run containers get a network (`DOCKER_RUNNER_NETWORKS`) and nothing else — no volume shared with the API — so a local path can never reach a managed pass. The local path is the appliance's route alone; on managed the archive has to arrive through a cloud this product reads, or an upload (D7). | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
 | T5 Placement and the manifest | ✅ **Built 2026-09-05** | `ArchiveFileSource` over the seam's new `placeIn` and `content()`: albums as folders, a photo written once per album (0112 decision 5), a photo in no album under its year, one fingerprinted manifest at the root with everything the export knew. Edited versions and motion clips are distinct items linked to their original (decided 2026-09-04, §4). EXIF into the copy stays 0112 T3. |
 | T6 Idempotency by content hash | ✅ **Built 2026-09-05** | Nothing new: the ledger's path-plus-hash rule, proved through the real loop — a second import writes nothing, a later export writes only what is new. **An archive delta may only ADD** is enforced by `FileSource.snapshot`, which switches the loop's absence-counting off; proved with the flag on and, as the control, stripped. |
 | T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
 | T8 The walkthrough | ✅ **Built 2026-09-04** | `docs/archive-setup.md` (the `-setup` suffix is what the app serves at `/docs`): how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
-| T10 The gate | 🔨 **Half built 2026-09-04** (connect + measure) | A tiny fixture archive in the managed E2E, connected and measured on the real stack. The IMPORT half — the fixture imported into the demo Nextcloud, a second import writing nothing — is unblocked by T5/T6 and needs the smoke to create a mapping and run a pass itself, which it does not do today (its mappings are seeded). |
+| T10 The gate | ✅ **Built 2026-09-05** (in two gates) | Connect + measure in the MANAGED E2E (2026-09-04). The IMPORT in the SELF-HOST E2E (2026-09-05): a fixture Takeout mounted read-only into the appliance, a second paused mapping green-lit by the last gate, imported into the e2e-target Nextcloud — placement asserted against the real server (album copy, no year duplicate), the manifest read back, a second pass writing nothing. The managed gate cannot carry the import at all: its run containers share no filesystem with the API (T4). |
 
 ## Why this exists
 

@@ -348,6 +348,19 @@ jobs:
             // against real servers; every other e2e run leaves it unset.
             cfg.allowApplyDeletions = true;
             fs.writeFileSync("deploy/selfhost/config/mapping.json", JSON.stringify(cfg, null, 2));
+            // A SECOND mapping, for the archive-import gate (workplan 0116 T10):
+            // a fixture Takeout mounted read-only into the appliance, imported
+            // into the e2e-target account. It loads PAUSED like every mapping
+            // and is green-lit only by its own gate, which runs LAST — so
+            // nothing it writes is on the target while the other gates measure
+            // it. The file name sorts AFTER mapping.json on purpose: the
+            // appliance's own first-mapping conveniences keep pointing at the
+            // long-standing mapping, and the gates select by id, not position.
+            const archive = JSON.parse(fs.readFileSync("test/e2e/fixtures/selfhost-archive-import.mapping.json", "utf8"));
+            const targetFiles = nextcloudDav + "/files/" + process.env.NEXTCLOUD_TARGET_USER + "/";
+            archive.target.url = targetFiles;
+            archive.domains.files.target.url = targetFiles;
+            fs.writeFileSync("deploy/selfhost/config/zz-archive-import.mapping.json", JSON.stringify(archive, null, 2));
           NODE
           cat > deploy/selfhost/.env <<ENV
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -554,6 +567,16 @@ jobs:
 
       - name: Run Finish Gate (§11.2 — the end of a migration)
         run: pnpm test:e2e test/e2e/selfhost-finish.e2e.test.ts
+
+      # LAST, on purpose (workplan 0116 T10). This gate green-lights the second
+      # mapping and imports the fixture Takeout into the e2e-target account —
+      # files the verification and finish gates above must never have seen.
+      # The one gate that can drive a source COMPLETELY: a folder needs no
+      # account, no consent and no network, so this asserts the whole route
+      # end to end — placement, the manifest, and a second import writing
+      # nothing — against the real Nextcloud rather than a memory target.
+      - name: Run Archive Import Gate (0116 T10 — a Takeout, imported end to end)
+        run: pnpm test:e2e test/e2e/selfhost-archive-import.e2e.test.ts
 
       - name: Appliance + Stalwart + Nextcloud diagnostics
         if: always()

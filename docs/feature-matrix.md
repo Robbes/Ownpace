@@ -212,9 +212,12 @@ declares itself a snapshot (`FileSource.snapshot`) and the sync loop's absence-c
 for it, so nothing is inferred, reported or even suspected from an item's absence between two
 exports. The Google reader is built (0116 T3a); the Apple reader waits on somebody opening a
 real export (0116 T3b), and is deliberately absent rather than stubbed, because a stub
-answering "0 items" is indistinguishable from an export that really was empty. Not yet:
-taken-time and GPS written into the copy's EXIF (0112 T3), reading a zip without extracting
-it (0116 D7), and the managed gate's import half (0116 T10).
+answering "0 items" is indistinguishable from an export that really was empty. The import is gated
+end to end in the self-host E2E (0116 T10): a fixture Takeout imported into the real Nextcloud,
+placement and the manifest read back, a second pass writing nothing. On the managed edition an
+archive has to arrive through a cloud this product reads or an upload — its run containers
+share no disk with the API (0116 T4). Not yet: taken-time and GPS written into the copy's EXIF
+(0112 T3), and reading a zip without extracting it (0116 D7).
 
 What migrates: file **bytes, verbatim**, hashed (`contentHash`) so unchanged files are never
 re-sent and changed ones are updated (with the same edited-on-target conflict protection);

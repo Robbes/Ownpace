@@ -62,6 +62,7 @@ import {
   ENV_DROPBOX_CREDENTIAL_NAMES,
   buildDropboxSourceFrom,
 } from './dropbox-source-factory.ts';
+import { buildArchiveSourceFrom } from './archive-source-factory.ts';
 import { ENV_BOX_CREDENTIAL_NAMES, buildBoxSourceFrom } from './box-source-factory.ts';
 import {
   buildGraphCalendarSourceFrom,
@@ -785,6 +786,15 @@ function buildDomainDepsWithLedger(
               },
               ENV_GOOGLE_CREDENTIAL_NAMES,
             )
+          : sourceConfig.type === 'archive'
+          ? // An EXPORT ARCHIVE (workplan 0116 T5/T6): a folder on this
+            // appliance's own disk, which is the one edition where a local
+            // path is the whole of getting the archive to us (0116 §3, D3).
+            // No credential to read from the environment — the config IS the
+            // credential, a location. Missing from the first cut of T5/T6,
+            // which wired only the managed seam; the self-host gate (T10) is
+            // what found the DAV resolver being handed a folder.
+            buildArchiveSourceFrom(sourceConfig as unknown as Record<string, unknown>)
           : buildFileSource(davEndpoint(sourceConfig, 'webdav', 'source'), domainThrottleLimiter);
       // Files can go over JMAP where the target speaks it (0031 T3). The
       // config already expresses it: `TargetConfig` is a union that includes
