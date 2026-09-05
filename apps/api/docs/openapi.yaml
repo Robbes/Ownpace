@@ -1341,6 +1341,38 @@ paths:
                                 calendar: { $ref: '#/components/schemas/QualifiedDomain' }
                                 contact: { $ref: '#/components/schemas/QualifiedDomain' }
                                 file: { $ref: '#/components/schemas/QualifiedDomain' }
+                        standingFailures:
+                          type: array
+                          description: |
+                            What is standing against this connection (workplan
+                            0094 T5): the categorised failure on every domain
+                            row of every migration that signs in with it, one
+                            entry per migration and category, latest first.
+                            Both sides of a migration carry the same entry —
+                            the category does not say which side failed, and
+                            Test is the way to find out. The category only,
+                            never the prose: `lastError` lives on the
+                            migration's own page. Always present; empty when
+                            nothing stands.
+                          items:
+                            type: object
+                            required: [mappingId, mappingName, category, domains, asOf]
+                            properties:
+                              mappingId: { type: string, format: uuid }
+                              mappingName: { type: string, nullable: true }
+                              category:
+                                type: string
+                                enum: [auth_expired, rate_limited, quota_exceeded, target_refused, network, unknown]
+                              domains:
+                                type: array
+                                description: The domains this category stands on.
+                                items:
+                                  type: string
+                                  enum: [email, calendar, contact, file, task]
+                              asOf:
+                                type: string
+                                format: date-time
+                                description: When the newest of those rows last changed.
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       tags: [Connections]

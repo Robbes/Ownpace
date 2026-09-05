@@ -972,3 +972,95 @@ describe('the measured-volume line (2026-09-02)', () => {
     expect(screen.getByText(/Can carry: Email ✓ 29 folders/)).toBeTruthy();
   });
 });
+
+describe('what is standing against a connection (workplan 0094 T5)', () => {
+  const twoHoursAgo = () => new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+
+  it('names the migration, when and which faces stopped, the remedy, and Test as the way to tell the side', async () => {
+    // A pass failed since the last Test. `status` still says `connected`
+    // (that is what the last Test found) and the line says what happened
+    // since — both true, side by side.
+    list.mockResolvedValue([
+      conn({
+        standingFailures: [
+          {
+            mappingId: 'm1',
+            mappingName: 'Acme mail',
+            category: 'auth_expired',
+            domains: ['email', 'calendar'],
+            asOf: twoHoursAgo(),
+          },
+        ],
+      }),
+    ]);
+    renderPage();
+
+    const name = await screen.findByText('Acme mail');
+    // The migration's own page is one click away — that is where the prose is.
+    expect(name.closest('a')?.getAttribute('href')).toBe('/mappings/m1');
+    expect(screen.getByText(/Migration/)).toBeTruthy();
+    expect(screen.getByText(/stopped .*\(Email, Calendar\):/)).toBeTruthy();
+    // The category's own remedy sentence — the same map the migration page reads.
+    expect(screen.getByText(new RegExp(STRINGS.en['failure.authExpired'].slice(0, 40)))).toBeTruthy();
+    // And, because the category does not say which of the two sides failed:
+    expect(screen.getByText(/Test this one to find out/)).toBeTruthy();
+    // The remedy is beside the line.
+    expect(screen.getByText('Replace credentials')).toBeTruthy();
+  });
+
+  it('does not invite a Test for a failure that resolves on its own', async () => {
+    list.mockResolvedValue([
+      conn({
+        standingFailures: [
+          {
+            mappingId: 'm1',
+            mappingName: 'Acme files',
+            category: 'rate_limited',
+            domains: ['file'],
+            asOf: twoHoursAgo(),
+          },
+        ],
+      }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Acme files')).toBeTruthy();
+    expect(screen.getByText(new RegExp(STRINGS.en['failure.rateLimited'].slice(0, 40)))).toBeTruthy();
+    // Its sentence says "nothing is wrong"; a tail asking for a Test would contradict it.
+    expect(screen.queryByText(/Test this one to find out/)).toBeNull();
+  });
+
+  it('shows no line when nothing stands, and none from a server that predates the field', async () => {
+    list.mockResolvedValue([
+      conn({ standingFailures: [] }),
+      conn({ id: 'c2', displayName: 'Older server' }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Older server')).toBeTruthy();
+    expect(screen.queryByText(/stopped/)).toBeNull();
+    expect(screen.queryByText(/^Migration$/)).toBeNull();
+  });
+
+  it('skips a category this build has no sentence for rather than rendering nothing for it', async () => {
+    list.mockResolvedValue([
+      conn({
+        standingFailures: [
+          {
+            mappingId: 'm9',
+            mappingName: 'From the future',
+            // A value a newer server may write; the page has no sentence for it.
+            category: 'from_the_future' as never,
+            domains: ['email'],
+            asOf: twoHoursAgo(),
+          },
+        ],
+      }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Acme migration (source)')).toBeTruthy();
+    expect(screen.queryByText('From the future')).toBeNull();
+    expect(screen.queryByText(/stopped/)).toBeNull();
+  });
+});

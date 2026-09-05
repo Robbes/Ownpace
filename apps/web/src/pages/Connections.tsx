@@ -20,10 +20,12 @@ import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
 import {
   credentialFieldsFor,
+  isFailureCategory,
   providerDefaultsFor,
   providerDefaultsProvenance,
   wizardTypeForConnectionKind,
   type CredentialField,
+  type FailureCategory,
 } from '@openmig/shared';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { frontDoorCards } from '../components/front-door-cards.ts';
@@ -42,6 +44,10 @@ import {
   qualificationText,
   schedulingText,
 } from '../i18n/probe-text.ts';
+// The remedy sentence per failure category — the one map the migration page
+// and the operator's support screen read too, so all three say the same words.
+import { FAILURE_KEY } from '../i18n/failure-key.ts';
+import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import {
   inUseMigrations,
   invalidCredentialFields,
@@ -112,6 +118,19 @@ const usePlaceholderFor = () => {
   return (field: CredentialField): string | undefined =>
     field.placeholder ?? (field.placeholderKey ? t(field.placeholderKey as StringKey) : undefined);
 };
+
+/**
+ * The categories where the CONNECTION is the thing to act on (workplan 0094
+ * T5), so the standing line invites a Test to tell which of a migration's two
+ * connections failed. The other three resolve on their own and their
+ * sentence says "no action needed" — a tail inviting a Test would contradict
+ * it. Exhaustive by construction: every category is in exactly one set.
+ */
+const ASK_TEST: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
+  'auth_expired',
+  'target_refused',
+  'unknown',
+]);
 
 const StatusIcon: React.FC<{ status: ConnectionSummary['status'] }> = ({ status }) => {
   if (status === 'connected') return <CheckCircle2 className="w-4 h-4 text-green-600" />;
@@ -250,6 +269,32 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
             {line}
           </span>
         ))}
+        {/* What is STANDING against this connection (workplan 0094 T5): a
+            pass that failed since the last Test, by category, with the
+            category's own remedy — and Replace credentials is beside it.
+            Both sides of a migration carry the line, because the category
+            does not say which side failed; where the connection is the thing
+            to act on, the line says Test tells. The guard is against a
+            category this build has no sentence for. */}
+        {(connection.standingFailures ?? [])
+          .filter((f) => isFailureCategory(f.category))
+          .map((f) => (
+            <span
+              key={`${f.mappingId}:${f.category}`}
+              className="block w-full text-xs text-red-900 break-words"
+            >
+              {t('connections.standing.migration')}{' '}
+              <Link to={`/mappings/${f.mappingId}`} className="underline">
+                {f.mappingName ?? f.mappingId.slice(0, 8)}
+              </Link>{' '}
+              {t('connections.standing.stopped', {
+                when: relativeToNow(f.asOf),
+                domains: f.domains.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
+              })}{' '}
+              {t(FAILURE_KEY[f.category])}
+              {ASK_TEST.has(f.category) && <> {t('connections.standing.whichSide')}</>}
+            </span>
+          ))}
 
         {/* wrap, and only push right once there is room to (workplan 0068):
             on a phone these four actions overflowed the card horizontally and

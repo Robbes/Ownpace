@@ -1357,6 +1357,15 @@ const en = {
   'connections.usedBy': 'migration(s) use this',
   'connections.usedBy.none': 'Not used by any migration yet',
   'connections.setupSteps': 'Setup steps',
+  // What is STANDING against a connection (workplan 0094 T5): a pass that
+  // failed since the last Test. "Migration <name> stopped 2 hours ago
+  // (Email, Calendar):" and then the category's own remedy sentence.
+  'connections.standing.migration': 'Migration',
+  'connections.standing.stopped': 'stopped {when} ({domains}):',
+  // Only where the connection is the thing to act on; the category does not
+  // say which of a migration's two connections failed.
+  'connections.standing.whichSide':
+    'It signs in with this connection and one other, and the failure does not say which \u2014 Test this one to find out.',
   // What a probe FOUND, rendered from its outcome code (workplan 0080).
   // Ours, so translated; the provider's own refusal is never in here — it
   // renders verbatim, because that string is what you paste into their
@@ -2767,6 +2776,10 @@ const nl: Record<keyof typeof en, string> = {
   'connections.usedBy': 'migratie(s) gebruiken dit',
   'connections.usedBy.none': 'Nog door geen enkele migratie gebruikt',
   'connections.setupSteps': 'Instelstappen',
+  'connections.standing.migration': 'Migratie',
+  'connections.standing.stopped': 'is {when} gestopt ({domains}):',
+  'connections.standing.whichSide':
+    'Die logt in met deze verbinding en \u00e9\u00e9n andere, en de fout zegt niet welke \u2014 test deze om het te weten.',
   'probe.connected': 'Verbonden. {count} {unit} zichtbaar.',
   'probe.connected.floor': 'Verbonden. Ten minste {count} {unit} zichtbaar.',
   'probe.connectedSession': 'Verbonden. Het JMAP-sessiedocument antwoordde.',
