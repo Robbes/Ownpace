@@ -27,6 +27,7 @@ import React from 'react';
 import { Link } from 'react-router';
 import { Users } from 'lucide-react';
 import { useT } from '../../i18n/index.tsx';
+import { Hint } from '../Hint.tsx';
 import { fetchGroupRunbook, type SharedAddressRow } from '../../services/operating-service.ts';
 
 const PATTERN_KEY = {
@@ -71,7 +72,7 @@ export const SharedAddresses: React.FC<{
     return (
       <div className="flex items-start gap-2 text-sm text-gray-500">
         <Users className="w-4 h-4 mt-0.5 flex-shrink-0" />
-        <p>{t('sharedAddresses.empty')}</p>
+        <Hint className="" text={t('sharedAddresses.empty')} why={t('sharedAddresses.empty.why')} />
       </div>
     );
   }

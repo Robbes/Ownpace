@@ -14,6 +14,10 @@
  */
 
 const en = {
+  // The word on a fold (workplan 0118): one line stays on screen, the rest opens under it.
+  'fold.why': 'Why?',
+  'fold.how': 'How?',
+  'fold.more': 'More',
   'status.link': 'Service status',
   'notFound.heading': 'Nothing here.',
   'notFound.lede':
@@ -246,14 +250,11 @@ const en = {
   // are the button's own words.
   'wizard.google.connect': 'Connect with Google',
   'connections.googleFaces': 'What this account will serve',
-  'wizard.google.connect.hint':
-    'Opens Google’s consent screen against your own OAuth client and fills the refresh token ' +
-    'in for you. Pasting a token you already have keeps working.',
+  'wizard.google.connect.hint': 'Opens Google’s consent screen and fills in the refresh token.',
+  'wizard.google.connect.why': 'Pasting a token you already have keeps working.',
   'wizard.google.connect.needsDomains':
-    'Tick what to migrate first \u2014 this consent asks Google for exactly what is ticked, '
-    + 'and nothing more.',
-  'wizard.google.connect.needsClient':
-    'Enter the Client ID and client secret first — the consent runs against your own Google client.',
+    'Tick what to migrate first; the consent asks only for that.',
+  'wizard.google.connect.needsClient': 'Enter the Client ID and client secret first.',
   // One sentence for every provider's consent: what lands is the same
   // token in the same box, and the same save-and-test follows.
   'wizard.consent.received': 'Consent received — saving and testing this connection.',
@@ -262,74 +263,57 @@ const en = {
   // the wrong company's consent screen; the form says so and the manual
   // token field is still there.
   'wizard.consent.noProvider':
-    'This connection type has no consent button on this deployment. Paste a refresh token you ' +
-    'already have, or report this — the type says it is filled by consent and nothing here can ' +
-    'start one.',
+    'This deployment has no consent button for this type; paste a refresh token instead.',
   // The account first (owner's walk, 2026-09-02): the consent saves and
   // tests in one go, and the save needs the address.
-  'wizard.consent.needsAccount':
-    'Enter the account address first — the consent saves and tests the connection in one go, ' +
-    'and the address says whose data it is.',
+  'wizard.consent.needsAccount': 'Enter the account address first.',
   // The deployment's own client (ADR-0041, owner decision 2026-09-01): the
   // pair becomes optional as a whole, and a half-typed pair is named rather
   // than silently completed with the deployment's other half.
   'wizard.google.deploymentClient':
-    'This deployment has its own Google client, so these two can stay empty. ' +
-    'Enter both to use your own instead.',
-  'wizard.google.connect.halfClient':
-    'Enter both the Client ID and the client secret, or neither — this deployment has its own ' +
-    'Google client.',
-  'wizard.google.ownClient': 'Use your own Google application instead',
+    'This deployment has its own Google client; enter both to use yours instead.',
+  'wizard.google.connect.halfClient': 'Enter both the Client ID and the client secret, or neither.',
+  'wizard.google.ownClient': 'Use your own Google client',
   // The string Google matches against the client's registered list. It was
   // always in the route's answer and the wizard threw it away, so
   // `redirect_uri_mismatch` arrived naming no address (2026-09-01).
   'wizard.google.redirectUri':
-    'Register this exact address in your Google client, under Authorised redirect URIs:',
+    'Add this exact address to your Google client under Authorised redirect URIs:',
   // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
   'wizard.dropbox.connect': 'Connect with Dropbox',
-  'wizard.dropbox.connect.hint':
-    'Opens Dropbox’s consent screen and fills the refresh token in for you. Pasting a token ' +
-    'you already have keeps working.',
-  'wizard.dropbox.connect.needsClient':
-    'Enter the App key and App secret first — the consent runs against your own Dropbox app.',
-  'wizard.dropbox.connect.halfClient':
-    'Enter both the App key and the App secret, or neither — this deployment has its own ' +
-    'Dropbox app.',
+  'wizard.dropbox.connect.hint': 'Opens Dropbox’s consent screen and fills in the refresh token.',
+  'wizard.dropbox.connect.why': 'Pasting a token you already have keeps working.',
+  'wizard.dropbox.connect.needsClient': 'Enter the App key and App secret first.',
+  'wizard.dropbox.connect.halfClient': 'Enter both the App key and the App secret, or neither.',
   'wizard.dropbox.deploymentClient':
-    'This deployment has its own Dropbox app, so these two can stay empty. ' +
-    'Enter both to use your own instead.',
-  'wizard.dropbox.ownClient': 'Use your own Dropbox app instead',
+    'This deployment has its own Dropbox app; enter both to use yours instead.',
+  'wizard.dropbox.ownClient': 'Use your own Dropbox app',
   'wizard.dropbox.redirectUri':
-    'Register this exact address in your Dropbox app, under OAuth 2 → Redirect URIs:',
+    'Add this exact address to your Dropbox app under OAuth 2 → Redirect URIs:',
   // Connect with Microsoft (workplan 0114): the same button a third time.
   // Two things say Microsoft rather than Google or Dropbox — the words
   // "app registration" and "Microsoft Entra ID", which are the provider's
   // own, and the TENANT, which neither of the other two has.
   'wizard.microsoft.connect': 'Connect with Microsoft',
   'wizard.microsoft.connect.hint':
-    'Opens Microsoft’s consent screen and fills the refresh token in for you. It asks you to ' +
-    'pick which account, so a migration cannot quietly read the wrong mailbox. Pasting a token ' +
-    'you already have keeps working.',
+    'Opens Microsoft’s consent screen and fills in the refresh token.',
+  'wizard.microsoft.connect.why':
+    'It asks you which account, so a migration cannot quietly read the wrong mailbox. Pasting a token you already have keeps working.',
   'wizard.microsoft.connect.needsClient':
-    'Enter the Application (client) ID and client secret first — the consent runs against your ' +
-    'own app registration.',
+    'Enter the Application (client) ID and client secret first.',
   'wizard.microsoft.connect.halfClient':
-    'Enter both the Application (client) ID and the client secret, or neither — this deployment ' +
-    'has its own app registration.',
+    'Enter both the Application (client) ID and the client secret, or neither.',
   'wizard.microsoft.deploymentClient':
-    'This deployment has its own Microsoft app registration, so these two can stay empty. ' +
-    'Enter both to use your own instead.',
-  'wizard.microsoft.ownClient': 'Use your own app registration instead',
+    'This deployment has its own Microsoft app registration; enter both to use yours instead.',
+  'wizard.microsoft.ownClient': 'Use your own app registration',
   'wizard.microsoft.redirectUri':
-    'Register this exact address in your app registration, under Authentication → Redirect URIs:',
+    'Add this exact address to your app registration under Authentication → Redirect URIs:',
   // The tenant, which is the field Google and Dropbox have no equivalent of.
   // Empty is the RIGHT answer for almost everybody, and a hint that only said
   // "optional" would leave the one person it matters to guessing.
-  'wizard.microsoft.tenantId.hint':
-    'Leave empty unless your app registration is single-tenant. Empty means this deployment’s ' +
-    'own directory setting, which accepts any work, school or personal Microsoft account. A ' +
-    'single-tenant registration sent to the wrong directory fails with a message about the ' +
-    'application not being found — which reads like a typo and is not one.',
+  'wizard.microsoft.tenantId.hint': 'Leave empty unless your app registration is single-tenant.',
+  'wizard.microsoft.tenantId.why':
+    'Empty means this deployment’s own directory setting, which accepts any work, school or personal Microsoft account. A single-tenant registration sent to the wrong directory fails with a message about the application not being found, which reads like a typo and is not one.',
   // Apple's ONE credential field, and the hint carries the whole setup
   // (workplan 0115). Somebody who types their Apple Account password gets a
   // rejection saying the password is wrong — which it is not; it is the right
@@ -337,46 +321,30 @@ const en = {
   // account has two-factor authentication and every Apple Account does. So the
   // hint names the page rather than describing the rule.
   'wizard.proto.apple.hint':
-    'One Apple Account — mail, calendars, contacts and reminders, whichever you tick. There ' +
-    'is no Connect with Apple button because Apple offers no such consent for its own data: ' +
-    'you make an app-specific password instead, which takes a minute and you can revoke at ' +
-    'any time. iCloud Drive files cannot be migrated by anyone — Apple publishes no API for ' +
-    'them.',
+    'One Apple Account: mail, calendars, contacts and reminders, whichever you tick.',
   'wizard.appleAppPassword': 'App-specific password',
   'wizard.appleAppPassword.hint':
-    'Not your Apple Account password — Apple refuses that one here, by design. Make an ' +
-    'app-specific password at account.apple.com → Sign-In and Security → App-Specific ' +
-    'Passwords, and paste it. It reaches your mail, calendars, contacts and reminders, and ' +
-    'you can revoke it there on its own whenever you like.',
+    'Not your Apple Account password: an app-specific password from account.apple.com.',
+  'wizard.appleAppPassword.why':
+    'Apple refuses the account password here by design. Make one at account.apple.com → Sign-In and Security → App-Specific Passwords and paste it. It reaches your mail, calendars, contacts and reminders, and you can revoke it there whenever you like.',
   // THE EXPORT ARCHIVE (workplan 0116 T1; a migration source since T5/T6).
   // One card for two exports, and the hint has to carry the two things the
   // card name cannot: this is a SNAPSHOT with a date on it, not a live
   // account — and because it is, a later export only ever ADDS: nothing is
   // removed from the target because an export no longer mentions it (§5).
-  'wizard.proto.archive.hint':
-    'A Google Takeout or Apple Data & Privacy export you already downloaded — for photos and ' +
-    'files, which neither company offers any other way. Connecting it shows what it holds: ' +
-    'how many items, how many bytes, which albums, and the dates it covers. Migrating from it ' +
-    'copies the photos into folders named after your albums, once per album, with one file ' +
-    'listing everything Google knew about each. An archive is a snapshot of the day it was ' +
-    'prepared, so a later export only adds — nothing is ever removed because an export no ' +
-    'longer mentions it.',
+  'wizard.proto.archive.hint': 'A Google Takeout or Apple export you downloaded: photos and files.',
   'wizard.archiveProvider': 'Which export',
-  'wizard.archiveProvider.hint':
-    'Which company made this archive. It decides how we read it, and there is no way to tell ' +
-    'from the files themselves — the wrong choice finds nothing rather than saying so. ' +
-    'Google exports are requested at takeout.google.com; Apple exports at privacy.apple.com.',
+  'wizard.archiveProvider.hint': 'Which company made the archive; the wrong choice finds nothing.',
+  'wizard.archiveProvider.why':
+    'It decides how we read the export, and the files themselves do not say. Google exports are requested at takeout.google.com, Apple exports at privacy.apple.com.',
   'wizard.archivePath': 'Where the archive is',
-  'wizard.archivePath.hint':
-    'The folder you extracted the download into — not the .zip itself. If the export arrived ' +
-    'in several parts, extract them all into the same folder first. Nothing is written there: ' +
-    'we only read.',
+  'wizard.archivePath.hint': 'The folder you extracted the download into, not the .zip itself.',
+  'wizard.archivePath.why':
+    'If the export arrived in several parts, extract them all into the same folder first. Nothing is written there: we only read.',
   // The ACCOUNT card. Four faces, and the sentence says why that is more than
   // Google offers rather than leaving it looking like an oversight there.
   'wizard.proto.microsoft.hint':
-    'One Microsoft 365 account, one sign-in — mail, calendars, contacts and OneDrive, ' +
-    'whichever you tick. The two cards beside this one are for a customer who already has '
-    + 'their own app registration.',
+    'One Microsoft 365 account, one sign-in: mail, calendars, contacts and OneDrive.',
   // The two Microsoft 365 connection methods (0107 T1): the family heading
   // says WHO, the card says HOW — "OAuth2" as a card name said neither.
   'wizard.group.provider': 'Your provider',
@@ -388,10 +356,7 @@ const en = {
   // The ACCOUNT card (workplan 0106 T3b). It names the two faces AND why the
   // other two are not here, because "why is Gmail a separate card" is the
   // first question this card raises.
-  'wizard.proto.google.hint':
-    'One Google account, one sign-in \u2014 calendars and contacts, whichever you tick. '
-    + 'Gmail and Drive stay separate cards for now: they need a Google security review '
-    + 'we have not bought yet.',
+  'wizard.proto.google.hint': 'One Google account, one sign-in: calendars and contacts.',
   // The same card where the DEPLOYMENT'S own Google application carries the
   // restricted scopes (ADR-0041, owner decision 2026-09-01). The sentence
   // above names a wall that is not there on such an installation, and a card
@@ -399,95 +364,68 @@ const en = {
   // single-purpose cards stay: an existing mapping keeps working, and one
   // account per face is still a reasonable thing to want.
   'wizard.proto.google.hint.restricted':
-    'One Google account, one sign-in \u2014 mail, calendars, contacts and files, '
-    + 'whichever you tick. Gmail and Google Drive stay as their own cards for a '
-    + 'migration that wants only one of them.',
+    'One Google account, one sign-in: mail, calendars, contacts and files.',
   'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
   'wizard.proto.dropbox.hint': 'Files from a Dropbox (read-only OAuth app)',
   'wizard.proto.box.hint': 'Files from a Box account (read-only platform app)',
   'wizard.boxUserId': 'Box user id (numeric)',
-  'wizard.boxUserId.placeholder': 'e.g. 1234567890 — Admin Console → Users & Groups',
+  'wizard.boxUserId.placeholder': 'e.g. 1234567890',
   'wizard.boxRootFolderId': 'Root folder id (optional)',
-  'wizard.boxRootFolderId.placeholder': 'Empty = All Files; a folder id scopes the migration',
+  'wizard.boxRootFolderId.placeholder': 'Empty = All Files',
   'wizard.review.boxUser': 'Box user',
-  'wizard.source.boxSetup':
-    'A Box migration authenticates with your own Box platform app via the Client Credentials Grant — no refresh token, because Box rotates refresh tokens on every use. The Client ID goes here with the numeric user id being migrated; the Client secret rides the credentials step. A Box admin must authorize the app once (Admin Console → Apps → Custom Apps Manager). docs/box-setup.md walks through each step.',
-  'wizard.dropboxAppKey': 'App key (from the Dropbox App Console)',
+  'wizard.dropboxAppKey': 'App key',
   'wizard.dropboxRootPath': 'Root folder path (optional)',
-  'wizard.dropboxRootPath.placeholder': 'Empty = the whole Dropbox; e.g. /Team Docs',
+  'wizard.dropboxRootPath.placeholder': 'e.g. /Team Docs',
   'wizard.browseDropboxFolders': 'Browse shared folders…',
   'wizard.noDropboxSharedFolders': 'This account sees no shared folders.',
   'wizard.dropboxUnmounted': 'not mounted — add it to your Dropbox first',
   'wizard.review.wholeDropbox': 'the whole Dropbox',
-  'wizard.source.dropboxSetup':
-    'A Dropbox migration authenticates with your own Dropbox app: create it read-only (files.metadata.read + files.content.read; add sharing.read if you want the shared-folder browse). The App key goes here; on the credentials step, the App secret goes in the client-secret field and the refresh token beside it. docs/dropbox-setup.md walks through each.',
   'wizard.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
   'wizard.proto.googleCalendar.hint': 'Calendars from a Google account (OAuth over CalDAV)',
   'wizard.proto.googleContacts.hint': 'Contacts from a Google account (OAuth over CardDAV)',
-  'wizard.gmailAppPassword': 'App password (personal Gmail only, optional)',
-  'wizard.gmailAppPassword.hint':
-    'An alternative to the three OAuth fields above, for a PERSONAL Google account. Google recommends against it, and so do we: an app password opens the whole mailbox, where a consented token opens one thing. It needs 2-step verification on the account before Google will create one, it does not exist on a Workspace account, and it is withdrawn in one row of the account\u2019s own app-password list \u2014 without touching Ownpace, which is the one real advantage it has. Leave this empty to use OAuth.',
+  'wizard.gmailAppPassword': 'App password (optional)',
+  'wizard.gmailAppPassword.hint': 'Personal Google accounts only; leave empty to use OAuth.',
+  'wizard.gmailAppPassword.why':
+    'Google recommends against it, and so do we: an app password opens the whole mailbox, where a consented token opens one thing. It needs 2-step verification on the account, does not exist on a Workspace account, and is withdrawn in the account’s own app-password list without touching Ownpace, which is the one real advantage it has.',
   'wizard.refreshToken': 'Refresh token',
-  'wizard.refreshToken.hint':
-    'The delegated token for the account being migrated. Treat it as a password.',
+  'wizard.refreshToken.hint': 'The account’s delegated token; treat it as a password.',
   'wizard.rootFolderId': 'Root folder ID (optional)',
-  'wizard.rootFolderId.placeholder': 'Empty = all of My Drive; a shared drive by its own ID',
+  'wizard.rootFolderId.placeholder': 'Empty = all of My Drive',
   'wizard.review.myDrive': 'My Drive',
   'wizard.targetPrefix': 'Target folder (optional)',
-  'wizard.targetPrefix.placeholder': 'Empty = merge into the account itself',
-  'wizard.targetPrefix.hint':
-    'Everything this migration writes lands under this folder — useful when several sources ' +
-    'share one target and you want a subfolder per source (e.g. "Gmail"). Leave it empty to ' +
-    'merge, which is the default: one account, one place to work. Under a folder, Sent and ' +
-    'Drafts arrive as ordinary folders inside it rather than becoming the account\'s own Sent ' +
-    'and Drafts — a mail app can only have one of each.',
-  'wizard.source.driveSetup':
-    'A Google Drive source uses your own Google Cloud OAuth client and a delegated, read-only ' +
-    'refresh token — docs/google-workspace-setup.md walks through all three values and ends ' +
-    'with one read-only command that proves them. The token cannot write to the Drive. Google ' +
-    'Docs, Sheets and Slides are reported as un-migratable, one by one, with the reason: they ' +
-    'have no file to copy, and rendering them is not enabled until export stability is measured.',
-  'wizard.source.gmailSetup':
-    'A Gmail source uses your own Google Cloud OAuth client — the same one a Google Drive ' +
-    'source uses — but its refresh token must be consented with the https://mail.google.com/ ' +
-    'scope, the only one Google accepts for IMAP. A token consented for Drive will not work ' +
-    'here. docs/google-workspace-setup.md walks through obtaining it.',
-  'wizard.source.googleDavSetup':
-    'This source uses your own Google Cloud OAuth client \u2014 the same one the other Google ' +
-    'sources use \u2014 but the refresh token must be consented with this product\u2019s own scope: ' +
-    'https://www.googleapis.com/auth/calendar for Calendar, ' +
-    'https://www.googleapis.com/auth/carddav for Contacts. A token consented for another ' +
-    'Google product will not work here. docs/google-workspace-setup.md walks through it.',
+  'wizard.targetPrefix.placeholder': 'Empty = merge into the account',
+  'wizard.targetPrefix.hint': 'Everything lands under this folder; empty merges into the account.',
+  'wizard.targetPrefix.why':
+    'Useful when several sources share one target and you want a subfolder per source, such as "Gmail". Empty is the default: one account, one place to work. Under a folder, Sent and Drafts arrive as ordinary folders inside it rather than becoming the account’s own Sent and Drafts; a mail app can only have one of each.',
   'hub.completionReport': 'Download the completion report (Markdown)',
-  'wizard.serviceAccountKey': 'Service account key (domain-wide delegation, optional)',
-  'wizard.serviceAccountKey.placeholder': 'Paste the whole JSON key file Google generated',
+  'wizard.serviceAccountKey': 'Service account key (optional)',
+  'wizard.serviceAccountKey.placeholder': 'Paste the whole JSON key file',
   'wizard.serviceAccountKey.width':
-    'This key can read every user in the Workspace domain. Each migration still names one account. Authorise only the scopes you need in the Admin console, and revoke the delegation at cutover.',
+    'This key can read every user in the domain; revoke it at cutover.',
+  'wizard.serviceAccountKey.why':
+    'Domain-wide delegation can read any Workspace user, though each migration still names one account. Authorise only the scopes you need in the Admin console, and revoke the delegation at cutover.',
   'wizard.browseSharedDrives': 'Browse shared drives & folders…',
-  'wizard.noSharedDrives': 'This credential sees no shared drives or shared folders — leaving the root empty migrates My Drive.',
+  'wizard.noSharedDrives': 'No shared drives or folders visible; an empty root migrates My Drive.',
   'wizard.sharedDrivesGroup': 'Shared drives',
   'wizard.sharedFoldersGroup': 'Folders shared with me',
   'wizard.step.migration': 'Migration',
-  'wizard.testConnections.reused':
-    'This side already uses a saved connection, so this just checks it still works.',
-  'wizard.connectionName': 'Name this connection (so you recognise it later)',
+  'wizard.testConnections.reused': 'Already saved; this only checks it still works.',
+  'wizard.connectionName': 'Connection name',
   'wizard.connectionName.taken':
-    'You already have a connection with this name. It will still be saved — but two things with one name are hard to tell apart later.',
+    'This name is already taken; it saves, but two alike are hard to tell apart.',
   'wizard.testConnections.kept':
-    'These details were kept even though the check failed, so you can correct them and try again — or come back to them later under Connections.',
+    'The details were kept: correct them and try again, or return later under Connections.',
   'wizard.testConnections': 'Test and save connections',
   'wizard.testing': 'Testing…',
-  'wizard.testConnections.hint':
-    'Signs in to both sides with what you typed and lists what it can see — nothing is ' +
-    'written to either system. A side that works is SAVED as a connection, so if you leave ' +
-    'this wizard you will not have to fetch those credentials again.',
+  'wizard.testConnections.hint': 'Signs in to both sides read-only and saves each side that works.',
+  'wizard.testConnections.why':
+    'It lists what it can see and writes nothing to either system. A side that works is saved as a connection, so leaving this wizard does not mean fetching those credentials again.',
   'wizard.proto.jmap.hint': 'Modern email protocol',
   'wizard.proto.caldav.hint': 'Calendar protocol',
   'wizard.proto.carddav.hint': 'Contact protocol',
   'wizard.proto.webdav.hint': 'File storage',
   'wizard.proto.soverin.hint': 'One account — email, calendars and contacts',
   'wizard.title': 'Create Migration',
-  'wizard.subtitle': 'Set up a new data migration between systems',
   'wizard.step.source': 'Source',
   'wizard.step.target': 'Target',
   // "Name & credentials", because the step LEADS with — and gates on — the
@@ -503,35 +441,32 @@ const en = {
   'wizard.port': 'Port',
   // The DAV escape hatch (0105 T1) — see credential-fields.ts.
   'wizard.targetDavUrl': 'DAV base URL (optional)',
-  'wizard.targetDavUrl.hint':
-    "Only needed when the server's DAV root is not at the host root. When filled in, this full URL is used and host and port are ignored.",
+  'wizard.targetDavUrl.hint': 'Only when the server’s DAV root is not at the host root.',
+  'wizard.targetDavUrl.why': 'When filled in, this full URL is used and host and port are ignored.',
   'wizard.soverinMailHost': 'Mail server (optional)',
-  'wizard.soverinMailHost.hint':
-    'The account’s IMAP host, as your provider’s settings page names it. Only needed when this account will also receive email — calendars and contacts need no mail server. Test measures it; nothing is assumed from the provider’s name.',
+  'wizard.soverinMailHost.hint': 'Only needed if this account will also receive mail.',
+  'wizard.soverinMailHost.why':
+    'Calendars and contacts need no mail server. Test measures the host you enter; nothing is assumed from the provider’s name.',
   'wizard.soverinMailPort': 'Mail port',
   // The provider directory (0106 T5): whose published settings sit in the
   // boxes, read when. They are measured by Test, never assumed.
   'wizard.providerDefaults.note':
-    'Pre-filled from {provider}’s published settings, read {seen}. Test measures whether they answer; change anything that does not.',
+    'Pre-filled from {provider}’s published settings, read {seen}. Test checks them.',
   'wizard.useSsl': 'Use SSL/TLS',
   'wizard.migrationName': 'Migration Name',
-  'wizard.migrationNameHint': 'A friendly name to identify this migration',
   'wizard.credentials': 'Credentials',
   'wizard.sourceUsername': 'Source Username',
   'wizard.sourcePassword': 'Source Password',
   'wizard.targetUsername': 'Target Username',
   'wizard.targetPassword': 'Target Password',
   'wizard.selectDataTypes': 'Select Data Types to Migrate',
-  'wizard.selectDataTypesHint': 'Choose which types of data you want to migrate',
   'wizard.domain.email.hint': 'Email messages and folders',
   'wizard.domain.calendar.hint': 'Events and appointments',
   'wizard.domain.contact.hint': 'Address book entries',
   'wizard.domain.file.hint': 'Attachments and documents',
   'wizard.domain.task.hint': 'To-do lists and their tasks',
   'wizard.schedule': 'Sync Schedule',
-  'wizard.scheduleHint':
-    'Choose how often to sync data between source and target. The first sync starts as ' +
-    'soon as you press start — this is how often it repeats after that.',
+  'wizard.scheduleHint': 'How often it repeats; the first sync starts when you press start.',
   'wizard.schedule.hourly': 'Hourly',
   'wizard.schedule.hourly.hint': 'Every hour',
   'wizard.schedule.daily': 'Daily',
@@ -541,7 +476,7 @@ const en = {
   'wizard.schedule.quarterHourly': 'Every 15 minutes',
   'wizard.schedule.quarterHourly.hint': 'Frequent sync',
   'wizard.customCron': 'Custom Cron Expression (optional)',
-  'wizard.customCronHint': 'Leave empty for default daily sync at 2 AM',
+  'wizard.customCronHint': 'Empty = daily at 2 AM',
   'wizard.readyToCreate': 'Ready to create migration',
   'wizard.reviewDetails': 'Migration Details',
   'wizard.review.name': 'Name',
@@ -553,11 +488,9 @@ const en = {
   // The truth of 0013 T5/T6 (0037 T3): creating starts NOTHING. The old note
   // said "the initial sync may take some time" — an admin who navigated away
   // believing migration was underway left it paused forever.
-  'wizard.review.note':
-    'Creating stores this configuration and starts nothing: the migration is created paused. ' +
-    'Next you review what a read-only scan finds in your source and give the explicit start — ' +
-    'nothing is copied until then.',
-  'wizard.review.noteLead': 'Note:',
+  'wizard.review.note': 'Creating starts nothing: the migration is created paused.',
+  'wizard.review.why':
+    'Next you review what a read-only scan finds in your source and give the explicit start; nothing is copied until then.',
   'wizard.back': 'Back',
   'wizard.cancel': 'Cancel',
   'wizard.next': 'Next',
@@ -569,16 +502,9 @@ const en = {
   'wizard.missing.dataTypes': 'select at least one data type',
   'wizard.showPassword': 'Show password',
   'wizard.hidePassword': 'Hide password',
-  'wizard.credentials.storage':
-    'These sign-in details are encrypted at rest, used only to connect to your source and ' +
-    'target, and never shown again after this step.',
+  'wizard.credentials.storage': 'Encrypted at rest, used only to connect, and never shown again.',
   // 0037 T6, answered 2026-08-10: oauth2/graph collect the per-customer
   // Entra app registration (ADR-0006's row-14 model).
-  'wizard.source.appRegistration':
-    'OAuth2 and Microsoft Graph sources use an Entra app registration in your own tenant: ' +
-    'enter its tenant ID and client ID here, and its client secret together with the mailbox ' +
-    'address on the credentials step. Register the app and grant admin consent in your own ' +
-    'tenant first — see the O365 setup guide (docs/o365-setup.md).',
   'wizard.tenantId': 'Tenant ID',
   'wizard.clientId': 'Client ID (application ID)',
   'wizard.sourceClientSecret': 'Source client secret',
@@ -587,8 +513,7 @@ const en = {
   'wizard.domain.notForTarget': 'Not available over the selected target protocol.',
   // The account's own measured record on the domain step (0106 T3a). The
   // full evidence sentence rides the hover title; unknown never locks.
-  'wizard.domain.measuredNo':
-    'This account answered it cannot carry this — test the connection again if that changed.',
+  'wizard.domain.measuredNo': 'This account cannot carry this; test it again if that changed.',
   'wizard.domain.unmeasured': 'Not yet measured for this account; a test answers it.',
   'wizard.cron.invalidLead': 'Not a valid schedule —',
   'wizard.cron.nextRuns': 'With this schedule, the next syncs would run:',
@@ -688,13 +613,11 @@ const en = {
   'lifecycle.paused':
     'This migration has not started, so nothing has been copied and nothing can have diverged.',
   'hub.fallbackTitle': 'Migration',
-  'hub.orderIntro':
-    'The five screens below are in the order a cutover runs — work the list top to bottom.',
+  'hub.orderIntro': 'The screens below are in cutover order; work them top to bottom.',
   'hub.noId': 'No mapping id in the address.',
   'hub.detailError': "Could not read this migration's details — the screens below still work.",
   'hub.deletions.name': 'Deletions',
-  'hub.deletions.blurb':
-    'Items deleted on the old system that the new one still has. Your call, per item.',
+  'hub.deletions.blurb': 'Deleted on the old system, still on the new; your call, per item.',
   'hub.moves.name': 'Moves',
   'hub.moves.blurb':
     'Items the old system reorganised since they were copied. Reported, never acted on.',
@@ -703,7 +626,7 @@ const en = {
     'Items that could not be copied and now wait on a person. These block finishing.',
   'hub.sharing.name': 'Sharing',
   'hub.sharing.blurb':
-    'Who could reach what on the old system — carried over, done by hand, or deliberately not. A checklist, worked after finishing.',
+    'Who could reach what on the old system; a checklist worked after finishing.',
   'sharing.title': 'Sharing checklist',
   'sharing.intro':
     'Everything somebody else could reach on the old system, one row per grant. Settle each row: create the share on the new system, tick it off as done by hand, or skip it on purpose — every settled row keeps who decided, and when.',
@@ -744,7 +667,9 @@ const en = {
   'runs.events': 'Log',
   'grantLink.title': 'Grant links',
   'grantLink.blurb':
-    'A link lets the person being migrated give access to their own account, without an Ownpace account and without ever sending you their password. You send the link to them yourself — Ownpace never does, and never learns who they are.',
+    'The person being migrated grants access themselves, without sending you a password.',
+  'grantLink.why':
+    'They need no Ownpace account. You send the link to them yourself; Ownpace never does, and never learns who they are.',
   'grantLink.expiryLabel': 'The link works for',
   'grantLink.expiry.1': '1 day',
   'grantLink.expiry.7': '7 days',
@@ -755,7 +680,7 @@ const en = {
   'grantLink.issued.urlLabel': 'The grant link',
   'grantLink.issued.until': 'It works until {date}.',
   'grantLink.issued.youSend':
-    'Send it to them yourself, however you normally reach them. It cannot be shown again — if it goes astray, revoke it and make another.',
+    'Send it yourself; it cannot be shown again, so revoke and reissue if lost.',
   'grantLink.copy': 'Copy',
   'grantLink.copied': 'Copied',
   'grantLink.empty': 'No links yet for this migration.',
@@ -915,8 +840,9 @@ const en = {
   'confirm.intro': 'Nothing has been copied yet. Review what will migrate, then start it.',
   'confirm.readError': 'Could not read the migrations.',
   'confirm.noMappings': 'No mappings configured.',
-  'confirm.noMappings.how':
-    'The appliance reads mappings as JSON files from its config directory (on Docker the mounted config folder; on Windows C:\\ProgramData\\OpenMigrate\\config). Copy mapping.json.example, fill in your source and target, reference secrets by environment-variable name, and restart the appliance — it reads the directory once at start. The full walkthrough is docs/selfhost-quickstart.md, step 3.',
+  'confirm.noMappings.how': 'The appliance reads mappings from JSON files in its config directory.',
+  'confirm.noMappings.more':
+    'On Docker that is the mounted config folder; on Windows C:\\ProgramData\\OpenMigrate\\config. Copy mapping.json.example, fill in your source and target, reference secrets by environment-variable name, and restart the appliance: it reads the directory once at start. The full walkthrough is docs/selfhost-quickstart.md, step 3.',
   'confirm.start': 'Start migration',
   'confirm.startError': 'Could not start it:',
   'confirm.startErrorFallback': 'the request failed',
@@ -926,7 +852,7 @@ const en = {
   'confirm.note.cutover': 'In cutover.',
   'confirm.note.done': 'Finished. This migration no longer syncs.',
   'confirm.introStarted':
-    'Migrations here have started. Live progress is shown per migration; the pre-start scan is kept as a snapshot.',
+    'Migrations here have started. Live progress is per migration; the scan stays as a snapshot.',
   // The six failure categories (workplan 0110 T3). Each is a SENTENCE with a
   // remedy, not a label: the owner's reframing made the customer the primary
   // reader, and nobody can act on the words "auth expired". The raw provider
@@ -1090,8 +1016,8 @@ const en = {
   'confirm.progress.failed': 'failed',
   'confirm.progress.retrying': 'retrying',
   'confirm.snapshot.heading': 'Pre-start scan (snapshot)',
-  'confirm.snapshot.note':
-    'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update — live progress above is the ledger speaking.',
+  'confirm.snapshot.more':
+    'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update; live progress above is the ledger speaking.',
   'confirm.state.pending': 'Pending',
   'confirm.state.in_progress': 'Syncing',
   'confirm.state.completed': 'Completed',
@@ -1139,11 +1065,10 @@ const en = {
   'verify.help.NOT_VERIFIABLE':
     'This domain IS enabled, but there is no way to read the target for it, so nothing could be checked. This blocks cutover — an unchecked domain has not passed.',
   'finish.title': 'Finish a migration',
-  'finish.intro':
-    'Finishing stops the copying and the reporting. Work through the steps in order — the last one is the only one that cannot be undone by simply carrying on.',
+  'finish.intro': 'Finishing stops the copying and the reporting; work the steps in order.',
   'finish.unknown.pre': 'No migration with id',
   'finish.unknown.post':
-    'answered. Check the address — this is not the same as a migration with nothing to finish.',
+    'answered. Check the address; this is not a migration with nothing to finish.',
   'finish.readError.one': 'Could not read the migration.',
   'finish.readError.many': 'Could not read the migrations.',
   'finish.note.paused':
@@ -1168,7 +1093,7 @@ const en = {
   'finish.step2.readFailed': 'Could not read a queue:',
   'finish.step2.notSameAsClear': '— not the same as clear.',
   'finish.step3.failedFramed':
-    'The request failed — a pass may still be running. Give it a moment, then re-check the queues above.',
+    'The request failed; a pass may still be running, so re-check the queues shortly.',
   'finish.retryButton': 'Try finishing again',
   'finish.aftermath.title': 'What remains available',
   'finish.aftermath.verify': 'Verification report',
@@ -1180,17 +1105,19 @@ const en = {
   'finish.step2.deletions': 'deleted on the old system',
   'finish.step2.moves': 'moved',
   'finish.step2.onlyFirstBlocks':
-    '. Only the first of these blocks finishing — the other two are already answered by the new system keeping its copy.',
+    '. Only the first blocks finishing; the new system’s copy answers the other two.',
   'finish.step3.title': 'Run one final pass',
   'finish.step3.body': 'So the new system reflects the old one as of right now.',
   'finish.step3.run': 'Run a pass now',
   'finish.step3.runAgain': 'Run another',
   'finish.step3.finished': 'The pass has run and finished.',
   'finish.step3.queued':
-    'Queued. The pass runs as a job and lands in the run history — give it a moment, then re-check the queues above.',
+    'Queued as a job; it lands in the run history, so re-check the queues shortly.',
   'finish.step4.title': 'Move delivery to the new system',
   'finish.step4.body':
-    'Change MX/DNS and reconfigure clients so new mail arrives on the new system. This happens outside this tool, so it is the one step here nobody can check for you.',
+    'Change MX/DNS and reconfigure clients so new mail arrives on the new system.',
+  'finish.step4.more':
+    'This happens outside this tool, so it is the one step here nobody can check for you.',
   'finish.step4.warn.pre': 'If you finish before this is done',
   'finish.step4.warn.post':
     ', anything that arrives on the old system afterwards will not be copied, and nothing will report it — the tool has stopped watching.',
@@ -1300,16 +1227,14 @@ const en = {
   // Not "0 members": the list could not be read, and recreating a group from
   // an unread list would produce an empty one on the target.
   'sharedAddresses.membersUnknown': 'members could not be read',
-  'sharedAddresses.empty':
-    'Nothing found. This is not "your organisation has none" — an IMAP source cannot list groups ' +
-    'at all, and a Microsoft 365 source needs application permissions before it can. Shared ' +
-    'addresses can also be migrated by adding them by hand.',
+  'sharedAddresses.empty': 'Nothing listed; this source may not be able to list groups at all.',
+  'sharedAddresses.empty.why':
+    'An IMAP source cannot list groups at all, and a Microsoft 365 source needs application permissions before it can. Shared addresses can also be added by hand.',
   'sharedAddresses.readError': 'Could not read the discovered shared addresses.',
   // Pattern D recreation is entirely manual: no target platform this tool
   // supports exposes an interface for creating a mail group.
   'sharedAddresses.runbook.intro':
-    'Distribution lists have to be recreated on the target by hand — no target platform here ' +
-    'offers a way to do it for you.',
+    'Distribution lists are recreated on the target by hand; no target offers a way.',
   'sharedAddresses.runbook.download': 'Get the step-by-step list',
   'sharedAddresses.runbook.failed': 'The steps could not be fetched.',
   'decisions.title': 'Needs a decision',
@@ -1346,24 +1271,52 @@ const en = {
   'nav.connections': 'Connections',
   'nav.setup': 'Setup checklist',
   'nav.docs': 'Setup guides',
-  'wizard.reuseSource': 'Use a source connection you already have',
-  'wizard.reuseTarget': 'Use a target connection you already have',
-  'wizard.reuseNone': 'No — enter new credentials below',
-  'wizard.reuse.hint':
-    'Picking one reuses its saved credentials, so you do not paste the same secret twice. The credential fields below disappear when you do.',
+  'wizard.reuseSource': 'Reuse a saved source connection',
+  'wizard.reuseTarget': 'Reuse a saved target connection',
+  'wizard.reuseNone': 'Enter new credentials',
+  'wizard.reuse.hint': 'Reuses its saved credentials; the fields below disappear.',
+  // What a source type IS, one line after the card is picked, and the rest under More (0118 T1).
+  'wizard.about.o365': 'Uses an Entra app registration in your own tenant.',
+  'wizard.about.o365.more':
+    'Enter its tenant ID and client ID here, and its client secret with the mailbox address on the credentials step. Register the app and grant admin consent in your own tenant first; the checklist below has the steps.',
+  'wizard.about.googleDrive': 'Uses your own Google OAuth client and a read-only token.',
+  'wizard.about.googleDrive.more':
+    'The token cannot write to the Drive. Google Docs, Sheets and Slides are reported as un-migratable, one by one, with the reason: they have no file to copy, and rendering them is not enabled until export stability is measured. The setup guide walks through all three values and ends with one read-only command that proves them.',
+  'wizard.about.dropbox': 'Uses your own read-only Dropbox app.',
+  'wizard.about.dropbox.more':
+    'Create it read-only: files.metadata.read and files.content.read, plus sharing.read if you want the shared-folder browse. The App key goes here; on the credentials step, the App secret goes in the client-secret field and the refresh token beside it.',
+  'wizard.about.box': 'Uses your own Box platform app, authorised once by a Box admin.',
+  'wizard.about.box.more':
+    'It authenticates with the Client Credentials Grant, so there is no refresh token: Box rotates refresh tokens on every use. The Client ID goes here with the numeric user id being migrated; the client secret rides the credentials step. A Box admin authorises the app once under Admin Console → Apps → Custom Apps Manager.',
+  'wizard.about.gmail': 'Uses your own Google OAuth client; the token needs the mail scope.',
+  'wizard.about.gmail.more':
+    'The same client a Google Drive source uses, but its refresh token must be consented with https://mail.google.com/, the only scope Google accepts for IMAP. A token consented for Drive will not work here.',
+  'wizard.about.googleDav':
+    'Uses your own Google OAuth client; the token needs this product’s scope.',
+  'wizard.about.googleDav.more':
+    'The same client the other Google sources use, but the refresh token must be consented with https://www.googleapis.com/auth/calendar for Calendar or https://www.googleapis.com/auth/carddav for Contacts. A token consented for another Google product will not work here.',
+  'wizard.about.apple':
+    'Signs in with an app-specific password; iCloud Drive files cannot be migrated.',
+  'wizard.about.apple.more':
+    'Apple offers no consent screen for its own data, so you make an app-specific password instead, which takes a minute and can be revoked at any time. Nobody can migrate iCloud Drive files: Apple publishes no API for them.',
+  'wizard.about.archive':
+    'Photos land in folders named after your albums; a later export only adds.',
+  'wizard.about.archive.more':
+    'Connecting it shows what it holds: how many items, how many bytes, which albums, and the dates it covers. Each album is copied once, with one file listing everything Google knew about each photo. An archive is a snapshot of the day it was prepared, so a later export only adds; nothing is ever removed because an export no longer mentions it.',
   'connections.delete': 'Delete',
   'connections.rotate': 'Replace credentials',
   'connections.rotate.hint':
-    'Paste the new values. They are checked before they replace the old ones — if the check fails, nothing changes and your migrations keep whatever was working.',
+    'Paste the new values; they are checked before replacing the old.',
+  'connections.rotate.why':
+    'If the check fails, nothing changes and your migrations keep whatever was working.',
   'connections.rotate.save': 'Check and replace',
   'connections.add': 'Add a connection',
   'connections.addAndTest': 'Add and test',
-  'connections.role': 'Is this a source or a target?',
+  'connections.role': 'Source or target?',
   'connections.type': 'Provider',
-  'connections.name': 'Name it (so you recognise it later)',
+  'connections.name': 'Connection name',
   'connections.title': 'Connections',
-  'connections.intro':
-    'The source and target accounts your migrations sign in with. Test one to check its credentials are still good — that runs the same read-only check a migration would, and shows exactly what the provider says.',
+  'connections.intro': 'The accounts your migrations sign in with. Test checks them read-only.',
   'connections.none': 'No connections yet. Creating your first migration adds them.',
   'connections.sources': 'Sources',
   'connections.targets': 'Targets',
@@ -1383,7 +1336,7 @@ const en = {
   // Only where the connection is the thing to act on; the category does not
   // say which of a migration's two connections failed.
   'connections.standing.whichSide':
-    'It signs in with this connection and one other, and the failure does not say which \u2014 Test this one to find out.',
+    'Signs in with this and one other connection; Test this one to find out which.',
   // And when the pass could tell (second slice): no guessing left to do.
   'connections.standing.thisSide': 'It failed on this connection.',
   // What a probe FOUND, rendered from its outcome code (workplan 0080).
@@ -1397,12 +1350,11 @@ const en = {
   'probe.targetStatus.refused': 'It is reachable and refused the credentials.',
   'probe.targetStatus.check': 'Check the target host and port.',
   'probe.noProbe':
-    'This build has no check for a {kind} connection. That is a gap on our side, not a problem with your credentials.',
+    'No check exists for a {kind} connection yet; that is our gap, not your credentials.',
   // The deadline (2026-09-02): unknown, not refused, and the connection is
   // kept so it can be tested again.
   'probe.timedOut':
-    'The test did not answer within {seconds} seconds. The connection is kept; test it again ' +
-    'later, or give it a narrower root folder.',
+    'No answer within {seconds} seconds; kept anyway, so test later or narrow the root folder.',
   'probe.measuring': 'Still measuring what this account can carry — refresh in a minute.',
   'probe.unit.folder.one': 'folder',
   'probe.unit.folder.many': 'folders',
@@ -1449,6 +1401,8 @@ const en = {
   // `mailbox_mapping.name` is nullable, so a migration can genuinely have no
   // name to quote. Saying so beats dropping back to the server's English.
   'connections.inUse.unnamed': 'a migration with no name',
+  'connections.inUse.reason':
+    'Deleting it would delete what those migrations recorded; remove them under Migrations first.',
   // Filled in, but not usable — distinct from "still needed" (0072).
   'connections.invalidValues.lead': 'These values cannot be used as they are:',
   // The duplicate-migration refusal (workplan 0071 T6, owner decision
@@ -1459,36 +1413,33 @@ const en = {
   'createMapping.duplicate.why':
     'Two migrations copying the same items into the same place would put everything on the target twice. Give this one a different target folder, or open the existing migration.',
   'createMapping.duplicate.open': 'Open the existing migration',
-  'connections.inUse.why':
-    'Deleting it would also delete what those migrations have recorded, so remove them under Migrations first.',
   // ---- Provider setup checklist (workplan 0061) ----
-  'setup.title': 'What to set up in the provider',
+  'setup.title': 'Provider setup',
   'setup.intro':
-    'These steps happen in the provider\u2019s own console, not here. Tick each one off as you go — this list is saved for your whole organisation, so you can stop and come back, and a colleague can pick up where you left off.',
-  'setup.backToWizard': '← Back to the migration wizard',
+    'Steps to take in the provider’s console; ticks are saved for your whole organisation.',
+  'setup.backToWizard': '← Back to the wizard',
   'setup.backToConnections': '← Back to connections',
   'setup.fullGuide': 'Read the full setup guide',
   'setup.settled': 'settled',
   'setup.stillOpen': 'still to do',
   'setup.waitingOnOthers': 'waiting on an administrator',
-  'setup.allDone': 'Everything here is settled — you can complete the wizard.',
-  'setup.nothingToDo': 'This provider needs nothing set up in advance. Go straight to the wizard.',
+  'setup.allDone': 'Everything is settled; complete the wizard.',
+  'setup.nothingToDo': 'Nothing to set up in advance; go straight to the wizard.',
   // ---- Choosing a provider, and narrowing by who you are (workplan 0068) ----
   'setup.choose.title': 'What are you setting up?',
   'setup.choose.intro':
-    'Pick the system you are migrating from or to. Each one has its own short list of things to arrange before a migration can read anything.',
+    'Each system has its own short list to arrange before a migration can start.',
   'setup.choose.sources': 'Migrating from',
   'setup.choose.targets': 'Migrating to',
   'setup.admin.question': 'Do you administer this system for your organisation?',
   'setup.admin.yes': 'Yes, I am an administrator',
   'setup.admin.no': 'No, someone else is',
   'setup.admin.unsure': 'Show me everything',
-  'setup.admin.hint':
-    'This only changes how the list below is arranged. It is remembered on this device, for you — a colleague answering differently still sees their own view.',
+  'setup.admin.hint': 'Only changes how the list is arranged; remembered on this device.',
   'setup.yours': 'What you can do yourself',
   'setup.forYourAdmin': 'What your administrator has to do',
   'setup.forYourAdmin.hint':
-    'These need rights you have said you do not have. Send them to whoever administers this system; you can tick them off here once they confirm.',
+    'Send these to whoever administers the system; tick them off once confirmed.',
   'setup.yields': 'You get:',
   'setup.tick': 'Mark this step done',
   'setup.untick': 'Mark this step not done',
@@ -1498,8 +1449,8 @@ const en = {
   'setup.state.skipped': 'Skipped — deliberately not needed',
   'setup.needsAnotherPerson': 'needs an administrator',
   'setup.needsAnotherPerson.hint':
-    'Somebody with admin rights has to do this, so it is the step most likely to make you wait.',
-  'setup.openChecklist': 'Open the setup checklist for this provider',
+    'Needs admin rights; usually the step you wait on.',
+  'setup.openChecklist': 'Open the setup checklist',
   'setup.box.create_app.title': 'Create a Box platform app',
   'setup.box.create_app.detail':
     'Box Developer Console → Create Platform App → Custom App, and choose Client Credentials Grant (Server Authentication).',
@@ -1532,18 +1483,18 @@ const en = {
   'setup.google.create_oauth_client.detail':
     'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, as a Desktop or Web application.',
   'setup.google.create_oauth_client.yields': 'a Client ID and a Client Secret.',
-  'setup.google.enable_api.title': 'Enable the API for the product you are migrating',
+  'setup.google.enable_api.title': 'Enable the product’s API',
   'setup.google.enable_api.detail':
     'In the same project, enable the API that matches the source you picked — Drive, Gmail, Calendar or People. A client without it fails on the first call.',
   'setup.google.consent_scope.title': 'Consent a read-only refresh token',
   'setup.google.consent_scope.detail':
-    'Have the account owner consent with the scope for THAT product; a token consented for one Google product does not work for another. Alternatively use a service account with domain-wide delegation, which an admin authorises once for the whole domain.',
+    'Have the account owner consent with the scope for that product; a token consented for one Google product does not work for another. Or use a service account with domain-wide delegation, which an admin authorises once for the whole domain.',
   'setup.google.consent_scope.yields': 'a refresh token (or a service-account key file).',
   'setup.graph.app_registration.title': 'Register an app in Microsoft Entra',
   'setup.graph.app_registration.detail':
     'Entra admin centre → App registrations → New registration, in the tenant whose mailboxes you are migrating.',
   'setup.graph.app_registration.yields': 'a Tenant ID and a Client ID.',
-  'setup.graph.api_permissions.title': 'Add the read permissions and get admin consent',
+  'setup.graph.api_permissions.title': 'Add read permissions and get admin consent',
   'setup.graph.api_permissions.detail':
     'Add the Graph permissions for what you are migrating (mail, calendar, contacts or files), then have a tenant administrator grant consent. Reading another user\u2019s mailbox or drive needs application permissions, which always require consent.',
   'setup.graph.client_secret.title': 'Create a client secret',
@@ -1613,6 +1564,12 @@ const en = {
 } as const;
 
 const nl: Record<keyof typeof en, string> = {
+  // Het woord op een uitklapbaar deel (workplan 0118) — zie het Engelse blok.
+  'fold.more': 'Meer',
+  // Het woord op een uitklapbaar deel (workplan 0118) — zie het Engelse blok.
+  'fold.how': 'Hoe?',
+  // Het woord op een uitklapbaar deel (workplan 0118) — zie het Engelse blok.
+  'fold.why': 'Waarom?',
   'status.link': 'Storingsstatus',
   'notFound.heading': 'Hier staat niets.',
   'notFound.lede':
@@ -1918,208 +1875,149 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.google.connect': 'Verbinden met Google',
   'connections.googleFaces': 'Wat dit account gaat leveren',
   'wizard.google.connect.hint':
-    'Opent het toestemmingsscherm van Google met uw eigen OAuth-client en vult het ' +
-    'vernieuwingstoken voor u in. Een token plakken dat u al heeft, blijft gewoon werken.',
+    'Opent het toestemmingsscherm van Google en vult het vernieuwingstoken in.',
+  'wizard.google.connect.why': 'Een token plakken dat u al heeft, blijft gewoon werken.',
   'wizard.google.connect.needsDomains':
-    'Vink eerst aan wat u wilt migreren \u2014 deze toestemming vraagt Google precies om wat '
-    + 'is aangevinkt, en niets meer.',
-  'wizard.google.connect.needsClient':
-    'Vul eerst de Client-ID en het clientgeheim in — de toestemming loopt via uw eigen Google-client.',
+    'Vink eerst aan wat u wilt migreren; de toestemming vraagt alleen daarom.',
+  'wizard.google.connect.needsClient': 'Vul eerst de Client-ID en het clientgeheim in.',
   'wizard.consent.received': 'Toestemming ontvangen — de verbinding wordt opgeslagen en getest.',
   'wizard.consent.noProvider':
-    'Voor dit verbindingstype is op deze installatie geen toestemmingsknop. Plak een ' +
-    'vernieuwingstoken dat u al heeft, of meld dit — het type zegt dat het via toestemming ' +
-    'wordt gevuld en niets hier kan er een starten.',
-  'wizard.consent.needsAccount':
-    'Vul eerst het accountadres in — de toestemming slaat de verbinding in één keer op en test ' +
-    'hem, en het adres zegt van wie de gegevens zijn.',
+    'Deze installatie heeft geen toestemmingsknop voor dit type; plak in plaats daarvan een vernieuwingstoken.',
+  'wizard.consent.needsAccount': 'Vul eerst het accountadres in.',
   'wizard.google.deploymentClient':
-    'Deze installatie heeft een eigen Google-client, dus deze twee mogen leeg blijven. ' +
-    'Vul beide in om in plaats daarvan uw eigen client te gebruiken.',
+    'Deze installatie heeft een eigen Google-client; vul beide in om uw eigen te gebruiken.',
   'wizard.google.connect.halfClient':
-    'Vul zowel de Client-ID als het clientgeheim in, of geen van beide — deze installatie heeft ' +
-    'een eigen Google-client.',
-  'wizard.google.ownClient': 'Gebruik in plaats daarvan uw eigen Google-toepassing',
+    'Vul zowel de Client-ID als het clientgeheim in, of geen van beide.',
+  'wizard.google.ownClient': 'Uw eigen Google-client gebruiken',
   // Zie het Engelse blok.
   'wizard.google.redirectUri':
-    'Registreer dit exacte adres in uw Google-client, onder Geautoriseerde omleidings-URI\u2019s:',
+    'Voeg dit exacte adres toe aan uw Google-client onder Geautoriseerde omleidings-URI’s:',
   'wizard.dropbox.connect': 'Verbinden met Dropbox',
   'wizard.dropbox.connect.hint':
-    'Opent het toestemmingsscherm van Dropbox en vult het vernieuwingstoken voor u in. Een ' +
-    'token plakken dat u al heeft, blijft gewoon werken.',
-  'wizard.dropbox.connect.needsClient':
-    'Vul eerst de App key en het App secret in — de toestemming loopt via uw eigen Dropbox-app.',
+    'Opent het toestemmingsscherm van Dropbox en vult het vernieuwingstoken in.',
+  'wizard.dropbox.connect.why': 'Een token plakken dat u al heeft, blijft gewoon werken.',
+  'wizard.dropbox.connect.needsClient': 'Vul eerst de App key en het App secret in.',
   'wizard.dropbox.connect.halfClient':
-    'Vul zowel de App key als het App secret in, of geen van beide — deze installatie heeft ' +
-    'een eigen Dropbox-app.',
+    'Vul zowel de App key als het App secret in, of geen van beide.',
   'wizard.dropbox.deploymentClient':
-    'Deze installatie heeft een eigen Dropbox-app, dus deze twee mogen leeg blijven. ' +
-    'Vul beide in om in plaats daarvan uw eigen app te gebruiken.',
-  'wizard.dropbox.ownClient': 'Gebruik in plaats daarvan uw eigen Dropbox-app',
+    'Deze installatie heeft een eigen Dropbox-app; vul beide in om uw eigen te gebruiken.',
+  'wizard.dropbox.ownClient': 'Uw eigen Dropbox-app gebruiken',
   'wizard.dropbox.redirectUri':
-    'Registreer dit exacte adres in uw Dropbox-app, onder OAuth 2 → Redirect URIs:',
+    'Voeg dit exacte adres toe aan uw Dropbox-app onder OAuth 2 → Redirect URIs:',
   'wizard.microsoft.connect': 'Verbinden met Microsoft',
   'wizard.microsoft.connect.hint':
-    'Opent het toestemmingsscherm van Microsoft en vult het vernieuwingstoken voor u in. Het ' +
-    'vraagt u welk account, zodat een migratie niet stilletjes de verkeerde postbus leest. Een ' +
-    'token plakken dat u al heeft, blijft gewoon werken.',
+    'Opent het toestemmingsscherm van Microsoft en vult het vernieuwingstoken in.',
+  'wizard.microsoft.connect.why':
+    'Het vraagt u welk account, zodat een migratie niet stilletjes de verkeerde postbus leest. Een token plakken dat u al heeft, blijft gewoon werken.',
   'wizard.microsoft.connect.needsClient':
-    'Vul eerst de toepassings-id (client) en het clientgeheim in — de toestemming loopt via uw ' +
-    'eigen appregistratie.',
+    'Vul eerst de toepassings-id (client) en het clientgeheim in.',
   'wizard.microsoft.connect.halfClient':
-    'Vul zowel de toepassings-id (client) als het clientgeheim in, of geen van beide — deze ' +
-    'installatie heeft een eigen appregistratie.',
+    'Vul zowel de toepassings-id (client) als het clientgeheim in, of geen van beide.',
   'wizard.microsoft.deploymentClient':
-    'Deze installatie heeft een eigen Microsoft-appregistratie, dus deze twee mogen leeg ' +
-    'blijven. Vul beide in om in plaats daarvan uw eigen registratie te gebruiken.',
-  'wizard.microsoft.ownClient': 'Gebruik in plaats daarvan uw eigen appregistratie',
+    'Deze installatie heeft een eigen Microsoft-appregistratie; vul beide in om uw eigen te gebruiken.',
+  'wizard.microsoft.ownClient': 'Uw eigen appregistratie gebruiken',
   'wizard.microsoft.redirectUri':
-    'Registreer dit exacte adres in uw appregistratie, onder Verificatie → Omleidings-URI\u0027s:',
-  'wizard.microsoft.tenantId.hint':
-    'Laat leeg tenzij uw appregistratie voor één tenant is. Leeg betekent de mapinstelling van ' +
-    'deze installatie, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een ' +
-    'registratie voor één tenant die naar de verkeerde map wordt gestuurd, mislukt met een ' +
-    'melding dat de toepassing niet is gevonden — wat op een typefout lijkt en het niet is.',
+    'Voeg dit exacte adres toe aan uw appregistratie onder Verificatie → Omleidings-URI’s:',
+  'wizard.microsoft.tenantId.hint': 'Laat leeg tenzij uw appregistratie voor één tenant is.',
+  'wizard.microsoft.tenantId.why':
+    'Leeg betekent de mapinstelling van deze installatie, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een registratie voor één tenant die naar de verkeerde map wordt gestuurd, mislukt met een melding dat de toepassing niet is gevonden, wat op een typefout lijkt en het niet is.',
   'wizard.proto.apple.hint':
-    'Eén Apple-account — e-mail, agenda\u0027s, contacten en herinneringen, wat u maar ' +
-    'aanvinkt. Er is geen Verbinden met Apple-knop omdat Apple die toestemming voor zijn ' +
-    'eigen gegevens niet aanbiedt: u maakt in plaats daarvan een app-specifiek wachtwoord, ' +
-    'wat een minuut kost en dat u altijd weer kunt intrekken. iCloud Drive-bestanden kan ' +
-    'niemand migreren — Apple publiceert daar geen API voor.',
+    'Eén Apple-account: e-mail, agenda’s, contacten en herinneringen, wat u aanvinkt.',
   'wizard.appleAppPassword': 'App-specifiek wachtwoord',
   'wizard.appleAppPassword.hint':
-    'Niet uw Apple-accountwachtwoord — dat weigert Apple hier, met opzet. Maak een ' +
-    'app-specifiek wachtwoord aan op account.apple.com → Aanmelden en beveiliging → ' +
-    'App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda\u0027s, ' +
-    'contacten en herinneringen, en u kunt het daar los weer intrekken wanneer u wilt.',
+    'Niet uw Apple-accountwachtwoord: een app-specifiek wachtwoord van account.apple.com.',
+  'wizard.appleAppPassword.why':
+    'Apple weigert het accountwachtwoord hier met opzet. Maak er een aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
   'wizard.proto.archive.hint':
-    'Een Google Takeout- of Apple Data en Privacy-export die u al hebt gedownload — voor ' +
-    'foto\u0027s en bestanden, waarvoor geen van beide bedrijven een andere weg biedt. ' +
-    'Koppelen laat zien wat erin zit: hoeveel items, hoeveel bytes, welke albums en welke ' +
-    'periode de export beslaat. Migreren kopieert de foto\u0027s naar mappen met de namen ' +
-    'van uw albums, één keer per album, met één bestand waarin alles staat wat Google over ' +
-    'elke foto wist. Een archief is een momentopname van de dag waarop het is klaargezet, ' +
-    'dus een latere export voegt alleen toe — er wordt nooit iets verwijderd omdat een ' +
-    'export het niet meer noemt.',
+    'Een Google Takeout- of Apple-export die u hebt gedownload: foto’s en bestanden.',
   'wizard.archiveProvider': 'Welke export',
   'wizard.archiveProvider.hint':
-    'Welk bedrijf dit archief heeft gemaakt. Dat bepaalt hoe wij het lezen, en aan de ' +
-    'bestanden zelf is dat niet te zien — bij de verkeerde keuze vinden we niets in plaats ' +
-    'van dat we het zeggen. Google-exports vraagt u aan op takeout.google.com, ' +
-    'Apple-exports op privacy.apple.com.',
+    'Welk bedrijf het archief maakte; bij de verkeerde keuze vinden we niets.',
+  'wizard.archiveProvider.why':
+    'Dat bepaalt hoe wij de export lezen, en aan de bestanden zelf is het niet te zien. Google-exports vraagt u aan op takeout.google.com, Apple-exports op privacy.apple.com.',
   'wizard.archivePath': 'Waar het archief staat',
   'wizard.archivePath.hint':
-    'De map waarin u de download hebt uitgepakt — niet het .zip-bestand zelf. Bestaat de ' +
-    'export uit meerdere delen, pak die dan eerst allemaal uit in dezelfde map. Er wordt ' +
-    'niets naar geschreven: wij lezen alleen.',
+    'De map waarin u de download hebt uitgepakt, niet het .zip-bestand zelf.',
+  'wizard.archivePath.why':
+    'Bestaat de export uit meerdere delen, pak die dan eerst allemaal uit in dezelfde map. Er wordt niets naar geschreven: wij lezen alleen.',
   'wizard.proto.microsoft.hint':
-    'Eén Microsoft 365-account, één keer aanmelden — e-mail, agenda\u0027s, contacten en ' +
-    'OneDrive, wat u ook aanvinkt. De twee kaarten ernaast zijn voor een klant die al een ' +
-    'eigen appregistratie heeft.',
+    'Eén Microsoft 365-account, één aanmelding: e-mail, agenda’s, contacten en OneDrive.',
   'wizard.group.provider': 'Uw aanbieder',
   'wizard.group.protocol': 'Elke server, via protocol',
   'wizard.m365.viaImap': 'Via IMAP',
   'wizard.m365.viaGraph': 'Via de Graph-API',
   'wizard.proto.oauth2.hint': 'IMAP met XOAUTH2, met Graph-terugval erachter (appregistratie)',
   'wizard.proto.graph.hint': 'Alleen de Graph-API (appregistratie)',
-  'wizard.proto.google.hint':
-    '\u00c9\u00e9n Google-account, \u00e9\u00e9n aanmelding \u2014 agenda\u2019s en contacten, '
-    + 'wat u aanvinkt. Gmail en Drive blijven voorlopig aparte kaarten: die vragen een '
-    + 'beveiligingsbeoordeling van Google die wij nog niet hebben aangeschaft.',
+  'wizard.proto.google.hint': 'Eén Google-account, één aanmelding: agenda’s en contacten.',
   // Dezelfde kaart waar de EIGEN Google-applicatie van deze omgeving de
   // restricted scopes draagt — zie het Engelse blok.
   'wizard.proto.google.hint.restricted':
-    '\u00c9\u00e9n Google-account, \u00e9\u00e9n aanmelding \u2014 e-mail, agenda\u2019s, '
-    + 'contacten en bestanden, wat u aanvinkt. Gmail en Google Drive blijven eigen kaarten '
-    + 'voor een migratie die er maar \u00e9\u00e9n van wil.',
+    'Eén Google-account, één aanmelding: e-mail, agenda’s, contacten en bestanden.',
   'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
   'wizard.proto.dropbox.hint': 'Bestanden uit een Dropbox (alleen-lezen OAuth-app)',
   'wizard.proto.box.hint': 'Bestanden uit een Box-account (alleen-lezen platform-app)',
   'wizard.boxUserId': 'Box-gebruikers-id (numeriek)',
-  'wizard.boxUserId.placeholder': 'bijv. 1234567890 — Admin Console → Users & Groups',
+  'wizard.boxUserId.placeholder': 'bijv. 1234567890',
   'wizard.boxRootFolderId': 'Id van de hoofdmap (optioneel)',
-  'wizard.boxRootFolderId.placeholder': 'Leeg = All Files; een map-id beperkt de migratie',
+  'wizard.boxRootFolderId.placeholder': 'Leeg = All Files',
   'wizard.review.boxUser': 'Box-gebruiker',
-  'wizard.source.boxSetup':
-    'Een Box-migratie authenticeert met uw eigen Box-platform-app via de Client Credentials Grant — geen refresh-token, want Box vernieuwt refresh-tokens bij elk gebruik. De Client-ID komt hier samen met het numerieke gebruikers-id dat gemigreerd wordt; het Client-geheim komt op de inloggegevens-stap. Een Box-beheerder moet de app eenmalig autoriseren (Admin Console → Apps → Custom Apps Manager). docs/box-setup.md doorloopt elke stap.',
-  'wizard.dropboxAppKey': 'App-sleutel (uit de Dropbox App Console)',
+  'wizard.dropboxAppKey': 'App-sleutel',
   'wizard.dropboxRootPath': 'Pad van de hoofdmap (optioneel)',
-  'wizard.dropboxRootPath.placeholder': 'Leeg = de hele Dropbox; bijv. /Team Docs',
+  'wizard.dropboxRootPath.placeholder': 'bijv. /Team Docs',
   'wizard.browseDropboxFolders': 'Gedeelde mappen bekijken…',
   'wizard.noDropboxSharedFolders': 'Dit account ziet geen gedeelde mappen.',
   'wizard.dropboxUnmounted': 'niet gekoppeld — voeg deze eerst toe aan uw Dropbox',
   'wizard.review.wholeDropbox': 'de hele Dropbox',
-  'wizard.source.dropboxSetup':
-    'Een Dropbox-migratie authenticeert met uw eigen Dropbox-app: maak deze alleen-lezen aan (files.metadata.read + files.content.read; voeg sharing.read toe voor het bekijken van gedeelde mappen). De App-sleutel komt hier; op de inloggegevens-stap komt het App-geheim in het client-geheim-veld en de refresh-token ernaast. docs/dropbox-setup.md doorloopt elke stap.',
   'wizard.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
   'wizard.proto.googleCalendar.hint': "Agenda's uit een Google-account (OAuth via CalDAV)",
   'wizard.proto.googleContacts.hint': 'Contacten uit een Google-account (OAuth via CardDAV)',
-  'wizard.gmailAppPassword': 'App-wachtwoord (alleen persoonlijke Gmail, optioneel)',
+  'wizard.gmailAppPassword': 'App-wachtwoord (optioneel)',
   'wizard.gmailAppPassword.hint':
-    'Een alternatief voor de drie OAuth-velden hierboven, voor een PERSOONLIJK Google-account. Google raadt het af, en wij ook: een app-wachtwoord opent de hele mailbox, terwijl een token met toestemming \u00e9\u00e9n ding opent. Er is verificatie in twee stappen op het account nodig voordat Google er \u00e9\u00e9n aanmaakt, het bestaat niet op een Workspace-account, en het wordt ingetrokken met \u00e9\u00e9n regel in de eigen app-wachtwoordenlijst van het account \u2014 zonder Ownpace, wat het enige echte voordeel is. Laat dit leeg om OAuth te gebruiken.',
+    'Alleen voor persoonlijke Google-accounts; laat leeg om OAuth te gebruiken.',
+  'wizard.gmailAppPassword.why':
+    'Google raadt het af, en wij ook: een app-wachtwoord opent de hele mailbox, terwijl een token met toestemming één ding opent. Het vereist tweestapsverificatie op het account, bestaat niet op een Workspace-account en wordt ingetrokken in de app-wachtwoordenlijst van het account zelf, zonder Ownpace aan te raken, wat het enige echte voordeel ervan is.',
   'wizard.refreshToken': 'Refresh-token',
   'wizard.refreshToken.hint':
-    'Het gedelegeerde token voor het account dat wordt gemigreerd. Behandel het als een wachtwoord.',
+    'Het gedelegeerde token van het account; behandel het als een wachtwoord.',
   'wizard.rootFolderId': 'Hoofdmap-ID (optioneel)',
-  'wizard.rootFolderId.placeholder': 'Leeg = heel Mijn Drive; een gedeelde Drive via het eigen ID',
+  'wizard.rootFolderId.placeholder': 'Leeg = heel Mijn Drive',
   'wizard.review.myDrive': 'Mijn Drive',
   'wizard.targetPrefix': 'Doelmap (optioneel)',
-  'wizard.targetPrefix.placeholder': 'Leeg = samenvoegen in het account zelf',
-  'wizard.targetPrefix.hint':
-    'Alles wat deze migratie schrijft komt onder deze map terecht — handig wanneer meerdere ' +
-    'bronnen één doel delen en u per bron een submap wilt (bijv. "Gmail"). Laat leeg om samen ' +
-    'te voegen; dat is de standaard: één account, één plek om te werken. Onder een map komen ' +
-    'Verzonden en Concepten als gewone mappen daarbinnen terecht, in plaats van de Verzonden ' +
-    'en Concepten van het account zelf te worden — een mailprogramma kan er maar één van elk hebben.',
-  'wizard.source.driveSetup':
-    'Een Google Drive-bron gebruikt uw eigen Google Cloud OAuth-client en een gedelegeerd, ' +
-    'alleen-lezen refresh-token — docs/google-workspace-setup.md behandelt alle drie de waarden ' +
-    'en eindigt met één alleen-lezen commando dat ze bewijst. Het token kan niet naar de Drive ' +
-    'schrijven. Google Documenten, Spreadsheets en Presentaties worden één voor één als ' +
-    'niet-migreerbaar gemeld, met de reden: er is geen bestand om te kopiëren, en renderen ' +
-    'staat uit totdat de exportstabiliteit is gemeten.',
-  'wizard.source.gmailSetup':
-    'Een Gmail-bron gebruikt uw eigen Google Cloud OAuth-client — dezelfde als een Google ' +
-    'Drive-bron — maar het refresh-token moet zijn toegestemd met de scope ' +
-    'https://mail.google.com/, de enige die Google voor IMAP accepteert. Een token dat voor ' +
-    'Drive is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt het verkrijgen ervan.',
-  'wizard.source.googleDavSetup':
-    'Deze bron gebruikt uw eigen Google Cloud OAuth-client \u2014 dezelfde als de andere ' +
-    'Google-bronnen \u2014 maar het refresh-token moet zijn toegestemd met de eigen scope van dit ' +
-    'product: https://www.googleapis.com/auth/calendar voor Agenda, ' +
-    'https://www.googleapis.com/auth/carddav voor Contacten. Een token dat voor een ander ' +
-    'Google-product is toegestemd werkt hier niet. docs/google-workspace-setup.md behandelt dit.',
+  'wizard.targetPrefix.placeholder': 'Leeg = samenvoegen in het account',
+  'wizard.targetPrefix.hint': 'Alles komt onder deze map terecht; leeg voegt samen in het account.',
+  'wizard.targetPrefix.why':
+    'Handig wanneer meerdere bronnen één doel delen en u per bron een submap wilt, zoals "Gmail". Leeg is de standaard: één account, één plek om te werken. Onder een map komen Verzonden en Concepten als gewone mappen daarbinnen terecht, in plaats van de Verzonden en Concepten van het account zelf te worden; een mailprogramma kan er maar één van elk hebben.',
   'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
-  'wizard.serviceAccountKey': 'Serviceaccount-sleutel (domeinbrede delegatie, optioneel)',
-  'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand dat Google genereerde',
+  'wizard.serviceAccountKey': 'Serviceaccount-sleutel (optioneel)',
+  'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand',
   'wizard.serviceAccountKey.width':
-    'Deze sleutel kan elke gebruiker in het Workspace-domein lezen. Elke migratie benoemt nog steeds één account. Autoriseer alleen de benodigde scopes in de Admin-console, en trek de delegatie bij de overstap weer in.',
+    'Deze sleutel kan elke gebruiker in het domein lezen; trek hem bij de overstap in.',
+  'wizard.serviceAccountKey.why':
+    'Domeinbrede delegatie kan elke Workspace-gebruiker lezen, al benoemt elke migratie nog steeds één account. Autoriseer alleen de benodigde scopes in de Admin-console en trek de delegatie bij de overstap weer in.',
   'wizard.browseSharedDrives': 'Gedeelde Drives en mappen bekijken…',
-  'wizard.noSharedDrives': 'Deze inloggegevens zien geen gedeelde Drives of gedeelde mappen — een lege hoofdmap migreert Mijn Drive.',
+  'wizard.noSharedDrives':
+    'Geen gedeelde Drives of mappen zichtbaar; een lege hoofdmap migreert Mijn Drive.',
   'wizard.sharedDrivesGroup': 'Gedeelde Drives',
   'wizard.sharedFoldersGroup': 'Met mij gedeelde mappen',
   'wizard.step.migration': 'Migratie',
-  'wizard.testConnections.reused':
-    'Deze kant gebruikt al een bewaarde verbinding; dit controleert alleen of die nog werkt.',
-  'wizard.connectionName': 'Geef deze verbinding een naam (zodat u het later herkent)',
+  'wizard.testConnections.reused': 'Al bewaard; dit controleert alleen of hij nog werkt.',
+  'wizard.connectionName': 'Naam van de verbinding',
   'wizard.connectionName.taken':
-    'U heeft al een verbinding met deze naam. Hij wordt wel bewaard — maar twee dingen met één naam zijn later lastig uit elkaar te houden.',
+    'Deze naam bestaat al; hij wordt bewaard, maar twee gelijke namen zijn lastig te onderscheiden.',
   'wizard.testConnections.kept':
-    'Deze gegevens zijn bewaard ook al mislukte de controle, zodat u ze kunt corrigeren en opnieuw kunt proberen — of er later op terug kunt komen onder Verbindingen.',
+    'De gegevens zijn bewaard: corrigeer ze en probeer opnieuw, of kom later terug via Verbindingen.',
   'wizard.testConnections': 'Verbindingen testen en bewaren',
   'wizard.testing': 'Testen…',
   'wizard.testConnections.hint':
-    'Meldt zich aan beide kanten aan met wat u hebt ingevuld en toont wat zichtbaar is — ' +
-    'er wordt niets naar beide systemen geschreven. Een kant die werkt, wordt BEWAARD als ' +
-    'verbinding, zodat u die inloggegevens niet opnieuw hoeft op te halen als u de wizard ' +
-    'verlaat.',
+    'Meldt zich alleen-lezen aan beide kanten aan; werkende kanten worden bewaard.',
+  'wizard.testConnections.why':
+    'Het toont wat zichtbaar is en schrijft niets naar beide systemen. Een kant die werkt wordt als verbinding bewaard, zodat u die inloggegevens niet opnieuw hoeft op te halen als u de wizard verlaat.',
   'wizard.proto.jmap.hint': 'Modern e-mailprotocol',
   'wizard.proto.caldav.hint': 'Agendaprotocol',
   'wizard.proto.carddav.hint': 'Contactenprotocol',
   'wizard.proto.webdav.hint': 'Bestandsopslag',
   'wizard.proto.soverin.hint': 'Eén account — e-mail, agenda’s en contacten',
   'wizard.title': 'Migratie aanmaken',
-  'wizard.subtitle': 'Stel een nieuwe datamigratie tussen systemen in',
   'wizard.step.source': 'Bron',
   'wizard.step.target': 'Doel',
   'wizard.step.credentials': 'Naam & inloggegevens',
@@ -2131,24 +2029,24 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.host': 'Host',
   'wizard.port': 'Poort',
   'wizard.targetDavUrl': 'DAV-basis-URL (optioneel)',
-  'wizard.targetDavUrl.hint':
-    'Alleen nodig wanneer de DAV-root van de server niet op de hostroot staat. Indien ingevuld wordt deze volledige URL gebruikt en worden host en poort genegeerd.',
+  'wizard.targetDavUrl.hint': 'Alleen wanneer de DAV-root van de server niet op de hostroot staat.',
+  'wizard.targetDavUrl.why':
+    'Indien ingevuld wordt deze volledige URL gebruikt en worden host en poort genegeerd.',
   'wizard.soverinMailHost': 'Mailserver (optioneel)',
-  'wizard.soverinMailHost.hint':
-    'De IMAP-host van het account, zoals de instellingenpagina van uw aanbieder die noemt. Alleen nodig wanneer dit account ook e-mail gaat ontvangen — agenda’s en contacten hebben geen mailserver nodig. Testen meet dit; er wordt niets aangenomen op basis van de naam van de aanbieder.',
+  'wizard.soverinMailHost.hint': 'Alleen nodig als dit account ook e-mail gaat ontvangen.',
+  'wizard.soverinMailHost.why':
+    'Agenda’s en contacten hebben geen mailserver nodig. Test meet de host die u invult; er wordt niets aangenomen op basis van de naam van de aanbieder.',
   'wizard.soverinMailPort': 'Mailpoort',
   'wizard.providerDefaults.note':
-    'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test meet of ze antwoorden; pas aan wat niet antwoordt.',
+    'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test controleert ze.',
   'wizard.useSsl': 'SSL/TLS gebruiken',
   'wizard.migrationName': 'Naam van de migratie',
-  'wizard.migrationNameHint': 'Een herkenbare naam voor deze migratie',
   'wizard.credentials': 'Inloggegevens',
   'wizard.sourceUsername': 'Gebruikersnaam bron',
   'wizard.sourcePassword': 'Wachtwoord bron',
   'wizard.targetUsername': 'Gebruikersnaam doel',
   'wizard.targetPassword': 'Wachtwoord doel',
   'wizard.selectDataTypes': 'Kies de te migreren gegevenstypen',
-  'wizard.selectDataTypesHint': 'Kies welke soorten gegevens u wilt migreren',
   'wizard.domain.email.hint': 'E-mailberichten en mappen',
   'wizard.domain.calendar.hint': 'Afspraken en agenda-items',
   'wizard.domain.contact.hint': 'Adresboekvermeldingen',
@@ -2156,8 +2054,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.domain.task.hint': 'Takenlijsten en de taken daarin',
   'wizard.schedule': 'Synchronisatieschema',
   'wizard.scheduleHint':
-    'Kies hoe vaak gegevens tussen bron en doel synchroniseren. De eerste synchronisatie ' +
-    'begint zodra u op starten drukt — dit is hoe vaak die daarna wordt herhaald.',
+    'Hoe vaak het herhaalt; de eerste synchronisatie start zodra u op starten drukt.',
   'wizard.schedule.hourly': 'Elk uur',
   'wizard.schedule.hourly.hint': 'Ieder uur',
   'wizard.schedule.daily': 'Dagelijks',
@@ -2167,7 +2064,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.schedule.quarterHourly': 'Elk kwartier',
   'wizard.schedule.quarterHourly.hint': 'Frequente synchronisatie',
   'wizard.customCron': 'Eigen cron-expressie (optioneel)',
-  'wizard.customCronHint': 'Laat leeg voor de standaard dagelijkse synchronisatie om 02:00',
+  'wizard.customCronHint': 'Leeg = dagelijks om 02:00',
   'wizard.readyToCreate': 'Klaar om de migratie aan te maken',
   'wizard.reviewDetails': 'Migratiegegevens',
   'wizard.review.name': 'Naam',
@@ -2176,11 +2073,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.review.schedule': 'Schema',
   'wizard.review.scheduleDefault': 'Dagelijks om 02:00',
   'wizard.review.dataTypes': 'Gegevenstypen',
-  'wizard.review.note':
-    'Aanmaken slaat deze configuratie op en start niets: de migratie wordt gepauzeerd ' +
-    'aangemaakt. Daarna beoordeelt u wat een alleen-lezen scan in uw bron vindt en geeft u ' +
-    'expliciet het startsein — tot die tijd wordt er niets gekopieerd.',
-  'wizard.review.noteLead': 'Let op:',
+  'wizard.review.note': 'Aanmaken start niets: de migratie wordt gepauzeerd aangemaakt.',
+  'wizard.review.why':
+    'Daarna beoordeelt u wat een alleen-lezen scan in uw bron vindt en geeft u expliciet het startsein; tot die tijd wordt er niets gekopieerd.',
   'wizard.back': 'Terug',
   'wizard.cancel': 'Annuleren',
   'wizard.next': 'Volgende',
@@ -2191,19 +2086,13 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.showPassword': 'Toon wachtwoord',
   'wizard.hidePassword': 'Verberg wachtwoord',
   'wizard.credentials.storage':
-    'Deze inloggegevens worden versleuteld opgeslagen, alleen gebruikt om verbinding te maken ' +
-    'met uw bron en doel, en na deze stap nooit meer getoond.',
-  'wizard.source.appRegistration':
-    'OAuth2- en Microsoft Graph-bronnen gebruiken een Entra-appregistratie in uw eigen tenant: ' +
-    'vul hier de tenant-ID en client-ID in, en op de stap met inloggegevens het clientgeheim ' +
-    'samen met het mailboxadres. Registreer de app en verleen eerst beheerderstoestemming in ' +
-    'uw eigen tenant — zie de O365-handleiding (docs/o365-setup.md).',
+    'Versleuteld opgeslagen, alleen gebruikt om te verbinden, en nooit meer getoond.',
   'wizard.tenantId': 'Tenant-ID',
   'wizard.clientId': 'Client-ID (applicatie-ID)',
   'wizard.sourceClientSecret': 'Clientgeheim van de bron',
   'wizard.domain.notForTarget': 'Niet beschikbaar via het gekozen doelprotocol.',
   'wizard.domain.measuredNo':
-    'Dit account antwoordde dat het dit niet kan dragen — test de verbinding opnieuw als dat veranderd is.',
+    'Dit account kan dit niet dragen; test het opnieuw als dat veranderd is.',
   'wizard.domain.unmeasured': 'Nog niet gemeten voor dit account; een test geeft het antwoord.',
   'wizard.cron.invalidLead': 'Geen geldig schema —',
   'wizard.cron.nextRuns': 'Met dit schema draaien de volgende synchronisaties op:',
@@ -2293,22 +2182,22 @@ const nl: Record<keyof typeof en, string> = {
     'Deze migratie is nog niet gestart, dus er is niets gekopieerd en er kan niets zijn afgeweken.',
   'hub.fallbackTitle': 'Migratie',
   'hub.orderIntro':
-    'De vijf schermen hieronder staan in de volgorde waarin een cutover verloopt — werk de lijst van boven naar beneden af.',
+    'De schermen hieronder staan in cutover-volgorde; werk ze van boven naar beneden af.',
   'hub.noId': 'Geen mapping-id in het adres.',
   'hub.detailError':
     'De details van deze migratie konden niet worden gelezen — de schermen hieronder werken nog.',
   'hub.deletions.name': 'Verwijderingen',
   'hub.deletions.blurb':
-    'Items die op het oude systeem zijn verwijderd maar op het nieuwe nog bestaan. Uw beslissing, per item.',
+    'Verwijderd op het oude systeem, nog op het nieuwe; uw beslissing, per item.',
   'hub.moves.name': 'Verplaatsingen',
   'hub.moves.blurb':
     'Items die het oude systeem heeft herschikt sinds ze zijn gekopieerd. Gemeld, nooit uitgevoerd.',
   'hub.failures.name': 'Mislukkingen',
   'hub.failures.blurb':
-    'Items die niet konden worden gekopieerd en nu op een persoon wachten. Deze blokkeren het afronden.',
+    'Items die niet gekopieerd konden worden en op een persoon wachten; ze blokkeren het afronden.',
   'hub.sharing.name': 'Delen',
   'hub.sharing.blurb':
-    'Wie wat kon bereiken op het oude systeem — overgezet, handmatig gedaan, of bewust niet. Een checklist, af te werken na het afronden.',
+    'Wie wat kon bereiken op het oude systeem; een checklist voor na het afronden.',
   'sharing.title': 'Deel-checklist',
   'sharing.intro':
     'Alles wat iemand anders kon bereiken op het oude systeem, één regel per recht. Werk elke regel af: maak het delen aan op het nieuwe systeem, vink af als handmatig gedaan, of sla bewust over — elke afgewerkte regel onthoudt wie besliste, en wanneer.',
@@ -2336,7 +2225,7 @@ const nl: Record<keyof typeof en, string> = {
     'Vergelijk de twee systemen en controleer steekproeven van de inhoud, achter één knop.',
   'hub.finish.name': 'Afronden',
   'hub.finish.blurb':
-    'De cutover-checklist. Beëindigt de migratie — in volgorde, met de ene stap die u zelf moet bevestigen.',
+    'De cutover-checklist; beëindigt de migratie in volgorde, met de ene stap die u zelf bevestigt.',
   'runs.title': 'Uitvoeringsgeschiedenis',
   'runs.blurb':
     'Elke synchronisatieronde van deze migratie, nieuwste eerst, met wat elke ronde meldde.',
@@ -2349,7 +2238,9 @@ const nl: Record<keyof typeof en, string> = {
   'runs.events': 'Logboek',
   'grantLink.title': 'Toegangslinks',
   'grantLink.blurb':
-    'Met een link kan degene die gemigreerd wordt zelf toegang geven tot het eigen account, zonder Ownpace-account en zonder u ooit een wachtwoord te sturen. U stuurt de link zelf naar die persoon — Ownpace doet dat nooit en weet ook niet om wie het gaat.',
+    'Degene die gemigreerd wordt geeft zelf toegang, zonder u een wachtwoord te sturen.',
+  'grantLink.why':
+    'Een Ownpace-account is niet nodig. U stuurt de link zelf; Ownpace doet dat nooit en weet ook niet om wie het gaat.',
   'grantLink.expiryLabel': 'De link werkt',
   'grantLink.expiry.1': '1 dag',
   'grantLink.expiry.7': '7 dagen',
@@ -2360,7 +2251,7 @@ const nl: Record<keyof typeof en, string> = {
   'grantLink.issued.urlLabel': 'De toegangslink',
   'grantLink.issued.until': 'Hij werkt tot {date}.',
   'grantLink.issued.youSend':
-    'Stuur hem zelf, op de manier waarop u die persoon normaal bereikt. Hij kan niet nogmaals getoond worden — als hij op de verkeerde plek belandt, trekt u hem in en maakt u een nieuwe.',
+    'Stuur hem zelf; niet opnieuw te tonen, dus bij verlies intrekken en opnieuw maken.',
   'grantLink.copy': 'Kopiëren',
   'grantLink.copied': 'Gekopieerd',
   'grantLink.empty': 'Nog geen links voor deze migratie.',
@@ -2371,7 +2262,7 @@ const nl: Record<keyof typeof en, string> = {
   'grantLink.revokedOn': 'U hebt hem ingetrokken op {date}.',
   'grantLink.expiredOn': 'Op {date} verlopen zonder gebruikt te zijn.',
   'grantLink.expiredNudge':
-    'Niemand is toegekomen aan het geven van toegang. Maak een nieuwe link en stuur die opnieuw.',
+    'Niemand heeft toegang gegeven. Maak een nieuwe link en stuur die opnieuw.',
   'grantLink.revoke': 'Intrekken',
   'grantLink.revokeArmed': 'Bevestig intrekken',
   'grant.title': 'Verbind uw account',
@@ -2515,7 +2406,9 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.readError': 'De migraties konden niet worden gelezen.',
   'confirm.noMappings': 'Geen migraties geconfigureerd.',
   'confirm.noMappings.how':
-    'De appliance leest migraties als JSON-bestanden uit de configuratiemap (op Docker de gekoppelde config-map; op Windows C:\\ProgramData\\OpenMigrate\\config). Kopieer mapping.json.example, vul uw bron en doel in, verwijs naar geheimen via de naam van een omgevingsvariabele en herstart de appliance — de map wordt eenmalig bij het starten gelezen. De volledige uitleg staat in docs/selfhost-quickstart.md, stap 3.',
+    'De appliance leest migraties als JSON-bestanden uit de configuratiemap.',
+  'confirm.noMappings.more':
+    'Op Docker is dat de gekoppelde config-map; op Windows C:\\ProgramData\\OpenMigrate\\config. Kopieer mapping.json.example, vul uw bron en doel in, verwijs naar geheimen via de naam van een omgevingsvariabele en herstart de appliance: de map wordt eenmalig bij het starten gelezen. De volledige uitleg staat in docs/selfhost-quickstart.md, stap 3.',
   'confirm.start': 'Start migratie',
   'confirm.startError': 'Kon niet starten:',
   'confirm.startErrorFallback': 'het verzoek is mislukt',
@@ -2525,14 +2418,14 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.note.cutover': 'In cutover.',
   'confirm.note.done': 'Afgerond. Deze migratie synchroniseert niet meer.',
   'confirm.introStarted':
-    'Migraties hier zijn gestart. De live voortgang staat per migratie; de scan van voor de start blijft bewaard als momentopname.',
+    'Migraties hier zijn gestart. Live voortgang staat per migratie; de scan blijft als momentopname.',
   'confirm.progress.heading': 'Live voortgang',
   'confirm.progress.synced': 'gesynchroniseerd',
   'confirm.progress.failed': 'mislukt',
   'confirm.progress.retrying': 'in nieuwe poging',
   'confirm.snapshot.heading': 'Scan van voor de start (momentopname)',
-  'confirm.snapshot.note':
-    'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet — de live voortgang hierboven komt uit het grootboek.',
+  'confirm.snapshot.more':
+    'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet; de live voortgang hierboven komt uit het grootboek.',
   'confirm.state.pending': 'In afwachting',
   'confirm.state.in_progress': 'Synchroniseert',
   'confirm.state.completed': 'Voltooid',
@@ -2584,14 +2477,14 @@ const nl: Record<keyof typeof en, string> = {
     'Dit domein staat WEL aan, maar het doelsysteem kan er niet voor worden gelezen, dus er kon niets worden gecontroleerd. Dit blokkeert de cutover — een ongecontroleerd domein is niet geslaagd.',
   'finish.title': 'Rond een migratie af',
   'finish.intro':
-    'Afronden stopt het kopiëren en het rapporteren. Doorloop de stappen in volgorde — alleen de laatste kan niet ongedaan worden gemaakt door gewoon door te gaan.',
+    'Afronden stopt het kopiëren en het rapporteren; doorloop de stappen in volgorde.',
   'finish.unknown.pre': 'Geen migratie met id',
   'finish.unknown.post':
-    'gaf antwoord. Controleer het adres — dit is niet hetzelfde als een migratie zonder iets af te ronden.',
+    'gaf antwoord. Controleer het adres; dit is geen migratie zonder iets af te ronden.',
   'finish.readError.one': 'De migratie kon niet worden gelezen.',
   'finish.readError.many': 'De migraties konden niet worden gelezen.',
   'finish.note.paused':
-    'Nooit gestart, dus er is niets af te ronden. Verwijder de migratie om deze op te ruimen.',
+    'Nooit gestart, dus niets af te ronden. Verwijder de migratie om op te ruimen.',
   'finish.note.active':
     'Synchroniseert volgens schema. Items die nog op het oude systeem binnenkomen, worden gekopieerd.',
   'finish.note.cutover': 'In cutover. Synchroniseert nog totdat u afrondt.',
@@ -2613,7 +2506,7 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step2.readFailed': 'Een wachtrij kon niet worden gelezen:',
   'finish.step2.notSameAsClear': '— niet hetzelfde als leeg.',
   'finish.step3.failedFramed':
-    'Het verzoek is mislukt — mogelijk loopt er nog een ronde. Wacht even en controleer daarna de wachtrijen hierboven opnieuw.',
+    'Het verzoek is mislukt; mogelijk loopt er nog een ronde, controleer de wachtrijen straks opnieuw.',
   'finish.retryButton': 'Probeer opnieuw af te ronden',
   'finish.aftermath.title': 'Wat beschikbaar blijft',
   'finish.aftermath.verify': 'Verificatierapport',
@@ -2625,17 +2518,19 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step2.deletions': 'verwijderd op het oude systeem',
   'finish.step2.moves': 'verplaatst',
   'finish.step2.onlyFirstBlocks':
-    '. Alleen de eerste hiervan blokkeert het afronden — de andere twee zijn al beantwoord doordat het nieuwe systeem zijn kopie behoudt.',
+    '. Alleen de eerste blokkeert; de kopie op het nieuwe systeem beantwoordt de andere twee.',
   'finish.step3.title': 'Voer één laatste ronde uit',
   'finish.step3.body': 'Zodat het nieuwe systeem het oude weerspiegelt zoals het nu is.',
   'finish.step3.run': 'Voer nu een ronde uit',
   'finish.step3.runAgain': 'Voer er nog een uit',
   'finish.step3.finished': 'De ronde is uitgevoerd en voltooid.',
   'finish.step3.queued':
-    'In de wachtrij. De ronde draait als taak en verschijnt in de uitvoeringsgeschiedenis — geef het even, en controleer daarna de wachtrijen hierboven opnieuw.',
+    'In de wachtrij als taak; het komt in de uitvoeringsgeschiedenis, controleer de wachtrijen straks opnieuw.',
   'finish.step4.title': 'Zet de e-mailbezorging om naar het nieuwe systeem',
   'finish.step4.body':
-    'Wijzig MX/DNS en configureer de clients opnieuw zodat nieuwe e-mail op het nieuwe systeem aankomt. Dit gebeurt buiten dit programma, dus dit is de ene stap die niemand hier voor u kan controleren.',
+    'Wijzig MX/DNS en configureer de clients opnieuw zodat nieuwe e-mail op het nieuwe systeem aankomt.',
+  'finish.step4.more':
+    'Dit gebeurt buiten dit programma, dus dit is de ene stap die niemand hier voor u kan controleren.',
   'finish.step4.warn.pre': 'Als u afrondt voordat dit is gedaan',
   'finish.step4.warn.post':
     ', wordt alles wat daarna op het oude systeem binnenkomt niet gekopieerd, en niets zal het melden — het programma kijkt niet meer mee.',
@@ -2648,7 +2543,7 @@ const nl: Record<keyof typeof en, string> = {
   'finish.forceButton': 'Rond toch af en laat ze achter',
   'finish.button': 'Rond deze migratie af',
   'finish.button.disabledTitle':
-    'Bevestig eerst stap 4 — afronden voordat de e-mailbezorging is omgezet, verliest alles wat daarna binnenkomt.',
+    'Bevestig eerst stap 4; afronden voordat de bezorging is omgezet, verliest alles wat daarna binnenkomt.',
   'createMapping.target.userOperated':
     'De doelserver beheert u zelf. Wij zetten uw gegevens erin over — wij beheren, ' +
     'bewaken of back-uppen hem niet, en er geldt van onze kant geen serviceniveau voor. ' +
@@ -2744,13 +2639,12 @@ const nl: Record<keyof typeof en, string> = {
   'sharedAddresses.members': 'leden',
   'sharedAddresses.membersUnknown': 'leden konden niet worden gelezen',
   'sharedAddresses.empty':
-    'Niets gevonden. Dit betekent niet "uw organisatie heeft er geen": een IMAP-bron kan groepen ' +
-    'helemaal niet opsommen, en een Microsoft 365-bron heeft daarvoor toepassingsmachtigingen ' +
-    'nodig. Gedeelde adressen kunnen ook met de hand worden toegevoegd.',
+    'Niets gevonden; deze bron kan groepen misschien helemaal niet opsommen.',
+  'sharedAddresses.empty.why':
+    'Een IMAP-bron kan groepen helemaal niet opsommen, en een Microsoft 365-bron heeft daarvoor toepassingsmachtigingen nodig. Gedeelde adressen kunnen ook met de hand worden toegevoegd.',
   'sharedAddresses.readError': 'De gevonden gedeelde adressen konden niet worden gelezen.',
   'sharedAddresses.runbook.intro':
-    'Distributielijsten moeten met de hand op de bestemming opnieuw worden aangemaakt — geen ' +
-    'van de bestemmingen hier biedt een manier om dat voor u te doen.',
+    'Distributielijsten maakt u met de hand opnieuw aan; geen bestemming doet dat voor u.',
   'sharedAddresses.runbook.download': 'Haal de stappenlijst op',
   'sharedAddresses.runbook.failed': 'De stappen konden niet worden opgehaald.',
   'decisions.title': 'Vraagt om een beslissing',
@@ -2784,24 +2678,55 @@ const nl: Record<keyof typeof en, string> = {
   'nav.connections': 'Verbindingen',
   'nav.setup': 'Instelchecklist',
   'nav.docs': 'Handleidingen',
-  'wizard.reuseSource': 'Gebruik een bronverbinding die u al heeft',
-  'wizard.reuseTarget': 'Gebruik een doelverbinding die u al heeft',
-  'wizard.reuseNone': 'Nee — hieronder nieuwe inloggegevens invoeren',
-  'wizard.reuse.hint':
-    'Als u er een kiest worden de opgeslagen inloggegevens hergebruikt, zodat u hetzelfde geheim niet twee keer plakt. De velden hieronder verdwijnen dan.',
+  'wizard.reuseSource': 'Bewaarde bronverbinding hergebruiken',
+  'wizard.reuseTarget': 'Bewaarde doelverbinding hergebruiken',
+  'wizard.reuseNone': 'Nieuwe inloggegevens invoeren',
+  'wizard.reuse.hint': 'Hergebruikt de bewaarde inloggegevens; de velden hieronder verdwijnen.',
+  // Wat een brontype IS, één regel nadat de kaart is gekozen, en de rest onder Meer (0118 T1).
+  'wizard.about.o365': 'Gebruikt een Entra-appregistratie in uw eigen tenant.',
+  'wizard.about.o365.more':
+    'Vul hier de tenant-ID en client-ID in, en op de stap met inloggegevens het clientgeheim samen met het mailboxadres. Registreer de app en verleen eerst beheerderstoestemming in uw eigen tenant; de checklist hieronder heeft de stappen.',
+  'wizard.about.googleDrive': 'Gebruikt uw eigen Google OAuth-client en een alleen-lezen token.',
+  'wizard.about.googleDrive.more':
+    'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets en Presentaties worden één voor één als niet-migreerbaar gemeld, met de reden: er is geen bestand om te kopiëren, en renderen staat uit totdat de exportstabiliteit is gemeten. De handleiding behandelt alle drie de waarden en eindigt met één alleen-lezen commando dat ze bewijst.',
+  'wizard.about.dropbox': 'Gebruikt uw eigen alleen-lezen Dropbox-app.',
+  'wizard.about.dropbox.more':
+    'Maak deze alleen-lezen aan: files.metadata.read en files.content.read, plus sharing.read als u gedeelde mappen wilt bekijken. De App-sleutel komt hier; op de stap met inloggegevens komt het App-geheim in het clientgeheim-veld en het refresh-token ernaast.',
+  'wizard.about.box':
+    'Gebruikt uw eigen Box-platform-app, eenmalig geautoriseerd door een Box-beheerder.',
+  'wizard.about.box.more':
+    'Hij authenticeert met de Client Credentials Grant, dus er is geen refresh-token: Box vernieuwt refresh-tokens bij elk gebruik. De Client-ID komt hier samen met het numerieke gebruikers-id dat wordt gemigreerd; het clientgeheim komt op de stap met inloggegevens. Een Box-beheerder autoriseert de app eenmalig onder Admin Console → Apps → Custom Apps Manager.',
+  'wizard.about.gmail':
+    'Gebruikt uw eigen Google OAuth-client; het token heeft de mailscope nodig.',
+  'wizard.about.gmail.more':
+    'Dezelfde client als een Google Drive-bron, maar het refresh-token moet zijn toegestemd met https://mail.google.com/, de enige scope die Google voor IMAP accepteert. Een token dat voor Drive is toegestemd werkt hier niet.',
+  'wizard.about.googleDav':
+    'Gebruikt uw eigen Google OAuth-client; het token heeft de scope van dit product nodig.',
+  'wizard.about.googleDav.more':
+    'Dezelfde client als de andere Google-bronnen, maar het refresh-token moet zijn toegestemd met https://www.googleapis.com/auth/calendar voor Agenda of https://www.googleapis.com/auth/carddav voor Contacten. Een token dat voor een ander Google-product is toegestemd werkt hier niet.',
+  'wizard.about.apple':
+    'Meldt zich aan met een app-specifiek wachtwoord; iCloud Drive-bestanden zijn niet te migreren.',
+  'wizard.about.apple.more':
+    'Apple biedt geen toestemmingsscherm voor zijn eigen gegevens, dus u maakt in plaats daarvan een app-specifiek wachtwoord, wat een minuut kost en altijd weer in te trekken is. iCloud Drive-bestanden kan niemand migreren: Apple publiceert daar geen API voor.',
+  'wizard.about.archive':
+    'Foto’s komen in mappen met uw albumnamen; een latere export voegt alleen toe.',
+  'wizard.about.archive.more':
+    'Koppelen laat zien wat erin zit: hoeveel items, hoeveel bytes, welke albums en welke periode. Elk album wordt één keer gekopieerd, met één bestand waarin alles staat wat Google over elke foto wist. Een archief is een momentopname van de dag waarop het is klaargezet, dus een latere export voegt alleen toe; er wordt nooit iets verwijderd omdat een export het niet meer noemt.',
   'connections.delete': 'Verwijderen',
   'connections.rotate': 'Inloggegevens vervangen',
   'connections.rotate.hint':
-    'Plak de nieuwe waarden. Ze worden gecontroleerd vóór ze de oude vervangen — mislukt de controle, dan verandert er niets en houden uw migraties wat werkte.',
+    'Plak de nieuwe waarden; ze worden gecontroleerd vóór ze de oude vervangen.',
+  'connections.rotate.why':
+    'Mislukt de controle, dan verandert er niets en houden uw migraties wat werkte.',
   'connections.rotate.save': 'Controleren en vervangen',
   'connections.add': 'Verbinding toevoegen',
   'connections.addAndTest': 'Toevoegen en testen',
-  'connections.role': 'Is dit een bron of een doel?',
+  'connections.role': 'Bron of doel?',
   'connections.type': 'Aanbieder',
-  'connections.name': 'Geef het een naam (zodat u het later herkent)',
+  'connections.name': 'Naam van de verbinding',
   'connections.title': 'Verbindingen',
   'connections.intro':
-    'De bron- en doelaccounts waarmee uw migraties inloggen. Test er een om te controleren of de inloggegevens nog werken — dat voert dezelfde alleen-lezen controle uit als een migratie en toont precies wat de aanbieder zegt.',
+    'De accounts waarmee uw migraties inloggen. Test controleert ze alleen-lezen.',
   'connections.none': 'Nog geen verbindingen. Bij het aanmaken van uw eerste migratie worden ze toegevoegd.',
   'connections.sources': 'Bronnen',
   'connections.targets': 'Doelen',
@@ -2813,7 +2738,7 @@ const nl: Record<keyof typeof en, string> = {
   'connections.standing.migration': 'Migratie',
   'connections.standing.stopped': 'is {when} gestopt ({domains}):',
   'connections.standing.whichSide':
-    'Die logt in met deze verbinding en \u00e9\u00e9n andere, en de fout zegt niet welke \u2014 test deze om het te weten.',
+    'Logt in met deze en één andere verbinding; test deze om te weten welke.',
   'connections.standing.thisSide': 'Het ging mis op deze verbinding.',
   'probe.connected': 'Verbonden. {count} {unit} zichtbaar.',
   'probe.connected.floor': 'Verbonden. Ten minste {count} {unit} zichtbaar.',
@@ -2822,10 +2747,9 @@ const nl: Record<keyof typeof en, string> = {
   'probe.targetStatus.refused': 'Hij is bereikbaar en weigerde de inloggegevens.',
   'probe.targetStatus.check': 'Controleer de host en poort van het doel.',
   'probe.noProbe':
-    'Deze versie heeft geen controle voor een {kind}-verbinding. Dat is een gat aan onze kant, geen probleem met uw inloggegevens.',
+    'Er is nog geen controle voor een {kind}-verbinding; dat is ons gat, niet uw inloggegevens.',
   'probe.timedOut':
-    'De test antwoordde niet binnen {seconds} seconden. De verbinding is bewaard; test later ' +
-    'opnieuw, of geef een kleinere hoofdmap op.',
+    'Geen antwoord binnen {seconds} seconden; toch bewaard, dus test later opnieuw of verklein de hoofdmap.',
   'probe.measuring': 'Er wordt nog gemeten wat dit account kan dragen — ververs over een minuut.',
   'probe.unit.folder.one': 'map',
   'probe.unit.folder.many': 'mappen',
@@ -2859,41 +2783,39 @@ const nl: Record<keyof typeof en, string> = {
   'connections.failed': 'Kon deze niet bereiken.',
   'connections.inUse.lead': 'Nog in gebruik door',
   'connections.inUse.unnamed': 'een migratie zonder naam',
+  'connections.inUse.reason':
+    'Verwijderen wist ook wat die migraties vastlegden; verwijder ze eerst onder Migraties.',
   'connections.invalidValues.lead': 'Deze waarden kunnen zo niet worden gebruikt:',
   'createMapping.duplicate.lead': 'U heeft al een migratie tussen deze twee accounts:',
   'createMapping.duplicate.why':
     'Twee migraties die dezelfde items naar dezelfde plek kopiëren, zetten alles dubbel op het doel. Geef deze een andere doelmap, of open de bestaande migratie.',
   'createMapping.duplicate.open': 'Open de bestaande migratie',
-  'connections.inUse.why':
-    'Verwijderen wist ook wat die migraties hebben vastgelegd; verwijder ze eerst onder Migraties.',
   // ---- Provider setup checklist (workplan 0061) ----
-  'setup.title': 'Wat u instelt bij de aanbieder',
+  'setup.title': 'Aanbieder instellen',
   'setup.intro':
-    'Deze stappen doet u in de console van de aanbieder zelf, niet hier. Vink ze af terwijl u bezig bent — deze lijst wordt bewaard voor uw hele organisatie, dus u kunt stoppen en later verdergaan, en een collega kan het overnemen.',
-  'setup.backToWizard': '← Terug naar de migratiewizard',
+    'Stappen in de console van de aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
+  'setup.backToWizard': '← Terug naar de wizard',
   'setup.backToConnections': '← Terug naar verbindingen',
   'setup.fullGuide': 'Lees de volledige handleiding',
   'setup.settled': 'afgehandeld',
   'setup.stillOpen': 'nog te doen',
   'setup.waitingOnOthers': 'wacht op een beheerder',
-  'setup.allDone': 'Alles hier is afgehandeld — u kunt de wizard afronden.',
-  'setup.nothingToDo': 'Voor deze aanbieder hoeft u vooraf niets in te stellen. Ga direct naar de wizard.',
+  'setup.allDone': 'Alles is afgehandeld; rond de wizard af.',
+  'setup.nothingToDo': 'Vooraf niets in te stellen; ga direct naar de wizard.',
   // ---- Aanbieder kiezen en de lijst afstemmen op wie u bent (workplan 0068) ----
   'setup.choose.title': 'Wat wilt u instellen?',
   'setup.choose.intro':
-    'Kies het systeem waarvandaan of waarnaartoe u migreert. Elk systeem heeft een eigen korte lijst met zaken die u vooraf regelt.',
+    'Elk systeem heeft een eigen korte lijst die u regelt voordat een migratie kan starten.',
   'setup.choose.sources': 'Migreren vanaf',
   'setup.choose.targets': 'Migreren naar',
   'setup.admin.question': 'Beheert u dit systeem voor uw organisatie?',
   'setup.admin.yes': 'Ja, ik ben beheerder',
   'setup.admin.no': 'Nee, iemand anders',
   'setup.admin.unsure': 'Laat alles zien',
-  'setup.admin.hint':
-    'Dit verandert alleen de indeling van de lijst hieronder. Het wordt op dit apparaat onthouden, voor u — een collega die anders antwoordt, ziet zijn eigen indeling.',
+  'setup.admin.hint': 'Verandert alleen de indeling van de lijst; onthouden op dit apparaat.',
   'setup.yours': 'Wat u zelf kunt doen',
   'setup.forYourAdmin': 'Wat uw beheerder moet doen',
-  'setup.forYourAdmin.hint':
-    'Hiervoor zijn rechten nodig die u naar eigen zeggen niet heeft. Stuur ze door naar de beheerder van dit systeem; u kunt ze hier afvinken zodra die het bevestigt.',
+  'setup.forYourAdmin.hint': 'Stuur deze naar de beheerder; vink ze af zodra die bevestigt.',
   'setup.yields': 'Dit levert op:',
   'setup.tick': 'Deze stap afvinken',
   'setup.untick': 'Vinkje weghalen',
@@ -2903,8 +2825,8 @@ const nl: Record<keyof typeof en, string> = {
   'setup.state.skipped': 'Overgeslagen — bewust niet nodig',
   'setup.needsAnotherPerson': 'beheerder nodig',
   'setup.needsAnotherPerson.hint':
-    'Iemand met beheerdersrechten moet dit doen, dus dit is de stap waarop u het vaakst moet wachten.',
-  'setup.openChecklist': 'Open de instelchecklist voor deze aanbieder',
+    'Vereist beheerdersrechten, dus op deze stap wacht u het vaakst.',
+  'setup.openChecklist': 'Open de instelchecklist',
   'setup.box.create_app.title': 'Maak een Box-platform-app',
   'setup.box.create_app.detail':
     'Box Developer Console → Create Platform App → Custom App, en kies Client Credentials Grant (Server Authentication).',
@@ -2937,18 +2859,18 @@ const nl: Record<keyof typeof en, string> = {
   'setup.google.create_oauth_client.detail':
     'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, als Desktop- of Web-toepassing.',
   'setup.google.create_oauth_client.yields': 'een Client-ID en een Client-geheim.',
-  'setup.google.enable_api.title': 'Zet de API aan voor het product dat u migreert',
+  'setup.google.enable_api.title': 'Zet de API van het product aan',
   'setup.google.enable_api.detail':
     'Zet in hetzelfde project de API aan die past bij de gekozen bron — Drive, Gmail, Calendar of People. Zonder dat mislukt de eerste aanroep.',
   'setup.google.consent_scope.title': 'Laat een alleen-lezen refresh-token toestemmen',
   'setup.google.consent_scope.detail':
-    'Laat de accounthouder toestemmen met de scope van DAT product; een token dat voor het ene Google-product is toegestemd werkt niet voor het andere. U kunt ook een service-account met domain-wide delegation gebruiken, dat een beheerder eenmalig voor het hele domein autoriseert.',
+    'Laat de accounthouder toestemmen met de scope van dat product; een token voor het ene Google-product werkt niet voor het andere. Of gebruik een service-account met domain-wide delegation, dat een beheerder eenmalig voor het hele domein autoriseert.',
   'setup.google.consent_scope.yields': 'een refresh-token (of een service-account-sleutelbestand).',
   'setup.graph.app_registration.title': 'Registreer een app in Microsoft Entra',
   'setup.graph.app_registration.detail':
     'Entra-beheercentrum → App registrations → New registration, in de tenant waarvan u de postbussen migreert.',
   'setup.graph.app_registration.yields': 'een Tenant-ID en een Client-ID.',
-  'setup.graph.api_permissions.title': 'Voeg de leesrechten toe en laat een beheerder toestemmen',
+  'setup.graph.api_permissions.title': 'Voeg leesrechten toe en laat een beheerder toestemmen',
   'setup.graph.api_permissions.detail':
     'Voeg de Graph-rechten toe voor wat u migreert (mail, agenda, contacten of bestanden) en laat een tenantbeheerder toestemming geven. De postbus of drive van een ander lezen vereist application permissions, en die vragen altijd om toestemming.',
   'setup.graph.client_secret.title': 'Maak een clientgeheim',
