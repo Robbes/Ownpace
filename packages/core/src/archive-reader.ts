@@ -110,17 +110,64 @@ export interface ArchiveItem {
   /** ISO 8601, matching `FileItem.createdAt`'s convention. */
   readonly createdAt?: string;
   /**
+   * WHICH OF THE THREE THINGS THIS IS (workplan 0116 T7, §4's decision).
+   *
+   * Google Photos ships an edited photo as a second file beside the original
+   * and a motion photo as an MP4 beside the JPEG. The owner's decision of
+   * 2026-09-04 is that each is a DISTINCT ITEM with its own bytes and its own
+   * hash — not an attribute of one record — because Google Photos shows the
+   * edited version by default, so a single-record design would write the
+   * original and silently discard the version the person means by "my photo".
+   *
+   * The consequence has to be reported rather than discovered: **the item
+   * count legitimately EXCEEDS what the provider tells the person they have.**
+   * A three-thousand-photo library can measure as four thousand items. This
+   * field is what lets the measure break that down instead of showing one
+   * number that reads as an error and costs a support ticket.
+   *
+   * `original` is the default and the honest answer for any export whose
+   * shape gives no reason to say otherwise — an archive with no such
+   * convention has originals and nothing else, rather than unknowns.
+   */
+  readonly kind: ArchiveItemKind;
+  /**
+   * The item this one belongs to, by `path`, when it is an edit or a clip of
+   * another (§4). Absent on an original, and absent on a derivative whose
+   * original is not in the archive — which happens, and is not an error: a
+   * person can delete an original in Photos and keep the edit.
+   */
+  readonly relatedTo?: string;
+  /**
    * What the provider knew, verbatim and uninterpreted (rule 3). Read by
    * placement and the manifest; never by the sync's decisions.
    */
   readonly metadata: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * The three things an export's file can be.
+ *
+ * A closed list rather than a boolean pair, so a fourth (a burst? a RAW
+ * sidecar?) is a compile error at every `switch` rather than a silent fall
+ * into `original` — the fan-out lesson this repository keeps re-learning.
+ */
+export const ARCHIVE_ITEM_KINDS = ['original', 'edited', 'motion'] as const;
+export type ArchiveItemKind = (typeof ARCHIVE_ITEM_KINDS)[number];
+
 /** What an archive holds, answered without reading every byte of it. */
 export interface ArchiveSummary {
   readonly items: number;
   readonly bytes: number;
   readonly folders: number;
+  /**
+   * `items` BROKEN DOWN by what each one is (workplan 0116 T7).
+   *
+   * Present so a surface never has to show a bare total that exceeds what
+   * Google Photos told the person they have. The three counts sum to `items`
+   * — asserted, not assumed, because a breakdown that does not add up is
+   * worse than no breakdown: it makes the total look wrong as well.
+   */
+  readonly byKind: Readonly<Record<ArchiveItemKind, number>>;
   /**
    * The span the archive covers, when it can be known. **An archive is a
    * snapshot with a date** and this is what lets a surface say so; absent when

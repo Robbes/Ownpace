@@ -58,6 +58,8 @@ import {
 } from './google-dav-source-factory.ts';
 import { buildGoogleDriveSourceFrom, STORED_GOOGLE_CREDENTIAL_NAMES } from './drive-source-factory.ts';
 import { buildDropboxSourceFrom, STORED_DROPBOX_CREDENTIAL_NAMES } from './dropbox-source-factory.ts';
+import { parseArchiveSource } from '@openmig/shared';
+import { archiveReaderFor } from './archive-source-factory.ts';
 import type { GoogleCredentialsAsFound } from './drive-source-factory.ts';
 
 export type DomainAnswer = 'yes' | 'no' | 'unknown';
@@ -106,6 +108,38 @@ export interface MeasuredVolume {
    * reason sat in a hover nobody's phone has.
    */
   readonly failed?: string;
+  /**
+   * `items` BROKEN DOWN, for a source where the total legitimately exceeds
+   * what the provider tells the person they have (workplan 0116 T7).
+   *
+   * An export archive is the case this exists for. Google Photos ships an
+   * edited photo as a second file and a motion photo as an MP4 beside the
+   * JPEG, and 0116 §4's decision is that each is a distinct item — because
+   * Photos shows the EDITED version by default, so folding them into one
+   * record would discard the version the person means by "my photo".
+   *
+   * The arithmetic consequence is unavoidable and must be EXPLAINED rather
+   * than left to be discovered: a three-thousand-photo library measures as
+   * four thousand items. Without this breakdown the Measured line shows a
+   * number the person can prove is wrong, and the support ticket writes
+   * itself.
+   *
+   * Absent on every face that has no such distinction, which is all of them
+   * except the archive today. A screen shows the total alone when it is
+   * absent, which is the correct rendering rather than a fallback.
+   */
+  readonly byKind?: Readonly<Record<string, number>>;
+  /**
+   * A SNAPSHOT WITH A DATE: the span an export covers (workplan 0116 T7).
+   *
+   * The one thing about an archive that no other source needs to say. Every
+   * other connection here answers with today; an archive answers with the day
+   * it was prepared, forever, and somebody looking at a count of 12,431 items
+   * deserves to know which twelve years those are and that nothing after the
+   * export date is in them.
+   */
+  readonly earliest?: string;
+  readonly latest?: string;
 }
 
 export interface AccountQualification {
@@ -1007,6 +1041,149 @@ export async function qualifyDropbox(
       file,
     },
   };
+}
+
+/**
+ * QUALIFY AN EXPORT ARCHIVE (workplan 0116 T7 — the measure before the move).
+ *
+ * The point of the whole first slice: **a person sees what their export holds
+ * before anybody commits to importing it.** Items, bytes, folders, the span
+ * the export covers, and the count broken down — and all of it read from the
+ * SAME `summary()` the import would iterate, so the measure can never promise
+ * a number the import then contradicts.
+ *
+ * ## An archive that could not be opened is `unknown`, never `no`
+ *
+ * The three-state rule (0106 T3a), and here it is not a formality. A truncated
+ * download, a part never fetched, a path pointing at the `.zip` instead of the
+ * folder — these are the ordinary failures of a 25 GB export, and every one of
+ * them must reach the card as *we could not open this, and here is why*. A
+ * measured `no` would tell somebody who has waited a week for their photo
+ * library that they have none of it, and an `unknown` never constrains a tick
+ * while a `no` does.
+ *
+ * ## Four faces that are `no` with a reason, and it is OUR reason
+ *
+ * Mail, calendars, contacts and tasks are absent from an archive import by
+ * DECISION, not by absence: both exports contain them (`.mbox`, `.ics`,
+ * `.vcf`), and this product does not read them because those domains have live
+ * routes and a snapshot would compete with the live one — two doors writing
+ * one mailbox, and one of them stuck on the day the export was prepared. The
+ * sentence says that, rather than implying the export is missing something.
+ */
+export const ARCHIVE_QUALIFIED_KIND = 'archive';
+
+export function isArchiveKind(kind: string): boolean {
+  return kind === ARCHIVE_QUALIFIED_KIND;
+}
+
+export async function qualifyArchive(
+  kind: string,
+  config: Record<string, unknown>,
+): Promise<AccountQualification | undefined> {
+  if (!isArchiveKind(kind)) return undefined;
+
+  // Ours, not the provider's: an archive HAS this data and we choose not to
+  // read it from here, which is a different sentence from "your export does
+  // not contain it" and the person is entitled to the true one.
+  const liveInstead = (face: string): QualifiedDomain => ({
+    answer: 'no',
+    detail:
+      `An export archive is imported for files and photos only, so ${face} is not carried from ` +
+      'it. The export does contain them — they are migrated from the account itself instead, ' +
+      'live, rather than from a snapshot taken on the day the export was prepared.',
+  });
+
+  let file: QualifiedDomain;
+  try {
+    const source = parseArchiveSource(config);
+    const reader = archiveReaderFor(source.provider);
+    if (!reader) {
+      throw new Error(
+        `no reader exists for a '${source.provider}' archive yet — a gap in this product, ` +
+          'not a problem with your export',
+      );
+    }
+    const handle = await reader.open({ provider: source.provider, path: source.path });
+    try {
+      const summary = await reader.summary(handle);
+      file = {
+        answer: 'yes',
+        detail: archiveDetail(summary),
+        count: summary.items,
+        // `collection` rather than `folder`: the count on the line is ITEMS,
+        // and `folder` is what the probe counts. Two numbers on one card
+        // wearing the same unit is how somebody reads the wrong one.
+        unit: 'collection',
+        volume: {
+          items: summary.items,
+          bytes: summary.bytes,
+          byKind: summary.byKind,
+          ...(summary.earliest ? { earliest: summary.earliest } : {}),
+          ...(summary.latest ? { latest: summary.latest } : {}),
+        },
+      };
+    } finally {
+      await handle.close().catch(() => {});
+    }
+  } catch (err) {
+    // UNKNOWN, with the reason. Never a measured no — see the header.
+    file = {
+      answer: 'unknown',
+      detail: `Unmeasured — the archive could not be opened: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+
+  return {
+    domains: {
+      mail: liveInstead('mail'),
+      calendar: liveInstead('calendars'),
+      contact: liveInstead('contacts'),
+      task: liveInstead('reminders'),
+      file,
+    },
+  };
+}
+
+/**
+ * The evidence line for an archive that opened.
+ *
+ * Says the total, then IMMEDIATELY says why it is larger than the number the
+ * person has in their head, because that is the first thing they will notice
+ * (0116 §4). Then the span, because an archive is a snapshot with a date and
+ * nothing else in this product is.
+ */
+function archiveDetail(summary: {
+  items: number;
+  bytes: number;
+  folders: number;
+  byKind: Readonly<Record<string, number>>;
+  earliest?: string;
+  latest?: string;
+}): string {
+  const parts = [
+    `${summary.items.toLocaleString('en')} items in ${counted(summary.folders, 'folder')}.`,
+  ];
+  const derived = (summary.byKind.edited ?? 0) + (summary.byKind.motion ?? 0);
+  if (derived > 0) {
+    parts.push(
+      `That is MORE than your library shows: ${(summary.byKind.original ?? 0).toLocaleString('en')} ` +
+        `originals plus ${(summary.byKind.edited ?? 0).toLocaleString('en')} edited versions and ` +
+        `${(summary.byKind.motion ?? 0).toLocaleString('en')} motion clips, each carried as its ` +
+        'own file so the version you actually look at is not the one that gets lost.',
+    );
+  }
+  if (summary.earliest && summary.latest) {
+    parts.push(
+      `A snapshot, covering ${summary.earliest.slice(0, 10)} to ${summary.latest.slice(0, 10)} — ` +
+        'nothing added since the export was prepared is in it.',
+    );
+  } else {
+    parts.push('A snapshot of the day it was prepared — nothing added since then is in it.');
+  }
+  return parts.join(' ');
 }
 
 export async function qualifyGoogleGrant(

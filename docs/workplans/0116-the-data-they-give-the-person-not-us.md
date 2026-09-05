@@ -2,6 +2,27 @@
 
 ## Status — 2026-09-04 (update this block at the end of every session)
 
+**2026-09-04, the first slice is BUILT.** T1+T2+T3a+T7 all landed. An export archive is a
+connection kind whose credential is a location; the reader seam takes one implementation per
+export; Google's Takeout reader is behind it; and the measure reads items, bytes, folders and
+the export's date span off the same `summary()` an import would iterate.
+
+Two properties hold from the first commit and both are proved by breaking them: **an archive
+that could not be opened is `unknown` with the reason, never an empty archive** — a truncated
+25 GB download must never read as *you have no photos* — and **the provider is checked by
+name at every door**, because the wrong reader does not fail, it finds none of its own
+landmarks and reports nothing.
+
+What is deliberately NOT built is migrating FROM one (T5, T6). The create door refuses an
+archive source by name saying NOT BUILT rather than *not supported*; the file seam has an
+`archive` arm that throws rather than falling through to `dav`; and the wizard does not offer
+the card at all, enforced by the compiler rather than by a filter. The Connections page does
+offer it, where every answer it gives is true.
+
+T7 carries §4's price out loud: the item count legitimately EXCEEDS what Google Photos tells
+the person they have, so the Measured line breaks it down — originals, edited versions,
+motion clips — and says why in the same breath, before they can be surprised by it.
+
 **2026-09-04, later again: two more owner answers folded in.** Edited versions and motion
 clips are **distinct items carrying a link to their original**, not attributes of one record —
 because Google Photos shows the edited version by default, so a single-record design discards
@@ -43,14 +64,14 @@ If the owner decides only one thing here, decide **D1**.
 | Task | Status | Notes |
 |---|---|---|
 | T0 | ✅ **Answered 2026-09-04** | All six decided — see §"The owner's decisions". The first slice is **T1+T2+T3a+T7**. |
-| T1 The archive, as a kind of connection | 🔨 **Next — first slice** | `ArchiveSource`: a source whose credential is an archive's LOCATION, not an account. Front door, wizard, connection card, probe, three-state record. Provider-agnostic. |
-| T2 The reader seam | 🔨 **Next — first slice** (needs T1) | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
-| T3a The Takeout reader (Google Photos) | 🔨 **Next — first slice** (needs T2) | 0112 T1's reader, unchanged, behind the T2 interface. |
+| T1 The archive, as a kind of connection | ✅ **Built 2026-09-04** | `ArchiveSource`: a source whose credential is an archive's LOCATION, not an account. Front door, wizard, connection card, probe, three-state record. Provider-agnostic. |
+| T2 The reader seam | ✅ **Built 2026-09-04** | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
+| T3a The Takeout reader (Google Photos) | ✅ **Built 2026-09-04** | 0112 T1's reader, unchanged, behind the T2 interface. |
 | T3b The Data & Privacy reader (Apple) | 📋 **Blocked on a real export** | Nobody here has opened one. T3b starts by opening one and writing down what is inside — see §"What is not known". |
 | T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first** | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
 | T5 Placement and the manifest | 📋 Planned (needs T2) | Where items land, albums/folders as folders, one manifest row per item. 0112 §3 is the photo design. **Decided 2026-09-04:** edited versions and motion clips are distinct items linked to their original, never attributes of one record — §4 says why. |
 | T6 Idempotency by content hash | 📋 Planned (needs T2) | A second import writes nothing; an overlapping archive writes only what is new. The file domain's existing ledger rule, applied to archives — **and the delta across a series of archives**, which needs no new store. §5 carries the design, including the rule that an archive delta may only ADD. |
-| T7 Measure before the move | 🔨 **Next — first slice** (needs T2) | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
+| T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
 | T8 The walkthrough | 📋 Planned | `docs/archive-import.md`: how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
 | T10 The gate | 📋 Planned | A tiny fixture archive of each shape in the E2E, imported end to end, asserting item count, hashes and a second import writing nothing. |

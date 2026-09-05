@@ -4,9 +4,11 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
+  ARCHIVE_ITEM_KINDS,
   ArchiveUnreadable,
   type ArchiveHandle,
   type ArchiveItem,
+  type ArchiveItemKind,
   type ArchiveLocation,
   type ArchiveReader,
   type ArchiveSummary,
@@ -60,6 +62,85 @@ const SIDECAR_NAME_CAP = 51;
 
 /** Files that are metadata about the export rather than items in it. */
 const NOT_AN_ITEM = /\.json$/i;
+
+/**
+ * An EDITED version, which Google Photos names by suffixing the stem
+ * (workplan 0116 T7, §4).
+ *
+ * `IMG_0001.jpg` edited becomes `IMG_0001-edited.jpg`. The suffix is
+ * LOCALISED — a Dutch account produces `-bewerkt`, German `-bearbeitet` — and
+ * an export made in a language not on this list reads its edits as ordinary
+ * originals. That is the honest failure mode and the right one: the file is
+ * still carried, still hashed, still counted; only its LABEL is wrong, and the
+ * count still adds up. The alternative — guessing from the stem — would pair
+ * two unrelated photos whose names happen to share a prefix.
+ *
+ * The list is what has actually been seen, per 0105: `-edited` (English) is
+ * measured from a real export; the rest are recorded as EXPECTED and are owed
+ * confirmation against an export made in that language. A locale missing here
+ * costs a mislabel; a locale wrongly added here costs a false pairing, which
+ * is why nothing is added on a translation guess alone.
+ */
+const EDITED_SUFFIXES = ['-edited', '-bewerkt', '-bearbeitet', '-modifié', '-editado'] as const;
+
+/** Motion photos: an MP4 sharing a stem with a still. */
+const MOTION_EXTENSION = /\.(mp4|mov)$/i;
+const STILL_EXTENSION = /\.(jpe?g|heic|png)$/i;
+
+function stemOf(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(0, dot) : name;
+}
+
+/**
+ * Which of the three things a media file is, and what it belongs to.
+ *
+ * `stills` maps a STEM to the still's own file name — a map rather than a set
+ * because `relatedTo` names an item by its `path`, which is the file name, and
+ * a stem is not one. It is also what makes the motion test honest: an MP4 on
+ * its own is a video the person filmed, not a motion photo, and calling it one
+ * would both mislabel it and invent a `relatedTo` pointing at nothing. Only an
+ * MP4 whose still is actually present is a clip OF something.
+ */
+export function classifyMedia(
+  mediaName: string,
+  stills: ReadonlyMap<string, string>,
+): { kind: ArchiveItemKind; relatedTo?: string } {
+  const stem = stemOf(mediaName);
+  const suffix = EDITED_SUFFIXES.find((s) => stem.endsWith(s));
+  if (suffix) {
+    // `relatedTo` only where the original is really here. A person can delete
+    // an original in Photos and keep the edit, and a pointer at an absent item
+    // would be a broken link placement later has to special-case.
+    const original = stills.get(stem.slice(0, -suffix.length));
+    return original ? { kind: 'edited', relatedTo: original } : { kind: 'edited' };
+  }
+  if (MOTION_EXTENSION.test(mediaName)) {
+    const still = stills.get(stem);
+    if (still) return { kind: 'motion', relatedTo: still };
+  }
+  return { kind: 'original' };
+}
+
+/** Stem → file name, for every STILL in the archive. See `classifyMedia`. */
+export function stillsByStem(mediaNames: Iterable<string>): Map<string, string> {
+  const out = new Map<string, string>();
+  // SORTED, so two stills sharing a stem (`IMG.jpg` beside `IMG.heic`, a real
+  // Takeout shape) pair the same way on every run. Unsorted, the winner is
+  // `readdir` order — which is the accident that already produced one defect
+  // in this reader, when the sidecar was sought beside whichever copy came
+  // back first.
+  for (const name of [...mediaNames].sort()) {
+    if (!STILL_EXTENSION.test(name)) continue;
+    const stem = stemOf(name);
+    // An edited still is not the original anything points at, so it never
+    // claims a stem: `IMG-edited.jpg` must not become the target of
+    // `IMG-edited.mp4`'s pairing while `IMG.jpg` sits right beside it.
+    if (EDITED_SUFFIXES.some((sfx) => stem.endsWith(sfx))) continue;
+    if (!out.has(stem)) out.set(stem, name);
+  }
+  return out;
+}
 
 /**
  * Every sidecar spelling to try for one media file, in the order Takeout has
@@ -160,6 +241,12 @@ export function createTakeoutArchiveReader(): ArchiveReader {
       byHash.set(hash, { copies: [item], sizeBytes: bytes.byteLength });
     }
 
+    // Built from EVERY media name in the archive, before anything is
+    // classified: an edit in an album folder belongs to an original that may
+    // only be in the year folder, so a per-folder view would pair almost
+    // nothing (0116 T7).
+    const stills = stillsByStem(found.map((f) => f.mediaName));
+
     const items: ArchiveItem[] = [];
     for (const [contentHash, { copies, sizeBytes }] of byHash) {
       const first = copies[0]!;
@@ -176,8 +263,11 @@ export function createTakeoutArchiveReader(): ArchiveReader {
         if (sidecar) break;
       }
       const createdAt = takenAt(sidecar);
+      const { kind, relatedTo } = classifyMedia(first.mediaName, stills);
       items.push({
         contentHash,
+        kind,
+        ...(relatedTo ? { relatedTo } : {}),
         // The canonical path is the media's own name, not the folder it was
         // first met in — the folders are carried separately and placement
         // decides what to do with them.
@@ -234,10 +324,20 @@ export function createTakeoutArchiveReader(): ArchiveReader {
       // never promise a number the import then contradicts.
       const items = await collapse(handle as TakeoutHandle);
       const dates = items.map((i) => i.createdAt).filter((d): d is string => Boolean(d)).sort();
+      // Seeded with every kind at zero rather than counted up from what is
+      // present, so a breakdown always has all three keys: a surface reading
+      // `byKind.motion` on an archive with no motion photos must get 0, not
+      // `undefined` rendering as blank beside two real numbers (0116 T7).
+      const byKind = Object.fromEntries(ARCHIVE_ITEM_KINDS.map((k) => [k, 0])) as Record<
+        ArchiveItemKind,
+        number
+      >;
+      for (const item of items) byKind[item.kind] += 1;
       return {
         items: items.length,
         bytes: items.reduce((n, i) => n + i.sizeBytes, 0),
         folders: new Set(items.flatMap((i) => i.folders)).size,
+        byKind,
         ...(dates[0] ? { earliest: dates[0] } : {}),
         ...(dates.at(-1) ? { latest: dates.at(-1)! } : {}),
       };
