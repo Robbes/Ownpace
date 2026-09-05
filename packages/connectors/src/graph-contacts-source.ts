@@ -20,6 +20,7 @@
  * for idempotency tracking.
  */
 
+import { graphFailure } from './graph-refusal.ts';
 import type { ContactSource, ContactFolder, RawContact, SyncCursor, ContactPhone, ContactEmail, ContactAddress, ContactUrl, EmailType, UrlType, Contact } from '@openmig/shared';
 import type { TokenProvider } from '@openmig/shared';
 import type { GraphContactsSourceConfig, GraphContactFolder, GraphContact, GraphContactsDeltaCursor, VCardFieldMapping, GraphContactWithPhoto } from './graph-contacts-source.types.ts';
@@ -27,6 +28,9 @@ import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.ty
 import { graphScopePrefix } from './graph-scope.ts';
 import type { ThrottleLimiter } from '@openmig/shared';
 import { log } from '@openmig/shared';
+
+/** The tick and the delegated scope this face needs — named in a refusal's way forward (0114 T6). */
+const CONTACTS_FACE = { face: 'Contacts', scope: 'Contacts.Read' } as const;
 
 /**
  * Graph contacts source connector implementation.
@@ -87,7 +91,7 @@ export class GraphContactsSource implements ContactSource {
       });
 
       if (response.status !== 200) {
-        throw new Error(`Failed to list contact folders: ${response.status} - ${response.body}`);
+        throw new Error(graphFailure('Failed to list contact folders', response, CONTACTS_FACE));
       }
 
       const data = JSON.parse(response.body) as { value: GraphContactFolder[]; '@odata.nextLink'?: string };
@@ -165,7 +169,7 @@ export class GraphContactsSource implements ContactSource {
       });
 
       if (response.status !== 200) {
-        throw new Error(`Failed to list contacts: ${response.status} - ${response.body}`);
+        throw new Error(graphFailure('Failed to list contacts', response, CONTACTS_FACE));
       }
 
       const data = JSON.parse(response.body) as { value: GraphContact[]; '@odata.nextLink'?: string; '@odata.deltaLink'?: string };

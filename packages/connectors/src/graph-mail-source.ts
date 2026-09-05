@@ -24,6 +24,7 @@
  *   never round-trip through a UTF-8 string (see dav-http.types.ts on why).
  */
 
+import { graphFailure } from './graph-refusal.ts';
 import type {
   SourceConnector,
   MailFolder,
@@ -39,6 +40,9 @@ import { specialUseFromName, log } from '@openmig/shared';
 import type { GraphMailFolder, GraphMessage, GraphPage } from './graph-mail-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { graphScopePrefix } from './graph-scope.ts';
+
+/** The tick and the delegated scope this face needs — named in a refusal's way forward (0114 T6). */
+const MAIL_FACE = { face: 'Mail', scope: 'Mail.Read' } as const;
 
 /** Graph well-known folder name -> our SpecialUse. */
 const WELL_KNOWN_TO_SPECIAL_USE: ReadonlyArray<readonly [string, SpecialUse]> = [
@@ -107,7 +111,7 @@ export class GraphMailSource implements SourceConnector {
       });
       if (res.status === 404) continue; // that well-known folder does not exist here
       if (res.status !== 200) {
-        throw new Error(`Graph mail: resolving well-known folder "${wellKnown}" failed: ${res.status} - ${res.body}`);
+        throw new Error(graphFailure(`Graph mail: resolving well-known folder "${wellKnown}" failed`, res, MAIL_FACE));
       }
       const folder = JSON.parse(res.body) as GraphMailFolder;
       roleById.set(folder.id, role);
@@ -132,7 +136,7 @@ export class GraphMailSource implements SourceConnector {
           headers: { Accept: 'application/json' },
         });
         if (res.status !== 200) {
-          throw new Error(`Graph mail: listing folders failed: ${res.status} - ${res.body}`);
+          throw new Error(graphFailure('Graph mail: listing folders failed', res, MAIL_FACE));
         }
         const page = JSON.parse(res.body) as GraphPage<GraphMailFolder>;
         for (const f of page.value) {
@@ -198,9 +202,7 @@ export class GraphMailSource implements SourceConnector {
         headers: { Accept: 'application/json' },
       });
       if (res.status !== 200) {
-        throw new Error(
-          `Graph mail: delta listing for "${folder.path}" failed: ${res.status} - ${res.body}`,
-        );
+        throw new Error(graphFailure(`Graph mail: delta listing for "${folder.path}" failed`, res, MAIL_FACE));
       }
       const page = JSON.parse(res.body) as GraphPage<GraphMessage>;
       for (const m of page.value) {
@@ -257,9 +259,7 @@ export class GraphMailSource implements SourceConnector {
       headers: {},
     });
     if (res.status !== 200) {
-      throw new Error(
-        `Graph mail: fetching MIME for ${item.messageId} failed: ${res.status} - ${res.body}`,
-      );
+      throw new Error(graphFailure(`Graph mail: fetching MIME for ${item.messageId} failed`, res, MAIL_FACE));
     }
     // MIME is bytes. `body` is a UTF-8 decode and corrupts anything that is
     // not UTF-8 text (dav-http.types.ts documents the measured damage); a

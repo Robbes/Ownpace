@@ -1,5 +1,6 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
+import { graphFailure } from './graph-refusal.ts';
 import type { CalendarSource, CalendarFolder, RawCalendarEvent, SyncCursor } from '@openmig/shared';
 import type { ThrottleLimiter, TokenProvider } from '@openmig/shared';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
@@ -12,6 +13,9 @@ import type {
   GraphTodoList,
   GraphTodoTask,
 } from './graph-todo-source.types.ts';
+
+/** The tick and the delegated scope this face needs — named in a refusal's way forward (0114 T6). */
+const TASKS_FACE = { face: 'Tasks', scope: 'Tasks.Read' } as const;
 
 /**
  * MICROSOFT TO DO AS A TASK SOURCE (workplan 0114 T9).
@@ -126,13 +130,9 @@ export class GraphTodoSource implements CalendarSource {
       if (response.status !== 200) {
         // A 403 is the common failure and it has one usual cause worth naming:
         // the consent this connection carries was granted without the tasks
-        // face ticked, so the token has no Tasks.Read.
-        const hint =
-          response.status === 403
-            ? ' (a 403 here usually means the consent did not include Tasks.Read — reconnect ' +
-              'the account with Tasks ticked)'
-            : '';
-        throw new Error(`Failed to list ${what}: ${response.status} - ${response.body}${hint}`);
+        // face ticked, so the token has no Tasks.Read. `graphFailure` says so,
+        // in the same words every Graph face uses (0114 T6).
+        throw new Error(graphFailure(`Failed to list ${what}`, response, TASKS_FACE));
       }
       const page = JSON.parse(response.body) as { value: T[]; '@odata.nextLink'?: string };
       out.push(...page.value);

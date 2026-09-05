@@ -15,6 +15,7 @@
  * - Rate limiting and throttling support
  */
 
+import { graphFailure } from './graph-refusal.ts';
 import type { CalendarSource, CalendarFolder, RawCalendarEvent, SyncCursor } from '@openmig/shared';
 import type { TokenProvider } from '@openmig/shared';
 import type { GraphCalendarSourceConfig, GraphCalendar, GraphEvent, GraphDeltaCursor, ParsedIcalComponent } from './graph-calendar-source.types.ts';
@@ -22,6 +23,9 @@ import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.ty
 import { graphScopePrefix } from './graph-scope.ts';
 import type { ThrottleLimiter } from '@openmig/shared';
 import { log } from '@openmig/shared';
+
+/** The tick and the delegated scope this face needs — named in a refusal's way forward (0114 T6). */
+const CALENDAR_FACE = { face: 'Calendar', scope: 'Calendars.Read' } as const;
 
 /**
  * Graph Calendar source connector implementation.
@@ -82,7 +86,7 @@ export class GraphCalendarSource implements CalendarSource {
       });
 
       if (response.status !== 200) {
-        throw new Error(`Failed to list calendars: ${response.status} - ${response.body}`);
+        throw new Error(graphFailure('Failed to list calendars', response, CALENDAR_FACE));
       }
 
       const data = JSON.parse(response.body) as { value: GraphCalendar[]; '@odata.nextLink'?: string };
@@ -160,7 +164,7 @@ export class GraphCalendarSource implements CalendarSource {
       });
 
       if (response.status !== 200) {
-        throw new Error(`Failed to list events: ${response.status} - ${response.body}`);
+        throw new Error(graphFailure('Failed to list events', response, CALENDAR_FACE));
       }
 
       const data = JSON.parse(response.body) as { value: GraphEvent[]; '@odata.nextLink'?: string; '@odata.deltaLink'?: string };
