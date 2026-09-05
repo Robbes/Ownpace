@@ -3816,6 +3816,15 @@ components:
           # against it in `support-routes.unit.test.ts` so this list cannot
           # drift from the values the column actually holds.
           enum: [auth_expired, rate_limited, quota_exceeded, target_refused, network, unknown]
+        failed_side:
+          type: string
+          nullable: true
+          enum: [source, target]
+          description: |
+            Which side the pass named when it failed (workplan 0094 T5,
+            second slice; managed migration 0022 added it to the view).
+            Two words, held to them by the ledger's CHECK; null when the
+            pass could not tell. Metadata, like the category beside it.
         last_pass_metrics:
           type: object
           nullable: true

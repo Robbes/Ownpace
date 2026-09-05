@@ -94,8 +94,12 @@ failed on this connection."* instead of inviting a Test. An unsided row — an
 older build's, or a failure on neither side — still lands on both cards with
 the first slice's tail, so a screen never guesses.
 
-Not done, and named: the migration's own page and the operator's support view
-still show the category without the side. Both are one field away.
+Same day, the two other screens: the migration's own page says the side after
+the remedy sentence, and the operator's level-3 view carries `failed_side`
+(managed migration 0022 — two words, metadata like the category beside it, and
+`last_error` still unselected). One map, `FAILURE_SIDE_KEY`, beside
+`FAILURE_KEY`, for the same reason: the person who phones and the person they
+phone read the same words.
 
 ## Why this exists
 

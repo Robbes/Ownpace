@@ -156,8 +156,8 @@ beforeAll(async () => {
     );
     await q(
       `INSERT INTO migration_status
-         (id, tenant_id, mapping_id, domain, state, last_error, last_error_category)
-       VALUES (gen_random_uuid(), $1, $2, 'email', 'failed', $3, 'auth_expired')`,
+         (id, tenant_id, mapping_id, domain, state, last_error, last_error_category, failed_side)
+       VALUES (gen_random_uuid(), $1, $2, 'email', 'failed', $3, 'auth_expired', 'source')`,
       [TENANT_A, MAPPING_A, ERROR_PROSE],
     );
     await q(
@@ -283,6 +283,8 @@ describe('an operator is served, and the serving is recorded', () => {
     expect(res.body.domains).toHaveLength(1);
     expect(res.body.domains[0].state).toBe('failed');
     expect(res.body.domains[0].last_error_category).toBe('auth_expired');
+    // The side the pass named (0094 T5), through the view's own column list.
+    expect(res.body.domains[0].failed_side).toBe('source');
     expect(res.body.domains[0]).not.toHaveProperty('last_error');
   });
 
