@@ -65,6 +65,7 @@ import {
 import { ENV_BOX_CREDENTIAL_NAMES, buildBoxSourceFrom } from './box-source-factory.ts';
 import {
   buildGraphCalendarSourceFrom,
+  buildGraphTodoSourceFrom,
   buildGraphContactsSourceFrom,
   buildGraphDriveSourceFrom,
   graphEntraCredsFromEnv,
@@ -809,7 +810,15 @@ function buildDomainDepsWithLedger(
       // VJOURNAL (its own developer guide), so there is no Google task source
       // to build. A `google` account never reaches here — `task` is not one of
       // the faces PROVIDER_ACCOUNT_DOMAINS gives it.
-      source = buildTaskSource(davEndpoint(sourceConfig, 'caldav', 'source'), domainThrottleLimiter);
+      //
+      // And ONE Graph branch (workplan 0114 T9): Microsoft To Do is a task face
+      // that is not a CalDAV collection, so a `graph-todo` source is the
+      // calendar branch's `graph-calendar` sibling — the same Entra
+      // registration from the environment, the connector building the VTODO.
+      source =
+        sourceConfig.type === 'graph-todo'
+          ? buildGraphTodoSourceFrom(sourceConfig, graphEntraCredsFromEnv(), domainThrottleLimiter)
+          : buildTaskSource(davEndpoint(sourceConfig, 'caldav', 'source'), domainThrottleLimiter);
       target = buildTaskTarget(davEndpoint(targetConfig, 'caldav', 'target'), targetDeps);
       break;
     }

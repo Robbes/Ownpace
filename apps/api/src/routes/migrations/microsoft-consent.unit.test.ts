@@ -60,6 +60,8 @@ describe('what the consent asks for', () => {
 
   it('asks only for the faces that were ticked', () => {
     expect(microsoftScopesFor(['calendar'])).toEqual(['offline_access', 'Calendars.Read']);
+    // The fifth row (0114 T9): asked for only when the tasks face is ticked.
+    expect(microsoftScopesFor(['task'])).toEqual(['offline_access', 'Tasks.Read']);
     expect(microsoftScopesFor(['email', 'file'])).toEqual([
       'offline_access',
       'Mail.Read',
@@ -84,10 +86,14 @@ describe('what the consent asks for', () => {
     }
   });
 
-  it('does not ask for Microsoft To Do — 0114 keeps tasks out of the grant', () => {
-    expect(microsoftScopesFor(['task'])).toEqual(
-      // 'task' is unrecognised here, so this falls back to every face — and
-      // none of them is Tasks.Read.
+  it('asks for Microsoft To Do only when the tasks face is ticked (0114 T9)', () => {
+    // Until T9 this pinned the opposite — 'task' was unrecognised and fell
+    // back to every face, none of them Tasks.Read — because a scope for a face
+    // no connector served would have been consent spent on nothing. Now the
+    // face is served, and the rule is the one every row has: asked for when
+    // ticked, never otherwise.
+    expect(microsoftScopesFor(['task'])).toEqual(['offline_access', 'Tasks.Read']);
+    expect(microsoftScopesFor(['email', 'calendar'])).toEqual(
       expect.not.arrayContaining(['Tasks.Read']),
     );
   });

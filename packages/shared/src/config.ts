@@ -381,6 +381,19 @@ export interface GraphCalendarSource {
   readonly mailbox?: string;
 }
 
+/**
+ * Microsoft To Do source (workplan 0114 T9) — the Graph calendar source's
+ * sibling over the task domain: same registration, same optional `mailbox`
+ * under application permissions, read at `/todo/lists` under `Tasks.Read`.
+ */
+export interface GraphTodoSource {
+  readonly type: 'graph-todo';
+  readonly baseUrl?: string;
+  readonly tenantId: string;
+  /** WHOSE lists to read when not the signed-in user's own — see `GraphCalendarSource.mailbox`. */
+  readonly mailbox?: string;
+}
+
 /** Microsoft Graph Contacts source */
 export interface GraphContactsSource {
   readonly type: 'graph-contacts';
@@ -526,7 +539,7 @@ export const DOMAIN_CONFIG_KEYS: ReadonlyArray<keyof DomainsConfig> = DISCOVERY_
   (d) => DOMAIN_CONFIG_KEY[d],
 );
 
-export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | GoogleAccountSource | MicrosoftAccountSource | DropboxSource | BoxSource | ArchiveSource;
+export type SourceConfig = ImapOAuth2Source | CalDAVSource | CardDAVSource | WebDAVSource | GraphCalendarSource | GraphContactsSource | GraphTodoSource | GraphMailSource | GraphDriveFileSource | GoogleDriveSource | GmailSource | GoogleCalendarSource | GoogleContactsSource | GoogleAccountSource | MicrosoftAccountSource | DropboxSource | BoxSource | ArchiveSource;
 export type TargetConfig = JmapTarget | ImapDavTarget | CalDAVTarget | CardDAVTarget | WebDAVTarget;
 
 export interface ScheduleConfig {
@@ -891,6 +904,15 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       ...(obj['mailbox'] === undefined ? {} : { mailbox: String(obj['mailbox']) }),
     };
   }
+  if (type === 'graph-todo') {
+    return {
+      type: 'graph-todo',
+      baseUrl: obj['baseUrl'] as string | undefined,
+      tenantId: reqString(obj, 'tenantId', 'source.tenantId'),
+      // Optional: unset means the signed-in user (/me). See the type's comment.
+      ...(obj['mailbox'] === undefined ? {} : { mailbox: String(obj['mailbox']) }),
+    };
+  }
   if (type === 'dropbox') {
     return {
       type: 'dropbox',
@@ -969,7 +991,7 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       ...(tenantId === '' ? {} : { tenantId }),
     };
   }
-  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-mail", "google-drive", "gmail", "google-calendar", "google-contacts", "google", or "microsoft")`);
+  throw new ConfigError(`source.type: unsupported "${type}" (expected "imap-oauth2", "caldav", "carddav", "webdav", "graph-calendar", "graph-contacts", "graph-todo", "graph-mail", "google-drive", "gmail", "google-calendar", "google-contacts", "google", or "microsoft")`);
 }
 
 /**

@@ -63,7 +63,8 @@ export function resolveCoverage(mappings: readonly CoverableMapping[]): Coverage
     if (
       source.type === 'graph-mail' ||
       source.type === 'graph-calendar' ||
-      source.type === 'graph-contacts'
+      source.type === 'graph-contacts' ||
+      source.type === 'graph-todo'
     ) {
       const named = (source as { mailbox?: string }).mailbox?.trim();
       if (named) {

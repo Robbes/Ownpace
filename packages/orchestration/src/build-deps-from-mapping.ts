@@ -68,6 +68,7 @@ import {
 import {
   STORED_GRAPH_FIELD_NAMING,
   buildGraphCalendarSourceFrom,
+  buildGraphTodoSourceFrom,
   buildGraphContactsSourceFrom,
   buildGraphDriveSourceFrom,
   type GraphDomainEndpoint,
@@ -748,8 +749,22 @@ export function buildTaskSourceFromConnection(src: {
   kind: string;
 }): ReturnType<typeof buildTaskSource> {
   const builder = sourceFaceBuilder(src.kind, 'task');
-  if (builder !== 'dav') throw faceHasNoBuilder('task', src.kind, builder);
-  return buildTaskSource(davEndpointFromCreds('source', src.config, src.creds, src.kind, 'task'));
+  switch (builder) {
+    case 'graph-todo':
+      // Microsoft To Do (workplan 0114 T9): the one task face that is not a
+      // CalDAV collection. Same endpoint and credential shape as the account's
+      // other Graph faces; the connector builds the VTODO itself.
+      return buildGraphTodoSourceFrom(
+        graphEndpointFromConnection(src),
+        graphCredsFromConnection(src.creds),
+        undefined,
+        STORED_GRAPH_FIELD_NAMING,
+      );
+    case 'dav':
+      return buildTaskSource(davEndpointFromCreds('source', src.config, src.creds, src.kind, 'task'));
+    default:
+      throw faceHasNoBuilder('task', src.kind, builder);
+  }
 }
 
 /** The calendar builder's sibling over the contact face — same three, same rule. */

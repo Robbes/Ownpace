@@ -168,19 +168,20 @@ describe('the client fact beside the domains (ADR-0041, owner decision 2026-09-0
  * that keeps it honest when a fourth arrives.
  */
 describe('the microsoft account kind (0114 T3)', () => {
-  it('serves four faces — the asymmetry with Google running the other way', () => {
+  it('serves five faces — the asymmetry with Google running the other way', () => {
     const faces = providerAccountDomains('microsoft', {});
-    expect(faces).toEqual(['email', 'calendar', 'contact', 'file']);
+    expect(faces).toEqual(['email', 'calendar', 'contact', 'file', 'task']);
     // Google offers two by default because mail and files are restricted
     // scopes; Microsoft's delegated equivalents carry no such tier.
     expect(providerAccountDomains('google', {})).toEqual(['calendar', 'contact']);
   });
 
-  it('does not claim a task face it has no connector for', () => {
-    // Microsoft HAS one at /me/todo/lists — unlike Google, which has none at
-    // any scope tier. Ours is missing, not theirs, and 0114 T9 is where it
-    // arrives. Claiming it here would offer a tick nothing could carry.
-    expect(providerAccountServes('microsoft', 'task', {})).toBe(false);
+  it('claims the task face since 0114 T9 — and Google still cannot, at any tier', () => {
+    // Microsoft HAS one at /me/todo/lists, and `graph-todo-source` now reads
+    // it. Until T9 this line pinned the opposite, because claiming a face
+    // nothing could carry would have offered a tick that ran against nothing.
+    expect(providerAccountServes('microsoft', 'task', {})).toBe(true);
+    expect(providerAccountServes('google', 'task', {})).toBe(false);
   });
 
   it('answers where its OAuth application comes from, like google and unlike soverin', () => {
