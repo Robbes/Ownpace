@@ -289,11 +289,21 @@ const ConnectionPicker: React.FC<{
   onChange: (id: string) => void;
 }> = ({ labelKey, options, value, onChange }) => {
   const t = useT();
+  // Joined by id, not by sitting next to each other (0067 T7 (a)): a screen
+  // reader hears the label only through the association.
+  const id = React.useId();
   if (options.length === 0) return null;
   return (
     <div className="border border-gray-200 rounded-lg p-4 mb-4">
-      <label className="block text-sm font-medium text-gray-700 mb-1">{t(labelKey)}</label>
-      <select className="input w-full" value={value} onChange={(e) => onChange(e.target.value)}>
+      <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
+        {t(labelKey)}
+      </label>
+      <select
+        id={id}
+        className="input w-full"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
         <option value="">{t('wizard.reuseNone')}</option>
         {options.map((c) => (
           <option key={c.id} value={c.id}>
@@ -1672,10 +1682,14 @@ const CreateMapping: React.FC = () => {
             is what it always was. */}
         {!chosen && (
           <div className="mb-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor={`${side}-connection-name`}
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               {t('wizard.connectionName')}
             </label>
             <input
+              id={`${side}-connection-name`}
               type="text"
               value={side === 'source' ? formData.sourceConnectionName : formData.targetConnectionName}
               onChange={(e) =>
@@ -2151,10 +2165,14 @@ const CreateMapping: React.FC = () => {
                   answer is for, so consolidating owners find it here rather
                   than in a source step that cannot know it is one of two. */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="target-folder-prefix"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   {t('wizard.targetPrefix')}
                 </label>
                 <input
+                  id="target-folder-prefix"
                   type="text"
                   value={formData.targetFolderPrefix}
                   onChange={(e) => updateField('targetFolderPrefix', e.target.value)}
@@ -2175,11 +2193,12 @@ const CreateMapping: React.FC = () => {
                 0070): this step is only what is true of THIS migration —
                 what to call it, what to move, and how often. */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="migration-name" className="block text-sm font-medium text-gray-700 mb-1">
                 {t('wizard.migrationName')}
                 <Required />
               </label>
               <input
+                id="migration-name"
                 type="text"
                 required
                 value={formData.name}
@@ -2286,10 +2305,11 @@ const CreateMapping: React.FC = () => {
               </div>
 
               <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="custom-cron" className="block text-sm font-medium text-gray-700 mb-1">
                   {t('wizard.customCron')}
                 </label>
                 <input
+                  id="custom-cron"
                   type="text"
                   value={formData.schedule}
                   onChange={(e) => updateField('schedule', e.target.value)}

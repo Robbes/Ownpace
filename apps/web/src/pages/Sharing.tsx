@@ -75,6 +75,8 @@ const Row: React.FC<{
   /** A pair the owner already confirmed on another row of the same grantee. */
   confirmedGrantee?: string;
 }> = ({ row, busy, onDecide, refusal, confirmedGrantee }) => {
+  // The grantee box and its label are joined by id (0067 T7 (a)); one Row per share.
+  const granteeId = React.useId();
   const t = useT();
   // The machine proposes; a person confirms or edits before anything is sent
   // (ADR-0032 §6). Confirm ONCE: an address the owner already corrected for
@@ -135,8 +137,11 @@ const Row: React.FC<{
         <div className="mt-2 flex items-center gap-2 flex-wrap">
           {applicable && (
             <>
-              <label className="text-xs text-gray-500">{t('sharing.granteeLabel')}</label>
+              <label htmlFor={granteeId} className="text-xs text-gray-500">
+                {t('sharing.granteeLabel')}
+              </label>
               <input
+                id={granteeId}
                 type="text"
                 value={grantee}
                 onChange={(e) => {
