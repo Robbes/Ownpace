@@ -1380,6 +1380,8 @@ const en = {
   // say which of a migration's two connections failed.
   'connections.standing.whichSide':
     'It signs in with this connection and one other, and the failure does not say which \u2014 Test this one to find out.',
+  // And when the pass could tell (second slice): no guessing left to do.
+  'connections.standing.thisSide': 'It failed on this connection.',
   // What a probe FOUND, rendered from its outcome code (workplan 0080).
   // Ours, so translated; the provider's own refusal is never in here — it
   // renders verbatim, because that string is what you paste into their
@@ -2806,6 +2808,7 @@ const nl: Record<keyof typeof en, string> = {
   'connections.standing.stopped': 'is {when} gestopt ({domains}):',
   'connections.standing.whichSide':
     'Die logt in met deze verbinding en \u00e9\u00e9n andere, en de fout zegt niet welke \u2014 test deze om het te weten.',
+  'connections.standing.thisSide': 'Het ging mis op deze verbinding.',
   'probe.connected': 'Verbonden. {count} {unit} zichtbaar.',
   'probe.connected.floor': 'Verbonden. Ten minste {count} {unit} zichtbaar.',
   'probe.connectedSession': 'Verbonden. Het JMAP-sessiedocument antwoordde.',

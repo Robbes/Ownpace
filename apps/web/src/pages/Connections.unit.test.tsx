@@ -1008,6 +1008,29 @@ describe('what is standing against a connection (workplan 0094 T5)', () => {
     expect(screen.getByText('Replace credentials')).toBeTruthy();
   });
 
+  it('says the failure was on THIS connection when the pass named the side (second slice)', async () => {
+    list.mockResolvedValue([
+      conn({
+        standingFailures: [
+          {
+            mappingId: 'm1',
+            mappingName: 'Acme mail',
+            category: 'auth_expired',
+            domains: ['email'],
+            asOf: twoHoursAgo(),
+            side: 'source',
+          },
+        ],
+      }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Acme mail')).toBeInTheDocument();
+    expect(screen.getByText(/It failed on this connection\./)).toBeInTheDocument();
+    // No guessing left, so no invitation to Test.
+    expect(screen.queryByText(/Test this one to find out/)).toBeNull();
+  });
+
   it('does not invite a Test for a failure that resolves on its own', async () => {
     list.mockResolvedValue([
       conn({

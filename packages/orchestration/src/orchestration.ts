@@ -36,6 +36,7 @@ import {
   applyRelocation,
   autoApplyRelocations,
   type ApplyDeletionOutcome,
+  failureSideOf,
 } from '@openmig/core';
 import { createLedgerVerificationReader } from '@openmig/ledger';
 import {
@@ -589,7 +590,10 @@ export async function runAllDomains(
     } catch (err) {
       const error = err as Error;
       log.error(`[Worker] ${domain} sync failed: ${error.message}`);
-      await statusStore.markFailed(tenantId, mappingId, domain, error.message);
+      // With the side the pass tagged at the closure that threw (0094 T5,
+      // second slice), so the connections page can put the line on one
+      // card; undefined when it could not tell, and the page says so.
+      await statusStore.markFailed(tenantId, mappingId, domain, error.message, failureSideOf(err));
       results.push({ domain, scanned: 0, created: 0, skipped: 0, adopted: 0, failed: 1, error: error.message });
       // Continue to the next domain — one domain's failure must not block others.
     }

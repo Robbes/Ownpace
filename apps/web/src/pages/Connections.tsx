@@ -272,10 +272,10 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
         {/* What is STANDING against this connection (workplan 0094 T5): a
             pass that failed since the last Test, by category, with the
             category's own remedy — and Replace credentials is beside it.
-            Both sides of a migration carry the line, because the category
-            does not say which side failed; where the connection is the thing
-            to act on, the line says Test tells. The guard is against a
-            category this build has no sentence for. */}
+            The line sits on the side the pass named, or on both cards when
+            it could not tell; where the connection is the thing to act on,
+            the tail says which case this is. The guard is against a category
+            this build has no sentence for. */}
         {(connection.standingFailures ?? [])
           .filter((f) => isFailureCategory(f.category))
           .map((f) => (
@@ -292,7 +292,9 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
                 domains: f.domains.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
               })}{' '}
               {t(FAILURE_KEY[f.category])}
-              {ASK_TEST.has(f.category) && <> {t('connections.standing.whichSide')}</>}
+              {ASK_TEST.has(f.category) && (
+                <> {t(f.side ? 'connections.standing.thisSide' : 'connections.standing.whichSide')}</>
+              )}
             </span>
           ))}
 

@@ -20,6 +20,8 @@
  *  - is a finished migration left out, and another tenant's never seen?
  *  - does the prose — `last_error`, which carries an address — ever leave?
  *  - is a category this build has no sentence for skipped rather than served?
+ *  - when the pass NAMED the side (second slice), does the entry land on that
+ *    one card only, and say so?
  *
  * PGlite as `app_user` through the route's own `withTenantDb`; only
  * `authenticate` is stubbed. UUID family 5f940000-…, unused elsewhere.
@@ -36,7 +38,7 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import { DISCOVERY_DOMAINS, FAILURE_CATEGORIES } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, FAILURE_CATEGORIES, FAILURE_SIDES } from '@openmig/shared';
 
 const TENANT_A = '5f940000-e29b-41d4-a716-446655440901';
 const TENANT_B = '5f940000-e29b-41d4-a716-446655440902';
@@ -46,11 +48,14 @@ const SPARE = '5f940000-e29b-41d4-a716-446655440913';
 const SRC_B = '5f940000-e29b-41d4-a716-446655440914';
 const BOX_S = '5f940000-e29b-41d4-a716-446655440921';
 const BOX_S2 = '5f940000-e29b-41d4-a716-446655440922';
+const BOX_S3 = '5f940000-e29b-41d4-a716-446655440925';
 const BOX_T = '5f940000-e29b-41d4-a716-446655440923';
 const BOX_B = '5f940000-e29b-41d4-a716-446655440924';
 const MAPPING = '5f940000-e29b-41d4-a716-446655440931';
 const MAPPING_DONE = '5f940000-e29b-41d4-a716-446655440932';
 const MAPPING_B = '5f940000-e29b-41d4-a716-446655440933';
+/** A migration whose failures the pass could place on a side (0094 T5, second slice). */
+const MAPPING_SIDED = '5f940000-e29b-41d4-a716-446655440934';
 
 /** Prose with an address in it — exactly what `last_error` holds. */
 const ERROR_PROSE = 'IMAP LOGIN failed for someone@example.invalid in folder Salaris 2025';
@@ -125,15 +130,17 @@ beforeAll(async () => {
        VALUES ($1,$5,$6,'user','s','s@example.invalid'),
               ($2,$5,$6,'user','s2','s2@example.invalid'),
               ($3,$5,$7,'user','t','t@example.invalid'),
-              ($4,$8,$9,'user','b','b@example.invalid')`,
-      [BOX_S, BOX_S2, BOX_T, BOX_B, TENANT_A, SRC, TGT, TENANT_B, SRC_B],
+              ($4,$8,$9,'user','b','b@example.invalid'),
+              ($10,$5,$6,'user','s3','s3@example.invalid')`,
+      [BOX_S, BOX_S2, BOX_T, BOX_B, TENANT_A, SRC, TGT, TENANT_B, SRC_B, BOX_S3],
     );
     await q(
       `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status, name)
        VALUES ($1,$4,$6,$8,'paused','Alpha mail'),
               ($2,$4,$7,$8,'done','Alpha mail, finished'),
-              ($3,$5,$9,NULL,'active','Beta mail')`,
-      [MAPPING, MAPPING_DONE, MAPPING_B, TENANT_A, TENANT_B, BOX_S, BOX_S2, BOX_T, BOX_B],
+              ($3,$5,$9,NULL,'active','Beta mail'),
+              ($10,$4,$11,$8,'active','Alpha files')`,
+      [MAPPING, MAPPING_DONE, MAPPING_B, TENANT_A, TENANT_B, BOX_S, BOX_S2, BOX_T, BOX_B, MAPPING_SIDED, BOX_S3],
     );
     const status = (
       mappingId: string,
@@ -143,12 +150,13 @@ beforeAll(async () => {
       category: string | null,
       updatedAt: string,
       lastError: string | null = null,
+      failedSide: string | null = null,
     ) =>
       q(
         `INSERT INTO migration_status
-           (id, tenant_id, mapping_id, domain, state, last_error, last_error_category, updated_at)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7::timestamptz)`,
-        [tenantId, mappingId, domain, state, lastError, category, updatedAt],
+           (id, tenant_id, mapping_id, domain, state, last_error, last_error_category, updated_at, failed_side)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7::timestamptz, $8)`,
+        [tenantId, mappingId, domain, state, lastError, category, updatedAt, failedSide],
       );
     // The migration that stands: two domains on one category, at different
     // times (the newest as-of must win), a retry in flight on a third, a
@@ -158,6 +166,10 @@ beforeAll(async () => {
     await status(MAPPING, TENANT_A, 'file', 'in_progress', 'network', '2026-09-05T07:00:00Z', 'ECONNRESET');
     await status(MAPPING, TENANT_A, 'contact', 'completed', null, '2026-09-05T10:00:00Z');
     await status(MAPPING, TENANT_A, 'task', 'failed', FOREIGN_CATEGORY, '2026-09-05T11:00:00Z', 'later');
+    // The pass NAMED the side on these two (second slice): the source could
+    // not be read, and separately the target refused a write.
+    await status(MAPPING_SIDED, TENANT_A, 'calendar', 'failed', 'auth_expired', '2026-09-05T11:00:00Z', 'invalid_grant', 'source');
+    await status(MAPPING_SIDED, TENANT_A, 'file', 'failed', 'target_refused', '2026-09-05T10:00:00Z', '507', 'target');
     // Over. Its failure is history and a rotation would fix nothing.
     await status(MAPPING_DONE, TENANT_A, 'email', 'failed', 'target_refused', '2026-09-05T06:00:00Z', 'refused');
     // Somebody else's.
@@ -177,7 +189,8 @@ describe('GET /api/connections — what is standing against each connection (009
     const { status, byId } = await list();
     expect(status).toBe(200);
 
-    const expected = [
+    // The pass could not name a side on these, so they are on both cards.
+    const unsided = [
       {
         mappingId: MAPPING,
         mappingName: 'Alpha mail',
@@ -186,6 +199,7 @@ describe('GET /api/connections — what is standing against each connection (009
         domains: ['email', 'calendar'],
         // The newest of the two rows.
         asOf: '2026-09-05T09:00:00.000Z',
+        side: null,
       },
       {
         mappingId: MAPPING,
@@ -193,10 +207,41 @@ describe('GET /api/connections — what is standing against each connection (009
         category: 'network',
         domains: ['file'],
         asOf: '2026-09-05T07:00:00.000Z',
+        side: null,
       },
     ];
-    expect(byId.get(SRC)?.standingFailures).toEqual(expected);
-    expect(byId.get(TGT)?.standingFailures).toEqual(expected);
+    expect(byId.get(SRC)?.standingFailures.filter((f) => f.mappingId === MAPPING)).toEqual(unsided);
+    expect(byId.get(TGT)?.standingFailures.filter((f) => f.mappingId === MAPPING)).toEqual(unsided);
+  });
+
+  it('lands a failure the pass placed on one card only, and says which side (second slice)', async () => {
+    tenant = TENANT_A;
+    const { byId } = await list();
+    const onSource = byId.get(SRC)?.standingFailures.filter((f) => f.mappingId === MAPPING_SIDED);
+    const onTarget = byId.get(TGT)?.standingFailures.filter((f) => f.mappingId === MAPPING_SIDED);
+    expect(onSource).toEqual([
+      {
+        mappingId: MAPPING_SIDED,
+        mappingName: 'Alpha files',
+        category: 'auth_expired',
+        domains: ['calendar'],
+        asOf: '2026-09-05T11:00:00.000Z',
+        side: 'source',
+      },
+    ]);
+    expect(onTarget).toEqual([
+      {
+        mappingId: MAPPING_SIDED,
+        mappingName: 'Alpha files',
+        category: 'target_refused',
+        domains: ['file'],
+        asOf: '2026-09-05T10:00:00.000Z',
+        side: 'target',
+      },
+    ]);
+    // Latest first still holds across the two migrations on one card.
+    const asOfs = byId.get(SRC)?.standingFailures.map((f) => f.asOf) ?? [];
+    expect(asOfs).toEqual([...asOfs].sort().reverse());
   });
 
   it('answers an empty array — not an absence — for a connection nothing stands against', async () => {
@@ -210,7 +255,6 @@ describe('GET /api/connections — what is standing against each connection (009
     const { text, byId } = await list();
     const all = [...byId.values()].flatMap((c) => c.standingFailures);
     expect(all.some((f) => f.mappingId === MAPPING_DONE)).toBe(false);
-    expect(all.some((f) => f.category === 'target_refused')).toBe(false);
     expect(all.some((f) => f.domains.includes('contact'))).toBe(false);
     expect(all.some((f) => f.domains.includes('task'))).toBe(false);
     expect(text).not.toContain(FOREIGN_CATEGORY);
@@ -219,6 +263,7 @@ describe('GET /api/connections — what is standing against each connection (009
     expect(text).not.toContain(ERROR_PROSE);
     expect(text).not.toContain('example.invalid in folder');
     expect(text).not.toContain('ECONNRESET');
+    expect(text).not.toContain('invalid_grant');
   });
 
   it("never shows another tenant's migration, in either direction", async () => {
@@ -237,6 +282,7 @@ describe('GET /api/connections — what is standing against each connection (009
         category: 'auth_expired',
         domains: ['email'],
         asOf: '2026-09-05T05:00:00.000Z',
+        side: null,
       },
     ]);
     expect(b.text).not.toContain(MAPPING);
@@ -271,5 +317,6 @@ describe('GET /api/connections — what is standing against each connection (009
     );
     expect(dig(props, 'category', 'enum')).toEqual([...FAILURE_CATEGORIES]);
     expect(dig(props, 'domains', 'items', 'enum')).toEqual([...DISCOVERY_DOMAINS]);
+    expect(dig(props, 'side', 'enum')).toEqual([...FAILURE_SIDES]);
   });
 });

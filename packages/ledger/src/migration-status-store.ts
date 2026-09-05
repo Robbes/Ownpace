@@ -7,11 +7,12 @@ import {
   type TenantId,
   type MappingId,
   type PassMetrics,
+  isFailureSide,
 } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
 import { eq, and, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
-import type { DiscoveryDomain } from '@openmig/shared';
+import type { DiscoveryDomain, FailureSide } from '@openmig/shared';
 
 /**
  * PostgreSQL implementation of MigrationStatusStore.
@@ -119,6 +120,9 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // Cleared with the prose it describes. A category that outlived its
         // failure would read as a current problem on a screen showing none.
         lastErrorCategory: null,
+        // And the side (0094 T5): a side that outlived its failure would send
+        // somebody to rotate a credential that works.
+        failedSide: null,
         // Only when the caller measured a pass. Writing nulls over a previous
         // pass's numbers would blank the dashboard on any path that completes
         // without measuring.
@@ -138,12 +142,17 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
     mappingId: MappingId,
     domain: DiscoveryDomain,
     error: string,
+    side?: FailureSide,
   ): Promise<void> {
     await this.db
       .update(schemaPg.migrationStatus)
       .set({
         state: 'failed',
         lastError: error,
+        // Which side, when the pass could tell (0094 T5, second slice). NULL
+        // is written explicitly rather than left: the previous failure's side
+        // must not survive into a failure that could not name one.
+        failedSide: side ?? null,
         // Classified HERE, at the moment of failure (workplan 0110 T3): this
         // is where the connector's message is freshest and has travelled
         // nowhere. Stored rather than derived on read, so that editing the
@@ -220,6 +229,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         schemaPg.migrationStatus.completedAt,
         schemaPg.migrationStatus.lastError,
         schemaPg.migrationStatus.lastErrorCategory,
+        schemaPg.migrationStatus.failedSide,
         schemaPg.migrationStatus.lastPassMetrics,
       )
       .orderBy(schemaPg.migrationStatus.domain);
@@ -258,6 +268,9 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       ...(isFailureCategory(row.status.lastErrorCategory)
         ? { lastErrorCategory: row.status.lastErrorCategory }
         : {}),
+      // Through the guard for the same reason, though here the CHECK already
+      // holds the column to two values: the guard is what the type rests on.
+      ...(isFailureSide(row.status.failedSide) ? { failedSide: row.status.failedSide } : {}),
     }));
   }
 }

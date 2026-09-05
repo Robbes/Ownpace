@@ -1094,6 +1094,13 @@ export const migrationStatus = pgTable(
      */
     lastErrorCategory: text('last_error_category'),
     /**
+     * Which SIDE the last failure happened on (workplan 0094 T5, second
+     * slice; migration 0040): recorded by the pass at the closure that threw,
+     * never derived from the prose. NULL = the pass could not tell, or
+     * nothing has failed. Two values by construction, so the database checks.
+     */
+    failedSide: text('failed_side', { enum: ['source', 'target'] }),
+    /**
      * Where the last completed pass spent its wall time (see PassMetrics).
      * Counts and durations only — never folder names or addresses.
      */

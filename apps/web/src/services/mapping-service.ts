@@ -2,8 +2,13 @@
 import apiClient from './api.ts';
 import { z } from 'zod';
 import type { ProbeOutcome } from '@openmig/shared';
-import { FAILURE_CATEGORIES, MAPPING_LIFECYCLES } from '@openmig/shared';
-import type { DiscoveryRecord, FailureCategory, MappingLifecycle } from '@openmig/shared';
+import { FAILURE_CATEGORIES, FAILURE_SIDES, MAPPING_LIFECYCLES } from '@openmig/shared';
+import type {
+  DiscoveryRecord,
+  FailureCategory,
+  FailureSide,
+  MappingLifecycle,
+} from '@openmig/shared';
 import { DISCOVERY_DOMAINS } from '@openmig/shared';
 import type { DiscoveryDomain, ProbeUnit, QualificationKey } from '@openmig/shared';
 
@@ -141,6 +146,8 @@ export const MappingDomainStatusSchema = z.object({
    * the verbatim `lastError` still renders either way.
    */
   lastErrorCategory: z.enum(FAILURE_CATEGORIES).optional().catch(undefined),
+  /** Which side the pass named when it failed (0094 T5); same rule as above. */
+  failedSide: z.enum(FAILURE_SIDES).optional().catch(undefined),
   /** PassMetrics — counts and durations only, never names or addresses. */
   lastPass: z.record(z.string(), z.number()).optional(),
 });
@@ -868,6 +875,13 @@ export interface StandingFailure {
   domains: DiscoveryDomain[];
   /** When the newest of those rows last changed — ISO. */
   asOf: string;
+  /**
+   * Which side the pass named (0094 T5, second slice): set when this entry is
+   * on this connection because the failure happened here; null when the pass
+   * could not tell and the entry is on both cards. Absent on a server that
+   * predates it, which reads the same as null.
+   */
+  side?: FailureSide | null;
 }
 
 /** A stored source or target connection (workplan 0062). Never carries secrets. */

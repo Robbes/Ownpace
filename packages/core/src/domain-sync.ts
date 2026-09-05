@@ -8,6 +8,7 @@
  * domain-specific injected functions.
  */
 
+import { sided } from './failure-side.ts';
 import {
   mapWithConcurrency,
   MAX_ITEM_ATTEMPTS,
@@ -652,6 +653,36 @@ export interface DomainSyncResult {
  * Throughput/memory: folders run sequentially; within a folder, items processed with
  * BOUNDED CONCURRENCY. Cursor persisted ONLY AFTER folder fully succeeds.
  */
+/**
+ * THE SEAM THAT KNOWS WHICH SIDE FAILED (workplan 0094 T5, second slice).
+ *
+ * Every closure the pass calls is one side or the other: listing, reading and
+ * fetching are the SOURCE; ensuring a collection and writing an item are the
+ * TARGET. Tagging them here — once, for every domain, mail included — is what
+ * lets the failure written by `markFailed` say which connection to look at,
+ * without any connector knowing this exists and without a word of provider
+ * prose being parsed. The pure closures (keys, hashes, versions) stay
+ * untagged: a bad natural key is nobody's credential.
+ */
+function withSides<Source, Target, Item, Folder extends FolderLike>(
+  deps: DomainSyncDeps<Source, Target, Item, Folder>,
+): DomainSyncDeps<Source, Target, Item, Folder> {
+  return {
+    ...deps,
+    listFolders: sided('source', deps.listFolders),
+    listSince: sided('source', deps.listSince),
+    fetchRaw: sided('source', deps.fetchRaw),
+    ...(deps.listCollectionKeys
+      ? { listCollectionKeys: sided('source', deps.listCollectionKeys) }
+      : {}),
+    ...(deps.listDiscardedKeys
+      ? { listDiscardedKeys: sided('source', deps.listDiscardedKeys) }
+      : {}),
+    upsert: sided('target', deps.upsert),
+    ensureCollection: sided('target', deps.ensureCollection),
+  };
+}
+
 export async function runDomainSync<Source, Target, Item, Folder extends FolderLike>(
   deps: DomainSyncDeps<Source, Target, Item, Folder>
 ): Promise<DomainSyncResult> {
@@ -677,7 +708,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     listDiscardedKeys,
     downloadMeter,
     snapshot,
-  } = deps;
+  } = withSides(deps);
 
   const phases = startPhaseTiming();
 
