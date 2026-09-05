@@ -29,6 +29,19 @@ now, because that suffix is what the app actually serves at `/docs`, and the end
 was widened so a guide that never says WHICH export or WHERE it is fails there rather than in
 front of somebody at step four.
 
+**T10's connect-and-measure half is in the managed gate**, and it earned its keep before it
+ever ran: writing it found that `qualifyArchive` had been wired into the dispatch chain while
+a guard one function earlier returned before the chain ran, so the Measured line was dead code
+and nothing was red. The archive is the one source this gate can drive COMPLETELY — a fixture
+export tree needs no account, no consent and no network — which is why it is net-positive
+where the Apple block can only be net-zero. The IMPORT half of T10 still waits on T5/T6.
+
+**What is left, and what it waits on.** T3b needs an Apple export somebody has opened. T4's
+managed half is gated by D7 below, the one decision still open; its appliance half is what T1
+already does, since a local path is the whole of it. T5 and T6 are the next SLICE rather than
+the next task — they turn "connect and measure" into "actually imports", and the create door's
+refusal comes out when they land.
+
 **2026-09-04, later again: two more owner answers folded in.** Edited versions and motion
 clips are **distinct items carrying a link to their original**, not attributes of one record —
 because Google Photos shows the edited version by default, so a single-record design discards
@@ -80,7 +93,7 @@ If the owner decides only one thing here, decide **D1**.
 | T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
 | T8 The walkthrough | ✅ **Built 2026-09-04** | `docs/archive-setup.md` (the `-setup` suffix is what the app serves at `/docs`): how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
-| T10 The gate | 📋 Planned | A tiny fixture archive of each shape in the E2E, imported end to end, asserting item count, hashes and a second import writing nothing. |
+| T10 The gate | 🔨 **Half built 2026-09-04** | A tiny fixture archive of each shape in the E2E, imported end to end, asserting item count, hashes and a second import writing nothing. |
 
 ## Why this exists
 
