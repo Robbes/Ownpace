@@ -3,7 +3,7 @@ import apiClient from './api.ts';
 import { z } from 'zod';
 import type { ProbeOutcome } from '@openmig/shared';
 import { FAILURE_CATEGORIES, MAPPING_LIFECYCLES } from '@openmig/shared';
-import type { DiscoveryRecord, MappingLifecycle } from '@openmig/shared';
+import type { DiscoveryRecord, FailureCategory, MappingLifecycle } from '@openmig/shared';
 import { DISCOVERY_DOMAINS } from '@openmig/shared';
 import type { DiscoveryDomain, ProbeUnit, QualificationKey } from '@openmig/shared';
 
@@ -855,6 +855,21 @@ export const setupApi = {
   },
 };
 
+/**
+ * One standing failure of a migration that signs in with a connection
+ * (workplan 0094 T5): the category, never the prose — `lastError` lives on
+ * the migration's own page.
+ */
+export interface StandingFailure {
+  mappingId: string;
+  mappingName: string | null;
+  category: FailureCategory;
+  /** The domains this category stands on. */
+  domains: DiscoveryDomain[];
+  /** When the newest of those rows last changed — ISO. */
+  asOf: string;
+}
+
 /** A stored source or target connection (workplan 0062). Never carries secrets. */
 export interface ConnectionSummary {
   id: string;
@@ -882,6 +897,14 @@ export interface ConnectionSummary {
   qualification?: TestConnectionResult['qualification'] | null;
   /** When the row (and so the qualification) last changed. */
   updatedAt?: string;
+  /**
+   * What is standing against this connection (workplan 0094 T5): the
+   * categorised failure of every migration that signs in with it, one entry
+   * per migration and category, latest first. Both sides of a migration
+   * carry it — the category does not say which side failed. Absent on a
+   * server that predates it; empty when nothing stands.
+   */
+  standingFailures?: StandingFailure[];
 }
 
 export const connectionsApi = {

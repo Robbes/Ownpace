@@ -16,6 +16,16 @@
  * `POST /api/connections/:id/test` — probe it NOW, through the same builders a
  * sync pass uses, and record what came back.
  *
+ * The list also says what is STANDING against each connection (workplan 0094
+ * T5). A sync pass that fails writes a category onto the migration's status
+ * row (0110 T3), and until 2026-09-05 nothing carried that back to the page
+ * where the credential lives: `status` here is what the last Test said, a
+ * pass failing afterwards left it `connected`, and the person who owns the
+ * credential had to open each migration to learn that the fix was on the page
+ * they had just left. `standingFailures` folds those categories per
+ * connection — both sides of every migration that signs in with it — so the
+ * card can show the remedy beside the Replace button.
+ *
  * SECRETS NEVER COME BACK OUT. The list returns names, kinds and states; the
  * only thing that touches decrypted credentials is the probe, and all it
  * returns is the provider's own verdict.
@@ -23,7 +33,8 @@
 
 import { Router } from 'express';
 import type { Response } from 'express';
-import { eq, and, inArray, or, sql } from 'drizzle-orm';
+import { eq, and, inArray, or, sql, isNotNull, ne } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import * as schema from '@openmig/ledger';
 import { PgLedger } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
@@ -45,14 +56,16 @@ import {
 import { z } from 'zod';
 import {
   ARCHIVE_PROVIDERS,
+  DISCOVERY_DOMAINS,
   credentialFieldsFor,
   halfGoogleClientPairProblem,
   halfDropboxClientPairProblem,
   isArchiveProvider,
+  isFailureCategory,
   log,
   wizardTypeForConnectionKind,
 } from '@openmig/shared';
-import type { CredentialField, TenantId } from '@openmig/shared';
+import type { CredentialField, DiscoveryDomain, FailureCategory, TenantId } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 // The SHAPE builders stay the create route's, deliberately: what a connection
@@ -210,6 +223,99 @@ async function qualifyAndRememberNow(
   }
 }
 
+/**
+ * One standing failure of a migration that signs in with a connection
+ * (workplan 0094 T5). The category and nothing else: `last_error` is prose
+ * that routinely carries a mailbox address and a folder name, and it has a
+ * home on the migration's own page where the prose boundary applies.
+ */
+export interface StandingFailure {
+  readonly mappingId: string;
+  readonly mappingName: string | null;
+  readonly category: FailureCategory;
+  /** The domains this category stands on, in `DISCOVERY_DOMAINS` order. */
+  readonly domains: DiscoveryDomain[];
+  /** When the newest of those rows last changed — ISO. */
+  readonly asOf: string;
+}
+
+/** A `migration_status` row with the two connections its migration signs in with. */
+export interface StandingRow {
+  readonly mappingId: string;
+  readonly mappingName: string | null;
+  readonly sourceConnectionId: string | null;
+  readonly targetConnectionId: string | null;
+  readonly domain: DiscoveryDomain;
+  readonly category: string | null;
+  readonly asOf: Date;
+}
+
+/**
+ * Fold status rows into one entry per connection, migration and category,
+ * latest first.
+ *
+ * BOTH SIDES, deliberately. A category does not say which of the two
+ * connections failed — `target_refused` included, since the classifier files
+ * a source's 403 there too — and guessing would put the line on the wrong
+ * card. The page says so and offers Test as the way to find out; the side is
+ * the second slice's column, recorded where the failure happens rather than
+ * parsed out of prose.
+ *
+ * A category this build has no sentence for (a value written by an older or
+ * newer one) is skipped — the rule `MigrationStatusStore` reads by.
+ */
+export function standingFailuresByConnection(
+  rows: ReadonlyArray<StandingRow>,
+  connectionIds: ReadonlySet<string>,
+): Map<string, StandingFailure[]> {
+  interface Folded {
+    mappingId: string;
+    mappingName: string | null;
+    category: FailureCategory;
+    domains: Set<DiscoveryDomain>;
+    asOf: Date;
+  }
+  const perConnection = new Map<string, Map<string, Folded>>();
+  for (const row of rows) {
+    if (!isFailureCategory(row.category)) continue;
+    for (const connectionId of [row.sourceConnectionId, row.targetConnectionId]) {
+      if (!connectionId || !connectionIds.has(connectionId)) continue;
+      let byKey = perConnection.get(connectionId);
+      if (!byKey) perConnection.set(connectionId, (byKey = new Map()));
+      const key = `${row.mappingId}\u0000${row.category}`;
+      const seen = byKey.get(key);
+      if (seen) {
+        seen.domains.add(row.domain);
+        if (row.asOf > seen.asOf) seen.asOf = row.asOf;
+      } else {
+        byKey.set(key, {
+          mappingId: row.mappingId,
+          mappingName: row.mappingName,
+          category: row.category,
+          domains: new Set([row.domain]),
+          asOf: row.asOf,
+        });
+      }
+    }
+  }
+  const out = new Map<string, StandingFailure[]>();
+  for (const [connectionId, byKey] of perConnection) {
+    out.set(
+      connectionId,
+      [...byKey.values()]
+        .map((f) => ({
+          mappingId: f.mappingId,
+          mappingName: f.mappingName,
+          category: f.category,
+          domains: DISCOVERY_DOMAINS.filter((d) => f.domains.has(d)),
+          asOf: f.asOf.toISOString(),
+        }))
+        .sort((a, b) => b.asOf.localeCompare(a.asOf) || a.category.localeCompare(b.category)),
+    );
+  }
+  return out;
+}
+
 router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.tenantId) {
@@ -256,11 +362,51 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
         .groupBy(schema.mailbox.connectionId);
       const usedBy = new Map(usage.map((u) => [u.connectionId, u.used]));
 
+      // What is STANDING against each connection (workplan 0094 T5): the
+      // categorised failure on every domain row of every migration that
+      // signs in with it, both sides — `standingFailuresByConnection` says
+      // why both. `done` migrations are over: a rotation would fix nothing
+      // for them. Paused ones stay; pausing is what a person does when a
+      // pass keeps failing. Read-only: no column, no migration.
+      const sourceBox = alias(schema.mailbox, 'source_box');
+      const targetBox = alias(schema.mailbox, 'target_box');
+      const standingRows = await db
+        .select({
+          mappingId: schema.mailboxMapping.id,
+          mappingName: schema.mailboxMapping.name,
+          sourceConnectionId: sourceBox.connectionId,
+          targetConnectionId: targetBox.connectionId,
+          domain: schema.migrationStatus.domain,
+          category: schema.migrationStatus.lastErrorCategory,
+          asOf: schema.migrationStatus.updatedAt,
+        })
+        .from(schema.migrationStatus)
+        .innerJoin(
+          schema.mailboxMapping,
+          eq(schema.mailboxMapping.id, schema.migrationStatus.mappingId),
+        )
+        .innerJoin(sourceBox, eq(sourceBox.id, schema.mailboxMapping.sourceMailboxId))
+        .leftJoin(targetBox, eq(targetBox.id, schema.mailboxMapping.targetMailboxId))
+        .where(
+          and(
+            eq(schema.migrationStatus.tenantId, tenantId),
+            isNotNull(schema.migrationStatus.lastErrorCategory),
+            ne(schema.mailboxMapping.status, 'done'),
+          ),
+        );
+      const standing = standingFailuresByConnection(
+        standingRows,
+        new Set(connections.map((c) => c.id)),
+      );
+
       return connections.map(({ config, ...c }) => ({
         ...c,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
         usedByMailboxes: usedBy.get(c.id) ?? 0,
+        // Always an array, so a client cannot mistake "nothing stands" for
+        // "a server that does not say".
+        standingFailures: standing.get(c.id) ?? [],
         /**
          * What this connection already knows, so a rotation only asks for
          * what actually changed (workplan 0078). Built from `config` alone —
