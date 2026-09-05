@@ -15,11 +15,15 @@
  * - Rate limiting and throttling support
  */
 
+import { graphFailure } from './graph-refusal.ts';
 import type { FileSource, FileFolder, RawFileItem, SyncCursor, ThrottleLimiter, FileItem } from '@openmig/shared';
 import type { GraphDriveSourceConfig, GraphDriveItem, GraphDriveDeltaResponse, GraphDriveDeltaCursor, ParsedPath, NormalizePathOptions } from './graph-drive-source.types.ts';
 import { graphScopePrefix } from './graph-scope.ts';
 import type { HttpClient as _HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { log } from '@openmig/shared';
+
+/** The tick and the delegated scope this face needs — named in a refusal's way forward (0114 T6). */
+const FILES_FACE = { face: 'Files', scope: 'Files.Read' } as const;
 
 /**
  * Graph Drive source connector implementation.
@@ -90,7 +94,7 @@ export class GraphDriveSource implements FileSource {
         });
 
         if (response.status !== 200) {
-          throw new Error(`Failed to list drive items: ${response.status} - ${response.body}`);
+          throw new Error(graphFailure('Failed to list drive items', response, FILES_FACE));
         }
 
         const data = JSON.parse(response.body) as {
@@ -233,7 +237,7 @@ export class GraphDriveSource implements FileSource {
       });
 
       if (response.status !== 200) {
-        throw new Error(`Failed to list drive changes: ${response.status} - ${response.body}`);
+        throw new Error(graphFailure('Failed to list drive changes', response, FILES_FACE));
       }
 
       const data = JSON.parse(response.body) as GraphDriveDeltaResponse;
@@ -334,7 +338,7 @@ export class GraphDriveSource implements FileSource {
     });
 
     if (response.status !== 200) {
-      throw new Error(`Failed to download file: ${response.status} - ${response.body}`);
+      throw new Error(graphFailure('Failed to download file', response, FILES_FACE));
     }
 
     // Convert response body to Uint8Array
