@@ -44,13 +44,15 @@ import {
 } from '@openmig/orchestration/account-qualification';
 import { z } from 'zod';
 import {
+  ARCHIVE_PROVIDERS,
   credentialFieldsFor,
   halfGoogleClientPairProblem,
   halfDropboxClientPairProblem,
+  isArchiveProvider,
   log,
   wizardTypeForConnectionKind,
 } from '@openmig/shared';
-import type { TenantId } from '@openmig/shared';
+import type { CredentialField, TenantId } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 // The SHAPE builders stay the create route's, deliberately: what a connection
@@ -342,6 +344,31 @@ const AddSchema = z.object({
 });
 
 /**
+ * The config shape a kind's VALUES are checked against.
+ *
+ * `CreateMappingBase`'s objects are the create door's, and that door demands
+ * `username` of every source because every ACCOUNT has one: it names whose
+ * mailbox, whose Drive, whose calendar. An export archive is not an account.
+ * Its credential is a location (workplan 0116 T1), its descriptor carries
+ * `provider` and `path` and nothing else — and the first honest body ever
+ * posted here, the managed gate's, was refused with `invalid_values:
+ * username` for a field no screen shows for the kind (E2E (managed) #154).
+ * The browser's add-form posts only the descriptor's fields, so it was
+ * refused the same way: a card that could be offered and not added.
+ *
+ * So the demand FOLLOWS THE DESCRIPTOR: a kind whose fields include no
+ * `username` is not refused for lacking one, and every other kind keeps the
+ * create door's shape untouched. Read at both doors, add and rotate, so the
+ * two cannot drift apart on this.
+ */
+function configShapeFor(role: 'source' | 'target', fields: ReadonlyArray<CredentialField>) {
+  if (role === 'target') return CreateMappingBase.shape.targetConfig;
+  return fields.some((f) => f.key === 'username')
+    ? CreateMappingBase.shape.sourceConfig
+    : CreateMappingBase.shape.sourceConfig.extend({ username: z.string().optional() });
+}
+
+/**
  * Add a connection on its own, without creating a mapping (workplan 0063).
  *
  * PROBED BEFORE IT IS STORED, and stored either way with the outcome on
@@ -376,6 +403,21 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     if (missing.length > 0) {
       return void res.status(400).json(missingFieldsRefusal(missing));
     }
+    // WHICH export, checked by name before the shape (0116 T1). The shared
+    // parser behind `sourceConnectionConfig` throws on an export it does not
+    // read, and a throw there is a 500 wearing the wrong sentence. Refused
+    // here the way the create door refuses it — anchored to the field, naming
+    // the list — because the wrong reader does not fail, it finds none of its
+    // landmarks and reports an archive containing nothing.
+    if (role === 'source' && type === 'archive' && !isArchiveProvider(values.provider)) {
+      return void res.status(400).json({
+        error: 'invalid_values',
+        fields: ['provider'],
+        reason:
+          `provider: '${values.provider}' is not an export this product reads. ` +
+          `Choose ${ARCHIVE_PROVIDERS.join(' or ')}.`,
+      });
+    }
 
     // Through the SAME zod object the create route validates, so a value this
     // accepts is one create would accept — port coerced because a form sends
@@ -385,8 +427,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       ...(values.port ? { port: Number(values.port) } : {}),
       ...(values.mailPort ? { mailPort: Number(values.mailPort) } : {}),
     };
-    const configShape =
-      role === 'source' ? CreateMappingBase.shape.sourceConfig : CreateMappingBase.shape.targetConfig;
+    const configShape = configShapeFor(role, fields);
     const checked = configShape.safeParse(shaped);
     if (!checked.success) {
       return void res.status(400).json({
@@ -612,8 +653,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       ...(values.port ? { port: Number(values.port) } : {}),
       ...(values.mailPort ? { mailPort: Number(values.mailPort) } : {}),
     };
-    const configShape =
-      row.role === 'source' ? CreateMappingBase.shape.sourceConfig : CreateMappingBase.shape.targetConfig;
+    const configShape = configShapeFor(row.role, fields);
     const checked = configShape.safeParse(shaped);
     if (!checked.success) {
       return void res.status(400).json({
