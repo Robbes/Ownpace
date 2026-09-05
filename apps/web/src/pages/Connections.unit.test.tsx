@@ -398,7 +398,7 @@ describe('deleting a connection', () => {
     expect(screen.getByText(/Acme files/)).toBeTruthy();
     // ...and the frame is the dictionary's, which is what makes it Dutch
     // under nl rather than a paragraph nobody translated.
-    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.why']))).toBeTruthy();
+    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.reason']))).toBeTruthy();
   });
 
   it('says it in Dutch even when the migration has no name (0072)', async () => {
@@ -420,7 +420,7 @@ describe('deleting a connection', () => {
     fireEvent.click(await screen.findByText('Delete'));
 
     expect(await screen.findByText(new RegExp(STRINGS.en['connections.inUse.unnamed']))).toBeTruthy();
-    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.why']))).toBeTruthy();
+    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.reason']))).toBeTruthy();
     // The server's English sentence must NOT be what reaches the screen.
     expect(screen.queryByText(/still used by 1 mailbox/)).toBeNull();
   });
@@ -509,7 +509,7 @@ describe('adding a connection through the front door', () => {
     fireEvent.change(screen.getByLabelText(/^Where the archive is/), {
       target: { value: '/srv/exports/takeout-20260904' },
     });
-    fireEvent.change(screen.getByLabelText(/^Name it/), { target: { value: 'my photos' } });
+    fireEvent.change(screen.getByLabelText(/^Connection name/), { target: { value: 'my photos' } });
     add.mockResolvedValue({ ok: true });
     fireEvent.click(screen.getByRole('button', { name: 'Add and test' }));
     await waitFor(() => expect(add).toHaveBeenCalled());
@@ -531,7 +531,7 @@ describe('adding a connection through the front door', () => {
     await open();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     const fold = (
-      await screen.findByText('Use your own Google application instead')
+      await screen.findByText('Use your own Google client')
     ).closest('details');
     expect(fold).not.toBeNull();
     expect(fold).toContainElement(screen.getByPlaceholderText('…apps.googleusercontent.com'));
@@ -562,7 +562,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(button).toBeEnabled());
       // The token box is inside the fold, with the pair — not above it with
       // an asterisk, asking for what the button supplies.
-      const fold = screen.getByText('Use your own Google application instead').closest('details');
+      const fold = screen.getByText('Use your own Google client').closest('details');
       expect(fold).toContainElement(screen.getByPlaceholderText('1//…'));
 
       fireEvent.click(button);
@@ -653,7 +653,7 @@ describe('adding a connection through the front door', () => {
   it('keeps the pair in plain view where each connection brings its own', async () => {
     await open();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-    expect(screen.queryByText('Use your own Google application instead')).toBeNull();
+    expect(screen.queryByText('Use your own Google client')).toBeNull();
     expect(screen.getByPlaceholderText('…apps.googleusercontent.com').closest('details')).toBeNull();
   });
 
@@ -692,7 +692,7 @@ describe('adding a connection through the front door', () => {
       expect(screen.queryByRole('button', { name: /Connect with Dropbox/ })).toBeNull();
 
       // Microsoft's words on the fold, and its own three fields inside it.
-      const fold = screen.getByText('Use your own app registration instead').closest('details');
+      const fold = screen.getByText('Use your own app registration').closest('details');
       expect(fold).not.toBeNull();
       expect(fold).toHaveTextContent(/has its own Microsoft app registration/);
 
@@ -733,7 +733,7 @@ describe('adding a connection through the front door', () => {
       expect(screen.queryByRole('button', { name: /Connect with Google/ })).toBeNull();
       // Dropbox's words on the fold, and the App key, its secret and the
       // token inside it — the same fold Google's kinds get, in its words.
-      const fold = screen.getByText('Use your own Dropbox app instead').closest('details');
+      const fold = screen.getByText('Use your own Dropbox app').closest('details');
       expect(fold).not.toBeNull();
       expect(fold).toHaveTextContent(/has its own Dropbox app/);
       expect(fold).toContainElement(screen.getByLabelText(/App key/));
@@ -801,7 +801,7 @@ describe('adding a connection through the front door', () => {
         expect.stringContaining('Enter the App key and App secret first'),
       );
       // No fold: the pair is required here, so it is in plain view.
-      expect(screen.queryByText('Use your own Dropbox app instead')).toBeNull();
+      expect(screen.queryByText('Use your own Dropbox app')).toBeNull();
       expect(screen.getByLabelText(/App key/).closest('details')).toBeNull();
       fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'dbx-app-key' } });
       // Half a pair is still no pair (ADR-0041).

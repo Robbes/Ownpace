@@ -56,6 +56,7 @@ import {
 } from '../services/api.ts';
 import { QUALIFICATION_KEYS, isProviderAccountKind } from '@openmig/shared';
 import type { DiscoveryDomain } from '@openmig/shared';
+import { Hint } from '../components/Hint.tsx';
 
 /**
  * A refusal in the reader's own language wherever we authored it (0071).
@@ -98,7 +99,7 @@ const useRefusalText = (fields: ReadonlyArray<{ key: string; labelKey: string }>
         inUse.names.length > 0
           ? inUse.names.map((n) => `“${n}”`).join(', ')
           : t('connections.inUse.unnamed');
-      return `${t('connections.inUse.lead')} ${named}. ${t('connections.inUse.why')}`;
+      return `${t('connections.inUse.lead')} ${named}. ${t('connections.inUse.reason')}`;
     }
     return serverMessage(err);
   };
@@ -356,7 +357,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
 
       {rotating && (
         <div className="mt-3 border-t border-gray-200 pt-3">
-          <p className="text-sm text-gray-600">{t('connections.rotate.hint')}</p>
+          <Hint className="" text={t('connections.rotate.hint')} why={t('connections.rotate.why')} />
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
             {rotatableFields.map((field) => (
               <label key={field.key} className="text-sm">
@@ -497,6 +498,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     suffix:
       | 'connect'
       | 'connect.hint'
+      | 'connect.why'
       | 'connect.needsClient'
       | 'connect.halfClient'
       | 'deploymentClient'
@@ -856,7 +858,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           >
             {ps('connect')}
           </button>
-          <p className="mt-1 text-sm text-gray-500">{ps('connect.hint')}</p>
+          <Hint text={ps('connect.hint')} why={ps('connect.why')} />
           {consentNote && (
             <p className={`mt-1 text-sm ${consentNote === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
               {consentNote === 'received' ? t('wizard.consent.received') : consentNote}
