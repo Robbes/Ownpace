@@ -42,7 +42,7 @@ const en = {
   'verify.checkedAt': 'Checked',
   'queue.loadFailed': 'Could not load this queue.',
   'queue.loadFailedNotEmpty':
-    'This is not the same as an empty queue — items may be waiting that we could not read.',
+    'This is not the same as an empty queue; unread items may be waiting.',
   'queue.noMappings': 'No migrations configured.',
   'discovery.scanning': 'Scanning your source (read-only)…',
   'discovery.th.type': 'Type',
@@ -89,7 +89,7 @@ const en = {
   'login.invalidToken':
     'That does not look like a valid access token (need sub, email, tenantId, role).',
   'login.expiredToken':
-    'This token has expired. Mint a fresh one (seed script or your identity provider) and paste that instead.',
+    'This token has expired; mint a fresh one from the seed script or identity provider.',
   // Not 'Sign in': when an issuer is configured this button sits on the same
   // screen as the one that starts the real flow, and two buttons reading
   // "Sign in" that do different things is a coin toss, not a choice.
@@ -115,7 +115,7 @@ const en = {
   // now: this build carries a provider's address while the API is not using
   // one.
   'login.pasteFallback':
-    'This deployment\u2019s API is not using an identity provider, so a token from the seed script is what it accepts.',
+    'This deployment’s API uses no identity provider; it accepts a token from the seed script.',
   'login.oidcFailed': 'We could not reach the sign-in service.',
   // ---- Asking the API what it accepts, before offering it (workplan 0102 T1) ----
   'login.checking': 'Checking how this deployment signs people in…',
@@ -123,12 +123,12 @@ const en = {
   // anyway, so offering it after a failed check would be inventing a way in
   // that does not exist.
   'login.modeUnavailable':
-    'We could not ask this deployment which sign-in it accepts, so there is nothing to offer here yet.',
+    'We could not ask this deployment which sign-in it accepts; nothing to offer yet.',
   // The state #562 left behind: the stack has an issuer and this build was
   // never told its address. Named exactly, because only an operator can fix it
   // and they need the two words to search for.
   'login.providerNotBuilt':
-    'This deployment signs in with an identity provider, but this web build was not given its address. Rebuild the web image with VITE_OIDC_ISSUER and VITE_OIDC_CLIENT_ID set.',
+    'Identity provider sign-in, but this web build lacks its address: rebuild with VITE_OIDC_ISSUER and VITE_OIDC_CLIENT_ID.',
   'login.callback.working': 'Signing you in…',
   'login.callback.failed': 'That sign-in did not complete.',
   'login.callback.again': 'Try again',
@@ -154,7 +154,9 @@ const en = {
   'login.noOrganisation.signedInAs': 'You signed in as {email}.',
   'login.noOrganisation.ask': 'Ask for access',
   'login.noOrganisation.already':
-    'Already asked? Then it is waiting for an answer and you will hear by email. Asking again does no harm — a second request while the first is open is not recorded twice.',
+    'Already asked? Then it is waiting for an answer and you will hear by email.',
+  'login.noOrganisation.already.why':
+    'Asking again does no harm: a second request while the first is open is not recorded twice.',
   // ---- The access QUEUE, which an operator reads (workplan 0093 T7). The
   // `access.*` keys further down are the PUBLIC page somebody asks on (T3);
   // these are the screen where somebody answers, hence a separate prefix.
@@ -168,19 +170,19 @@ const en = {
   // fails with the same unhelpful sentence from a different vendor.
   'redirects.title': 'Redirect URIs',
   'redirects.intro':
-    'The addresses this deployment asks other services to send a browser back to. Each one '
-    + 'has to be registered in that service’s own console, exactly as shown — they are built '
-    + 'from this deployment’s settings, so what is here is what will actually be requested.',
+    'The addresses other services send a browser back to; register each exactly as shown.',
+  'redirects.intro.more':
+    'They are built from this deployment’s settings, so what is here is what will actually be requested; each one has to be registered in that service’s own console.',
   'redirects.loading': 'Reading this deployment’s settings…',
-  'redirects.failed': 'Could not read them. The list is built by the API; check that it is up.',
+  'redirects.failed': 'Could not read them; the API builds the list, so check that it is up.',
   'redirects.group.migration': 'Migration sources — in the provider’s own OAuth client',
   'redirects.group.signIn': 'Signing in — in your identity provider',
   'redirects.group.socialSignIn': 'Social sign-in — in each upstream provider',
   'redirects.none': 'No redirect URI to register.',
   'redirects.unconfigured':
-    'This deployment has not been told the address it is reached at, so there is nothing to '
-    + 'show here yet. Set it first — registering a guess produces a mismatch later, at the '
-    + 'provider’s screen.',
+    'This deployment has not been told its own address, so nothing shows yet.',
+  'redirects.unconfigured.why':
+    'Set it first: registering a guess produces a mismatch later, at the provider’s screen.',
   // ---- Answering an invitation (workplan 0099). ----
   'invite.title': 'You have been invited',
   'invite.subtitle': 'Joining is your choice. Nothing happens until you make it.',
@@ -190,9 +192,8 @@ const en = {
   'invite.joining': 'Joining…',
   'invite.decline': 'Decline',
   'invite.skip': 'Not now',
-  'invite.skipHelp':
-    'Not now changes nothing — we will ask again next time you sign in. Declining is ' +
-    'recorded, and only the organisation can invite you again.',
+  'invite.skipHelp': 'Not now changes nothing; we ask again next time you sign in.',
+  'invite.skipHelp.why': 'Declining is recorded, and only the organisation can invite you again.',
   'invite.confirmDecline':
     'Decline the invitation from {name}? Only they can invite you again.',
   'queue.title': 'Access requests',
@@ -221,9 +222,9 @@ const en = {
   // deserves to know that promise survives the send.
   'queue.tellThem': 'Email them if you decline',
   'queue.tellThemHelp':
-    'A short refusal in their own language, with no reason and never your note. Untick it for ' +
-    'junk: this form is public, so a made-up address belongs to a stranger. Granting always ' +
-    'emails them — that is how they learn they can sign in.',
+    'A short refusal in their language, without reason or your note; untick for junk.',
+  'queue.tellThemHelp.why':
+    'This form is public, so a made-up address belongs to a stranger. Granting always emails them; that is how they learn they can sign in.',
   // THE OVERRIDE (owner decision 2026-08-31). Granting a person who already
   // owns an organisation creates a SECOND one with them as owner of both, and
   // `/api/me` then has two tenants for somebody who asked once and pressed
@@ -232,15 +233,15 @@ const en = {
   // deliberate second press, after seeing the list.
   'queue.alreadyOwnsHeading': 'This address already owns an organisation',
   'queue.alreadyOwnsHelp':
-    'Granting again creates another one, with them as owner of both — and the app then has to ' +
-    'ask them which they meant every time they sign in. Usually this is a double press. If it ' +
-    'is genuinely a second organisation, say so below.',
+    'Granting again creates another organisation with them as owner of both; usually a double press.',
+  'queue.alreadyOwnsHelp.why':
+    'The app then has to ask them which they meant every time they sign in. If it is genuinely a second organisation, say so below.',
   'queue.grantAnyway': 'Create a second organisation',
   'queue.grantAnywayCancel': 'Leave it as it is',
   'queue.mailSent': 'We emailed {email}.',
   'queue.mailOff': 'Nobody was emailed — this deployment sends no mail. Tell {email} yourself.',
   'queue.mailFailed':
-    'The email to {email} could not be sent. Tell them yourself, and check the mail settings.',
+    'The email to {email} could not be sent; tell them yourself, check the mail settings.',
   'queue.mailSkipped': 'Nobody was emailed, as you asked.',
   'wizard.proto.imap.hint': 'Standard email protocol',
   // The consent you can click (0089 T1): the button that replaces the OAuth
@@ -545,7 +546,7 @@ const en = {
   // visible only in a container log line written once at boot.
   'notifications.off': 'Email notifications are off',
   'notifications.offHint':
-    'Nobody will be emailed when this migration needs a decision. Configure SMTP to turn them on.',
+    'Nobody is emailed when this migration needs a decision; configure SMTP to turn that on.',
   'notifications.offReason': 'Reason given by the server:',
   'dashboard.recentActivity': 'Recent Activity',
   'dashboard.noActivity': 'No activity yet',
@@ -790,10 +791,11 @@ const en = {
   'billing.noPaymentMethods': 'No payment methods stored.',
   'billing.paymentMethodsLoadFailed': 'Could not load the payment methods.',
   'billing.default': 'Default',
-  'billing.adminOnly': 'Billing is available to owners and admins only. Ask an owner or admin of this organization for usage or invoice details.',
+  'billing.adminOnly':
+    'Billing is available to owners and admins only; ask one for usage or invoice details.',
   'billing.invoicesLoadFailed': 'Could not load the invoices.',
   'billing.loadFailedNotEmpty':
-    'This is not the same as having none — data may exist that could not be read.',
+    'Not the same as having none; data may exist that could not be read.',
   'billing.party.title': 'Invoice details',
   'billing.party.intro': 'Who invoices are addressed to.',
   'billing.party.missing':
@@ -824,11 +826,11 @@ const en = {
   'billing.party.vat.treatmentLabel': 'VAT on your invoices:',
   'billing.party.vat.treatment.domestic': 'Invoices will include VAT at the standard rate.',
   'billing.party.vat.treatment.reverseCharge':
-    'Reverse charge — invoices carry no VAT; your business accounts for it in its own country.',
+    'Reverse charge: invoices carry no VAT; your business accounts for it in its own country.',
   'billing.party.vat.treatment.oss':
     'Invoices will include your own country’s VAT rate (One Stop Shop).',
   'billing.party.vat.treatment.outsideEu':
-    'Your address is outside the EU VAT area; how invoices are taxed is settled before the first invoice.',
+    'Outside the EU VAT area; how invoices are taxed is settled before the first invoice.',
   'confirm.nextSteps': 'Next, in cutover order:',
   'confirm.title': 'Review & confirm your migration',
   'confirm.intro': 'Nothing has been copied yet. Review what will migrate, then start it.',
@@ -880,11 +882,13 @@ const en = {
   // ---------------------------------------------------------------------
   'support.heading': 'Support',
   'support.recorded':
-    'Every screen you open here is written to the support read log against your name, with the '
-    + 'organisation and the time. Customers can be shown that record.',
+    'Every screen you open here is logged against your name, and customers can see that.',
+  'support.recorded.why':
+    'The support read log records the organisation and the time with each screen, and customers can be shown that record.',
   'support.metadataOnly':
-    'Names, states, counts and timings only. No message, event, contact or file is shown here, '
-    + 'and none can be \u2014 the database serves this surface a fixed list of columns.',
+    'Names, states, counts and timings only; no message, event, contact or file is shown here.',
+  'support.metadataOnly.why':
+    'None can be: the database serves this surface a fixed list of columns.',
   'support.noOrganisations': 'No organisations to show.',
   'support.notFound': 'Nothing here to show.',
   'support.back': 'All organisations',
@@ -900,7 +904,7 @@ const en = {
   'support.find': 'Find',
   'support.findPersonHint': 'Part of an email address',
   'support.findPersonRecorded':
-    'A search reads every organisation. What you searched for and how many people it found are recorded against your name.',
+    'A search reads every organisation; the query and hit count are logged to your name.',
   'support.noPeopleFound': 'Nobody matches that.',
   'support.findPersonCapped':
     'Showing the first matches only — narrow the search rather than scrolling.',
@@ -913,16 +917,14 @@ const en = {
   // other half — no console configured — is a deployment setting and says
   // nothing here, because there is nothing about the PERSON to say.
   'support.notArrivedYet':
-    'Has not signed in yet, so there is no account at the identity provider to open. ' +
-    'The invitation is waiting; this becomes a link once they arrive.',
+    'Has not signed in yet; this becomes a link once the invitation is taken up.',
   // And the other reason a person has no account to open: there is no person.
   // Demo fixtures are written straight into the database, so the provider has
   // never heard of them and never will — which is a different sentence from
   // "not yet", and reading the wrong one sends somebody looking for an account
   // that was never going to exist.
   'support.seededDemoAccount':
-    'A demo fixture, written by the seed rather than by anybody signing in. ' +
-    'There is no account at the identity provider to open, and there will not be.',
+    'A demo fixture from the seed; no identity-provider account exists to open, nor will one.',
   'support.openAtProvider': 'Open this account at the identity provider',
   'support.connections': 'Connections',
   'support.migrations': 'Migrations',
@@ -942,17 +944,15 @@ const en = {
   'support.platform.state.unchecked': 'not checked yet',
   'support.platform.page.off': 'This deployment has no status page.',
   'support.platform.page.unreachable':
-    'The status page did not answer. On a stack that has one, that is news in itself.',
+    'The status page did not answer; on a stack that has one, that is news.',
   'support.platform.unread': 'The platform status could not be read.',
   'support.platform.checked': 'Checked {when}.',
   'support.noDomains': 'Nothing has run yet.',
   'support.waiting.none': 'Nothing is waiting on them.',
   'support.waiting.some':
-    'Decisions are waiting on this customer. Their own decisions screen says which \u2014 this '
-    + 'one only counts them.',
+    'Decisions are waiting on this customer; their own screen says which, this one only counts.',
   'support.noFourthLevel':
-    'There is no screen below this one. A list of items would be a list of subject lines, and '
-    + 'that is where support stops.',
+    'There is no screen below this one; items would be subject lines, where support stops.',
   'support.col.organisation': 'Organisation',
   'support.col.status': 'Status',
   'support.col.joined': 'Joined',
@@ -986,9 +986,9 @@ const en = {
   'support.usage.now': 'Holding a slot right now',
   'support.usage.data': 'Data moved (first copies)',
   'support.usage.note':
-    'The higher axis decides — paths running at the same time, or data moved since the '
-    + 'start (first copies only; a paused path keeps its slot). This is the same derivation a '
-    + 'future invoice will use; nothing changes by looking.',
+    'The higher axis decides; a future invoice uses this same derivation, and looking changes nothing.',
+  'support.usage.why':
+    'Paths running at the same time, or data moved since the start: first copies only, and a paused path keeps its slot.',
   // What an erasure kept, and could not be read until there was a screen.
   'support.retained.link': 'Invoices kept after an erasure',
   'support.retained.heading': 'Invoices kept after an erasure',
@@ -1129,10 +1129,10 @@ const en = {
     'We migrate your data into it; we do not operate, monitor or back it up. If it is a managed European platform, its own provider is responsible for it.',
   'tenants.title': 'Team & organization',
   'tenants.intro':
-    'Who can sign in to this organization, and what they are allowed to do. Changes apply immediately.',
+    'Who can sign in to this organization and what they may do; changes apply immediately.',
   'tenants.noTenant': 'No organization in this session.',
   'tenants.selfDemotionArmed':
-    'This lowers your own role — you may not be able to change it back yourself.',
+    'This lowers your own role; you may not be able to change it back yourself.',
   'tenants.selfDemotionConfirm': 'Confirm role change',
   'tenants.org.heading': 'Organization',
   'tenants.org.readError':
@@ -1153,27 +1153,24 @@ const en = {
   'tenants.members.removeArmed': 'Confirm remove',
   'tenants.readOnly': 'Your role here is read-only. An owner or admin manages members.',
   'tenants.invite.heading': 'Invite someone',
-  'tenants.invite.hint':
-    'No email is sent yet — tell them yourself. The invitation appears below as "invited".',
+  'tenants.invite.hint': 'No email yet; tell them yourself, and they appear below as invited.',
   'tenants.invite.email': 'Email address',
   'tenants.invite.role': 'Role',
   'tenants.notify.heading': 'Email summaries',
   'tenants.notify.intro':
-    'How often this organization is emailed a summary of what is waiting for a decision. ' +
-    'A summary with nothing in it is never sent — silence means nothing is waiting.',
+    'How often a summary of waiting decisions is emailed; an empty one is never sent.',
+  'tenants.notify.intro.more': 'Silence means nothing is waiting.',
   'tenants.notify.cadence': 'Summary',
   'tenants.notify.daily': 'Daily',
   'tenants.notify.weekly': 'Weekly (Monday)',
   'tenants.notify.off': 'No summary',
   'tenants.notify.locale': 'Language',
   'tenants.notify.recipients':
-    'Sent to every owner and admin below. Urgent events are emailed as they happen, whichever ' +
-    'summary you choose here.',
+    'Sent to every owner and admin below; urgent events are emailed as they happen regardless.',
   'tenants.notify.save': 'Save',
   'tenants.notify.saved': 'Saved.',
   'tenants.notify.readError':
-    'Could not read the current setting — saving would overwrite something unknown, so the ' +
-    'controls are disabled.',
+    'Could not read the setting; saving would overwrite something unknown, so the controls are off.',
   'tenants.invite.submit': 'Invite',
   'role.owner': 'Owner',
   'role.admin': 'Admin',
@@ -1524,18 +1521,14 @@ const en = {
   'setup.davbasic.app_password.yields': 'a username and an app password.',
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Request access',
-  'access.intro':
-    'Ownpace is invite-only while we are getting started. Tell us what you want to move and ' +
-    'we will come back to you by email.',
+  'access.intro': 'Invite-only for now: tell us what you want to move, and we will email you.',
   'access.email': 'Email address',
   'access.emailHint': 'Where we reply. Nothing else is sent here.',
   'access.name': 'Your name',
   'access.organisation': 'Organisation',
   'access.optional': 'optional',
   'access.note': 'What are you moving?',
-  'access.noteHint':
-    'Roughly how many mailboxes, and from where — Microsoft 365, Google, somewhere else. A ' +
-    'sentence is plenty.',
+  'access.noteHint': 'Roughly how many mailboxes, and from where; one sentence is plenty.',
   'access.tier': 'Which package looks right?',
   'access.tierHint':
     'A guess is fine. The package follows what actually runs, so this is not binding.',
@@ -1546,8 +1539,7 @@ const en = {
   'access.sentDetail': 'You will hear back by email.',
   'access.failed': 'We could not send that:',
   'access.failedFallback': 'the request did not complete.',
-  'access.privacy':
-    'We keep what you type here to answer you, and nothing else. No account is created by asking.',
+  'access.privacy': 'We keep what you type only to answer you; asking creates no account.',
   'access.backToSignIn': 'Already have an account? Sign in',
 } as const;
 
@@ -1596,12 +1588,13 @@ const nl: Record<keyof typeof en, string> = {
   // BEHEERDER, niet aan een klant.
   'support.heading': 'Support',
   'support.recorded':
-    'Elk scherm dat u hier opent, wordt op uw naam vastgelegd in het supportleeslogboek, met de '
-    + 'organisatie en het tijdstip. Klanten kunnen dat logboek te zien krijgen.',
+    'Elk scherm dat u hier opent wordt op uw naam vastgelegd; klanten kunnen dat zien.',
+  'support.recorded.why':
+    'Het supportleeslogboek legt bij elk scherm de organisatie en het tijdstip vast, en klanten kunnen dat logboek te zien krijgen.',
   'support.metadataOnly':
-    'Alleen namen, statussen, aantallen en tijden. Geen bericht, afspraak, contact of bestand '
-    + 'wordt hier getoond, en dat kan ook niet \u2014 de database levert dit scherm een vaste '
-    + 'lijst kolommen.',
+    'Alleen namen, statussen, aantallen en tijden; geen bericht, afspraak, contact of bestand wordt hier getoond.',
+  'support.metadataOnly.why':
+    'Dat kan ook niet: de database levert dit scherm een vaste lijst kolommen.',
   'support.noOrganisations': 'Geen organisaties om te tonen.',
   'support.notFound': 'Hier is niets te tonen.',
   'support.back': 'Alle organisaties',
@@ -1611,7 +1604,7 @@ const nl: Record<keyof typeof en, string> = {
   'support.find': 'Zoeken',
   'support.findPersonHint': 'Deel van een e-mailadres',
   'support.findPersonRecorded':
-    'Een zoekopdracht leest alle organisaties. Waarop u zocht en hoeveel mensen dat opleverde, worden op uw naam vastgelegd.',
+    'Een zoekopdracht leest alle organisaties; zoekterm en aantal treffers worden op uw naam vastgelegd.',
   'support.noPeopleFound': 'Niemand komt overeen.',
   'support.findPersonCapped':
     'Alleen de eerste resultaten — verfijn de zoekopdracht in plaats van te scrollen.',
@@ -1619,11 +1612,9 @@ const nl: Record<keyof typeof en, string> = {
   'support.noPeople': 'Niemand hoort bij deze organisatie.',
   'support.col.email': 'E-mailadres',
   'support.notArrivedYet':
-    'Heeft zich nog niet aangemeld, dus er is nog geen account bij de identiteitsprovider ' +
-    'om te openen. De uitnodiging staat klaar; zodra zij zich aanmelden wordt dit een link.',
+    'Heeft zich nog niet aangemeld; dit wordt een link zodra de uitnodiging is aangenomen.',
   'support.seededDemoAccount':
-    'Een demovoorbeeld, aangemaakt door het seed-script en niet door iemand die zich ' +
-    'aanmeldt. Er is geen account bij de identiteitsprovider om te openen, en dat komt er ook niet.',
+    'Een demovoorbeeld uit het seed-script; er is geen identiteitsprovider-account, en dat komt er niet.',
   'support.openAtProvider': 'Dit account openen bij de identiteitsprovider',
   'support.connections': 'Verbindingen',
   'support.migrations': 'Migraties',
@@ -1641,17 +1632,15 @@ const nl: Record<keyof typeof en, string> = {
   'support.platform.state.unchecked': 'nog niet gecontroleerd',
   'support.platform.page.off': 'Deze installatie heeft geen statuspagina.',
   'support.platform.page.unreachable':
-    'De statuspagina antwoordde niet. Op een omgeving die er een heeft, is dat op zichzelf nieuws.',
+    'De statuspagina antwoordde niet; op een omgeving die er een heeft is dat nieuws.',
   'support.platform.unread': 'De platformstatus kon niet worden gelezen.',
   'support.platform.checked': 'Gecontroleerd {when}.',
   'support.noDomains': 'Er is nog niets gedraaid.',
   'support.waiting.none': 'Er wacht niets op hen.',
   'support.waiting.some':
-    'Er wachten beslissingen op deze klant. Hun eigen beslissingenscherm zegt welke \u2014 dit '
-    + 'scherm telt ze alleen.',
+    'Er wachten beslissingen op deze klant; hun eigen scherm zegt welke, dit telt ze alleen.',
   'support.noFourthLevel':
-    'Er is geen scherm onder dit scherm. Een lijst met items is een lijst met onderwerpregels, '
-    + 'en daar houdt support op.',
+    'Er is geen scherm onder dit scherm; items zouden onderwerpregels zijn, waar support ophoudt.',
   'support.col.organisation': 'Organisatie',
   'support.col.status': 'Status',
   'support.col.joined': 'Klant sinds',
@@ -1684,9 +1673,9 @@ const nl: Record<keyof typeof en, string> = {
   'support.usage.now': 'Houdt nu een plek vast',
   'support.usage.data': 'Verplaatste data (eerste kopieën)',
   'support.usage.note':
-    'De hoogste as bepaalt — paden die tegelijk lopen, of data die sinds het begin is '
-    + 'verplaatst (alleen eerste kopieën; een gepauzeerd pad houdt zijn plek). Dit is dezelfde '
-    + 'afleiding die een toekomstige factuur gebruikt; kijken verandert niets.',
+    'De hoogste as bepaalt; een toekomstige factuur gebruikt dezelfde afleiding, en kijken verandert niets.',
+  'support.usage.why':
+    'Paden die tegelijk lopen, of data die sinds het begin is verplaatst: alleen eerste kopieën, en een gepauzeerd pad houdt zijn plek.',
   // Wat na een wissing bewaard is gebleven.
   'support.retained.link': 'Facturen bewaard na een wissing',
   'support.retained.heading': 'Facturen bewaard na een wissing',
@@ -1707,7 +1696,7 @@ const nl: Record<keyof typeof en, string> = {
   'verify.checkedAt': 'Geverifieerd',
   'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',
   'queue.loadFailedNotEmpty':
-    'Dit is niet hetzelfde als een lege wachtrij — er kunnen items wachten die niet gelezen konden worden.',
+    'Dit is niet hetzelfde als een lege wachtrij; er kunnen ongelezen items wachten.',
   'queue.noMappings': 'Geen migraties geconfigureerd.',
   'discovery.scanning': 'Uw bron wordt gescand (alleen-lezen)…',
   'discovery.th.type': 'Type',
@@ -1755,7 +1744,7 @@ const nl: Record<keyof typeof en, string> = {
   'login.invalidToken':
     'Dit lijkt geen geldig toegangstoken (sub, e-mail, tenantId en rol zijn vereist).',
   'login.expiredToken':
-    'Dit token is verlopen. Maak een nieuw token aan (seedscript of uw identityprovider) en plak dat in plaats hiervan.',
+    'Dit token is verlopen; maak een nieuw token (seedscript of identityprovider) en plak dat.',
   'login.submit': 'Dit token gebruiken',
   'login.help.pre': 'Plak het toegangstoken uit het seedscript',
   'login.help.post': '\u2014 deze omgeving heeft geen identiteitsprovider ingesteld.',
@@ -1765,14 +1754,14 @@ const nl: Record<keyof typeof en, string> = {
   'login.verifying': 'Token wordt gecontroleerd…',
   'login.pasteToggle': 'Aanmelden met een token',
   'login.pasteFallback':
-    'De API van deze omgeving gebruikt geen identiteitsprovider, dus een token uit het seedscript is wat zij accepteert.',
+    'Deze API gebruikt geen identiteitsprovider en accepteert dus een token uit het seedscript.',
   'login.oidcFailed': 'Wij konden de aanmeldservice niet bereiken.',
   // ---- De API vragen wat zij accepteert (workplan 0102 T1) — zie het Engelse blok. ----
   'login.checking': 'Bezig met controleren hoe deze omgeving mensen aanmeldt…',
   'login.modeUnavailable':
-    'Wij konden deze omgeving niet vragen welke aanmelding zij accepteert, dus er valt hier nog niets aan te bieden.',
+    'Wij konden deze omgeving niet vragen welke aanmelding zij accepteert; nog niets aan te bieden.',
   'login.providerNotBuilt':
-    'Deze omgeving meldt aan via een identiteitsprovider, maar deze webbuild heeft het adres daarvan nooit meegekregen. Bouw het webimage opnieuw met VITE_OIDC_ISSUER en VITE_OIDC_CLIENT_ID ingesteld.',
+    'Aanmelden via identiteitsprovider, maar deze webbuild mist het adres: bouw opnieuw met VITE_OIDC_ISSUER en VITE_OIDC_CLIENT_ID.',
   'login.callback.working': 'U wordt aangemeld…',
   'login.callback.failed': 'Die aanmelding is niet voltooid.',
   'login.callback.again': 'Opnieuw proberen',
@@ -1781,7 +1770,9 @@ const nl: Record<keyof typeof en, string> = {
   'login.noOrganisation.signedInAs': 'U bent aangemeld als {email}.',
   'login.noOrganisation.ask': 'Toegang aanvragen',
   'login.noOrganisation.already':
-    'Al aangevraagd? Dan wacht het op een antwoord en hoort u het per e-mail. Nogmaals aanvragen kan geen kwaad — een tweede aanvraag terwijl de eerste openstaat wordt niet twee keer vastgelegd.',
+    'Al aangevraagd? Dan wacht het op een antwoord en hoort u het per e-mail.',
+  'login.noOrganisation.already.why':
+    'Nogmaals aanvragen kan geen kwaad: een tweede aanvraag terwijl de eerste openstaat wordt niet twee keer vastgelegd.',
   // ---- The access QUEUE (workplan 0093 T7) — see the English block. ----
   'nav.accessRequests': 'Toegangsverzoeken',
   'nav.support': 'Support',
@@ -1789,10 +1780,9 @@ const nl: Record<keyof typeof en, string> = {
   // ---- Zie het Engelse blok. ----
   'redirects.title': 'Omleidings-URI\u2019s',
   'redirects.intro':
-    'De adressen waarnaar deze omgeving andere diensten een browser laat terugsturen. Elk '
-    + 'adres moet exact zo in de console van die dienst worden geregistreerd \u2014 ze worden '
-    + 'opgebouwd uit de instellingen van deze omgeving, dus wat hier staat is wat er ook '
-    + 'daadwerkelijk wordt gevraagd.',
+    'De adressen waarnaar andere diensten een browser terugsturen; registreer elk adres exact zoals getoond.',
+  'redirects.intro.more':
+    'Ze worden opgebouwd uit de instellingen van deze omgeving, dus wat hier staat is wat er daadwerkelijk wordt gevraagd; elk adres moet in de console van die dienst worden geregistreerd.',
   'redirects.loading': 'Instellingen van deze omgeving lezen\u2026',
   'redirects.failed':
     'Kon ze niet lezen. De lijst wordt door de API opgebouwd; controleer of die draait.',
@@ -1801,9 +1791,9 @@ const nl: Record<keyof typeof en, string> = {
   'redirects.group.socialSignIn': 'Sociaal aanmelden \u2014 bij elke bovenliggende aanbieder',
   'redirects.none': 'Geen omleidings-URI te registreren.',
   'redirects.unconfigured':
-    'Deze omgeving weet nog niet op welk adres zij bereikbaar is, dus hier valt nog niets te '
-    + 'tonen. Stel dat eerst in \u2014 een gok registreren levert later een mismatch op, op '
-    + 'het scherm van de aanbieder.',
+    'Deze omgeving kent haar eigen adres nog niet, dus hier valt nog niets te tonen.',
+  'redirects.unconfigured.why':
+    'Stel dat eerst in: een gok registreren levert later een mismatch op, op het scherm van de aanbieder.',
   // ---- Een uitnodiging beantwoorden (workplan 0099) — zie het Engelse blok. ----
   'invite.title': 'U bent uitgenodigd',
   'invite.subtitle': 'Meedoen is uw keuze. Er gebeurt niets tot u die maakt.',
@@ -1813,9 +1803,9 @@ const nl: Record<keyof typeof en, string> = {
   'invite.joining': 'Bezig met meedoen…',
   'invite.decline': 'Afwijzen',
   'invite.skip': 'Nu niet',
-  'invite.skipHelp':
-    'Nu niet verandert niets — wij vragen het opnieuw zodra u zich weer aanmeldt. Afwijzen ' +
-    'wordt vastgelegd, en alleen de organisatie kan u opnieuw uitnodigen.',
+  'invite.skipHelp': 'Nu niet verandert niets; wij vragen het opnieuw bij uw volgende aanmelding.',
+  'invite.skipHelp.why':
+    'Afwijzen wordt vastgelegd, en alleen de organisatie kan u opnieuw uitnodigen.',
   'invite.confirmDecline':
     'De uitnodiging van {name} afwijzen? Alleen zij kunnen u opnieuw uitnodigen.',
   'queue.title': 'Toegangsverzoeken',
@@ -1840,22 +1830,21 @@ const nl: Record<keyof typeof en, string> = {
     'Dit verzoek afwijzen zonder hen te mailen? Het blijft hoe dan ook vastgelegd.',
   'queue.tellThem': 'Mail hen als u afwijst',
   'queue.tellThemHelp':
-    'Een korte afwijzing in hun eigen taal, zonder reden en nooit met uw notitie. Vink het uit ' +
-    'bij rommel: dit formulier is openbaar, dus een verzonnen adres is van een onbekende. Bij ' +
-    'toekennen mailen wij altijd — zo weten zij dat zij zich kunnen aanmelden.',
+    'Een korte afwijzing in hun taal, zonder reden of uw notitie; uitvinken bij rommel.',
+  'queue.tellThemHelp.why':
+    'Dit formulier is openbaar, dus een verzonnen adres is van een onbekende. Bij toekennen mailen wij altijd; zo weten zij dat zij zich kunnen aanmelden.',
   'queue.alreadyOwnsHeading': 'Dit adres is al eigenaar van een organisatie',
   'queue.alreadyOwnsHelp':
-    'Nog een keer toekennen maakt er nóg een, met deze persoon als eigenaar van beide — en de ' +
-    'app moet hen dan bij elke aanmelding vragen welke zij bedoelen. Meestal is dit twee keer ' +
-    'drukken. Gaat het echt om een tweede organisatie, geef dat hieronder aan.',
+    'Nogmaals toekennen maakt nóg een organisatie, met hen als eigenaar van beide; meestal dubbel gedrukt.',
+  'queue.alreadyOwnsHelp.why':
+    'De app moet hen dan bij elke aanmelding vragen welke zij bedoelen. Gaat het echt om een tweede organisatie, geef dat hieronder aan.',
   'queue.grantAnyway': 'Tweede organisatie aanmaken',
   'queue.grantAnywayCancel': 'Laat het zoals het is',
   'queue.mailSent': 'Wij hebben {email} gemaild.',
   'queue.mailOff':
     'Er is niemand gemaild — deze installatie verstuurt geen e-mail. Laat het {email} zelf weten.',
   'queue.mailFailed':
-    'De e-mail aan {email} kon niet worden verstuurd. Laat het hen zelf weten en controleer de ' +
-    'e-mailinstellingen.',
+    'De e-mail aan {email} is niet verstuurd; laat het hen zelf weten, controleer de e-mailinstellingen.',
   'queue.mailSkipped': 'Er is niemand gemaild, zoals u vroeg.',
   'wizard.proto.imap.hint': 'Standaard e-mailprotocol',
   'wizard.google.connect': 'Verbinden met Google',
@@ -2108,7 +2097,7 @@ const nl: Record<keyof typeof en, string> = {
   'dashboard.errorLoading': 'Het dashboard kon niet worden geladen',
   'notifications.off': 'E-mailmeldingen staan uit',
   'notifications.offHint':
-    'Niemand krijgt een e-mail wanneer deze migratie een beslissing nodig heeft. Stel SMTP in om ze aan te zetten.',
+    'Niemand wordt gemaild als deze migratie een beslissing nodig heeft; stel SMTP in.',
   'notifications.offReason': 'Reden van de server:',
   'dashboard.recentActivity': 'Recente activiteit',
   'dashboard.noActivity': 'Nog geen activiteit',
@@ -2349,10 +2338,11 @@ const nl: Record<keyof typeof en, string> = {
   'billing.noPaymentMethods': 'Geen betaalmethoden opgeslagen.',
   'billing.paymentMethodsLoadFailed': 'De betaalmethoden konden niet worden geladen.',
   'billing.default': 'Standaard',
-  'billing.adminOnly': 'Facturatie is alleen beschikbaar voor eigenaren en beheerders. Vraag een eigenaar of beheerder van deze organisatie naar gebruiks- of factuurgegevens.',
+  'billing.adminOnly':
+    'Facturatie is alleen voor eigenaren en beheerders; vraag een van hen naar gebruiks- of factuurgegevens.',
   'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
   'billing.loadFailedNotEmpty':
-    'Dit is niet hetzelfde als geen gegevens — er kunnen gegevens bestaan die niet gelezen konden worden.',
+    'Niet hetzelfde als geen gegevens; er kunnen gegevens bestaan die niet gelezen konden worden.',
   'billing.party.title': 'Factuurgegevens',
   'billing.party.intro': 'Aan wie facturen worden gericht.',
   'billing.party.missing':
@@ -2383,11 +2373,11 @@ const nl: Record<keyof typeof en, string> = {
   'billing.party.vat.treatmentLabel': 'Btw op uw facturen:',
   'billing.party.vat.treatment.domestic': 'Facturen bevatten btw tegen het standaardtarief.',
   'billing.party.vat.treatment.reverseCharge':
-    'Btw verlegd — facturen bevatten geen btw; uw bedrijf draagt de btw in eigen land af.',
+    'Btw verlegd: facturen bevatten geen btw; uw bedrijf draagt de btw in eigen land af.',
   'billing.party.vat.treatment.oss':
     'Facturen bevatten het btw-tarief van uw eigen land (One Stop Shop).',
   'billing.party.vat.treatment.outsideEu':
-    'Uw adres ligt buiten het btw-gebied van de EU; hoe facturen worden belast wordt vóór de eerste factuur bepaald.',
+    'Buiten het btw-gebied van de EU; de belasting van facturen wordt vóór de eerste bepaald.',
   'confirm.nextSteps': 'Hierna, in cutover-volgorde:',
   'confirm.title': 'Controleer en bevestig uw migratie',
   'confirm.intro': 'Er is nog niets gekopieerd. Controleer wat er migreert en start het daarna.',
@@ -2537,10 +2527,10 @@ const nl: Record<keyof typeof en, string> = {
     'Wij zetten uw gegevens erin over; wij beheren, bewaken of back-uppen hem niet. Is het een beheerd Europees platform, dan is de aanbieder ervan verantwoordelijk.',
   'tenants.title': 'Team & organisatie',
   'tenants.intro':
-    'Wie zich bij deze organisatie kan aanmelden, en wat ze mogen doen. Wijzigingen gelden direct.',
+    'Wie zich bij deze organisatie kan aanmelden en wat ze mogen doen; wijzigingen gelden direct.',
   'tenants.noTenant': 'Geen organisatie in deze sessie.',
   'tenants.selfDemotionArmed':
-    'Hiermee verlaagt u uw eigen rol — u kunt dit mogelijk niet zelf terugdraaien.',
+    'Hiermee verlaagt u uw eigen rol; u kunt dit mogelijk niet zelf terugdraaien.',
   'tenants.selfDemotionConfirm': 'Bevestig rolwijziging',
   'tenants.org.heading': 'Organisatie',
   'tenants.org.readError':
@@ -2562,26 +2552,24 @@ const nl: Record<keyof typeof en, string> = {
   'tenants.readOnly': 'Uw rol hier is alleen-lezen. Een eigenaar of beheerder beheert de leden.',
   'tenants.invite.heading': 'Iemand uitnodigen',
   'tenants.invite.hint':
-    'Er wordt nog geen e-mail verstuurd — vertel het diegene zelf. De uitnodiging verschijnt hieronder als "uitgenodigd".',
+    'Nog geen e-mail; vertel het zelf, en ze verschijnen hieronder als uitgenodigd.',
   'tenants.invite.email': 'E-mailadres',
   'tenants.invite.role': 'Rol',
   'tenants.notify.heading': 'E-mailsamenvattingen',
   'tenants.notify.intro':
-    'Hoe vaak deze organisatie een samenvatting krijgt van wat op een beslissing wacht. ' +
-    'Een lege samenvatting wordt nooit verstuurd — stilte betekent dat er niets wacht.',
+    'Hoe vaak een samenvatting van wachtende beslissingen wordt gemaild; een lege wordt nooit verstuurd.',
+  'tenants.notify.intro.more': 'Stilte betekent dat er niets wacht.',
   'tenants.notify.cadence': 'Samenvatting',
   'tenants.notify.daily': 'Dagelijks',
   'tenants.notify.weekly': 'Wekelijks (maandag)',
   'tenants.notify.off': 'Geen samenvatting',
   'tenants.notify.locale': 'Taal',
   'tenants.notify.recipients':
-    'Gaat naar elke eigenaar en beheerder hieronder. Dringende gebeurtenissen worden direct ' +
-    'gemaild, welke samenvatting u hier ook kiest.',
+    'Gaat naar elke eigenaar en beheerder hieronder; dringende gebeurtenissen worden hoe dan ook direct gemaild.',
   'tenants.notify.save': 'Opslaan',
   'tenants.notify.saved': 'Opgeslagen.',
   'tenants.notify.readError':
-    'De huidige instelling kon niet worden gelezen — opslaan zou iets onbekends overschrijven, ' +
-    'dus de knoppen zijn uitgeschakeld.',
+    'De instelling is niet gelezen; opslaan zou iets onbekends overschrijven, dus de knoppen staan uit.',
   'tenants.invite.submit': 'Uitnodigen',
   'role.owner': 'Eigenaar',
   'role.admin': 'Beheerder',
@@ -2893,21 +2881,17 @@ const nl: Record<keyof typeof en, string> = {
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Toegang aanvragen',
   'access.intro':
-    'Ownpace werkt voorlopig op uitnodiging. Vertel ons wat u wilt verhuizen, dan komen we per ' +
-    'e-mail bij u terug.',
+    'Voorlopig op uitnodiging: vertel ons wat u wilt verhuizen, dan komen we per e-mail terug.',
   'access.email': 'E-mailadres',
   'access.emailHint': 'Hier antwoorden wij. Er gaat verder niets naartoe.',
   'access.name': 'Uw naam',
   'access.organisation': 'Organisatie',
   'access.optional': 'optioneel',
   'access.note': 'Wat gaat u verhuizen?',
-  'access.noteHint':
-    'Ongeveer hoeveel postbussen, en waarvandaan — Microsoft 365, Google, iets anders. Eén zin ' +
-    'is genoeg.',
+  'access.noteHint': 'Ongeveer hoeveel postbussen, en waarvandaan; één zin is genoeg.',
   'access.tier': 'Welk pakket lijkt te passen?',
   'access.tierHint':
-    'Een inschatting volstaat. Het pakket volgt wat er werkelijk draait, dus dit legt u nergens ' +
-    'op vast.',
+    'Een inschatting volstaat; het pakket volgt wat werkelijk draait, dus dit is niet bindend.',
   'access.tierUnsure': 'Nog niet zeker',
   'access.submit': 'Aanvraag versturen',
   'access.sending': 'Versturen…',
@@ -2916,8 +2900,7 @@ const nl: Record<keyof typeof en, string> = {
   'access.failed': 'Wij konden dat niet versturen:',
   'access.failedFallback': 'de aanvraag is niet voltooid.',
   'access.privacy':
-    'Wij bewaren wat u hier invult om u te antwoorden, en verder niets. Met een aanvraag wordt ' +
-    'geen account aangemaakt.',
+    'Wij bewaren wat u invult alleen om te antwoorden; een aanvraag maakt geen account aan.',
   'access.backToSignIn': 'Heeft u al een account? Aanmelden',
 };
 

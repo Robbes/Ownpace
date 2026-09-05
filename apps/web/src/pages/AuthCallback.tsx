@@ -19,6 +19,7 @@ import { fetchMe } from '../services/session.ts';
 import { requestAccessHref } from '../services/no-organisation.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 
 const AuthCallback: React.FC = () => {
   const t = useT();
@@ -130,7 +131,7 @@ const AuthCallback: React.FC = () => {
             >
               {t('login.noOrganisation.ask')}
             </Link>
-            <p className="text-sm text-gray-500">{t('login.noOrganisation.already')}</p>
+            <Hint className="" text={t('login.noOrganisation.already')} why={t('login.noOrganisation.already.why')} />
           </>
         ) : error === null ? (
           <p className="text-sm text-gray-600">{t('login.callback.working')}</p>

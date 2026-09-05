@@ -48,6 +48,7 @@ import {
   type RequestState,
 } from '../services/access-requests.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 import type { StringKey } from '../i18n/strings.ts';
 
 const TABS: ReadonlyArray<RequestState> = ['open', 'granted', 'declined'];
@@ -220,7 +221,7 @@ const RequestCard: React.FC<{
               />
               <span>{t('queue.tellThem')}</span>
             </label>
-            <p className="mt-1 ml-6 text-xs text-gray-500">{t('queue.tellThemHelp')}</p>
+            <Hint className="mt-1 ml-6" text={t('queue.tellThemHelp')} why={t('queue.tellThemHelp.why')} />
           </div>
 
           {error !== null && (
@@ -250,7 +251,7 @@ const RequestCard: React.FC<{
                   <li key={org}>{org}</li>
                 ))}
               </ul>
-              <p className="ml-6 text-xs text-amber-800">{t('queue.alreadyOwnsHelp')}</p>
+              <Hint className="ml-6" tone="caution" text={t('queue.alreadyOwnsHelp')} why={t('queue.alreadyOwnsHelp.why')} />
               <div className="ml-6 flex flex-wrap gap-2 pt-1">
                 <button
                   type="button"

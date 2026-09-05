@@ -10,62 +10,17 @@
  * folds: a `.why`, a `.more` or a checklist `.detail` opens under a word
  * and has no budget, because nobody reads it until they ask.
  *
- * Scope grows one prefix at a time, as each screen is brought under the
- * rule — a prefix listed here is a promise about every key under it, in
- * both languages. A sentence that must stay long verbatim (a consent, a
- * remedy) is named in ALLOWED_OVER with its reason, never deleted from the
- * dictionary to get green.
+ * Every key in the dictionary is under the rule, in both languages — the
+ * screens came under it one slice at a time, and the last (the operator's
+ * and sign-in screens) closed the list. A sentence that must stay long
+ * verbatim (a consent, a remedy) is named in ALLOWED_OVER with its reason,
+ * never deleted from the dictionary to get green.
  */
 import { describe, it, expect } from 'vitest';
 import { STRINGS, LOCALES, type StringKey } from './strings.ts';
 
-/** The screens brought under the rule so far. */
-export const BUDGETED_PREFIXES: ReadonlyArray<string> = [
-  'wizard.',
-  'setup.',
-  'fold.',
-  'connections.',
-  'probe.',
-  'confirm.',
-  'finish.',
-  'hub.',
-  'runs.',
-  'grantLink.',
-  'sharedAddresses.',
-  'verify.',
-  'sharing.',
-  'moves.',
-  'deletions.',
-  'failures.',
-  'decisions.',
-  'mappings.',
-  'createMapping.',
-  'permissions.',
-  'autoApply.',
-  'discovery.',
-  'evidence.',
-  'notFound.',
-  'docs.',
-  'failure.',
-  'grant.',
-  'applyFlag.',
-  'receipt.',
-  'dashboard.',
-  'domain.',
-  'state.',
-  'role.',
-  'memberStatus.',
-  'decisionCategory.',
-  'decisionStatus.',
-  'scope.',
-  'asof.',
-  'common.',
-  'language.',
-  'nav.',
-  'status.',
-  'guidance.',
-  'lifecycle.',
-];
+// Since T4b (2026-09-05) every key in the dictionary is under the rule; the
+// exceptions are named below, one by one, with their reason.
 
 /** Folded copy: opens under a word, so it has no budget. */
 const FOLDED = /\.(why|more|detail)$/;
@@ -156,7 +111,6 @@ describe('the copy budget — every budgeted key, in every language', () => {
     it(`${locale}: fits the line it is on`, () => {
       const over: string[] = [];
       for (const [key, text] of Object.entries(STRINGS[locale]) as Array<[StringKey, string]>) {
-        if (!BUDGETED_PREFIXES.some((p) => key.startsWith(p))) continue;
         if (ALLOWED_OVER[key]) continue;
         const problem = overBudget(key, text);
         if (problem) over.push(problem);
