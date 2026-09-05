@@ -31,6 +31,7 @@ import {
   GraphCalendarSource,
   GraphContactsSource,
   GraphDriveSource,
+  GraphTodoSource,
   createTokenProvider,
 } from '@openmig/connectors';
 
@@ -85,6 +86,8 @@ const DELEGATED_SCOPES = {
   calendar: 'https://graph.microsoft.com/Calendars.Read offline_access',
   contacts: 'https://graph.microsoft.com/Contacts.Read offline_access',
   drive: 'https://graph.microsoft.com/Files.Read offline_access',
+  // Microsoft To Do (workplan 0114 T9): the fifth face, read-only like the rest.
+  todo: 'https://graph.microsoft.com/Tasks.Read offline_access',
 } as const;
 
 function graphTokenProviderFor(
@@ -150,6 +153,26 @@ export function buildGraphContactsSourceFrom(
 ): ContactSource {
   const tokenProvider = graphTokenProviderFor('contacts', 'graph-contacts source', endpoint, creds, naming);
   return new GraphContactsSource(tokenProvider, endpoint.tenantId, {
+    ...(endpoint.baseUrl === undefined ? {} : { baseUrl: endpoint.baseUrl }),
+    ...(throttleLimiter === undefined ? {} : { throttleLimiter }),
+    ...(endpoint.mailbox === undefined ? {} : { mailbox: endpoint.mailbox }),
+  });
+}
+
+/**
+ * Microsoft To Do (workplan 0114 T9): the task face, answered in the calendar
+ * source's shape because that is what the task domain reads (0113). The same
+ * registration, the same two flows, the same refusals as the three above —
+ * one more product in the scope table, and nothing else new here.
+ */
+export function buildGraphTodoSourceFrom(
+  endpoint: GraphDomainEndpoint,
+  creds: GraphEntraCredsAsFound,
+  throttleLimiter?: ThrottleLimiter,
+  naming: GraphFieldNaming = ENV_GRAPH_FIELD_NAMING,
+): CalendarSource {
+  const tokenProvider = graphTokenProviderFor('todo', 'graph-todo source', endpoint, creds, naming);
+  return new GraphTodoSource(tokenProvider, endpoint.tenantId, {
     ...(endpoint.baseUrl === undefined ? {} : { baseUrl: endpoint.baseUrl }),
     ...(throttleLimiter === undefined ? {} : { throttleLimiter }),
     ...(endpoint.mailbox === undefined ? {} : { mailbox: endpoint.mailbox }),

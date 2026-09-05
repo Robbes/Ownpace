@@ -96,14 +96,13 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   // data — carry no such tier, so one consent can honestly offer all four
   // without pushing anybody into a review they did not ask for.
   //
-  // 'task' is absent, and unlike Google's absence it is ours rather than the
-  // provider's: Microsoft HAS a tasks face at `/me/todo/lists` under
-  // Tasks.Read (0114 T9). A To Do list is not a CalDAV collection, so it needs
-  // a source connector that does not exist yet — `graph-*-source` covers these
-  // four. When `graph-todo-source` lands and has been MEASURED, 'task' joins
-  // this array and one row joins MICROSOFT_DOMAIN_SCOPES. Never on an
-  // announcement: 0105's never-guess rule.
-  microsoft: ['email', 'calendar', 'contact', 'file'],
+  // 'task' joined with 0114 T9, and the asymmetry with Google runs the other
+  // way here too: Microsoft HAS a tasks face at `/me/todo/lists` under
+  // Tasks.Read, where Google's CalDAV carries no VTODO at any scope tier. A
+  // To Do list is not a CalDAV collection, so it took a connector of its own
+  // (`graph-todo-source`) rather than the DAV builder the other task faces
+  // share; the consent asks for Tasks.Read only when the face is ticked.
+  microsoft: ['email', 'calendar', 'contact', 'file', 'task'],
   // FOUR AGAIN, and a different four (workplan 0115). Apple is the first
   // provider account with NO consent screen behind it: Apple publishes no
   // OAuth scope for Mail, Calendar, Contacts, Reminders or iCloud Drive to
@@ -113,8 +112,8 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   // 'task' is here on the day the kind arrives, which no other provider
   // account managed: Apple Reminders are VTODO components in the same CalDAV
   // account, which is exactly what 0113 taught this product to read. Google
-  // Tasks needs its own API and Microsoft To Do needs `graph-todo-source`;
-  // Apple needs nothing new.
+  // Tasks needs its own API and Microsoft To Do needed `graph-todo-source`
+  // (0114 T9); Apple needs nothing new.
   //
   // 'file' is absent and it is APPLE'S absence, not ours: there is no
   // third-party API — public, partner or paid — that reads a person's iCloud

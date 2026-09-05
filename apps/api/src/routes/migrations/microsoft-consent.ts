@@ -62,16 +62,17 @@ export const MICROSOFT_OFFLINE_SCOPE = 'offline_access';
  * `google-token-provider.ts` and holds unchanged — a migration reads, and a
  * token that cannot write is the cheapest possible guarantee of that.
  *
- * `task` is absent. Microsoft To Do lives behind `/me/todo/lists` with a model
- * of its own (`Tasks.Read`), and 0114 keeps it out of the grant deliberately:
- * a fifth face and a first consent in one change would be two unproven things
- * at once.
+ * `task` is the row 0114 T9 promised would be the whole of that task's
+ * consent edit: Microsoft To Do lives behind `/me/todo/lists` with a model of
+ * its own, `graph-todo-source` now reads it, and `Tasks.Read` is asked for
+ * only when the face is ticked — like every other row here.
  */
 export const MICROSOFT_DOMAIN_SCOPES: Readonly<Partial<Record<DiscoveryDomain, string>>> = {
   email: 'Mail.Read',
   calendar: 'Calendars.Read',
   contact: 'Contacts.Read',
   file: 'Files.Read',
+  task: 'Tasks.Read',
 };
 
 /**

@@ -74,6 +74,9 @@ export type SourceFaceBuilder =
   | 'graph-calendar'
   | 'graph-contacts'
   | 'graph-drive'
+  // Microsoft To Do (workplan 0114 T9): the one task face that is not a CalDAV
+  // collection, and the fifth Graph builder.
+  | 'graph-todo'
   | 'dropbox'
   | 'box'
   // An EXPORT ARCHIVE's file face (workplan 0116 T1). Named here BEFORE the
@@ -120,14 +123,19 @@ const ACCOUNT_FACE_BUILDERS: Readonly<
     contact: 'dav',
     task: 'dav',
   },
-  // Four Graph builders, all of which already existed — wired in
-  // `build-deps.ts` for the appliance, from OAUTH2_* environment variables,
-  // and reachable from a stored connection for the first time here (0114 T5a).
+  // Four Graph builders that already existed — wired in `build-deps.ts` for
+  // the appliance, from OAUTH2_* environment variables, and reachable from a
+  // stored connection for the first time in 0114 T5a — and a FIFTH (0114 T9):
+  // Microsoft To Do, the task face Google has not got at any scope tier and
+  // Microsoft serves at `/me/todo/lists`. It is `graph-todo` rather than
+  // `dav` because a To Do list is not a CalDAV collection; the connector
+  // builds the VTODO the task domain reads.
   microsoft: {
     email: 'graph-mail',
     calendar: 'graph-calendar',
     contact: 'graph-contacts',
     file: 'graph-drive',
+    task: 'graph-todo',
   },
   // Soverin's row, a different provider (workplan 0115). Apple publishes no
   // OAuth scope for its own data, so an Apple account is reached with an
@@ -135,7 +143,7 @@ const ACCOUNT_FACE_BUILDERS: Readonly<
   // builders `soverin` uses, and that is the finding rather than a shortcut:
   // this row needed no new connector at all. `task` is DAV because Reminders
   // are VTODO in the calendar account (0113 T5), which is why Apple's task
-  // face works on the day the kind arrives and Microsoft's still does not.
+  // face worked on the day the kind arrived, a slice before Microsoft's did.
   apple: {
     email: 'imap',
     calendar: 'dav',

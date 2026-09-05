@@ -173,11 +173,10 @@ export const SOURCE_TYPE_DOMAINS: Partial<
   // Google SCOPE tables, and there is no reason to reintroduce it one file
   // away.
   google: PROVIDER_ACCOUNT_DOMAINS.google,
-  // Read from the same table, for the same reason. Microsoft constrains too,
-  // and it is worth being clear about WHICH face is missing: `task` is the
-  // one, Graph has it at `/me/todo/lists`, and the connector for it is not
-  // built (0114 T9). So a mapping that ticks tasks against a Microsoft source
-  // is refused with a reason rather than run against a face nothing serves.
+  // Read from the same table, for the same reason. Microsoft serves all five
+  // faces since 0114 T9 (To Do is `graph-todo-source`), so this row constrains
+  // nothing today — it stays a read of the one table rather than a hand-typed
+  // "every domain", so a face leaving that table leaves this one too.
   microsoft: PROVIDER_ACCOUNT_DOMAINS.microsoft,
 };
 
@@ -212,16 +211,12 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
   },
   microsoft: {
     name: 'Microsoft 365',
-    // The honest asymmetry with Google's sentence below: Microsoft's four
-    // faces are not held back by a scope tier — its delegated read scopes
-    // carry no equivalent of Google's restricted class. The ONE face missing
-    // is tasks, and that absence is ours: Graph serves To Do lists at
-    // /me/todo/lists under Tasks.Read, and no connector reads them yet
-    // (workplan 0114 T9). Saying so is the difference between "this provider
-    // cannot" and "we have not built it".
-    reads:
-      'mail, calendars, contacts and OneDrive. Microsoft To Do is not among them yet — '
-      + 'Graph serves it and this product has no connector for it',
+    // The honest asymmetry with Google's sentence below: Microsoft's faces are
+    // not held back by a scope tier — its delegated read scopes carry no
+    // equivalent of Google's restricted class — and since 0114 T9 all five are
+    // served, To Do included. The sentence is kept so a face that leaves the
+    // table is named rather than silently constrained.
+    reads: 'mail, calendars, contacts, OneDrive and Microsoft To Do',
   },
   google: {
     name: 'Google',

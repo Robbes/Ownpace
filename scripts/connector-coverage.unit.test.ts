@@ -92,6 +92,9 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   },
   'graph-contacts': { owed: 'same tenant, same absence of a harness, as graph-calendar.' },
   'graph-drive': { owed: 'same tenant, same absence of a harness, as graph-calendar.' },
+  // Microsoft To Do (workplan 0114 T9). Graph's application permission for it
+  // is `Tasks.Read.All`, so the same read-only tenant could serve this too.
+  'graph-todo': { owed: 'same tenant, same absence of a harness, as graph-calendar.' },
   gmail: { uncoverable: 'needs a Google account and its OAuth consent. Nothing in CI can hold one.' },
   'google-calendar': { uncoverable: 'same Google account, same reason as gmail.' },
   'google-contacts': { uncoverable: 'same Google account, same reason as gmail.' },
@@ -227,6 +230,7 @@ describe('what is owed stays visible, and stays exact', () => {
       'source:graph-calendar',
       'source:graph-contacts',
       'source:graph-drive',
+      'source:graph-todo',
       'source:archive',
     ]);
   });

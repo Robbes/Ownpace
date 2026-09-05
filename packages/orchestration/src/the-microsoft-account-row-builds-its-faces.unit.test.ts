@@ -46,6 +46,7 @@ import {
   buildContactSourceFromConnection,
   buildFileSourceFromConnection,
   buildSourceConnectorFromCredentials,
+  buildTaskSourceFromConnection,
 } from './build-deps-from-mapping.ts';
 import { sourceFaceBuilder } from './source-face-builders.ts';
 
@@ -60,7 +61,7 @@ const microsoft = (creds: Record<string, string> = GRANTED) => ({
   kind: 'microsoft',
 });
 
-describe('a microsoft account row builds all four of its faces', () => {
+describe('a microsoft account row builds all five of its faces', () => {
   it('builds the mail face rather than refusing the source type', () => {
     // The FOURTH face, and the one that fails differently from the other
     // three. Mail does not go through the DAV fall-through — it goes through
@@ -93,11 +94,19 @@ describe('a microsoft account row builds all four of its faces', () => {
     expect(() => buildFileSourceFromConnection(microsoft())).not.toThrow();
   });
 
+  it('builds the task face — Microsoft To Do, the fifth (0114 T9)', () => {
+    // The one task face that is not a CalDAV collection. Before T9 this seam
+    // answered `dav` or refused; a Microsoft row reaching it now gets the
+    // Graph To Do source, built from the same registration as its siblings.
+    expect(() => buildTaskSourceFromConnection(microsoft())).not.toThrow();
+  });
+
   it('resolves every face to a Graph builder, never to a protocol one', () => {
     expect(sourceFaceBuilder('microsoft', 'email')).toBe('graph-mail');
     expect(sourceFaceBuilder('microsoft', 'calendar')).toBe('graph-calendar');
     expect(sourceFaceBuilder('microsoft', 'contact')).toBe('graph-contacts');
     expect(sourceFaceBuilder('microsoft', 'file')).toBe('graph-drive');
+    expect(sourceFaceBuilder('microsoft', 'task')).toBe('graph-todo');
   });
 });
 
@@ -123,6 +132,7 @@ describe('the refusals speak the managed vocabulary', () => {
       () => buildCalendarSourceFromConnection(microsoft({})),
       () => buildContactSourceFromConnection(microsoft({})),
       () => buildFileSourceFromConnection(microsoft({})),
+      () => buildTaskSourceFromConnection(microsoft({})),
     ]) {
       const reason = refusalFor(build);
       expect(reason, 'a row with no credentials built anyway').not.toBe('');

@@ -100,13 +100,14 @@ partitions accounts across hundreds of hosts, answering the home set with an abs
 naming yours — which is why every DAV href is normalised host-preservingly (0115 T1).
 
 Also a source: **Microsoft 365** (`microsoft`, workplan 0114) — the third account kind, and
-the asymmetry with `google` runs the **other way**. It carries **all four faces from the
+the asymmetry with `google` runs the **other way**. It carried **all four faces from the
 first day** — mail, calendars, contacts and OneDrive — because Microsoft's delegated read
 scopes over the signed-in user's own data (`Mail.Read`, `Calendars.Read`, `Contacts.Read`,
 `Files.Read`) carry no equivalent of Google's restricted tier and its annual third-party
-security assessment. The one face it does **not** carry is tasks, and that absence is ours
-rather than the provider's: Graph serves Microsoft To Do at `/me/todo/lists` under
-`Tasks.Read`, and no connector reads them yet (0114 T9). `oauth2` and `graph` **stay and
+security assessment — and a **fifth since 0114 T9: Microsoft To Do**, which Graph serves at
+`/me/todo/lists` under `Tasks.Read` and `graph-todo-source` reads, building the `VTODO` the
+task domain expects (title, notes, status, importance, due and start dates, completion,
+categories, checklist, recurrence). `oauth2` and `graph` **stay and
 cohabit** — they mean "the customer's own Entra app registration", which may carry
 application permissions this delegated grant never will, and which is what an administrator
 migrating other people's mailboxes needs.
@@ -135,8 +136,11 @@ reminder as an event produces something that looks migrated and is wrong. The ta
 advertise `VTODO` in its `supported-calendar-component-set` to receive them, and the domain
 step says so before a run rather than halfway through one. **Apple's Reminders** are the
 first provider-named source of them (`apple`, 0115) — `VTODO`s on the same CalDAV host as
-the calendars, reached by the same credential. Microsoft To Do is served by Graph under
-`Tasks.Read` and no connector reads it yet (0114 T9); Google Tasks needs its own API.
+the calendars, reached by the same credential. **Microsoft To Do** is the second (0114 T9):
+Graph serves it under `Tasks.Read`, and because a To Do list is not a CalDAV collection the
+`graph-todo-source` connector builds the `VTODO` itself — a full listing per pass, Graph's own
+status and importance kept beside the lossy RFC 5545 mapping, the checklist as lines in the
+description, the recurrence as an `RRULE`. Google Tasks needs its own API.
 
 ## Contacts
 
@@ -344,5 +348,6 @@ These hold across all object types, and are features rather than gaps:
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |
 | Apple (iCloud) against a real Apple Account — the app-specific password's dashed form, the username's local-part-vs-address question, and the first live face counts | ⏳ built, unproven | `apple-supervised-run.md`; workplan 0115 |
 | iCloud Drive as a live source | 🚫 impossible — Apple publishes no API to anyone | Files section above; the archive route is workplan 0116 |
-| Microsoft To Do / Google Tasks as task sources | ⛔ not built (the domain and the CalDAV `VTODO` path are) | workplan 0113; 0114 T9 |
+| Microsoft To Do as a task source | ✅ `graph-todo-source`: the account kind's fifth face, `Tasks.Read` asked only when ticked; unmeasured against a live tenant (needs a consent nobody in CI can press) | workplan 0114 T9 |
+| Google Tasks as a task source | ⛔ not built — needs the Tasks API; Google's CalDAV carries no `VTODO` at any scope tier | workplan 0113 T6 |
 | Sieve rules, signatures, OOF, ACLs, invitation state, version history | 🚫 out of scope, stated per domain above | this document |

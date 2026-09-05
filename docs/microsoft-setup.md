@@ -138,9 +138,9 @@ two older cards that are *not* replaced:
   customer's own registration under **application** permissions. That is what an administrator
   migrating *other people's* mailboxes needs, and this delegated grant will never do it.
 
-The one face the account kind does **not** carry is **tasks**. That absence is ours rather
-than Microsoft's: Graph serves Microsoft To Do at `/me/todo/lists` under `Tasks.Read`, and this
-product has no connector that reads them yet.
+**Tasks** are Microsoft To Do. Tick them and the consent asks for `Tasks.Read` as well; every
+To Do list becomes a task list on the target, and each task keeps its title, notes, status,
+importance, due date, checklist and repeat rule.
 
 ## Leaving
 

@@ -59,6 +59,9 @@ export * from './token-provider.ts';
 
 // Graph Calendar source connector
 export * from './graph-calendar-source.ts';
+// Microsoft To Do as a task source (workplan 0114 T9): Graph's fifth face, VTODO built here.
+export * from './graph-todo-source.ts';
+export type * from './graph-todo-source.types.ts';
 export * from './graph-calendar-source.types.ts';
 
 // Graph Contacts source connector
