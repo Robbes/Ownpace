@@ -152,7 +152,13 @@ export async function startMapping(mappingId: string): Promise<void> {
     method: 'POST',
     redirect: 'manual',
   });
-  if (![200, 303, 409].includes(response.status)) {
+  // 200 (activated, or already running — `activated: false`) and the old
+  // 303. NOT 409: that is a mapping in cutover or done, and a gate that
+  // green-lights a finished mapping is measuring something else. The first
+  // archive-import run swallowed exactly that 409 and then read 27 items
+  // back from a five-file archive — the main mapping's count, because both
+  // mappings shared one row (apps/selfhost config-dir.ts, `uuidFromString`).
+  if (![200, 303].includes(response.status)) {
     throw new Error(`POST /mappings/${mappingId}/start -> ${response.status}: ${await response.text()}`);
   }
 }

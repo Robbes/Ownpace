@@ -59,6 +59,20 @@ arm had no `archive` case — T5/T6 wired the managed seam only, so an archive m
 appliance would have been handed to the DAV resolver and refused for a URL it never had. Fixed
 in the same change; the gate is what would have said so.
 
+**2026-09-05, the gate's first run: the second mapping was the first.** The import itself
+landed every file where the gate expects it — and the gate read back 27 items for a five-file
+archive, then a 409 saying the mapping was already `done`. The main mapping's count and the
+main mapping's finish. The appliance's `uuidFromString` kept only the first sixteen bytes of
+its seed, and every seed begins with the 36-character tenant id, so every id it derived for a
+tenant was the same value: the source connection, the target connection, both mailboxes, and
+the mapping — a second mapping in a tenant shared the first's row, status, ledger and finish.
+Nobody saw it because every appliance had exactly one mapping. Fixed by hashing the whole
+seed, with a claim at boot so an appliance upgraded in place keeps the row it already has
+(the quickstart promises the in-place upgrade; the mapping's config id is recorded on the row
+as `name`, and a mapping added later cannot walk off with another's history). Pinned against
+the real appliance on PGlite: two mappings in one tenant have two rows, and an upgraded
+appliance boots into its old row active rather than a fresh one paused.
+
 **What is left.** T3b still waits on an Apple export; T4's managed half on D7; T9 on T4.
 
 ### Earlier — 2026-09-04
@@ -154,7 +168,7 @@ If the owner decides only one thing here, decide **D1**.
 | T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
 | T8 The walkthrough | ✅ **Built 2026-09-04** | `docs/archive-setup.md` (the `-setup` suffix is what the app serves at `/docs`): how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
-| T10 The gate | ✅ **Built 2026-09-05** (in two gates) | Connect + measure in the MANAGED E2E (2026-09-04). The IMPORT in the SELF-HOST E2E (2026-09-05): a fixture Takeout mounted read-only into the appliance, a second paused mapping green-lit by the last gate, imported into the e2e-target Nextcloud — placement asserted against the real server (album copy, no year duplicate), the manifest read back, a second pass writing nothing. The managed gate cannot carry the import at all: its run containers share no filesystem with the API (T4). |
+| T10 The gate | ✅ **Built 2026-09-05** (in two gates) | Connect + measure in the MANAGED E2E (2026-09-04). The IMPORT in the SELF-HOST E2E (2026-09-05): a fixture Takeout mounted read-only into the appliance, a second paused mapping green-lit by the last gate, imported into the e2e-target Nextcloud — placement asserted against the real server (album copy, no year duplicate), the manifest read back, a second pass writing nothing. The managed gate cannot carry the import at all: its run containers share no filesystem with the API (T4). Its first run found the appliance keyed every mapping of a tenant by ONE id (`uuidFromString`) — fixed, with the in-place upgrade kept. |
 
 ## Why this exists
 
