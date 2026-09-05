@@ -24,6 +24,7 @@
 // via a relative path, which the guard explicitly allows.
 
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -100,25 +101,37 @@ export interface DeletionsForMapping {
 }
 
 /**
- * Refuse when the appliance carries more than one mapping.
+ * THE mapping these gates assert against, by id — never by position.
  *
- * Every helper below reaches for the FIRST mapping — `Object.keys(body)[0]`,
- * `mappings[0]` — which is correct only while there is exactly one. The
- * appliance's `loadConfigDir` reads a DIRECTORY, so a second config file is a
- * one-line change away, and a file named `mapping-something.json` sorts BEFORE
- * `mapping.json`: every assertion in this suite would silently retarget, and
- * pass or fail for reasons unrelated to what it tests.
- *
- * Stated rather than assumed, so that change fails loudly here instead.
+ * Read from the fixture the workflow bakes into the appliance, so there is one
+ * source of truth for which mapping the restart-resume, verification, apply
+ * and finish gates mean. The appliance's `loadConfigDir` reads a DIRECTORY,
+ * and since workplan 0116 T10 it holds a second mapping (the archive-import
+ * gate's); a helper that reached for `mappings[0]` would have retargeted the
+ * moment that file sorted first, and passed or failed for reasons unrelated
+ * to what it tests.
  */
-function assertSingleMapping(ids: ReadonlyArray<string>, where: string): void {
-  if (ids.length > 1) {
-    throw new Error(
-      `${where} returned ${ids.length} mappings (${ids.join(', ')}), and every helper in ` +
-        'apply-deletion-lib.ts takes the FIRST one. Adding a mapping to the appliance means ' +
-        'selecting one explicitly here — not letting readdir order decide what these gates assert against.',
-    );
+export const MAIN_MAPPING_ID: string = (
+  JSON.parse(readFileSync('test/e2e/fixtures/selfhost-restart-resume.mapping.json', 'utf8')) as {
+    mappingId: string;
   }
+).mappingId;
+
+/**
+ * Pick the mapping the gates mean out of what the appliance returned.
+ *
+ * One mapping: that one, whichever it is — the single-mapping appliance these
+ * gates were written against. Several: the MAIN one by id, and a refusal when
+ * it is not among them, because a helper silently taking the first would
+ * assert against whatever sorted first in the config directory.
+ */
+function selectMapping(ids: ReadonlyArray<string>, where: string): string {
+  if (ids.length === 1) return ids[0]!;
+  if (ids.includes(MAIN_MAPPING_ID)) return MAIN_MAPPING_ID;
+  throw new Error(
+    `${where} returned ${ids.length} mappings (${ids.join(', ') || 'none'}) and none of them is the ` +
+      `gates' mapping ${MAIN_MAPPING_ID} — these helpers select by id, never by readdir order.`,
+  );
 }
 
 export async function getDeletions(): Promise<{ mappingId: string } & DeletionsForMapping> {
@@ -126,10 +139,28 @@ export async function getDeletions(): Promise<{ mappingId: string } & DeletionsF
   const raw = await response.text();
   if (!response.ok) throw new Error(`GET /deletions -> ${response.status}: ${raw}`);
   const body = JSON.parse(raw) as Record<string, DeletionsForMapping>;
-  assertSingleMapping(Object.keys(body), 'GET /deletions');
-  const mappingId = Object.keys(body)[0];
-  if (!mappingId) throw new Error('GET /deletions returned no mapping at all');
+  const mappingId = selectMapping(Object.keys(body), 'GET /deletions');
   return { mappingId, ...body[mappingId]! };
+}
+
+/**
+ * Green-light a mapping (0013 T7: every mapping loads PAUSED). 303 is the
+ * activation's redirect, 409 means it was already active — both are "active".
+ */
+export async function startMapping(mappingId: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}/mappings/${encodeURIComponent(mappingId)}/start`, {
+    method: 'POST',
+    redirect: 'manual',
+  });
+  // 200 (activated, or already running — `activated: false`) and the old
+  // 303. NOT 409: that is a mapping in cutover or done, and a gate that
+  // green-lights a finished mapping is measuring something else. The first
+  // archive-import run swallowed exactly that 409 and then read 27 items
+  // back from a five-file archive — the main mapping's count, because both
+  // mappings shared one row (apps/selfhost config-dir.ts, `uuidFromString`).
+  if (![200, 303].includes(response.status)) {
+    throw new Error(`POST /mappings/${mappingId}/start -> ${response.status}: ${await response.text()}`);
+  }
 }
 
 /**
@@ -254,11 +285,21 @@ interface StatusPayload {
 export async function getDomainStatus(domain: string): Promise<DomainStatus | null> {
   const response = await fetch(STATUS_URL);
   const status = JSON.parse(await response.text()) as StatusPayload;
-  assertSingleMapping(
-    (status.mappings ?? []).map((m, i) => (m as { mappingId?: string }).mappingId ?? `#${i}`),
-    'GET /status',
-  );
-  return status.mappings?.[0]?.domains?.find((d) => d.domain === domain) ?? null;
+  const ids = (status.mappings ?? []).map((m, i) => m.mappingId ?? `#${i}`);
+  const chosen = selectMapping(ids, 'GET /status');
+  return getDomainStatusOf(status, chosen, domain);
+}
+
+/** The same read for a NAMED mapping — the archive-import gate's, which is never the main one. */
+export async function getDomainStatusFor(mappingId: string, domain: string): Promise<DomainStatus | null> {
+  const response = await fetch(STATUS_URL);
+  const status = JSON.parse(await response.text()) as StatusPayload;
+  return getDomainStatusOf(status, mappingId, domain);
+}
+
+function getDomainStatusOf(status: StatusPayload, mappingId: string, domain: string): DomainStatus | null {
+  const mapping = (status.mappings ?? []).find((m) => m.mappingId === mappingId);
+  return mapping?.domains?.find((d) => d.domain === domain) ?? null;
 }
 
 /**

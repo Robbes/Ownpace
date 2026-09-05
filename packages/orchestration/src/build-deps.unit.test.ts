@@ -15,7 +15,7 @@ import {
   ImapFlowSource,
   ImapFlowDavMailTarget,
   GoogleDriveSource,
-} from '@openmig/connectors';
+ ArchiveFileSource } from '@openmig/connectors';
 import type { MappingConfig, SourceAuth } from '@openmig/shared';
 
 interface ImapSourceInternals {
@@ -473,6 +473,57 @@ describe('buildDomainDeps — a Google Drive file source', () => {
     vi.stubEnv('TGT_PASSWORD', 'target_password');
     try {
       expect(() => buildDomainDeps(driveMapping(), 'file')).toThrow(/GOOGLE_CLIENT_ID/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+/**
+ * The file domain can be an EXPORT ARCHIVE on the appliance's own disk
+ * (workplan 0116 T5/T6, wired for the appliance by T10).
+ *
+ * The managed seam got its `archive` arm with T5/T6; this one did not, and
+ * the self-host gate found it: an archive mapping on the appliance was handed
+ * to the DAV endpoint resolver and refused for a URL a folder never had. The
+ * one route where a local path is the whole of getting the archive to us
+ * (0116 §3) is the appliance, so this is the arm that matters most.
+ */
+describe('buildDomainDeps — an export archive as the file source (0116 T10)', () => {
+  function archiveMapping(): MappingConfig {
+    return {
+      tenantId: '00000000-0000-4000-8000-000000000001',
+      mappingId: '22222222-2222-4222-8222-222222222222',
+      source: { type: 'archive', provider: 'google-takeout', path: '/data/fixtures/takeout' },
+      target: {
+        type: 'webdav',
+        url: 'https://cloud.example.net/remote.php/dav/files/target/',
+        user: 'target',
+        auth: { kind: 'login', passwordFromEnv: 'TGT_PASSWORD' },
+      },
+      domains: {
+        files: {
+          enabled: true,
+          source: { type: 'archive', provider: 'google-takeout', path: '/data/fixtures/takeout' },
+          target: {
+            type: 'webdav',
+            url: 'https://cloud.example.net/remote.php/dav/files/target/',
+            user: 'target',
+            auth: { kind: 'login', passwordFromEnv: 'TGT_PASSWORD' },
+          },
+        },
+      },
+    } as MappingConfig;
+  }
+
+  it('builds the archive file source — a snapshot — and never reaches the DAV resolver', () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
+    vi.stubEnv('TGT_PASSWORD', 'target_password');
+    try {
+      const deps = buildDomainDeps(archiveMapping(), 'file');
+      expect(deps.source).toBeInstanceOf(ArchiveFileSource);
+      expect((deps.source as ArchiveFileSource).snapshot).toBe(true);
+      void deps.close();
     } finally {
       vi.unstubAllEnvs();
     }

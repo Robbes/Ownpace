@@ -1,0 +1,41 @@
+{
+  "_note": "The archive-import gate's mapping (workplan 0116 T10). A second mapping beside selfhost-restart-resume.mapping.json: its source is a folder the appliance can read, its target the same e2e-target Nextcloud account. It loads PAUSED like every mapping and is green-lit only by its own gate, which runs LAST, so nothing it writes is on the target while the other gates measure it. e2e.yml writes it into the config dir under a name that sorts AFTER mapping.json, and the gates select mappings by id, never by position.",
+  "tenantId": "00000000-0000-4000-8000-000000000001",
+  "mappingId": "22222222-2222-4222-8222-222222222222",
+  "schedule": {
+    "cron": "* * * * *"
+  },
+  "source": {
+    "type": "archive",
+    "provider": "google-takeout",
+    "path": "/data/fixtures/takeout"
+  },
+  "target": {
+    "type": "webdav",
+    "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/",
+    "user": "e2e-target",
+    "auth": {
+      "kind": "login",
+      "passwordFromEnv": "TARGET_DAV_PASSWORD"
+    }
+  },
+  "domains": {
+    "files": {
+      "enabled": true,
+      "source": {
+        "type": "archive",
+        "provider": "google-takeout",
+        "path": "/data/fixtures/takeout"
+      },
+      "target": {
+        "type": "webdav",
+        "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/",
+        "user": "e2e-target",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "TARGET_DAV_PASSWORD"
+        }
+      }
+    }
+  }
+}
