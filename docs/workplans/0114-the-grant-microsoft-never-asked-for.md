@@ -27,6 +27,20 @@ cause each:
   refusal in both languages, naming the field and the way back ("remove it and connect the
   account again"); a refused exchange is Microsoft's, verbatim.
 
+**The second live Test, the same evening: the grant was stored and read, and the faces failed in
+MSAL.** Every face reported "The consent carries Mail.Read, but the face did not answer: Failed to
+acquire token with refresh token or username/password" — the token provider's generic sentence,
+because its refresh path caught MSAL's error and fell through to a username/password branch that
+had no username. Minutes earlier the grant read had exchanged the SAME refresh token successfully
+with a plain POST to the same endpoint. MSAL also appends `openid profile` to every refresh
+request, scopes the consent never asked for. So the delegated flow is that POST now
+(`redeemRefreshToken`): the tenant's token endpoint, the secret where the registration has one,
+exactly the scopes the source asked for, and Entra's `error: error_description` verbatim on a
+refusal — the AADSTS code reaches the card. MSAL stays for the application flow and for
+username/password. Pinned in `the-grant-that-took-the-application-flow.unit.test.ts` with the
+endpoint stubbed: the POST's fields, no secret for a public client, the refusal in Entra's words,
+the two older shapes unchanged.
+
 **What this means for a row connected before the fix:** it holds no token, and nothing can
 put one on it after the fact — remove the connection and press Connect with Microsoft again.
 The Test on such a row now says exactly that.
