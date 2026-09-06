@@ -45,6 +45,7 @@ export * from './provider-endpoints.ts';
 export * from './google-deployment-client.ts';
 export * from './dropbox-deployment-client.ts';
 export * from './microsoft-deployment-client.ts';
+export * from './microsoft-scopes.ts';
 export * from './provider-clients.ts';
 export * from './redirect-uris.ts';
 export * from './standing-grants.ts';

@@ -639,6 +639,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
+### `packages/shared/src/microsoft-scopes.ts`
+
+- [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
+
 ### `packages/shared/src/notifications.ts`
 
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
@@ -929,6 +933,7 @@ Reads:
 - `apps/api/src/routes/migrations/microsoft-consent.ts`
 - `packages/orchestration/src/graph-domain-source-factory.ts`
 - `packages/orchestration/src/mail-source-factory.ts`
+- `packages/shared/src/microsoft-scopes.ts`
 
 ### [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts)
 

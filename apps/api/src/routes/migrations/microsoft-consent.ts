@@ -35,75 +35,22 @@
  * token-exchange body. Never in a URL, a redirect or a log.
  */
 
-import type { DiscoveryDomain } from '@openmig/shared';
 
-const AUTHORITY = 'https://login.microsoftonline.com';
-
-/** Tenant-scoped, because Microsoft's are. */
-export function microsoftAuthEndpoint(tenant: string): string {
-  return `${AUTHORITY}/${encodeURIComponent(tenant)}/oauth2/v2.0/authorize`;
-}
-export function microsoftTokenEndpoint(tenant: string): string {
-  return `${AUTHORITY}/${encodeURIComponent(tenant)}/oauth2/v2.0/token`;
-}
-
-/**
- * What a refresh token is worth. Without it Microsoft answers with an access
- * token good for about an hour and nothing to renew it with — a consent that
- * works during the demo and fails during the migration.
- */
-export const MICROSOFT_OFFLINE_SCOPE = 'offline_access';
-
-/**
- * One Graph scope per face, READ-ONLY.
- *
- * `Files.Read` rather than `Files.Read.All`: the signed-in user's own
- * OneDrive, not the tenant's. The reasoning is already written in
- * `google-token-provider.ts` and holds unchanged — a migration reads, and a
- * token that cannot write is the cheapest possible guarantee of that.
- *
- * `task` is the row 0114 T9 promised would be the whole of that task's
- * consent edit: Microsoft To Do lives behind `/me/todo/lists` with a model of
- * its own, `graph-todo-source` now reads it, and `Tasks.Read` is asked for
- * only when the face is ticked — like every other row here.
- */
-export const MICROSOFT_DOMAIN_SCOPES: Readonly<Partial<Record<DiscoveryDomain, string>>> = {
-  email: 'Mail.Read',
-  calendar: 'Calendars.Read',
-  contact: 'Contacts.Read',
-  file: 'Files.Read',
-  task: 'Tasks.Read',
-};
-
-/**
- * The faces this consent can ask for, in the order a person ticks them.
- *
- * DERIVED from the scope map rather than written again. `a-domain-union-typed-
- * out-by-hand` caught the second copy the moment it existed, which is exactly
- * 0113 T1's point: two lists of the same capability disagree with each other
- * precisely once. There is now one fact — a face has a Graph scope or it does
- * not — and both the URL builder and this order read it.
- */
-export const MICROSOFT_CONSENT_DOMAINS: ReadonlyArray<DiscoveryDomain> = Object.keys(
+// THE FACTS THIS MODULE USED TO OWN — the authority's two endpoints, the
+// offline scope, the face-to-scope map and the scope string builder — live in
+// `@openmig/shared` since 2026-09-06 (0114 T10): the connection Test reads a
+// stored grant against the same map this consent asked with, from a package
+// the orchestration can import. Re-exported here so every caller of this
+// module keeps its import, and so the guard that pins the map keeps its door.
+export {
+  MICROSOFT_CONSENT_DOMAINS,
   MICROSOFT_DOMAIN_SCOPES,
-) as ReadonlyArray<DiscoveryDomain>;
-
-/**
- * The scope string for the faces asked for — always with `offline_access`, and
- * never with a scope for a face nobody ticked.
- *
- * An empty or unrecognised request asks for every face rather than none:
- * a consent that grants nothing is not a safer failure, it is a button that
- * silently does not work.
- */
-export function microsoftScopesFor(domains: ReadonlyArray<string>): string[] {
-  const asked = domains.filter((d): d is DiscoveryDomain => d in MICROSOFT_DOMAIN_SCOPES);
-  const chosen = asked.length > 0 ? asked : MICROSOFT_CONSENT_DOMAINS;
-  const scopes = chosen
-    .map((d) => MICROSOFT_DOMAIN_SCOPES[d])
-    .filter((s): s is string => typeof s === 'string');
-  return [MICROSOFT_OFFLINE_SCOPE, ...scopes];
-}
+  MICROSOFT_OFFLINE_SCOPE,
+  microsoftAuthEndpoint,
+  microsoftScopesFor,
+  microsoftTokenEndpoint,
+} from '@openmig/shared';
+import { microsoftAuthEndpoint, microsoftScopesFor, microsoftTokenEndpoint } from '@openmig/shared';
 
 export function microsoftConsentUrl(p: {
   clientId: string;

@@ -1,6 +1,39 @@
 # Workplan 0114 — The grant Microsoft never asked for
 
-## Status — 2026-09-05 (update this block at the end of every session)
+## Status — 2026-09-06 (update this block at the end of every session)
+
+**T10 is BUILT: the account kind has a Test.** Found by the owner the morning the grant first
+worked end to end: Test on a `microsoft` connection answered "No check exists for a microsoft
+connection yet", and the badges stayed `?`. The kind sat in every table T5b listed and in none of
+the two that GATE — `probeSourceConnection`'s `switch`, whose `default` arm is the gap sentence,
+and the route's qualifier guard, which returns before the chain runs for a kind no predicate
+names. Neither absence is red: `noProbe` is the honest answer for a kind with no arm.
+
+**What the Test asks.** The headline probe reads the grant first — a refresh-token exchange for
+`.default`, whose `scope` field says which faces the person actually ticked — and probes the
+first face the grant carries, calendar first (the account-kind rule 0106 T3b and 0115 T5 set),
+through the same builders a pass uses; the file face is asked bounded, one page of top-level
+folders, for the reason the Dropbox probe is. A calendar-first probe against a mail-and-files
+grant would have refused a connection the migration runs fine. The qualification then measures
+each of the five faces on its own: `yes` with a count where the face listed, `no` where the
+consent did not include its scope (with the tick that adds it — asking is granting), `unknown`
+with the provider's sentence where the scope is there and the face still did not answer. The
+Measured line gets OneDrive's used quota in bytes, the mailbox's message count summed over its
+folder tree, and the contact count per address book.
+
+**The scope map moved to `packages/shared`** (`microsoft-scopes.ts`), because the
+qualification reads the grant against the map the consent asked with and the orchestration
+cannot import `apps/api`. The consent module re-exports it and names no scope of its own, which
+the 0114 T4 guard now pins beside the two sync lists.
+
+**A guard for the family.** `a-door-with-no-check-behind-it` asks, for every provider account
+kind, at the door it is offered through: does the probe answer something other than the gap
+sentence, and does a qualifier claim the kind. It caught its own first mistake — `soverin` is the
+target-side account and has its arm in the target probe — and it fails the moment the
+`microsoft` arm is removed. Unmeasured against a live tenant, as every row here: the owner's
+next Test is the measurement.
+
+### Earlier — 2026-09-05
 
 **T6 is BUILT: the Graph refusals speak.** Not the consent screen — T2 already turned Entra's AADSTS refusals into sentences there — but the refusal a face meets on its first request, which the connectors quoted as `403 - {"error":{…,"innerError":{"request-id":…}}}`, the JSON wall that #722 met in Google's XML. `graph-refusal.ts` keeps Graph's code and message and drops the envelope, and on a 401/403 that says the consent did not include the face it names the scope, the tick to make, and the administrator's once-per-tenant grant for organisations that block user consent. Every Graph face reports through it; the directory and sharing scans lose only the envelope, because their remedy is a different one (an Application Access Policy, said in their own comments). Left in 0114: T8, the managed-gate assertions with a sentinel pair.
 
@@ -108,6 +141,7 @@ pattern for a third time, over connectors that need no change at all.
 | T7 Docs and env plumbing | ✅ Done | `managed.yml`, `set-task-env.sh` (both places), `managed.env.example`, the redirect-URIs table, `docs/microsoft-setup.md` for customers and a bring-up section for operators. **`MICROSOFT_OAUTH_TENANT` travels with the pair** — the two halves of a consent must use one authority. Both guides lead with the multi-tenant radio button, because it is the setting that works for the operator and fails for their first customer. |
 | T8 The gate | ✅ **Built 2026-09-05** | `smoke-managed.sh` asks Microsoft's door the Google block's three questions with a sentinel pair the workflow upserts (`MICROSOFT_OAUTH_CLIENT_ID=gate-microsoft-app-registration`, a random secret per runner, `--if-absent`): `/api/provider-clients` says `deployment`; a consent without a pair answers a URL at `login.microsoftonline.com` carrying the client id, `offline_access` and exactly the faces named (`email`,`file` → `Mail.Read`, `Files.Read`; no `Calendars.Read`/`Contacts.Read`/`Tasks.Read`), with no secret in the answer; half a pair is refused `half_client_pair`. A stack without a pair reports `connection` and refuses `no_microsoft_client`, asserted rather than skipped. The URL is built, never opened. |
 | T9 Microsoft To Do | ✅ **Built 2026-09-05** | `graph-todo-source` (VTODO built from Graph's JSON), `microsoft.task → graph-todo` in the face table, `task: 'Tasks.Read'` in the scope map, `task` in `PROVIDER_ACCOUNT_DOMAINS.microsoft`, and a `graph-todo` source type for the appliance. Unmeasured against a live tenant: nothing in CI can press the consent. |
+| T10 The Test | ✅ **Built 2026-09-06** | Found by the owner on the first working grant: Test answered "No check exists for a microsoft connection yet" and the badges stayed `?`. A `microsoft` arm in `probeSourceConnection` that reads the grant's `scope` field (a `.default` refresh-token exchange) and probes the first face it carries, calendar first, through the builders a pass uses; `qualifyMicrosoftAccount` measures each of the five faces (yes with a count / no naming the missing scope and the tick / unknown with the provider's sentence), with OneDrive quota bytes, mailbox message count and contact count on the Measured line. The scope map lives in `packages/shared/src/microsoft-scopes.ts`; `a-door-with-no-check-behind-it.unit.test.ts` fails for any provider account kind without a probe arm or a qualifier. Unmeasured against a live tenant. |
 
 ## What the survey missed
 

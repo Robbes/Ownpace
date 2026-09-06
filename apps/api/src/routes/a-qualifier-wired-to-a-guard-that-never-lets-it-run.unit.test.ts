@@ -88,6 +88,7 @@ function dispatchedQualifiers(): Set<string> {
 const PREDICATE_FOR: Readonly<Record<string, string>> = {
   qualifyAccount: 'isQualifiableKind',
   qualifyGoogleGrant: 'isGoogleGrantKind',
+  qualifyMicrosoftAccount: 'isMicrosoftGrantKind',
   qualifyDropbox: 'isDropboxKind',
   qualifyArchive: 'isArchiveKind',
 };

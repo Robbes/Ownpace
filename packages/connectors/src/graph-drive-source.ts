@@ -128,6 +128,58 @@ export class GraphDriveSource implements FileSource {
   }
 
   /**
+   * The top level only, ONE request, for a probe or a qualification
+   * (workplan 0114 T10). `listFolders` above walks the whole drive — right
+   * for a pass, which migrates exactly what it answers, and wrong for a Test
+   * that has 20 seconds and a person waiting: the owner's whole-Dropbox Test
+   * of 2026-09-02 could not finish a recursive listing inside the browser's
+   * patience, and OneDrive is no smaller. So this asks Graph for the root's
+   * children once, keeps the folders, and says when the page was cut short —
+   * past the cap the count is a floor, and the probe words it as one.
+   */
+  async listTopLevelFolders(): Promise<{ folders: ReadonlyArray<FileFolder>; truncated: boolean }> {
+    const response = await this.makeRequest({
+      url: `${this.scope}/drive/root/children?$top=200`,
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (response.status !== 200) {
+      throw new Error(graphFailure('Failed to list the top level of the drive', response, FILES_FACE));
+    }
+    const data = JSON.parse(response.body) as {
+      value: GraphDriveItem[];
+      '@odata.nextLink'?: string;
+    };
+    const folders: FileFolder[] = data.value
+      .filter((item) => item.folder !== undefined)
+      .map((item) => ({ path: `/${item.name}`, name: item.name }));
+    return { folders, truncated: data['@odata.nextLink'] !== undefined };
+  }
+
+  /**
+   * How much the drive holds, from the one place Graph states it: the
+   * drive's own `quota.used`. One request, metadata only — the same cheap
+   * sizing Drive's `about` gives, and the number OneDrive's own storage page
+   * shows the person, so the Measured line agrees with what they can see.
+   */
+  async storageUsage(): Promise<{ bytes: number }> {
+    const response = await this.makeRequest({
+      url: `${this.scope}/drive`,
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (response.status !== 200) {
+      throw new Error(graphFailure("Failed to read the drive's quota", response, FILES_FACE));
+    }
+    const data = JSON.parse(response.body) as { quota?: { used?: number } };
+    const used = data.quota?.used;
+    if (typeof used !== 'number') {
+      throw new Error("the drive answered without a quota.used figure, so its size is unmeasured");
+    }
+    return { bytes: used };
+  }
+
+  /**
    * The item's path, derived from the fields Graph ACTUALLY returns.
    *
    * There is no `path` property on a driveItem. The type declared one, no

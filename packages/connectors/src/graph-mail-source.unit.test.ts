@@ -285,3 +285,48 @@ describe('fetch', () => {
     await expect(source(client).fetch(item)).rejects.toThrow(/bodyBytes/);
   });
 });
+
+/**
+ * THE MESSAGE COUNT EXCHANGE ALREADY KEEPS (workplan 0114 T10): summed from
+ * `totalItemCount` on every folder the walk lists, nested folders and pages
+ * included, and no message ever fetched.
+ */
+describe('countMessages', () => {
+  it('sums totalItemCount across nested folders and pages', async () => {
+    const { client, seen } = fakeClient({
+      [`${BASE}/me/mailFolders`]: json(200, {
+        value: [
+          { id: 'id-inbox', displayName: 'Inbox', childFolderCount: 1, totalItemCount: 120 },
+          { id: 'id-sent', displayName: 'Sent Items', childFolderCount: 0, totalItemCount: 30 },
+        ],
+        '@odata.nextLink': `${BASE}/me/mailFolders?$skip=2`,
+      }),
+      [`${BASE}/me/mailFolders?$skip=2`]: json(200, {
+        value: [{ id: 'id-archive', displayName: 'Archive', childFolderCount: 0, totalItemCount: 1000 }],
+      }),
+      [`${BASE}/me/mailFolders/id-inbox/childFolders`]: json(200, {
+        value: [{ id: 'id-sub', displayName: 'Receipts', childFolderCount: 0, totalItemCount: 7 }],
+      }),
+    });
+    const { messages } = await source(client).countMessages();
+    expect(messages).toBe(120 + 30 + 1000 + 7);
+    // Folders only: nothing under /messages was ever asked for.
+    expect(seen.some((u) => u.includes('/messages'))).toBe(false);
+  });
+
+  it('a folder without the field counts as nothing rather than failing the sum', async () => {
+    const { client } = fakeClient({
+      [`${BASE}/me/mailFolders`]: json(200, {
+        value: [{ id: 'id-inbox', displayName: 'Inbox', childFolderCount: 0 }],
+      }),
+    });
+    expect((await source(client).countMessages()).messages).toBe(0);
+  });
+
+  it('a refusal names the Mail face, as every mail request does', async () => {
+    const { client } = fakeClient({
+      [`${BASE}/me/mailFolders`]: json(403, { error: { code: 'ErrorAccessDenied', message: 'Access is denied.' } }),
+    });
+    await expect(source(client).countMessages()).rejects.toThrow(/Mail\.Read|ErrorAccessDenied|denied/);
+  });
+});
