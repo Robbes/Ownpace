@@ -971,7 +971,7 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
     // does not misreport — it fails the bring-up and takes the gate with it.
     // Nothing here has ever executed a command inside either image.
     expect(smoke).toMatch(/has ever executed a command inside/);
-    expect(smoke).toContain('`registry:2` or `tecnativa/docker-socket-proxy`');
+    expect(smoke).toContain('`registry:3` or `tecnativa/docker-socket-proxy`');
     expect(smoke).toMatch(/closes the COVERAGE gap, not the healthcheck one/);
   });
 
