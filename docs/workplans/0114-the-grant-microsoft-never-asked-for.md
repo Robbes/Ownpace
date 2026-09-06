@@ -2,6 +2,22 @@
 
 ## Status — 2026-09-06 (update this block at the end of every session)
 
+**The third live Test was GREEN, and read one thing wrong (2026-09-06, 21:00).** After #832 the
+owner's Test answered "Connected. 3 calendars visible. Can carry: Email ✓ 8 folders · Calendar ✓
+3 calendars · Contacts ✓ 0 address books · Files ✓ 4 folders · Tasks ✗. Measured: Email 25
+messages · Contacts 0 cards · Files 3.8 GB" — the first end-to-end measurement of this plan, and
+the Microsoft sign-in button went through the same evening (a split client id in `.env`, #831's
+skip line and a personal account against an organisational-only registration were the three
+stops on the way). The wrong thing: **0 address books on an account with contacts.**
+`GraphContactsSource.listFolders` walked `/me/contactFolders`, which Graph documents as the
+folders a person made BESIDE the default one; the default folder — where nearly every account
+keeps nearly every contact — is only reachable as `/me/contacts`, and this connector had read the
+list alone since workplan 0008. A migration would have carried no contacts. The default folder is
+listed first now (path `/contacts`), its contacts are read at `/contacts/delta`, and its items
+carry `/contacts/{id}`; both editions, since the appliance's `graph-contacts` is the same class.
+Pinned in `graph-contacts-source.unit.test.ts`. Tasks ✗ is the measured no: the owner did not
+tick Tasks, and the consent asked for exactly the faces ticked (T2).
+
 **The first live Test found the grant was never stored — fixed the same evening.** The owner
 pressed Test on a freshly consented Microsoft 365 account and read `missing_tenant_id_error`
 from MSAL, with every face "Unmeasured — no clientId/refreshToken pair". Three defects, one
