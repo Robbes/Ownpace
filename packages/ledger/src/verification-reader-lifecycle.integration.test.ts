@@ -39,12 +39,39 @@ describe('LedgerVerificationReader pool lifecycle (integration)', () => {
     observer = createPgDb(PG_CONNECTION_STRING);
   });
 
-  /** Backends this database currently has open, excluding our own observer. */
+  /** Backends this database currently has open, our own observer included. */
   async function backendCount(): Promise<number> {
     const result = await observer.execute(
       sql`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database()`,
     );
     return Number((result.rows[0] as { n: number }).n);
+  }
+
+  /**
+   * The count once the server has caught up with `close()`, or whatever it
+   * still reads when it has not caught up within `SETTLE_MS`.
+   *
+   * `pool.end()` resolves when the Terminate has been handed to every idle
+   * client, not when the server has acted on it: pg-pool 3.14 flips `ended`
+   * as soon as `_clients` is empty, and `client.end()` has by then only been
+   * *called* (`_pulseQueue` → `_remove`). The backend leaves
+   * `pg_stat_activity` a few milliseconds later, on the server's schedule,
+   * and a count taken over the observer's own connection can land before it
+   * does — CI's arm lane read 2 for 1 on 2026-09-06, and under CPU
+   * contention this test failed 1 run in 25 locally, settling in up to
+   * 66 ms. So the assertion is "the count returns to `before`", read until
+   * it does. A leaked pool never returns, and the deadline turns that into
+   * the same failure as before.
+   */
+  const SETTLE_MS = 5_000;
+  async function backendCountSettledTo(expected: number): Promise<number> {
+    const deadline = Date.now() + SETTLE_MS;
+    let n = await backendCount();
+    while (n !== expected && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      n = await backendCount();
+    }
+    return n;
   }
 
   it('releases its connections when closed', async () => {
@@ -59,7 +86,7 @@ describe('LedgerVerificationReader pool lifecycle (integration)', () => {
 
     // The load-bearing assertion. Without close() this stayed elevated for the
     // life of the process, once per verification run.
-    expect(await backendCount()).toBe(before);
+    expect(await backendCountSettledTo(before)).toBe(before);
   });
 
   it('does not accumulate connections across repeated verification runs', async () => {
@@ -71,6 +98,6 @@ describe('LedgerVerificationReader pool lifecycle (integration)', () => {
       await reader.close();
     }
 
-    expect(await backendCount()).toBe(before);
+    expect(await backendCountSettledTo(before)).toBe(before);
   });
 });
