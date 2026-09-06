@@ -23,9 +23,6 @@
     "@openmig/shared": "workspace:*",
     "imapflow": "^1.7.8",
     "jmap-jam": "^0.13.6",
-    "nodemailer": "^9.1.1"
-  },
-  "devDependencies": {
-    "@types/nodemailer": "^8.0.1"
+    "nodemailer": "^10.0.0"
   }
 }
