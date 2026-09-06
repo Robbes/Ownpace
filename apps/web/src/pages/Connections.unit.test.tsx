@@ -785,6 +785,47 @@ describe('adding a connection through the front door', () => {
     }
   });
 
+  it('a consent that saved the row leaves no live Add button behind it — one row per form (2026-09-06)', async () => {
+    // The owner's first green Microsoft Test: the consent saved and tested
+    // in one go, the verdict stayed on screen, and "Add and test" sat live
+    // beneath it. A second press would have stored a second connection with
+    // the same grant. Once a row exists the button says Added and is inert,
+    // and Cancel becomes Close.
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'deployment', microsoft: 'connection' });
+    dropboxAuthorize.mockResolvedValue({ url: 'https://www.dropbox.com/oauth2/authorize', redirectUri: 'r' });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      add.mockResolvedValue({ ok: true, id: 'c9', detail: 'reachable' });
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@example.invalid' },
+      });
+      const consent = await screen.findByRole('button', { name: /Connect with Dropbox/ });
+      await waitFor(() => expect(consent).toBeEnabled());
+      fireEvent.click(consent);
+      await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'ownpace-dropbox-consent', refreshToken: 'dbx-granted' },
+          origin: window.location.origin,
+        }),
+      );
+      await screen.findByText(/reachable/);
+      expect(add).toHaveBeenCalledTimes(1);
+
+      const done = screen.getByRole('button', { name: /^Added$/ });
+      expect(done).toBeDisabled();
+      fireEvent.click(done);
+      await act(async () => {});
+      expect(add).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('button', { name: /^Add and test$/ })).toBeNull();
+      expect(screen.getByRole('button', { name: /^Close$/ })).toBeEnabled();
+    } finally {
+      opened.mockRestore();
+    }
+  });
+
   it('where each connection brings its own Dropbox app, the button waits for the whole pair and sends it', async () => {
     dropboxAuthorize.mockResolvedValue({ url: 'https://www.dropbox.com/oauth2/authorize', redirectUri: 'r' });
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
