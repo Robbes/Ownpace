@@ -81,6 +81,16 @@ fi
 MANAGED_NETWORK="${MANAGED_NETWORK:-ownpace-managed_ownpace-network}"
 NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER:-ownpace-nextcloud}"
 NEXTCLOUD_HOST_PORT="${NEXTCLOUD_HOST_PORT:-8083}"
+# FOLLOW THE PUBLISH, DO NOT ASSUME LOOPBACK. setup-nextcloud-users.sh defaults
+# its base URL to 127.0.0.1:$NEXTCLOUD_HOST_PORT, which is right until an
+# operator binds the DAV backend to a private mesh address (NEXTCLOUD_BIND, for
+# reaching it over the VPN) — then nothing listens on loopback and this script
+# fails at readiness with a curl 000 that says nothing about the cause. Reading
+# the same variable the compose publish reads keeps the two in step.
+NEXTCLOUD_BIND_ADDR="${NEXTCLOUD_BIND:-}"
+if [ -z "${NEXTCLOUD_URL:-}" ] && [ -n "$NEXTCLOUD_BIND_ADDR" ]; then
+  NEXTCLOUD_URL="http://${NEXTCLOUD_BIND_ADDR}:${NEXTCLOUD_HOST_PORT}"
+fi
 
 echo "[setup-managed-demo] Provisioning demo Stalwart (mail source+target)..."
 STALWART_CONTAINER="${STALWART_CONTAINER:-ownpace-stalwart}" \

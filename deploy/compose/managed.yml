@@ -1206,7 +1206,19 @@ services:
       SQLITE_DATABASE: nextcloud
       NEXTCLOUD_ADMIN_USER: admin
       NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:-admin_managed_pw}
-      NEXTCLOUD_TRUSTED_DOMAINS: "localhost nextcloud"
+      # WHICH NAMES IT WILL ANSWER TO. Nextcloud refuses any host header not on
+      # this list with its "untrusted domain" page — so publishing it on a mesh
+      # address is only half the job: reached at `http://100.97.25.131:8083`
+      # with the list unchanged, it refuses before a login form is ever drawn,
+      # and the refusal looks like a broken deployment rather than a setting.
+      # The two shipped names keep the demo scripts and the gate working
+      # (`localhost` from the host, `nextcloud` from the app network); an
+      # operator publishing it anywhere else adds that address here.
+      #
+      # THE IMAGE APPLIES THIS AT INSTALL. On an instance already installed,
+      # editing it changes nothing until `occ config:system:set trusted_domains`
+      # is run — docs/managed-bring-up.md carries the command.
+      NEXTCLOUD_TRUSTED_DOMAINS: "${NEXTCLOUD_TRUSTED_DOMAINS:-localhost nextcloud}"
       # ARMED ON PURPOSE (0103 T2 / ADR-0043). Without a mail server Nextcloud
       # cannot send anything, and the gate's "a migration sent no mail" would
       # be true by inability — the same silence-by-blindness the whole 0103
@@ -1219,7 +1231,25 @@ services:
       MAIL_FROM_ADDRESS: calendar
       MAIL_DOMAIN: ownpace.invalid
     ports:
-      - "${NEXTCLOUD_PORT:-8083}:80"
+      # WHICH INTERFACE, AND THE DEFAULT IS LOOPBACK — the same rule mailpit
+      # states above, for the same reason. This published on every interface
+      # from the day it arrived, and its admin account is the shipped
+      # `NEXTCLOUD_ADMIN_PASSWORD` default: on a box that has a public name,
+      # which ota.ownpace.eu does, that is an unauthenticated-by-default file
+      # store facing whatever can route to it.
+      #
+      # A PRIVATE MESH ADDRESS IS A DIFFERENT THING, as it is for mailpit. On
+      # WireGuard — NetBird, Tailscale — the peer address is reachable only by
+      # devices holding a key, so an operator who wants to browse the DAV
+      # backend from a laptop on the mesh sets NEXTCLOUD_BIND to that peer
+      # address and reaches it at http://<peer-address>:${NEXTCLOUD_PORT},
+      # with no tunnel. Add that same address to NEXTCLOUD_TRUSTED_DOMAINS
+      # above, or Nextcloud answers the untrusted-domain page instead.
+      #
+      # The host-side callers follow this variable rather than assuming
+      # localhost — smoke-managed.sh and setup-managed-demo.sh both read it —
+      # so moving the publish does not quietly break the gate.
+      - "${NEXTCLOUD_BIND:-127.0.0.1}:${NEXTCLOUD_PORT:-8083}:80"
     # A NAME, SO THE DATA OUTLIVES THE CONTAINER (2026-09-06). This block
     # declared no volume, and the image declares `VOLUME /var/www/html` — so
     # every account, calendar, address book and file lived in an ANONYMOUS

@@ -3922,9 +3922,16 @@ fi
 # risked, nothing but the API: the same question the product can ask any
 # customer target. "unknown" is reported as unmeasured, never as safe.
 nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
+# THE PUBLISH MOVED AND THE CALLER STAYED AT LOCALHOST is the failure this
+# reads .env to avoid: an operator who binds the DAV backend to a private mesh
+# address (NEXTCLOUD_BIND, for browsing it over the VPN) would otherwise leave
+# every assertion below curling a loopback address nothing listens on any more,
+# and the gate would report a target failure that is really a moved port.
+nc_host="$(smoke_env_value NEXTCLOUD_BIND)"
+NC="http://${nc_host:-localhost}:${nc_port:-8083}"
 sched_dav_header="$(curl -fsS -o /dev/null -D - -X OPTIONS \
   -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
-  "http://localhost:${nc_port:-8083}/remote.php/dav/calendars/${TARGET_DAV_USER}/personal/" 2>/dev/null \
+  "${NC}/remote.php/dav/calendars/${TARGET_DAV_USER}/personal/" 2>/dev/null \
   | tr -d '\r' | grep -i '^dav:' || true)"
 if [ -z "$sched_dav_header" ]; then
   echo "target scheduling: UNKNOWN — OPTIONS answered no DAV header (unmeasured, not safe)"
@@ -3952,7 +3959,7 @@ if [ -n "$BALANCE_TAG" ]; then
   put_code="$(curl -sS -o /dev/null -w '%{http_code}' -X PUT \
     -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
     --data-binary "the mail-pipe proof for tag ${BALANCE_TAG}" \
-    "http://localhost:${nc_port:-8083}/remote.php/dav/files/${TARGET_DAV_USER}/${mailproof_file}")"
+    "${NC}/remote.php/dav/files/${TARGET_DAV_USER}/${mailproof_file}")"
   share_id=""
   share_code="(not attempted)"
   if [ "$put_code" = "201" ] || [ "$put_code" = "204" ]; then
@@ -3962,7 +3969,7 @@ if [ -n "$BALANCE_TAG" ]; then
       --data-urlencode "shareType=4" \
       --data-urlencode "shareWith=${mailproof_addr}" \
       -w $'\n%{http_code}' \
-      "http://localhost:${nc_port:-8083}/ocs/v2.php/apps/files_sharing/api/v1/shares")"
+      "${NC}/ocs/v2.php/apps/files_sharing/api/v1/shares")"
     share_code="${share_out##*$'\n'}"
     share_id="$(jq -r '.ocs.data.id // empty' <<<"${share_out%$'\n'*}" 2>/dev/null || true)"
   fi
@@ -3990,12 +3997,12 @@ if [ -n "$BALANCE_TAG" ]; then
     fi
     share_del="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE -H 'OCS-APIRequest: true' \
       -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
-      "http://localhost:${nc_port:-8083}/ocs/v2.php/apps/files_sharing/api/v1/shares/${share_id}")"
+      "${NC}/ocs/v2.php/apps/files_sharing/api/v1/shares/${share_id}")"
     case "$share_del" in 200|404) ;; *) echo "mailproof share ${share_id} not cleaned up (HTTP ${share_del})"; fail_at ;; esac
   fi
   file_del="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
     -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
-    "http://localhost:${nc_port:-8083}/remote.php/dav/files/${TARGET_DAV_USER}/${mailproof_file}")"
+    "${NC}/remote.php/dav/files/${TARGET_DAV_USER}/${mailproof_file}")"
   case "$file_del" in 204|200|404) ;; *) echo "mailproof file not cleaned up (HTTP ${file_del})"; fail_at ;; esac
 
   sched_href="remote.php/dav/calendars/${TARGET_DAV_USER}/personal/openmig-demo-event-${BALANCE_TAG}-1.ics"
@@ -4003,7 +4010,7 @@ if [ -n "$BALANCE_TAG" ]; then
   # itself only ever has the API, and the gate should walk through the same
   # door (owner's point, 2026-08-25). nc_port read above, from .env.
   sched_copy="$(curl -fsS -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
-    "http://localhost:${nc_port:-8083}/${sched_href}" 2>/dev/null || true)"
+    "${NC}/${sched_href}" 2>/dev/null || true)"
   if [ -z "$sched_copy" ]; then
     echo "could not read the canary copy at ${sched_href} — the byte half of this"
     echo "gate is unproven. Either the sync never copied it, or the writer re-homed"

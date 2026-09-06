@@ -457,12 +457,49 @@ docker compose -f deploy/compose/managed.yml up -d --wait nextcloud
 ```
 
 First boot INSTALLS Nextcloud, so `--wait` can sit there for two to three
-minutes before `status.php` answers. Its trusted domains are `localhost
-nextcloud`, so the UI answers on `http://localhost:8083` from the host itself
-(`ssh -L 8083:localhost:8083 <host>` from elsewhere); reaching it by LAN name
-gives Nextcloud's untrusted-domain page. Inside the stack its DAV root is
+minutes before `status.php` answers. It publishes on `127.0.0.1:8083` and its
+trusted domains are `localhost nextcloud`, so the UI answers on
+`http://localhost:8083` from the host itself (`ssh -L 8083:localhost:8083
+<host>` from elsewhere). Inside the stack its DAV root is
 `http://nextcloud/remote.php/dav` — the base URL a `caldav`, `carddav` or
 `webdav` connection takes.
+
+#### Reaching it over a private mesh (NetBird, Tailscale)
+
+To browse what a migration actually landed, from a laptop on the mesh and with
+no tunnel, publish it on the peer address and put that address on the
+trusted-domain list. **Both**, or the second one bites: Nextcloud answers its
+untrusted-domain page to any host header not on the list, and that refusal
+reads like a broken deployment rather than a setting.
+
+```bash
+# deploy/compose/.env
+NEXTCLOUD_BIND=100.97.25.131
+NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud 100.97.25.131
+```
+
+Keep `localhost` and `nextcloud` on the list: the gate asks on the first, the
+app network on the second. Then recreate the container, which is what makes
+either setting take:
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d --wait nextcloud
+```
+
+**On an instance already installed**, the image applies
+`NEXTCLOUD_TRUSTED_DOMAINS` only at install time, so the recreate above will
+not add the address by itself. Set it directly, then re-read it:
+
+```bash
+docker exec -u www-data ownpace-nextcloud \
+  php occ config:system:set trusted_domains 2 --value=100.97.25.131
+docker exec -u www-data ownpace-nextcloud php occ config:system:get trusted_domains
+```
+
+The mesh address is reachable only by devices holding a key for it, which is
+an authentication boundary — but everyone on that mesh reaches the admin
+account, so change `NEXTCLOUD_ADMIN_PASSWORD` from its shipped default before
+using this. `NEXTCLOUD_BIND=0.0.0.0` is refused by a rule.
 
 **If you started Nextcloud before 2026-09-06**, its data is in an anonymous
 volume: the service declared none, and the image declares one. It now mounts
