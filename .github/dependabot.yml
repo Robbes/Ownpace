@@ -70,6 +70,13 @@ updates:
       time: "06:00"
       timezone: Etc/UTC
     open-pull-requests-limit: 3
+    ignore:
+      # The runtime's major moves by hand, with `engines` in package.json and the
+      # Node line CI installs, when the next LTS line is current (workplan 0119
+      # §2.4). Dependabot's first run offered 26-slim, the Current line, three
+      # times in one morning; that is not a decision a green tick may take.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
     groups:
       images:
         update-types:
