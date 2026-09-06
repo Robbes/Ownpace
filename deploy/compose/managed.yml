@@ -684,6 +684,17 @@ services:
         # container actually serves.
         aliases:
           - ${ZITADEL_NETWORK_ALIAS:-ownpace-idp}
+      # ON THE PROBE NETWORK THE PUBLIC NAME ALWAYS MEANS THIS CONTAINER. Only
+      # the status page is on it (see `status-probe` at the bottom of this
+      # file), so the derivation above stays exactly as it is for the API, and
+      # the page's `Identity provider` row — which probes the provider by that
+      # name, on this container's own port — reaches it whether or not something
+      # fronts the provider publicly. Fronted, the app-network alias is the
+      # container's name and this one is the domain; direct, both are the domain
+      # and the second is redundant, which is fine.
+      status-probe:
+        aliases:
+          - ${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}
 
   # MAKES THE PROVISIONING TOKEN'S DIRECTORY WRITABLE BY THE IDENTITY PROVIDER.
   #
@@ -977,18 +988,30 @@ services:
       # stop and work out whether `zitadel` is even the right machine (owner,
       # 2026-08-25).
       #
-      # It is the SAME EXPRESSION as the network alias below, so the two cannot
-      # drift: whatever external domain the provider answers for, that name
-      # resolves to its container from everywhere on this network. On a fronted
-      # stack it renders `id.example.com:3126`.
+      # It is the SAME EXPRESSION as the provider's alias on the `status-probe`
+      # network below, so the two cannot drift: whatever external domain the
+      # provider answers for, that name resolves to its container from inside
+      # THIS container. On a fronted stack it renders `id.example.com:3126`.
+      #
+      # WHY A NETWORK OF ITS OWN. This used to lean on the provider's alias on
+      # the app network. That alias is derived now (zitadel-network-alias.sh):
+      # on a fronted stack the domain is deliberately NOT aliased there, so the
+      # API reaches the issuer through the front like a browser does. From in
+      # here the same name then resolved OUTWARD — public DNS, the ingress, this
+      # port — and nothing answered. The row read Unhealthy for a provider that
+      # was signing people in (the reference deployment, 2026-09-06). The
+      # probe-only network carries the name for the two containers that share
+      # it and for nobody else, so the API's route and the probe's route no
+      # longer have to be the same route.
       #
       # AND THE PORT IS THE TELL, deliberately left visible. `:3126` is the
       # container's own port, so this row proves the provider is SERVING and
-      # not that its public https name resolves — the alias means a probe for
-      # that name never leaves this network. Writing it as the bare public URL
-      # would hide that distinction behind an address that looks like the one a
-      # visitor uses. Probing the public path means running this page off this
-      # box, which gatus.yaml's header already names as the eventual plan.
+      # not that its public https name resolves — the probe network means a
+      # request for that name never leaves this stack. Writing it as the bare
+      # public URL would hide that distinction behind an address that looks
+      # like the one a visitor uses. Probing the public path means running this
+      # page off this box, which gatus.yaml's header already names as the
+      # eventual plan.
       STATUS_IDP_URL: ${STATUS_IDP_URL:-http://${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}:${ZITADEL_PORT:-3126}}
       # THE PUBLIC SITE, OFF UNTIL BOTH ARE SET. `www.yml` is a separate deploy
       # that this stack does not start, so a row for it is opt-in: a red light
@@ -1011,6 +1034,9 @@ services:
       - "${STATUS_PORT:-3124}:8080"
     networks:
       - ownpace-network
+      # The second network exists for one name: see the provider's
+      # `status-probe` alias and the STATUS_IDP_URL comment above.
+      - status-probe
     # No `depends_on`. A status page that will not start until the thing it is
     # watching is healthy is a status page that is never there when it matters.
     # NO HEALTHCHECK, AND THIS IS NOT AN OMISSION.
@@ -1188,6 +1214,15 @@ services:
 networks:
   ownpace-network:
     driver: bridge
+  # TWO MEMBERS, ONE NAME. The status page and the identity provider, so the
+  # provider's public domain resolves to its container for the page's probe
+  # without being aliased on the app network — where, on a fronted stack, that
+  # alias shadowed the front for the API (the-alias-that-shadowed-the-front).
+  # `internal`: it carries a name, not traffic to anywhere; gatus reaches the
+  # world over ownpace-network as before.
+  status-probe:
+    driver: bridge
+    internal: true
 
 volumes:
   gatus_data:

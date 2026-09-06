@@ -105,7 +105,8 @@ endpoints:
   # does NOT mean the public issuer name resolves — and the PORT on this row is
   # how a reader can tell. `:3126` is the container's own port; a visitor's
   # address has no port on it. The probe goes straight to the container over
-  # the compose network — see the header of this
+  # a probe-only compose network that carries the provider's name for this
+  # page alone (managed.yml, `status-probe`) — see the header of this
   # file for why the whole page is inside the stack it watches. The rows above
   # probe STATUS_WEB_URL, which on a real deployment IS the public address, so
   # an ingress outage shows there.
