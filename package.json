@@ -22,7 +22,7 @@
     "adr:operative": "node scripts/adr-operative.mjs --write"
   },
   "dependencies": {
-    "@azure/msal-node": "^5.6.0",
+    "@azure/msal-node": "^6.0.0",
     "@trigger.dev/core": "4.5.12",
     "@trigger.dev/sdk": "4.5.12",
     "croner": "^10.0.1",
