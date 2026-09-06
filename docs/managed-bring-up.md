@@ -449,7 +449,36 @@ boot (ADR-0036), shared first.
 
 Without `--with-demo` the services are **named explicitly** rather than swept
 up, so a bare `up` does not start Nextcloud — whose admin password is
-`change-me-nextcloud-admin` by default.
+`change-me-nextcloud-admin` by default. To start it on its own, without the
+demo tenants and their published credentials:
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d --wait nextcloud
+```
+
+First boot INSTALLS Nextcloud, so `--wait` can sit there for two to three
+minutes before `status.php` answers. Its trusted domains are `localhost
+nextcloud`, so the UI answers on `http://localhost:8083` from the host itself
+(`ssh -L 8083:localhost:8083 <host>` from elsewhere); reaching it by LAN name
+gives Nextcloud's untrusted-domain page. Inside the stack its DAV root is
+`http://nextcloud/remote.php/dav` — the base URL a `caldav`, `carddav` or
+`webdav` connection takes.
+
+**If you started Nextcloud before 2026-09-06**, its data is in an anonymous
+volume: the service declared none, and the image declares one. It now mounts
+`nextcloud_data`, so the first recreate after this change starts an EMPTY
+Nextcloud and leaves the old data behind under a hash. To carry it across
+before recreating:
+
+```bash
+old=$(docker inspect ownpace-nextcloud \
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/www/html" }}{{ .Name }}{{ end }}{{ end }}')
+docker volume create ownpace-managed_nextcloud_data
+docker run --rm -v "$old":/from -v ownpace-managed_nextcloud_data:/to \
+  busybox:1.38 sh -c 'cd /from && cp -a . /to'
+```
+
+Nothing is deleted by that: the old volume stays until you remove it.
 
 **Verify:**
 
