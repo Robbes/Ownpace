@@ -455,6 +455,15 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const [values, setValues] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
   const [result, setResult] = React.useState<TestConnectionResult | null>(null);
+  /**
+   * ONE ROW PER FORM (2026-09-06). A consent that lands saves and tests in
+   * one go, and the form stays open so the person can read the verdict —
+   * with the Add button live beneath it. The owner's first green Test showed
+   * exactly that screen; a second press would have stored a second
+   * connection with the same grant. Once a row exists the button says so and
+   * does nothing; the way onward is Close.
+   */
+  const [added, setAdded] = React.useState(false);
 
   const fields = credentialFieldsFor(role, type);
   /** Whose published settings sit in the boxes, when a named provider's do. */
@@ -631,6 +640,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       setResult(answer);
       // Added either way — a credential that does not work YET is still worth
       // keeping while somebody chases an administrator.
+      setAdded(true);
       onAdded();
     } catch (err) {
       setResult({ ok: false, reason: refusalText(err) });
@@ -915,18 +925,18 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          disabled={busy || !displayName.trim()}
+          disabled={busy || added || !displayName.trim()}
           onClick={() => void submit()}
           className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded disabled:opacity-50"
         >
-          {busy ? t('connections.testing') : t('connections.addAndTest')}
+          {busy ? t('connections.testing') : added ? t('connections.added') : t('connections.addAndTest')}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
           className="text-sm px-3 py-1.5 border border-gray-300 rounded"
         >
-          {t('common.cancel')}
+          {added ? t('common.close') : t('common.cancel')}
         </button>
       </div>
     </div>
