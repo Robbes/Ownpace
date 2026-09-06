@@ -1090,3 +1090,39 @@ describe('the DAV verify asks about every domain the demo tenant actually select
     expect(requiredByTheGate).toContain('tasks');
   });
 });
+
+describe("the status page's identity-provider lamp is read, not just the page", () => {
+  /**
+   * `${STATUS}/health` proves gatus is serving. It proved nothing about the
+   * lamps, and the reference deployment showed a red `Identity provider` for a
+   * provider that was signing people in (2026-09-06): the probe's address named
+   * the provider's external domain, which a fronted stack no longer aliases on
+   * the app network, so the probe went out to the ingress. The gate now reads
+   * the row off gatus's own API — the same list the operator's screen reads —
+   * and a lamp that lies fails the run.
+   */
+  const start = smoke.indexOf('note "the status page"');
+  const end = smoke.indexOf('note "verdict"');
+  const section = start >= 0 && end > start ? smoke.slice(start, end) : '';
+
+  it('has a status-page section that ends where the verdict begins', () => {
+    expect(section, 'the status page section is gone or moved past the verdict').not.toBe('');
+  });
+
+  it("reads the Identity provider row off gatus's own API", () => {
+    expect(section).toContain('/api/v1/endpoints/statuses');
+    expect(section).toMatch(/select\(\.group == "Ownpace" and \.name == "Identity provider"\)/);
+  });
+
+  it('requires the newest result to be a pass, and fails the gate otherwise', () => {
+    expect(section).toMatch(/\.results\[-1\]\.success/);
+    expect(section).toMatch(/^\s*up\)\s*$/m);
+    const verdictBranch = section.slice(section.indexOf('case "$idp_lamp"'));
+    expect(verdictBranch, 'a lamp that is not green does not fail the gate').toMatch(/fail_at/);
+  });
+
+  it('waits for a first probe rather than failing on an empty history', () => {
+    expect(section).toMatch(/"unprobed"/);
+    expect(section).toMatch(/\[ "\$idp_lamp" = "unprobed" \] \|\| break/);
+  });
+});

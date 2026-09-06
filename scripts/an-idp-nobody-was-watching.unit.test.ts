@@ -245,3 +245,81 @@ describe('and readiness asks where the verifier asks', () => {
       .toMatch(/log\.error\(`\[ready\][^`]*\$\{url\}/);
   });
 });
+
+describe('and the probe can reach it whatever fronts the provider', () => {
+  /**
+   * THE ROW READ RED FOR A PROVIDER THAT WAS SIGNING PEOPLE IN (the reference
+   * deployment, 2026-09-06: `Identity provider` Unhealthy for an hour while
+   * `Sign-in` beside it was green). Its address is the provider's external
+   * domain on the container's own port, and that used to resolve inward
+   * because the provider carried the domain as an alias on the app network.
+   *
+   * The alias is derived now (zitadel-network-alias.sh, pinned by
+   * the-alias-that-shadowed-the-front): on a fronted stack the domain is
+   * deliberately NOT aliased there, so the API reaches the issuer through the
+   * front the way a browser does — and so did this probe, which went out to
+   * the ingress on port 3126, where nothing listens.
+   *
+   * So the name lives on a network only the page and the provider share, and
+   * this pins the three halves of that: the provider carries the domain as an
+   * alias on a network that is not the app network, the page is on that
+   * network, and the row's address is built from the same variable as the
+   * alias — so the two cannot drift apart again by editing one of them.
+   */
+  const managed = parse(readFileSync(join(COMPOSE, 'managed.yml'), 'utf8')) as {
+    services: Record<
+      string,
+      { networks?: string[] | Record<string, { aliases?: string[] } | null>; environment?: Record<string, string> }
+    >;
+    networks?: Record<string, { internal?: boolean } | null>;
+  };
+  const zitadelNets = managed.services.zitadel?.networks ?? {};
+  const probeNets = Array.isArray(zitadelNets)
+    ? []
+    : Object.entries(zitadelNets).filter(
+        ([name, cfg]) =>
+          name !== 'ownpace-network' &&
+          (cfg?.aliases ?? []).some((a) => a.startsWith('${ZITADEL_EXTERNALDOMAIN')),
+      );
+  const probeNet = probeNets[0]?.[0];
+
+  it('the provider carries its external domain as an alias on a network that is not the app network', () => {
+    expect(
+      probeNets.map(([name]) => name),
+      "the provider's external domain is aliased nowhere but the app network — or\n" +
+        'not at all. On a fronted stack the app-network alias is the container\n' +
+        "name (by design), so the status page's probe for the domain leaves the\n" +
+        'box for the ingress and the row reads red for a working provider.',
+    ).toHaveLength(1);
+  });
+
+  it('the status page is on that network, and still on the app network', () => {
+    const nets = managed.services.gatus?.networks ?? [];
+    const list = Array.isArray(nets) ? nets : Object.keys(nets);
+    expect(list, 'gatus is not on the probe network, so the alias there does it no good').toContain(
+      probeNet,
+    );
+    expect(list, 'gatus left the app network, so the Sources and Targets rows cannot leave the box').toContain(
+      'ownpace-network',
+    );
+  });
+
+  it('the network is declared, and carries a name rather than traffic', () => {
+    expect(Object.keys(managed.networks ?? {})).toContain(probeNet);
+    expect(
+      managed.networks?.[probeNet!]?.internal,
+      'the probe network is not internal: it exists for one name, and gatus already\n' +
+        'reaches the world over the app network',
+    ).toBe(true);
+  });
+
+  it("the row's address is built from the same variable as the alias", () => {
+    const idp = managed.services.gatus?.environment?.STATUS_IDP_URL ?? '';
+    expect(idp, "the row's address no longer names the external domain").toMatch(
+      /\$\{ZITADEL_EXTERNALDOMAIN:-/,
+    );
+    expect(idp, "the row's address no longer names the container's own port").toMatch(
+      /\$\{ZITADEL_PORT:-/,
+    );
+  });
+});

@@ -92,9 +92,9 @@ describe('what the page watches', () => {
      * than the rule being loosened to let anything through:
      *
      * The provider is not behind the app's origin at all, and its own public
-     * name cannot be probed from this container — managed.yml gives it a
-     * network alias equal to that name, so it resolves inward to the container
-     * instead of outward to the ingress.
+     * name cannot be probed through the ingress from this container —
+     * managed.yml puts the page and the provider on a probe-only network where
+     * that name resolves inward to the container instead of outward.
      *
      * The site is a separate deploy with a separate public name, and that name
      * is NOT aliased — so that row does leave the box and come back through the

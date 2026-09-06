@@ -4218,6 +4218,49 @@ else
   fail_at
 fi
 
+# THE LAMP, NOT JUST THE PAGE. `/health` says gatus is serving and nothing about
+# whether its lamps tell the truth — and the reference deployment showed a red
+# `Identity provider` for a provider that was signing people in (2026-09-06).
+# The row probes the provider by its external domain on the container's own
+# port; on a fronted stack that name is deliberately NOT aliased on the app
+# network (zitadel-network-alias.sh), so from inside gatus it resolved outward
+# to the ingress, and nothing answered on that port. managed.yml now carries the
+# name on a probe-only network the two containers share. This reads the row the
+# way a visitor does — off gatus's own API, the same list the operator's screen
+# reads — and requires its newest result to be a pass, so a lamp that lies
+# fails the gate instead of teaching the reader to ignore a colour.
+#
+# gatus probes every row once at start-up, so `unprobed` is a race with a fresh
+# container and not a verdict; it is retried for a while before it is one.
+idp_lamp=""
+for _ in $(seq 1 9); do
+  idp_lamp="$(curl -fsS -m 10 "${STATUS}/api/v1/endpoints/statuses" 2>/dev/null \
+    | jq -r '[.[] | select(.group == "Ownpace" and .name == "Identity provider")][0]
+             | if . == null then "absent — no such row"
+               elif ((.results // []) | length) == 0 then "unprobed"
+               elif .results[-1].success then "up"
+               else "down: "
+                 + ((.results[-1].conditionResults // []) | map(.condition + " is " + (.success | tostring)) | join(", "))
+                 + " " + ((.results[-1].errors // []) | join("; "))
+               end' 2>/dev/null)"
+  [ -n "$idp_lamp" ] || idp_lamp="unreadable — gatus's API did not answer or did not parse"
+  [ "$idp_lamp" = "unprobed" ] || break
+  sleep 10
+done
+case "$idp_lamp" in
+  up)
+    echo "status page: the Identity provider lamp is green"
+    ;;
+  *)
+    echo "THE IDENTITY PROVIDER LAMP IS NOT GREEN: ${idp_lamp}"
+    echo "  gatus probes \${STATUS_IDP_URL}/debug/ready from inside its own container."
+    echo "  The provider answered the bring-up's readiness wait, so a red here is the"
+    echo "  probe's address, not the provider — the name has to resolve to the"
+    echo "  container from inside gatus (managed.yml, the status-probe network)."
+    fail_at
+    ;;
+esac
+
 # ---------- verdict ----------
 note "verdict"
 echo "verify: $VERIFY_RESULT   apply: $APPLY_RESULT"
