@@ -355,7 +355,7 @@ describe('and none of it reached the product', () => {
     );
     expect(fn).toContain('curl -sS -X DELETE ${ISSUER}/admin/v1/policies/login/idps/\\$id');
     expect(fn, 'the hint reads the token from the machinekey volume, not from a variable the operator does not have')
-      .toContain('_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt');
+      .toContain('_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt');
     expect(fn, 'the hint names the INSTANCE page, whose choice this script keeps').toContain('Default settings');
   });
 
