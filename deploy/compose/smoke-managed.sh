@@ -788,7 +788,7 @@ trap 'kill "$WATCHER_PID" 2>/dev/null || true' EXIT
 # binary that image certainly has — and under `up -d --wait` a probe naming a
 # missing binary does not misreport, it fails the bring-up and takes the whole
 # gate with it. **Nothing in this repository has ever executed a command inside
-# `registry:2` or `tecnativa/docker-socket-proxy`**, and that evidence cannot be
+# `registry:3` or `tecnativa/docker-socket-proxy`**, and that evidence cannot be
 # gathered from a checkout: it needs a Docker daemon and those images pulled.
 # Until somebody has done that, "the image probably has wget" is the guess that
 # costs a bring-up, and an assertion from proven tooling is strictly better —

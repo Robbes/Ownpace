@@ -315,8 +315,21 @@ services:
   # and not publishing on the LAN is what lets this run without auth — an
   # unauthenticated registry on 0.0.0.0 would be an open image-push endpoint
   # for the whole network. A production deployment brings its own registry.
+  #
+  # `registry:3` since 2026-09-06 (0119 §3). The 2 line stopped at 2.8.3 in
+  # February 2025. What 3.0 changed that could matter here, checked against
+  # the image's own default config (cmd/registry/config-dev.yml, v2.8.3 vs
+  # v3.1.1): the config file moved to /etc/distribution/config.yml — this
+  # service mounts none and runs the image default either way; the default
+  # blob-descriptor cache is in-memory instead of a redis that was never
+  # there; the storage driver and its layout under /var/lib/registry are the
+  # same, so `registry_data` carries over; and schema-1 manifests are
+  # refused, which nothing since Docker 20 pushes. The CLI pushes OCI images
+  # to it and the supervisor's daemon pulls them — neither cares which line
+  # answers. Upstream's own compose still says `registry:2`; the managed gate
+  # (deploy-tasks.sh pushes, the smoke runs a task) is the proof for this one.
   trigger-registry:
-    image: registry:2
+    image: registry:3.1.1
     container_name: trigger-registry
     restart: unless-stopped
     ports:
