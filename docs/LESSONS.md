@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 90 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 91 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -831,6 +831,10 @@ reading a file drops off its entry by itself.
 - [runs-without-a-transpiler](../scripts/runs-without-a-transpiler.unit.test.ts) — The API image runs `node apps/api/src/index.ts`.
 - [workspace-deps](../scripts/workspace-deps.unit.test.ts) — Every workspace package a file imports must be a DECLARED dependency.
 
+### `vitest.aliases.ts`
+
+- [a-subpath-the-alias-swallowed](../scripts/a-subpath-the-alias-swallowed.unit.test.ts) — A BARE ALIAS SWALLOWS ITS OWN SUBPATHS.
+
 ### `vitest.global-setup.ts`
 
 - [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts) — A DATABASE YOU CAN ASK, ON A MACHINE WITH NO CONTAINER RUNTIME.
@@ -1231,6 +1235,14 @@ The create-mapping validator ends in a catch-all that asks for AZURE credentials
 Reads:
 
 - `apps/api/src/routes/migrations/index.ts`
+
+### [a-subpath-the-alias-swallowed](../scripts/a-subpath-the-alias-swallowed.unit.test.ts)
+
+A BARE ALIAS SWALLOWS ITS OWN SUBPATHS.
+
+Reads:
+
+- `vitest.aliases.ts`
 
 ### [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts)
 
