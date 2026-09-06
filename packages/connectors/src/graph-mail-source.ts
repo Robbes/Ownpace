@@ -160,6 +160,38 @@ export class GraphMailSource implements SourceConnector {
   }
 
   /**
+   * How many messages the mailbox holds, summed from the `totalItemCount`
+   * Graph puts on every folder it lists (workplan 0114 T10) — the same
+   * breadth-first walk `listFolders` makes, reading one more field, and no
+   * message is ever fetched. Exact, not estimated: Exchange keeps the count
+   * itself. Bytes are deliberately not claimed — a folder has no size on
+   * Graph and a message's size is an extended property this product would
+   * have to read per message, which is the walk a measure must not make.
+   */
+  async countMessages(): Promise<{ messages: number }> {
+    let messages = 0;
+    const queue: string[] = [`${this.scope}/mailFolders?$top=100`];
+    while (queue.length > 0) {
+      let next: string | undefined = queue.shift();
+      while (next) {
+        const res = await this.request({ url: next, method: 'GET', headers: { Accept: 'application/json' } });
+        if (res.status !== 200) {
+          throw new Error(graphFailure('Graph mail: counting messages failed', res, MAIL_FACE));
+        }
+        const page = JSON.parse(res.body) as GraphPage<GraphMailFolder>;
+        for (const f of page.value) {
+          messages += f.totalItemCount ?? 0;
+          if ((f.childFolderCount ?? 0) > 0) {
+            queue.push(`${this.scope}/mailFolders/${f.id}/childFolders?$top=100`);
+          }
+        }
+        next = page['@odata.nextLink'];
+      }
+    }
+    return { messages };
+  }
+
+  /**
    * Delta listing for one folder. First call (no cursor) starts a fresh delta
    * query; subsequent calls resume from the persisted deltaLink. Pages are
    * followed to the end so the returned cursor always advances past

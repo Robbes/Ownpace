@@ -1459,3 +1459,97 @@ export const graphDriveFixtures = {
     } as GraphDriveItem,
   },
 };
+
+/**
+ * THE TEST'S TWO CHEAP QUESTIONS (workplan 0114 T10): the top level in one
+ * request rather than a walk of the drive, and the drive's own quota.
+ * Self-contained — its own token and fetch stubs — so it reads without the
+ * suite above.
+ */
+describe('listTopLevelFolders and storageUsage — the drive answers a Test in two requests', () => {
+  const tokenProvider = {
+    getToken: async () => ({ accessToken: 'tok', expiresAt: Date.now() / 1000 + 3600 }),
+    refresh: async () => ({ accessToken: 'tok', expiresAt: Date.now() / 1000 + 3600 }),
+    isTokenValid: () => true,
+    getTokenStatus: () => ({ isValid: true, timeUntilExpiry: 3600 }),
+  } as unknown as import('@openmig/shared').TokenProvider;
+
+  const answering = (byUrl: (url: string) => { status: number; body: unknown }) =>
+    vi.fn(async (url: string) => {
+      const { status, body } = byUrl(String(url));
+      return { status, text: async () => JSON.stringify(body), headers: new Map() };
+    });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists the root children once, keeps the folders, and never walks into them', async () => {
+    const fetchMock = answering((url) =>
+      url.includes('/me/drive/root/children')
+        ? {
+            status: 200,
+            body: {
+              value: [
+                { id: 'a', name: 'Documents', folder: { childCount: 4 } },
+                { id: 'b', name: 'report.pdf', file: {} },
+                { id: 'c', name: 'Photos', folder: { childCount: 0 } },
+              ],
+            },
+          }
+        : { status: 500, body: { error: { message: `walked into ${url}` } } },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const source = new GraphDriveSource({ tokenProvider, tenantId: 't' });
+
+    const { folders, truncated } = await source.listTopLevelFolders();
+
+    expect(folders.map((f) => f.path)).toEqual(['/Documents', '/Photos']);
+    expect(truncated).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('/me/drive/root/children?$top=200');
+  });
+
+  it('a cut-short page is a floor, said as truncated', async () => {
+    vi.stubGlobal(
+      'fetch',
+      answering(() => ({
+        status: 200,
+        body: {
+          value: [{ id: 'a', name: 'Documents', folder: { childCount: 1 } }],
+          '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=x',
+        },
+      })),
+    );
+    const source = new GraphDriveSource({ tokenProvider, tenantId: 't' });
+    const { folders, truncated } = await source.listTopLevelFolders();
+    expect(folders).toHaveLength(1);
+    expect(truncated).toBe(true);
+  });
+
+  it("reads the drive's quota.used as the bytes in use", async () => {
+    const fetchMock = answering((url) =>
+      url.endsWith('/me/drive')
+        ? { status: 200, body: { quota: { used: 123456789, total: 1099511627776 } } }
+        : { status: 500, body: {} },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const source = new GraphDriveSource({ tokenProvider, tenantId: 't' });
+    expect(await source.storageUsage()).toEqual({ bytes: 123456789 });
+  });
+
+  it('a drive that answers without a quota is unmeasured, not zero', async () => {
+    vi.stubGlobal('fetch', answering(() => ({ status: 200, body: { id: 'drive-1' } })));
+    const source = new GraphDriveSource({ tokenProvider, tenantId: 't' });
+    await expect(source.storageUsage()).rejects.toThrow(/quota\.used/);
+  });
+
+  it('a refusal carries the Files face and its scope, like every other drive request', async () => {
+    vi.stubGlobal(
+      'fetch',
+      answering(() => ({ status: 403, body: { error: { code: 'accessDenied', message: 'nope' } } })),
+    );
+    const source = new GraphDriveSource({ tokenProvider, tenantId: 't' });
+    await expect(source.listTopLevelFolders()).rejects.toThrow(/Files\.Read|accessDenied|nope/);
+  });
+});

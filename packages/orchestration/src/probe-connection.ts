@@ -25,10 +25,22 @@
 import {
   appleAuthRefusal,
   isCredentialRefusal,
+  microsoftFaceScope,
   withDeploymentDropboxClient,
   withDeploymentGoogleClient,
+  withDeploymentMicrosoftClient,
 } from '@openmig/shared';
 import { isGoogleGrantKind } from './account-qualification.ts';
+import {
+  MICROSOFT_ACCOUNT_KIND,
+  MICROSOFT_FACE_UNIT,
+  isMicrosoftGrantKind,
+  listMicrosoftFace,
+  microsoftFaceSource,
+  microsoftFacesInProbeOrder,
+  readMicrosoftGrant,
+} from './microsoft-account-test.ts';
+import type { MicrosoftFaceSourceBuilder } from './microsoft-account-test.ts';
 import type { ArchiveSource, SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { parseArchiveSource } from '@openmig/shared';
 import { ARCHIVE_CONNECTION_KIND, archiveReaderFor } from './archive-source-factory.ts';
@@ -230,6 +242,44 @@ async function probeBounded(
 }
 
 /**
+ * The Microsoft account's headline: one face, the first the grant carries,
+ * listed with the builder a pass uses (`microsoft-account-test.ts` has the
+ * reasoning). A grant that cannot be read falls to the calendar, whose
+ * builder then refuses in the stored vocabulary — a credential refusal, ours,
+ * and never the `noProbe` gap this arm replaced.
+ */
+async function probeMicrosoftAccount(
+  config: Record<string, unknown>,
+  creds: Record<string, string>,
+  deps: ProbeDeps,
+): Promise<ProbeResult> {
+  const faces = microsoftFacesInProbeOrder();
+  const grant = await readMicrosoftGrant(
+    creds,
+    deps.microsoftTokenEndpoint === undefined ? {} : { tokenEndpoint: deps.microsoftTokenEndpoint },
+  );
+  const carried = grant.ok
+    ? faces.find((face) => {
+        const scope = microsoftFaceScope(face);
+        return scope !== undefined && grant.granted.has(scope);
+      })
+    : undefined;
+  const face = carried ?? faces[0]!;
+  const unit = MICROSOFT_FACE_UNIT[face];
+  try {
+    const source = (deps.microsoftFaceSource ?? microsoftFaceSource)(face, config, creds);
+    const { count, floor } = await listMicrosoftFace(source);
+    return {
+      ok: true,
+      detail: connectedDetail(count, unit, floor),
+      outcome: { code: 'connected', count, unit, ...(floor ? { floor: true } : {}) },
+    };
+  } catch (err) {
+    return providerRefused(err, MICROSOFT_ACCOUNT_KIND);
+  }
+}
+
+/**
  * Open an export archive far enough to count it, and NEVER answer "empty"
  * for an archive that could not be opened (workplan 0116 T1, §1).
  *
@@ -297,18 +347,29 @@ async function probeArchive(config: Record<string, unknown>): Promise<ProbeResul
  * record that would be encrypted. The same builders a sync pass uses do the
  * interpreting, so the probe cannot pass on a shape the pass would refuse.
  */
+/** Injectable seams so the unit tests measure decisions, not sockets. */
+export interface ProbeDeps {
+  /** Build a Microsoft face's source some other way — a stub, in a test. The
+   *  default is the same seam a pass builds through. */
+  readonly microsoftFaceSource?: MicrosoftFaceSourceBuilder;
+  /** Where the Microsoft grant is read — a parameter so tests exchange against a stub. */
+  readonly microsoftTokenEndpoint?: string;
+}
+
 export function probeSourceConnection(
   kind: string,
   config: Record<string, unknown>,
   rawCreds: Record<string, string>,
+  deps: ProbeDeps = {},
 ): Promise<ProbeResult> {
-  return withProbeDeadline(() => probeSourceNow(kind, config, rawCreds));
+  return withProbeDeadline(() => probeSourceNow(kind, config, rawCreds, deps));
 }
 
 async function probeSourceNow(
   kind: string,
   config: Record<string, unknown>,
   rawCreds: Record<string, string>,
+  deps: ProbeDeps,
 ): Promise<ProbeResult> {
   /**
    * THE DEPLOYMENT'S OWN GOOGLE CLIENT, where it has one and this row is a
@@ -325,9 +386,16 @@ async function probeSourceNow(
    * secret under the same `clientId`/`clientSecret` names, and handing them
    * Google's application would fail at their provider naming nothing useful.
    */
-  const creds = withDeploymentDropboxClient(
-    kind === DROPBOX_CONNECTION_KIND,
-    withDeploymentGoogleClient(isGoogleGrantKind(kind), rawCreds),
+  // AND THE DEPLOYMENT'S OWN MICROSOFT REGISTRATION (0114 T1), the same way
+  // and for the same reason: a row that took the grant button stores a
+  // refresh token and no pair, and the pass fills the pair from the
+  // deployment — so the probe must too, or Test refuses what the run accepts.
+  const creds = withDeploymentMicrosoftClient(
+    isMicrosoftGrantKind(kind),
+    withDeploymentDropboxClient(
+      kind === DROPBOX_CONNECTION_KIND,
+      withDeploymentGoogleClient(isGoogleGrantKind(kind), rawCreds),
+    ),
   );
   const user = String(config.user ?? '');
   switch (kind) {
@@ -406,6 +474,18 @@ async function probeSourceNow(
     // every other kind's measured volumes live.
     case ARCHIVE_CONNECTION_KIND:
       return probeArchive(config);
+    // THE MICROSOFT ACCOUNT (workplan 0114 T10) answers with the FIRST FACE
+    // ITS GRANT CARRIES, in calendar-first order — the account-kind rule
+    // (one face, the calendar's) applied to a consent that asks for exactly
+    // the faces a person ticked. Read from Microsoft, never assumed: a
+    // calendar-first probe against a mail-and-files grant would refuse for a
+    // connection the migration runs fine. The other faces are not guessed
+    // from this one; the qualification measures each and the badges report
+    // all of them. Without this arm the kind fell to `default` and Test on a
+    // card the front door offers read "No check exists for a microsoft
+    // connection yet" (the owner, 2026-09-06, on a grant that worked).
+    case MICROSOFT_ACCOUNT_KIND:
+      return probeMicrosoftAccount(config, creds, deps);
     case 'imap':
     case 'o365':
       // The managed mail builder handles both: a password, a static token, or

@@ -53,6 +53,10 @@ import {
   qualifyGoogleGrant,
   type AccountQualification,
 } from '@openmig/orchestration/account-qualification';
+import {
+  isMicrosoftGrantKind,
+  qualifyMicrosoftAccount,
+} from '@openmig/orchestration/microsoft-account-test';
 import { z } from 'zod';
 import {
   ARCHIVE_PROVIDERS,
@@ -152,6 +156,7 @@ async function qualifyAndRemember(
   if (
     !isQualifiableKind(kind) &&
     !isGoogleGrantKind(kind) &&
+    !isMicrosoftGrantKind(kind) &&
     !isDropboxKind(kind) &&
     !isArchiveKind(kind)
   ) {
@@ -193,6 +198,11 @@ async function qualifyAndRememberNow(
       (await qualifyGoogleGrant(kind, creds, {
         reach: { user: String(config.user ?? ''), config },
       })) ??
+      // AND THE MICROSOFT ACCOUNT (0114 T10): the grant read for what it
+      // carries, every carried face reached as a pass would, the drive's
+      // quota and the message count on the Measured line — the owner's
+      // first Microsoft Test read "no check exists", on a grant that worked.
+      (await qualifyMicrosoftAccount(kind, config, creds)) ??
       (await qualifyDropbox(kind, config, creds)) ??
       (await qualifyArchive(kind, config));
     if (!qualification) return undefined;
