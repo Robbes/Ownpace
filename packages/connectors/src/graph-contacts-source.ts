@@ -6,7 +6,7 @@
  * Uses Microsoft Graph API v1.0 with delta query for incremental synchronization.
  * 
  * Features:
- * - Contact folder enumeration via {scope}/contactFolders endpoint
+ * - Contact folder enumeration: the default folder ({scope}/contacts) first, then {scope}/contactFolders
  * - Delta query for incremental contact synchronization
  * - vCard 4.0 format generation from Graph contacts
  * - Photo handling with BASE64 encoding
@@ -31,6 +31,21 @@ import { log } from '@openmig/shared';
 
 /** The tick and the delegated scope this face needs — named in a refusal's way forward (0114 T6). */
 const CONTACTS_FACE = { face: 'Contacts', scope: 'Contacts.Read' } as const;
+
+/**
+ * THE DEFAULT CONTACTS FOLDER, WHICH GRAPH LISTS NOWHERE (2026-09-06).
+ *
+ * `{scope}/contactFolders` answers the folders a person made BESIDE the
+ * default one; the default itself — where nearly every account keeps nearly
+ * every contact — is only reachable as `{scope}/contacts`. This connector
+ * read the list alone since workplan 0008, so the first live Test of a
+ * Microsoft 365 account measured "Contacts ✓ 0 address books · 0 cards" on
+ * an account with contacts, and a migration would have carried none of them.
+ * The default folder is listed first under this path, and its contacts are
+ * read at `/contacts/delta`, where the others are read at
+ * `/contactFolders/{id}/contacts/delta`.
+ */
+const DEFAULT_CONTACTS_PATH = '/contacts';
 
 /**
  * Graph contacts source connector implementation.
@@ -99,13 +114,39 @@ export class GraphContactsSource implements ContactSource {
       nextLink = data['@odata.nextLink'];
     } while (nextLink);
 
-    // Convert to ContactFolder format
-    return folders.map(folder => ({
-      path: `/contactFolders/${folder.id}`,
-      name: folder.name,
-      description: undefined,
-      supportedVersions: ['4.0'], // We generate vCard 4.0
-    }));
+    // The default folder first — see DEFAULT_CONTACTS_PATH — then the
+    // additional ones, in ContactFolder format.
+    const listed: ContactFolder[] = [
+      {
+        path: DEFAULT_CONTACTS_PATH,
+        name: 'Contacts',
+        description: undefined,
+        supportedVersions: ['4.0'],
+      },
+      ...folders.map((folder): ContactFolder => ({
+        path: `/contactFolders/${folder.id}`,
+        name: folder.name,
+        description: undefined,
+        supportedVersions: ['4.0'], // We generate vCard 4.0
+      })),
+    ];
+    return listed;
+  }
+
+  /**
+   * The Graph collection a folder's contacts live in, and the sourcePath
+   * prefix its items carry — `/contacts` for the default folder, otherwise
+   * `/contactFolders/{id}/contacts`.
+   */
+  private collectionFor(folderPath: string): { url: string; sourcePrefix: string } {
+    if (folderPath === DEFAULT_CONTACTS_PATH) {
+      return { url: `${this.scope}/contacts`, sourcePrefix: DEFAULT_CONTACTS_PATH };
+    }
+    const folderId = this.extractFolderIdFromFolder({ path: folderPath, name: '' });
+    return {
+      url: `${this.scope}/contactFolders/${folderId}/contacts`,
+      sourcePrefix: `/contactFolders/${folderId}/contacts`,
+    };
   }
 
   /**
@@ -130,11 +171,10 @@ export class GraphContactsSource implements ContactSource {
       }
     }
 
-    // Extract folder ID from path
-    const folderId = this.extractFolderIdFromFolder(folder);
+    const collection = this.collectionFor(folder.path);
     
     // Build the delta query URL
-    const baseUrl = `${this.scope}/contactFolders/${folderId}/contacts`;
+    const baseUrl = collection.url;
     // Graph spells this `/delta`, not `/$delta` — the same endpoint
     // `graph-drive-source.ts` calls as `/drive/root/delta` in this repo.
     const firstUrl = deltaLink ?? `${baseUrl}/delta`;
@@ -207,7 +247,7 @@ export class GraphContactsSource implements ContactSource {
             // Photo is NOT fetched here - use fetch() method instead
             photo: undefined,
             categories: contact.categories,
-            sourcePath: `/contactFolders/${folderId}/contacts/${contact.id}`,
+            sourcePath: `${collection.sourcePrefix}/${contact.id}`,
             vcard,
             version: '4.0',
           },
@@ -242,17 +282,19 @@ export class GraphContactsSource implements ContactSource {
       throw new Error(`Contact missing sourcePath: ${JSON.stringify(item)}`);
     }
 
-    // Extract folder ID and contact ID from sourcePath (format: /contactFolders/{folderId}/contacts/{contactId})
-    const match = sourcePath.match(/\/contactFolders\/([^/]+)\/contacts\/([^/]+)$/);
-    if (!match) {
+    // Either shape: `/contactFolders/{folderId}/contacts/{id}` for a folder
+    // a person made, `/contacts/{id}` for the default folder.
+    const inFolder = sourcePath.match(/^\/contactFolders\/([^/]+)\/contacts\/([^/]+)$/);
+    const inDefault = sourcePath.match(/^\/contacts\/([^/]+)$/);
+    if (!inFolder && !inDefault) {
       throw new Error(`Invalid sourcePath format: ${sourcePath}`);
     }
 
-    const folderId = match[1]!;
-    const contactId = match[2]!;
+    const collection = this.collectionFor(inFolder ? `/contactFolders/${inFolder[1]!}` : DEFAULT_CONTACTS_PATH);
+    const contactId = inFolder ? inFolder[2]! : inDefault![1]!;
 
     // Fetch photo
-    const contactWithPhoto = await this.fetchContactWithPhoto({ id: contactId } as GraphContact, folderId);
+    const contactWithPhoto = await this.fetchContactWithPhoto({ id: contactId } as GraphContact, collection.url);
 
     // Re-map vCard with photo
     const vcard = this.mapToVCard4(contactWithPhoto);
@@ -382,13 +424,13 @@ export class GraphContactsSource implements ContactSource {
   /**
    * Fetch contact photo if available.
    */
-  private async fetchContactWithPhoto(contact: GraphContact, folderId: string): Promise<GraphContact & { photoData?: string; photoMimeType?: string }> {
+  private async fetchContactWithPhoto(contact: GraphContact, collectionUrl: string): Promise<GraphContact & { photoData?: string; photoMimeType?: string }> {
     const result: GraphContact & { photoData?: string; photoMimeType?: string } = { ...contact };
 
     // Try to get photo from the photo endpoint
     if (contact.photo?.id || contact.id) {
       try {
-        const photoUrl = `${this.scope}/contactFolders/${folderId}/contacts/${contact.id}/photo/$value`;
+        const photoUrl = `${collectionUrl}/${contact.id}/photo/$value`;
         const response = await this.makeRequest({
           url: photoUrl,
           method: 'GET',
