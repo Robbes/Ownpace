@@ -2,6 +2,35 @@
 
 ## Status — 2026-09-06 (update this block at the end of every session)
 
+**The first live Test found the grant was never stored — fixed the same evening.** The owner
+pressed Test on a freshly consented Microsoft 365 account and read `missing_tenant_id_error`
+from MSAL, with every face "Unmeasured — no clientId/refreshToken pair". Three defects, one
+cause each:
+
+- **`sourceCredentialRecord` had no `microsoft` branch** (nor an `apple` one). A grant-button
+  body fell to the Azure catch-all, whose shape is a customer's own registration and has no
+  `refreshToken`; `JSON.stringify` dropped the undefineds and the row stored `{username}`. The
+  descriptor marked the token `required`, the door checked it was SENT, and nothing checked it
+  was KEPT. `apple` lost its password the same way. Both branches exist now, and
+  `a-credential-the-record-dropped.unit.test.ts` walks every source type the door offers and
+  fails for any secret the record does not keep (six failures on the old code, proved).
+- **`MsalTokenProvider` chose the application flow whenever a secret was present.** Right for
+  the two shapes it was written for; wrong for the third the button produces — a confidential
+  client's secret AND its consent's refresh token — which asked for delegated scopes under
+  `/common` and was refused before a request left the process. A refresh token now selects the
+  delegated flow, and a confidential client redeems it through `ConfidentialClientApplication`,
+  because the public one never sends the secret and Entra refuses a Web-platform registration
+  without it (AADSTS7000218). `the-grant-that-took-the-application-flow.unit.test.ts` pins all
+  three shapes with MSAL replaced by a recorder.
+- **The probe built a face from a grant it could not read**, which is how a missing token
+  surfaced as a sentence about a tenant. It stops at the read now: a missing stored field is our
+  refusal in both languages, naming the field and the way back ("remove it and connect the
+  account again"); a refused exchange is Microsoft's, verbatim.
+
+**What this means for a row connected before the fix:** it holds no token, and nothing can
+put one on it after the fact — remove the connection and press Connect with Microsoft again.
+The Test on such a row now says exactly that.
+
 **T10 is BUILT: the account kind has a Test.** Found by the owner the morning the grant first
 worked end to end: Test on a `microsoft` connection answered "No check exists for a microsoft
 connection yet", and the badges stayed `?`. The kind sat in every table T5b listed and in none of
@@ -134,7 +163,7 @@ pattern for a third time, over connectors that need no change at all.
 | T2b The two routes that use it | ✅ Done | `microsoft-oauth-routes.ts` beside the Google and Dropbox ones, mounted, documented in `openapi.yaml`, listed in the sub-router guard. The TENANT rides the pending state so the callback exchanges at the same authority the authorize half used. |
 | T3 The `microsoft` account kind | ✅ Done | One row in `PROVIDER_ACCOUNT_KINDS` and one in `PROVIDER_ACCOUNT_DOMAINS`. The table was built for this. |
 | T4 The token reaches the connectors | ✅ Done, and it was already wired | The expectation held: no connector, factory or token-provider change. What the task produced instead is `a-consent-that-asks-for-a-different-scope`, pinning `MICROSOFT_DOMAIN_SCOPES` against `DELEGATED_SCOPES` and the inline mail scope, both directions, plus no writers. |
-| T5a The four faces the managed path never wired | ✅ Done | **Four, not three — the mail face was found while testing the other three.** One face table (`source-face-builders.ts`), four seams reading it, the Graph refusals threaded with the managed vocabulary, `MicrosoftAccountSource` as the config type, `googleDavServes`/`googleDriveServes` retired into the table, and a guard pairing it against `PROVIDER_ACCOUNT_DOMAINS` in both directions. Proved by restoring each old path, which reproduced both defects verbatim. |
+| T5a The four faces the managed path never wired | ✅ Done | **Four, not three — the mail face was found while testing the other three.** One face table (`source-face-builders.ts`), four seams reading it, the Graph refusals threaded with the managed vocabulary, `MicrosoftAccountSource` as the config type, `googleDavServes`/`googleDriveServes` retired into the table, and a guard pairing it against `PROVIDER_ACCOUNT_DOMAINS` in both directions. Proved by restoring each old path, which reproduced both defects verbatim. **Addendum 2026-09-06:** the seams built the faces, but the record behind them never stored the grant — `sourceCredentialRecord` had no `microsoft` branch, so a stored row carried the address and nothing else until the first live Test found it (the Status block, top). |
 | T5b The kind in the tables a kind lives in | ✅ Done | Fourteen tables, and the guards named every one: credential fields, provider-client facts (derived from `GRANT_PROVIDERS` now), the front-door family/lane/icon/card, the source config, the create enum + validator branch, `sourceKindFor`, the drizzle enum, migration 0037, `WizardSourceType` + its two constraint tables, revocation, standing grants, the feature matrix, and the gate-coverage verdict. |
 | T5c The button, in both doors | ✅ Done | Both `grantProvider === 'dropbox' ? … : …` ternaries are per-provider tables; `isAccountKind` reads `PROVIDER_ACCOUNT_KINDS`; strings en+nl; a door test proved by restoring the old fall-through, which sent the Microsoft customer to Google. |
 | T6 The refusals speak | ✅ **Built 2026-09-05** | The consent-screen half was T2's (`microsoftConsentRefusal`: AADSTS65001/90094/700016/900023 as sentences). This is the other half — what a face meets at its FIRST REQUEST. `graph-refusal.ts` mirrors #722's `davRefusalBody` for Graph's JSON: `graphRefusalBody` keeps Graph's code and message and drops the envelope and the request ids; `graphRefusalHint` adds the way forward on a 401/403 that says the consent did not include the face — the scope by name, the tick to make, and the administrator's once-per-tenant grant when the organisation blocks user consent; `graphFailure` is the one line. Wired at all seventeen sites in the Graph connectors that quoted the raw body (the five faces with their scope, the directory/groups/permission scans envelope-only). The To Do source's own hint from T9 became the shared one. Pinned in `graph-refusal.unit.test.ts` and, for the wiring, a 403 through the calendar source. |
