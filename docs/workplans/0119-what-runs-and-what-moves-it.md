@@ -2,6 +2,18 @@
 
 ## Status — 2026-09-06 (update this block at the end of every session)
 
+**2026-09-06, morning: the owner took three of the decisions, and Dependabot's first run
+showed its hand.** Merged: the safe moves (#808), the Monday group re-cut by Dependabot
+against the new main (#818), `@azure/msal-node` 6 (#819) with the O365 gate dispatched on
+main behind it and still queued for the self-hosted runner, and nginx 1.31 in the web image
+(#813), which settles the nginx line as mainline: Dependabot cannot say "the stable line"
+and offers the odd minor every time it appears, so the pin follows it and `www.yml` follows
+the web image in this slice. Declined: Node 26 in the images, three PRs in one morning for
+the Current line; Dependabot is told (#820) and the major moves by hand with `engines` and
+CI. One lesson for the record: a comment posted through the assistant's tooling cannot
+address Dependabot, its mentions are defanged, so a stale group PR is recreated by
+Dependabot on its own clock or by hand, never by a rebase request from here.
+
 **2026-09-06, night: the audit, and the two holes it found.** The owner asked for the
 lifecycle of every component to be checked and for upgrades "in a safe manner". Detection
 already ran (`security-scan.yml`: Trivy and `pnpm audit`, weekly) and Dependabot already
@@ -23,8 +35,8 @@ a decision each, §3, for the owner.
 |---|---|---|
 | T0 The audit | ✅ Done 2026-09-06 | §2. Registries queried directly (Docker Hub v2 API, GHCR token + paginated tag list, `git ls-remote` for the actions); `pnpm outdated -r` for npm. |
 | T1 Dependabot learns the images | ✅ Done 2026-09-06 | `docker` over the three Dockerfiles, `docker-compose` over `deploy/compose` and `deploy/selfhost`, weekly, minor+patch grouped, majors one PR each. The one-way images and the deliberate pins are ignored by name (§2.1). `@trigger.dev/*` ignored in npm: it moves through `trigger-version.sh` or not at all. The three digest-only pins (`node@sha256:…` ×3, `postgres@sha256:…`) carry their tag now — same digests, no version moved — because Dependabot compares tags, and a bare digest has nothing to compare. |
-| T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
-| T3 The owner's decisions | ⏸ Waiting on the owner | §3: Trigger.dev v4.5.16, Zitadel v4.17.3, Redis 8, registry 3, the object store with no upstream, `@azure/msal-node` 6, `nodemailer` 10. Each has a reason it is not a patch. |
+| T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
+| T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner) and Node 26 declined (#820). Still the owner's, §3: Trigger.dev v4.5.16, Zitadel v4.17.3, Redis 8, registry 3, the object store with no upstream, `nodemailer` 10. Each has a reason it is not a patch. |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
 
 ## 1. Why this exists
@@ -54,7 +66,7 @@ is who moves it after T1.
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
 | `node` (24-slim) | `apps/api`, `apps/web`, `apps/selfhost` Dockerfiles | digest `6f7b03f7…`, no tag | 24.20.0-slim (2026-08-27), digest `ba849c60…` | patches within 24 | Dependabot `docker` | **T2** — and T1 gives it its tag |
-| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.27-alpine | 1.30.4-alpine stable, 1.31.5 mainline (2026-09-03) | 1.27 is a 2024 mainline, past its end | Dependabot `docker` + `docker-compose` | **T2** — 1.30-alpine, the stable line |
+| `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.27-alpine | 1.30.4-alpine stable, 1.31.5 mainline (2026-09-03) | 1.27 is a 2024 mainline, past its end | Dependabot `docker` + `docker-compose` | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows |
 | `postgres` (self-host) | `deploy/selfhost/compose.yml` | digest `9a8afca5…` = 18.4-alpine, no tag | 18.6-alpine (2026-08-15), digest `d3e1620b…` | two patch releases | Dependabot `docker-compose` | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `managed.yml`, `dev.yml` | 18-alpine, floating | 18.6 | none, it floats within 18 | `docker compose pull` | stays floating; a major (`pg_upgrade`) is ignored in Dependabot and is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.24.1-p1 | v1.25.2-p0 (2026-06-10) | one minor | Dependabot `docker-compose` | **T2** — stateless; the managed gate proves it |
@@ -83,7 +95,7 @@ and `caddy`.
 |---|---|---|
 | patch (12) | `@testing-library/user-event`, `@types/node`, `@types/react-dom`, `autoprefixer`, `imapflow`, `jmap-jam`, `jose`, `postcss`, `react-router`, `tsx`; **not** `@trigger.dev/core` and `@trigger.dev/sdk` 4.5.12 → 4.5.16 | Dependabot's Monday group, except the SDK (T1: it moves with the image, §3) |
 | minor (7) | `@typescript-eslint/*` and `typescript-eslint` 8.68 → 8.69, `eslint` 10.9 → 10.10, `lucide-react` 1.34 → 1.41, `morgan` 1.11 → 1.12, `zod` 4.4 → 4.5 | Dependabot's Monday group |
-| major (4) | `vitest` and `@vitest/coverage-v8` 4.1 → 5.0 (dev); `@azure/msal-node` 5.6 → 6.0 and `nodemailer` 9.0 → 10.0 (production code in `packages/connectors`) | T4 for the dev pair; §3 for the two in production code |
+| major (4) | `vitest` and `@vitest/coverage-v8` 4.1 → 5.0 (dev); `@azure/msal-node` 5.6 → 6.0 and `nodemailer` 9.0 → 10.0 (production code in `packages/connectors`) | T4 for the dev pair; §3 for the two in production code — `@azure/msal-node` 6 taken 2026-09-06 (#819) |
 
 TypeScript 7 stays ignored by configuration (workplan 0026 row 22: `typescript-eslint`
 refuses to load under it; revisit when 7.1 ships).
@@ -134,10 +146,16 @@ is beside each; none is urgent tonight.
    software with no fixes coming. The decision is whether Trigger.dev's object store should
    be something else (an S3-compatible store that is still published), and that is a design
    choice with a migration behind it, not a version bump.
-6. **`@azure/msal-node` 5 → 6** and **`nodemailer` 9 → 10.** Both are production code in
-   `packages/connectors` (the Microsoft account kind; SMTP). A major in a library that
-   holds tokens or sends mail is read first and moved second; the release notes are the
-   next step, and the O365 gate (`e2e-o365.yml`) the proof.
+6. **`@azure/msal-node` 5 → 6** — taken 2026-09-06 (#819). Its one breaking change removes
+   the interactive loopback flow, which the connectors never call: they use the
+   client-credential, refresh-token and username-password paths only. The O365 gate
+   (`e2e-o365.yml`) on main is the proof, queued for the self-hosted runner.
+   **`nodemailer` 9 → 10** stays open: production code in `packages/connectors` (SMTP), and a
+   major in a library that sends mail is read first and moved second; the release notes are
+   the next step.
+7. **Node 26 in the images** — declined 2026-09-06. It is the Current line, not LTS until
+   October; CI installs 24 and `engines` says `>=24`. The runtime's major moves by hand
+   with both, when the next LTS line is current, and Dependabot is told (#820).
 
 ## 4. Not done, honestly
 
