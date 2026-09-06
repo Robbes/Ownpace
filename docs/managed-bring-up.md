@@ -559,8 +559,12 @@ composes, because the path is the identity provider's own and shipped source
 must not know it (ADR-0042).
 
 **Our half** is `.env` and a re-run. Fill in the pairs you want — a provider
-with no credentials is simply not offered. The keys, exactly as `.env` spells
-them:
+with no credentials is simply not offered, and the script says so per provider
+when it runs. **These are not the migration pairs**: `GOOGLE_OAUTH_CLIENT_ID`
+and `MICROSOFT_OAUTH_CLIENT_ID` (§8e, `docs/microsoft-setup.md`) are the
+registrations a consent runs against and make no sign-in button, which the
+script's skip line names when one of them is set and the `IDP_` pair is not.
+The keys, exactly as `.env` spells them:
 
 ```bash
 IDP_GOOGLE_CLIENT_ID=       IDP_GOOGLE_CLIENT_SECRET=
@@ -944,6 +948,12 @@ afternoon, so name them once:
 | Where it is set up | §8b, `IDP_GOOGLE_CLIENT_ID` — a Zitadel identity provider | here, the OAuth client the migration consent runs against |
 | What it proves | who this person is | what this account let us read |
 | Boundary | [ADR-0042](./adr/0042-who-holds-the-passwords.md): the issuer owns identity, `tenant_member` owns tenancy | [ADR-0041](./adr/0041-who-owns-the-oauth-client.md): the deployment owns its own client |
+
+The same two exist for Microsoft, and the confusion is the same shape (the
+owner, 2026-09-06): `IDP_MICROSOFT_CLIENT_ID` signs people in, `MICROSOFT_OAUTH_CLIENT_ID`
+reads their mailbox, and one Entra registration may serve both when both
+redirect URIs are on it — the sign-in one from the table in §8b, the consent one
+from the app's Redirect URIs page.
 
 Signing in with Google puts nobody in an organisation, and a Google grant
 signs nobody in. They are separate all the way down.
