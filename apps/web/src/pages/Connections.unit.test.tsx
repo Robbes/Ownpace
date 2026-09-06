@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { PROVIDER_ACCOUNT_DOMAINS } from '@openmig/shared';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -51,6 +52,7 @@ const {
   remove,
   add,
   providerClients,
+  providerAccounts,
   googleAuthorize,
   dropboxAuthorize,
   microsoftAuthorize,
@@ -64,6 +66,9 @@ const {
   // per provider, as the add-form reads them. Neither by default: the pair
   // stays in plain view, as on an appliance.
   providerClients: vi.fn(),
+  // The faces each provider account serves on this deployment, as the
+  // add-form reads them; unanswered by default, so the shared table answers.
+  providerAccounts: vi.fn(),
   googleAuthorize: vi.fn(),
   dropboxAuthorize: vi.fn(),
   microsoftAuthorize: vi.fn(),
@@ -72,6 +77,7 @@ const {
 vi.mock('../services/mapping-service', () => ({
   connectionsApi: { list, test: testConnection, rotate, remove, add },
   providerClientsApi: { get: providerClients },
+  providerAccountsApi: { get: providerAccounts },
   mappingApi: { googleAuthorize, dropboxAuthorize, microsoftAuthorize },
 }));
 
@@ -618,6 +624,60 @@ describe('adding a connection through the front door', () => {
     } finally {
       opened.mockRestore();
     }
+  });
+
+  it('the Microsoft 365 account offers its fifth face, Tasks, and the consent asks for the ones ticked (2026-09-06)', async () => {
+    // A fixed list of Google's four served every provider's form, so this
+    // form never offered Tasks and the consent never asked Tasks.Read — the
+    // owner read "Tasks ✗" on an account whose registration carried it.
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'deployment' });
+    providerAccounts.mockResolvedValue({
+      google: { domains: ['calendar', 'contact'], client: 'connection' },
+      microsoft: { domains: [...PROVIDER_ACCOUNT_DOMAINS.microsoft], client: 'deployment' },
+    });
+    microsoftAuthorize.mockResolvedValue({ url: 'https://login.microsoftonline.com/x', redirectUri: 'r' });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'someone@contoso.example' },
+      });
+      await screen.findByText('What this account will serve');
+      const tasks = await screen.findByLabelText('Tasks');
+      fireEvent.click(screen.getByLabelText('Calendar'));
+      fireEvent.click(tasks);
+      const button = await screen.findByRole('button', { name: /Connect with Microsoft/ });
+      await waitFor(() => expect(button).toBeEnabled());
+      fireEvent.click(button);
+      await waitFor(() => expect(microsoftAuthorize).toHaveBeenCalled());
+      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar', 'task'] });
+    } finally {
+      opened.mockRestore();
+    }
+  });
+
+  it("a Google account offers no Tasks tick — its list is the deployment's, not Microsoft's", async () => {
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
+    providerAccounts.mockResolvedValue({
+      google: { domains: ['calendar', 'contact'], client: 'deployment' },
+      microsoft: { domains: [...PROVIDER_ACCOUNT_DOMAINS.microsoft], client: 'connection' },
+    });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+    await screen.findByText('What this account will serve');
+    await screen.findByLabelText('Contacts');
+    expect(screen.queryByLabelText('Tasks')).toBeNull();
+    expect(screen.queryByLabelText('Email')).toBeNull();
+  });
+
+  it('while the facts are still on their way, the shared table answers — Tasks is offered for Microsoft', async () => {
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'deployment' });
+    providerAccounts.mockReturnValue(new Promise(() => {}));
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
+    await screen.findByText('What this account will serve');
+    expect(await screen.findByLabelText('Tasks')).toBeInTheDocument();
   });
 
   it('where each connection brings its own client, the button waits for the whole pair', async () => {

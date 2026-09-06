@@ -171,7 +171,6 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/Connections.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
-- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `apps/web/src/pages/CreateMapping.tsx`
 
@@ -999,7 +998,6 @@ Reads:
 - `apps/api/src/routes/migrations/google-account-consent.unit.test.ts`
 - `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
 - `apps/api/src/routes/provider-accounts.unit.test.ts`
-- `apps/web/src/pages/Connections.tsx`
 - `apps/web/src/services/mapping-service.ts`
 - `apps/worker/src/jobs/run-discovery.ts`
 - `packages/orchestration/src/domain-lanes.unit.test.ts`

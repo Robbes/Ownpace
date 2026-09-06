@@ -73,12 +73,6 @@ const MAY_LIST_THE_VALUES: Readonly<Record<string, string>> = {
   // standing, deriving is the safer of the two.
 
   // --- Lists that are NOT the product's domains and must not widen with them.
-  'apps/web/src/pages/Connections.tsx':
-    'GRANT_FACES — the faces a GOOGLE account can be asked to serve. Google carries ' +
-    'no tasks over CalDAV at all (0113 §"The facts"), so this list answers a ' +
-    "question about one provider, not about the product's domains. It stayed four " +
-    'when the product went to five (T5, 2026-09-03), which is the exception doing ' +
-    'its job rather than the exception going stale.',
   'apps/api/src/routes/migrations/google-account-consent.ts':
     'ORDER — the order the Google consent screen lists the faces it asks for. Same ' +
     'reason as GRANT_FACES: a fact about one provider.',

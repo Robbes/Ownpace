@@ -34,6 +34,7 @@ import {
   mappingApi,
   type ConnectionSummary,
   type TestConnectionResult,
+  providerAccountsApi,
   providerClientsApi,
 } from '../services/mapping-service.ts';
 import { useT, useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
@@ -54,8 +55,8 @@ import {
   missingCredentialFields,
   serverMessage,
 } from '../services/api.ts';
-import { QUALIFICATION_KEYS, isProviderAccountKind } from '@openmig/shared';
-import type { DiscoveryDomain } from '@openmig/shared';
+import { PROVIDER_ACCOUNT_DOMAINS, QUALIFICATION_KEYS, isProviderAccountKind } from '@openmig/shared';
+import type { DiscoveryDomain, ProviderAccountKind } from '@openmig/shared';
 import { Hint } from '../components/Hint.tsx';
 
 /**
@@ -442,8 +443,6 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
  * with the answers is the create route's shape builders, unchanged, so a
  * connection added here is one a sync pass can use.
  */
-const GRANT_FACES: ReadonlyArray<DiscoveryDomain> = ['email', 'calendar', 'contact', 'file'];
-
 const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const { t, locale } = useLocale();
   const [open, setOpen] = React.useState(false);
@@ -534,6 +533,23 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   // button waiting for face ticks it never shows. An account kind is the one
   // the table calls an account, and nothing else.
   const isAccountKind = isProviderAccountKind(type);
+  /**
+   * THE FACES THIS PROVIDER CAN BE ASKED TO SERVE (2026-09-06). A fixed list
+   * of Google's four sat here since the account kind arrived, and every
+   * provider read it — so the Microsoft form never offered Tasks, the consent
+   * never asked for Tasks.Read, and the owner read "Tasks ✗" on an account
+   * whose registration carried the permission. Read from the deployment's
+   * own facts (a restricted-scope Google client narrows its list), with the
+   * shared table as the answer while the facts are still on their way.
+   */
+  const { data: providerAccounts } = useQuery({
+    queryKey: ['provider-accounts'],
+    queryFn: providerAccountsApi.get,
+    enabled: isAccountKind,
+  });
+  const grantFaces: ReadonlyArray<DiscoveryDomain> = isAccountKind
+    ? (providerAccounts?.[type]?.domains ?? PROVIDER_ACCOUNT_DOMAINS[type as ProviderAccountKind] ?? [])
+    : [];
   const [domains, setDomains] = React.useState<DiscoveryDomain[]>([]);
   const [consentNote, setConsentNote] = React.useState<string | null>(null);
   const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
@@ -834,7 +850,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
                 {t('connections.googleFaces')}
               </legend>
               <div className="flex flex-wrap gap-4">
-                {GRANT_FACES.map((face) => (
+                {grantFaces.map((face) => (
                   <label key={face} className="inline-flex items-center gap-1 text-sm text-gray-700">
                     <input
                       type="checkbox"
