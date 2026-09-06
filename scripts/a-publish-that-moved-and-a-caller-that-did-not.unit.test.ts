@@ -55,7 +55,20 @@ interface ComposeFile {
 }
 
 const compose = parseYaml(readFileSync(MANAGED, "utf8")) as ComposeFile;
-const nextcloud = compose.services.nextcloud;
+
+type Service = ComposeFile["services"][string];
+
+/**
+ * The service, or a refusal naming what is missing. Indexing a record can
+ * always miss, and a non-null assertion here would turn a service that has
+ * been renamed or removed into four confusing failures instead of one clear
+ * one.
+ */
+const nextcloud = (): Service => {
+  const service = compose.services.nextcloud;
+  if (!service) throw new Error(`no nextcloud service in ${MANAGED}`);
+  return service;
+};
 
 /** Host-side callers of the PUBLISHED port — the ones a moved bind breaks. */
 const CALLERS = ["smoke-managed.sh", "setup-managed-demo.sh"] as const;
@@ -64,12 +77,15 @@ describe("the DAV backend is published through a setting, and its callers follow
   it("the service is in the file — the vacuity floor", () => {
     // Every assertion below reads this service. Without it they would pass
     // having checked nothing.
-    expect(nextcloud, "no nextcloud service in managed.yml").toBeDefined();
-    expect((nextcloud.ports ?? []).length).toBeGreaterThan(0);
+    expect(
+      () => nextcloud(),
+      "no nextcloud service in managed.yml",
+    ).not.toThrow();
+    expect((nextcloud().ports ?? []).length).toBeGreaterThan(0);
   });
 
   it("publishes through NEXTCLOUD_BIND with a loopback default", () => {
-    const published = (nextcloud.ports ?? []).join("\n");
+    const published = (nextcloud().ports ?? []).join("\n");
     expect(
       published,
       'Write it as "${NEXTCLOUD_BIND:-127.0.0.1}:…" — the variable WITH the ' +
@@ -81,14 +97,14 @@ describe("the DAV backend is published through a setting, and its callers follow
   it("refuses 0.0.0.0 as the shipped bind", () => {
     // A private mesh address is a legitimate value for NEXTCLOUD_BIND; every
     // interface is not, because "who can route to this box" is not an answer.
-    const published = (nextcloud.ports ?? []).join("\n");
+    const published = (nextcloud().ports ?? []).join("\n");
     expect(published, "the shipped bind must not be 0.0.0.0").not.toContain(
       "0.0.0.0",
     );
   });
 
   it("keeps both shipped names on the trusted-domain list", () => {
-    const trusted = nextcloud.environment?.NEXTCLOUD_TRUSTED_DOMAINS ?? "";
+    const trusted = nextcloud().environment?.NEXTCLOUD_TRUSTED_DOMAINS ?? "";
     expect(
       trusted,
       "NEXTCLOUD_TRUSTED_DOMAINS must stay a variable with a default, so an " +
