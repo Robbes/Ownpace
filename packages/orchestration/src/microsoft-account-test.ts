@@ -47,7 +47,8 @@ import {
   microsoftTokenEndpoint,
   withDeploymentMicrosoftClient,
 } from '@openmig/shared';
-import type { DiscoveryDomain, ProbeUnit, SourceConfig } from '@openmig/shared';
+import { missingCredentials } from '@openmig/shared';
+import type { BilingualRefusal, DiscoveryDomain, ProbeUnit, SourceConfig } from '@openmig/shared';
 import {
   buildCalendarSourceFromConnection,
   buildContactSourceFromConnection,
@@ -89,7 +90,14 @@ const GRAPH_DEFAULT_SCOPE = 'https://graph.microsoft.com/.default';
 
 export type MicrosoftGrantRead =
   | { readonly ok: true; readonly granted: ReadonlySet<string> }
-  | { readonly ok: false; readonly reason: string };
+  | {
+      readonly ok: false;
+      readonly reason: string;
+      /** Set when the fault is OURS — a stored row missing what the read
+       *  needs — so the probe can answer in the credential vocabulary, in
+       *  both languages, rather than as a provider's refusal. */
+      readonly refusal?: BilingualRefusal;
+    };
 
 export interface ReadMicrosoftGrantOptions {
   /** The token endpoint — a parameter so tests exchange against a stub. */
@@ -112,12 +120,30 @@ export async function readMicrosoftGrant(
   const clientId = (creds.clientId ?? '').trim();
   const refreshToken = (creds.refreshToken ?? '').trim();
   if (!clientId || !refreshToken) {
-    return {
-      ok: false,
-      reason:
-        'the stored credentials carry no clientId/refreshToken pair to read the grant from ' +
-        '(a row that took the grant button relies on the deployment’s own Microsoft client).',
-    };
+    // NAMED, one by one, because the two absences mean different things and
+    // the first live Test (2026-09-06) met the one this sentence used to
+    // hide: the row had a client id (the deployment's, filled in) and NO
+    // token, because the record had dropped it — and "no clientId/refreshToken
+    // pair" pointed a reader at the registration, which was fine.
+    const missing = [...(!clientId ? ['clientId'] : []), ...(!refreshToken ? ['refreshToken'] : [])];
+    const { refusal } = missingCredentials({
+      subject: 'The Microsoft 365 account',
+      missing,
+      detailEn: !refreshToken
+        ? 'The consent’s token is not on this connection. Remove it and connect the account ' +
+          'again with Connect with Microsoft, so the token is stored with it.'
+        : 'A row that took the grant button relies on the deployment’s own Microsoft ' +
+          'application: set MICROSOFT_OAUTH_CLIENT_ID and MICROSOFT_OAUTH_CLIENT_SECRET, or ' +
+          'send the connection’s own pair.',
+      detailNl: !refreshToken
+        ? 'Het token van de toestemming staat niet op deze koppeling. Verwijder de koppeling ' +
+          'en verbind het account opnieuw met Verbinden met Microsoft, zodat het token erbij ' +
+          'wordt opgeslagen.'
+        : 'Een koppeling via de toestemmingsknop leunt op de eigen Microsoft-applicatie van ' +
+          'deze installatie: stel MICROSOFT_OAUTH_CLIENT_ID en MICROSOFT_OAUTH_CLIENT_SECRET ' +
+          'in, of stuur het eigen paar van de koppeling mee.',
+    });
+    return { ok: false, reason: refusal.en, refusal };
   }
   const tenant = (creds.tenantId ?? '').trim() || microsoftTenant();
   const tokenEndpoint = options.tokenEndpoint ?? microsoftTokenEndpoint(tenant);

@@ -523,6 +523,41 @@ export function sourceCredentialRecord(
     // reads as a broken row instead of an honest one.
     return {};
   }
+  if (body.sourceType === 'microsoft') {
+    // THE GRANT, and the registration only where the person carries one
+    // (0114 T3; the branch itself 2026-09-06). Until today a `microsoft` body
+    // fell through to the Azure catch-all at the bottom, whose shape is the
+    // customer's OWN registration — tenant, client id, client secret — and
+    // which has no `refreshToken` at all. So the token the consent had just
+    // handed over was never written: the row stored `{username}`, the
+    // deployment's fill later added a client PAIR and no token, and the token
+    // provider took the application flow against `common`, which MSAL refuses
+    // as `missing_tenant_id_error`. The first live Test read exactly that.
+    //
+    // The pair and the tenant are copied only when SENT: a row that took the
+    // grant button carries the token alone, and the deployment's registration
+    // is filled in at build time by `withDeploymentMicrosoftClient` (T1's
+    // rule). An empty string stored here would read later as "configured,
+    // and wrong" rather than "not set", the same reason the Gmail app-password
+    // shape stores alone.
+    return {
+      refreshToken: body.sourceConfig.refreshToken!,
+      ...(body.sourceConfig.clientId ? { clientId: body.sourceConfig.clientId } : {}),
+      ...(body.sourceConfig.clientSecret ? { clientSecret: body.sourceConfig.clientSecret } : {}),
+      ...(body.sourceConfig.tenantId ? { tenantId: body.sourceConfig.tenantId } : {}),
+    };
+  }
+  if (body.sourceType === 'apple') {
+    // An app-specific password over IMAP and DAV (0115), the same two fields
+    // an `imap` source signs in with — and the same fall-through as
+    // `microsoft` above until 2026-09-06: the catch-all kept the username and
+    // dropped the password, so every Apple face was built with nothing to
+    // sign in with.
+    return {
+      username: body.sourceConfig.username,
+      ...(body.sourceConfig.password ? { password: body.sourceConfig.password } : {}),
+    };
+  }
   if (body.sourceType === 'box') {
     // Client id + secret ONLY — no refresh token by DESIGN: Box rotates
     // refresh tokens on every use, and stored credentials are never written

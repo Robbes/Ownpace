@@ -112,12 +112,23 @@ export class MsalTokenProvider implements TokenProvider {
     try {
       let token: OAuth2Token;
 
-      if (this.config.clientSecret || this.config.clientCertificateKey) {
-        // Client-credentials flow
-        token = await this.acquireTokenWithClientCredentials();
-      } else if (this.config.refreshToken || (this.config.username && this.config.password)) {
-        // Refresh-token or username/password flow
+      // THE DELEGATED FLOW WINS WHEN THERE IS A REFRESH TOKEN (2026-09-06).
+      //
+      // This asked "is there a client secret?" first, which was right for the
+      // two shapes it was written for — an app registration with a secret
+      // (application permissions) or a refresh token from a public client
+      // (delegated, no secret) — and wrong for the third shape the Connect
+      // with Microsoft button produces: a CONFIDENTIAL client's secret AND
+      // the refresh token its consent minted. That shape took the
+      // client-credentials branch, asked for delegated scopes under
+      // `/common`, and MSAL refused it before the request was sent
+      // (`missing_tenant_id_error`). A refresh token is the person's grant;
+      // where one is present it is the flow, and the secret rides along as
+      // the confidential client's proof (below).
+      if (this.config.refreshToken || (this.config.username && this.config.password)) {
         token = await this.acquireTokenWithRefreshToken();
+      } else if (this.config.clientSecret || this.config.clientCertificateKey) {
+        token = await this.acquireTokenWithClientCredentials();
       } else {
         throw new Error(
           "TokenProvider requires either client credentials (secret/certificate) or user credentials (refresh token or username/password)"
@@ -195,7 +206,16 @@ export class MsalTokenProvider implements TokenProvider {
       },
     };
 
-    const publicClientApp = new msalNode.PublicClientApplication(msalConfig);
+    // A CONFIDENTIAL client redeems its refresh token WITH its secret. MSAL's
+    // PublicClientApplication never sends one — it ignores `clientSecret` in
+    // its configuration — and Entra answers a Web-platform registration's
+    // token request without it with AADSTS7000218 ("client_assertion or
+    // client_secret"). So the application is chosen by what the registration
+    // is: a secret makes it confidential, and only a registration without one
+    // is public. Both expose acquireTokenByRefreshToken.
+    const publicClientApp = this.config.clientSecret
+      ? new msalNode.ConfidentialClientApplication(msalConfig)
+      : new msalNode.PublicClientApplication(msalConfig);
 
     // First, try to acquire with refresh token
     if (this.config.refreshToken) {

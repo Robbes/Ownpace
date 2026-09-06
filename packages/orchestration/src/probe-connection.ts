@@ -258,12 +258,24 @@ async function probeMicrosoftAccount(
     creds,
     deps.microsoftTokenEndpoint === undefined ? {} : { tokenEndpoint: deps.microsoftTokenEndpoint },
   );
-  const carried = grant.ok
-    ? faces.find((face) => {
-        const scope = microsoftFaceScope(face);
-        return scope !== undefined && grant.granted.has(scope);
-      })
-    : undefined;
+  if (!grant.ok) {
+    // AN UNREADABLE GRANT IS THE ANSWER, not a reason to try a face anyway.
+    // This used to fall back to the calendar with whatever the row held, and
+    // the first live Test (2026-09-06) showed what that buys: a row with the
+    // deployment's pair filled in and no token was built on the application
+    // flow, and the person read MSAL's `missing_tenant_id_error` — a sentence
+    // about a tenant, for a token that was never stored. The read already
+    // knows what is wrong, in our words when the fault is ours (a stored
+    // field missing) and in Microsoft's when it is theirs (the exchange
+    // refused), so that is what the Test says.
+    return grant.refusal
+      ? { ok: false, reason: grant.refusal.en, outcome: { code: 'credentialsRefused', refusal: grant.refusal } }
+      : { ok: false, reason: grant.reason, outcome: { code: 'providerRefused' } };
+  }
+  const carried = faces.find((face) => {
+    const scope = microsoftFaceScope(face);
+    return scope !== undefined && grant.granted.has(scope);
+  });
   const face = carried ?? faces[0]!;
   const unit = MICROSOFT_FACE_UNIT[face];
   try {

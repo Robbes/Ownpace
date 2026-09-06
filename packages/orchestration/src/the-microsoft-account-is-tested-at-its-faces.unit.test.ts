@@ -104,11 +104,32 @@ describe('reading the grant', () => {
     expect(body.get('refresh_token')).toBe('the-refresh-token');
   });
 
-  it('a row without a pair is unreadable WITHOUT an exchange, and says what is missing', async () => {
+  it('a row without a client id is unreadable WITHOUT an exchange, and names the deployment’s application', async () => {
     const calls = tokenFetch('Mail.Read');
     const read = await readMicrosoftGrant({ refreshToken: 'x' });
     expect(read.ok).toBe(false);
-    if (!read.ok) expect(read.reason).toMatch(/clientId\/refreshToken/);
+    if (!read.ok) {
+      expect(read.reason).toMatch(/clientId is not set/);
+      expect(read.reason).toContain('MICROSOFT_OAUTH_CLIENT_ID');
+      expect(read.refusal?.fields).toEqual(['clientId']);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it('a row whose token was never stored says so, with the way back — in both languages', async () => {
+    // The first live Test (2026-09-06): the deployment's pair filled in, no
+    // token, because the record had dropped it. The old sentence blamed a
+    // "clientId/refreshToken pair", which sent the reader to a registration
+    // that was fine.
+    const calls = tokenFetch('Mail.Read');
+    const read = await readMicrosoftGrant({ clientId: 'entra-app-id', clientSecret: 'entra-secret' });
+    expect(read.ok).toBe(false);
+    if (!read.ok) {
+      expect(read.reason).toMatch(/refreshToken is not set/);
+      expect(read.reason).toContain('Connect with Microsoft');
+      expect(read.refusal?.fields).toEqual(['refreshToken']);
+      expect(read.refusal?.nl).toContain('Verbinden met Microsoft');
+    }
     expect(calls).toHaveLength(0);
   });
 
@@ -184,6 +205,41 @@ describe('the headline probe picks the first face the grant carries', () => {
     expect(result.ok).toBe(false);
     expect(result.outcome.code).not.toBe('noProbe');
     expect(result.outcome.code).toBe('credentialsRefused');
+  });
+
+  it('an unreadable grant never builds a face: a missing token is said as a missing token', async () => {
+    // What the first live Test did instead (2026-09-06): fell back to the
+    // calendar with the deployment's pair and no token, built the source on
+    // the application flow, and answered MSAL's `missing_tenant_id_error`.
+    tokenFetch('Calendars.Read');
+    const build = vi.fn(() => {
+      throw new Error('a face was built from a grant that could not be read');
+    });
+    const result = await probeSourceConnection(
+      'microsoft',
+      ROW,
+      { clientId: 'entra-app-id', clientSecret: 'entra-secret' },
+      { microsoftFaceSource: build },
+    );
+    expect(build).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+    expect(result.outcome.code).toBe('credentialsRefused');
+    if (!result.ok) expect(result.reason).toMatch(/refreshToken is not set.*Connect with Microsoft/);
+  });
+
+  it('a refused exchange is Microsoft’s refusal, and still no face is built', async () => {
+    tokenFetch('', 400);
+    const build = vi.fn(() => {
+      throw new Error('a face was built from a grant that could not be read');
+    });
+    const result = await probeSourceConnection('microsoft', ROW, PAIR, {
+      microsoftFaceSource: build,
+      microsoftTokenEndpoint: TOKEN_ENDPOINT,
+    });
+    expect(build).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+    expect(result.outcome.code).toBe('providerRefused');
+    if (!result.ok) expect(result.reason).toMatch(/answered 400.*AADSTS70000/);
   });
 
   it('tries the faces calendar-first, then every other face the kind claims', () => {
