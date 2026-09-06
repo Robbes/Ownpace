@@ -63,7 +63,7 @@ ARG VITE_IDP_CONSOLE_USER_URL=
 ENV VITE_IDP_CONSOLE_USER_URL=$VITE_IDP_CONSOLE_USER_URL
 RUN pnpm --filter @openmig/web build
 
-FROM nginx:1.30-alpine AS runtime
+FROM nginx:1.31-alpine AS runtime
 ENV API_UPSTREAM=api:3001
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
