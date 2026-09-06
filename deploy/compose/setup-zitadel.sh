@@ -1215,7 +1215,7 @@ the same URI:
         say "      under Default settings -> Login Behaviour and Security -> Identity Providers"
         say "      (the INSTANCE page — an organisation's own login policy is reset by this script),"
         say "      or from this shell:"
-        say "        PAT=\"\$(docker run --rm -v ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt)\""
+        say "        PAT=\"\$(docker run --rm -v ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt)\""
         say "        for id in ${others}; do"
         say "          curl -sS -X DELETE ${ISSUER}/admin/v1/policies/login/idps/\$id -H \"Authorization: Bearer \$PAT\""
         say "        done"

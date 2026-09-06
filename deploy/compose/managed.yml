@@ -74,7 +74,7 @@ services:
   # and `compose up -d`. Every service reads those, so that one change puts the
   # whole stack back on direct connections without touching this file.
   pgbouncer:
-    image: edoburu/pgbouncer:v1.24.1-p1
+    image: edoburu/pgbouncer:v1.25.2-p0
     container_name: ownpace-pgbouncer
     restart: unless-stopped
     depends_on:
@@ -720,7 +720,7 @@ services:
   # the name against. The default here is only for a hand-run `compose run` with
   # nothing exported.
   zitadel-machinekey:
-    image: busybox:1.37
+    image: busybox:1.38
     profiles: ["init"]
     command:
       - sh
@@ -1065,7 +1065,7 @@ services:
   # SMTP stays on the compose network: 1025 is not published, because the only
   # things that should reach it are services in this stack. The web UI is.
   mailpit:
-    image: axllent/mailpit:v1.31.0@sha256:c96991d9bef73594c246d89ca81411d4e916f03e76a7d2d72fa2ab5dd3c9ce24
+    image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
     container_name: ownpace-mailpit
     restart: unless-stopped
     environment:

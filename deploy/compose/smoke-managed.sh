@@ -346,7 +346,7 @@ IDP_SMOKE_APP_NAME="Ownpace Smoke $$"
 # that image has no shell and no coreutils, which cost E2E (managed) #49-#51.
 idp_pat() {
   docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey:ro \
-    busybox:1.37 cat /machinekey/pat.txt 2>/dev/null | tr -d '\r\n'
+    busybox:1.38 cat /machinekey/pat.txt 2>/dev/null | tr -d '\r\n'
 }
 
 # The origin is a compose network alias: the API container has the name, this
@@ -890,7 +890,7 @@ else
   if [ "${#IDP_PAT}" -lt 20 ]; then
     echo "no usable provisioning token on the machinekey volume — cannot sign anybody in."
     echo "  read it by hand with:"
-    echo "    docker run --rm -v ownpace-managed_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt"
+    echo "    docker run --rm -v ownpace-managed_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt"
     fail_at
   fi
 
