@@ -512,7 +512,20 @@ services:
     # `zitadel-image-matches-postgres.unit.test.ts` refuses a pairing of this
     # image with a Postgres major it cannot initialise against, in either
     # direction, so neither number can be moved alone by accident.
-    image: ghcr.io/zitadel/zitadel:v4.17.1
+    #
+    # v4.17.3 (2026-09-04) since 2026-09-06, owner go (0119 §3 item 2). 24
+    # commits over v4.17.1, three of them security fixes (TOTP reuse, IDP
+    # intent tokens under authenticated encryption, the auth-method permission
+    # checked on the user's own organisation). No schema migration between the
+    # two. The three facts this stack pins about v4.17.1 were re-read against
+    # the tag rather than assumed: `cmd/defaults.yaml` still ships
+    # `LoginV2.Required: true` (the-login-page-nobody-chose), the admin SMTP
+    # handler still implements only the two deprecated test verbs
+    # (the-mail-the-issuer-could-not-send), and `zitadel ready` still asks its
+    # external port (the healthcheck note below). Zitadel migrates its own
+    # schema at boot, on the persistent stack, so the gate run that proves this
+    # is the one that applies it.
+    image: ghcr.io/zitadel/zitadel:v4.17.3
     container_name: ownpace-idp
     restart: unless-stopped
     # `start-from-init` is init-then-start in one command and is idempotent: on
