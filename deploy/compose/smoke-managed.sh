@@ -3897,6 +3897,154 @@ fi
 # rule 2). Deleting it to make a number come out at zero would be exactly the
 # trade this script exists to refuse. So: net zero MINUS one tombstone per run,
 # and the counts below say which is which rather than asserting a round number.
+# ---------- the Nextcloud door, asked on the real thing (2026-09-07) ----------
+#
+# WHY THIS EXISTS. The `nextcloud` target kind shipped asking for a host, a
+# port, and a DAV base URL labelled optional — and the optional one is the only
+# field that can ever be right, because a Nextcloud serves DAV from behind
+# `/remote.php/dav` rather than from the root of the site. The owner found it
+# by trying to add one ("why do i have a host and a dav base url?").
+#
+# The fix inverted the door AND LOOSENED A SCHEMA: `targetConfig.host` and
+# `.port` left the zod object, and the demand for them moved into the
+# superRefine where the target type is visible. Every assertion that it did not
+# loosen too far lived in unit tests. A unit test cannot tell you that the real
+# API, talking to a real Nextcloud, accepts the shape the door now asks for —
+# and that is precisely the pair that disagreed.
+#
+# Four questions, in the order somebody meets them:
+#
+#   1. The shape the door asks for REACHES the server. A base URL, an account,
+#      a password, no host — through the product's own target probe.
+#   2. The shape it no longer asks for is REFUSED BY NAME, and the refusal
+#      names the URL rather than the two fields the door stopped showing.
+#   3. A MAPPING onto that target is accepted with no host and no port. This is
+#      the loosened schema, on the real route.
+#   4. A mapping with NO address at all is refused, and the sentence says what
+#      a base URL looks like.
+#
+# NET ZERO, like everything else here. (1), (2) and (4) store nothing at all —
+# a probe, and two refusals. (3) must create to prove anything, so it deletes
+# what it created and says whether that worked.
+nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
+# THE PUBLISH MOVED AND THE CALLER STAYED AT LOCALHOST is the failure this
+# reads .env to avoid: an operator who binds the DAV backend to a private mesh
+# address (NEXTCLOUD_BIND, for browsing it over the VPN) would otherwise leave
+# every assertion below curling a loopback address nothing listens on any more,
+# and the gate would report a target failure that is really a moved port.
+nc_host="$(smoke_env_value NEXTCLOUD_BIND)"
+NC="http://${nc_host:-localhost}:${nc_port:-8083}"
+
+note "the Nextcloud door"
+nc_dav_url="${NC}/remote.php/dav"
+
+# 1. THE SHAPE THE DOOR ASKS FOR, through the product's own probe — the same
+#    one Test presses. `test-connection` stores nothing, so this asks whether
+#    a URL-only Nextcloud target is REACHABLE without leaving a row behind.
+r="$(http POST "$API/api/migrations/test-connection" "$TOK_R" \
+  "$(jq -nc --arg u "$nc_dav_url" --arg n "$TARGET_DAV_USER" --arg p "$TARGET_DAV_PASSWORD" \
+    '{side:"target", targetType:"nextcloud",
+      targetConfig:{url:$u, username:$n, password:$p}}')")"
+code="${r%% *}"; body="${r#* }"
+if [ "$code" = "200" ] && [ "$(jq -r '.ok // false' <<<"$body")" = "true" ]; then
+  echo "nextcloud target by base URL alone: reached the real server, no host or port asked for"
+else
+  echo "nextcloud target by base URL: HTTP $code — ${body:0:250} (expected 200 and ok:true)"
+  fail_at
+fi
+
+# 2. AND THE SHAPE IT NO LONGER ASKS FOR. A host and a port are what the door
+#    used to demand; the descriptor now demands the URL, and `configShapeFor`
+#    follows the descriptor. The refusal must name `url` — and must NOT name
+#    the two fields this door stopped showing, or it sends somebody looking
+#    for boxes that are not there.
+r="$(http POST "$API/api/connections" "$TOK_R" \
+  "$(jq -nc --arg n "$TARGET_DAV_USER" --arg p "$TARGET_DAV_PASSWORD" \
+    '{role:"target", type:"nextcloud", displayName:"gate: nextcloud without its URL",
+      values:{host:"nextcloud.example.invalid", port:"443", username:$n, password:$p}}')")"
+code="${r%% *}"; body="${r#* }"
+nc_missing="$(jq -rc '.fields // empty' <<<"$body")"
+if [ "$code" = "400" ] && [ "$(jq -r '.error // empty' <<<"$body")" = "missing_fields" ] \
+  && [ "$nc_missing" = '["url"]' ]; then
+  echo "nextcloud without its URL: HTTP 400 missing_fields ['url'], and nothing about a host"
+else
+  echo "nextcloud without its URL: HTTP $code, fields ${nc_missing:-<none>} — ${body:0:250} (expected 400 missing_fields [\"url\"])"
+  fail_at
+fi
+
+# 3. THE LOOSENED SCHEMA, ON THE REAL ROUTE. `targetConfig` demanded a host and
+#    a port for every target there was, so this exact body — the one the wizard
+#    now builds for a Nextcloud — was refused for a field nobody had been asked
+#    for. The source side is a sentinel Dropbox credential: nothing here
+#    follows it to Dropbox, because a create does not probe.
+nc_mapping_body="$(jq -nc --arg u "$nc_dav_url" --arg n "$TARGET_DAV_USER" --arg p "$TARGET_DAV_PASSWORD" \
+  '{name:"gate: nextcloud target", sourceType:"dropbox",
+    sourceConfig:{username:"gate@example.invalid", clientId:"gate-app-key",
+                  clientSecret:"gate-app-secret", refreshToken:"gate-refresh-token"},
+    targetType:"nextcloud", targetConfig:{url:$u, username:$n, password:$p},
+    syncConfig:{domains:["file"]}}')"
+r="$(http POST "$API/api/migrations" "$TOK_R" "$nc_mapping_body")"
+code="${r%% *}"; body="${r#* }"
+nc_mapping_id="$(jq -r '.id // empty' <<<"$body")"
+nc_mapping_status="$(jq -r '.status // empty' <<<"$body")"
+# The status is asserted rather than assumed, because it is what makes CREATING
+# something here safe: a paused mapping is a draft, and no tick will pick these
+# sentinel Dropbox credentials up and try to sign in with them.
+if [ "$code" = "201" ] && [ -n "$nc_mapping_id" ] && [ "$nc_mapping_status" = "paused" ]; then
+  echo "nextcloud mapping with no host and no port: created and paused, which the old schema refused"
+else
+  echo "nextcloud mapping with a URL: HTTP $code, status '${nc_mapping_status:-<none>}' — ${body:0:300} (expected 201, paused, with an id)"
+  fail_at
+fi
+
+# ...AND TAKEN BACK, all three rows of it. `DELETE /api/migrations/:id` removes
+# the mapping row and nothing else, but a create makes a source connection and a
+# target connection beside it, named after the mapping. Leaving those would add
+# two rows a night to the very table this gate measures — the net-zero rule the
+# take-back section above exists for. The mailboxes under them go with the
+# connections (`mailbox.connection_id` cascades), so these three deletes are the
+# whole footprint.
+if [ -n "$nc_mapping_id" ]; then
+  r="$(http DELETE "$API/api/migrations/${nc_mapping_id}" "$TOK_R")"
+  nc_left="${r%% *}"
+  case "$nc_left" in 200|204) nc_left=0 ;; *) nc_left=1 ;; esac
+  for nc_side in source target; do
+    nc_conn_id="$(q "SELECT id FROM connection WHERE display_name = 'gate: nextcloud target (${nc_side})' LIMIT 1")"
+    [ -z "$nc_conn_id" ] && continue
+    r="$(http DELETE "$API/api/connections/${nc_conn_id}" "$TOK_R")"
+    case "${r%% *}" in 200|204) ;; *) nc_left=$((nc_left + 1)) ;; esac
+  done
+  if [ "$nc_left" = "0" ]; then
+    echo "and taken back: mapping and both of its connections are gone again"
+  else
+    echo "the gate's nextcloud rows did not all delete ($nc_left left) — they will accumulate"
+    fail_at
+  fi
+fi
+
+# 4. AND WITH NO ADDRESS AT ALL. The refusal has to say what a base URL looks
+#    like, because "targetConfig.url is missing" to somebody who has only ever
+#    typed a host is not an instruction. It must not ask for a host either.
+r="$(http POST "$API/api/migrations" "$TOK_R" \
+  "$(jq -nc --arg n "$TARGET_DAV_USER" --arg p "$TARGET_DAV_PASSWORD" \
+    '{name:"gate: nextcloud with no address", sourceType:"dropbox",
+      sourceConfig:{username:"gate@example.invalid", clientId:"gate-app-key",
+                    clientSecret:"gate-app-secret", refreshToken:"gate-refresh-token"},
+      targetType:"nextcloud", targetConfig:{username:$n, password:$p},
+      syncConfig:{domains:["file"]}}')")"
+code="${r%% *}"; body="${r#* }"
+# The FIELDS it complains about, not just the sentence: asserting "no host is
+# mentioned" against a body whose paths are JSON arrays would pass whatever the
+# schema did, which is a check that cannot fail and therefore is not one.
+nc_paths="$(jq -rc '[.details[]?.path | join(".")] | unique' <<<"$body" 2>/dev/null || echo '[]')"
+if [ "$code" = "400" ] && grep -q '/remote.php/dav' <<<"$body" \
+  && [ "$nc_paths" = '["targetConfig.url"]' ]; then
+  echo "nextcloud mapping with no address: refused on the URL alone, and the sentence shows one"
+else
+  echo "nextcloud mapping with no address: HTTP $code, fields ${nc_paths} — ${body:0:300} (expected 400, only targetConfig.url, naming /remote.php/dav)"
+  fail_at
+fi
+
 # ---------- the mail nobody should get (0103 T2 / ADR-0043) ----------
 #
 # Fresh event 1 carried an ORGANIZER and an ATTENDEE, tag-addressed, and the
@@ -3921,14 +4069,6 @@ fi
 # required to be advertised in the DAV header. No object written, no mail
 # risked, nothing but the API: the same question the product can ask any
 # customer target. "unknown" is reported as unmeasured, never as safe.
-nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
-# THE PUBLISH MOVED AND THE CALLER STAYED AT LOCALHOST is the failure this
-# reads .env to avoid: an operator who binds the DAV backend to a private mesh
-# address (NEXTCLOUD_BIND, for browsing it over the VPN) would otherwise leave
-# every assertion below curling a loopback address nothing listens on any more,
-# and the gate would report a target failure that is really a moved port.
-nc_host="$(smoke_env_value NEXTCLOUD_BIND)"
-NC="http://${nc_host:-localhost}:${nc_port:-8083}"
 sched_dav_header="$(curl -fsS -o /dev/null -D - -X OPTIONS \
   -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
   "${NC}/remote.php/dav/calendars/${TARGET_DAV_USER}/personal/" 2>/dev/null \
