@@ -30,7 +30,9 @@ import {
   type ProbeOutcome,
   type ProbeUnit,
   type QualificationKey,
+  type QualificationReason,
   type RefusalLocale,
+  reasonEarnsASentence,
 } from '@openmig/shared';
 import type { StringKey } from './strings.ts';
 import { DOMAIN_STRING_KEY } from './domain-words.ts';
@@ -45,6 +47,7 @@ type Translate = (key: StringKey, vars?: Readonly<Record<string, string | number
  */
 interface QualifiedFace {
   readonly answer: 'yes' | 'no' | 'unknown';
+  readonly reason?: QualificationReason;
   readonly detail?: string;
   readonly count?: number;
   readonly unit?: ProbeUnit;
@@ -177,11 +180,27 @@ export function schedulingText(
 }
 
 /**
- * The account's per-domain qualification (0106 T0), as one line: what the
- * last test measured this account can carry. Three marks, deliberately
- * three: ✓ and ✗ both required an ANSWER; `?` is unmeasured, and rendering
- * it as either yes or no would be the exact lie the third state exists to
- * prevent. The hint sentence rides along whenever a `?` is on the line.
+ * WHAT THIS CONNECTION CARRIES — the names, and nothing else (2026-09-07).
+ *
+ * This line used to mark every face the record mentions: *Email ? · Calendar
+ * ✓ 1 calendar · Contacts ✓ 1 address book · Files ✓ 4 folders · Tasks ✓ 0
+ * task lists — '?' is unmeasured*. Five faces, three marks, two units and a
+ * disclaimer, to say that a Nextcloud carries four things.
+ *
+ * The owner read that on his own card and asked for the obvious: **list what
+ * it carries.** A face that is not a `yes` is not a capability, and marking
+ * its absence costs a reader more than it tells them — the more domains this
+ * product supports, the longer the line of things a connection is not.
+ *
+ * So the marks are gone with the faces they marked. `✓` is implied by being
+ * on the line at all, and the counts moved off it (see `measuredText`) so
+ * that "what" and "how much" are one question each rather than one and a
+ * half. What is NOT on the line is explained underneath, but only where a
+ * person can act on it — `qualificationEvidence` owns that judgement.
+ *
+ * Returns null when nothing was measured as carried, so a caller renders no
+ * empty lead; the evidence lines still speak, and a record that never
+ * qualified says so through `probe.qualify.none`.
  */
 export function qualificationText(
   t: Translate,
@@ -190,43 +209,35 @@ export function qualificationText(
     | undefined,
 ): string | null {
   if (!qualification) return null;
-  const mark = { yes: '✓', no: '✗', unknown: '?' } as const;
-  const order = QUALIFICATION_KEYS;
-  // The count beside the tick, when the face was reached and listed
-  // (2026-09-02): "Calendar ✓ 5 calendars" — the owner's "a bit more info
-  // on the other three", on the line itself rather than in a hover a phone
-  // has not got. An older record, a no and an unknown carry no count.
-  const line = order
-    .map((domain) => {
-      const d = faceOf(qualification.domains, domain);
-      const counted =
-        d.answer === 'yes' && d.count !== undefined && d.unit
-          ? ` ${d.count} ${unitWord(t, d.unit, d.count)}`
-          : '';
-      return `${t(faceLabel(domain))} ${mark[d.answer]}${counted}`;
-    })
-    .join(' · ');
-  const anyUnknown = order.some(
-    (domain) => faceOf(qualification.domains, domain).answer === 'unknown',
+  const carried = QUALIFICATION_KEYS.filter(
+    (domain) => faceOf(qualification.domains, domain).answer === 'yes',
   );
-  return `${t('probe.qualify.lead')} ${line}${anyUnknown ? ` — ${t('probe.qualify.unknownHint')}` : ''}`;
+  if (carried.length === 0) return null;
+  return `${t('probe.qualify.lead')} ${carried.map((d) => t(faceLabel(d))).join(' · ')}`;
 }
 
 /**
- * The evidence behind every `?` on the line (2026-09-02), as lines to SHOW.
+ * THE SENTENCES A PERSON CAN ACT ON, and only those (2026-09-07).
  *
- * The line above says "Contacts ?", and the sentence that says why — Google's
- * own, naming the API and the page since #722 — sat in a hover title. The
- * owner read the line on a phone, which has no hover, and could not learn
- * which switch to flip. A `?` is the one state whose sentence IS the remedy,
- * so its sentence goes on screen; a yes carries its count on the line and a
- * no its re-consent remedy in the matrix, neither of which needs a second
- * line here.
+ * Every unmeasured face used to get a line here. That was right when `?` meant
+ * one thing — Google's own words naming an API to switch on, which the owner
+ * needed on a phone that has no hover. It stopped being right when the same
+ * mark started covering faces nobody ever asked about: a Nextcloud target
+ * explaining, in three lines above the fold, that it carries no mail server
+ * address.
  *
- * The sentence is the server's evidence line: our English around the
- * provider's words, exactly as the hover had it. Not translated, for the
- * reason the hover was not — the provider's half is the string somebody
- * pastes into a console.
+ * `reasonEarnsASentence` decides, in shared, so this screen and the wizard and
+ * the appliance's report cannot form three opinions about one record. What
+ * survives is `refused` (we asked, something said no, the words are the
+ * remedy) and `incomplete` (a field is missing and the sentence names it).
+ * What goes silent is `structural` (a Dropbox is not a calendar), `notAskable`
+ * (this row has no such face to ask about) and `notGranted` — the last on the
+ * owner's instruction, and sound because the consent door will not store a
+ * partial grant, so an ungranted face is one nobody ticked.
+ *
+ * A failed MEASURE still speaks regardless of any of that: the face answered,
+ * so it is on the carry line, and the number beside it is missing for a reason
+ * worth one sentence.
  */
 export function qualificationEvidence(
   t: Translate,
@@ -238,15 +249,12 @@ export function qualificationEvidence(
   const lines: string[] = [];
   for (const domain of QUALIFICATION_KEYS) {
     const d = faceOf(qualification.domains, domain);
-    // An UNMEASURED face with no sentence is a face the record never had —
-    // an older row read by a newer build. There is nothing to explain, and a
-    // bare "Tasks ?:" would be an empty promise of evidence.
-    if (d.answer === 'unknown' && d.detail) lines.push(`${t(faceLabel(domain))} ?: ${d.detail}`);
-    // A face that answered but could not be MEASURED (2026-09-02): the
-    // reason on screen too, or the Measured line simply lacks a face and
-    // nobody learns why.
-    else if (d.volume?.failed) {
-      lines.push(`${t(faceLabel(domain))} ✓, ${t('probe.measured.failed')}: ${d.volume.failed}`);
+    // A face that answered needs no explanation for not answering; only its
+    // measure can still have failed, which the second arm covers.
+    if (d.answer !== 'yes' && d.detail && reasonEarnsASentence(d.reason)) {
+      lines.push(`${t(faceLabel(domain))}: ${d.detail}`);
+    } else if (d.volume?.failed) {
+      lines.push(`${t(faceLabel(domain))} — ${t('probe.measured.failed')}: ${d.volume.failed}`);
     }
   }
   return lines;
@@ -255,13 +263,28 @@ export function qualificationEvidence(
 type Measured = { domains: QualifiedDomains };
 
 /**
- * The measured-volume line (2026-09-02): how MUCH each reached face holds,
- * beside the capability line and never instead of it — *Measured: Email
- * 12,400 messages ≈ 3.2 GB · Contacts 412 cards · Files 1.8 GB (Docs, Sheets
- * and Slides not counted)*. Faces without a measure are left off the line;
- * with none at all the line is not shown. Counts are formatted for the
- * reader's locale; an extrapolated byte figure carries ≈, an exact one does
- * not, because the difference is the honesty of the number.
+ * HOW MUCH EACH CARRIED FACE HOLDS — collections and volume on one line
+ * (2026-09-07, replacing the split that shipped 2026-09-02).
+ *
+ * The counts used to live on the capability line — *Calendar ✓ 1 calendar* —
+ * and the volumes on their own line below it. That put two kinds of number in
+ * two places for no reason a reader could see: the collection count was
+ * EVIDENCE that the tick was real, which is a fine thing for it to be and not
+ * a thing anybody reads it as. On screen it is a quantity, and quantities
+ * belong together.
+ *
+ * So the capability line answers "what", this one answers "how much", and a
+ * face appears here once with everything known about it: *Files 4 folders,
+ * 3.8 GB*. Only carried faces appear — a face that is not a `yes` has no
+ * quantity to report and is not on the line above either.
+ *
+ * A face that answered with NOTHING says so in words. "Tasks ✓ 0 task lists"
+ * read as a contradiction and was not one: zero collections is a real answer
+ * and the protocol works. `Tasks none` keeps the fact and drops the argument.
+ *
+ * Counts are formatted for the reader's locale; an extrapolated byte figure
+ * carries ≈ and an exact one does not, because the difference is the honesty
+ * of the number.
  */
 export function measuredText(
   t: Translate,
@@ -272,42 +295,54 @@ export function measuredText(
   const numberFormat = new Intl.NumberFormat(locale === 'nl' ? 'nl-NL' : 'en-GB');
   const parts: string[] = [];
   for (const domain of QUALIFICATION_KEYS) {
-    const v = faceOf(qualification.domains, domain).volume;
-    if (!v || v.failed) continue;
+    const face = faceOf(qualification.domains, domain);
+    if (face.answer !== 'yes') continue;
     const bits: string[] = [];
-    if (v.items !== undefined) {
-      const key: StringKey =
-        domain === 'mail'
-          ? v.items === 1
-            ? 'probe.measured.message.one'
-            : 'probe.measured.message.many'
-          : domain === 'contact'
-            ? v.items === 1
-              ? 'probe.measured.card.one'
-              : 'probe.measured.card.many'
-            : v.items === 1
-              ? 'probe.measured.item.one'
-              : 'probe.measured.item.many';
-      bits.push(t(key, { count: numberFormat.format(v.items) }));
-    }
-    if (v.bytes !== undefined) {
-      bits.push(`${v.estimated ? '≈ ' : ''}${formatBytes(v.bytes)}`);
-    }
-    if (v.nativeFilesExcluded) bits.push(`(${t('probe.measured.driveNote')})`);
-    // BESIDE THE COUNT, NOT INSTEAD OF IT (2026-09-07). "0 cards" and "0
-    // cards, 25 could not be read" are different facts, and the owner read
-    // the first on a live account without being able to tell which it was.
-    if (v.unreadable !== undefined && v.unreadable > 0) {
+    // WHAT THE PROTOCOL ANSWERED WITH, first: the collections are the coarse
+    // shape of the account, and the volume the fill inside it.
+    if (face.count !== undefined && face.unit) {
       bits.push(
-        t(
-          v.unreadable === 1
-            ? 'probe.measured.unreadable.one'
-            : 'probe.measured.unreadable.many',
-          { count: numberFormat.format(v.unreadable) },
-        ),
+        face.count === 0
+          ? t('probe.found.none')
+          : `${numberFormat.format(face.count)} ${unitWord(t, face.unit, face.count)}`,
       );
     }
-    if (bits.length > 0) parts.push(`${t(faceLabel(domain))} ${bits.join(' ')}`);
+    const v = face.volume;
+    if (v && !v.failed) {
+      if (v.items !== undefined) {
+        const key: StringKey =
+          domain === 'mail'
+            ? v.items === 1
+              ? 'probe.measured.message.one'
+              : 'probe.measured.message.many'
+            : domain === 'contact'
+              ? v.items === 1
+                ? 'probe.measured.card.one'
+                : 'probe.measured.card.many'
+              : v.items === 1
+                ? 'probe.measured.item.one'
+                : 'probe.measured.item.many';
+        bits.push(t(key, { count: numberFormat.format(v.items) }));
+      }
+      if (v.bytes !== undefined) {
+        bits.push(`${v.estimated ? '≈ ' : ''}${formatBytes(v.bytes)}`);
+      }
+      if (v.nativeFilesExcluded) bits.push(`(${t('probe.measured.driveNote')})`);
+      // BESIDE THE COUNT, NOT INSTEAD OF IT (2026-09-07). "0 cards" and "0
+      // cards, 25 could not be read" are different facts, and the owner read
+      // the first on a live account without being able to tell which it was.
+      if (v.unreadable !== undefined && v.unreadable > 0) {
+        bits.push(
+          t(
+            v.unreadable === 1
+              ? 'probe.measured.unreadable.one'
+              : 'probe.measured.unreadable.many',
+            { count: numberFormat.format(v.unreadable) },
+          ),
+        );
+      }
+    }
+    if (bits.length > 0) parts.push(`${t(faceLabel(domain))} ${bits.join(', ')}`);
   }
   if (parts.length === 0) return null;
   return `${t('probe.measured.lead')} ${parts.join(' · ')}`;

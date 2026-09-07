@@ -186,7 +186,19 @@ describe('schedulingText — the verdict a DAV target test carries (0105 T0)', (
   });
 });
 
-describe('qualificationText — what the account can carry (0106 T0)', () => {
+describe('qualificationText — the card lists what it CARRIES (2026-09-07)', () => {
+  /**
+   * The owner read his own Nextcloud card and asked for the obvious:
+   *
+   *     Can carry: Email ? · Calendar ✓ 1 calendar · Contacts ✓ 1 address
+   *     book · Files ✓ 4 folders · Tasks ✓ 0 task lists — '?' is unmeasured
+   *
+   * Five faces, three marks, two units and a disclaimer, to say that a
+   * Nextcloud carries four things. Marking what a connection is NOT costs the
+   * reader more than it tells them, and the cost grows with every domain the
+   * product adds. So the line is the names of the carried faces and nothing
+   * else — no marks, because being on it IS the mark.
+   */
   const q = (
     mail: 'yes' | 'no' | 'unknown',
     calendar: 'yes' | 'no' | 'unknown',
@@ -203,23 +215,48 @@ describe('qualificationText — what the account can carry (0106 T0)', () => {
     },
   });
 
-  it('renders the three marks in the reader\'s language, domains in a fixed order', () => {
+  it('names only the carried faces, in the domain order, in the reader\'s language', () => {
     // The order is `DISCOVERY_DOMAINS`', so Tasks reads last — beside the
     // faces, in the sequence the wizard's own ticks use (0113 T5).
     expect(qualificationText(en, q('unknown', 'yes', 'yes', 'no', 'yes'))).toBe(
-      "Can carry: Email ? · Calendar ✓ · Contacts ✓ · Files ✗ · Tasks ✓ — '?' is unmeasured — not safe to assume either way",
+      'Carries: Calendar · Contacts · Tasks',
     );
     expect(qualificationText(nl, q('yes', 'yes', 'yes', 'yes', 'yes'))).toBe(
-      'Kan dragen: E-mail ✓ · Agenda ✓ · Contacten ✓ · Bestanden ✓ · Taken ✓',
+      'Draagt: E-mail · Agenda · Contacten · Bestanden · Taken',
     );
   });
 
-  it('a record written before the fifth face reads it as unmeasured, never as a crash', () => {
+  it('carries no marks and no disclaimer, whatever else the record holds', () => {
+    // The three marks and the hint were the line's whole vocabulary for a
+    // year. A face that is not a yes is simply absent now, so none of them
+    // has anything left to say.
+    const line = qualificationText(en, q('unknown', 'yes', 'no', 'yes', 'unknown'))!;
+    for (const gone of ['?', '✗', '✓', 'unmeasured']) {
+      expect(line, `the carry line still renders "${gone}"`).not.toContain(gone);
+    }
+  });
+
+  it('the owner\'s Nextcloud card, as it will now read', () => {
+    // Email unmeasured because the row carries no mail server address; the
+    // other four answered. One line, four words, no argument.
+    expect(
+      qualificationText(en, {
+        domains: {
+          mail: { answer: 'unknown' as const, reason: 'notAskable' as const, detail: 'no mail server address' },
+          calendar: { answer: 'yes' as const, detail: 'x', count: 1, unit: 'calendar' as const },
+          contact: { answer: 'yes' as const, detail: 'x', count: 1, unit: 'addressBook' as const },
+          file: { answer: 'yes' as const, detail: 'x', count: 4, unit: 'folder' as const },
+          task: { answer: 'yes' as const, detail: 'x', count: 0, unit: 'taskList' as const },
+        },
+      }),
+    ).toBe('Carries: Calendar · Contacts · Files · Tasks');
+  });
+
+  it('a record written before the fifth face leaves it off, never crashes', () => {
     // THE ROW EVERY EXISTING CONNECTION HAS. Qualifications stored before
     // 2026-09-03 carry four faces; the browser reads them until each
-    // connection is tested again. Walking five keys over four-key JSON would
-    // have thrown on the first card — the fifth-domain failure this workplan
-    // exists to stop, in the one layer with no compiler to catch it.
+    // connection is tested again. An absent face is unmeasured, and unmeasured
+    // is not carried — so it is simply not on the line.
     const beforeTasks = {
       domains: {
         mail: { answer: 'yes' as const, detail: 'd' },
@@ -228,90 +265,102 @@ describe('qualificationText — what the account can carry (0106 T0)', () => {
         file: { answer: 'yes' as const, detail: 'd' },
       },
     };
-    const line = qualificationText(en, beforeTasks)!;
-    expect(line).toContain('Tasks ?');
-    // And the hint rides along, because a `?` IS on the line: the remedy is
-    // the Test button the reader is already looking at.
-    expect(line).toContain('unmeasured');
-    // Nothing to explain for a face nobody measured — a bare "Tasks ?:" would
+    expect(qualificationText(en, beforeTasks)).toBe('Carries: Email · Calendar · Contacts · Files');
+    // Nothing to explain for a face nobody measured — a bare "Tasks:" would
     // promise evidence that does not exist.
     expect(qualificationEvidence(en, beforeTasks)).toEqual([]);
   });
 
-  it('the unmeasured hint appears exactly when a ? is on the line', () => {
-    expect(qualificationText(en, q('yes', 'yes', 'no', 'yes'))).not.toContain('unmeasured');
-    expect(qualificationText(nl, q('yes', 'unknown', 'yes', 'yes'))).toContain('niet gemeten');
-  });
-
-  it('no qualification renders nothing at all', () => {
+  it('a connection that carries nothing renders no lead at all', () => {
+    // Rather than "Carries:" followed by silence. The evidence lines below
+    // still speak wherever they have something to say.
+    expect(qualificationText(en, q('no', 'no', 'no', 'no', 'no'))).toBeNull();
     expect(qualificationText(en, undefined)).toBeNull();
   });
 });
 
-describe('qualificationText — the count beside the tick, once a face was reached (2026-09-02)', () => {
-  const reached = {
-    domains: {
-      mail: { answer: 'yes' as const, detail: 'The grant carries mail; 14 folders visible.', count: 14, unit: 'folder' as const },
-      calendar: { answer: 'yes' as const, detail: '5 calendars visible.', count: 5, unit: 'calendar' as const },
-      contact: { answer: 'unknown' as const, detail: 'The grant carries carddav, but the face did not answer: 403' },
-      file: { answer: 'yes' as const, detail: '1 folder visible.', count: 1, unit: 'folder' as const },
-    },
-  };
-
-  it('words each count in the reader\'s language, singular and plural, and leaves an unknown bare', () => {
-    const english = qualificationText(en, reached)!;
-    expect(english).toContain('Email ✓ 14 folders');
-    expect(english).toContain('Calendar ✓ 5 calendars');
-    expect(english).toContain('Contacts ?');
-    expect(english).toContain('Files ✓ 1 folder');
-    const dutch = qualificationText(nl, reached)!;
-    expect(dutch).toContain('5 agenda');
-    expect(dutch).toContain('1 map');
-    expect(dutch).not.toContain('calendars');
-  });
-
-  it('an older record without counts renders exactly as before', () => {
-    const bare = {
-      domains: {
-        mail: { answer: 'yes' as const, detail: 'x' },
-        calendar: { answer: 'no' as const, detail: 'x' },
-        contact: { answer: 'yes' as const, detail: 'x' },
-        file: { answer: 'unknown' as const, detail: 'x' },
-      },
-    };
-    expect(qualificationText(en, bare)).toBe(
-      'Can carry: Email ✓ · Calendar ✗ · Contacts ✓ · Files ? · Tasks ? — ' +
-        "'?' is unmeasured — not safe to assume either way",
-    );
-  });
-});
-
-describe('qualificationEvidence — why each `?` is a `?`, as lines to show (2026-09-02)', () => {
+describe('qualificationEvidence — only the sentences a person can act on (2026-09-07)', () => {
   const GOOGLE_403 =
     'The grant carries https://www.googleapis.com/auth/carddav, but the face did not answer: ' +
     'PROPFIND failed with status 403: accessNotConfigured — Google Contacts CardDAV API has not ' +
     'been used in project 123 before or it is disabled.';
-  const mixed = {
-    domains: {
-      mail: { answer: 'yes' as const, detail: '29 folders visible.' },
-      calendar: { answer: 'yes' as const, detail: '5 calendars visible.' },
-      contact: { answer: 'unknown' as const, detail: GOOGLE_403 },
-      file: { answer: 'no' as const, detail: 'The grant does not carry drive.readonly — re-consent.' },
-    },
-  };
 
-  it('one line per unknown face, labelled in the reader\'s language, the sentence verbatim', () => {
-    expect(qualificationEvidence(en, mixed)).toEqual([`Contacts ?: ${GOOGLE_403}`]);
-    expect(qualificationEvidence(nl, mixed)).toEqual([`Contacten ?: ${GOOGLE_403}`]);
+  const face = (answer: 'no' | 'unknown', reason: string | undefined, detail: string) =>
+    ({ answer, ...(reason ? { reason: reason as never } : {}), detail });
+
+  it('a refused face speaks — its sentence IS the remedy', () => {
+    const mixed = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: '29 folders visible.' },
+        calendar: { answer: 'yes' as const, detail: '5 calendars visible.' },
+        contact: face('unknown', 'refused', GOOGLE_403),
+        file: face('no', 'notGranted', 'The grant does not carry drive.readonly — re-consent.'),
+      },
+    };
+    expect(qualificationEvidence(en, mixed)).toEqual([`Contacts: ${GOOGLE_403}`]);
+    expect(qualificationEvidence(nl, mixed)).toEqual([`Contacten: ${GOOGLE_403}`]);
   });
 
-  it('nothing to show when every face was measured, and nothing for no record at all', () => {
+  it('an incomplete face speaks too — the sentence names the field to fill', () => {
+    // A Soverin account HAS a mailbox and this row is one `mailHost` short of
+    // reaching it. Silence there is a dead end, which is why `incomplete` is
+    // a reason of its own rather than a `notAskable`.
+    const soverin = {
+      domains: {
+        mail: face('unknown', 'incomplete', 'This account stores no mail server address — add mailHost.'),
+        calendar: { answer: 'yes' as const, detail: 'x' },
+      },
+    };
+    expect(qualificationEvidence(en, soverin)).toEqual([
+      'Email: This account stores no mail server address — add mailHost.',
+    ]);
+  });
+
+  it('says nothing about a face this kind never had, or one nobody ticked', () => {
+    // THE OWNER'S TWO INSTRUCTIONS, as one assertion.
+    //
+    // `structural`: the front door said what a Dropbox carries before the
+    // connection existed; four lines repeating it under every card is noise
+    // that grows with the domain list.
+    //
+    // `notAskable`: this row cannot express that face at all — the Nextcloud
+    // card's three lines about a mail server nobody named.
+    //
+    // `notGranted`: *"I don't want to tell people they already know by not
+    // ticking a grant-to-request."* Sound as well as kind — the consent door
+    // refuses to store a partial grant, so an ungranted face is one nobody
+    // asked for.
+    const quiet = {
+      domains: {
+        mail: face('unknown', 'notAskable', 'This connection carries no mail server address.'),
+        calendar: face('no', 'structural', 'A Dropbox carries files only; a calendar is not a face of this connection.'),
+        contact: face('no', 'notGranted', 'The consent did not include Contacts.Read.'),
+        file: { answer: 'yes' as const, detail: 'x' },
+      },
+    };
+    expect(qualificationEvidence(en, quiet)).toEqual([]);
+  });
+
+  it('a record with no reason still speaks, so an upgrade swallows nothing', () => {
+    // Rows written before the reason existed. They keep the behaviour they
+    // had until the next Test rewrites them — the alternative is a build that
+    // silently drops the one sentence a person needed.
+    const older = {
+      domains: {
+        contact: face('unknown', undefined, GOOGLE_403),
+        file: { answer: 'yes' as const, detail: 'x' },
+      },
+    };
+    expect(qualificationEvidence(en, older)).toEqual([`Contacts: ${GOOGLE_403}`]);
+  });
+
+  it('nothing to show when every face answered, and nothing for no record at all', () => {
     const measured = {
       domains: {
         mail: { answer: 'yes' as const, detail: 'x' },
-        calendar: { answer: 'no' as const, detail: 'x' },
+        calendar: face('no', 'structural', 'x'),
         contact: { answer: 'yes' as const, detail: 'x' },
-        file: { answer: 'no' as const, detail: 'x' },
+        file: face('no', 'structural', 'x'),
       },
     };
     expect(qualificationEvidence(en, measured)).toEqual([]);
@@ -319,7 +368,7 @@ describe('qualificationEvidence — why each `?` is a `?`, as lines to show (202
   });
 });
 
-describe('measuredText — how much each reached face holds (2026-09-02)', () => {
+describe('measuredText — collections AND volume, on one line (2026-09-07)', () => {
   const measured = {
     domains: {
       mail: { answer: 'yes' as const, detail: 'x', volume: { items: 12400, bytes: 3_400_000_000, estimated: true } },
@@ -332,10 +381,10 @@ describe('measuredText — how much each reached face holds (2026-09-02)', () =>
   it('words counts and bytes in the reader\'s language, ≈ only where estimated, and leaves an unmeasured face off the line', () => {
     const line = measuredText(en, measured, 'en')!;
     expect(line).toBe(
-      'Measured: Email 12,400 messages ≈ 3.2 GB · Contacts 1 card · Files 1.8 GB (Docs, Sheets and Slides not counted)',
+      'Found: Email 12,400 messages, ≈ 3.2 GB · Contacts 1 card · Files 1.8 GB, (Docs, Sheets and Slides not counted)',
     );
     const dutch = measuredText(nl, measured, 'nl')!;
-    expect(dutch).toContain('Gemeten:');
+    expect(dutch).toContain('Gevonden:');
     expect(dutch).toContain('12.400 berichten');
     expect(dutch).toContain('1 kaart');
     expect(dutch).toContain('niet meegeteld');
@@ -355,7 +404,7 @@ describe('measuredText — how much each reached face holds (2026-09-02)', () =>
     };
 
     expect(measuredText(en, partlyUnreadable, 'en')).toBe(
-      'Measured: Contacts 0 cards 25 could not be read',
+      'Found: Contacts 0 cards, 25 could not be read',
     );
     expect(measuredText(nl, partlyUnreadable, 'nl')).toContain('25 niet te lezen');
   });
@@ -370,7 +419,47 @@ describe('measuredText — how much each reached face holds (2026-09-02)', () =>
       },
     };
 
-    expect(measuredText(en, clean, 'en')).toBe('Measured: Contacts 12 cards');
+    expect(measuredText(en, clean, 'en')).toBe('Found: Contacts 12 cards');
+  });
+
+  it('carries the collection count beside the volume, and says so when a face holds none', () => {
+    // THE OWNER'S SECOND ASK. The collection counts used to sit on the
+    // capability line as evidence that the tick was real; on screen they read
+    // as quantities, and quantities belong with quantities. A face appears
+    // here once, with everything known about it.
+    const nextcloud = {
+      domains: {
+        calendar: { answer: 'yes' as const, detail: 'x', count: 1, unit: 'calendar' as const },
+        contact: { answer: 'yes' as const, detail: 'x', count: 1, unit: 'addressBook' as const },
+        file: {
+          answer: 'yes' as const,
+          detail: 'x',
+          count: 4,
+          unit: 'folder' as const,
+          volume: { bytes: 3_800_000_000 },
+        },
+        // "Tasks ✓ 0 task lists" read as a contradiction and was not one:
+        // zero collections is a real answer and the protocol works.
+        task: { answer: 'yes' as const, detail: 'x', count: 0, unit: 'taskList' as const },
+      },
+    };
+    expect(measuredText(en, nextcloud, 'en')).toBe(
+      'Found: Calendar 1 calendar · Contacts 1 address book · Files 4 folders, 3.5 GB · Tasks none',
+    );
+    expect(measuredText(nl, nextcloud, 'nl')).toContain('Taken geen');
+  });
+
+  it('leaves a face that is not carried off the line entirely', () => {
+    // It is not on the capability line either, so a quantity here would be
+    // the only place the card mentions it — which is the noise this pair of
+    // changes exists to remove.
+    const partial = {
+      domains: {
+        mail: { answer: 'unknown' as const, reason: 'notAskable' as const, detail: 'x', count: 9, unit: 'folder' as const },
+        calendar: { answer: 'yes' as const, detail: 'x', count: 2, unit: 'calendar' as const },
+      },
+    };
+    expect(measuredText(en, partial, 'en')).toBe('Found: Calendar 2 calendars');
   });
 
   it('with no measured face at all there is no line', () => {
@@ -398,8 +487,8 @@ describe('a face that answered but could not be measured says why, on the line (
   };
 
   it('the Measured line leaves the failed face off, and the evidence lines carry its reason', () => {
-    expect(measuredText(en, half)).toBe('Measured: Contacts 3 cards · Files 1.0 KB');
-    expect(qualificationEvidence(en, half)).toEqual(['Email ✓, not measured: FETCH timed out after 30 s']);
-    expect(qualificationEvidence(nl, half)).toEqual(['E-mail ✓, niet gemeten: FETCH timed out after 30 s']);
+    expect(measuredText(en, half)).toBe('Found: Contacts 3 cards · Files 1.0 KB');
+    expect(qualificationEvidence(en, half)).toEqual(['Email — not measured: FETCH timed out after 30 s']);
+    expect(qualificationEvidence(nl, half)).toEqual(['E-mail — niet gemeten: FETCH timed out after 30 s']);
   });
 });

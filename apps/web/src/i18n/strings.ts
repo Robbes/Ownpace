@@ -1391,10 +1391,14 @@ const en = {
     'Whether this target auto-schedules is UNMEASURED — it answered no DAV compliance header. Unmeasured is not safe; Ownpace still neutralises every calendar object it writes.',
   // The account's per-domain qualification line (0106 T0). Three marks,
   // deliberately three: '?' is unmeasured, never a quiet yes or no.
-  'probe.qualify.lead': 'Can carry:',
+  'probe.qualify.lead': 'Carries:',
   'probe.qualify.unknownHint': "'?' is unmeasured — not safe to assume either way",
   // The measured-volume line (2026-09-02): how much each reached face holds.
-  'probe.measured.lead': 'Measured:',
+  'probe.measured.lead': 'Found:',
+  // A face that answered with nothing. "Tasks ✓ 0 task lists" read as a
+  // contradiction and was not one — zero collections is a real answer and the
+  // protocol works. This keeps the fact and drops the argument.
+  'probe.found.none': 'none',
   'probe.measured.message.one': '{count} message',
   'probe.measured.message.many': '{count} messages',
   'probe.measured.card.one': '{count} card',
@@ -2778,9 +2782,10 @@ const nl: Record<keyof typeof en, string> = {
     'Dit doel adverteert geen automatische agendaplanning; uitnodigingen kunnen hier dus niet uitwaaieren. Ownpace neutraliseert hoe dan ook wat het schrijft.',
   'probe.scheduling.unknown':
     'Of dit doel automatisch plant is NIET GEMETEN — het gaf geen DAV-compliance-header terug. Niet gemeten is niet veilig; Ownpace neutraliseert nog steeds elk agenda-object dat het schrijft.',
-  'probe.qualify.lead': 'Kan dragen:',
+  'probe.qualify.lead': 'Draagt:',
   'probe.qualify.unknownHint': "'?' is niet gemeten — geen van beide aannemen is veilig",
-  'probe.measured.lead': 'Gemeten:',
+  'probe.measured.lead': 'Gevonden:',
+  'probe.found.none': 'geen',
   'probe.measured.message.one': '{count} bericht',
   'probe.measured.message.many': '{count} berichten',
   'probe.measured.card.one': '{count} kaart',
