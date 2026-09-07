@@ -171,7 +171,7 @@ the way — when it did, deploys died with a bare `Connection error`.
 ## The short version
 
 ```bash
-git clone … && cd Ownpace
+git clone … ownpace-managed && cd ownpace-managed
 pnpm install --frozen-lockfile
 
 ./deploy/compose/bootstrap-managed.sh          # creates .env, then stops
@@ -733,7 +733,7 @@ that cookie. The only thing that breaks is the path a person walks.
 straight at the container with the right `Host` — and compare the cookie:
 
 ```bash
-cd ~/ownpace && set -a; . deploy/compose/.env; set +a
+cd ~/ownpace-managed && set -a; . deploy/compose/.env; set +a
 AUTHZ="oauth/v2/authorize?client_id=${VITE_OIDC_CLIENT_ID}&redirect_uri=${WEB_URL}/auth/callback\
 &response_type=code&scope=openid%20email&state=probe\
 &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256"
@@ -1777,13 +1777,48 @@ let a credential obtained once survive to the next run.
 
 ---
 
+## Updating a running deployment
+
+A stack that is already up takes a pull, a rebuild of the two images that carry
+code, and — **sometimes** — a re-deploy of the tasks:
+
+```bash
+cd ~/ownpace-managed
+git pull
+
+GIT_SHA=$(git rev-parse --short HEAD) \
+  docker compose -f deploy/compose/managed.yml up -d --build --wait api web
+
+./deploy/compose/deploy-tasks.sh          # see below: not always needed
+```
+
+**The third line is the one that gets skipped, and skipping it is invisible.**
+The api and web containers are rebuilt from the working tree; the **tasks are
+not** — they are a bundle uploaded to the Trigger.dev instance, and it keeps
+serving the last one deployed until you replace it. So a fix that lands in
+`packages/` reaches the connection Test (which runs in the api) while every
+sync pass carries on running the old code. Nothing errors. The screen says the
+fix is in.
+
+Re-deploy the tasks when the pull touched `apps/worker` **or anything the
+worker bundles** — in practice `packages/connectors`, `packages/engines`,
+`packages/orchestration`, `packages/shared`, which is most changes that are not
+purely web. When in doubt, run it: it is idempotent and costs a minute.
+
+`set-task-env.sh` is a **different** question and a rarer one. Task containers
+inherit nothing from compose, so the environment is uploaded separately — run
+it only when a value in `.env` that the worker reads has changed (see phase 9).
+A code-only pull does not need it.
+
+---
+
 ## Redoing a rollout somewhere else
 
 The whole configuration is `deploy/compose/.env` plus the two human steps.
 On a new machine:
 
 ```bash
-git clone … && cd Ownpace && pnpm install --frozen-lockfile
+git clone … ownpace-managed && cd ownpace-managed && pnpm install --frozen-lockfile
 ./deploy/compose/bootstrap-managed.sh
 ```
 
