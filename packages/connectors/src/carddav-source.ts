@@ -17,7 +17,7 @@
 
 import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@openmig/shared';
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types.ts';
-import { davRefusalBody } from '@openmig/shared';
+import { carddavMatchAllFilter, davRefusalBody } from '@openmig/shared';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
   wellKnownUrl as buildWellKnownUrl,
@@ -348,7 +348,14 @@ export class CarddavSource implements ContactSource {
 
   /**
    * Full listing fallback for CardDAV servers/collections that reject sync-collection.
-   * RFC 6352 §8.6 addressbook-query with an empty (match-all) filter.
+   * RFC 6352 §8.6 addressbook-query, with the filter §10.3 requires.
+   *
+   * This docstring used to say "with an empty (match-all) filter" and the body
+   * carried no filter element at all — which is how the owner's Google
+   * connection card came to read *"Contacts — not measured: addressbook-query
+   * REPORT failed with status 400: Request contains an invalid argument."*
+   * §10.3's content model is `(..., filter, limit?)`: no question mark. See
+   * `carddavMatchAllFilter` for why the fix is not literally an empty filter.
    */
   private async addressbookQueryAll(collectionPath: string): Promise<{ objects: CardDAVContactObject[] }> {
     const query = `<?xml version="1.0" encoding="utf-8"?>
@@ -357,6 +364,7 @@ export class CarddavSource implements ContactSource {
           <D:getetag/>
           <A:address-data/>
         </D:prop>
+        ${carddavMatchAllFilter('A')}
       </A:addressbook-query>`;
 
     const response = await this.send({
