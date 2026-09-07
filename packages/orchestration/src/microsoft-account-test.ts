@@ -383,6 +383,9 @@ export async function qualifyMicrosoftAccount(
         detail: `The consent carries ${scope}; ${floor ? 'at least ' : ''}${counted(count, unit)} visible.`,
         count,
         unit,
+        // The bounded drive listing, as data — `detail` reaches no screen on
+        // a face that answered, so without this the cap would not either.
+        ...(floor ? { floor: true } : {}),
       };
       // MEASURED once the face has answered — and a measure that fails does
       // not take the yes away: the listing is the capability evidence, the

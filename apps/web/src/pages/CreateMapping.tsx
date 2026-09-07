@@ -7,7 +7,6 @@ import {
   probeText,
   qualificationEvidence,
   qualificationText,
-  schedulingText,
 } from '../i18n/probe-text.ts';
 import type { StringKey } from '../i18n/index.tsx';
 import { useNavigate, Link } from 'react-router';
@@ -1787,10 +1786,6 @@ const CreateMapping: React.FC = () => {
                 because that string is what you paste into their console. */}
             <p className="text-gray-700 min-w-0 break-words">
               {probeText(t, r.outcome, (r.ok ? r.detail : r.reason) ?? '', locale)}
-              {r.scheduling && (
-                /* What this target will DO with calendar writes (0105 T0). */
-                <span className="block mt-1">{schedulingText(t, r.scheduling)}</span>
-              )}
               {r.qualification && (
                 /* What this account CAN CARRY (0106 T0). */
                 <span className="block mt-1">{qualificationText(t, r.qualification)}</span>

@@ -1357,8 +1357,13 @@ const en = {
   // Ours, so translated; the provider's own refusal is never in here — it
   // renders verbatim, because that string is what you paste into their
   // console.
-  'probe.connected': 'Connected. {count} {unit} visible.',
-  'probe.connected.floor': 'Connected. At least {count} {unit} visible.',
+  // JUST THE FACT THAT IT CONNECTED (2026-09-07). This carried one face's
+  // count — whichever the probe reached first — while the Found line below
+  // already listed every face properly. The owner: *"why next to 'connected'
+  // only part of what we know? leave that, since we mention what is
+  // measured."* The count moved to where the other counts are; a listing
+  // that stopped at its cap says so THERE, as `probe.measured.atLeast`.
+  'probe.connected': 'Connected.',
   'probe.connectedSession': 'Connected. The JMAP session document answered.',
   'probe.targetStatus': 'The server at {url} answered {status}.',
   'probe.targetStatus.refused': 'It is reachable and refused the credentials.',
@@ -1370,6 +1375,10 @@ const en = {
   'probe.timedOut':
     'No answer within {seconds} seconds; kept anyway, so test later or narrow the root folder.',
   'probe.measuring': 'Still measuring what this account can carry — refresh in a minute.',
+  // A listing that stopped at its cap saw AT LEAST this many. It used to say
+  // so in the headline; the headline no longer carries a count, so it says so
+  // here — beside the number it qualifies, which is the better place anyway.
+  'probe.measured.atLeast': 'at least {count} {unit}',
   'probe.unit.folder.one': 'folder',
   'probe.unit.folder.many': 'folders',
   'probe.unit.calendar.one': 'calendar',
@@ -1380,15 +1389,6 @@ const en = {
   'probe.unit.taskList.many': 'task lists',
   'probe.unit.collection.one': 'collection',
   'probe.unit.collection.many': 'collections',
-  // The scheduling verdict a DAV target's test carries (0105 T0): three
-  // closed codes, so a Dutch screen can say it in Dutch. The English
-  // fallback for an unknown code is the server's own `sentence`.
-  'probe.scheduling.autoSchedule':
-    'This target runs calendar auto-scheduling (RFC 6638): a raw import would invite every attendee of every migrated meeting. Ownpace neutralises each calendar object it writes, so migrating sends no invitations — measured on this target, not assumed.',
-  'probe.scheduling.none':
-    'This target does not advertise calendar auto-scheduling, so invitation fan-out cannot happen here. Ownpace neutralises what it writes anyway.',
-  'probe.scheduling.unknown':
-    'Whether this target auto-schedules is UNMEASURED — it answered no DAV compliance header. Unmeasured is not safe; Ownpace still neutralises every calendar object it writes.',
   // The account's per-domain qualification line (0106 T0). Three marks,
   // deliberately three: '?' is unmeasured, never a quiet yes or no.
   'probe.qualify.lead': 'Carries:',
@@ -2755,8 +2755,7 @@ const nl: Record<keyof typeof en, string> = {
   'connections.standing.whichSide':
     'Logt in met deze en één andere verbinding; test deze om te weten welke.',
   'connections.standing.thisSide': 'Het ging mis op deze verbinding.',
-  'probe.connected': 'Verbonden. {count} {unit} zichtbaar.',
-  'probe.connected.floor': 'Verbonden. Ten minste {count} {unit} zichtbaar.',
+  'probe.connected': 'Verbonden.',
   'probe.connectedSession': 'Verbonden. Het JMAP-sessiedocument antwoordde.',
   'probe.targetStatus': 'De server op {url} antwoordde {status}.',
   'probe.targetStatus.refused': 'Hij is bereikbaar en weigerde de inloggegevens.',
@@ -2766,6 +2765,7 @@ const nl: Record<keyof typeof en, string> = {
   'probe.timedOut':
     'Geen antwoord binnen {seconds} seconden; toch bewaard, dus test later opnieuw of verklein de hoofdmap.',
   'probe.measuring': 'Er wordt nog gemeten wat dit account kan dragen — ververs over een minuut.',
+  'probe.measured.atLeast': 'ten minste {count} {unit}',
   'probe.unit.folder.one': 'map',
   'probe.unit.folder.many': 'mappen',
   'probe.unit.calendar.one': 'agenda',
@@ -2776,12 +2776,6 @@ const nl: Record<keyof typeof en, string> = {
   'probe.unit.taskList.many': 'takenlijsten',
   'probe.unit.collection.one': 'verzameling',
   'probe.unit.collection.many': 'verzamelingen',
-  'probe.scheduling.autoSchedule':
-    'Dit doel draait automatische agendaplanning (RFC 6638): een rauwe import zou elke deelnemer van elke gemigreerde afspraak uitnodigen. Ownpace neutraliseert elk agenda-object dat het schrijft, dus migreren verstuurt geen uitnodigingen — gemeten op dit doel, niet aangenomen.',
-  'probe.scheduling.none':
-    'Dit doel adverteert geen automatische agendaplanning; uitnodigingen kunnen hier dus niet uitwaaieren. Ownpace neutraliseert hoe dan ook wat het schrijft.',
-  'probe.scheduling.unknown':
-    'Of dit doel automatisch plant is NIET GEMETEN — het gaf geen DAV-compliance-header terug. Niet gemeten is niet veilig; Ownpace neutraliseert nog steeds elk agenda-object dat het schrijft.',
   'probe.qualify.lead': 'Draagt:',
   'probe.qualify.unknownHint': "'?' is niet gemeten — geen van beide aannemen is veilig",
   'probe.measured.lead': 'Gevonden:',

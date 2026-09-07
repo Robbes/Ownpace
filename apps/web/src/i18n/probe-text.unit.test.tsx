@@ -20,7 +20,6 @@ import {
   probeText,
   qualificationEvidence,
   qualificationText,
-  schedulingText,
 } from './probe-text.ts';
 import { STRINGS, type StringKey } from './strings.ts';
 
@@ -39,26 +38,25 @@ describe('probeText — what we authored', () => {
   const connected: ProbeOutcome = { code: 'connected', count: 12, unit: 'folder' };
 
   it('reads in English under en', () => {
-    expect(probeText(en, connected, 'ignored')).toBe('Connected. 12 folders visible.');
+    expect(probeText(en, connected, 'ignored')).toBe('Connected.');
   });
 
   it('reads in DUTCH under nl — the whole point of the change', () => {
-    expect(probeText(nl, connected, 'ignored')).toBe('Verbonden. 12 mappen zichtbaar.');
+    expect(probeText(nl, connected, 'ignored')).toBe('Verbonden.');
   });
 
-  it('counts one thing in the singular, in both languages', () => {
-    const one: ProbeOutcome = { code: 'connected', count: 1, unit: 'folder' };
-    expect(probeText(en, one, '')).toBe('Connected. 1 folder visible.');
-    expect(probeText(nl, one, '')).toBe('Verbonden. 1 map zichtbaar.');
-  });
-
-  it('names the unit a source actually counts', () => {
-    expect(probeText(nl, { code: 'connected', count: 3, unit: 'calendar' }, '')).toContain(
-      "agenda's",
-    );
-    expect(probeText(en, { code: 'connected', count: 2, unit: 'addressBook' }, '')).toContain(
-      'address books',
-    );
+  it('says nothing about the count it was handed (2026-09-07)', () => {
+    // It used to read *Connected. 12 folders visible.* — one face's count,
+    // whichever the probe reached first, above a Found line already listing
+    // every face with its own. The owner: *"why next to 'connected' only part
+    // of what we know? leave that, since we mention what is measured."*
+    //
+    // The count still ARRIVES in the outcome; `measuredText` is where it is
+    // rendered. This asserts on the number, not the wording, so a reworded
+    // headline that quietly reintroduces it still fails.
+    for (const locale of [en, nl]) {
+      expect(probeText(locale, connected, 'ignored')).not.toContain('12');
+    }
   });
 
   it('puts the values where each LANGUAGE puts them, not where English does', () => {
@@ -81,10 +79,14 @@ describe('probeText — the deadline and the floor (2026-09-02)', () => {
     expect(probeText(nl, late, 'ignored')).toContain('binnen 20 seconden');
   });
 
-  it('a count that stopped at the cap reads as a floor', () => {
+  it('a count that stopped at the cap is not claimed in the headline either', () => {
+    // The floor USED to live here, and it was the only place it appeared. It
+    // now rides the face and renders beside the number it qualifies — see
+    // "measuredText — a bounded count says it is bounded" below, which is the
+    // half of this pair that must not be deleted alone.
     const floor: ProbeOutcome = { code: 'connected', count: 5001, unit: 'folder', floor: true };
-    expect(probeText(en, floor, '')).toBe('Connected. At least 5001 folders visible.');
-    expect(probeText(nl, floor, '')).toBe('Verbonden. Ten minste 5001 mappen zichtbaar.');
+    expect(probeText(en, floor, '')).toBe('Connected.');
+    expect(probeText(nl, floor, '')).toBe('Verbonden.');
   });
 });
 
@@ -149,40 +151,6 @@ describe('a credential refusal is OURS, so it is translated (workplan 0083)', ()
     // Every pre-existing call site omits the argument; none of them may start
     // rendering something different because this parameter was added.
     expect(probeText(en, { code: 'credentialsRefused', refusal }, 'IGNORED')).toBe(refusal.en);
-  });
-});
-
-describe('schedulingText — the verdict a DAV target test carries (0105 T0)', () => {
-  it('says auto-schedule in the reader\'s language, and that it was MEASURED', () => {
-    const verdict = { capability: 'auto-schedule', sentence: 'server english' };
-    expect(schedulingText(en, verdict)).toContain('measured on this target, not assumed');
-    expect(schedulingText(nl, verdict)).toContain('gemeten op dit doel, niet aangenomen');
-  });
-
-  it('unknown is worded as unmeasured-never-safe in BOTH languages', () => {
-    // The run-#6 lesson survives translation: a Dutch screen must not soften
-    // "unmeasured" into anything a reader could file under "fine".
-    const verdict = { capability: 'unknown', sentence: 'server english' };
-    expect(schedulingText(en, verdict)).toContain('UNMEASURED');
-    expect(schedulingText(en, verdict)).toContain('not safe');
-    expect(schedulingText(nl, verdict)).toContain('NIET GEMETEN');
-    expect(schedulingText(nl, verdict)).toContain('niet veilig');
-  });
-
-  it('none says fan-out cannot happen here', () => {
-    expect(schedulingText(en, { capability: 'none', sentence: 'x' })).toContain('cannot happen here');
-    expect(schedulingText(nl, { capability: 'none', sentence: 'x' })).toContain('uitwaaieren');
-  });
-
-  it('a capability this build has no words for falls back to the server\'s sentence', () => {
-    // The probeText rule, inherited: never render less than what arrived.
-    expect(schedulingText(nl, { capability: 'brand-new', sentence: 'the server said this' })).toBe(
-      'the server said this',
-    );
-  });
-
-  it('no verdict means nothing at all — not an empty line', () => {
-    expect(schedulingText(en, undefined)).toBeNull();
   });
 });
 
@@ -407,6 +375,53 @@ describe('measuredText — collections AND volume, on one line (2026-09-07)', ()
       'Found: Contacts 0 cards, 25 could not be read',
     );
     expect(measuredText(nl, partlyUnreadable, 'nl')).toContain('25 niet te lezen');
+  });
+
+  it('a bounded count says it is bounded (2026-09-07)', () => {
+    // THE HALF OF A PAIR. Until today the cap was reported in the headline —
+    // *Connected. At least 5001 folders visible.* — and the headline was the
+    // only place it appeared. When the headline stopped carrying a count, a
+    // Dropbox whose listing stopped early would have rendered "23 folders" on
+    // this line: a lower bound wearing the clothes of an exact figure.
+    //
+    // `probeText — a count that stopped at the cap is not claimed in the
+    // headline either` is the other half. Deleting one and keeping the other
+    // leaves the cap reported nowhere, silently.
+    const bounded = {
+      domains: {
+        file: { answer: 'yes' as const, detail: 'x', count: 5001, unit: 'folder' as const, floor: true },
+      },
+    };
+    expect(measuredText(en, bounded, 'en')).toBe('Found: Files at least 5,001 folders');
+    expect(measuredText(nl, bounded, 'nl')).toContain('ten minste 5.001 mappen');
+  });
+
+  it('counts one thing in the singular, in both languages', () => {
+    // MOVED FROM probeText (2026-09-07), not deleted: the headline used to be
+    // where a count was worded, so this is where its grammar was tested. The
+    // count moved; the grammar came with it, and `unitWord` is still the one
+    // function that decides it.
+    const one = { domains: { file: { answer: 'yes' as const, detail: 'x', count: 1, unit: 'folder' as const } } };
+    expect(measuredText(en, one, 'en')).toBe('Found: Files 1 folder');
+    expect(measuredText(nl, one, 'nl')).toBe('Gevonden: Bestanden 1 map');
+  });
+
+  it('names the unit a source actually counts', () => {
+    const cal = { domains: { calendar: { answer: 'yes' as const, detail: 'x', count: 3, unit: 'calendar' as const } } };
+    expect(measuredText(nl, cal, 'nl')).toContain("agenda's");
+    const books = { domains: { contact: { answer: 'yes' as const, detail: 'x', count: 2, unit: 'addressBook' as const } } };
+    expect(measuredText(en, books, 'en')).toContain('address books');
+  });
+
+  it('and a complete count does NOT claim to be bounded', () => {
+    // Guards the flag rather than the phrasing: a `floor` that leaked onto
+    // every face would make every honest number read as a guess.
+    const exact = {
+      domains: {
+        file: { answer: 'yes' as const, detail: 'x', count: 23, unit: 'folder' as const },
+      },
+    };
+    expect(measuredText(en, exact, 'en')).toBe('Found: Files 23 folders');
   });
 
   it('says nothing extra when every item read cleanly', () => {

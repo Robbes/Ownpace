@@ -333,6 +333,35 @@ describe('the qualification: every face, against the grant', () => {
     expect(q!.domains.file).toMatchObject({ answer: 'yes', count: 1, volume: { failed: 'quota unavailable' } });
   });
 
+  it("a bounded drive listing marks the face's count a floor, not just its sentence", async () => {
+    // THE HALF THAT REACHES A SCREEN (2026-09-07). `detail` has said "at
+    // least" since this face was written, and a screen shows `detail` only
+    // for a face that did NOT answer — so on a `yes`, the sentence is read by
+    // nobody. The connection card used to get the cap from the probe headline
+    // instead; the headline stopped carrying a count, so the flag on the face
+    // is now the only route from "Graph stopped paging" to a person's eyes.
+    tokenFetch('Files.Read');
+    const q = await qualifyMicrosoftAccount('microsoft', ROW, PAIR, {
+      tokenEndpoint: TOKEN_ENDPOINT,
+      source: faces({
+        file: { listTopLevelFolders: async () => ({ folders: [{}, {}, {}], truncated: true }) },
+      }),
+    });
+    expect(q!.domains.file).toMatchObject({ answer: 'yes', count: 3, floor: true });
+    expect(q!.domains.file.detail).toMatch(/at least 3 folders/i);
+  });
+
+  it('and a complete listing leaves the flag off, so an exact count reads as exact', async () => {
+    tokenFetch('Files.Read');
+    const q = await qualifyMicrosoftAccount('microsoft', ROW, PAIR, {
+      tokenEndpoint: TOKEN_ENDPOINT,
+      source: faces({
+        file: { listTopLevelFolders: async () => ({ folders: [{}, {}], truncated: false }) },
+      }),
+    });
+    expect(q!.domains.file.floor).toBeUndefined();
+  });
+
   it('an unreadable grant leaves every face unknown, in the exchange’s words', async () => {
     tokenFetch('', 400);
     const q = await qualifyMicrosoftAccount('microsoft', ROW, PAIR, { tokenEndpoint: TOKEN_ENDPOINT, source: faces() });

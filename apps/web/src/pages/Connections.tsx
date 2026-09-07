@@ -43,7 +43,6 @@ import {
   probeText,
   qualificationEvidence,
   qualificationText,
-  schedulingText,
 } from '../i18n/probe-text.ts';
 // The remedy sentence per failure category — the one map the migration page
 // and the operator's support screen read too, so all three say the same words.
@@ -442,11 +441,6 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
             result.outcome,
             result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
             locale,
-          )}
-          {result.scheduling && (
-            /* What this target will DO with calendar writes (0105 T0) —
-               measured by the probe, said in the reader's language. */
-            <span className="block mt-1">{schedulingText(t, result.scheduling)}</span>
           )}
           {result.qualification && (
             /* What this account CAN CARRY (0106 T0) — per domain, measured. */
@@ -977,9 +971,6 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
             result.outcome,
             result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
             locale,
-          )}
-          {result.scheduling && (
-            <span className="block mt-1">{schedulingText(t, result.scheduling)}</span>
           )}
           {result.qualification && (
             <span className="block mt-1">{qualificationText(t, result.qualification)}</span>
