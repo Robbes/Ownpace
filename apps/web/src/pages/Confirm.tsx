@@ -178,7 +178,10 @@ const Confirm: React.FC = () => {
 
             {m.migrationStatus === 'paused' ? (
               // Before the start, the scan IS the decision input -- prominent.
-              <DiscoveryCounts domains={domains} scanning={domains.length === 0} />
+              // `expected` is the mapping's own domain list, so a table still
+              // filling in says which rows are coming rather than reading as
+              // finished (2026-09-07).
+              <DiscoveryCounts domains={domains} expected={m.domains} />
             ) : (
               // After the start it is a historical snapshot: the source keeps
               // changing and these numbers do not. Folded, labelled with WHEN
@@ -193,7 +196,11 @@ const Confirm: React.FC = () => {
                     : ''}
                 </summary>
                 <p className="mt-1 mb-2 text-xs text-gray-500">{t('confirm.snapshot.more')}</p>
-                <DiscoveryCounts domains={domains} scanning={domains.length === 0} />
+                {/* No `expected` here: this is a HISTORICAL snapshot, and
+                    "still counting" would be false about a run that finished
+                    long ago. A domain missing from an old snapshot is missing
+                    from the record, not in flight. */}
+                <DiscoveryCounts domains={domains} />
               </details>
             )}
 

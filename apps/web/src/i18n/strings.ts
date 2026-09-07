@@ -45,6 +45,14 @@ const en = {
     'This is not the same as an empty queue; unread items may be waiting.',
   'queue.noMappings': 'No migrations configured.',
   'discovery.scanning': 'Scanning your source (read-only)…',
+  // Named rather than counted, and present tense: the reader is watching this
+  // happen. See DiscoveryCounts for the three-row table that read as finished.
+  'discovery.stillCounting': 'Still counting: {domains}. This page updates on its own.',
+  // The ceiling, not an error: the rows above are real, and the one that has
+  // not answered may still. Never "something went wrong" — nothing is known to
+  // have gone wrong, and saying so would be a claim we cannot support (rule 9).
+  'discovery.stillCounting.slow':
+    'Still counting: {domains}. Taking longer than usual; reload to check again.',
   'discovery.th.type': 'Type',
   'discovery.th.collections': 'Collections',
   'discovery.th.items': 'Items',
@@ -1737,6 +1745,9 @@ const nl: Record<keyof typeof en, string> = {
     'Dit is niet hetzelfde als een lege wachtrij; er kunnen ongelezen items wachten.',
   'queue.noMappings': 'Geen migraties geconfigureerd.',
   'discovery.scanning': 'Uw bron wordt gescand (alleen-lezen)…',
+  'discovery.stillCounting': 'Nog aan het tellen: {domains}. Deze pagina werkt zichzelf bij.',
+  'discovery.stillCounting.slow':
+    'Nog aan het tellen: {domains}. Dit duurt langer dan normaal; herlaad om te kijken.',
   'discovery.th.type': 'Type',
   'discovery.th.collections': 'Collecties',
   'discovery.th.items': 'Items',
