@@ -34,6 +34,7 @@ import { davRefusalBody } from '@openmig/shared';
 import type { CalendarComponent } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
 import {
+  findHrefByUid,
   parseMultiStatus,
   firstElementText,
   hasResourceType,
@@ -445,15 +446,22 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       url: this.buildUrl(calendarId),
       body: query,
       headers: {
+        // A REPORT with no Depth header is a Depth: 0 REPORT (RFC 3253 §3.6),
+        // so this asked the CALENDAR about itself and never reached an event.
+        // It was the only REPORT in this file without one; its own sibling
+        // listing twenty lines down has always sent `Depth: 1`.
+        Depth: '1',
         'Content-Type': 'application/xml',
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
 
     if (response.status === 207) {
-      // Multi-status response - parse for matching resources
-      const href = this.parseMultiStatusResponse(response.body, naturalKey);
-      return href || undefined;
+      // CalDAV's text-match has no equality option at all (RFC 4791 §9.7.5
+      // defines collation and negate-condition, and nothing else), so the
+      // server's answer is a SUBSTRING match on the UID. The exact comparison
+      // has to happen here, against the returned component's own UID.
+      return findHrefByUid(response.body, naturalKey, 'calendar-data');
     }
 
     return undefined;
@@ -967,24 +975,6 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       .map((m) => m[1]!.toUpperCase())
       .filter((name) => known.has(name)) as CalendarComponent[];
     return components.length > 0 ? [...new Set(components)] : undefined;
-  }
-
-  private parseMultiStatusResponse(
-    response: string,
-    searchUid: string,
-  ): string | null {
-    // Parse XML response to find matching href
-    const hrefMatches = response.matchAll(/<D:href>([^<]+)<\/D:href>/g);
-    for (const match of hrefMatches) {
-      const href = match[1];
-      if (!href) continue;
-      // Check if this resource contains the matching UID
-      // In a real implementation, we'd parse the full response
-      if (href.includes(searchUid)) {
-        return href;
-      }
-    }
-    return null;
   }
 
   private escapeXml(str: string): string {
