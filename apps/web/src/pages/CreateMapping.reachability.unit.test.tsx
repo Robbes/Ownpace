@@ -35,6 +35,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import CreateMapping from './CreateMapping.tsx';
 import { connectionsApi, mappingApi } from '../services/mapping-service.ts';
+import { migratableSourceCards } from '../components/front-door-cards.ts';
+import { STRINGS } from '../i18n/strings.ts';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { create: vi.fn(), testConnection: vi.fn(), googleAuthorize: vi.fn() },
@@ -135,7 +137,14 @@ const google = (id: string): [RegExp, string][] => [
 ];
 
 const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
-  { name: 'IMAP', required: [CREDS.user, [/^Host$/, 'mail.example.com']] },
+  // A password too (2026-09-07): the descriptor has always marked it
+  // required, and until the gate read the descriptor this step let an IMAP
+  // source past with no way to sign in — the create route then stored one,
+  // because its `sourceConfig.password` is optional for the OAuth kinds.
+  {
+    name: 'IMAP',
+    required: [CREDS.user, [/^Host$/, 'mail.example.com'], [/^Password/, 'shh-imap']],
+  },
   {
     name: 'Via IMAP',
     required: [
@@ -154,6 +163,9 @@ const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
       CREDS.secret,
     ],
   },
+  // The Google ACCOUNT (0106 T3b) — one grant, four faces. Never walked here
+  // either, which the card-coverage check below now refuses.
+  { name: 'Google account', required: google('account.apps.googleusercontent.com') },
   { name: 'Google Drive', required: google('drive.apps.googleusercontent.com') },
   { name: 'Gmail', required: google('gmail.apps.googleusercontent.com') },
   { name: 'Google Calendar', required: google('gcal.apps.googleusercontent.com') },
@@ -173,6 +185,28 @@ const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
       CREDS.secret,
     ],
   },
+  // THE TWO ACCOUNT KINDS, which had no row here and no branch in the gate
+  // (2026-09-07). Both fell through to the host+port `else`, so picking
+  // either card left Next disabled for ever naming a Host the step does not
+  // render. The Apple card's three boxes are an address, a password and a
+  // name; there is no host to fill in and never was.
+  {
+    name: 'Microsoft 365 account',
+    required: [
+      CREDS.user,
+      [/^Client ID/, '22222222-2222-2222-2222-222222222222'],
+      CREDS.secret,
+      [/^Refresh token/, '0.AXoA-token'],
+    ],
+  },
+  // The shortest credential of any source: Apple publishes no OAuth scope for
+  // its own data, so there is no client to carry and no token to receive
+  // (workplan 0115) — an address and an app-specific password, and that is
+  // the whole door.
+  {
+    name: 'Apple account',
+    required: [CREDS.user, [/^App-specific password/, 'abcd-efgh-ijkl-mnop']],
+  },
   // The export archive (workplan 0116 T5/T6): no username, no secret. Which
   // export is a CHOICE — the `<select>` takes a change event like any input —
   // and where it is, is a path.
@@ -189,6 +223,7 @@ const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
 const GATE_LABELS = [
   'Host',
   'Port',
+  'App-specific password',
   'Client ID',
   'Tenant ID',
   'Box user ID',
@@ -208,6 +243,32 @@ describe('every source type gets past its own first step', () => {
     for (const [label, value] of required) fill(label, value);
 
     await waitFor(() => expect(nextButton()).toBeEnabled());
+  });
+});
+
+/**
+ * THE HOLE THAT LET TWO DEAD ENDS SHIP (2026-09-07).
+ *
+ * The table above walked ten of the twelve source cards the wizard offers.
+ * The two it did not walk — the Microsoft 365 account and the Apple account,
+ * both added long after the table was written — were the two whose gate had
+ * no branch, so picking either left Next disabled for ever naming a Host the
+ * step does not render. Neither the walk nor the blocked-reason check above
+ * could see it, because neither knew the cards existed.
+ *
+ * A table of providers written by hand beside a table of providers offered on
+ * screen will diverge; this is the assertion that says so out loud, on the
+ * day a card is added rather than on the day a customer picks it.
+ */
+describe('every source card the wizard offers is walked above', () => {
+  it('has a row for every card, by the name the card shows', () => {
+    const shown = (c: ReturnType<typeof migratableSourceCards>[number]): string =>
+      'name' in c ? c.name : (STRINGS.en[c.nameKey as keyof typeof STRINGS.en] as string);
+    const unwalked = migratableSourceCards()
+      .map(shown)
+      .filter((label) => !SOURCE_TYPES.some((row) => label.startsWith(row.name)));
+
+    expect(unwalked, 'source cards with no row in SOURCE_TYPES').toEqual([]);
   });
 });
 
@@ -330,6 +391,7 @@ describe('the domain step reads the account’s record (0106 T3a)', () => {
     fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
     fill(/^Username/, 'anna@acme.example');
     fill(/^Host$/, 'mail.example.com');
+    fill(/^Password/, 'shh-imap');
     await waitFor(() => expect(nextButton()).toBeEnabled());
     fireEvent.click(nextButton());
     // Target: the account kind, reusing the stored (qualified) connection.
@@ -884,6 +946,9 @@ const toTargetStep = () => {
   renderWizard();
   fill(/^Host$/, 'mail.acme.example');
   fill(/^Username/, 'anna@acme.example');
+  // And the password the descriptor has always marked required (2026-09-07):
+  // the source gate reads it now, so this walk types what a person types.
+  fill(/^Password/, 'shh-imap');
   fireEvent.click(nextButton());
 };
 
