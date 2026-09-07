@@ -51,6 +51,16 @@ interface QualifiedFace {
   readonly detail?: string;
   readonly count?: number;
   readonly unit?: ProbeUnit;
+  /**
+   * The listing stopped at its cap, so `count` is a LOWER BOUND.
+   *
+   * This fact used to live in the headline (*Connected. At least 23 folders
+   * visible.*) and nowhere else. When the headline stopped carrying a count
+   * it would have gone with it — leaving a bounded number rendered exactly
+   * like a complete one, which is the quiet kind of wrong this product is
+   * built not to do. It rides the face now, beside the count it qualifies.
+   */
+  readonly floor?: boolean;
   readonly volume?: {
     readonly items?: number;
     readonly bytes?: number;
@@ -122,11 +132,20 @@ export function probeText(
   if (!outcome) return fallback;
   switch (outcome.code) {
     case 'connected':
-      // A count that stopped at the listing's cap is a floor, and says so.
-      return t(outcome.floor ? 'probe.connected.floor' : 'probe.connected', {
-        count: outcome.count,
-        unit: unitWord(t, outcome.unit, outcome.count),
-      });
+      // JUST "CONNECTED." (2026-09-07). This used to read *Connected. 23
+      // folders visible.* — one face's count, whichever the probe reached
+      // first, above a Found line that already listed every face with its
+      // own. The owner, on his own cards: *"why next to 'connected' only
+      // part of what we know? leave that, since we mention what is
+      // measured."* Worse than redundant on a target: *Connected. 0
+      // collections visible.* read as a failure over a Found line saying
+      // Email 6 folders.
+      //
+      // The count is not lost — `measuredText` has always carried it, per
+      // face. What WAS only here is the cap: a listing that stopped early
+      // saw at least this many, and `probe.measured.atLeast` now says so
+      // beside the number rather than above it.
+      return t('probe.connected');
     case 'connectedSession':
       return t('probe.connectedSession');
     case 'targetStatus':
@@ -151,31 +170,6 @@ export function probeText(
       return fallback;
     default:
       return fallback;
-  }
-}
-
-/**
- * The scheduling verdict a DAV target's probe carries (0105 T0), in the
- * reader's language. The capability is OURS — a closed code measured by one
- * OPTIONS request — so it gets dictionary sentences; a code this build does
- * not know falls back to the server's own English `sentence`, never a blank.
- * Returns null when the probe carried no verdict (a source, a mail target,
- * an older API), so callers can render nothing at all.
- */
-export function schedulingText(
-  t: Translate,
-  scheduling: { capability: string; sentence: string } | undefined,
-): string | null {
-  if (!scheduling) return null;
-  switch (scheduling.capability) {
-    case 'auto-schedule':
-      return t('probe.scheduling.autoSchedule');
-    case 'none':
-      return t('probe.scheduling.none');
-    case 'unknown':
-      return t('probe.scheduling.unknown');
-    default:
-      return scheduling.sentence;
   }
 }
 
@@ -307,10 +301,19 @@ export function measuredText(
     // WHAT THE PROTOCOL ANSWERED WITH, first: the collections are the coarse
     // shape of the account, and the volume the fill inside it.
     if (face.count !== undefined && face.unit) {
+      const counted = `${numberFormat.format(face.count)} ${unitWord(t, face.unit, face.count)}`;
       bits.push(
         face.count === 0
           ? t('probe.found.none')
-          : `${numberFormat.format(face.count)} ${unitWord(t, face.unit, face.count)}`,
+          : face.floor
+            // A cap the listing hit, said where the number is. "23 folders"
+            // and "at least 23 folders" are different claims about the same
+            // account, and only one of them is true here.
+            ? t('probe.measured.atLeast', {
+                count: numberFormat.format(face.count),
+                unit: unitWord(t, face.unit, face.count),
+              })
+            : counted,
       );
     }
     const v = face.volume;

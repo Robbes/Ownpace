@@ -85,6 +85,18 @@ export interface QualifiedDomain {
   readonly count?: number;
   readonly unit?: ProbeUnit;
   /**
+   * `count` is a LOWER BOUND — the listing stopped at its cap (2026-09-07).
+   *
+   * The probe outcome has carried this since Dropbox's page cap was met, and
+   * it rendered in the headline: *Connected. At least 23 folders visible.*
+   * The headline no longer carries a count, so without this the same bounded
+   * number would render on the Found line exactly like a complete one. The
+   * `detail` sentence says "At least" too, but a screen only shows `detail`
+   * for a face that did NOT answer — so on a `yes`, this flag is the only
+   * way the cap reaches a reader.
+   */
+  readonly floor?: boolean;
+  /**
    * WHY this face is not a tick (2026-09-07), for the screens — never for the
    * gate, which still reads `answer` alone. Absent on a `yes`, and absent on
    * a record written before the field existed, which `reasonEarnsASentence`
@@ -1066,6 +1078,9 @@ export async function qualifyDropbox(
       detail: `${truncated ? 'At least ' : ''}${counted(folders.length, 'folder')} at the top level.`,
       count: folders.length,
       unit: 'folder',
+      // The same "At least" the detail carries, as data — because a screen
+      // shows `detail` only for a face that did not answer, and this one did.
+      ...(truncated ? { floor: true } : {}),
     };
     try {
       const usage = await source.spaceUsage();

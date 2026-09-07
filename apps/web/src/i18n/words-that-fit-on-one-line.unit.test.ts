@@ -30,9 +30,6 @@ const ALLOWED_OVER: Readonly<Record<string, string>> = {
   // The three invitation-safety sentences on a calendar target (0106 T0):
   // measured, unmeasured, absent. Safety sentences stay verbatim — owner,
   // 2026-09-05 — because a shorter one would promise less than is measured.
-  'probe.scheduling.autoSchedule': 'safety sentence, verbatim by owner decision',
-  'probe.scheduling.none': 'safety sentence, verbatim by owner decision',
-  'probe.scheduling.unknown': 'safety sentence, verbatim by owner decision',
   // What finishing before delivery has moved costs, and the promise that
   // finishing removes nothing: the two sentences on the Finish screen a
   // person must read in full before pressing the button.
