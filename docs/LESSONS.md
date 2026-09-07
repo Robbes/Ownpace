@@ -916,6 +916,7 @@ reading a file drops off its entry by itself.
 ### `test/e2e/selfhost-verification.e2e.test.ts`
 
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 
 ### `test/ui/managed-ui.ui.test.ts`
 
@@ -1788,6 +1789,7 @@ Reads:
 - `packages/core/src/apply-deletion.ts`
 - `test/e2e/no-workspace-imports.unit.test.ts`
 - `test/e2e/seed-imap-source.mjs`
+- `test/e2e/selfhost-verification.e2e.test.ts`
 
 ### [status-page](../scripts/status-page.unit.test.ts)
 
