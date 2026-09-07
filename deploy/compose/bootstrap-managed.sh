@@ -1197,7 +1197,7 @@ prepare_machinekey_volume() {
     The machinekey volume is prepared by a busybox container, and \`chown\` there
     can only resolve numbers — a name from another image is not in its passwd.
     Find the uid and prepare the volume by hand, then re-run:
-      docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey busybox:1.37 \\
+      docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey busybox:1.38 \\
         sh -c 'mkdir -p /machinekey && chown <uid> /machinekey && chmod 700 /machinekey'"
       note "$image runs as '${user}', which is uid ${resolved} in its own /etc/passwd"
       user="$resolved"

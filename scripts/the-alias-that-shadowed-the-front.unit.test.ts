@@ -144,9 +144,30 @@ describe('which name the provider answers to on the network', () => {
 describe('what uses it', () => {
   const managed = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8');
 
-  it('is what managed.yml aliases on — not the external domain directly', () => {
-    expect(managed).toContain('- ${ZITADEL_NETWORK_ALIAS:-ownpace-idp}');
-    expect(managed).not.toContain('- ${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}');
+  it('is what managed.yml aliases on the app network — not the external domain directly', () => {
+    // THE APP NETWORK'S ALIAS, SPECIFICALLY. The provider also carries the raw
+    // domain on `status-probe`, a network only the status page shares with it,
+    // so the page's probe resolves the name inward without the API — which is
+    // not on that network — ever seeing it (an-idp-nobody-was-watching pins
+    // that half). This used to forbid the raw domain anywhere in the file; the
+    // rule is about the network the API is on.
+    // Directives only: the alias sits under a comment block that explains it,
+    // and a scan that stops at the first `#` reads the explanation instead.
+    const zitadel = (/\n {2}zitadel:\n([\s\S]*?)\n {2}[a-z][a-z-]*:\n/.exec(managed)?.[1] ?? '')
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+    expect(zitadel, 'the zitadel service block must be readable').toContain('networks:');
+    const appAlias = /ownpace-network:\n\s*aliases:\n\s*- (\S+)/.exec(zitadel)?.[1];
+    expect(appAlias, 'the app-network alias must be the derived value').toBe(
+      '${ZITADEL_NETWORK_ALIAS:-ownpace-idp}',
+    );
+    const rawDomainAliases = managed.split('- ${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}').length - 1;
+    expect(
+      rawDomainAliases,
+      'the raw external domain is aliased somewhere other than the probe network',
+    ).toBe(1);
+    expect(zitadel).toMatch(/status-probe:\n\s*aliases:\n\s*- \$\{ZITADEL_EXTERNALDOMAIN:-ownpace-idp\}/);
   });
 
   it('is decided before anything starts the provider', () => {

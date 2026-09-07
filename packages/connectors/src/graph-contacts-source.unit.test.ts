@@ -86,13 +86,16 @@ describe('GraphContactsSource', () => {
 
       const folders = await source.listFolders();
 
-      expect(folders).toHaveLength(2);
-      expect(folders[0]).toMatchObject({
+      // The DEFAULT folder first — Graph lists it nowhere (2026-09-06) —
+      // then the two a person made.
+      expect(folders).toHaveLength(3);
+      expect(folders[0]).toMatchObject({ path: '/contacts', name: 'Contacts', supportedVersions: ['4.0'] });
+      expect(folders[1]).toMatchObject({
         path: '/contactFolders/AQMkAGI2-contact-folder',
         name: 'Contacts',
         supportedVersions: ['4.0'],
       });
-      expect(folders[1]).toMatchObject({
+      expect(folders[2]).toMatchObject({
         path: '/contactFolders/AQMkAGI3-people-folder',
         name: 'People',
         supportedVersions: ['4.0'],
@@ -176,7 +179,8 @@ it('follows nextLink to the SECOND page instead of re-requesting the first', asy
 
       const folders = await source.listFolders();
 
-      expect(folders).toHaveLength(2);
+      expect(folders).toHaveLength(3); // the default folder and one per page
+      expect(folders[0]!.path).toBe('/contacts');
       expect(mockClient.request).toHaveBeenCalledTimes(2);
     });
 
@@ -199,7 +203,104 @@ it('follows nextLink to the SECOND page instead of re-requesting the first', asy
 
       const folders = await source.listFolders();
 
-      expect(folders).toHaveLength(0);
+      // An account with no folders of its own still has the default one —
+      // and nearly every account keeps nearly every contact in it.
+      expect(folders).toHaveLength(1);
+      expect(folders[0]!.path).toBe('/contacts');
+    });
+  });
+
+  describe('the default Contacts folder, which Graph lists nowhere (2026-09-06)', () => {
+    // The first live Test of a Microsoft 365 account measured "Contacts ✓ 0
+    // address books · 0 cards" on an account with contacts: this connector
+    // walked `/me/contactFolders`, which answers only the folders a person
+    // made beside the default one. The default folder's contacts live at
+    // `/me/contacts`, and a migration would have carried none of them.
+    it('reads its contacts at /contacts/delta and stamps them /contacts/{id}', async () => {
+      const tokenProvider = createMockTokenProvider();
+      const urls: string[] = [];
+      const mockClient: HttpClient = {
+        request: vi.fn().mockImplementation((options: { url: string }) => {
+          urls.push(options.url);
+          return Promise.resolve({
+            status: 200,
+            body: JSON.stringify({
+              value: [{ id: 'c-default-1', displayName: 'Ada Lovelace' }],
+              '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/me/contacts/delta?$deltatoken=d1',
+            }),
+            headers: {},
+          });
+        }),
+      };
+      const source = new GraphContactsSource(tokenProvider, 'test-tenant-id', undefined, { httpClient: mockClient });
+
+      const result = await source.listSince({ path: '/contacts', name: 'Contacts' });
+
+      expect(urls).toEqual(['https://graph.microsoft.com/v1.0/me/contacts/delta']);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]!.item.sourcePath).toBe('/contacts/c-default-1');
+      expect(result.items[0]!.item.name).toBe('Ada Lovelace');
+    });
+
+    it('a folder a person made is still read under /contactFolders/{id}/contacts/delta', async () => {
+      const tokenProvider = createMockTokenProvider();
+      const urls: string[] = [];
+      const mockClient: HttpClient = {
+        request: vi.fn().mockImplementation((options: { url: string }) => {
+          urls.push(options.url);
+          return Promise.resolve({
+            status: 200,
+            body: JSON.stringify({
+              value: [{ id: 'c-made-1', displayName: 'Grace Hopper' }],
+              '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/me/contactFolders/f1/contacts/delta?$deltatoken=d1',
+            }),
+            headers: {},
+          });
+        }),
+      };
+      const source = new GraphContactsSource(tokenProvider, 'test-tenant-id', undefined, { httpClient: mockClient });
+
+      const result = await source.listSince({ path: '/contactFolders/f1', name: 'People' });
+
+      expect(urls).toEqual(['https://graph.microsoft.com/v1.0/me/contactFolders/f1/contacts/delta']);
+      expect(result.items[0]!.item.sourcePath).toBe('/contactFolders/f1/contacts/c-made-1');
+    });
+
+    it('fetches a default-folder contact’s photo at /contacts/{id}/photo/$value', async () => {
+      const tokenProvider = createMockTokenProvider();
+      const urls: string[] = [];
+      const mockClient: HttpClient = {
+        request: vi.fn().mockImplementation((options: { url: string }) => {
+          urls.push(options.url);
+          return Promise.resolve({
+            status: 200,
+            body: Buffer.from('fake-image-data').toString('base64'),
+            headers: { 'content-type': 'image/jpeg' },
+          });
+        }),
+      };
+      const source = new GraphContactsSource(tokenProvider, 'test-tenant-id', undefined, { httpClient: mockClient });
+
+      const fetched = await source.fetch({
+        uid: 'c-default-1',
+        type: 'person',
+        name: 'Ada Lovelace',
+        sourcePath: '/contacts/c-default-1',
+        vcard: '',
+        version: '4.0',
+      } as never);
+
+      expect(urls).toEqual(['https://graph.microsoft.com/v1.0/me/contacts/c-default-1/photo/$value']);
+      expect(fetched.item.photo?.mimeType).toBe('image/jpeg');
+    });
+
+    it('still refuses a sourcePath of neither shape', async () => {
+      const source = new GraphContactsSource(createMockTokenProvider(), 'test-tenant-id', undefined, {
+        httpClient: createMockHttpClient([]),
+      });
+      await expect(
+        source.fetch({ uid: 'x', type: 'person', name: 'x', sourcePath: '/somewhere/else', vcard: '', version: '4.0' } as never),
+      ).rejects.toThrow(/Invalid sourcePath format/);
     });
   });
 
@@ -410,6 +511,88 @@ it('follows nextLink to the SECOND page instead of re-requesting the first', asy
       expect(result2.items).toHaveLength(1);
       expect(result2.items[0]!.item.uid).toBe('contact-002');
       expect(result2.nextCursor.value).toContain('delta2');
+    });
+  });
+
+  describe('a card it could not read is counted, not dropped in silence (2026-09-07)', () => {
+    /**
+     * The owner read "Contacts ✓ 1 address book · 0 cards" against a real
+     * Microsoft account and could not tell it apart from an address book whose
+     * every card failed to map. `listSince` feeds the real pass through
+     * core/reconcile.ts, so a swallowed card was not migrated AND not
+     * reported: both sides of the verification gate agreed on nothing.
+     */
+    const unreadableCard = {
+      id: 'contact-broken',
+      displayName: 'Malformed Payload',
+      // Not iterable, so the phone mapping throws — the shape a provider is
+      // free to send us and we are not free to lose a card over.
+      businessPhones: 42,
+    };
+
+    const readableCard = {
+      id: 'contact-ok',
+      displayName: 'Jane Smith',
+      emailAddresses: [{ address: 'jane@example.com', name: 'Jane Smith', type: 'work' }],
+    };
+
+    const listing = (value: ReadonlyArray<unknown>) => [
+      {
+        status: 200,
+        body: JSON.stringify({
+          value,
+          '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/me/contacts/delta?$deltatoken=t',
+        }),
+        headers: {},
+      },
+    ];
+
+    const folder = { path: '/contactFolders/contact-001', name: 'Contacts' };
+
+    it('reports the count beside the cards it could read', async () => {
+      const source = new GraphContactsSource(
+        createMockTokenProvider(),
+        'test-tenant-id',
+        undefined,
+        { httpClient: createMockHttpClient(listing([readableCard, unreadableCard])) },
+      );
+
+      const result = await source.listSince(folder);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.unreadable).toBe(1);
+    });
+
+    it('an address book of nothing but unreadable cards is not an empty one', async () => {
+      // The exact ambiguity the owner hit: without this field, both cases
+      // answer "0 cards".
+      const source = new GraphContactsSource(
+        createMockTokenProvider(),
+        'test-tenant-id',
+        undefined,
+        { httpClient: createMockHttpClient(listing([unreadableCard, unreadableCard])) },
+      );
+
+      const result = await source.listSince(folder);
+
+      expect(result.items).toHaveLength(0);
+      expect(result.unreadable).toBe(2);
+    });
+
+    it('omits the field when every card read cleanly', async () => {
+      // Omitted rather than 0, so "none failed" and "this listing cannot
+      // report" stay different answers downstream.
+      const source = new GraphContactsSource(
+        createMockTokenProvider(),
+        'test-tenant-id',
+        undefined,
+        { httpClient: createMockHttpClient(listing([readableCard])) },
+      );
+
+      const result = await source.listSince(folder);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.unreadable).toBeUndefined();
     });
   });
 

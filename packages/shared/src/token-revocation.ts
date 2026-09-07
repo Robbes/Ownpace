@@ -152,6 +152,25 @@ export const REVOCATION_CAPABILITIES: Readonly<Record<string, RevocationCapabili
     reason:
       'Apple publishes no revocation endpoint for app-specific passwords. The customer revokes this one on its own at account.apple.com under Sign-In and Security, without changing their Apple Account password or disturbing any other app.',
   },
+  // THE FIRST KIND WITH NOTHING AT A PROVIDER AT ALL (workplan 0116 T1).
+  //
+  // A row rather than `PASSWORD_KINDS`, and for the same reason `apple` has
+  // one: the shared sentence would be false here in a way that misleads. There
+  // is no password to change and no provider holding anything — an archive
+  // connection is a PATH to a file the person downloaded, and we never signed
+  // in anywhere to read it. Telling somebody to change a password would send
+  // them looking for an account this connection never had.
+  //
+  // `revocable: false` is nonetheless the honest value, because the field asks
+  // whether WE can revoke something and there is nothing to revoke. What the
+  // customer should actually do about the archive — it is still on their own
+  // disk, and it holds everything the gatekeeper handed over — is the erasure
+  // sentence in `standing-grants.ts`, where advice belongs.
+  archive: {
+    revocable: false,
+    reason:
+      'An export archive is a file the customer downloaded, read from a path they gave us. No provider was signed in to and no credential was ever held, so there is nothing to revoke. Our record of where the archive was has been deleted; the archive itself is theirs and stays where they put it.',
+  },
 } as const;
 
 /** Password-shaped kinds: nothing to revoke, and one shared reason. */

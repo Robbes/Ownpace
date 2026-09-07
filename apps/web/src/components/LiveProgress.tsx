@@ -24,13 +24,13 @@
  */
 
 import React from 'react';
-import type { DomainStatusReport, FailureCategory } from '@openmig/shared';
+import type { DomainStatusReport, FailureCategory, FailureSide } from '@openmig/shared';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
 // One map, shared with the operator's support screen (0110 T4) so the person
 // who phones and the person they phone read the same sentence.
-import { FAILURE_KEY } from '../i18n/failure-key.ts';
+import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
 // And one map for the domain words, shared with the confirm screen and the
 // probe text — this was the fifth copy of it (workplan 0113 T5).
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
@@ -51,6 +51,8 @@ export interface LiveProgressRow {
   readonly lastSyncedAt?: string;
   readonly lastError?: string;
   readonly lastErrorCategory?: FailureCategory;
+  /** Which side the pass named when it failed (0094 T5); absent when it could not tell. */
+  readonly failedSide?: FailureSide;
 }
 
 const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domains }) => {
@@ -93,6 +95,9 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
               // stopped can act on without contacting anybody (0110 T3).
               <span className="basis-full text-xs text-red-900">
                 {t(FAILURE_KEY[d.lastErrorCategory])}
+                {/* And the side, when the pass could tell (0094 T5, second
+                    slice): "reconnect it" then points at the right account. */}
+                {d.failedSide && <> {t(FAILURE_SIDE_KEY[d.failedSide])}</>}
               </span>
             )}
             {d.lastError && (

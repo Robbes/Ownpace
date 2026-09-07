@@ -19,13 +19,13 @@
     "@openmig/orchestration": "workspace:*",
     "@openmig/scheduler": "workspace:*",
     "@openmig/shared": "workspace:*",
-    "@trigger.dev/sdk": "4.5.12",
+    "@trigger.dev/sdk": "4.5.16",
     "croner": "10.0.1",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "drizzle-orm": "catalog:",
-    "imapflow": "^1.7.6",
-    "vitest": "^4.1.11"
+    "imapflow": "^1.7.8",
+    "vitest": "^5.0.0"
   }
 }

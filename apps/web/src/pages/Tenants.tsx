@@ -40,6 +40,7 @@ import {
 import { readTenantNotificationPrefs } from '@openmig/shared';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 
 const ROLES: ReadonlyArray<Member['role']> = ['owner', 'admin', 'member', 'viewer'];
@@ -287,7 +288,7 @@ const Tenants: React.FC = () => {
         <h2 className="text-lg font-semibold text-gray-900 mb-1">
           {t('tenants.notify.heading')}
         </h2>
-        <p className="text-sm text-gray-500 mb-3">{t('tenants.notify.intro')}</p>
+        <Hint className="mb-3" label="more" text={t('tenants.notify.intro')} why={t('tenants.notify.intro.more')} />
         {tenantQuery.isError ? (
           /* Disabled rather than defaulted: saving a value read from a failed
              request would overwrite a setting nobody has seen (rule 9). */

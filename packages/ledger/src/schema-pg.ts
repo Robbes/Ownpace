@@ -123,6 +123,19 @@ export const connection = pgTable(
         // password over IMAP and DAV — `soverin`'s shape, not `google`'s.
         // Migration 0038 widens the check constraint to match.
         'apple',
+        // The first kind that is not an account (0116 T1): an EXPORT ARCHIVE,
+        // whose credential is a location. `secret_ref` stays null on these
+        // rows and that is correct — a path is not a password — so a reader
+        // of this table should not take a missing secret for a broken row.
+        // Which export it is (`google-takeout` / `apple-privacy`) lives in
+        // `config.provider`, because a third export must be a new reader and
+        // not a nineteenth kind. Migration 0039 widens the check constraint.
+        //
+        // NOT the `mailbox.kind = 'archive'` a few dozen lines below, which is
+        // an ARCHIVE MAILBOX — a mail store somebody keeps old messages in.
+        // Same word, different table, unrelated meaning; a grep that conflates
+        // them will read one as the other.
+        'archive',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),
@@ -1080,6 +1093,13 @@ export const migrationStatus = pgTable(
      * not classify it. A screen must not conflate those.
      */
     lastErrorCategory: text('last_error_category'),
+    /**
+     * Which SIDE the last failure happened on (workplan 0094 T5, second
+     * slice; migration 0040): recorded by the pass at the closure that threw,
+     * never derived from the prose. NULL = the pass could not tell, or
+     * nothing has failed. Two values by construction, so the database checks.
+     */
+    failedSide: text('failed_side', { enum: ['source', 'target'] }),
     /**
      * Where the last completed pass spent its wall time (see PassMetrics).
      * Counts and durations only — never folder names or addresses.

@@ -150,3 +150,75 @@ describe('markFailed stores the category beside the prose', () => {
     expect(await storedCategory()).toBeNull();
   });
 });
+
+/** The side column, read straight off the table. */
+async function storedSide(): Promise<string | null> {
+  const conn = await driver.acquire();
+  try {
+    const r = await conn.query('SELECT failed_side FROM migration_status WHERE mapping_id = $1', [
+      MAPPING,
+    ]);
+    const row = r.rows[0] as { failed_side: string | null } | undefined;
+    return row ? row.failed_side : null;
+  } finally {
+    await conn.release();
+  }
+}
+
+describe('markFailed stores which SIDE failed, beside the category (0094 T5, second slice)', () => {
+  // The file's own beforeEach has just deleted the row; every case here
+  // starts from a fresh pending one, the way a pass does.
+  beforeEach(async () => {
+    await withTenant(driver, TENANT, async (db) => {
+      await new PgMigrationStatusStore(db).initDomainStatus(TENANT, MAPPING, 'email');
+    });
+  });
+
+  it('writes the side the pass named, and reads it back through the guard', async () => {
+    await withTenant(driver, TENANT, async (db) => {
+      await new PgMigrationStatusStore(db).markFailed(TENANT, MAPPING, 'email', 'AUTHENTICATIONFAILED', 'source');
+    });
+    expect(await storedSide()).toBe('source');
+    const status = await withTenant(driver, TENANT, (db) =>
+      new PgMigrationStatusStore(db).getStatus(TENANT, MAPPING),
+    );
+    expect(status.find((s) => s.domain === 'email')?.failedSide).toBe('source');
+  });
+
+  it('writes NULL — not the previous side — when the pass could not tell', async () => {
+    await withTenant(driver, TENANT, async (db) => {
+      const s = new PgMigrationStatusStore(db);
+      await s.markFailed(TENANT, MAPPING, 'email', '403 forbidden', 'target');
+      await s.markFailed(TENANT, MAPPING, 'email', 'the ledger threw');
+    });
+    expect(await storedSide()).toBeNull();
+    const status = await withTenant(driver, TENANT, (db) =>
+      new PgMigrationStatusStore(db).getStatus(TENANT, MAPPING),
+    );
+    expect(status.find((s) => s.domain === 'email')?.failedSide).toBeUndefined();
+  });
+
+  it('is CLEARED when the domain succeeds — a side must not outlive its failure', async () => {
+    await withTenant(driver, TENANT, async (db) => {
+      await new PgMigrationStatusStore(db).markFailed(TENANT, MAPPING, 'email', 'invalid_grant', 'source');
+    });
+    expect(await storedSide()).toBe('source');
+    await withTenant(driver, TENANT, async (db) => {
+      await new PgMigrationStatusStore(db).markCompleted(TENANT, MAPPING, 'email');
+    });
+    expect(await storedSide()).toBeNull();
+  });
+
+  it('is held to the two sides by the database itself', async () => {
+    const conn = await driver.acquire();
+    try {
+      await expect(
+        conn.query(`UPDATE migration_status SET failed_side = 'sideways' WHERE mapping_id = $1`, [
+          MAPPING,
+        ]),
+      ).rejects.toThrow(/check/i);
+    } finally {
+      await conn.release();
+    }
+  });
+});

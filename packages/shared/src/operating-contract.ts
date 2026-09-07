@@ -34,7 +34,7 @@
  * queue that cannot say where something went is not one anybody can act on.
  */
 
-import type { FailureCategory } from './failure-category.ts';
+import type { FailureCategory, FailureSide } from './failure-category.ts';
 import {
   DELETION_CONFIRMATIONS,
   MAX_ITEM_ATTEMPTS,
@@ -206,6 +206,11 @@ export interface DomainStatusReport {
    */
   readonly lastErrorCategory?: FailureCategory;
   /**
+   * Which side the last failure happened on, when the pass could tell (0094
+   * T5, second slice). Absent otherwise — never guessed from the prose.
+   */
+  readonly failedSide?: FailureSide;
+  /**
    * Where the last completed pass spent its time. Absent until a pass
    * completes; never invented as zeros, because zero durations read as
    * "instant" rather than "unknown".
@@ -245,6 +250,7 @@ export function buildDomainStatusReports(
       ...(s.completedAt ? { lastSyncedAt: s.completedAt } : {}),
       ...(s.lastError ? { lastError: s.lastError } : {}),
       ...(s.lastErrorCategory ? { lastErrorCategory: s.lastErrorCategory } : {}),
+      ...(s.failedSide ? { failedSide: s.failedSide } : {}),
       ...(s.lastPassMetrics ? { lastPass: s.lastPassMetrics } : {}),
     };
   });

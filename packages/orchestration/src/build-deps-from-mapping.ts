@@ -58,6 +58,7 @@ import {
   STORED_BOX_CREDENTIAL_NAMES,
   buildBoxSourceFrom,
 } from './box-source-factory.ts';
+import { buildArchiveSourceFrom } from './archive-source-factory.ts';
 import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory.ts';
 import {
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
@@ -67,6 +68,7 @@ import {
 import {
   STORED_GRAPH_FIELD_NAMING,
   buildGraphCalendarSourceFrom,
+  buildGraphTodoSourceFrom,
   buildGraphContactsSourceFrom,
   buildGraphDriveSourceFrom,
   type GraphDomainEndpoint,
@@ -747,8 +749,22 @@ export function buildTaskSourceFromConnection(src: {
   kind: string;
 }): ReturnType<typeof buildTaskSource> {
   const builder = sourceFaceBuilder(src.kind, 'task');
-  if (builder !== 'dav') throw faceHasNoBuilder('task', src.kind, builder);
-  return buildTaskSource(davEndpointFromCreds('source', src.config, src.creds, src.kind, 'task'));
+  switch (builder) {
+    case 'graph-todo':
+      // Microsoft To Do (workplan 0114 T9): the one task face that is not a
+      // CalDAV collection. Same endpoint and credential shape as the account's
+      // other Graph faces; the connector builds the VTODO itself.
+      return buildGraphTodoSourceFrom(
+        graphEndpointFromConnection(src),
+        graphCredsFromConnection(src.creds),
+        undefined,
+        STORED_GRAPH_FIELD_NAMING,
+      );
+    case 'dav':
+      return buildTaskSource(davEndpointFromCreds('source', src.config, src.creds, src.kind, 'task'));
+    default:
+      throw faceHasNoBuilder('task', src.kind, builder);
+  }
 }
 
 /** The calendar builder's sibling over the contact face — same three, same rule. */
@@ -917,6 +933,15 @@ export function buildFileSourceFromConnection(src: {
         src.creds,
         STORED_GOOGLE_CREDENTIAL_NAMES,
       );
+    case 'archive':
+      // THE EXPORT ARCHIVE (workplan 0116 T5/T6): a file source over whichever
+      // reader knows this export, with placement and the manifest inside it and
+      // the loop's absence-counting switched off by the source itself — see
+      // `ArchiveFileSource`. No credential is read, because the row stores
+      // none: the config IS the credential, a location. This arm existed as a
+      // refusal from T1, so that a kind claiming the file face could never
+      // fall through to `dav` and aim a WebDAV client at a folder on a disk.
+      return buildArchiveSourceFrom(src.config);
     case 'dav':
       return buildFileSource(fileEndpointFromCreds('source', src.config, src.creds, src.kind));
     default:

@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { PROVIDER_ACCOUNT_DOMAINS } from '@openmig/shared';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -51,6 +52,7 @@ const {
   remove,
   add,
   providerClients,
+  providerAccounts,
   googleAuthorize,
   dropboxAuthorize,
   microsoftAuthorize,
@@ -64,6 +66,9 @@ const {
   // per provider, as the add-form reads them. Neither by default: the pair
   // stays in plain view, as on an appliance.
   providerClients: vi.fn(),
+  // The faces each provider account serves on this deployment, as the
+  // add-form reads them; unanswered by default, so the shared table answers.
+  providerAccounts: vi.fn(),
   googleAuthorize: vi.fn(),
   dropboxAuthorize: vi.fn(),
   microsoftAuthorize: vi.fn(),
@@ -72,6 +77,7 @@ const {
 vi.mock('../services/mapping-service', () => ({
   connectionsApi: { list, test: testConnection, rotate, remove, add },
   providerClientsApi: { get: providerClients },
+  providerAccountsApi: { get: providerAccounts },
   mappingApi: { googleAuthorize, dropboxAuthorize, microsoftAuthorize },
 }));
 
@@ -195,8 +201,8 @@ describe('replacing credentials', () => {
 
     fireEvent.click(await screen.findByText('Replace credentials'));
 
-    expect(screen.getByText(/Source client secret/)).toBeTruthy();
-    expect(screen.queryByText(/Root folder id/), 'config is not re-asked').toBeNull();
+    expect(screen.getByText(/Client secret/)).toBeTruthy();
+    expect(screen.queryByText(/Root folder ID/), 'config is not re-asked').toBeNull();
   });
 
   /**
@@ -398,7 +404,7 @@ describe('deleting a connection', () => {
     expect(screen.getByText(/Acme files/)).toBeTruthy();
     // ...and the frame is the dictionary's, which is what makes it Dutch
     // under nl rather than a paragraph nobody translated.
-    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.why']))).toBeTruthy();
+    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.reason']))).toBeTruthy();
   });
 
   it('says it in Dutch even when the migration has no name (0072)', async () => {
@@ -420,7 +426,7 @@ describe('deleting a connection', () => {
     fireEvent.click(await screen.findByText('Delete'));
 
     expect(await screen.findByText(new RegExp(STRINGS.en['connections.inUse.unnamed']))).toBeTruthy();
-    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.why']))).toBeTruthy();
+    expect(screen.getByText(new RegExp(STRINGS.en['connections.inUse.reason']))).toBeTruthy();
     // The server's English sentence must NOT be what reaches the screen.
     expect(screen.queryByText(/still used by 1 mailbox/)).toBeNull();
   });
@@ -492,6 +498,88 @@ describe('adding a connection through the front door', () => {
     }
   });
 
+  it('the export archive asks WHICH export as a choice, and posts no username (0116 T1; E2E #154)', async () => {
+    // The kind whose credential is a location. Its descriptor has no username
+    // field, so the body this form posts must carry none — the managed gate's
+    // honest body was refused for exactly that until the door followed the
+    // descriptor. And "which export" is a CLOSED list: a misspelt id is not
+    // refused, it is a reader that finds none of its landmarks.
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Export archive/ }));
+    const which = screen.getByLabelText(/^Which export/) as HTMLSelectElement;
+    expect(which.tagName, 'which export is a box to spell an id into').toBe('SELECT');
+    expect([...which.options].map((o) => o.value)).toEqual(['', 'google-takeout', 'apple-privacy']);
+    expect([...which.options].map((o) => o.textContent)).toContain('Google Takeout');
+
+    fireEvent.change(which, { target: { value: 'google-takeout' } });
+    fireEvent.change(screen.getByLabelText(/^Where the archive is/), {
+      target: { value: '/srv/exports/takeout-20260904' },
+    });
+    fireEvent.change(screen.getByLabelText(/^Connection name/), { target: { value: 'my photos' } });
+    add.mockResolvedValue({ ok: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Add and test' }));
+    await waitFor(() => expect(add).toHaveBeenCalled());
+    expect(add.mock.calls[0]![0]).toEqual({
+      role: 'source',
+      type: 'archive',
+      displayName: 'my photos',
+      values: { provider: 'google-takeout', path: '/srv/exports/takeout-20260904' },
+    });
+  });
+
+  /**
+   * THE ASTERISK TELLS THE TRUTH ON AN APPLIANCE TOO (2026-09-07, the owner:
+   * "the appliance might require those fields").
+   *
+   * A client pair is `required: false` because the DEPLOYMENT may carry one.
+   * This door asked the descriptor alone, so on an appliance carrying none —
+   * where those two fields are the only way forward — it rendered them
+   * unmarked and offered no fold either. The marker now asks
+   * `credentialFieldRequired`, the same question the wizard asks.
+   */
+  const marked = (): string[] =>
+    Array.from(document.querySelectorAll('label'))
+      .filter((l) => (l.textContent ?? '').trim().endsWith('*'))
+      .map((l) => (l.textContent ?? '').replace(/\s*\*\s*$/, '').trim());
+  /** By the label's OPENING words: "Client ID (application ID)" is one. */
+  const isMarked = (label: string): boolean => marked().some((l) => l.startsWith(label));
+
+  it('marks the client pair where the deployment carries no client of its own', async () => {
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'connection' });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+
+    await waitFor(() => expect(isMarked('Client ID')).toBe(true));
+    expect(isMarked('Client secret')).toBe(true);
+    // The token is the person's either way — no client ever mints it.
+    expect(isMarked('Refresh token')).toBe(true);
+  });
+
+  it('marks neither half where it does — the button supplies them', async () => {
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+
+    await waitFor(() => expect(isMarked('Client ID')).toBe(false));
+    expect(isMarked('Client secret')).toBe(false);
+    // ...and the account still is, because no deployment can know it.
+    expect(isMarked('Username')).toBe(true);
+  });
+
+  it('marks both again the moment one half is typed — half a pair is refused', async () => {
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    await waitFor(() => expect(isMarked('Client ID')).toBe(false));
+
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'my-own.apps.googleusercontent.com' },
+    });
+
+    await waitFor(() => expect(isMarked('Client ID')).toBe(true));
+    expect(isMarked('Client secret')).toBe(true);
+  });
+
   it('folds the Google client pair away where the deployment carries the client (ADR-0041)', async () => {
     // The owner's remark of 2026-09-02: on a managed deployment a person
     // grants Ownpace's own application; "use your own" is the exception. So
@@ -502,7 +590,7 @@ describe('adding a connection through the front door', () => {
     await open();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     const fold = (
-      await screen.findByText('Use your own Google application instead')
+      await screen.findByText('Use your own Google client')
     ).closest('details');
     expect(fold).not.toBeNull();
     expect(fold).toContainElement(screen.getByPlaceholderText('…apps.googleusercontent.com'));
@@ -533,7 +621,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(button).toBeEnabled());
       // The token box is inside the fold, with the pair — not above it with
       // an asterisk, asking for what the button supplies.
-      const fold = screen.getByText('Use your own Google application instead').closest('details');
+      const fold = screen.getByText('Use your own Google client').closest('details');
       expect(fold).toContainElement(screen.getByPlaceholderText('1//…'));
 
       fireEvent.click(button);
@@ -591,6 +679,60 @@ describe('adding a connection through the front door', () => {
     }
   });
 
+  it('the Microsoft 365 account offers its fifth face, Tasks, and the consent asks for the ones ticked (2026-09-06)', async () => {
+    // A fixed list of Google's four served every provider's form, so this
+    // form never offered Tasks and the consent never asked Tasks.Read — the
+    // owner read "Tasks ✗" on an account whose registration carried it.
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'deployment' });
+    providerAccounts.mockResolvedValue({
+      google: { domains: ['calendar', 'contact'], client: 'connection' },
+      microsoft: { domains: [...PROVIDER_ACCOUNT_DOMAINS.microsoft], client: 'deployment' },
+    });
+    microsoftAuthorize.mockResolvedValue({ url: 'https://login.microsoftonline.com/x', redirectUri: 'r' });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'someone@contoso.example' },
+      });
+      await screen.findByText('What this account will serve');
+      const tasks = await screen.findByLabelText('Tasks');
+      fireEvent.click(screen.getByLabelText('Calendar'));
+      fireEvent.click(tasks);
+      const button = await screen.findByRole('button', { name: /Connect with Microsoft/ });
+      await waitFor(() => expect(button).toBeEnabled());
+      fireEvent.click(button);
+      await waitFor(() => expect(microsoftAuthorize).toHaveBeenCalled());
+      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar', 'task'] });
+    } finally {
+      opened.mockRestore();
+    }
+  });
+
+  it("a Google account offers no Tasks tick — its list is the deployment's, not Microsoft's", async () => {
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
+    providerAccounts.mockResolvedValue({
+      google: { domains: ['calendar', 'contact'], client: 'deployment' },
+      microsoft: { domains: [...PROVIDER_ACCOUNT_DOMAINS.microsoft], client: 'connection' },
+    });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+    await screen.findByText('What this account will serve');
+    await screen.findByLabelText('Contacts');
+    expect(screen.queryByLabelText('Tasks')).toBeNull();
+    expect(screen.queryByLabelText('Email')).toBeNull();
+  });
+
+  it('while the facts are still on their way, the shared table answers — Tasks is offered for Microsoft', async () => {
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'deployment' });
+    providerAccounts.mockReturnValue(new Promise(() => {}));
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Microsoft 365 account/ }));
+    await screen.findByText('What this account will serve');
+    expect(await screen.findByLabelText('Tasks')).toBeInTheDocument();
+  });
+
   it('where each connection brings its own client, the button waits for the whole pair', async () => {
     googleAuthorize.mockResolvedValue({ url: 'https://accounts.google.com/x', redirectUri: 'r', scope: 'x' });
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
@@ -624,7 +766,7 @@ describe('adding a connection through the front door', () => {
   it('keeps the pair in plain view where each connection brings its own', async () => {
     await open();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
-    expect(screen.queryByText('Use your own Google application instead')).toBeNull();
+    expect(screen.queryByText('Use your own Google client')).toBeNull();
     expect(screen.getByPlaceholderText('…apps.googleusercontent.com').closest('details')).toBeNull();
   });
 
@@ -663,7 +805,7 @@ describe('adding a connection through the front door', () => {
       expect(screen.queryByRole('button', { name: /Connect with Dropbox/ })).toBeNull();
 
       // Microsoft's words on the fold, and its own three fields inside it.
-      const fold = screen.getByText('Use your own app registration instead').closest('details');
+      const fold = screen.getByText('Use your own app registration').closest('details');
       expect(fold).not.toBeNull();
       expect(fold).toHaveTextContent(/has its own Microsoft app registration/);
 
@@ -704,7 +846,7 @@ describe('adding a connection through the front door', () => {
       expect(screen.queryByRole('button', { name: /Connect with Google/ })).toBeNull();
       // Dropbox's words on the fold, and the App key, its secret and the
       // token inside it — the same fold Google's kinds get, in its words.
-      const fold = screen.getByText('Use your own Dropbox app instead').closest('details');
+      const fold = screen.getByText('Use your own Dropbox app').closest('details');
       expect(fold).not.toBeNull();
       expect(fold).toHaveTextContent(/has its own Dropbox app/);
       expect(fold).toContainElement(screen.getByLabelText(/App key/));
@@ -756,6 +898,47 @@ describe('adding a connection through the front door', () => {
     }
   });
 
+  it('a consent that saved the row leaves no live Add button behind it — one row per form (2026-09-06)', async () => {
+    // The owner's first green Microsoft Test: the consent saved and tested
+    // in one go, the verdict stayed on screen, and "Add and test" sat live
+    // beneath it. A second press would have stored a second connection with
+    // the same grant. Once a row exists the button says Added and is inert,
+    // and Cancel becomes Close.
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'deployment', microsoft: 'connection' });
+    dropboxAuthorize.mockResolvedValue({ url: 'https://www.dropbox.com/oauth2/authorize', redirectUri: 'r' });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      add.mockResolvedValue({ ok: true, id: 'c9', detail: 'reachable' });
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@example.invalid' },
+      });
+      const consent = await screen.findByRole('button', { name: /Connect with Dropbox/ });
+      await waitFor(() => expect(consent).toBeEnabled());
+      fireEvent.click(consent);
+      await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'ownpace-dropbox-consent', refreshToken: 'dbx-granted' },
+          origin: window.location.origin,
+        }),
+      );
+      await screen.findByText(/reachable/);
+      expect(add).toHaveBeenCalledTimes(1);
+
+      const done = screen.getByRole('button', { name: /^Added$/ });
+      expect(done).toBeDisabled();
+      fireEvent.click(done);
+      await act(async () => {});
+      expect(add).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('button', { name: /^Add and test$/ })).toBeNull();
+      expect(screen.getByRole('button', { name: /^Close$/ })).toBeEnabled();
+    } finally {
+      opened.mockRestore();
+    }
+  });
+
   it('where each connection brings its own Dropbox app, the button waits for the whole pair and sends it', async () => {
     dropboxAuthorize.mockResolvedValue({ url: 'https://www.dropbox.com/oauth2/authorize', redirectUri: 'r' });
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
@@ -772,7 +955,7 @@ describe('adding a connection through the front door', () => {
         expect.stringContaining('Enter the App key and App secret first'),
       );
       // No fold: the pair is required here, so it is in plain view.
-      expect(screen.queryByText('Use your own Dropbox app instead')).toBeNull();
+      expect(screen.queryByText('Use your own Dropbox app')).toBeNull();
       expect(screen.getByLabelText(/App key/).closest('details')).toBeNull();
       fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'dbx-app-key' } });
       // Half a pair is still no pair (ADR-0041).
@@ -941,5 +1124,120 @@ describe('the measured-volume line (2026-09-02)', () => {
     expect(screen.getByText(/Files 1.8 GB \(Docs, Sheets and Slides not counted\)/)).toBeTruthy();
     // The capability line is still its own line.
     expect(screen.getByText(/Can carry: Email ✓ 29 folders/)).toBeTruthy();
+  });
+});
+
+describe('what is standing against a connection (workplan 0094 T5)', () => {
+  const twoHoursAgo = () => new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+
+  it('names the migration, when and which faces stopped, the remedy, and Test as the way to tell the side', async () => {
+    // A pass failed since the last Test. `status` still says `connected`
+    // (that is what the last Test found) and the line says what happened
+    // since — both true, side by side.
+    list.mockResolvedValue([
+      conn({
+        standingFailures: [
+          {
+            mappingId: 'm1',
+            mappingName: 'Acme mail',
+            category: 'auth_expired',
+            domains: ['email', 'calendar'],
+            asOf: twoHoursAgo(),
+          },
+        ],
+      }),
+    ]);
+    renderPage();
+
+    const name = await screen.findByText('Acme mail');
+    // The migration's own page is one click away — that is where the prose is.
+    expect(name.closest('a')?.getAttribute('href')).toBe('/mappings/m1');
+    expect(screen.getByText(/Migration/)).toBeTruthy();
+    expect(screen.getByText(/stopped .*\(Email, Calendar\):/)).toBeTruthy();
+    // The category's own remedy sentence — the same map the migration page reads.
+    expect(screen.getByText(new RegExp(STRINGS.en['failure.authExpired'].slice(0, 40)))).toBeTruthy();
+    // And, because the category does not say which of the two sides failed:
+    expect(screen.getByText(/Test this one to find out/)).toBeTruthy();
+    // The remedy is beside the line.
+    expect(screen.getByText('Replace credentials')).toBeTruthy();
+  });
+
+  it('says the failure was on THIS connection when the pass named the side (second slice)', async () => {
+    list.mockResolvedValue([
+      conn({
+        standingFailures: [
+          {
+            mappingId: 'm1',
+            mappingName: 'Acme mail',
+            category: 'auth_expired',
+            domains: ['email'],
+            asOf: twoHoursAgo(),
+            side: 'source',
+          },
+        ],
+      }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Acme mail')).toBeInTheDocument();
+    expect(screen.getByText(/It failed on this connection\./)).toBeInTheDocument();
+    // No guessing left, so no invitation to Test.
+    expect(screen.queryByText(/Test this one to find out/)).toBeNull();
+  });
+
+  it('does not invite a Test for a failure that resolves on its own', async () => {
+    list.mockResolvedValue([
+      conn({
+        standingFailures: [
+          {
+            mappingId: 'm1',
+            mappingName: 'Acme files',
+            category: 'rate_limited',
+            domains: ['file'],
+            asOf: twoHoursAgo(),
+          },
+        ],
+      }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Acme files')).toBeTruthy();
+    expect(screen.getByText(new RegExp(STRINGS.en['failure.rateLimited'].slice(0, 40)))).toBeTruthy();
+    // Its sentence says "nothing is wrong"; a tail asking for a Test would contradict it.
+    expect(screen.queryByText(/Test this one to find out/)).toBeNull();
+  });
+
+  it('shows no line when nothing stands, and none from a server that predates the field', async () => {
+    list.mockResolvedValue([
+      conn({ standingFailures: [] }),
+      conn({ id: 'c2', displayName: 'Older server' }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Older server')).toBeTruthy();
+    expect(screen.queryByText(/stopped/)).toBeNull();
+    expect(screen.queryByText(/^Migration$/)).toBeNull();
+  });
+
+  it('skips a category this build has no sentence for rather than rendering nothing for it', async () => {
+    list.mockResolvedValue([
+      conn({
+        standingFailures: [
+          {
+            mappingId: 'm9',
+            mappingName: 'From the future',
+            // A value a newer server may write; the page has no sentence for it.
+            category: 'from_the_future' as never,
+            domains: ['email'],
+            asOf: twoHoursAgo(),
+          },
+        ],
+      }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('Acme migration (source)')).toBeTruthy();
+    expect(screen.queryByText('From the future')).toBeNull();
+    expect(screen.queryByText(/stopped/)).toBeNull();
   });
 });

@@ -70,7 +70,12 @@ const renderWizard = () => {
   );
 };
 
-const nextButton = () => screen.getByRole('button', { name: /Next|Create Migration/ });
+// AN EXACT MATCH, because a CARD is a button too (2026-09-07). `/Next|.../`
+// unanchored matched the "Nextcloud" target card as well as the wizard's own
+// Next button the moment that card existed, and every step-through test began
+// failing with "found multiple elements" — a selector fault reading as a
+// product fault. Anchored, the query means the button it always meant.
+const nextButton = () => screen.getByRole('button', { name: /^(Next|Create Migration)$/ });
 
 /** The amber line beside a disabled Next, or null when nothing blocks it. */
 const blockedReason = () => screen.queryByRole('status')?.textContent ?? null;
@@ -111,8 +116,8 @@ beforeEach(() => {
 
 /** Every source card, and the fields ITS first step marks required. */
 const CREDS = {
-  user: [/^Source Username/, 'anna@acme.example'] as [RegExp, string],
-  secret: [/^Source client secret/, 'shh-secret'] as [RegExp, string],
+  user: [/^Username/, 'anna@acme.example'] as [RegExp, string],
+  secret: [/^Client secret/, 'shh-secret'] as [RegExp, string],
   refresh: [/^Refresh token/, '1//refresh-token'] as [RegExp, string],
 };
 
@@ -164,8 +169,18 @@ const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
     required: [
       CREDS.user,
       [/^Client ID/, 'box-client-id'],
-      [/^Box user id/, '12345678'],
+      [/^Box user ID/, '12345678'],
       CREDS.secret,
+    ],
+  },
+  // The export archive (workplan 0116 T5/T6): no username, no secret. Which
+  // export is a CHOICE — the `<select>` takes a change event like any input —
+  // and where it is, is a path.
+  {
+    name: 'Export archive',
+    required: [
+      [/^Which export/, 'google-takeout'],
+      [/^Where the archive is/, '/srv/exports/takeout-20260904'],
     ],
   },
 ];
@@ -176,11 +191,13 @@ const GATE_LABELS = [
   'Port',
   'Client ID',
   'Tenant ID',
-  'Box user id',
+  'Box user ID',
   'App key',
-  'Source Username',
-  'Source client secret',
+  'Username',
+  'Client secret',
   'Refresh token',
+  'Which export',
+  'Where the archive is',
 ];
 
 describe('every source type gets past its own first step', () => {
@@ -226,9 +243,9 @@ describe('the consent you can click (0089 T1)', () => {
     expect(connect).toBeDisabled();
     // And for the account address (2026-09-02): the consent saves and tests
     // in one go, and the save needs to know whose data it is.
-    fill(/^Source Username/, 'owner@gmail.com');
+    fill(/^Username/, 'owner@gmail.com');
     fill(/^Client ID/, 'gmail.apps.googleusercontent.com');
-    fill(/^Source client secret/, 'shh-secret');
+    fill(/^Client secret/, 'shh-secret');
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Connect with Google/ })).toBeEnabled(),
     );
@@ -311,14 +328,14 @@ describe('the domain step reads the account’s record (0106 T3a)', () => {
     renderWizard();
     // Source: the plain IMAP walk.
     fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
-    fill(/^Source Username/, 'anna@acme.example');
+    fill(/^Username/, 'anna@acme.example');
     fill(/^Host$/, 'mail.example.com');
     await waitFor(() => expect(nextButton()).toBeEnabled());
     fireEvent.click(nextButton());
     // Target: the account kind, reusing the stored (qualified) connection.
     fireEvent.click(await screen.findByRole('button', { name: /^Soverin/ }));
-    await waitFor(() => expect(queryFieldFor(/^Use a target connection/)).not.toBeNull());
-    fireEvent.change(fieldFor(/^Use a target connection/), {
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved target connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Reuse a saved target connection/), {
       target: { value: soverinTarget.id },
     });
     await waitFor(() => expect(nextButton()).toBeEnabled());
@@ -330,7 +347,7 @@ describe('the domain step reads the account’s record (0106 T3a)', () => {
     // locked, the short line on the card, the account's own evidence on hover.
     const contactsCard = await screen.findByRole('button', { name: /Contacts/ });
     expect(contactsCard).toBeDisabled();
-    expect(contactsCard.textContent).toContain('This account answered it cannot carry this');
+    expect(contactsCard.textContent).toContain('This account cannot carry this');
     expect(screen.getByTitle(/does not advertise contacts/)).toBeTruthy();
     // Unknown NEVER locks (a refusal is never a no, and neither is silence):
     // email is unmeasured — hinted, still tickable.
@@ -360,8 +377,8 @@ describe('reusing a stored connection', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
     // The picker must be HERE, on the step that gates the client id it makes
     // unnecessary. Offering it two steps later is offering it never.
-    await waitFor(() => expect(queryFieldFor(/^Use a source connection/)).not.toBeNull());
-    fireEvent.change(fieldFor(/^Use a source connection/), {
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Reuse a saved source connection/), {
       target: { value: boxConnection.id },
     });
   };
@@ -375,7 +392,7 @@ describe('reusing a stored connection', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
 
     const picker = await waitFor(() => {
-      const el = queryFieldFor(/^Use a source connection/);
+      const el = queryFieldFor(/^Reuse a saved source connection/);
       expect(el).not.toBeNull();
       return el as HTMLSelectElement;
     });
@@ -394,8 +411,8 @@ describe('reusing a stored connection', () => {
     // files, and from which folder" — that is this mapping's question, and
     // `source_config_override` exists to hold the answer. Hiding these along
     // with the credentials makes that column unreachable from the UI.
-    await waitFor(() => expect(queryFieldFor(/^Box user id/)).not.toBeNull());
-    expect(queryFieldFor(/^Root folder id/)).not.toBeNull();
+    await waitFor(() => expect(queryFieldFor(/^Box user ID/)).not.toBeNull());
+    expect(queryFieldFor(/^Root folder ID/)).not.toBeNull();
 
     // ...and the credential is gone, because a field that would be ignored is
     // worse than one that is absent.
@@ -464,7 +481,7 @@ describe('reusing a stored connection', () => {
 
     // Back to "enter new credentials": the verdict belonged to the connection
     // that is no longer selected.
-    fireEvent.change(fieldFor(/^Use a source connection/), { target: { value: '' } });
+    fireEvent.change(fieldFor(/^Reuse a saved source connection/), { target: { value: '' } });
 
     expect(screen.queryByText(/Listed 12 folders/)).toBeNull();
   });
@@ -475,8 +492,8 @@ describe('reusing a stored connection', () => {
 
     // The target side is untouched by the source's reuse and asks for its own.
     fill(/^Host$/, 'stalwart.acme.example');
-    fill(/^Target Username/i, 'anna@acme.net');
-    fill(/^Target Password/i, 'target-pw');
+    fill(/^Username/i, 'anna@acme.net');
+    fill(/^Password/i, 'target-pw');
     await waitFor(() => expect(nextButton()).toBeEnabled());
     fireEvent.click(nextButton()); // -> migration
 
@@ -518,14 +535,14 @@ describe('the source step asks in the descriptor order', () => {
     const labels = orderFor(/^Google Drive/);
     const at = (needle: string) => labels.findIndex((l) => l.startsWith(needle));
 
-    expect(at('Source Username')).toBeGreaterThanOrEqual(0);
+    expect(at('Username')).toBeGreaterThanOrEqual(0);
     // The account names WHOSE drive this is — it belongs at the top, not
     // below two fields about where the files live.
-    expect(at('Source Username')).toBeLessThan(at('Client ID'));
+    expect(at('Username')).toBeLessThan(at('Client ID'));
     // Client id → secret → refresh token, with nothing wedged between them:
     // one page of the Google console, one run of fields.
-    expect(at('Client ID') + 1).toBe(at('Source client secret'));
-    expect(at('Source client secret') + 1).toBe(at('Refresh token'));
+    expect(at('Client ID') + 1).toBe(at('Client secret'));
+    expect(at('Client secret') + 1).toBe(at('Refresh token'));
     // ...and the per-mapping "where" comes after the credentials, not inside.
     expect(at('Root folder ID')).toBeGreaterThan(at('Refresh token'));
   });
@@ -534,9 +551,9 @@ describe('the source step asks in the descriptor order', () => {
     const labels = orderFor(/^Dropbox/);
     const at = (needle: string) => labels.findIndex((l) => l.startsWith(needle));
 
-    expect(at('Source Username')).toBeLessThan(at('App key'));
-    expect(at('App key') + 1).toBe(at('Source client secret'));
-    expect(at('Source client secret') + 1).toBe(at('Refresh token'));
+    expect(at('Username')).toBeLessThan(at('App key'));
+    expect(at('App key') + 1).toBe(at('Client secret'));
+    expect(at('Client secret') + 1).toBe(at('Refresh token'));
     expect(at('Root folder path')).toBeGreaterThan(at('Refresh token'));
   });
 
@@ -544,9 +561,9 @@ describe('the source step asks in the descriptor order', () => {
     const labels = orderFor(/^Via the Graph API/);
     const at = (needle: string) => labels.findIndex((l) => l.startsWith(needle));
 
-    expect(at('Source Username')).toBeLessThan(at('Tenant ID'));
+    expect(at('Username')).toBeLessThan(at('Tenant ID'));
     expect(at('Tenant ID') + 1).toBe(at('Client ID'));
-    expect(at('Client ID') + 1).toBe(at('Source client secret'));
+    expect(at('Client ID') + 1).toBe(at('Client secret'));
   });
 });
 
@@ -578,10 +595,10 @@ describe('the required markers agree with the gate', () => {
     expect(markedRequired().some((l) => l.startsWith('Client ID'))).toBe(false);
     expect(markedRequired().some((l) => l.startsWith('Refresh token'))).toBe(false);
     // The account is still required either way — no connection can know it.
-    expect(markedRequired().some((l) => l.startsWith('Source Username'))).toBe(true);
+    expect(markedRequired().some((l) => l.startsWith('Username'))).toBe(true);
 
     // And the gate agrees: the account alone now lets the step finish.
-    fill(/^Source Username/, 'anna@acme.example');
+    fill(/^Username/, 'anna@acme.example');
     await waitFor(() => expect(nextButton()).toBeEnabled());
   });
 });
@@ -601,7 +618,7 @@ describe('naming the connection that testing saves', () => {
   const filledImapSource = () => {
     renderWizard();
     fill(/^Host$/, 'mail.acme.example');
-    fill(/^Source Username/, 'anna@acme.example');
+    fill(/^Username/, 'anna@acme.example');
   };
 
   beforeEach(() => {
@@ -611,7 +628,7 @@ describe('naming the connection that testing saves', () => {
 
   it('saves under the name that was typed', async () => {
     filledImapSource();
-    fill(/^Name this connection/, 'Acme old mail server');
+    fill(/^Connection name/, 'Acme old mail server');
 
     fireEvent.click(screen.getByRole('button', { name: /Test/i }));
 
@@ -649,11 +666,11 @@ describe('naming the connection that testing saves', () => {
       },
     ]);
     filledImapSource();
-    fill(/^Name this connection/, 'Acme old mail server');
+    fill(/^Connection name/, 'Acme old mail server');
 
     // A warning, not a refusal: nothing keys off the name, and blocking here
     // would be friction at the worst moment — you have just proved a credential.
-    expect(await screen.findByText(/already have a connection with this name/)).toBeTruthy();
+    expect(await screen.findByText(/already taken/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Test/i }));
     await waitFor(() => expect(connectionsApi.add).toHaveBeenCalled());
   });
@@ -672,12 +689,12 @@ describe('naming the connection that testing saves', () => {
       },
     ]);
     renderWizard();
-    await waitFor(() => expect(queryFieldFor(/^Use a source connection/)).not.toBeNull());
-    fireEvent.change(fieldFor(/^Use a source connection/), {
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Reuse a saved source connection/), {
       target: { value: 'c0000000-0000-4000-8000-00000000000b' },
     });
 
-    expect(queryFieldFor(/^Name this connection/)).toBeNull();
+    expect(queryFieldFor(/^Connection name/)).toBeNull();
   });
 });
 
@@ -694,7 +711,7 @@ describe('the target step asks in the descriptor order too', () => {
   it('server, then the account that signs in to it, in one run', () => {
     renderWizard();
     fill(/^Host$/, 'mail.acme.example');
-    fill(/^Source Username/, 'anna@acme.example');
+    fill(/^Username/, 'anna@acme.example');
     fireEvent.click(nextButton());
 
     const labels = Array.from(document.querySelectorAll('label'))
@@ -706,8 +723,8 @@ describe('the target step asks in the descriptor order too', () => {
     expect(at('Host') + 1).toBe(at('Port'));
     // The account and its password follow the server they sign in to, rather
     // than sitting in a panel of their own below an unrelated field.
-    expect(at('Target Username')).toBeGreaterThan(at('Port'));
-    expect(at('Target Username') + 1).toBe(at('Target Password'));
+    expect(at('Username')).toBeGreaterThan(at('Port'));
+    expect(at('Username') + 1).toBe(at('Password'));
   });
 });
 
@@ -744,13 +761,13 @@ describe('every wizard field is reachable by its label', () => {
   it('the target step too', () => {
     renderWizard();
     fill(/^Host$/, 'mail.acme.example');
-    fill(/^Source Username/, 'anna@acme.example');
+    fill(/^Username/, 'anna@acme.example');
     fireEvent.click(nextButton());
 
     expect(screen.getByLabelText(/^Host/)).toBeTruthy();
     expect(screen.getByLabelText(/^Port/)).toBeTruthy();
-    expect(screen.getByLabelText(/^Target Username/)).toBeTruthy();
-    expect(screen.getByLabelText(/^Target Password/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Username/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Password/)).toBeTruthy();
   });
 });
 
@@ -768,7 +785,7 @@ describe('a credential that fails is still kept, and says so', () => {
   const fillImap = () => {
     renderWizard();
     fill(/^Host$/, 'mail.acme.example');
-    fill(/^Source Username/, 'anna@acme.example');
+    fill(/^Username/, 'anna@acme.example');
   };
 
   it('says the details were kept when the check fails', async () => {
@@ -783,7 +800,7 @@ describe('a credential that fails is still kept, and says so', () => {
 
     // The provider's words, verbatim — and then ours, saying it is not lost.
     expect(await screen.findByText(/AUTHENTICATIONFAILED/)).toBeTruthy();
-    expect(screen.getByText(/kept even though the check failed/)).toBeTruthy();
+    expect(screen.getByText(/The details were kept/)).toBeTruthy();
   });
 
   it('does not claim to have kept anything when the check passes', async () => {
@@ -797,7 +814,7 @@ describe('a credential that fails is still kept, and says so', () => {
     fireEvent.click(screen.getByRole('button', { name: /Test/i }));
 
     expect(await screen.findByText(/Listed 12 folders/)).toBeTruthy();
-    expect(screen.queryByText(/kept even though the check failed/)).toBeNull();
+    expect(screen.queryByText(/The details were kept/)).toBeNull();
   });
 
   it('does not say it about a connection that was only READ', async () => {
@@ -819,12 +836,80 @@ describe('a credential that fails is still kept, and says so', () => {
     listMock.mockResolvedValue([stored]);
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
-    await waitFor(() => expect(queryFieldFor(/^Use a source connection/)).not.toBeNull());
-    fireEvent.change(fieldFor(/^Use a source connection/), { target: { value: stored.id } });
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Reuse a saved source connection/), { target: { value: stored.id } });
 
     fireEvent.click(screen.getByRole('button', { name: /Test/i }));
 
     expect(await screen.findByText(/invalid_client/)).toBeTruthy();
-    expect(screen.queryByText(/kept even though the check failed/)).toBeNull();
+    expect(screen.queryByText(/The details were kept/)).toBeNull();
+  });
+});
+
+/**
+ * Every TARGET type gets past its own step (workplan 0067 T7 (b)).
+ *
+ * The reachability table above covered sources only; the six target cards
+ * had no equivalent walk, so whether each one could be got past was a guess
+ * about a gate rather than a finding. Same shape as the source walk: pick the
+ * card, fill exactly what it marks required, and Next must enable — and while
+ * it is disabled, the blocked-reason line may name only fields on screen.
+ */
+const TARGET_CREDS: [RegExp, string][] = [
+  [/^Username/, 'anna@new.example'],
+  [/^Password/, 'shh-target'],
+];
+const TARGET_TYPES: { name: string; required: [RegExp, string][] }[] = [
+  { name: 'JMAP', required: [[/^Host$/, 'jmap.new.example'], ...TARGET_CREDS] },
+  { name: 'IMAP', required: [[/^Host$/, 'imap.new.example'], ...TARGET_CREDS] },
+  { name: 'CalDAV', required: [[/^Host$/, 'dav.new.example'], ...TARGET_CREDS] },
+  { name: 'CardDAV', required: [[/^Host$/, 'dav.new.example'], ...TARGET_CREDS] },
+  { name: 'WebDAV', required: [[/^Host$/, 'cloud.new.example'], ...TARGET_CREDS] },
+  // The provider card pre-fills its published host and port (0106 T5), so
+  // the account is all it still asks for.
+  { name: 'Soverin', required: TARGET_CREDS },
+  // A Nextcloud's DAV root is always behind /remote.php/dav, so this card
+  // asks for the base URL and no host at all (2026-09-07).
+  {
+    name: 'Nextcloud',
+    required: [
+      [/^DAV base URL/, 'https://cloud.new.example/remote.php/dav'],
+      ...TARGET_CREDS,
+    ],
+  },
+];
+
+/** Past the source step on the plain IMAP walk, onto the target step. */
+const toTargetStep = () => {
+  renderWizard();
+  fill(/^Host$/, 'mail.acme.example');
+  fill(/^Username/, 'anna@acme.example');
+  fireEvent.click(nextButton());
+};
+
+describe('every target type gets past its own step (0067 T7 (b))', () => {
+  it.each(TARGET_TYPES)('$name', async ({ name, required }) => {
+    toTargetStep();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${name}`) }));
+
+    for (const [label, value] of required) fill(label, value);
+
+    await waitFor(() => expect(nextButton()).toBeEnabled());
+  });
+
+  it.each(TARGET_TYPES)('$name: a disabled Next names only fields on screen', ({ name }) => {
+    toTargetStep();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${name}`) }));
+
+    const reason = blockedReason();
+    if (reason === null) return; // nothing blocks it — a real answer
+
+    for (const label of [...GATE_LABELS, 'Password']) {
+      if (!reason.includes(label)) continue;
+      expect(
+        queryFieldFor(new RegExp(`^${label}`)),
+        `the blocked-reason line names "${label}", which this step does not render`,
+      ).not.toBeNull();
+    }
   });
 });

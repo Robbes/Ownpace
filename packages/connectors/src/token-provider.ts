@@ -19,6 +19,24 @@ import type {
  * - Supports refresh-token flow (delegated)
  * - No secret material ever logged
  */
+/**
+ * Entra's refusal, in its own words. The token endpoint answers a refused
+ * exchange as JSON with `error` (invalid_grant, invalid_client, …) and
+ * `error_description`, whose first sentence carries the AADSTS code; anything
+ * else comes back as the head of the body. The request is never echoed.
+ */
+function entraRefusal(text: string): string {
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown; error_description?: unknown };
+    const code = typeof parsed.error === "string" ? parsed.error : "";
+    const description = typeof parsed.error_description === "string" ? parsed.error_description : "";
+    if (code || description) return [code, description].filter((s) => s.length > 0).join(": ");
+  } catch {
+    // not JSON — fall through to the raw head
+  }
+  return text.slice(0, 500);
+}
+
 export class MsalTokenProvider implements TokenProvider {
   private readonly config: TokenProviderConfig;
   private cachedToken: OAuth2Token | null = null;
@@ -112,12 +130,23 @@ export class MsalTokenProvider implements TokenProvider {
     try {
       let token: OAuth2Token;
 
-      if (this.config.clientSecret || this.config.clientCertificateKey) {
-        // Client-credentials flow
-        token = await this.acquireTokenWithClientCredentials();
-      } else if (this.config.refreshToken || (this.config.username && this.config.password)) {
-        // Refresh-token or username/password flow
+      // THE DELEGATED FLOW WINS WHEN THERE IS A REFRESH TOKEN (2026-09-06).
+      //
+      // This asked "is there a client secret?" first, which was right for the
+      // two shapes it was written for — an app registration with a secret
+      // (application permissions) or a refresh token from a public client
+      // (delegated, no secret) — and wrong for the third shape the Connect
+      // with Microsoft button produces: a CONFIDENTIAL client's secret AND
+      // the refresh token its consent minted. That shape took the
+      // client-credentials branch, asked for delegated scopes under
+      // `/common`, and MSAL refused it before the request was sent
+      // (`missing_tenant_id_error`). A refresh token is the person's grant;
+      // where one is present it is the flow, and the secret rides along as
+      // the confidential client's proof (below).
+      if (this.config.refreshToken || (this.config.username && this.config.password)) {
         token = await this.acquireTokenWithRefreshToken();
+      } else if (this.config.clientSecret || this.config.clientCertificateKey) {
+        token = await this.acquireTokenWithClientCredentials();
       } else {
         throw new Error(
           "TokenProvider requires either client credentials (secret/certificate) or user credentials (refresh token or username/password)"
@@ -178,42 +207,40 @@ export class MsalTokenProvider implements TokenProvider {
   /**
    * Acquire token using refresh-token flow.
    */
+  /**
+   * THE DELEGATED FLOW IS ONE POST, NOT MSAL (2026-09-06, the second live Test).
+   *
+   * MSAL's refresh path adds `openid profile offline_access` to every request,
+   * and this method used to report its refusal as nothing at all: the error
+   * was caught, the code fell through to a username/password branch that had
+   * no username, and what came out was "Failed to acquire token with refresh
+   * token or username/password" — on every face, minutes after the grant read
+   * had exchanged the SAME refresh token successfully with a plain POST to the
+   * same endpoint. So this is that POST: the tenant's token endpoint,
+   * `grant_type=refresh_token`, the client secret where the registration has
+   * one (a confidential client redeems with it), and exactly the scopes the
+   * source asked for — nothing MSAL would add on its own. Entra's refusal
+   * reaches the caller VERBATIM, `error` and `error_description` both, which
+   * is where the AADSTS code that names the consent, the tenant or the
+   * registration lives. The Google provider has answered this way since 0089.
+   *
+   * Username/password (ROPC) stays on MSAL's public client: it is the one
+   * delegated shape with no refresh token, and nothing here offers it a secret.
+   */
   private async acquireTokenWithRefreshToken(): Promise<OAuth2Token> {
+    if (this.config.refreshToken) {
+      return this.redeemRefreshToken(this.config.refreshToken);
+    }
+
     // Dynamically import MSAL to avoid hard dependency
     const msalNode = await import("@azure/msal-node");
-
-    // Build MSAL configuration
     const authority = this.config.tenantId
       ? `https://login.microsoftonline.com/${this.config.tenantId}`
       : "https://login.microsoftonline.com/common";
+    const publicClientApp = new msalNode.PublicClientApplication({
+      auth: { clientId: this.config.clientId, authority },
+    });
 
-    const msalConfig = {
-      auth: {
-        clientId: this.config.clientId,
-        authority,
-        ...(this.config.clientSecret ? { clientSecret: this.config.clientSecret } : {}),
-      },
-    };
-
-    const publicClientApp = new msalNode.PublicClientApplication(msalConfig);
-
-    // First, try to acquire with refresh token
-    if (this.config.refreshToken) {
-      try {
-        const tokenResponse = await publicClientApp.acquireTokenByRefreshToken({
-          scopes: this.config.scope.split(" "),
-          refreshToken: this.config.refreshToken,
-        });
-
-        if (tokenResponse) {
-          return this.mapMsalTokenResponse(tokenResponse);
-        }
-      } catch (_refreshError) {
-        // If refresh fails (e.g., refresh token expired), fall through to username/password
-      }
-    }
-
-    // Fall back to username/password if available
     if (this.config.username && this.config.password) {
       const tokenResponse = await publicClientApp.acquireTokenByUsernamePassword({
         scopes: this.config.scope.split(" "),
@@ -227,6 +254,67 @@ export class MsalTokenProvider implements TokenProvider {
     }
 
     throw new Error("Failed to acquire token with refresh token or username/password");
+  }
+
+  private async redeemRefreshToken(refreshToken: string): Promise<OAuth2Token> {
+    const endpoint = this.config.tokenEndpoint;
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: this.config.clientId,
+      refresh_token: refreshToken,
+      scope: this.config.scope,
+      ...(this.config.clientSecret ? { client_secret: this.config.clientSecret } : {}),
+    }).toString();
+
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+    } catch (err) {
+      throw new Error(
+        `The token endpoint at ${endpoint} could not be reached: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        { cause: err },
+      );
+    }
+
+    const text = await response.text().catch(() => "");
+    if (!response.ok) {
+      throw new Error(
+        `Microsoft refused the refresh-token exchange (${response.status}): ${entraRefusal(text)}`,
+      );
+    }
+
+    let parsed: {
+      access_token?: string;
+      expires_in?: number;
+      token_type?: string;
+      scope?: string;
+      refresh_token?: string;
+    };
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error(
+        `Microsoft's token endpoint answered ${response.status} with something that is not JSON: ${text.slice(0, 500)}`,
+      );
+    }
+    if (!parsed.access_token) {
+      throw new Error(
+        `Microsoft's token endpoint answered ${response.status} with no access_token: ${text.slice(0, 500)}`,
+      );
+    }
+    return {
+      accessToken: parsed.access_token,
+      expiresAt: Date.now() + (parsed.expires_in ?? 3600) * 1000,
+      tokenType: parsed.token_type ?? "Bearer",
+      refreshToken: parsed.refresh_token,
+      scope: parsed.scope ?? this.config.scope,
+    };
   }
 
   /**

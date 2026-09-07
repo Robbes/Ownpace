@@ -59,6 +59,9 @@ export * from './token-provider.ts';
 
 // Graph Calendar source connector
 export * from './graph-calendar-source.ts';
+// Microsoft To Do as a task source (workplan 0114 T9): Graph's fifth face, VTODO built here.
+export * from './graph-todo-source.ts';
+export type * from './graph-todo-source.types.ts';
 export * from './graph-calendar-source.types.ts';
 
 // Graph Contacts source connector
@@ -108,3 +111,10 @@ export * from './google-token-provider.ts';
 export * from './token-revoker.ts';
 export * from './google-jwt-bearer-provider.ts';
 export * from './caldav-scheduling-probe.ts';
+// The Google Takeout archive reader (workplan 0116 T3a), behind the T2 seam.
+// A reader rather than a connector: it opens a file the person downloaded,
+// reaches no network at all, and answers the `ArchiveReader` interface.
+export * from './takeout-archive-reader.ts';
+// An export archive as a FileSource (workplan 0116 T5/T6): placement, the manifest, and
+// a snapshot's refusal to report deletions — over whichever reader opened it.
+export * from './archive-file-source.ts';

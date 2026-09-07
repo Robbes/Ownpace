@@ -94,8 +94,24 @@ const renderWizard = () => {
   );
 };
 
+/**
+ * The target's host box, found by its LABEL rather than the example inside it.
+ *
+ * These lookups used to ask for the placeholder `jmap.example.com`, which
+ * every target door showed — including the five it was wrong for. Pinning the
+ * tests to the example is why nobody noticed an IMAP target suggesting a JMAP
+ * host on port 443 (2026-09-07). A label is what the field IS; a placeholder
+ * is a worked example, and the two must be free to differ per protocol.
+ */
+const targetHostBox = (): HTMLElement => screen.getByLabelText(/^Host/);
+
 const nextButton = () =>
-  screen.getByRole('button', { name: /Next|Create Migration/ });
+  // AN EXACT MATCH, because a CARD is a button too (2026-09-07). `/Next|.../`
+// unanchored matched the "Nextcloud" target card as well as the wizard's own
+  // Next button the moment that card existed, and every step-through test began
+  // failing with "found multiple elements" — a selector fault reading as a
+  // product fault. Anchored, the query means the button it always meant.
+  screen.getByRole('button', { name: /^(Next|Create Migration)$/ });
 
 /** Fill only what each step RENDERS and advance — the whole point of the
  *  0037 T1 pin. Fails on the old gates at the very first click. */
@@ -112,7 +128,7 @@ const walkToReview = () => {
   fireEvent.click(nextButton());
 
   // Step 2 — Target: host, account, password (port prefilled, jmap preselected).
-  fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+  fireEvent.change(targetHostBox(), {
     target: { value: 'stalwart.acme.example' },
   });
   fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
@@ -231,7 +247,7 @@ describe('CreateMapping — the wizard reaches submit and says what failed', () 
 
     // The dictionary frame + the server's sentence verbatim.
     expect(
-      await screen.findByText(/The migration was not created/),
+      await screen.findByText(/Not created; your entries are still here/),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/sync mode must be 'mirror'/),
@@ -266,7 +282,7 @@ describe('CreateMapping — field-level honesty on the credentials and review st
 
     // One honest sentence about what happens to the secrets, on the step that
     // collects them rather than one the person may never scroll back to.
-    expect(screen.getByText(/encrypted at rest/)).toBeInTheDocument();
+    expect(screen.getByText(/Encrypted at rest/)).toBeInTheDocument();
     expect(screen.getByText(/never shown again/)).toBeInTheDocument();
   };
 
@@ -323,7 +339,7 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
 
     // Target: pick the protocol, then its own host + account + password.
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${target}`) }));
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'dav.acme.example' },
     });
     fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
@@ -433,7 +449,7 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
     });
     satisfySourceStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'stalwart.acme.example' },
     });
     satisfyTargetStep();
@@ -546,8 +562,8 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     // own credentials too (workplan 0070), so it keeps gating — and keeps
     // naming what is left, rather than going quiet two screens early.
     expect(nextButton()).toBeDisabled();
-    expect(screen.getByRole('status').textContent).toContain('Source Username');
-    expect(screen.getByRole('status').textContent).toContain('Source client secret');
+    expect(screen.getByRole('status').textContent).toContain('Username');
+    expect(screen.getByRole('status').textContent).toContain('Client secret');
 
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
       target: { value: 'mailbox@acme.example' },
@@ -582,9 +598,9 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     // not a mailbox password — labelled as what it is, and required: without
     // it the client-credentials flow cannot mint a single token. It gates the
     // SOURCE step now, beside the registration it belongs to.
-    expect(screen.getByText('Source client secret')).toBeInTheDocument();
+    expect(screen.getByText('Client secret')).toBeInTheDocument();
     expect(nextButton()).toBeDisabled();
-    expect(screen.getByRole('status').textContent).toContain('Source client secret');
+    expect(screen.getByRole('status').textContent).toContain('Client secret');
 
     fireEvent.change(screen.getByPlaceholderText('••••••••'), {
       target: { value: 'shh-client-secret' },
@@ -592,7 +608,7 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     fireEvent.click(nextButton());
 
     // Target: its own server and its own account.
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'stalwart.acme.example' },
     });
     satisfyTargetStep();
@@ -636,7 +652,11 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     // domain and a file-capable target — the same constraint the server
     // refuses by name, spared as a dead end three steps later.
     fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
-    expect(screen.getByText(/google-workspace-setup\.md/)).toBeInTheDocument();
+    // One line says what this source signs in with; the paragraph that
+    // used to be an amber panel — Docs, Sheets and Slides reported one by
+    // one, the guide that proves the values — is under More (0118 T1).
+    expect(screen.getByText(/Uses your own Google OAuth client and a read-only token/)).toBeVisible();
+    expect(screen.getByText(/Google Docs, Sheets and Slides are reported as un-migratable/)).not.toBeVisible();
     // No host/port for a Drive — the OAuth client ID gates instead.
     expect(screen.queryByPlaceholderText('imap.example.com')).not.toBeInTheDocument();
     expect(nextButton()).toBeDisabled();
@@ -659,7 +679,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
 
     // Step 2 — Target: the preselected jmap SURVIVES the source switch, so it
     // needs only its own server, account and password.
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'nextcloud.acme.example' },
     });
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
@@ -703,7 +723,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     });
     satisfySourceStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'nc.acme.example' },
     });
     satisfyTargetStep();
@@ -762,7 +782,7 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
 
     // Step 2 — Target: the preselected jmap survives (it carries email), and
     // asks only for its own server and account.
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'stalwart.acme.example' },
     });
     satisfyTargetStep();
@@ -802,7 +822,7 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
     });
     satisfySourceStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'stalwart.acme.example' },
     });
     satisfyTargetStep();
@@ -852,7 +872,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     // A target that carries both faces, so the domain step polices nothing
     // away and what is posted is what the account was ticked for.
     fireEvent.click(screen.getByRole('button', { name: /Soverin/ }));
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'dav.soverin.example' },
     });
     satisfyTargetStep();
@@ -939,7 +959,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: '1//granted' } });
     fireEvent.click(nextButton());
     fireEvent.click(screen.getByRole('button', { name: /Soverin/ }));
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'dav.soverin.example' },
     });
     satisfyTargetStep();
@@ -1008,7 +1028,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       // says what it is for, and the sentence about the deployment's client
       // is in there with them. The default screen is the address, the token
       // and the button.
-      const fold = screen.getByText('Use your own Google application instead').closest('details');
+      const fold = screen.getByText('Use your own Google client').closest('details');
       expect(fold).not.toBeNull();
       expect(fold).toContainElement(screen.getByPlaceholderText('…apps.googleusercontent.com'));
       expect(fold).toContainElement(screen.getByPlaceholderText('••••••••'));
@@ -1133,7 +1153,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
     );
     expect(screen.queryByText(/has its own Google client/)).not.toBeInTheDocument();
     // And no fold: the pair is required here, so it is in plain view.
-    expect(screen.queryByText('Use your own Google application instead')).not.toBeInTheDocument();
+    expect(screen.queryByText('Use your own Google client')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('…apps.googleusercontent.com').closest('details')).toBeNull();
   });
 
@@ -1196,7 +1216,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
       });
       await waitFor(() => expect(connectButton()).toBeEnabled());
       expect(screen.queryByRole('button', { name: /Connect with Google/i })).toBeNull();
-      const fold = screen.getByText('Use your own Dropbox app instead').closest('details');
+      const fold = screen.getByText('Use your own Dropbox app').closest('details');
       expect(fold).not.toBeNull();
       expect(fold).toHaveTextContent(/has its own Dropbox app/);
       expect(fold).toContainElement(screen.getByLabelText(/App key/));
@@ -1276,7 +1296,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
       'title',
       expect.stringContaining('Enter the App key and App secret first'),
     );
-    expect(screen.queryByText('Use your own Dropbox app instead')).not.toBeInTheDocument();
+    expect(screen.queryByText('Use your own Dropbox app')).not.toBeInTheDocument();
     expect(screen.getByLabelText(/App key/).closest('details')).toBeNull();
   });
 
@@ -1364,7 +1384,7 @@ describe('the provider directory pre-fills a named provider’s boxes', () => {
   it('picking Soverin fills its DAV host, mail host and both ports, and says whose they are', () => {
     toTargetStep();
     fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
-    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('caldav.soverin.net');
+    expect(targetHostBox()).toHaveValue('caldav.soverin.net');
     expect(screen.getByDisplayValue('443')).toBeTruthy();
     expect(screen.getByPlaceholderText('imap.example.com')).toHaveValue('imap.soverin.net');
     expect(screen.getByDisplayValue('993')).toBeTruthy();
@@ -1375,25 +1395,36 @@ describe('the provider directory pre-fills a named provider’s boxes', () => {
 
   it('a typed box is never overwritten — not by the pick, not by a pick after a pick', () => {
     toTargetStep();
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'dav.mine.example' },
     });
     fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
-    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('dav.mine.example');
+    expect(targetHostBox()).toHaveValue('dav.mine.example');
     // The blank mail host still takes the default beside the typed DAV host.
     expect(screen.getByPlaceholderText('imap.example.com')).toHaveValue('imap.soverin.net');
     fireEvent.click(screen.getByRole('button', { name: /^JMAP/ }));
     fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
-    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('dav.mine.example');
+    expect(targetHostBox()).toHaveValue('dav.mine.example');
   });
 
   it('leaving Soverin empties the boxes still at its defaults; the port falls back to the wizard’s own 443', () => {
     toTargetStep();
     fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
     fireEvent.click(screen.getByRole('button', { name: /^JMAP/ }));
-    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('');
+    expect(targetHostBox()).toHaveValue('');
     expect(screen.getByDisplayValue('443')).toBeTruthy();
     expect(screen.queryByDisplayValue('imap.soverin.net')).toBeNull();
     expect(screen.queryByText(/Pre-filled from/)).toBeNull();
+  });
+
+  it('one line under the target folder, the rest under Why? — folded, not cut (0118 T1)', () => {
+    toTargetStep();
+    expect(screen.getByText(/Everything lands under this folder/)).toBeVisible();
+    // The paragraph that used to sit here in full is still here in full —
+    // under the fold, invisible until somebody asks.
+    const why = screen.getByText(/Sent and Drafts arrive as ordinary folders/);
+    expect(why).not.toBeVisible();
+    fireEvent.click(why.closest('details')!.querySelector('summary')!);
+    expect(why).toBeVisible();
   });
 });

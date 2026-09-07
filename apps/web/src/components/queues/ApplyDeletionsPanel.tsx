@@ -20,6 +20,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ShieldCheck, ShieldOff } from 'lucide-react';
 import { APPLY_FLAG_WARNING, APPLY_FLAG_WARNING_NL } from '@openmig/shared';
 import { useLocale, useT } from '../../i18n/index.tsx';
+import { Hint } from '../Hint.tsx';
 import { ActionButton, DestructiveButton, Refused } from './primitives.tsx';
 import {
   DecisionRefusedError,
@@ -144,7 +145,7 @@ export const ApplyDeletionsPanel: React.FC<{ mappingId: string }> = ({ mappingId
               </ActionButton>
             )}
           </div>
-          <p className="mt-1 text-gray-600">{t('autoApply.hint')}</p>
+          <Hint text={t('autoApply.hint')} why={t('autoApply.why')} />
           {data.source === 'config' ? (
             <p className="mt-1 text-gray-600">
               {t('applyFlag.config.pre')}{' '}

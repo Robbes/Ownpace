@@ -2,8 +2,13 @@
 import apiClient from './api.ts';
 import { z } from 'zod';
 import type { ProbeOutcome } from '@openmig/shared';
-import { FAILURE_CATEGORIES, MAPPING_LIFECYCLES } from '@openmig/shared';
-import type { DiscoveryRecord, MappingLifecycle } from '@openmig/shared';
+import { FAILURE_CATEGORIES, FAILURE_SIDES, MAPPING_LIFECYCLES } from '@openmig/shared';
+import type {
+  DiscoveryRecord,
+  FailureCategory,
+  FailureSide,
+  MappingLifecycle,
+} from '@openmig/shared';
 import { DISCOVERY_DOMAINS } from '@openmig/shared';
 import type { DiscoveryDomain, ProbeUnit, QualificationKey } from '@openmig/shared';
 
@@ -141,6 +146,8 @@ export const MappingDomainStatusSchema = z.object({
    * the verbatim `lastError` still renders either way.
    */
   lastErrorCategory: z.enum(FAILURE_CATEGORIES).optional().catch(undefined),
+  /** Which side the pass named when it failed (0094 T5); same rule as above. */
+  failedSide: z.enum(FAILURE_SIDES).optional().catch(undefined),
   /** PassMetrics — counts and durations only, never names or addresses. */
   lastPass: z.record(z.string(), z.number()).optional(),
 });
@@ -204,8 +211,10 @@ export const CreateMappingResponseSchema = z.object({
     'google',
     'dropbox',
     'box',
+    // An EXPORT ARCHIVE (workplan 0116 T1; a mapping source since T5/T6).
+    'archive',
   ]),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud']),
   status: MappingLifecycleSchema,
   mode: z.string(),
   pattern: z.string().optional(),
@@ -233,8 +242,12 @@ export interface CreateMappingInput {
     | 'dropbox'
     | 'box'
     | 'google-contacts'
-    | 'google';
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
+    | 'google'
+    // An EXPORT ARCHIVE (workplan 0116 T5/T6): a mapping can be created from
+    // one since placement and idempotency were built. Its credential is a
+    // location, carried in `sourceConfig.provider` and `.path`.
+    | 'archive';
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud';
   /** Reuse a stored connection instead of creating one (workplan 0064). When
    *  set, its credentials are used and none need re-sending. */
   sourceConnectionId?: string;
@@ -258,14 +271,25 @@ export interface CreateMappingInput {
     rootFolderId?: string;
     /** Box only (workplan 0056): the numeric user id the CCG token reads for. */
     userId?: string;
+    /** Archive only (workplan 0116): WHICH export — `google-takeout` or `apple-privacy`. */
+    provider?: string;
+    /** Archive only: WHERE the extracted export is. Not a secret. */
+    path?: string;
   };
   targetConfig: {
-    host: string;
-    port: number;
+    /** WHERE the target is, and which pair says so depends on the type
+     *  (2026-09-07): every target but `nextcloud` is reached at host+port,
+     *  and a Nextcloud at its base URL alone — its DAV root is always behind
+     *  /remote.php/dav, so a host cannot express it. The server's
+     *  CreateMappingSchema demands the right one by name. */
+    host?: string;
+    port?: number;
     username: string;
     password: string;
     useSsl?: boolean;
-    /** DAV targets (0105 T1): full DAV base URL; wins over host+port when set. */
+    /** DAV targets (0105 T1): full DAV base URL; wins over host+port when
+     *  set, and on a `nextcloud` target it is the address rather than an
+     *  escape hatch. */
     url?: string;
     /** soverin only (0106 T4b): the account's mail face — typed, never guessed. */
     mailHost?: string;
@@ -557,6 +581,8 @@ export interface TestConnectionResult {
           estimated?: boolean;
           /** Drive: Docs, Sheets and Slides weigh nothing here. */
           nativeFilesExcluded?: boolean;
+          /** Items the listing found and could not read (2026-09-07). */
+          unreadable?: number;
           /** Why the face answered but could not be measured. */
           failed?: string;
         };
@@ -845,6 +871,28 @@ export const setupApi = {
   },
 };
 
+/**
+ * One standing failure of a migration that signs in with a connection
+ * (workplan 0094 T5): the category, never the prose — `lastError` lives on
+ * the migration's own page.
+ */
+export interface StandingFailure {
+  mappingId: string;
+  mappingName: string | null;
+  category: FailureCategory;
+  /** The domains this category stands on. */
+  domains: DiscoveryDomain[];
+  /** When the newest of those rows last changed — ISO. */
+  asOf: string;
+  /**
+   * Which side the pass named (0094 T5, second slice): set when this entry is
+   * on this connection because the failure happened here; null when the pass
+   * could not tell and the entry is on both cards. Absent on a server that
+   * predates it, which reads the same as null.
+   */
+  side?: FailureSide | null;
+}
+
 /** A stored source or target connection (workplan 0062). Never carries secrets. */
 export interface ConnectionSummary {
   id: string;
@@ -872,6 +920,14 @@ export interface ConnectionSummary {
   qualification?: TestConnectionResult['qualification'] | null;
   /** When the row (and so the qualification) last changed. */
   updatedAt?: string;
+  /**
+   * What is standing against this connection (workplan 0094 T5): the
+   * categorised failure of every migration that signs in with it, one entry
+   * per migration and category, latest first. Both sides of a migration
+   * carry it — the category does not say which side failed. Absent on a
+   * server that predates it; empty when nothing stands.
+   */
+  standingFailures?: StandingFailure[];
 }
 
 export const connectionsApi = {

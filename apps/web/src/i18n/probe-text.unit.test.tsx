@@ -76,10 +76,9 @@ describe('probeText — the deadline and the floor (2026-09-02)', () => {
   it('a probe that did not answer says so, with the seconds, in both languages', () => {
     const late: ProbeOutcome = { code: 'timedOut', seconds: 20 };
     expect(probeText(en, late, 'ignored')).toBe(
-      'The test did not answer within 20 seconds. The connection is kept; test it again later, ' +
-        'or give it a narrower root folder.',
+      'No answer within 20 seconds; kept anyway, so test later or narrow the root folder.',
     );
-    expect(probeText(nl, late, 'ignored')).toContain('niet binnen 20 seconden');
+    expect(probeText(nl, late, 'ignored')).toContain('binnen 20 seconden');
   });
 
   it('a count that stopped at the cap reads as a floor', () => {
@@ -340,6 +339,38 @@ describe('measuredText — how much each reached face holds (2026-09-02)', () =>
     expect(dutch).toContain('12.400 berichten');
     expect(dutch).toContain('1 kaart');
     expect(dutch).toContain('niet meegeteld');
+  });
+
+  it('says how many it could not read, beside the count and not instead of it (2026-09-07)', () => {
+    // The owner read "Contacts ✓ 1 address book · 0 cards" on a live account
+    // and could not tell an empty address book from one whose every card
+    // failed to map. Both facts now reach the line.
+    const partlyUnreadable = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'x' },
+        calendar: { answer: 'yes' as const, detail: 'x' },
+        contact: { answer: 'yes' as const, detail: 'x', volume: { items: 0, unreadable: 25 } },
+        file: { answer: 'yes' as const, detail: 'x' },
+      },
+    };
+
+    expect(measuredText(en, partlyUnreadable, 'en')).toBe(
+      'Measured: Contacts 0 cards 25 could not be read',
+    );
+    expect(measuredText(nl, partlyUnreadable, 'nl')).toContain('25 niet te lezen');
+  });
+
+  it('says nothing extra when every item read cleanly', () => {
+    const clean = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'x' },
+        calendar: { answer: 'yes' as const, detail: 'x' },
+        contact: { answer: 'yes' as const, detail: 'x', volume: { items: 12, unreadable: 0 } },
+        file: { answer: 'yes' as const, detail: 'x' },
+      },
+    };
+
+    expect(measuredText(en, clean, 'en')).toBe('Measured: Contacts 12 cards');
   });
 
   it('with no measured face at all there is no line', () => {

@@ -20,10 +20,12 @@ import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
 import {
   credentialFieldsFor,
+  isFailureCategory,
   providerDefaultsFor,
   providerDefaultsProvenance,
   wizardTypeForConnectionKind,
   type CredentialField,
+  type FailureCategory,
 } from '@openmig/shared';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { frontDoorCards } from '../components/front-door-cards.ts';
@@ -32,6 +34,7 @@ import {
   mappingApi,
   type ConnectionSummary,
   type TestConnectionResult,
+  providerAccountsApi,
   providerClientsApi,
 } from '../services/mapping-service.ts';
 import { useT, useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
@@ -42,14 +45,24 @@ import {
   qualificationText,
   schedulingText,
 } from '../i18n/probe-text.ts';
+// The remedy sentence per failure category — the one map the migration page
+// and the operator's support screen read too, so all three say the same words.
+import { FAILURE_KEY } from '../i18n/failure-key.ts';
+import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import {
   inUseMigrations,
   invalidCredentialFields,
   missingCredentialFields,
   serverMessage,
 } from '../services/api.ts';
-import { QUALIFICATION_KEYS, isProviderAccountKind } from '@openmig/shared';
-import type { DiscoveryDomain } from '@openmig/shared';
+import {
+  PROVIDER_ACCOUNT_DOMAINS,
+  QUALIFICATION_KEYS,
+  credentialFieldRequired,
+  isProviderAccountKind,
+} from '@openmig/shared';
+import type { DiscoveryDomain, ProviderAccountKind } from '@openmig/shared';
+import { Hint } from '../components/Hint.tsx';
 
 /**
  * A refusal in the reader's own language wherever we authored it (0071).
@@ -92,7 +105,7 @@ const useRefusalText = (fields: ReadonlyArray<{ key: string; labelKey: string }>
         inUse.names.length > 0
           ? inUse.names.map((n) => `“${n}”`).join(', ')
           : t('connections.inUse.unnamed');
-      return `${t('connections.inUse.lead')} ${named}. ${t('connections.inUse.why')}`;
+      return `${t('connections.inUse.lead')} ${named}. ${t('connections.inUse.reason')}`;
     }
     return serverMessage(err);
   };
@@ -112,6 +125,19 @@ const usePlaceholderFor = () => {
   return (field: CredentialField): string | undefined =>
     field.placeholder ?? (field.placeholderKey ? t(field.placeholderKey as StringKey) : undefined);
 };
+
+/**
+ * The categories where the CONNECTION is the thing to act on (workplan 0094
+ * T5), so the standing line invites a Test to tell which of a migration's two
+ * connections failed. The other three resolve on their own and their
+ * sentence says "no action needed" — a tail inviting a Test would contradict
+ * it. Exhaustive by construction: every category is in exactly one set.
+ */
+const ASK_TEST: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
+  'auth_expired',
+  'target_refused',
+  'unknown',
+]);
 
 const StatusIcon: React.FC<{ status: ConnectionSummary['status'] }> = ({ status }) => {
   if (status === 'connected') return <CheckCircle2 className="w-4 h-4 text-green-600" />;
@@ -250,6 +276,34 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
             {line}
           </span>
         ))}
+        {/* What is STANDING against this connection (workplan 0094 T5): a
+            pass that failed since the last Test, by category, with the
+            category's own remedy — and Replace credentials is beside it.
+            The line sits on the side the pass named, or on both cards when
+            it could not tell; where the connection is the thing to act on,
+            the tail says which case this is. The guard is against a category
+            this build has no sentence for. */}
+        {(connection.standingFailures ?? [])
+          .filter((f) => isFailureCategory(f.category))
+          .map((f) => (
+            <span
+              key={`${f.mappingId}:${f.category}`}
+              className="block w-full text-xs text-red-900 break-words"
+            >
+              {t('connections.standing.migration')}{' '}
+              <Link to={`/mappings/${f.mappingId}`} className="underline">
+                {f.mappingName ?? f.mappingId.slice(0, 8)}
+              </Link>{' '}
+              {t('connections.standing.stopped', {
+                when: relativeToNow(f.asOf),
+                domains: f.domains.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
+              })}{' '}
+              {t(FAILURE_KEY[f.category])}
+              {ASK_TEST.has(f.category) && (
+                <> {t(f.side ? 'connections.standing.thisSide' : 'connections.standing.whichSide')}</>
+              )}
+            </span>
+          ))}
 
         {/* wrap, and only push right once there is room to (workplan 0068):
             on a phone these four actions overflowed the card horizontally and
@@ -309,7 +363,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
 
       {rotating && (
         <div className="mt-3 border-t border-gray-200 pt-3">
-          <p className="text-sm text-gray-600">{t('connections.rotate.hint')}</p>
+          <Hint className="" text={t('connections.rotate.hint')} why={t('connections.rotate.why')} />
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
             {rotatableFields.map((field) => (
               <label key={field.key} className="text-sm">
@@ -394,8 +448,6 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
  * with the answers is the create route's shape builders, unchanged, so a
  * connection added here is one a sync pass can use.
  */
-const GRANT_FACES: ReadonlyArray<DiscoveryDomain> = ['email', 'calendar', 'contact', 'file'];
-
 const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const { t, locale } = useLocale();
   const [open, setOpen] = React.useState(false);
@@ -407,6 +459,15 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const [values, setValues] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
   const [result, setResult] = React.useState<TestConnectionResult | null>(null);
+  /**
+   * ONE ROW PER FORM (2026-09-06). A consent that lands saves and tests in
+   * one go, and the form stays open so the person can read the verdict —
+   * with the Add button live beneath it. The owner's first green Test showed
+   * exactly that screen; a second press would have stored a second
+   * connection with the same grant. Once a row exists the button says so and
+   * does nothing; the way onward is Close.
+   */
+  const [added, setAdded] = React.useState(false);
 
   const fields = credentialFieldsFor(role, type);
   /** Whose published settings sit in the boxes, when a named provider's do. */
@@ -450,6 +511,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     suffix:
       | 'connect'
       | 'connect.hint'
+      | 'connect.why'
       | 'connect.needsClient'
       | 'connect.halfClient'
       | 'deploymentClient'
@@ -476,6 +538,23 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   // button waiting for face ticks it never shows. An account kind is the one
   // the table calls an account, and nothing else.
   const isAccountKind = isProviderAccountKind(type);
+  /**
+   * THE FACES THIS PROVIDER CAN BE ASKED TO SERVE (2026-09-06). A fixed list
+   * of Google's four sat here since the account kind arrived, and every
+   * provider read it — so the Microsoft form never offered Tasks, the consent
+   * never asked for Tasks.Read, and the owner read "Tasks ✗" on an account
+   * whose registration carried the permission. Read from the deployment's
+   * own facts (a restricted-scope Google client narrows its list), with the
+   * shared table as the answer while the facts are still on their way.
+   */
+  const { data: providerAccounts } = useQuery({
+    queryKey: ['provider-accounts'],
+    queryFn: providerAccountsApi.get,
+    enabled: isAccountKind,
+  });
+  const grantFaces: ReadonlyArray<DiscoveryDomain> = isAccountKind
+    ? (providerAccounts?.[type]?.domains ?? PROVIDER_ACCOUNT_DOMAINS[type as ProviderAccountKind] ?? [])
+    : [];
   const [domains, setDomains] = React.useState<DiscoveryDomain[]>([]);
   const [consentNote, setConsentNote] = React.useState<string | null>(null);
   const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
@@ -582,6 +661,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       setResult(answer);
       // Added either way — a credential that does not work YET is still worth
       // keeping while somebody chases an administrator.
+      setAdded(true);
       onAdded();
     } catch (err) {
       setResult({ ok: false, reason: refusalText(err) });
@@ -610,12 +690,27 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     // submit again for a keystroke, which is why only the landing counts.
   }, [consentLanded]);
 
+  /**
+   * THE ASTERISK TELLS THE TRUTH ON AN APPLIANCE TOO (2026-09-07). A client
+   * pair is `required: false` because the DEPLOYMENT may carry one; where it
+   * does not, the same two fields are the only way forward. Asking the
+   * descriptor alone marked them optional at the one moment they were
+   * mandatory. The shared rule knows the difference — and the wizard, which
+   * learned this first for Google, now asks the same one.
+   */
+  const requiredHere = (field: CredentialField): boolean =>
+    credentialFieldRequired(field, {
+      deploymentClient: Boolean(deploymentClient),
+      halfPairTyped: clientIdTyped !== clientSecretTyped,
+      sideStepped: (values.serviceAccountKey ?? '').trim() !== '',
+    });
+
   /** One labelled box; where it goes is the map below's decision. */
   const fieldBox = (field: CredentialField) => (
     <label className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
       <span className="block text-gray-700 mb-1">
         {t(field.labelKey as StringKey)}
-        {field.required && <span className="text-red-600"> *</span>}
+        {requiredHere(field) && <span className="text-red-600"> *</span>}
       </span>
       {field.multiline ? (
         <textarea
@@ -625,6 +720,24 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           value={values[field.key] ?? ''}
           onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
         />
+      ) : field.options ? (
+        // A CLOSED LIST IS A CHOICE, not a box to spell an id into (0116 T1's
+        // `options`, first rendered here after E2E (managed) #154 found the
+        // kind could be offered and not added). Which export an archive is
+        // selects the reader, and a misspelt `google-takeout` is not refused
+        // — the wrong reader finds none of its landmarks and reports nothing.
+        <select
+          className="input w-full"
+          value={values[field.key] ?? ''}
+          onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+        >
+          <option value="">—</option>
+          {field.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       ) : (
         <input
           // Secrets are masked here for the same reason they are never
@@ -718,7 +831,16 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         )}
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      {/* Read the asterisks: one line, because "(optional)" is gone from the
+          labels and the marker is now the only thing that says which fields
+          this deployment demands. Only where there IS one — before a kind is
+          picked there are no fields, and a legend about a marker nobody can
+          see explains nothing. */}
+      {fields.some(requiredHere) && (
+        <p className="mt-4 text-xs text-gray-500">{t('form.requiredLegend')}</p>
+      )}
+
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
         <label className="text-sm sm:col-span-2">
           <span className="block text-gray-700 mb-1">{t('connections.name')}</span>
           <input
@@ -757,7 +879,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
                 {t('connections.googleFaces')}
               </legend>
               <div className="flex flex-wrap gap-4">
-                {GRANT_FACES.map((face) => (
+                {grantFaces.map((face) => (
                   <label key={face} className="inline-flex items-center gap-1 text-sm text-gray-700">
                     <input
                       type="checkbox"
@@ -791,7 +913,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           >
             {ps('connect')}
           </button>
-          <p className="mt-1 text-sm text-gray-500">{ps('connect.hint')}</p>
+          <Hint text={ps('connect.hint')} why={ps('connect.why')} />
           {consentNote && (
             <p className={`mt-1 text-sm ${consentNote === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
               {consentNote === 'received' ? t('wizard.consent.received') : consentNote}
@@ -848,18 +970,18 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          disabled={busy || !displayName.trim()}
+          disabled={busy || added || !displayName.trim()}
           onClick={() => void submit()}
           className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded disabled:opacity-50"
         >
-          {busy ? t('connections.testing') : t('connections.addAndTest')}
+          {busy ? t('connections.testing') : added ? t('connections.added') : t('connections.addAndTest')}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
           className="text-sm px-3 py-1.5 border border-gray-300 rounded"
         >
-          {t('common.cancel')}
+          {added ? t('common.close') : t('common.cancel')}
         </button>
       </div>
     </div>

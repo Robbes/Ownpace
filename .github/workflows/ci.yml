@@ -83,7 +83,7 @@ jobs:
       any_changed: ${{ steps.filter.outputs.any_changed }}
       migrations_changed: ${{ steps.migrations.outputs.any_changed }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Get changed files
         id: filter
         uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v44.5.7
@@ -154,7 +154,7 @@ jobs:
     runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     # Quality gate for all changes (incl. docs-only)
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify only allowed markdown files at repo root
         run: |
           set -e
@@ -204,7 +204,7 @@ jobs:
     runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     # Runs on all PRs — fast check before heavier jobs
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check for cross-file UUID collisions
         run: |
           ./scripts/check-fixture-uuid-collisions.sh
@@ -219,7 +219,7 @@ jobs:
     # runs when the migration directory (or this workflow) changes.
     if: ${{ needs.detect-changes.outputs.migrations_changed == 'true' }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Atlas (community edition)
         # A direct binary download into RUNNER_TEMP, NOT `curl | sh`: the
         # installer script ends with a sudo copy into /usr/local/bin, and the
@@ -277,7 +277,7 @@ jobs:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.any_changed == 'true' }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -316,7 +316,7 @@ jobs:
     runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     needs: lint
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # TAGS, and therefore full history. §22.1's N-1 -> N upgrade gate
           # reads the previous release's migrations straight out of the tag
@@ -347,7 +347,7 @@ jobs:
         run: pnpm test --coverage
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
           path: '**/coverage/'
@@ -370,7 +370,7 @@ jobs:
     runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
     needs: lint
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -452,7 +452,7 @@ jobs:
         runner: ${{ github.event_name == 'push' && fromJSON('["self-hosted"]') || fromJSON('["ubuntu-24.04","ubuntu-24.04-arm"]') }}
     needs: unit-tests
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -508,14 +508,14 @@ jobs:
         run: pnpm test:integration
       - name: Upload integration logs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integration-logs-${{ github.run_id }}
           path: test-logs/
           retention-days: 3
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integration-reports
           path: '**/reports/'

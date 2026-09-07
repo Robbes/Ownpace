@@ -68,9 +68,16 @@ export interface ArchiveLocation {
  * A union rather than a string, because `provider` is not decoration: it selects
  * the reader and it decides which sentences the surfaces show. It is the field
  * that stops an Apple card promising Google's two-monthly schedule.
+ *
+ * DECLARED IN SHARED SINCE T1, and re-exported here so nothing that imported it
+ * from this seam has to move. The list was born beside the reader, which was
+ * right while the reader was its only consumer; the wizard, `SourceConfig` and
+ * the create door's refusal are three more, and `packages/shared` is the only
+ * package all four can reach. A second copy of this array is the exact drift
+ * `PROVIDER_ACCOUNT_DOMAINS` exists to prevent one layer up.
  */
-export const ARCHIVE_PROVIDERS = ['google-takeout', 'apple-privacy'] as const;
-export type ArchiveProvider = (typeof ARCHIVE_PROVIDERS)[number];
+import { ARCHIVE_PROVIDERS, type ArchiveProvider } from '@openmig/shared';
+export { ARCHIVE_PROVIDERS, type ArchiveProvider };
 
 /** An opened archive. Opaque to the caller; the reader's own bookkeeping. */
 export interface ArchiveHandle {
@@ -99,9 +106,55 @@ export interface ArchiveItem {
    * person organised, and placement decides what to do with that.
    */
   readonly folders: ReadonlyArray<string>;
+  /**
+   * WHERE PLACEMENT PUTS IT (workplan 0116 T5; 0112 §3). The folders the
+   * PERSON made — an album, a folder in their Drive — and never the provider's
+   * own filing on top of them. Takeout's `Photos from 2019` is Google's index
+   * of the library rather than anything the person organised, so a photo that
+   * is in an album is written under the album and not under its year as well;
+   * `folders` keeps carrying everything the archive said, for the manifest.
+   *
+   * A photo in NO album has the year folder as the only home the export gave
+   * it, and lands there — the alternative is thousands of files flat at the
+   * root, where two cameras' `IMG_0001.jpg` from different years collide.
+   *
+   * A subset of `folders`, never empty for Takeout. Empty means the item sits
+   * at the root of the import. An item in several albums is written once
+   * under each — 0112's decision 5, copy per album, bytes being cheap next to
+   * a target-specific link.
+   */
+  readonly placeIn: ReadonlyArray<string>;
   /** When the provider says the item was created, if the archive says at all. */
   /** ISO 8601, matching `FileItem.createdAt`'s convention. */
   readonly createdAt?: string;
+  /**
+   * WHICH OF THE THREE THINGS THIS IS (workplan 0116 T7, §4's decision).
+   *
+   * Google Photos ships an edited photo as a second file beside the original
+   * and a motion photo as an MP4 beside the JPEG. The owner's decision of
+   * 2026-09-04 is that each is a DISTINCT ITEM with its own bytes and its own
+   * hash — not an attribute of one record — because Google Photos shows the
+   * edited version by default, so a single-record design would write the
+   * original and silently discard the version the person means by "my photo".
+   *
+   * The consequence has to be reported rather than discovered: **the item
+   * count legitimately EXCEEDS what the provider tells the person they have.**
+   * A three-thousand-photo library can measure as four thousand items. This
+   * field is what lets the measure break that down instead of showing one
+   * number that reads as an error and costs a support ticket.
+   *
+   * `original` is the default and the honest answer for any export whose
+   * shape gives no reason to say otherwise — an archive with no such
+   * convention has originals and nothing else, rather than unknowns.
+   */
+  readonly kind: ArchiveItemKind;
+  /**
+   * The item this one belongs to, by `path`, when it is an edit or a clip of
+   * another (§4). Absent on an original, and absent on a derivative whose
+   * original is not in the archive — which happens, and is not an error: a
+   * person can delete an original in Photos and keep the edit.
+   */
+  readonly relatedTo?: string;
   /**
    * What the provider knew, verbatim and uninterpreted (rule 3). Read by
    * placement and the manifest; never by the sync's decisions.
@@ -109,11 +162,30 @@ export interface ArchiveItem {
   readonly metadata: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * The three things an export's file can be.
+ *
+ * A closed list rather than a boolean pair, so a fourth (a burst? a RAW
+ * sidecar?) is a compile error at every `switch` rather than a silent fall
+ * into `original` — the fan-out lesson this repository keeps re-learning.
+ */
+export const ARCHIVE_ITEM_KINDS = ['original', 'edited', 'motion'] as const;
+export type ArchiveItemKind = (typeof ARCHIVE_ITEM_KINDS)[number];
+
 /** What an archive holds, answered without reading every byte of it. */
 export interface ArchiveSummary {
   readonly items: number;
   readonly bytes: number;
   readonly folders: number;
+  /**
+   * `items` BROKEN DOWN by what each one is (workplan 0116 T7).
+   *
+   * Present so a surface never has to show a bare total that exceeds what
+   * Google Photos told the person they have. The three counts sum to `items`
+   * — asserted, not assumed, because a breakdown that does not add up is
+   * worse than no breakdown: it makes the total look wrong as well.
+   */
+  readonly byKind: Readonly<Record<ArchiveItemKind, number>>;
   /**
    * The span the archive covers, when it can be known. **An archive is a
    * snapshot with a date** and this is what lets a surface say so; absent when
@@ -152,4 +224,15 @@ export interface ArchiveReader {
   items(handle: ArchiveHandle): AsyncIterable<ArchiveItem>;
   /** Counts and the date span, for the Measured line before anything moves. */
   summary(handle: ArchiveHandle): Promise<ArchiveSummary>;
+  /**
+   * The item's bytes, for the import (workplan 0116 T5).
+   *
+   * The reader knows where they are — which of Takeout's four copies, which
+   * entry of a zip — and the caller does not, which is the seam holding:
+   * placement asks for content BY THE ITEM, never by a path it would have to
+   * know the archive's layout to build. Read on demand, one item at a time
+   * inside the sync loop's bounded concurrency, never all at once: an archive
+   * is the size of somebody's photo library.
+   */
+  content(handle: ArchiveHandle, item: ArchiveItem): Promise<Uint8Array>;
 }

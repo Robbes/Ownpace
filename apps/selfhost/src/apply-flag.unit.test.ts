@@ -47,6 +47,11 @@ let handle: SelfhostHandle;
 let base: string;
 
 function mappingJson(mappingId: string, allow?: boolean): string {
+  // Each mapping its own mailbox. Two mappings copying ONE mailbox into ONE
+  // account are the pair the ledger's `uk_mapping_source_target_prefix`
+  // refuses — and since 2026-09-05 two mappings in a tenant are two rows, so
+  // it can (config-dir.ts, `uuidFromString`).
+  const user = `${mappingId}@invalid`;
   return JSON.stringify({
     tenantId: '00000000-0000-4000-8000-0000000000aa',
     mappingId,
@@ -56,13 +61,13 @@ function mappingJson(mappingId: string, allow?: boolean): string {
       type: 'imap-oauth2',
       host: '127.0.0.1',
       port: 1,
-      user: 'nobody@invalid',
+      user,
       auth: { kind: 'login', passwordFromEnv: 'OPENMIG_TEST_NOPE' },
     },
     target: {
       type: 'jmap',
       baseUrl: 'http://127.0.0.1:1',
-      user: 'nobody@invalid',
+      user,
       auth: { kind: 'basic', passwordFromEnv: 'OPENMIG_TEST_NOPE' },
     },
     domains: {},

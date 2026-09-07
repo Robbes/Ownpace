@@ -1,0 +1,6 @@
+{
+  "title": "IMG_0001.jpg",
+  "description": "The e2e fixture's one described photo",
+  "photoTakenTime": { "timestamp": "1723456789", "formatted": "12 Aug 2024, 09:19:49 UTC" },
+  "geoData": { "latitude": 51.36, "longitude": 1.02, "altitude": 0 }
+}

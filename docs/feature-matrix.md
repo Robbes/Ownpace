@@ -75,6 +75,16 @@ contact mappings through the same writers the protocol kinds use (mail via the s
 `mailHost`, see Email). What the account actually answers per face is measured and stored
 (the 0106 qualification), never assumed.
 
+Also a target: **Nextcloud** (`nextcloud`, 2026-09-07) — the second **account** kind, and the
+one a person is most likely to be running themselves: one connection row carrying calendars,
+address books, files *and* task lists through the same DAV writers the protocol kinds use.
+Before it, the same Nextcloud had to be described three times — as `caldav`, `carddav` and
+`webdav` — each retyping the same URL, username and password. **No email face**: Nextcloud
+Mail is an IMAP *client*, not a server, so a Nextcloud carries no mailbox to write into.
+The file face resolves its own root, since Nextcloud serves files at
+`…/remote.php/dav/files/{username}/` while calendars and address books sit under
+`…/remote.php/dav/`.
+
 Also a source: **Google** (`google`, workplan 0106 T3b) — the same account shape on the
 grant side. One connection row, one OAuth grant, several faces: **calendars and contacts
 today**. Mail and files are absent for a reason that is Google's rather than ours — it
@@ -100,13 +110,14 @@ partitions accounts across hundreds of hosts, answering the home set with an abs
 naming yours — which is why every DAV href is normalised host-preservingly (0115 T1).
 
 Also a source: **Microsoft 365** (`microsoft`, workplan 0114) — the third account kind, and
-the asymmetry with `google` runs the **other way**. It carries **all four faces from the
+the asymmetry with `google` runs the **other way**. It carried **all four faces from the
 first day** — mail, calendars, contacts and OneDrive — because Microsoft's delegated read
 scopes over the signed-in user's own data (`Mail.Read`, `Calendars.Read`, `Contacts.Read`,
 `Files.Read`) carry no equivalent of Google's restricted tier and its annual third-party
-security assessment. The one face it does **not** carry is tasks, and that absence is ours
-rather than the provider's: Graph serves Microsoft To Do at `/me/todo/lists` under
-`Tasks.Read`, and no connector reads them yet (0114 T9). `oauth2` and `graph` **stay and
+security assessment — and a **fifth since 0114 T9: Microsoft To Do**, which Graph serves at
+`/me/todo/lists` under `Tasks.Read` and `graph-todo-source` reads, building the `VTODO` the
+task domain expects (title, notes, status, importance, due and start dates, completion,
+categories, checklist, recurrence). `oauth2` and `graph` **stay and
 cohabit** — they mean "the customer's own Entra app registration", which may carry
 application permissions this delegated grant never will, and which is what an administrator
 migrating other people's mailboxes needs.
@@ -135,8 +146,11 @@ reminder as an event produces something that looks migrated and is wrong. The ta
 advertise `VTODO` in its `supported-calendar-component-set` to receive them, and the domain
 step says so before a run rather than halfway through one. **Apple's Reminders** are the
 first provider-named source of them (`apple`, 0115) — `VTODO`s on the same CalDAV host as
-the calendars, reached by the same credential. Microsoft To Do is served by Graph under
-`Tasks.Read` and no connector reads it yet (0114 T9); Google Tasks needs its own API.
+the calendars, reached by the same credential. **Microsoft To Do** is the second (0114 T9):
+Graph serves it under `Tasks.Read`, and because a To Do list is not a CalDAV collection the
+`graph-todo-source` connector builds the `VTODO` itself — a full listing per pass, Graph's own
+status and importance kept beside the lossy RFC 5545 mapping, the checklist as lines in the
+description, the recurrence as an `RRULE`. Google Tasks needs its own API.
 
 ## Contacts
 
@@ -145,8 +159,9 @@ the calendars, reached by the same credential. Microsoft To Do is served by Grap
 | **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`) — wired in workplan 0054, same story as calendars, **including the same page-one-forever delta loop and `/$delta` path, both fixed in workplan 0059**; appliance mapping files; shared via `source.mailbox` | ⏳ CardDAV with OAuth (`google-contacts`, workplan 0045) — Stage 6 |
 | **Target** | ✅ CardDAV | — | 🚫 never a target |
 
-Also a target: **JMAP** (workplan 0031 T2), and **Soverin** (`soverin`) — the account kind's
-contact face, riding the same CardDAV writer (see Calendars).
+Also a target: **JMAP** (workplan 0031 T2), **Soverin** (`soverin`) and **Nextcloud**
+(`nextcloud`) — the account kinds' contact face, riding the same CardDAV writer (see
+Calendars).
 
 Also a source: **Apple** (`apple`, workplan 0115) — the contact face of the iCloud account,
 at `contacts.icloud.com`. Worth stating separately because it is a **different host** to the
@@ -183,6 +198,37 @@ to those files is the customer's own Data & Privacy export at `privacy.apple.com
 Apple hands to the person and not to us; teaching this product to accept such an archive is
 workplan 0116, and an archive with a date on it is a different shape of thing to a live
 account.
+
+**A file source that is not an account: the EXPORT ARCHIVE** (`archive`, workplan 0116 T1).
+Every column in the table above is a live service reached with a credential. This one is a
+**file the person already downloaded** — a Google Takeout archive or an Apple Data & Privacy
+download — and its credential is a *location*, not an account. It exists because it is the
+only route to two bodies of data no API here can reach: **Google Photos** (Google closed the
+Library API to general access on 31 March 2025) and **iCloud Drive** (never open at all).
+Which export a connection holds is a value on the row (`google-takeout` / `apple-privacy`),
+not a connection kind of its own, so a third export is a new reader and nothing else.
+
+It **connects, tests and measures** — how many distinct items, how many bytes, how many
+folders, and the date range the export covers, which is what somebody wants before committing
+to a multi-gigabyte import — and since 0116 T5/T6 it **migrates**: albums become folders under
+the target root, a photo in several albums is written under each (0112 decision 5), a photo in
+none lands under its year, edited versions and motion clips are distinct files beside their
+originals, and one manifest at the root carries everything the export knew about every item.
+Idempotency is the file domain's own ledger rule applied to the archive: a second import
+writes nothing, a later export in the series writes only what is new. Two properties hold
+from the start and are the reason the shape is worth being careful about: an archive that
+cannot be opened reads as **unknown with the reason** and never as an empty archive, and an
+archive is a **snapshot with a date** — so an archive import **only ever adds**. The source
+declares itself a snapshot (`FileSource.snapshot`) and the sync loop's absence-counting is off
+for it, so nothing is inferred, reported or even suspected from an item's absence between two
+exports. The Google reader is built (0116 T3a); the Apple reader waits on somebody opening a
+real export (0116 T3b), and is deliberately absent rather than stubbed, because a stub
+answering "0 items" is indistinguishable from an export that really was empty. The import is gated
+end to end in the self-host E2E (0116 T10): a fixture Takeout imported into the real Nextcloud,
+placement and the manifest read back, a second pass writing nothing. On the managed edition an
+archive has to arrive through a cloud this product reads or an upload — its run containers
+share no disk with the API (0116 T4). Not yet: taken-time and GPS written into the copy's EXIF
+(0112 T3), and reading a zip without extracting it (0116 D7).
 
 What migrates: file **bytes, verbatim**, hashed (`contentHash`) so unchanged files are never
 re-sent and changed ones are updated (with the same edited-on-target conflict protection);
@@ -323,5 +369,6 @@ These hold across all object types, and are features rather than gaps:
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |
 | Apple (iCloud) against a real Apple Account — the app-specific password's dashed form, the username's local-part-vs-address question, and the first live face counts | ⏳ built, unproven | `apple-supervised-run.md`; workplan 0115 |
 | iCloud Drive as a live source | 🚫 impossible — Apple publishes no API to anyone | Files section above; the archive route is workplan 0116 |
-| Microsoft To Do / Google Tasks as task sources | ⛔ not built (the domain and the CalDAV `VTODO` path are) | workplan 0113; 0114 T9 |
+| Microsoft To Do as a task source | ✅ `graph-todo-source`: the account kind's fifth face, `Tasks.Read` asked only when ticked; unmeasured against a live tenant (needs a consent nobody in CI can press) | workplan 0114 T9 |
+| Google Tasks as a task source | ⛔ not built — needs the Tasks API; Google's CalDAV carries no `VTODO` at any scope tier | workplan 0113 T6 |
 | Sieve rules, signatures, OOF, ACLs, invitation state, version history | 🚫 out of scope, stated per domain above | this document |

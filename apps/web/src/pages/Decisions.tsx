@@ -30,6 +30,7 @@ import { useT, useFormatters } from '../i18n/index.tsx';
 import StateChip from '../components/StateChip.tsx';
 import AsOf from '../components/AsOf.tsx';
 import type { StringKey } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 
 /** The server's message for a failed request, verbatim; dictionary fallback. */
 function errorText(err: unknown, fallback: string): string {
@@ -175,7 +176,7 @@ const Decisions: React.FC = () => {
         <h2 className="text-lg font-semibold text-gray-900 mb-1">
           {t('decisions.presets.heading')}
         </h2>
-        <p className="text-sm text-gray-500 mb-3">{t('decisions.presets.intro')}</p>
+        <Hint className="mb-3" label="more" text={t('decisions.presets.intro')} why={t('decisions.presets.intro.more')} />
         {presetQuery.isError ? (
           /* Said, not hidden: a queue that answers some categories without
              showing which is exactly the silence this feature exists to

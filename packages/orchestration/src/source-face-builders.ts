@@ -48,6 +48,7 @@ import {
   isProviderAccountKind,
   type ProviderAccountKind,
 } from '@openmig/shared';
+import { ARCHIVE_CONNECTION_KIND } from './archive-source-factory.ts';
 import { BOX_CONNECTION_KIND } from './box-source-factory.ts';
 import { DROPBOX_CONNECTION_KIND } from './dropbox-source-factory.ts';
 import { GOOGLE_DRIVE_CONNECTION_KIND } from './drive-source-factory.ts';
@@ -73,8 +74,20 @@ export type SourceFaceBuilder =
   | 'graph-calendar'
   | 'graph-contacts'
   | 'graph-drive'
+  // Microsoft To Do (workplan 0114 T9): the one task face that is not a CalDAV
+  // collection, and the fifth Graph builder.
+  | 'graph-todo'
   | 'dropbox'
   | 'box'
+  // An EXPORT ARCHIVE's file face (workplan 0116 T1, built out in T5/T6).
+  // Named here BEFORE the builder existed, deliberately: without a name of its
+  // own an `archive` row falls to `protocolDefault('file')` and is handed to
+  // `dav`, which aims a WebDAV client at a folder on a disk and refuses it for
+  // a missing password. That is #597's shape exactly — a fan-out whose absence
+  // is invisible until somebody runs one. The arm was a named refusal first
+  // and is `ArchiveFileSource` now: placement, the manifest, and a snapshot's
+  // refusal to report deletions, over whichever reader opened the export.
+  | 'archive'
   | 'imap'
   | 'dav';
 
@@ -110,14 +123,19 @@ const ACCOUNT_FACE_BUILDERS: Readonly<
     contact: 'dav',
     task: 'dav',
   },
-  // Four Graph builders, all of which already existed — wired in
-  // `build-deps.ts` for the appliance, from OAUTH2_* environment variables,
-  // and reachable from a stored connection for the first time here (0114 T5a).
+  // Four Graph builders that already existed — wired in `build-deps.ts` for
+  // the appliance, from OAUTH2_* environment variables, and reachable from a
+  // stored connection for the first time in 0114 T5a — and a FIFTH (0114 T9):
+  // Microsoft To Do, the task face Google has not got at any scope tier and
+  // Microsoft serves at `/me/todo/lists`. It is `graph-todo` rather than
+  // `dav` because a To Do list is not a CalDAV collection; the connector
+  // builds the VTODO the task domain reads.
   microsoft: {
     email: 'graph-mail',
     calendar: 'graph-calendar',
     contact: 'graph-contacts',
     file: 'graph-drive',
+    task: 'graph-todo',
   },
   // Soverin's row, a different provider (workplan 0115). Apple publishes no
   // OAuth scope for its own data, so an Apple account is reached with an
@@ -125,7 +143,7 @@ const ACCOUNT_FACE_BUILDERS: Readonly<
   // builders `soverin` uses, and that is the finding rather than a shortcut:
   // this row needed no new connector at all. `task` is DAV because Reminders
   // are VTODO in the calendar account (0113 T5), which is why Apple's task
-  // face works on the day the kind arrives and Microsoft's still does not.
+  // face worked on the day the kind arrived, a slice before Microsoft's did.
   apple: {
     email: 'imap',
     calendar: 'dav',
@@ -151,6 +169,10 @@ const SINGLE_PURPOSE_FACES: Readonly<
   [GOOGLE_DRIVE_CONNECTION_KIND]: { file: 'google-drive' },
   [DROPBOX_CONNECTION_KIND]: { file: 'dropbox' },
   [BOX_CONNECTION_KIND]: { file: 'box' },
+  // The export archive (0116 T1). In the single-purpose table rather than the
+  // account table because it is emphatically not an account — one row, one
+  // export, one face — which is the same reason `google_drive` sits here.
+  [ARCHIVE_CONNECTION_KIND]: { file: 'archive' },
 };
 
 /**

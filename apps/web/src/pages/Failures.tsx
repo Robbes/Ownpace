@@ -29,6 +29,7 @@ import {
 } from '../components/queues/primitives.tsx';
 import { acceptFailure, fetchFailures, retryFailure } from '../services/operating-service.ts';
 import { useT } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 
 const Row: React.FC<{
   f: ItemFailure;
@@ -96,7 +97,7 @@ const Failures: React.FC = () => {
           {/* What retry costs, said before it is pressed (0036 T4) — the
               sentence tracks domain-sync.ts's cursor comment. */}
           {queue.needsDecision.length > 0 && (
-            <p className="mb-2 text-xs text-gray-500">{t('failures.retryCost')}</p>
+            <Hint className="mb-2" text={t('failures.retryCost')} why={t('failures.retryCost.why')} />
           )}
           {queue.needsDecision.map((f) => {
             const pending = outcomes[f.naturalKeyHash]?.state === 'pending';

@@ -38,6 +38,17 @@ the same conversation.
 moment somebody wanted to read it. So the page can still tell you what happened
 last Tuesday even though it could not tell you at the time.
 
+## The operator's screen reads the same page
+
+The support screen's tenant view carries *Platform, as the customer sees it*:
+readiness, component by component, and this page's own endpoint list — group,
+name, up or down, and when — read from the `gatus` container over the compose
+network (`STATUS_URL`, defaulting to it). Nothing more than the page shows
+leaves that way: the probed hostnames, condition text and error strings in
+Gatus's JSON stay on the box. A stack without a page says so on that screen; a
+page that does not answer is reported as exactly that, which on a stack that
+has one is news in itself.
+
 ## What the groups mean
 
 | Group | What a red light means |
@@ -100,13 +111,17 @@ box and comes back through the ingress — making it the one row that can see an
 ingress outage while it is happening.
 
 **The identity provider is probed from inside, and that is a limit.** The
-default `STATUS_IDP_URL` is the provider's service name and port on this stack's
-network. Pointing it at a public https issuer does not do what it looks like:
-`managed.yml` gives the provider a network alias equal to its external domain,
-so from inside this container that name resolves to the container rather than to
-the ingress, and the probe would ask for 443 where nothing listens. Probing the
-public issuer means running this page off this box — which the file header
-already names as the eventual plan.
+default `STATUS_IDP_URL` is the provider's external domain on the container's
+own port, and `managed.yml` puts the page and the provider on a small network
+of their own where that name resolves to the provider's container — whether or
+not something fronts it publicly. (It used to rely on the provider's alias on
+the app network; that alias is derived now and, on a fronted stack, is not the
+domain, so the probe left the box for the ingress and the row read red for a
+provider that was signing people in.) Pointing the setting at a public https
+issuer does not do what it looks like: from inside this container the name
+still resolves to the provider, which serves plain http, and the probe would
+ask for 443 where nothing listens. Probing the public issuer means running this
+page off this box — which the file header already names as the eventual plan.
 
 ## Bringing it up
 

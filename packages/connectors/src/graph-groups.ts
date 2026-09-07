@@ -26,6 +26,7 @@
  *    becomes a `shared_address_pattern` decision rather than a guess.
  */
 
+import { graphRefusalBody } from './graph-refusal.ts';
 import {
   log,
   type DirectoryListing,
@@ -234,7 +235,7 @@ async function getJson<T>(
     // Graph's own words: a 403 here usually means consent was granted but the
     // Application Access Policy excludes this app, and the operator needs the
     // server's text to tell those apart.
-    return { ok: false, reason: `Graph answered ${res.status}: ${res.body}` };
+    return { ok: false, reason: `Graph answered ${res.status}: ${graphRefusalBody(res.body)}` };
   }
 
   try {

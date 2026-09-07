@@ -231,6 +231,7 @@ const Moves: React.FC<{
   <QueueScreen<MovesQueue>
     title={t('moves.title')}
     intro={t('moves.intro')}
+    more={t('moves.intro.more')}
     queryKey="moves"
     fetcher={() => fetchMoves(mappingId)}
     renderMapping={(mappingId, queue, act, outcomes, setOutcome, refresh) => (

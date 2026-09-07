@@ -22,6 +22,13 @@ updates:
       # REMOVE THIS when TypeScript 7.1 ships and typescript-eslint#10940 closes.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
+      # The Trigger.dev SDK moves with the Trigger.dev image or not at all: the two
+      # compose defaults, managed.env.example and apps/worker's SDK must agree, the
+      # bring-up and bootstrap-managed.unit.test.ts refuse when they do not, and an
+      # upgrade is a one-way schema migration on the persistent stack. Dependabot
+      # moved the SDK alone on 2026-08-24 and every managed run died at the bring-up.
+      # deploy/compose/trigger-version.sh moves all four places. Workplan 0119 T1.
+      - dependency-name: "@trigger.dev/*"
     groups:
       # One PR/week for routine minor+patch bumps across dev + prod deps.
       minor-and-patch:
@@ -47,3 +54,77 @@ updates:
           - "*"
     commit-message:
       prefix: ci(actions)
+
+  # Container images in the Dockerfiles (workplan 0119 T1). Every FROM carries
+  # `image:tag@sha256:…`: Dependabot compares tags and moves the digest with the
+  # tag, and a bare digest has no version to compare. Minor+patch grouped; a
+  # major (a new Node line) is its own PR, because `engines` and CI must follow.
+  - package-ecosystem: docker
+    directories:
+      - "/apps/api"
+      - "/apps/web"
+      - "/apps/selfhost"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    ignore:
+      # The runtime's major moves by hand, with `engines` in package.json and the
+      # Node line CI installs, when the next LTS line is current (workplan 0119
+      # §2.4). Dependabot's first run offered 26-slim, the Current line, three
+      # times in one morning; that is not a decision a green tick may take.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+    groups:
+      images:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore(images)
+
+  # Every image the managed and self-host stacks run (workplan 0119 T1). What is
+  # ignored here is ignored by name and for a reason, so that a green tick on a
+  # Monday cannot make a decision that is the owner's — see 0119 §2.1 and §3.
+  - package-ecosystem: docker-compose
+    directories:
+      - "/deploy/compose"
+      - "/deploy/selfhost"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    ignore:
+      # One way: Trigger.dev migrates its schema, and the webapp, the supervisor
+      # and the SDK are ONE version, moved together by trigger-version.sh.
+      - dependency-name: ghcr.io/triggerdotdev/trigger.dev
+      - dependency-name: ghcr.io/triggerdotdev/supervisor
+      # One way: Zitadel migrates its schema at boot, on the persistent gate stack.
+      - dependency-name: ghcr.io/zitadel/zitadel
+      # Pinned by digest to what Trigger.dev's own compose pins, on purpose
+      # (docs/managed-bring-up.md: the version that rejected a migration).
+      - dependency-name: clickhouse/clickhouse-server
+      # No upstream left to follow (0119 §3); a replacement is a design decision.
+      - dependency-name: bitnamilegacy/minio
+      # Majors are decisions: pg_upgrade, a licence, a config rewrite, a fixture.
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+      - dependency-name: redis
+        update-types: ["version-update:semver-major"]
+      - dependency-name: registry
+        update-types: ["version-update:semver-major"]
+      - dependency-name: nextcloud
+        update-types: ["version-update:semver-major"]
+      - dependency-name: caddy
+        update-types: ["version-update:semver-major"]
+    groups:
+      images:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore(images)

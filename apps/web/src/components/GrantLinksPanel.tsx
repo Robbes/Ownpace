@@ -43,6 +43,7 @@ import {
   type IssuedGrantLink,
 } from '../services/grant-link-service.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
+import { Hint } from './Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
 
@@ -133,7 +134,7 @@ const GrantLinksPanel: React.FC<{ mappingId: string }> = ({ mappingId }) => {
   return (
     <section className="mt-8">
       <h3 className="text-base font-semibold text-gray-900">{t('grantLink.title')}</h3>
-      <p className="mt-0.5 text-sm text-gray-500">{t('grantLink.blurb')}</p>
+      <Hint className="mt-0.5" text={t('grantLink.blurb')} why={t('grantLink.why')} />
 
       <form onSubmit={issue} className="mt-3 flex flex-wrap items-end gap-3">
         <label className="flex flex-col text-sm text-gray-700">

@@ -323,6 +323,26 @@ describe('the e2e fixture mapping', () => {
   });
 });
 
+describe('the archive-import gate\'s fixture mapping (workplan 0116 T10)', () => {
+  const fixturePath = resolve(__dirname, '../../../test/e2e/fixtures/selfhost-archive-import.mapping.json');
+
+  it('parses as an ARCHIVE source at the path the dev overlay mounts the fixture on', () => {
+    // The appliance loads this beside the main fixture; a parse failure here
+    // is the whole self-host gate dying at start-up rather than one gate red.
+    const parsed = parseMappingConfigJson(readFileSync(fixturePath, 'utf8'));
+    expect(parsed.source).toEqual({
+      type: 'archive',
+      provider: 'google-takeout',
+      path: '/data/fixtures/takeout',
+    });
+    expect(parsed.domains?.files?.enabled).toBe(true);
+    expect(parsed.domains?.files?.source).toMatchObject({ type: 'archive', path: '/data/fixtures/takeout' });
+    expect(parsed.domains?.files?.target).toMatchObject({ type: 'webdav', user: 'e2e-target' });
+    // Files only: an archive carries no mail, calendars or contacts (0116 D5).
+    expect(Object.keys(parsed.domains ?? {})).toEqual(['files']);
+  });
+});
+
 describe('the shipped example mapping', () => {
   const examplePath = resolve(__dirname, '../../../deploy/selfhost/config/mapping.json.example');
 

@@ -1,6 +1,130 @@
 # Workplan 0116 — The data they give the person, not us
 
-## Status — 2026-09-04 (update this block at the end of every session)
+## Status — 2026-09-05 (update this block at the end of every session)
+
+**2026-09-05, the second slice is BUILT: an archive mapping actually imports (T5 + T6).**
+`ArchiveFileSource` makes whatever a reader answers look like any other file source, so the
+file domain's loop, ledger and targets copy out of an export exactly as they do out of a Drive.
+The reader seam grew the two members the import needed and nothing else: `placeIn` (which of
+an item's folders are the PERSON's — placement's whole input) and `content()` (the bytes, by
+item, so placement never has to know an archive's layout). A third export is still a new
+reader and nothing else; this file has no `switch` on `provider`.
+
+**Placement, as built.** Every album is a folder under the import root and a photo in several
+albums is written under each (0112 decision 5). A photo in an album is NOT written under its
+year as well; a photo in NO album lands under its year — the only home the export gave it, and
+the alternative is thousands of files flat at the root where two cameras' `IMG_0001.jpg`
+collide. **That second half is a reading of 0112 §3 the owner should confirm**: §3 says the
+year folder is not reproduced, and this build takes that to be about a photo that has an
+album. Edited versions and motion clips are placed like any item, beside their originals. One
+manifest at the root — `export-archive-manifest-<fingerprint>.json`, fingerprinted by the
+archive's hashes so the same archive is the same file — carries everything the export knew
+about every item: sidecar verbatim, every folder, kind, `relatedTo`. EXIF into the copy is
+still 0112 T3 and not touched.
+
+**Idempotency and the delta needed nothing new (T6, §5)**, which was the claim and is now the
+proof: the ledger's existing path-plus-hash rule skips a second import entirely (0 created, all
+skipped, nothing fetched) and writes only what is new in a later export. **The rule that an
+archive delta may only ADD found the one place it could have broken**: the loop's
+absence-counting runs on every cursor-less pass — the exact shape of an archive import — and a
+source that merely declined `listKeys` would still have been counted there. So `FileSource`
+grew `snapshot`, `ArchiveFileSource` sets it, and `runDomainSync` starts a snapshot's pass with
+absence-counting off. Proved through the real loop and the real Takeout reader: Y missing from
+the later export across more passes than a live account needs to call an absence a deletion —
+drift 0, deletions none, Y still on the target; and the control with the flag stripped counts
+it at once.
+
+**The doors opened.** The create door's NOT-BUILT refusal is gone (its guard is renamed and
+now holds the door open, including a reused connection being asked for the path and not the
+provider); the wizard offers the card, pins the file domain and a file-capable target, asks
+which export as a choice and where it is as a path, and demands no username of a kind that has
+none. `docs/archive-setup.md` gained *Moving it* — where things land, doing it twice, and the
+sentence that nothing is ever removed because an export no longer mentions it.
+
+**Found on the way, fixed in #787 (stacked under this):** E2E (managed) #154 — the first run
+ever to post an honest archive body to `POST /api/connections` — was refused for a `username`
+the kind does not have. The connections door now follows the descriptor, refuses an unknown
+export by name, and the add-form renders "Which export" as a choice.
+
+**2026-09-05, later: T10's import half, and the hole it found on its first read.** The
+import is gated in the SELF-HOST E2E, not the managed one, and the reason is a measurement
+worth keeping: the managed edition's run containers get a network and nothing else, so a
+folder the API can read is not a folder a pass can read — a local path is the appliance's
+route alone (T4). The gate mounts a five-file Takeout read-only into the appliance, loads a
+second mapping PAUSED beside the main one, green-lights it in the LAST gate so nothing it
+writes is on the target while the other gates measure it, and asserts against the real
+Nextcloud: the album copy is there, the year duplicate is not, the manifest reads back with
+the sidecar in it, and a second pass writes nothing. Writing it found that the APPLIANCE's file
+arm had no `archive` case — T5/T6 wired the managed seam only, so an archive mapping on the
+appliance would have been handed to the DAV resolver and refused for a URL it never had. Fixed
+in the same change; the gate is what would have said so.
+
+**2026-09-05, the gate's first run: the second mapping was the first.** The import itself
+landed every file where the gate expects it — and the gate read back 27 items for a five-file
+archive, then a 409 saying the mapping was already `done`. The main mapping's count and the
+main mapping's finish. The appliance's `uuidFromString` kept only the first sixteen bytes of
+its seed, and every seed begins with the 36-character tenant id, so every id it derived for a
+tenant was the same value: the source connection, the target connection, both mailboxes, and
+the mapping — a second mapping in a tenant shared the first's row, status, ledger and finish.
+Nobody saw it because every appliance had exactly one mapping. Fixed by hashing the whole
+seed, with a claim at boot so an appliance upgraded in place keeps the row it already has
+(the quickstart promises the in-place upgrade; the mapping's config id is recorded on the row
+as `name`, and a mapping added later cannot walk off with another's history). Pinned against
+the real appliance on PGlite: two mappings in one tenant have two rows, and an upgraded
+appliance boots into its old row active rather than a fresh one paused.
+
+**What is left.** T3b still waits on an Apple export; T4's managed half on D7; T9 on T4.
+
+### Earlier — 2026-09-04
+
+**2026-09-04, the first slice is BUILT.** T1+T2+T3a+T7 all landed. An export archive is a
+connection kind whose credential is a location; the reader seam takes one implementation per
+export; Google's Takeout reader is behind it; and the measure reads items, bytes, folders and
+the export's date span off the same `summary()` an import would iterate.
+
+Two properties hold from the first commit and both are proved by breaking them: **an archive
+that could not be opened is `unknown` with the reason, never an empty archive** — a truncated
+25 GB download must never read as *you have no photos* — and **the provider is checked by
+name at every door**, because the wrong reader does not fail, it finds none of its own
+landmarks and reports nothing.
+
+What is deliberately NOT built is migrating FROM one (T5, T6). The create door refuses an
+archive source by name saying NOT BUILT rather than *not supported*; the file seam has an
+`archive` arm that throws rather than falling through to `dav`; and the wizard does not offer
+the card at all, enforced by the compiler rather than by a filter. The Connections page does
+offer it, where every answer it gives is true.
+
+T7 carries §4's price out loud: the item count legitimately EXCEEDS what Google Photos tells
+the person they have, so the Measured line breaks it down — originals, edited versions,
+motion clips — and says why in the same breath, before they can be surprised by it.
+
+T8 landed with it, and closed a hole T1 had opened: the create door's refusal already told
+people to read `docs/archive-import.md`, **which did not exist**. It is `archive-setup.md`
+now, because that suffix is what the app actually serves at `/docs`, and the end-user guard
+was widened so a guide that never says WHICH export or WHERE it is fails there rather than in
+front of somebody at step four.
+
+**T10's connect-and-measure half is in the managed gate**, and it earned its keep before it
+ever ran: writing it found that `qualifyArchive` had been wired into the dispatch chain while
+a guard one function earlier returned before the chain ran, so the Measured line was dead code
+and nothing was red. The archive is the one source this gate can drive COMPLETELY — a fixture
+export tree needs no account, no consent and no network — which is why it is net-positive
+where the Apple block can only be net-zero. The IMPORT half of T10 still waits on T5/T6.
+
+**What is left, and what it waits on.** T3b needs an Apple export somebody has opened. T4's
+managed half is gated by D7 below, the one decision still open; its appliance half is what T1
+already does, since a local path is the whole of it. T5 and T6 are the next SLICE rather than
+the next task — they turn "connect and measure" into "actually imports", and the create door's
+refusal comes out when they land.
+
+**2026-09-04, later again: two more owner answers folded in.** Edited versions and motion
+clips are **distinct items carrying a link to their original**, not attributes of one record —
+because Google Photos shows the edited version by default, so a single-record design discards
+the very version the person means to keep. And the unzip question is answered per edition:
+appliance unzips (there is no upload), managed keeps it zipped (a 25 GB stream beats tens of
+thousands of small files, and the zip's per-entry CRCs are an integrity check a loose tree
+throws away). Both converge on one open decision — **whether to take an archive dependency so
+a zip can be read without extracting** — which gates the managed edition and nothing else.
 
 **2026-09-04, later still: §5 rewritten as T6's design** after the owner asked whether the
 content hash could carry the delta across a series of exports. It can, it is the only thing
@@ -34,17 +158,17 @@ If the owner decides only one thing here, decide **D1**.
 | Task | Status | Notes |
 |---|---|---|
 | T0 | ✅ **Answered 2026-09-04** | All six decided — see §"The owner's decisions". The first slice is **T1+T2+T3a+T7**. |
-| T1 The archive, as a kind of connection | 🔨 **Next — first slice** | `ArchiveSource`: a source whose credential is an archive's LOCATION, not an account. Front door, wizard, connection card, probe, three-state record. Provider-agnostic. |
-| T2 The reader seam | 🔨 **Next — first slice** (needs T1) | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
-| T3a The Takeout reader (Google Photos) | 🔨 **Next — first slice** (needs T2) | 0112 T1's reader, unchanged, behind the T2 interface. |
+| T1 The archive, as a kind of connection | ✅ **Built 2026-09-04** | `ArchiveSource`: a source whose credential is an archive's LOCATION, not an account. Front door, wizard, connection card, probe, three-state record. Provider-agnostic. |
+| T2 The reader seam | ✅ **Built 2026-09-04** | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
+| T3a The Takeout reader (Google Photos) | ✅ **Built 2026-09-04** | 0112 T1's reader, unchanged, behind the T2 interface. |
 | T3b The Data & Privacy reader (Apple) | 📋 **Blocked on a real export** | Nobody here has opened one. T3b starts by opening one and writing down what is inside — see §"What is not known". |
-| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first** | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
-| T5 Placement and the manifest | 📋 Planned (needs T2) | Where items land on the target, albums/folders as folders, and one manifest row per item so nothing the provider knew is lost. 0112 §3 is this task's design for photos. |
-| T6 Idempotency by content hash | 📋 Planned (needs T2) | A second import writes nothing; an overlapping archive writes only what is new. The file domain's existing ledger rule, applied to archives — **and the delta across a series of archives**, which needs no new store. §5 carries the design, including the rule that an archive delta may only ADD. |
-| T7 Measure before the move | 🔨 **Next — first slice** (needs T2) | Items, bytes, folders, the export's date range on the Measured line, with the sentence that an archive is a SNAPSHOT WITH A DATE. |
-| T8 The walkthrough | 📋 Planned | `docs/archive-import.md`: how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
+| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first.** **Measured 2026-09-05:** the managed edition's run containers get a network (`DOCKER_RUNNER_NETWORKS`) and nothing else — no volume shared with the API — so a local path can never reach a managed pass. The local path is the appliance's route alone; on managed the archive has to arrive through a cloud this product reads, or an upload (D7). | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
+| T5 Placement and the manifest | ✅ **Built 2026-09-05** | `ArchiveFileSource` over the seam's new `placeIn` and `content()`: albums as folders, a photo written once per album (0112 decision 5), a photo in no album under its year, one fingerprinted manifest at the root with everything the export knew. Edited versions and motion clips are distinct items linked to their original (decided 2026-09-04, §4). EXIF into the copy stays 0112 T3. |
+| T6 Idempotency by content hash | ✅ **Built 2026-09-05** | Nothing new: the ledger's path-plus-hash rule, proved through the real loop — a second import writes nothing, a later export writes only what is new. **An archive delta may only ADD** is enforced by `FileSource.snapshot`, which switches the loop's absence-counting off; proved with the flag on and, as the control, stripped. |
+| T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
+| T8 The walkthrough | ✅ **Built 2026-09-04** | `docs/archive-setup.md` (the `-setup` suffix is what the app serves at `/docs`): how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
-| T10 The gate | 📋 Planned | A tiny fixture archive of each shape in the E2E, imported end to end, asserting item count, hashes and a second import writing nothing. |
+| T10 The gate | ✅ **Built 2026-09-05** (in two gates) | Connect + measure in the MANAGED E2E (2026-09-04). The IMPORT in the SELF-HOST E2E (2026-09-05): a fixture Takeout mounted read-only into the appliance, a second paused mapping green-lit by the last gate, imported into the e2e-target Nextcloud — placement asserted against the real server (album copy, no year duplicate), the manifest read back, a second pass writing nothing. The managed gate cannot carry the import at all: its run containers share no filesystem with the API (T4). Its first run found the appliance keyed every mapping of a tenant by ONE id (`uuidFromString`) — fixed, with the in-place upgrade kept. |
 
 ## Why this exists
 
@@ -255,6 +379,47 @@ on the person's own machine, so the archive is already there. **A local path is 
 correct Apple route and should probably be T4's first slice**, with the managed upload behind
 D3.
 
+#### Should the person unzip it first? Appliance yes, managed no
+
+**Asked by the owner 2026-09-04, and the answer differs by edition — which is why it is worth
+writing down rather than deciding twice.**
+
+**On the appliance: unzip, and it costs nothing.** There is no upload at all; the archive is
+already on the person's disk. They extract it, point the appliance at the folder, and the
+reader (T3a) takes exactly that today. This is the natural path and the reason D3 put the
+local path first.
+
+**On the managed edition: keep it zipped, and the reason is not the one people expect.** A
+Takeout archive holds JPEGs, HEICs and MP4s, which are *already compressed* — the zip is a
+container rather than a compressor, and unzipping saves almost no bytes. What it does is turn
+**one 25 GB stream into tens of thousands of small files**: one connection becomes tens of
+thousands of round trips, and a byte-offset resume becomes per-file bookkeeping. Over a slow
+or lossy link that is dramatically worse, and the multi-gigabyte upload is already the hardest
+part of T4.
+
+There is a second reason, and it is about honesty rather than speed: **a zip carries a CRC per
+entry.** A truncated or corrupted transfer is detectable. Extracted to a loose tree, that check
+is thrown away — and this plan's whole posture is that a part-finished download must be
+distinguishable from an empty library.
+
+**For Google, the better answer is not to upload at all**: Takeout delivers into Drive,
+Dropbox, OneDrive or Box, every one of which is already a source this product reads. Nothing
+is uploaded and nothing is unzipped by hand.
+
+#### The one piece of work all of this converges on
+
+Every managed route — the zip sitting in someone's Drive, and the zip they uploaded — needs
+the same capability: **reading inside a zip without extracting it.** T3a deliberately does not
+have it; it takes an extracted directory, because adding an archive dependency is a
+supply-chain decision and not one to take inside a first slice.
+
+That decision is **open and belongs to the owner.** It is a small, well-understood category of
+library, and the appliance route works without it — so it gates the managed edition of this
+feature and nothing else.
+
+**Apple stays the hard case whatever is decided.** Its export is a download link and nothing
+else: no delivery into a cloud we read, so for Apple-on-managed it really is upload-or-nothing.
+
 The 14-day link window is a product constraint, not just a fact: whatever we build has to be
 usable inside two weeks of the mail arriving, by somebody who is mid-migration. T8's
 walkthrough should tell them to start the request *before* they need it.
@@ -268,6 +433,30 @@ rule 2). Metadata travels two ways, as 0112 §3 designed for photos:
   them; mtime for files), never into the archive;
 - **into a manifest** beside the tree, one row per item, carrying everything the provider knew
   — so nothing is lost even where no target field exists.
+
+#### Edited versions and motion clips: everything is written, and linked
+
+**Decided by the owner 2026-09-04, and it is a data-loss question rather than a tidiness
+one.** Takeout ships an edited photo as `<name>-edited.<ext>` beside the original, and a
+motion photo as a JPEG plus an MP4 with the same stem.
+
+The tempting design — 0112's phrasing — is **one record with `hasEdited: true`**. It has a
+trap: **Google Photos shows the EDITED version by default.** It is the one the person has
+been looking at for years and thinks of as their photo. A single record that writes the
+original's bytes therefore discards exactly the version they meant to keep, and nothing
+anywhere reports it. A motion clip is a different case again: an MP4 is not a duplicate of a
+JPEG by any reading.
+
+So each is **a distinct item with its own hash and its own bytes**, carrying a `relatedTo` in
+its metadata naming the original it belongs to. Nothing is lost, placement gets to decide
+what to do with the relationship (side by side, or edits in a subfolder), and the worst case
+is a slightly noisier folder — **visible, and something a person can undo.** The alternative's
+worst case is silent data loss, which is neither.
+
+The consequence has to be priced in rather than discovered: **the item count will exceed what
+Google Photos tells the person they have.** A three-thousand-photo library may measure as four
+thousand items. T7's Measured line breaks that down — originals, edited versions, motion clips
+— instead of showing one number that reads as an error.
 
 Deliberately not attempted, for either provider: reproducing sharing state, face/people
 tagging, or any provider-side "recently deleted" notion.
@@ -358,9 +547,66 @@ domain on one side and a one-shot on the other.
   migrates live, far better. Recommendation: **files and photos only**, and the wizard says
   why: the live account is the better route for everything else, and importing both would
   duplicate a person's mail.
+- **D7 — ⏳ OPEN: do we take an archive dependency, so a zip can be read without extracting
+  it?** Created by the 2026-09-04 answers rather than present from the start. **It gates the
+  managed edition of this feature and nothing else** — the appliance route works without it,
+  because there the person extracts the archive themselves and T3a reads a directory today.
+  Every managed route needs it and needs the same thing: the zip in someone's Drive, and the
+  zip they uploaded, are both zips. It is a small, well-understood category of library; it is
+  still a supply-chain decision and so it is yours. Recommendation: **defer it** until the
+  appliance route has carried a real archive, because the measurement may change what is
+  wanted, and nothing before T4 is blocked. §"What D7 is actually choosing between" below
+  lays out the three options and the one measurement that should precede the decision.
 - **D6 — ✅ DECIDED: "Import an export", with the provider's own words beneath.** Not "sync", for Apple. Recommendation: *"Import an
   export"* as the family, and per provider *"Google Takeout archive"* / *"Apple Data & Privacy
   export"* — the provider's own words, so a search engine and a support conversation match.
+
+### What D7 is actually choosing between
+
+Written 2026-09-04 so the decision can be taken in a minute rather than researched again.
+**Nothing here is a recommendation to build anything** — it is what the options cost.
+
+**The starting fact, measured rather than assumed:** Node ships no ZIP reader. `node:zlib`
+gives DEFLATE and gzip — the *compression*, not the *container* — and there is no `node:zip`
+in any release line (checked on this repository's own Node, 22.22.2, on 2026-09-04; the repo
+targets ≥24, where the same is true). So reading a `.zip` without extracting it is either a
+dependency or code of ours. There is no third door where the platform already does it.
+
+| | What it costs | What it buys |
+|---|---|---|
+| **1. Extract first** — today's answer, and what T3a does | Transiently **twice the disk**, and a step the person has to perform | Nothing to decide, nothing to audit, nothing to keep patched |
+| **2. A ZIP library** | One runtime dependency in `packages/connectors`, which today has four non-workspace ones. On a product whose pitch is custody of other people's data, that is a real cost and not a formality | Random access into a multi-gigabyte archive with no extraction, and somebody else's edge cases already handled |
+| **3. Read the central directory ourselves** | Perhaps 250–350 lines, and the ZIP64 extensions a >4 GB part needs. Hand-rolled parsers of somebody else's format age badly | No dependency at all. And the read path is genuinely narrow: locate the end-of-central-directory record, walk the entries, seek to each local header, inflate with `createInflateRaw` |
+
+Option 3 is more defensible here than it would usually be, for one reason worth stating: **we
+only ever READ.** A parser that gets something wrong fails to produce an item, loudly, on an
+archive nothing is being written to — which is a very different blast radius from a
+hand-rolled *writer*. It is still more code to own than a dependency is to audit once.
+
+#### The measurement that should come first, and it is already in flight
+
+**Are the parts independent zips, or one archive split across several files?** This is the
+question that decides how hard options 2 and 3 are, and neither has been checked:
+
+- **Independent zips** — each part carries its own central directory and is openable alone.
+  Option 3 becomes tractable, option 2 becomes a small library rather than a large one, and
+  even option 1 is unremarkable.
+- **A split (spanned) archive** — the central directory lives in the last part and entries
+  run across part boundaries. Hand-rolling that is a different order of difficulty, and a
+  good many libraries decline to support it at all.
+
+The owner's own exports settle it: a Takeout was to be requested shortly and an Apple export
+was requested on 2026-09-04. **When they land, record three things before D7 is answered:**
+
+1. does each part open on its own, or only as a set;
+2. does any single part exceed 4 GB (which is what makes ZIP64 mandatory rather than
+   incidental);
+3. is the layout the same for both providers, or does each need its own answer.
+
+Until then D7 is not merely deferrable, it is **premature**: the option costs above are known
+and the thing that would tip between them is not. And §3 already notes that the managed
+multi-gigabyte upload "is its own slice and may never be built" — so this may be a decision
+that never has to be taken at all.
 
 ## Not in this plan
 

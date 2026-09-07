@@ -308,7 +308,7 @@ describe('the email summary preference', () => {
     renderScreen();
 
     // Not a default that a save would then write over something unseen.
-    expect(await screen.findByText(/Could not read the current setting/)).toBeInTheDocument();
+    expect(await screen.findByText(/Could not read the setting/)).toBeInTheDocument();
     expect(screen.queryByLabelText('Summary')).not.toBeInTheDocument();
   });
 });

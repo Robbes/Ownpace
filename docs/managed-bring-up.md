@@ -449,7 +449,73 @@ boot (ADR-0036), shared first.
 
 Without `--with-demo` the services are **named explicitly** rather than swept
 up, so a bare `up` does not start Nextcloud — whose admin password is
-`change-me-nextcloud-admin` by default.
+`change-me-nextcloud-admin` by default. To start it on its own, without the
+demo tenants and their published credentials:
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d --wait nextcloud
+```
+
+First boot INSTALLS Nextcloud, so `--wait` can sit there for two to three
+minutes before `status.php` answers. It publishes on `127.0.0.1:8083` and its
+trusted domains are `localhost nextcloud`, so the UI answers on
+`http://localhost:8083` from the host itself (`ssh -L 8083:localhost:8083
+<host>` from elsewhere). Inside the stack its DAV root is
+`http://nextcloud/remote.php/dav` — the base URL a `caldav`, `carddav` or
+`webdav` connection takes.
+
+#### Reaching it over a private mesh (NetBird, Tailscale)
+
+To browse what a migration actually landed, from a laptop on the mesh and with
+no tunnel, publish it on the peer address and put that address on the
+trusted-domain list. **Both**, or the second one bites: Nextcloud answers its
+untrusted-domain page to any host header not on the list, and that refusal
+reads like a broken deployment rather than a setting.
+
+```bash
+# deploy/compose/.env
+NEXTCLOUD_BIND=100.97.25.131
+NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud 100.97.25.131
+```
+
+Keep `localhost` and `nextcloud` on the list: the gate asks on the first, the
+app network on the second. Then recreate the container, which is what makes
+either setting take:
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d --wait nextcloud
+```
+
+**On an instance already installed**, the image applies
+`NEXTCLOUD_TRUSTED_DOMAINS` only at install time, so the recreate above will
+not add the address by itself. Set it directly, then re-read it:
+
+```bash
+docker exec -u www-data ownpace-nextcloud \
+  php occ config:system:set trusted_domains 2 --value=100.97.25.131
+docker exec -u www-data ownpace-nextcloud php occ config:system:get trusted_domains
+```
+
+The mesh address is reachable only by devices holding a key for it, which is
+an authentication boundary — but everyone on that mesh reaches the admin
+account, so change `NEXTCLOUD_ADMIN_PASSWORD` from its shipped default before
+using this. `NEXTCLOUD_BIND=0.0.0.0` is refused by a rule.
+
+**If you started Nextcloud before 2026-09-06**, its data is in an anonymous
+volume: the service declared none, and the image declares one. It now mounts
+`nextcloud_data`, so the first recreate after this change starts an EMPTY
+Nextcloud and leaves the old data behind under a hash. To carry it across
+before recreating:
+
+```bash
+old=$(docker inspect ownpace-nextcloud \
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/www/html" }}{{ .Name }}{{ end }}{{ end }}')
+docker volume create ownpace-managed_nextcloud_data
+docker run --rm -v "$old":/from -v ownpace-managed_nextcloud_data:/to \
+  busybox:1.38 sh -c 'cd /from && cp -a . /to'
+```
+
+Nothing is deleted by that: the old volume stays until you remove it.
 
 **Verify:**
 
@@ -559,8 +625,12 @@ composes, because the path is the identity provider's own and shipped source
 must not know it (ADR-0042).
 
 **Our half** is `.env` and a re-run. Fill in the pairs you want — a provider
-with no credentials is simply not offered. The keys, exactly as `.env` spells
-them:
+with no credentials is simply not offered, and the script says so per provider
+when it runs. **These are not the migration pairs**: `GOOGLE_OAUTH_CLIENT_ID`
+and `MICROSOFT_OAUTH_CLIENT_ID` (§8e, `docs/microsoft-setup.md`) are the
+registrations a consent runs against and make no sign-in button, which the
+script's skip line names when one of them is set and the `IDP_` pair is not.
+The keys, exactly as `.env` spells them:
 
 ```bash
 IDP_GOOGLE_CLIENT_ID=       IDP_GOOGLE_CLIENT_SECRET=
@@ -945,6 +1015,12 @@ afternoon, so name them once:
 | What it proves | who this person is | what this account let us read |
 | Boundary | [ADR-0042](./adr/0042-who-holds-the-passwords.md): the issuer owns identity, `tenant_member` owns tenancy | [ADR-0041](./adr/0041-who-owns-the-oauth-client.md): the deployment owns its own client |
 
+The same two exist for Microsoft, and the confusion is the same shape (the
+owner, 2026-09-06): `IDP_MICROSOFT_CLIENT_ID` signs people in, `MICROSOFT_OAUTH_CLIENT_ID`
+reads their mailbox, and one Entra registration may serve both when both
+redirect URIs are on it — the sign-in one from the table in §8b, the consent one
+from the app's Redirect URIs page.
+
 Signing in with Google puts nobody in an organisation, and a Google grant
 signs nobody in. They are separate all the way down.
 
@@ -1319,6 +1395,34 @@ be wrong silently. Neither side is the safe side; being told is.
 If you are ever unsure which environment a served `dist` was built for, read the
 host out of a *Request access* link in the page source.
 
+## What cannot work on a mesh-only host
+
+A box that is reachable only over a private mesh (NetBird, Tailscale, a
+WireGuard peer address) serves everything **your browser** asks of it, and
+nothing that **somebody else's server** has to ask of it. That one rule
+decides the following, and it is better read here than discovered:
+
+- **Mollie's payment webhooks.** `API_URL` is the address Mollie's servers call
+  to confirm a payment. A mesh address is not reachable by them, so payments
+  complete on Mollie's side while invoices never leave `sent`. That is why the
+  API refuses to boot in production with `MOLLIE_API_KEY` set and a
+  localhost `API_URL` (phase 2 above). Billing end to end needs a publicly
+  reachable host, and nobody has walked that journey on a mesh-only one.
+- **Google's verification fetch.** The OAuth verification review reads the
+  privacy policy and the home page from the public internet; a mesh-only
+  `www` is invisible to it. **The redirect URI is the one exception**: Google
+  302s *the browser* there and never resolves that host itself, so a consent
+  round trip works on the mesh while the review does not. The exception does
+  not extend to anything else on the domain.
+- **Anything else that expects an inbound connection from a third party** —
+  a provider's callback, a status checker somebody else runs, a mail server
+  delivering to you. Same rule each time: our browser, fine; their server,
+  not.
+
+None of this is a defect to fix on the box. It is what a mesh is for. When
+one of these has to work, the piece that needs it moves to a host with a
+public address, and the mesh keeps everything that never needed one.
+
 ## Mail: caught, not delivered
 
 Every mail this stack sends goes to **Mailpit**, a catcher on the compose
@@ -1658,7 +1762,7 @@ let a credential obtained once survive to the next run.
 | `ownpace-idp` is `Up N minutes (unhealthy)` — RUNNING, not restarting — and its log is clean right down to `server is listening`. **A current checkout cannot produce this: the service has no healthcheck any more** (see the row below). If you are seeing it, the checkout predates that change |
 | `[setup-zitadel] FATAL: it did not become healthy within five minutes`, on a run where the provider is plainly up and serving | **A second waiter, on a health signal that no longer arrives.** `setup-zitadel.sh` polled `"Health":"healthy"` from `docker compose ps`; the identity provider has no healthcheck (see the rows above), so that field is never set and the wait always runs its full five minutes | Fixed: it now asks `/debug/ready` on the published port, the same address the bring-up uses. `nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts` fails the build if any script waits on the health of a service that declares no healthcheck |
 | The bring-up prints `the identity provider never became ready at http://localhost:3126/debug/ready` | **The readiness check is asked from the host, not from inside the container**, because `zitadel ready` builds its URL from `ExternalPort` — the address the OUTSIDE reaches Zitadel on — and nothing listens there inside. Here that is a published port; behind netbird it is 443, terminated by something that is not Zitadel | Read the code the message names. `000` means nothing answered at all — check the container is up and the port published. Any other code means Zitadel answered and said no, which is a real not-ready and its log is the next place to look. The timeout is `IDP_READY_TIMEOUT` (default 300s); a first init applies every migration from scratch and a slow disk can need longer | **The container is fine and the probe is not.** A healthcheck runs beside the container and its output goes nowhere near `docker compose logs`; Docker keeps the last few attempts in `.State.Health.Log`. This is the one failure shape the log windows cannot describe, because the answer was never in the log | The bring-up now prints a fourth window, `what the HEALTHCHECK said`, read straight from `docker inspect`. By hand: `docker inspect ownpace-idp --format '{{json .State.Health}}' \| jq`. Do NOT delete or weaken the healthcheck to get green — a provider that is unhealthy while serving is the gate working, and an untested probe is how a stack ends up trusting an identity provider that is not there |
-| `[setup-zitadel] FATAL: could not read /machinekey/pat.txt (exit 127)` naming `"cat": executable file not found in $PATH` | **The provider's image has no shell and no coreutils.** `docker compose exec -T zitadel cat …` cannot work, and Docker reports that on STDOUT with exit 127 — so a command substitution captures the error message as if it were the file's contents. Before this refusal existed, that sentence was sent to Zitadel as a Bearer token, which answered `illegal base64 data at input byte 3` (byte 3 is the space after `OCI`) and then `Errors.Token.Invalid` | Nothing to do on a current checkout: the token is read off the VOLUME with busybox, via the `zitadel-machinekey` service that already mounts it. If you are reading the file by hand, do the same — `docker run --rm -v ownpace-managed_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt` — and never `exec` into `ownpace-idp`, which has no binaries to run |
+| `[setup-zitadel] FATAL: could not read /machinekey/pat.txt (exit 127)` naming `"cat": executable file not found in $PATH` | **The provider's image has no shell and no coreutils.** `docker compose exec -T zitadel cat …` cannot work, and Docker reports that on STDOUT with exit 127 — so a command substitution captures the error message as if it were the file's contents. Before this refusal existed, that sentence was sent to Zitadel as a Bearer token, which answered `illegal base64 data at input byte 3` (byte 3 is the space after `OCI`) and then `Errors.Token.Invalid` | Nothing to do on a current checkout: the token is read off the VOLUME with busybox, via the `zitadel-machinekey` service that already mounts it. If you are reading the file by hand, do the same — `docker run --rm -v ownpace-managed_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt` — and never `exec` into `ownpace-idp`, which has no binaries to run |
 | `[setup-zitadel] FATAL: GET /auth/v1/users/me answered HTTP 401` with `Errors.Token.Invalid (AUTH-7fs1e)` | **The token and the database disagree about which instance this is.** `/machinekey/pat.txt` is written at FIRST INIT and belongs to the instance created then. Clearing the zitadel DATABASE while keeping the machinekey VOLUME leaves a token for an instance that no longer exists; clearing the volume while keeping the database leaves no token at all, since init never runs again to write one. E2E (managed) #50 is the first of these. It can equally mean the token **expired**: each one lives `ZITADEL_PAT_LIFETIME_DAYS` (7) days and `setup-zitadel.sh` rotates it inside the last `ZITADEL_PAT_ROTATE_BELOW_DAYS` (3), so an expired token is what a gate that slept past the gap wakes up to — the refusal itself says which cause is in front of you | **The database and the volume go together.** Either keep the instance — sign in at `http://localhost:3126/ui/console` as the first user, read the client id from the Ownpace project's application, and `env-upsert.sh` `JWT_ISSUER` / `JWT_AUDIENCE` / `VITE_OIDC_CLIENT_ID` by hand — or start over, which destroys every account it holds: `docker compose -f deploy/compose/managed.yml rm -sf zitadel`, then `docker exec -i ownpace-db sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'`, then `docker volume rm ownpace-managed_zitadel_machinekey`, then re-run. The `zitadel` ROLE can stay. Both halves, every time |
 | `[setup-zitadel] FATAL:` a call to the identity provider's API refused, naming an HTTP status | **Read the status, they mean different things.** `401` — the provisioning token was not accepted: it **expired** (`setup-zitadel.sh` rotates it before that on every run, so this means the gate slept past the rotation window — mint a new personal access token on the `ownpace-setup` service user in the console and write it over `/machinekey/pat.txt`), or it belongs to an instance that no longer exists, because the zitadel DATABASE was cleared while the machinekey VOLUME was kept (`/machinekey/pat.txt` is written on FIRST INIT). `403` — the token is fine and `ownpace-setup` lacks the grant the call needs, which is a role to add, not a credential to replace. Anything else prints the provider's own words | Follow the remedy the refusal names — 401 sends you to REPROVISIONING at the bottom of `setup-zitadel.sh`, 403 to the console's org roles. Before E2E (managed) #49 all of these printed `could not create the project` and nothing else, because the response body went into `jq -r '.id'` and was discarded; the search above it could not fail at all, since `.result[]?` turns an error into the same empty output a real "no such project" gives |
 | `ownpace-idp` restarts for ever; the OLDEST line in the failure window is `migration failed … name=34_add_cache_schema error="ERROR: partitioned tables cannot be unlogged (SQLSTATE 0A000)"` | **The identity provider is older than the database it is pointed at.** Zitadel's cache schema created an UNLOGGED PARTITIONED table and PostgreSQL removed support for that, so setup step 34 fails on every attempt and the provider can never finish starting. Not a misconfiguration, and no setting avoids it (zitadel/zitadel#10712) | Nothing to do on a current checkout: the pinned image is above the fix (zitadel/zitadel#11484), and `zitadel-image-matches-postgres.unit.test.ts` fails the build if the two pins are ever moved into a pairing that cannot initialise. If you hit this on an older checkout, raise the Zitadel pin — do not lower Postgres — and then clear the half-written database as the row below describes |

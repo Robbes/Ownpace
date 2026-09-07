@@ -1,5 +1,5 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
-import type { FailureCategory } from './failure-category.ts';
+import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { TenantId, MappingId } from './ids.ts';
 import type { BudgetPause, DownloadMeter } from './rate-budget.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
@@ -124,6 +124,31 @@ export interface CalendarSource {
     items: ReadonlyArray<RawCalendarEvent>;
     nextCursor: SyncCursor;
     /**
+     * Items this listing FOUND but could not turn into something migratable —
+     * a card, event or file whose mapping threw. Omitted (or 0) when there
+     * were none.
+     *
+     * NOT the same thing as mail's `unkeyable`, and the difference is the
+     * whole point: an unkeyable message is still migrated, under a key the
+     * sync generates. An unreadable item is LOST. Counting them in one field
+     * would let discovery report a lost item as a carried one.
+     *
+     * The mail connector settled the rule this exists to keep (see
+     * `SourceConnector.listSince`): *"Skipping is honest exactly when the same
+     * object is already accounted for somewhere the owner looks."* Until
+     * 2026-09-07 the Graph contact, calendar and drive listings each caught a
+     * per-item mapping failure, wrote `log.warn`, and continued — so the item
+     * was absent from the pass, absent from the count the customer approves,
+     * and absent from the verification totals on both sides, which then agreed
+     * with each other and reported PASS. The owner's "Contacts ✓ 1 address
+     * book · 0 cards" could not be told apart from an address book whose every
+     * card failed to map.
+     *
+     * A source that cannot fail this way omits the field; that absence is
+     * legitimate, not a blind spot being hidden.
+     */
+    unreadable?: number;
+    /**
      * Source hrefs the server reported as REMOVED on this poll (RFC 6578).
      *
      * `sync-collection` answers an incremental poll with the changed objects AND
@@ -162,6 +187,31 @@ export interface ContactSource {
   ): Promise<{
     items: ReadonlyArray<RawContact>;
     nextCursor: SyncCursor;
+    /**
+     * Items this listing FOUND but could not turn into something migratable —
+     * a card, event or file whose mapping threw. Omitted (or 0) when there
+     * were none.
+     *
+     * NOT the same thing as mail's `unkeyable`, and the difference is the
+     * whole point: an unkeyable message is still migrated, under a key the
+     * sync generates. An unreadable item is LOST. Counting them in one field
+     * would let discovery report a lost item as a carried one.
+     *
+     * The mail connector settled the rule this exists to keep (see
+     * `SourceConnector.listSince`): *"Skipping is honest exactly when the same
+     * object is already accounted for somewhere the owner looks."* Until
+     * 2026-09-07 the Graph contact, calendar and drive listings each caught a
+     * per-item mapping failure, wrote `log.warn`, and continued — so the item
+     * was absent from the pass, absent from the count the customer approves,
+     * and absent from the verification totals on both sides, which then agreed
+     * with each other and reported PASS. The owner's "Contacts ✓ 1 address
+     * book · 0 cards" could not be told apart from an address book whose every
+     * card failed to map.
+     *
+     * A source that cannot fail this way omits the field; that absence is
+     * legitimate, not a blind spot being hidden.
+     */
+    unreadable?: number;
     /** Hrefs the server reported as removed. See `CalendarSource.listSince`. */
     removed?: ReadonlyArray<string>;
   }>;
@@ -195,6 +245,31 @@ export interface FileSource {
     items: ReadonlyArray<RawFileItem>;
     nextCursor: SyncCursor;
     /**
+     * Items this listing FOUND but could not turn into something migratable —
+     * a card, event or file whose mapping threw. Omitted (or 0) when there
+     * were none.
+     *
+     * NOT the same thing as mail's `unkeyable`, and the difference is the
+     * whole point: an unkeyable message is still migrated, under a key the
+     * sync generates. An unreadable item is LOST. Counting them in one field
+     * would let discovery report a lost item as a carried one.
+     *
+     * The mail connector settled the rule this exists to keep (see
+     * `SourceConnector.listSince`): *"Skipping is honest exactly when the same
+     * object is already accounted for somewhere the owner looks."* Until
+     * 2026-09-07 the Graph contact, calendar and drive listings each caught a
+     * per-item mapping failure, wrote `log.warn`, and continued — so the item
+     * was absent from the pass, absent from the count the customer approves,
+     * and absent from the verification totals on both sides, which then agreed
+     * with each other and reported PASS. The owner's "Contacts ✓ 1 address
+     * book · 0 cards" could not be told apart from an address book whose every
+     * card failed to map.
+     *
+     * A source that cannot fail this way omits the field; that absence is
+     * legitimate, not a blind spot being hidden.
+     */
+    unreadable?: number;
+    /**
      * Source refs the service REPORTED as deleted on this poll.
      *
      * OneDrive/SharePoint answer a delta query with the items that changed and the
@@ -220,6 +295,24 @@ export interface FileSource {
    * and call it a success.
    */
   fetch(item: FileItem): Promise<RawFileItem>;
+  /**
+   * A SNAPSHOT, not a scan (workplan 0116 §5).
+   *
+   * Set by a source whose complete listing is NOT a complete listing of what
+   * the person has: an export archive, whose scope the person chose, whose
+   * parts may have failed to download, and whose categories they may have
+   * deselected between two requests. Deleted, deselected and truncated present
+   * identically in it, so an item's absence from the listing is evidence of
+   * nothing — weaker than `inferred`, this product's weakest deletion class,
+   * which needs consecutive complete scans of a live account.
+   *
+   * The sync loop then never counts an absence against a ledger row and never
+   * reports a deletion, even as a suspicion: an import from such a source adds
+   * and updates, and a target keeps what a later snapshot no longer mentions.
+   * Reported removals (`listSince().removed`) and a bin (`listTrashedPaths`)
+   * are positive evidence and stay usable — a snapshot has neither.
+   */
+  readonly snapshot?: true;
   /**
    * Every file path currently in this collection, ignoring any cursor.
    *
@@ -1984,6 +2077,13 @@ export interface MigrationStatus {
    * no subject.
    */
   readonly lastErrorCategory?: FailureCategory;
+  /**
+   * Which SIDE the last failure happened on — source or target — recorded by
+   * the pass at the closure that threw (0094 T5, second slice). Absent when
+   * the pass could not tell, or nothing has failed; a screen must then say
+   * "one of the two" rather than guess.
+   */
+  readonly failedSide?: FailureSide;
   /** Where the last completed pass spent its wall time. Absent until one has. */
   readonly lastPassMetrics?: PassMetrics;
 }
@@ -2041,7 +2141,14 @@ export interface MigrationStatusStore {
   /**
    * Mark a domain sync as failed with an error.
    */
-  markFailed(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain, error: string): Promise<void>;
+  markFailed(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    error: string,
+    /** Which side the error came from, when the pass could tell (0094 T5). */
+    side?: FailureSide,
+  ): Promise<void>;
 
   /**
    * Mark a domain sync as skipped (e.g., disabled or no work).

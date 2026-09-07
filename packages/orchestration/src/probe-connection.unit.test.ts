@@ -58,7 +58,7 @@ describe('the deadline (2026-09-02): a probe that does not answer is an answer',
 
   it('both exported probes run under it — pinned in the source, since a hang cannot be awaited', () => {
     const source = readFileSync(fileURLToPath(new URL('./probe-connection.ts', import.meta.url)), 'utf8');
-    expect(source).toContain('return withProbeDeadline(() => probeSourceNow(kind, config, rawCreds));');
+    expect(source).toContain('return withProbeDeadline(() => probeSourceNow(kind, config, rawCreds, deps));');
     expect(source).toContain('return withProbeDeadline(() => probeTargetNow(targetType, config, creds));');
   });
 });

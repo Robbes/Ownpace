@@ -26,6 +26,7 @@ import { Link2, AlertTriangle } from 'lucide-react';
 import { redirectUriApi } from '../services/mapping-service.ts';
 import type { RedirectUriEntry } from '../services/mapping-service.ts';
 import { useT } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 
 const GROUP_HEADING: Record<string, StringKey> = {
@@ -53,7 +54,7 @@ const RedirectUris: React.FC = () => {
           <Link2 className="w-6 h-6 text-gray-400" />
           {t('redirects.title')}
         </h1>
-        <p className="mt-1 text-sm text-gray-600">{t('redirects.intro')}</p>
+        <Hint className="mt-1" label="more" text={t('redirects.intro')} why={t('redirects.intro.more')} />
       </div>
 
       {isLoading && <p className="text-sm text-gray-500">{t('redirects.loading')}</p>}
@@ -81,10 +82,15 @@ const RedirectUris: React.FC = () => {
                     later, at somebody else's screen, for a reason that looks
                     like ours. */}
                 {entry.unconfigured && (
-                  <p className="mt-2 text-sm text-amber-800 flex items-start gap-1.5">
+                  <div className="mt-2 flex items-start gap-1.5 text-amber-800">
                     <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                    {t('redirects.unconfigured')}
-                  </p>
+                    <Hint
+                      className=""
+                      tone="caution"
+                      text={t('redirects.unconfigured')}
+                      why={t('redirects.unconfigured.why')}
+                    />
+                  </div>
                 )}
                 <p className="mt-2 text-sm text-gray-600">{entry.why}</p>
               </div>

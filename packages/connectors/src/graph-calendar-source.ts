@@ -15,6 +15,7 @@
  * - Rate limiting and throttling support
  */
 
+import { graphFailure } from './graph-refusal.ts';
 import type { CalendarSource, CalendarFolder, RawCalendarEvent, SyncCursor } from '@openmig/shared';
 import type { TokenProvider } from '@openmig/shared';
 import type { GraphCalendarSourceConfig, GraphCalendar, GraphEvent, GraphDeltaCursor, ParsedIcalComponent } from './graph-calendar-source.types.ts';
@@ -22,6 +23,9 @@ import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.ty
 import { graphScopePrefix } from './graph-scope.ts';
 import type { ThrottleLimiter } from '@openmig/shared';
 import { log } from '@openmig/shared';
+
+/** The tick and the delegated scope this face needs — named in a refusal's way forward (0114 T6). */
+const CALENDAR_FACE = { face: 'Calendar', scope: 'Calendars.Read' } as const;
 
 /**
  * Graph Calendar source connector implementation.
@@ -82,7 +86,7 @@ export class GraphCalendarSource implements CalendarSource {
       });
 
       if (response.status !== 200) {
-        throw new Error(`Failed to list calendars: ${response.status} - ${response.body}`);
+        throw new Error(graphFailure('Failed to list calendars', response, CALENDAR_FACE));
       }
 
       const data = JSON.parse(response.body) as { value: GraphCalendar[]; '@odata.nextLink'?: string };
@@ -108,7 +112,13 @@ export class GraphCalendarSource implements CalendarSource {
   async listSince(
     folder: CalendarFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawCalendarEvent>; nextCursor: SyncCursor }> {
+  ): Promise<{
+    items: ReadonlyArray<RawCalendarEvent>;
+    nextCursor: SyncCursor;
+    unreadable?: number;
+  }> {
+    // Events this listing found and could not turn into an event to migrate.
+    let unreadable = 0;
     // Parse cursor to get delta link
     let deltaLink: string | undefined;
     
@@ -160,7 +170,7 @@ export class GraphCalendarSource implements CalendarSource {
       });
 
       if (response.status !== 200) {
-        throw new Error(`Failed to list events: ${response.status} - ${response.body}`);
+        throw new Error(graphFailure('Failed to list events', response, CALENDAR_FACE));
       }
 
       const data = JSON.parse(response.body) as { value: GraphEvent[]; '@odata.nextLink'?: string; '@odata.deltaLink'?: string };
@@ -208,7 +218,12 @@ export class GraphCalendarSource implements CalendarSource {
 
         items.push(item);
       } catch (error) {
-        // Skip events that fail to parse
+        // COUNTED, NOT JUST LOGGED (2026-09-07). A `log.warn` and a `continue`
+        // put this event nowhere the owner looks: absent from the pass, from
+        // the total they approve, and from both sides of the verification
+        // gate, which then agree and report PASS. `unreadable` is how the
+        // skip earns its silence — see `ports.ts`.
+        unreadable += 1;
         log.warn(`Failed to process event ${event.id}:`, error);
       }
     }
@@ -221,7 +236,15 @@ export class GraphCalendarSource implements CalendarSource {
       }),
     };
 
-    return { items, nextCursor };
+    if (unreadable > 0) {
+      log.warn(
+        `Graph calendar: ${unreadable} event(s) in "${folder.path}" could not be read and were not listed`,
+      );
+    }
+
+    // Omitted rather than sent as 0, so "none failed" and "this listing
+    // cannot report" read differently downstream.
+    return { items, nextCursor, ...(unreadable > 0 ? { unreadable } : {}) };
   }
 
   // Private helper methods

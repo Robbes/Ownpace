@@ -7,7 +7,7 @@ export default defineConfig({
   // of this block cost.
   resolve: { alias: aliases },
   test: {
-    exclude: ['node_modules', 'dist'],
+    exclude: ['**/node_modules/**', '**/dist/**'],
     globalSetup: './vitest.global-setup.ts',
     testTimeout: 360000, // 6 minutes for integration tests with Nextcloud
     // Individual projects can't have their own resolve config, so the aliases

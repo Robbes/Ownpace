@@ -328,7 +328,7 @@ describe('a VAT number that was actually checked (0111 T2)', () => {
 
     expect(
       await screen.findByText(
-        'Reverse charge — invoices carry no VAT; your business accounts for it in its own country.',
+        'Reverse charge: invoices carry no VAT; your business accounts for it in its own country.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('VAT on your invoices:')).toBeInTheDocument();

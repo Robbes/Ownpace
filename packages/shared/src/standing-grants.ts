@@ -274,6 +274,40 @@ export interface CredentialRetirement {
 
 const CREDENTIALS: readonly CredentialRetirement[] = [
   {
+    // NEITHER A GRANT NOR A CREDENTIAL — and it is here anyway (0116 T1).
+    //
+    // An export archive leaves nothing behind at any provider: no consent, no
+    // app link, no password. By the letter of this file it belongs in neither
+    // table. It is filed as a CREDENTIAL retirement because of what the two
+    // tables are actually for, which is telling somebody what still exists
+    // after we have forgotten them — and in this case something very large
+    // does. The export sitting in their Downloads folder is a complete copy of
+    // their photo library, or their iCloud Drive, or both, in the clear, on
+    // whatever machine they extracted it to. Nobody else is going to mention
+    // it, because nobody else knows it is there.
+    //
+    // Deliberately NOT phrased as an instruction to delete it. It is their
+    // data and the point of the whole exercise was to get it; some people will
+    // want to keep it as their own backup, which is a perfectly good reason.
+    // What the sentence supplies is the fact and the reason to think about it.
+    id: 'archive',
+    impliedBy: ['archive'],
+    whatTheyCallIt: 'the export you downloaded',
+    where: 'wherever you saved and extracted the export on your own computer or drive',
+    en:
+      'The export archive itself is still on your own disk, where you put it. We never had a ' +
+      'copy — only the path — and that path is now deleted. Worth remembering that the ' +
+      'archive is a complete, unencrypted copy of everything the provider handed over, so ' +
+      'keep it somewhere you would be happy keeping your photos, or delete it once the ' +
+      'migration is done.',
+    nl:
+      'Het exportarchief zelf staat nog op uw eigen schijf, waar u het hebt neergezet. Wij ' +
+      'hadden er nooit een kopie van — alleen het pad — en dat pad is nu verwijderd. Houd er ' +
+      'rekening mee dat het archief een volledige, onversleutelde kopie is van alles wat de ' +
+      'aanbieder heeft meegegeven: bewaar het ergens waar u ook uw foto\u0027s zou bewaren, ' +
+      'of verwijder het zodra de migratie klaar is.',
+  },
+  {
     // A CREDENTIAL, not a grant, and that is the whole shape of the Apple kind
     // (workplan 0115): there is no consent to withdraw because Apple never
     // offered one for its own data. What the customer holds is an

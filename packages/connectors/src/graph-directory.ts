@@ -15,6 +15,7 @@
  * permission, an HTTP error, a malformed page. None of them yields `[]`.
  */
 
+import { graphRefusalBody } from './graph-refusal.ts';
 import { log, type DirectoryListing } from '@openmig/shared';
 import type { HttpClient } from './dav-http.types.ts';
 import { directoryNotEnumerable } from './graph-scope.ts';
@@ -111,7 +112,7 @@ export async function listTenantMailboxes(
         // Graph's own words: a 403 here usually means consent was granted but
         // the Application Access Policy excludes this app, and the operator
         // needs the server's text to tell those apart.
-        reason: directoryNotEnumerable(`Graph answered ${res.status}: ${res.body}`),
+        reason: directoryNotEnumerable(`Graph answered ${res.status}: ${graphRefusalBody(res.body)}`),
       };
     }
 

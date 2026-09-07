@@ -17,6 +17,7 @@ export * from './verification-implementations.ts';
 // switch is a manual operator step, and now the code says the same thing.
 export * from './dns-verify-only.ts';
 export * from './domain-sync.ts';
+export * from './failure-side.ts';
 export * from './dav-sync.ts';
 export * from './discovery.ts';
 export * from './apply-deletion.ts';

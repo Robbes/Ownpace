@@ -42,6 +42,30 @@ describe('descriptor labels', () => {
     expect(missing, 'field labels with no Dutch string').toEqual([]);
   });
 
+  /**
+   * ONE PLACE SAYS WHETHER A FIELD IS REQUIRED, AND IT IS THE ASTERISK
+   * (2026-09-07, after the owner asked what to type into a Nextcloud form
+   * whose only workable field was labelled "(optional)").
+   *
+   * Eight labels carried the word and the rest carried nothing, so a form
+   * read as "these eight are the optional ones" — while the client pair,
+   * unmarked, was mandatory on any deployment carrying no OAuth client of its
+   * own. A label cannot know that; `credentialFieldRequired` does, and the
+   * marker it drives is now the only claim on screen. A label that restates
+   * the answer is a second source of truth for it, and it was the wrong one.
+   */
+  it('never say in words what the required marker says per deployment', () => {
+    const WORDS = [/\(optional\)/i, /\(optioneel\)/i, /\(verplicht\)/i, /\(required\)/i];
+    const offenders = everyField.flatMap(({ role, type, field }) =>
+      (['en', 'nl'] as const)
+        .map((locale) => ({ locale, text: STRINGS[locale][field.labelKey as never] as string }))
+        .filter(({ text }) => typeof text === 'string' && WORDS.some((w) => w.test(text)))
+        .map(({ locale, text }) => `${role}/${type}.${field.key} [${locale}] "${text}"`),
+    );
+
+    expect(offenders, 'labels that state requiredness the marker already states').toEqual([]);
+  });
+
   it('resolve their placeholders as well, where one is named', () => {
     const missing = everyField
       .filter(({ field }) => field.placeholderKey && !(field.placeholderKey in STRINGS.en))

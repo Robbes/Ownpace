@@ -19,7 +19,7 @@
  * nothing to say.
  */
 
-import type { FailureCategory } from '@openmig/shared';
+import type { FailureCategory, FailureSide } from '@openmig/shared';
 import type { StringKey } from './strings.ts';
 
 export const FAILURE_KEY: Record<FailureCategory, StringKey> = {
@@ -29,4 +29,15 @@ export const FAILURE_KEY: Record<FailureCategory, StringKey> = {
   target_refused: 'failure.targetRefused',
   network: 'failure.network',
   unknown: 'failure.unknown',
+};
+
+/**
+ * And which SIDE it happened on, when the pass could tell (workplan 0094 T5,
+ * second slice) — one map for the same two screens, for the same reason.
+ * Absent means "the pass could not tell", and the screens then say nothing
+ * about the side rather than guessing.
+ */
+export const FAILURE_SIDE_KEY: Record<FailureSide, StringKey> = {
+  source: 'failure.side.source',
+  target: 'failure.side.target',
 };

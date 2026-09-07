@@ -1215,7 +1215,7 @@ the same URI:
         say "      under Default settings -> Login Behaviour and Security -> Identity Providers"
         say "      (the INSTANCE page — an organisation's own login policy is reset by this script),"
         say "      or from this shell:"
-        say "        PAT=\"\$(docker run --rm -v ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey:/m:ro busybox:1.37 cat /m/pat.txt)\""
+        say "        PAT=\"\$(docker run --rm -v ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt)\""
         say "        for id in ${others}; do"
         say "          curl -sS -X DELETE ${ISSUER}/admin/v1/policies/login/idps/\$id -H \"Authorization: Bearer \$PAT\""
         say "        done"
@@ -1245,12 +1245,48 @@ the same URI:
   IDP_COUNT=$(( IDP_COUNT + 1 ))
 }
 
+# skip_idp <display name> <id var> <secret var> [look-alike var]
+#
+# SAID, NOT SILENT (2026-09-06). A provider without its pair is not offered,
+# which is right — and this script used to say nothing about it. So the owner
+# set MICROSOFT_OAUTH_CLIENT_ID (the migration consent's registration, read by
+# the API and the worker, never by this script), re-ran the bring-up, and
+# looked for a button no line here had told him was skipped. Two variables with
+# the same company's name on them, one of which makes a button: when the one
+# that does not is the one that is set, the sentence names it.
+#
+# Half a pair is SAID too, and still not offered. Not `die`, the way Apple's
+# four values are: an operator whose .env carries a stale lone id must still
+# be able to bring the stack up, and the line tells them which half is empty.
+skip_idp() {
+  local name="$1" id_var="$2" secret_var="$3" lookalike="${4:-}" id secret
+  id="$(read_env "$id_var")"
+  secret="$(read_env "$secret_var")"
+  if [ -n "$id" ] && [ -z "$secret" ]; then
+    say "  ${name}: NOT offered — ${id_var} is set but ${secret_var} is empty in ${ENV_FILE}; a sign-in provider is both halves or neither"
+    return 0
+  fi
+  if [ -z "$id" ] && [ -n "$secret" ]; then
+    say "  ${name}: NOT offered — ${secret_var} is set but ${id_var} is empty in ${ENV_FILE}; a sign-in provider is both halves or neither"
+    return 0
+  fi
+  if [ -n "$lookalike" ] && [ -n "$(read_env "$lookalike")" ]; then
+    say "  ${name}: not offered on the sign-in screen — ${id_var} and ${secret_var} are empty in ${ENV_FILE}"
+    say "    ${lookalike} is set, and it is a different registration: the one the migration consent runs"
+    say "    against, read by the API and the worker. Only the ${id_var} pair makes a sign-in button."
+    return 0
+  fi
+  say "  ${name}: not offered on the sign-in screen (${id_var} and ${secret_var} are empty in ${ENV_FILE})"
+}
+
 IDP_GOOGLE_CLIENT_ID="$(read_env IDP_GOOGLE_CLIENT_ID)"
 IDP_GOOGLE_CLIENT_SECRET="$(read_env IDP_GOOGLE_CLIENT_SECRET)"
 if [ -n "$IDP_GOOGLE_CLIENT_ID" ] && [ -n "$IDP_GOOGLE_CLIENT_SECRET" ]; then
   configure_idp "Google" /admin/v1/idps/google "$(jq -nc \
     --arg c "$IDP_GOOGLE_CLIENT_ID" --arg s "$IDP_GOOGLE_CLIENT_SECRET" --argjson o "$IDP_OPTIONS" \
     '{name:"Google", clientId:$c, clientSecret:$s, scopes:["openid","profile","email"], providerOptions:$o}')"
+else
+  skip_idp "Google" IDP_GOOGLE_CLIENT_ID IDP_GOOGLE_CLIENT_SECRET GOOGLE_OAUTH_CLIENT_ID
 fi
 
 IDP_MICROSOFT_CLIENT_ID="$(read_env IDP_MICROSOFT_CLIENT_ID)"
@@ -1283,6 +1319,8 @@ if [ -n "$IDP_MICROSOFT_CLIENT_ID" ] && [ -n "$IDP_MICROSOFT_CLIENT_SECRET" ]; t
     --argjson t "$tenant" --argjson o "$IDP_OPTIONS" \
     '{name:"Microsoft", clientId:$c, clientSecret:$s, tenant:$t, emailVerified:false,
       scopes:["openid","profile","email","User.Read"], providerOptions:$o}')"
+else
+  skip_idp "Microsoft" IDP_MICROSOFT_CLIENT_ID IDP_MICROSOFT_CLIENT_SECRET MICROSOFT_OAUTH_CLIENT_ID
 fi
 
 IDP_GITHUB_CLIENT_ID="$(read_env IDP_GITHUB_CLIENT_ID)"
@@ -1294,6 +1332,8 @@ if [ -n "$IDP_GITHUB_CLIENT_ID" ] && [ -n "$IDP_GITHUB_CLIENT_SECRET" ]; then
   configure_idp "GitHub" /admin/v1/idps/github "$(jq -nc \
     --arg c "$IDP_GITHUB_CLIENT_ID" --arg s "$IDP_GITHUB_CLIENT_SECRET" --argjson o "$IDP_OPTIONS" \
     '{name:"GitHub", clientId:$c, clientSecret:$s, scopes:["user:email"], providerOptions:$o}')"
+else
+  skip_idp "GitHub" IDP_GITHUB_CLIENT_ID IDP_GITHUB_CLIENT_SECRET
 fi
 
 IDP_APPLE_CLIENT_ID="$(read_env IDP_APPLE_CLIENT_ID)"
@@ -1314,6 +1354,8 @@ See ${ENV_FILE} for what each one is and where Apple shows it."
     --arg k "$IDP_APPLE_KEY_ID" --arg p "$IDP_APPLE_PRIVATE_KEY" --argjson o "$IDP_OPTIONS" \
     '{name:"Apple", clientId:$c, teamId:$t, keyId:$k, privateKey:$p,
       scopes:["name","email"], providerOptions:$o}')"
+else
+  skip_idp "Apple" IDP_APPLE_CLIENT_ID IDP_APPLE_PRIVATE_KEY
 fi
 
 if [ "$IDP_COUNT" -eq 0 ]; then

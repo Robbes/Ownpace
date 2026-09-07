@@ -8,6 +8,7 @@
  * domain-specific injected functions.
  */
 
+import { sided } from './failure-side.ts';
 import {
   mapWithConcurrency,
   MAX_ITEM_ATTEMPTS,
@@ -368,6 +369,14 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * to your own live mail is a stop, not something to push through.
    */
   readonly downloadMeter?: DownloadMeter;
+  /**
+   * The source is a SNAPSHOT whose scope the person chose, not a scan of what
+   * they have (`FileSource.snapshot`, workplan 0116 §5). Absence-counting is
+   * then off for the whole pass: no ledger row is counted absent and no
+   * path-keyed move or deletion is reported, whatever the listing looked
+   * like. Reported removals and a bin, being positive evidence, still count.
+   */
+  readonly snapshot?: boolean;
   /** List folders on the source */
   readonly listFolders: () => Promise<ReadonlyArray<Folder>>;
   /** List items in a folder since a cursor */
@@ -644,6 +653,36 @@ export interface DomainSyncResult {
  * Throughput/memory: folders run sequentially; within a folder, items processed with
  * BOUNDED CONCURRENCY. Cursor persisted ONLY AFTER folder fully succeeds.
  */
+/**
+ * THE SEAM THAT KNOWS WHICH SIDE FAILED (workplan 0094 T5, second slice).
+ *
+ * Every closure the pass calls is one side or the other: listing, reading and
+ * fetching are the SOURCE; ensuring a collection and writing an item are the
+ * TARGET. Tagging them here — once, for every domain, mail included — is what
+ * lets the failure written by `markFailed` say which connection to look at,
+ * without any connector knowing this exists and without a word of provider
+ * prose being parsed. The pure closures (keys, hashes, versions) stay
+ * untagged: a bad natural key is nobody's credential.
+ */
+function withSides<Source, Target, Item, Folder extends FolderLike>(
+  deps: DomainSyncDeps<Source, Target, Item, Folder>,
+): DomainSyncDeps<Source, Target, Item, Folder> {
+  return {
+    ...deps,
+    listFolders: sided('source', deps.listFolders),
+    listSince: sided('source', deps.listSince),
+    fetchRaw: sided('source', deps.fetchRaw),
+    ...(deps.listCollectionKeys
+      ? { listCollectionKeys: sided('source', deps.listCollectionKeys) }
+      : {}),
+    ...(deps.listDiscardedKeys
+      ? { listDiscardedKeys: sided('source', deps.listDiscardedKeys) }
+      : {}),
+    upsert: sided('target', deps.upsert),
+    ensureCollection: sided('target', deps.ensureCollection),
+  };
+}
+
 export async function runDomainSync<Source, Target, Item, Folder extends FolderLike>(
   deps: DomainSyncDeps<Source, Target, Item, Folder>
 ): Promise<DomainSyncResult> {
@@ -668,7 +707,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     listCollectionKeys,
     listDiscardedKeys,
     downloadMeter,
-  } = deps;
+    snapshot,
+  } = withSides(deps);
 
   const phases = startPhaseTiming();
 
@@ -744,8 +784,16 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * mailbox moved. Completeness comes from one of two things: the folder was
    * listed from the beginning (no cursor), or the source answered
    * `listCollectionKeys` for it.
+   *
+   * And never for a SNAPSHOT (0116 §5). An archive's listing is complete in
+   * the only sense that matters here — every item in it is known — and still
+   * says nothing about what the person has, because they chose the export's
+   * scope and a part of it may never have downloaded. Starting false is what
+   * turns "an archive delta may only ADD" from a rule in a reviewer's memory
+   * into one the loop cannot break: a cursor-less pass, the exact case in
+   * which absence-counting would otherwise run, counts nothing.
    */
-  let fullyEnumerated = true;
+  let fullyEnumerated = snapshot !== true;
 
   /**
    * Set the moment the download meter reads empty (0090 T4), and never

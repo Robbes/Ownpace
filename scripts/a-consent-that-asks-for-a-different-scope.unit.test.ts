@@ -7,7 +7,7 @@
  * Graph scopes; a sync pass later asks Entra to mint an access token for a set
  * of Graph scopes. THOSE ARE TWO LISTS, in three files, in two packages:
  *
- *   apps/api/.../microsoft-consent.ts      MICROSOFT_DOMAIN_SCOPES   (consent)
+ *   packages/shared/.../microsoft-scopes.ts MICROSOFT_DOMAIN_SCOPES   (consent)
  *   packages/orchestration/.../graph-domain-source-factory.ts
  *                                          DELEGATED_SCOPES          (sync)
  *   packages/orchestration/.../mail-source-factory.ts
@@ -31,6 +31,12 @@
  * Read as TEXT: three files in two packages, and what is being compared is a
  * pair of literals rather than a runtime value. Importing them would prove the
  * imports resolve, not that the strings match.
+ *
+ * THE MAP MOVED on 2026-09-06 (0114 T10), from the API's consent module to
+ * `packages/shared`, because the connection Test reads a stored grant against
+ * the same map the consent asked with and the orchestration cannot import
+ * `apps/api`. The consent module re-exports it and names no scope of its own —
+ * pinned below, so the list cannot quietly grow a second copy at the door.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -61,7 +67,9 @@ function code(text: string): string {
 
 const read = (p: string) => code(readFileSync(join(REPO_ROOT, p), 'utf8'));
 
-const CONSENT = 'apps/api/src/routes/migrations/microsoft-consent.ts';
+const CONSENT = 'packages/shared/src/microsoft-scopes.ts';
+/** The door that asks with the map — a re-export, never a second list. */
+const CONSENT_DOOR = 'apps/api/src/routes/migrations/microsoft-consent.ts';
 const DOMAIN_FACTORY = 'packages/orchestration/src/graph-domain-source-factory.ts';
 const MAIL_FACTORY = 'packages/orchestration/src/mail-source-factory.ts';
 
@@ -83,6 +91,17 @@ describe('the consent and the sync ask for the same Graph scopes', () => {
       graphScopesIn(read(MAIL_FACTORY)).size,
       `${MAIL_FACTORY} names no Graph scopes`,
     ).toBeGreaterThan(0);
+  });
+
+  it('the consent door asks with the shared map and names no scope of its own', () => {
+    // The door is where a second list would grow back: one literal added
+    // "just for the URL" and the two lists this file pins are three again.
+    const door = read(CONSENT_DOOR);
+    expect(door, `${CONSENT_DOOR} no longer asks with microsoftScopesFor`).toContain('microsoftScopesFor(');
+    expect(
+      [...graphScopesIn(door)].sort(),
+      `${CONSENT_DOOR} names Graph scopes of its own; the map lives in ${CONSENT}`,
+    ).toEqual([]);
   });
 
   it('every scope the consent asks for is one the sync side requests', () => {

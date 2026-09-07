@@ -98,3 +98,28 @@ describe('every category can be said, in both languages', () => {
     }
   });
 });
+
+describe('which side it happened on (workplan 0094 T5, second slice)', () => {
+  it('says the side after the remedy when the pass could tell', () => {
+    render(
+      <LiveProgress
+        domains={[row({ lastErrorCategory: 'auth_expired', lastError: 'invalid_grant', failedSide: 'source' })]}
+      />,
+    );
+    expect(screen.getByText(/Reconnect it on the Connections page/i)).toBeTruthy();
+    expect(screen.getByText(/It happened on the source side\./)).toBeTruthy();
+  });
+
+  it('says nothing about the side when the pass could not tell — never a guess', () => {
+    render(<LiveProgress domains={[row({ lastErrorCategory: 'auth_expired' })]} />);
+    expect(screen.queryByText(/side\./)).toBeNull();
+  });
+
+  it('has a sentence for every side, in every locale', () => {
+    for (const locale of LOCALES) {
+      for (const key of ['failure.side.source', 'failure.side.target'] as const) {
+        expect(STRINGS[locale][key]).toBeTruthy();
+      }
+    }
+  });
+});

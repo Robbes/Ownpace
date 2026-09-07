@@ -153,8 +153,8 @@ beforeAll(async () => {
       [TENANT_A, MAPPING_A],
     );
     await q(
-      `INSERT INTO migration_status (id, tenant_id, mapping_id, domain, state, last_error, last_error_category)
-       VALUES (gen_random_uuid(),$1,$2,'email','failed',$3,'auth_expired')`,
+      `INSERT INTO migration_status (id, tenant_id, mapping_id, domain, state, last_error, last_error_category, failed_side)
+       VALUES (gen_random_uuid(),$1,$2,'email','failed',$3,'auth_expired','source')`,
       [TENANT_A, MAPPING_A, 'IMAP login failed for someone@example.invalid'],
     );
     await q('INSERT INTO platform_operator (user_id, email) VALUES ($1,$2)', [
@@ -285,15 +285,19 @@ describe('an operator sees metadata, and only metadata', () => {
     ).rejects.toThrow();
   });
 
-  it('sees the failure CATEGORY instead, which is why 0110 T3 came first', async () => {
+  it('sees the failure CATEGORY instead, which is why 0110 T3 came first — and the SIDE (0094 T5)', async () => {
     const rows = await asSubject(OPERATOR, async (q) => {
       const r = await q(
-        'SELECT domain, state, last_error_category FROM public.support_migration_domains',
+        'SELECT domain, state, last_error_category, failed_side FROM public.support_migration_domains',
       );
-      return r.rows as Array<{ state: string; last_error_category: string }>;
+      return r.rows as Array<{ state: string; last_error_category: string; failed_side: string }>;
     });
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ state: 'failed', last_error_category: 'auth_expired' });
+    expect(rows[0]).toMatchObject({
+      state: 'failed',
+      last_error_category: 'auth_expired',
+      failed_side: 'source',
+    });
   });
 
   it('CANNOT reach a connection secret or its config', async () => {

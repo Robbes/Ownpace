@@ -73,7 +73,7 @@ import type {
   FinishAccepted,
   VerificationResult,
 } from '@openmig/shared';
-import { loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir.ts';
+import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir.ts';
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
 import { startTransition, finishTransition } from './lifecycle.ts';
 import { serveUi, UI_MOUNT } from './static-ui.ts';
@@ -185,6 +185,8 @@ async function ensureMappingRecords(
   client: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
   tenantId: string,
   mailboxMappingId: string,
+  /** The config's mappingId, kept on the row as `name` so the row says which mapping it is. */
+  configMappingId: string,
   sourceUser: string,
   targetUser: string,
   /** §14.1's pattern, when this mapping is a shared address (0027 T3). */
@@ -238,16 +240,19 @@ async function ensureMappingRecords(
 
     // 3. Ensure mailbox_mapping record exists (ignore if exists)
     await client.query(
-      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, mode, status, pattern)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (id) DO UPDATE SET pattern = EXCLUDED.pattern`,
+      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, mode, status, pattern, name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (id) DO UPDATE SET pattern = EXCLUDED.pattern, name = COALESCE(mailbox_mapping.name, EXCLUDED.name)`,
       // 0013 T7: created PAUSED (draft) — only scheduled after the operator confirms in the UI.
       // `pattern` is the one column refreshed on conflict (0027 T3): a config
       // file that gained `source.mailbox` since the last boot describes a
       // shared mailbox now, and the row has to say so. Nothing else is
       // touched — `status` in particular is the appliance's own record of
-      // what the operator confirmed, not the config file's to reset.
-      [mailboxMappingId, tenantId, sourceMailboxId, targetMailboxId, 'mirror', 'paused', pattern ?? null]
+      // what the operator confirmed, not the config file's to reset. `name`
+      // is the config mappingId and is only ever filled in, never changed:
+      // a legacy row claimed at boot (`claimLegacyMappingRows`) already
+      // carries it, and it is what says whose row it is.
+      [mailboxMappingId, tenantId, sourceMailboxId, targetMailboxId, 'mirror', 'paused', pattern ?? null, configMappingId]
     );
     log.debug(`[selfhost] ensured mailbox_mapping ${mailboxMappingId}`);
 }
@@ -360,8 +365,27 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     migrationsDir: options.migrationsDir ?? process.env.SELFHOST_MIGRATIONS_DIR,
   });
 
-  // 2. Load and validate the mapping configs.
-  const mappings = loadConfigDir(configDir);
+  // Helper to run a function with tenant context set for RLS
+  const withTenantContext = async <T>(
+    tenantId: string,
+    fn: (client: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }) => Promise<T>
+  ): Promise<T> => {
+    // Through the seam, not `$pool`: PGlite has no pool, and this is the only
+    // other place the appliance took a raw connection.
+    const client = await persistenceBackend.driver.acquire();
+    try {
+      await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+      return await fn(client as unknown as { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> });
+    } finally {
+      client.release();
+    }
+  };
+
+  // 2. Load and validate the mapping configs — and give each the row it is
+  //    keyed by. On an appliance from before the id derivation changed
+  //    (2026-09-05) that is the row it already has, claimed by name; on any
+  //    other it is the derived id and `ensureRecordsFor` inserts the row.
+  const mappings = await claimLegacyMappingRows(loadConfigDir(configDir), withTenantContext, log);
   // §14.1's pattern, checked before anything is scheduled (0027 T3). A mapping
   // that declares `shared_s` without naming the mailbox would read `/me` —
   // whoever the stored credentials belong to — and copy the wrong mailbox into
@@ -564,22 +588,6 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   };
 
 
-  // Helper to run a function with tenant context set for RLS
-  const withTenantContext = async <T>(
-    tenantId: string,
-    fn: (client: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }) => Promise<T>
-  ): Promise<T> => {
-    // Through the seam, not `$pool`: PGlite has no pool, and this is the only
-    // other place the appliance took a raw connection.
-    const client = await persistenceBackend.driver.acquire();
-    try {
-      await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
-      return await fn(client as unknown as { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> });
-    } finally {
-      client.release();
-    }
-  };
-
   // Ensure the tenant + connection/mailbox/mailbox_mapping records for a mapping (idempotent).
   // migration_status and migration_discovery both FK mailbox_mapping, so this must run before
   // either a sync pass or a discovery pass.
@@ -593,12 +601,21 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         [m.config.tenantId, `Tenant ${m.config.tenantId.slice(0, 8)}`, 'active', '{}']
       );
       // Ensure all necessary database records exist (connection, mailbox, mailbox_mapping)
-      const sourceUser = m.config.source.type === 'imap-oauth2' ? m.config.source.user : 'unknown';
-      const targetUser = m.config.target.type === 'jmap' ? m.config.target.user : 'unknown';
+      // The mailbox rows a mapping hangs off. A mail account names its user;
+      // anything else gets a placeholder that is THIS mapping's. A bare
+      // 'unknown' made every non-mail mapping in a tenant the same pair,
+      // which `uk_mapping_source_target_prefix` (ledger 0022) rightly refuses
+      // — it exists to catch two mappings writing the same items into the
+      // same place, not a Takeout and an Apple export into two folders.
+      const sourceUser =
+        m.config.source.type === 'imap-oauth2' ? m.config.source.user : `unknown:${m.config.mappingId}`;
+      const targetUser =
+        m.config.target.type === 'jmap' ? m.config.target.user : `unknown:${m.config.mappingId}`;
       await ensureMappingRecords(
         client,
         m.config.tenantId as string,
         m.mailboxMappingId,
+        m.config.mappingId,
         sourceUser,
         targetUser,
         // §14.1's pattern, from what the mapping declares or its source

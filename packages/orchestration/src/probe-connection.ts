@@ -25,11 +25,25 @@
 import {
   appleAuthRefusal,
   isCredentialRefusal,
+  microsoftFaceScope,
   withDeploymentDropboxClient,
   withDeploymentGoogleClient,
+  withDeploymentMicrosoftClient,
 } from '@openmig/shared';
 import { isGoogleGrantKind } from './account-qualification.ts';
-import type { SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
+import {
+  MICROSOFT_ACCOUNT_KIND,
+  MICROSOFT_FACE_UNIT,
+  isMicrosoftGrantKind,
+  listMicrosoftFace,
+  microsoftFaceSource,
+  microsoftFacesInProbeOrder,
+  readMicrosoftGrant,
+} from './microsoft-account-test.ts';
+import type { MicrosoftFaceSourceBuilder } from './microsoft-account-test.ts';
+import type { ArchiveSource, SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
+import { parseArchiveSource } from '@openmig/shared';
+import { ARCHIVE_CONNECTION_KIND, archiveReaderFor } from './archive-source-factory.ts';
 import { CalDAVSource, CarddavSource, DropboxFileSource, WebdavFileSource } from '@openmig/connectors';
 import { measureTargetScheduling } from './target-scheduling.ts';
 import type { SchedulingVerdict } from './target-scheduling.ts';
@@ -228,23 +242,146 @@ async function probeBounded(
 }
 
 /**
+ * The Microsoft account's headline: one face, the first the grant carries,
+ * listed with the builder a pass uses (`microsoft-account-test.ts` has the
+ * reasoning). A grant that cannot be read falls to the calendar, whose
+ * builder then refuses in the stored vocabulary — a credential refusal, ours,
+ * and never the `noProbe` gap this arm replaced.
+ */
+async function probeMicrosoftAccount(
+  config: Record<string, unknown>,
+  creds: Record<string, string>,
+  deps: ProbeDeps,
+): Promise<ProbeResult> {
+  const faces = microsoftFacesInProbeOrder();
+  const grant = await readMicrosoftGrant(
+    creds,
+    deps.microsoftTokenEndpoint === undefined ? {} : { tokenEndpoint: deps.microsoftTokenEndpoint },
+  );
+  if (!grant.ok) {
+    // AN UNREADABLE GRANT IS THE ANSWER, not a reason to try a face anyway.
+    // This used to fall back to the calendar with whatever the row held, and
+    // the first live Test (2026-09-06) showed what that buys: a row with the
+    // deployment's pair filled in and no token was built on the application
+    // flow, and the person read MSAL's `missing_tenant_id_error` — a sentence
+    // about a tenant, for a token that was never stored. The read already
+    // knows what is wrong, in our words when the fault is ours (a stored
+    // field missing) and in Microsoft's when it is theirs (the exchange
+    // refused), so that is what the Test says.
+    return grant.refusal
+      ? { ok: false, reason: grant.refusal.en, outcome: { code: 'credentialsRefused', refusal: grant.refusal } }
+      : { ok: false, reason: grant.reason, outcome: { code: 'providerRefused' } };
+  }
+  const carried = faces.find((face) => {
+    const scope = microsoftFaceScope(face);
+    return scope !== undefined && grant.granted.has(scope);
+  });
+  const face = carried ?? faces[0]!;
+  const unit = MICROSOFT_FACE_UNIT[face];
+  try {
+    const source = (deps.microsoftFaceSource ?? microsoftFaceSource)(face, config, creds);
+    const { count, floor } = await listMicrosoftFace(source);
+    return {
+      ok: true,
+      detail: connectedDetail(count, unit, floor),
+      outcome: { code: 'connected', count, unit, ...(floor ? { floor: true } : {}) },
+    };
+  } catch (err) {
+    return providerRefused(err, MICROSOFT_ACCOUNT_KIND);
+  }
+}
+
+/**
+ * Open an export archive far enough to count it, and NEVER answer "empty"
+ * for an archive that could not be opened (workplan 0116 T1, §1).
+ *
+ * That distinction is the whole of this function. A truncated download, a part
+ * the person never fetched, a path that points at the zip instead of the
+ * folder it was extracted to — these are the COMMON case for a multi-gigabyte
+ * export, not the exception, and every one of them produces "we could not open
+ * this", which reaches the surfaces as `unknown` with the reason. An `ok: true,
+ * count: 0` would reach them as a measured **no**: *you have no photos*. To
+ * somebody who waited a week for a 25 GB download that is the most alarming
+ * sentence this product could say, and the one they can do least about.
+ *
+ * `providerRefused` is the shape used for the failure because it renders the
+ * reason verbatim, which is right here: `ArchiveUnreadable.reason` is OUR
+ * sentence about OUR file, so there is no provider text to prefer over it.
+ */
+async function probeArchive(config: Record<string, unknown>): Promise<ProbeResult> {
+  let source: ArchiveSource;
+  try {
+    // Through the shared parser, so an archive the appliance's mapping file
+    // would refuse is not one a probe reports as fine (hard rule 5). A stored
+    // row cannot normally fail this — the create door parsed it too — but a
+    // hand-edited config can, and it must fail HERE rather than inside a
+    // reader that would blame the archive.
+    source = parseArchiveSource(config);
+  } catch (err) {
+    return providerRefused(err);
+  }
+  const reader = archiveReaderFor(source.provider);
+  if (!reader) {
+    return {
+      ok: false,
+      reason:
+        `No reader exists for a '${source.provider}' archive. This is a wiring gap, not a ` +
+        'problem with your export.',
+      outcome: { code: 'noProbe', kind: `archive:${source.provider}` },
+    };
+  }
+  let handle;
+  try {
+    handle = await reader.open({ provider: source.provider, path: source.path });
+  } catch (err) {
+    return providerRefused(err);
+  }
+  try {
+    const summary = await reader.summary(handle);
+    return {
+      ok: true,
+      detail: connectedDetail(summary.folders, 'folder'),
+      outcome: { code: 'connected', count: summary.folders, unit: 'folder' },
+    };
+  } catch (err) {
+    return providerRefused(err);
+  } finally {
+    // A reader may hold file descriptors. Released even when `summary` threw,
+    // because a probe that leaks one per press is a probe that stops working
+    // on a long-lived appliance rather than on the run that caused it.
+    await handle.close().catch(() => {});
+  }
+}
+
+/**
  * Probe a SOURCE as the create route would store it: `kind` is the
  * connection.kind the mapping would get, `config` the JSONB blob, `creds` the
  * record that would be encrypted. The same builders a sync pass uses do the
  * interpreting, so the probe cannot pass on a shape the pass would refuse.
  */
+/** Injectable seams so the unit tests measure decisions, not sockets. */
+export interface ProbeDeps {
+  /** Build a Microsoft face's source some other way — a stub, in a test. The
+   *  default is the same seam a pass builds through. */
+  readonly microsoftFaceSource?: MicrosoftFaceSourceBuilder;
+  /** Where the Microsoft grant is read — a parameter so tests exchange against a stub. */
+  readonly microsoftTokenEndpoint?: string;
+}
+
 export function probeSourceConnection(
   kind: string,
   config: Record<string, unknown>,
   rawCreds: Record<string, string>,
+  deps: ProbeDeps = {},
 ): Promise<ProbeResult> {
-  return withProbeDeadline(() => probeSourceNow(kind, config, rawCreds));
+  return withProbeDeadline(() => probeSourceNow(kind, config, rawCreds, deps));
 }
 
 async function probeSourceNow(
   kind: string,
   config: Record<string, unknown>,
   rawCreds: Record<string, string>,
+  deps: ProbeDeps,
 ): Promise<ProbeResult> {
   /**
    * THE DEPLOYMENT'S OWN GOOGLE CLIENT, where it has one and this row is a
@@ -261,9 +398,16 @@ async function probeSourceNow(
    * secret under the same `clientId`/`clientSecret` names, and handing them
    * Google's application would fail at their provider naming nothing useful.
    */
-  const creds = withDeploymentDropboxClient(
-    kind === DROPBOX_CONNECTION_KIND,
-    withDeploymentGoogleClient(isGoogleGrantKind(kind), rawCreds),
+  // AND THE DEPLOYMENT'S OWN MICROSOFT REGISTRATION (0114 T1), the same way
+  // and for the same reason: a row that took the grant button stores a
+  // refresh token and no pair, and the pass fills the pair from the
+  // deployment — so the probe must too, or Test refuses what the run accepts.
+  const creds = withDeploymentMicrosoftClient(
+    isMicrosoftGrantKind(kind),
+    withDeploymentDropboxClient(
+      kind === DROPBOX_CONNECTION_KIND,
+      withDeploymentGoogleClient(isGoogleGrantKind(kind), rawCreds),
+    ),
   );
   const user = String(config.user ?? '');
   switch (kind) {
@@ -331,6 +475,29 @@ async function probeSourceNow(
         kind,
       );
     }
+    // THE EXPORT ARCHIVE (workplan 0116 T1). The only probe here that reaches
+    // no network at all: an archive is a file the person already downloaded,
+    // so "can we open it" is a question about a path and a reader.
+    //
+    // The counted unit is `folder` because that is what an archive's shape
+    // amounts to before anything is read — Takeout's albums and year folders,
+    // Apple's per-service directories. The FULL measure (items, bytes, the
+    // date span the export covers) is 0116 T7, on the qualification, where
+    // every other kind's measured volumes live.
+    case ARCHIVE_CONNECTION_KIND:
+      return probeArchive(config);
+    // THE MICROSOFT ACCOUNT (workplan 0114 T10) answers with the FIRST FACE
+    // ITS GRANT CARRIES, in calendar-first order — the account-kind rule
+    // (one face, the calendar's) applied to a consent that asks for exactly
+    // the faces a person ticked. Read from Microsoft, never assumed: a
+    // calendar-first probe against a mail-and-files grant would refuse for a
+    // connection the migration runs fine. The other faces are not guessed
+    // from this one; the qualification measures each and the badges report
+    // all of them. Without this arm the kind fell to `default` and Test on a
+    // card the front door offers read "No check exists for a microsoft
+    // connection yet" (the owner, 2026-09-06, on a grant that worked).
+    case MICROSOFT_ACCOUNT_KIND:
+      return probeMicrosoftAccount(config, creds, deps);
     case 'imap':
     case 'o365':
       // The managed mail builder handles both: a password, a static token, or
@@ -358,7 +525,7 @@ async function probeSourceNow(
  * JMAP client here starts with.
  */
 export function probeTargetConnection(
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin',
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud',
   config: Record<string, unknown>,
   creds: Record<string, string>,
 ): Promise<ProbeResult> {
@@ -366,7 +533,7 @@ export function probeTargetConnection(
 }
 
 async function probeTargetNow(
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin',
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud',
   config: Record<string, unknown>,
   creds: Record<string, string>,
 ): Promise<ProbeResult> {

@@ -34,7 +34,14 @@ import { PROVIDER_ACCOUNT_DOMAINS } from './provider-accounts.ts';
 import type { DiscoveryDomain } from './discovery.ts';
 
 /** The wizard's target vocabulary (mirrors CreateMappingSchema.targetType). */
-export type WizardTargetType = 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
+export type WizardTargetType =
+  | 'jmap'
+  | 'imap'
+  | 'caldav'
+  | 'carddav'
+  | 'webdav'
+  | 'soverin'
+  | 'nextcloud';
 
 export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<DiscoveryDomain>> = {
   jmap: ['email', 'contact', 'file'],
@@ -55,6 +62,26 @@ export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<Discove
   // stay out until a Soverin account MEASURES a file face (the
   // qualification's job, never this table's guess).
   soverin: ['email', 'calendar', 'contact', 'task'],
+  // ONE ROW FOR THE FOUR FACES ONE NEXTCLOUD ALREADY SERVES (2026-09-07, the
+  // owner's ask). Everything below was reachable before this line — as three
+  // separate connections, `caldav` and `carddav` and `webdav`, each retyping
+  // the same URL, username and password. The person adding them is describing
+  // one account to us three times, and one of the three is easy to forget.
+  //
+  // The plumbing was already here: `dav-endpoint.ts` has carried a
+  // `kind === 'nextcloud'` branch since the file domain needed one, appending
+  // Nextcloud's own `files/{username}/` convention to the base DAV URL, and
+  // the per-domain factories route any non-jmap kind to its DAV endpoint. Only
+  // this table and the doors that read it were missing.
+  //
+  // NO EMAIL, deliberately. Nextcloud Mail is an IMAP *client*, not a mail
+  // server: a Nextcloud gives a person calendars, address books, files and
+  // task lists, and their mail lives somewhere else. Listing `email` here
+  // would put a tick on the wizard that no writer could honour.
+  //
+  // Tasks ride the CalDAV face, as they do for soverin (0113 T5): a Nextcloud
+  // task list is a calendar collection that declares VTODO.
+  nextcloud: ['calendar', 'contact', 'file', 'task'],
 };
 
 const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
@@ -64,6 +91,7 @@ const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
   carddav: 'CardDAV',
   webdav: 'WebDAV',
   soverin: 'Soverin',
+  nextcloud: 'Nextcloud',
 };
 
 /** The selected domains the given target protocol cannot receive. */
@@ -138,7 +166,14 @@ export type WizardSourceType =
   // for the same reason the O365 mail sources do not — one app-specific
   // password reaches mail, calendars, contacts and reminders alike, so no
   // domain is aimed at an API the credential does not serve.
-  | 'apple';
+  | 'apple'
+  // An EXPORT ARCHIVE (workplan 0116 T1) — the first source type that is not
+  // an account at all. Its credential is a LOCATION, and WHICH export it is
+  // (`ARCHIVE_PROVIDERS`) is a value on the connection rather than a type of
+  // its own, deliberately: 0116 §2 requires that a third export be a new
+  // reader and nothing else, and a type per export would drag every table in
+  // this file back into the diff each time one arrived.
+  | 'archive';
 
 /** Domains a wizard source can serve, where the source constrains it at all. */
 export const SOURCE_TYPE_DOMAINS: Partial<
@@ -150,17 +185,26 @@ export const SOURCE_TYPE_DOMAINS: Partial<
   'google-contacts': ['contact'],
   dropbox: ['file'],
   box: ['file'],
+  // FILES ONLY, and photos are files (owner decision D5, 2026-09-04). Both
+  // exports contain more than that — Takeout will hand over mail as `.mbox`
+  // and contacts as `.vcf`, Apple's ships `.ics`, `.vcf` and `.eml` — and this
+  // product deliberately does not read them from an archive. The reason is
+  // that mail, calendars and contacts have LIVE routes here already, and a
+  // snapshot import of them would compete with the live one: two doors writing
+  // the same mailbox, one of them stuck on the day the export was prepared.
+  // Photos and iCloud Drive have no live route at all, which is why they are
+  // the ones worth the archive's compromises.
+  archive: ['file'],
   // NOT written out here: read from PROVIDER_ACCOUNT_DOMAINS, so a provider
   // gaining a face is one row edit rather than two that can disagree. Two
   // copies of a capability list is the drift 0106 T1b just removed from the
   // Google SCOPE tables, and there is no reason to reintroduce it one file
   // away.
   google: PROVIDER_ACCOUNT_DOMAINS.google,
-  // Read from the same table, for the same reason. Microsoft constrains too,
-  // and it is worth being clear about WHICH face is missing: `task` is the
-  // one, Graph has it at `/me/todo/lists`, and the connector for it is not
-  // built (0114 T9). So a mapping that ticks tasks against a Microsoft source
-  // is refused with a reason rather than run against a face nothing serves.
+  // Read from the same table, for the same reason. Microsoft serves all five
+  // faces since 0114 T9 (To Do is `graph-todo-source`), so this row constrains
+  // nothing today — it stays a read of the one table rather than a hand-typed
+  // "every domain", so a face leaving that table leaves this one too.
   microsoft: PROVIDER_ACCOUNT_DOMAINS.microsoft,
 };
 
@@ -174,6 +218,16 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
   Record<WizardSourceType, { name: string; reads: string }>
 > = {
   'google-drive': { name: 'Google Drive', reads: 'the Drive API only' },
+  archive: {
+    name: 'an export archive',
+    // The honest asymmetry with every other line here: the others say what a
+    // CREDENTIAL reaches. This one says what the PRODUCT chose to read out of
+    // a file that contains more, so the sentence names the live route rather
+    // than implying the archive lacks the data.
+    reads:
+      'files and photos only — mail, calendars and contacts are migrated from the account '
+      + 'itself, live, rather than from a snapshot taken on the day the export was prepared',
+  },
   gmail: { name: 'Gmail', reads: 'mail only (the https://mail.google.com/ scope)' },
   'google-calendar': {
     name: 'Google Calendar',
@@ -185,16 +239,12 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
   },
   microsoft: {
     name: 'Microsoft 365',
-    // The honest asymmetry with Google's sentence below: Microsoft's four
-    // faces are not held back by a scope tier — its delegated read scopes
-    // carry no equivalent of Google's restricted class. The ONE face missing
-    // is tasks, and that absence is ours: Graph serves To Do lists at
-    // /me/todo/lists under Tasks.Read, and no connector reads them yet
-    // (workplan 0114 T9). Saying so is the difference between "this provider
-    // cannot" and "we have not built it".
-    reads:
-      'mail, calendars, contacts and OneDrive. Microsoft To Do is not among them yet — '
-      + 'Graph serves it and this product has no connector for it',
+    // The honest asymmetry with Google's sentence below: Microsoft's faces are
+    // not held back by a scope tier — its delegated read scopes carry no
+    // equivalent of Google's restricted class — and since 0114 T9 all five are
+    // served, To Do included. The sentence is kept so a face that leaves the
+    // table is named rather than silently constrained.
+    reads: 'mail, calendars, contacts, OneDrive and Microsoft To Do',
   },
   google: {
     name: 'Google',

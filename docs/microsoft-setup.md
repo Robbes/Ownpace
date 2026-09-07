@@ -98,6 +98,15 @@ rather than completed with the deployment's other half, because a client id that
 deployment's paired with a secret that is would be refused by Entra at its token endpoint —
 hours later, from a sync pass.
 
+### What Test shows
+
+Test reads the consent back from Microsoft before it reaches anything, so the badges on the
+connection say which faces the account actually granted. A face you ticked lists its calendars,
+folders, address books or lists and shows a count; a face you did not tick shows the scope it
+would need and the tick that adds it — connect the account again with that face ticked. The
+Measured line carries what is cheap to know: the OneDrive space in use, the number of messages
+across the mailbox's folders, and the number of contacts per address book.
+
 ### When the consent is refused
 
 Two refusals are a **tenant policy**, not something to try again:
@@ -138,9 +147,9 @@ two older cards that are *not* replaced:
   customer's own registration under **application** permissions. That is what an administrator
   migrating *other people's* mailboxes needs, and this delegated grant will never do it.
 
-The one face the account kind does **not** carry is **tasks**. That absence is ours rather
-than Microsoft's: Graph serves Microsoft To Do at `/me/todo/lists` under `Tasks.Read`, and this
-product has no connector that reads them yet.
+**Tasks** are Microsoft To Do. Tick them and the consent asks for `Tasks.Read` as well; every
+To Do list becomes a task list on the target, and each task keeps its title, notes, status,
+importance, due date, checklist and repeat rule.
 
 ## Leaving
 

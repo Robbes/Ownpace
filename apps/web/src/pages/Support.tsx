@@ -47,7 +47,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { LifeBuoy, ArrowLeft, AlertTriangle, Clock } from 'lucide-react';
-import { isFailureCategory } from '@openmig/shared';
+import { isFailureCategory, isFailureSide } from '@openmig/shared';
 import {
   listSupportTenants,
   getSupportTenant,
@@ -61,11 +61,14 @@ import {
   recordPersonOpened,
   type SupportMigrationDomain,
   type SupportRetainedInvoice,
+  getSupportPlatform,
+  type PlatformStatus,
 } from '../services/support.ts';
 import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
 import { serverMessage } from '../services/api.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
-import { FAILURE_KEY } from '../i18n/failure-key.ts';
+import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
+import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
 
 /**
  * One fetch per screen, and no refetching.
@@ -85,9 +88,12 @@ const ONCE = {
 const Disclosure: React.FC = () => {
   const t = useT();
   return (
-    <p className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
-      {t('support.recorded')}
-    </p>
+    <Hint
+      className="mb-4 rounded-md bg-amber-50 px-3 py-2"
+      tone="caution"
+      text={t('support.recorded')}
+      why={t('support.recorded.why')}
+    />
   );
 };
 
@@ -126,6 +132,105 @@ const Section: React.FC<{ title: string; empty: string; rows: number; children: 
       )}
     </section>
   );
+
+
+/**
+ * THE PLATFORM STATUS THE CUSTOMER SEES (workplan 0110 T5, the last half), on
+ * the tenant screen because §5 put it there: the first question on a support
+ * call is "is it us", and this answers it from the same two sources the
+ * customer's own page reads — readiness and the status page. Its own fetch,
+ * so a slow or absent page cannot hold the tenant's facts; ONCE like every
+ * read here, though this one writes no log row (it is of nobody).
+ *
+ * The group names are the page's own (`gatus.yaml`) and render as they are:
+ * they are what the customer sees, and translating them here would make the
+ * two screens disagree.
+ */
+const PLATFORM_STATE_KEY: Readonly<Record<'up' | 'down' | 'off' | 'unchecked', StringKey>> = {
+  up: 'support.platform.state.up',
+  down: 'support.platform.state.down',
+  off: 'support.platform.state.off',
+  unchecked: 'support.platform.state.unchecked',
+};
+
+type PageEndpoint = Extract<PlatformStatus['statusPage'], { state: 'up' }>['endpoints'][number];
+
+const Platform: React.FC = () => {
+  const t = useT();
+  const { relativeToNow } = useFormatters();
+  const query = useQuery({
+    queryKey: ['support', 'platform'],
+    queryFn: getSupportPlatform,
+    retry: false,
+    ...ONCE,
+  });
+  const word = (state: keyof typeof PLATFORM_STATE_KEY) => t(PLATFORM_STATE_KEY[state]);
+  const tone = (state: 'up' | 'down' | 'off' | 'unchecked') =>
+    state === 'down' ? 'text-red-700' : state === 'up' ? 'text-gray-800' : 'text-gray-400';
+
+  const groups = (data: PlatformStatus): Array<[string, PageEndpoint[]]> => {
+    if (data.statusPage.state !== 'up') return [];
+    const byGroup = new Map<string, PageEndpoint[]>();
+    for (const e of data.statusPage.endpoints) {
+      const list = byGroup.get(e.group) ?? [];
+      list.push(e);
+      byGroup.set(e.group, list);
+    }
+    return [...byGroup.entries()];
+  };
+  const newestCheck = (data: PlatformStatus): string | null =>
+    data.statusPage.state === 'up'
+      ? data.statusPage.endpoints.reduce<string | null>(
+          (newest, e) => (e.checkedAt && (!newest || e.checkedAt > newest) ? e.checkedAt : newest),
+          null,
+        )
+      : null;
+
+  return (
+    <section className="mb-6">
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        {t('support.platform')}
+      </h2>
+      {query.isLoading && <p className="text-sm text-gray-500">{t('common.loading')}</p>}
+      {query.isError && <p className="text-sm text-gray-500">{t('support.platform.unread')}</p>}
+      {query.data && (
+        <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm">
+          <p>
+            <span className="font-medium">{t('support.platform.database')}</span>{' '}
+            <span className={tone(query.data.ready.database)}>{word(query.data.ready.database)}</span>
+            {' · '}
+            <span className="font-medium">{t('support.platform.signIn')}</span>{' '}
+            <span className={tone(query.data.ready.signIn)}>{word(query.data.ready.signIn)}</span>
+          </p>
+          {query.data.statusPage.state === 'off' && (
+            <p className="text-gray-500">{t('support.platform.page.off')}</p>
+          )}
+          {query.data.statusPage.state === 'unreachable' && (
+            <p className="text-amber-800">{t('support.platform.page.unreachable')}</p>
+          )}
+          {groups(query.data).map(([group, endpoints]) => (
+            <p key={group}>
+              <span className="font-medium">{group}:</span>{' '}
+              {endpoints.map((e, i) => (
+                <React.Fragment key={e.name}>
+                  {i > 0 && ' · '}
+                  <span className={tone(e.state)}>
+                    {e.name} {word(e.state)}
+                  </span>
+                </React.Fragment>
+              ))}
+            </p>
+          ))}
+          {newestCheck(query.data) && (
+            <p className="text-xs text-gray-500">
+              {t('support.platform.checked', { when: relativeToNow(newestCheck(query.data) as string) })}
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+};
 
 /* ------------------------------------------------------------------ level 1 */
 
@@ -271,7 +376,7 @@ export const SupportTenants: React.FC = () => {
     <div>
       <Heading title={t('support.heading')} />
       <Disclosure />
-      <p className="mb-4 text-sm text-gray-600">{t('support.metadataOnly')}</p>
+      <Hint className="mb-4" text={t('support.metadataOnly')} why={t('support.metadataOnly.why')} />
 
       {/* Reachable from here because it is reachable from nowhere else: the
           organisations it concerns have been erased, so no tenant row leads to
@@ -430,7 +535,7 @@ const TenantUsage: React.FC<{ usage: SupportTenantUsage }> = ({ usage }) => {
             </tr>
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-gray-500">{t('support.usage.note')}</p>
+        <Hint className="mt-2" text={t('support.usage.note')} why={t('support.usage.why')} />
       </div>
     </Section>
   );
@@ -666,6 +771,7 @@ export const SupportTenantDetail: React.FC = () => {
 
       {usage && <TenantUsage usage={usage} />}
 
+      <Platform />
       <Section title={t('support.invoices')} empty={t('support.noInvoices')} rows={invoices.length}>
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
@@ -703,7 +809,14 @@ const Remedy: React.FC<{ domain: SupportMigrationDomain }> = ({ domain }) => {
   // CHECK, so a value written by an older or newer build must not become a
   // category this screen has no sentence for.
   if (!isFailureCategory(domain.last_error_category)) return null;
-  return <p className="mt-1 text-sm text-gray-700">{t(FAILURE_KEY[domain.last_error_category])}</p>;
+  return (
+    <p className="mt-1 text-sm text-gray-700">
+      {t(FAILURE_KEY[domain.last_error_category])}
+      {/* And the side, when the pass could tell (0094 T5, second slice) — the
+          same map the customer's screen reads, so the two agree. */}
+      {isFailureSide(domain.failed_side) && <> {t(FAILURE_SIDE_KEY[domain.failed_side])}</>}
+    </p>
+  );
 };
 
 export const SupportMigrationDetail: React.FC = () => {

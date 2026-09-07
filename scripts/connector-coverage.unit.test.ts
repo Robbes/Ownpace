@@ -92,6 +92,9 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   },
   'graph-contacts': { owed: 'same tenant, same absence of a harness, as graph-calendar.' },
   'graph-drive': { owed: 'same tenant, same absence of a harness, as graph-calendar.' },
+  // Microsoft To Do (workplan 0114 T9). Graph's application permission for it
+  // is `Tasks.Read.All`, so the same read-only tenant could serve this too.
+  'graph-todo': { owed: 'same tenant, same absence of a harness, as graph-calendar.' },
   gmail: { uncoverable: 'needs a Google account and its OAuth consent. Nothing in CI can hold one.' },
   'google-calendar': { uncoverable: 'same Google account, same reason as gmail.' },
   'google-contacts': { uncoverable: 'same Google account, same reason as gmail.' },
@@ -117,6 +120,28 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   },
   dropbox: { uncoverable: 'needs a Dropbox app and a real account. Same class as gmail.' },
   box: { uncoverable: 'needs a Box app and a real account. Same class as gmail.' },
+  // THE ONE SOURCE CI COULD FULLY DRIVE, and the only `owed` that is not
+  // waiting on somebody else's tenant (workplan 0116 T1).
+  //
+  // Every `uncoverable` above says the same thing: it needs a real account at
+  // a real provider and a consent nothing in CI can press. An archive needs
+  // NEITHER. It is a folder of files, so a fixture tree checked into this
+  // repository is a complete and honest stand-in — the same bytes a person's
+  // export contains, minus the person. That makes this `owed` rather than
+  // `uncoverable`, and it is 0116 T10: a tiny fixture archive of each shape,
+  // imported end to end, asserting item count, hashes and a second import
+  // writing nothing.
+  //
+  // `takeout-archive-reader.unit.test.ts` already drives the READER against
+  // such a tree. It is not written here as `driven` because this table asks
+  // what a GATE stands up, and a unit test is not a gate — recording it as
+  // driven would be the laundering of an appearance into an assurance that
+  // `graph-calendar` above exists to warn about.
+  archive: {
+    owed:
+      'the only source type CI could drive completely — a fixture export tree needs no '
+      + 'account, no consent and no network. Workplan 0116 T10.',
+  },
 };
 
 /** Every TARGET type, and what has ever driven it. */
@@ -192,11 +217,21 @@ describe('what is owed stays visible, and stays exact', () => {
     // workflow file that has never executed.
     // imap-dav left this list on 2026-08-24 — the only entry that was ever
     // coverable with what the gates already stand up, and now driven.
+    //
+    // `source:archive` joined on 2026-09-04 (0116 T1) and is a DIFFERENT
+    // admission from the four above it. Theirs is "we have a tenant and no
+    // harness"; this one is "we need neither, and have not built the gate
+    // yet" — a fixture export tree checked into this repository is a complete
+    // stand-in, because an archive is a folder of files rather than an
+    // account. It is therefore the entry most likely to be wrong to leave
+    // here, which is exactly what a hard list is for.
     expect(owed).toEqual([
       'source:graph-mail',
       'source:graph-calendar',
       'source:graph-contacts',
       'source:graph-drive',
+      'source:graph-todo',
+      'source:archive',
     ]);
   });
 

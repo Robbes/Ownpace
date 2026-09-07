@@ -1341,6 +1341,51 @@ paths:
                                 calendar: { $ref: '#/components/schemas/QualifiedDomain' }
                                 contact: { $ref: '#/components/schemas/QualifiedDomain' }
                                 file: { $ref: '#/components/schemas/QualifiedDomain' }
+                        standingFailures:
+                          type: array
+                          description: |
+                            What is standing against this connection (workplan
+                            0094 T5): the categorised failure on every domain
+                            row of every migration that signs in with it, one
+                            entry per migration and category, latest first.
+                            An entry sits on the side the pass named when it
+                            failed (`side`), or on both of a migration's
+                            connections when it could not tell — the category
+                            alone does not say which side failed, and Test is
+                            then the way to find out. The category only,
+                            never the prose: `lastError` lives on the
+                            migration's own page. Always present; empty when
+                            nothing stands.
+                          items:
+                            type: object
+                            required: [mappingId, mappingName, category, domains, asOf, side]
+                            properties:
+                              mappingId: { type: string, format: uuid }
+                              mappingName: { type: string, nullable: true }
+                              side:
+                                type: string
+                                nullable: true
+                                enum: [source, target]
+                                description: |
+                                  Which side the pass named when it failed
+                                  (second slice). Set when this entry is on
+                                  this connection because the failure happened
+                                  here; null when the pass could not tell, in
+                                  which case the same entry is on both of the
+                                  migration's connections.
+                              category:
+                                type: string
+                                enum: [auth_expired, rate_limited, quota_exceeded, target_refused, network, unknown]
+                              domains:
+                                type: array
+                                description: The domains this category stands on.
+                                items:
+                                  type: string
+                                  enum: [email, calendar, contact, file, task]
+                              asOf:
+                                type: string
+                                format: date-time
+                                description: When the newest of those rows last changed.
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       tags: [Connections]
@@ -3536,6 +3581,68 @@ paths:
                     items: { $ref: '#/components/schemas/SupportRetainedInvoice' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /api/support/platform:
+    get:
+      tags: [Support]
+      summary: The platform status the customer sees
+      description: |
+        The operator's second level owes "the platform status the customer
+        sees" (workplan 0110 T5, owner's answer 3: platform-wide is enough).
+        Two sources, both of which the customer can already read: readiness
+        (`/api/ready`, called in-process rather than fetched) and the status
+        page's own endpoint list, shaped to the four things the public page
+        shows — group, name, up or down, and when. Gatus's JSON also carries
+        the probed hostname, condition text and error strings; none of that
+        leaves here.
+
+        The one support operation that is NOT a read of a customer: it needs
+        no operator predicate (everything it serves is public already) and
+        records no `support_read` row (the log names whose data was looked
+        at, and this is of nobody). Signed in all the same.
+
+        `statusPage.state` is `off` when the deployment has no status page
+        (`STATUS_URL` unset — the self-host edition), `unreachable` when it
+        has one that did not answer within the deadline, and `up` with the
+        endpoints otherwise. No reason travels with either absence; the log
+        has it.
+      responses:
+        '200':
+          description: Readiness, and the status page's endpoints or why there are none.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ready, statusPage]
+                properties:
+                  ready:
+                    type: object
+                    required: [status, database, signIn]
+                    properties:
+                      status: { type: string, enum: [ok, degraded, down] }
+                      database: { type: string, enum: [up, down, off] }
+                      signIn: { type: string, enum: [up, down, off] }
+                  statusPage:
+                    type: object
+                    required: [state]
+                    properties:
+                      state: { type: string, enum: [up, off, unreachable] }
+                      endpoints:
+                        type: array
+                        description: Present only when `state` is `up`. The newest result decides each state.
+                        items:
+                          type: object
+                          required: [group, name, state, checkedAt]
+                          properties:
+                            group: { type: string }
+                            name: { type: string }
+                            state: { type: string, enum: [up, down, unchecked] }
+                            checkedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                              description: When the newest result was taken; null when none has been.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3709,6 +3816,15 @@ components:
           # against it in `support-routes.unit.test.ts` so this list cannot
           # drift from the values the column actually holds.
           enum: [auth_expired, rate_limited, quota_exceeded, target_refused, network, unknown]
+        failed_side:
+          type: string
+          nullable: true
+          enum: [source, target]
+          description: |
+            Which side the pass named when it failed (workplan 0094 T5,
+            second slice; managed migration 0022 added it to the view).
+            Two words, held to them by the ledger's CHECK; null when the
+            pass could not tell. Metadata, like the category beside it.
         last_pass_metrics:
           type: object
           nullable: true

@@ -74,7 +74,7 @@ services:
   # and `compose up -d`. Every service reads those, so that one change puts the
   # whole stack back on direct connections without touching this file.
   pgbouncer:
-    image: edoburu/pgbouncer:v1.24.1-p1
+    image: edoburu/pgbouncer:v1.25.2-p0
     container_name: ownpace-pgbouncer
     restart: unless-stopped
     depends_on:
@@ -139,7 +139,7 @@ services:
     # deploy story). The old hardcoded v4.5.4 pin claimed to match an SDK that
     # had moved to 4.5.7 — and the v4.5.7 pin then repeated the same drift
     # when the SDK moved to 4.5.9.
-    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.5.12}
+    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.5.16}
     container_name: trigger-api
     restart: unless-stopped
     user: root
@@ -315,8 +315,21 @@ services:
   # and not publishing on the LAN is what lets this run without auth — an
   # unauthenticated registry on 0.0.0.0 would be an open image-push endpoint
   # for the whole network. A production deployment brings its own registry.
+  #
+  # `registry:3` since 2026-09-06 (0119 §3). The 2 line stopped at 2.8.3 in
+  # February 2025. What 3.0 changed that could matter here, checked against
+  # the image's own default config (cmd/registry/config-dev.yml, v2.8.3 vs
+  # v3.1.1): the config file moved to /etc/distribution/config.yml — this
+  # service mounts none and runs the image default either way; the default
+  # blob-descriptor cache is in-memory instead of a redis that was never
+  # there; the storage driver and its layout under /var/lib/registry are the
+  # same, so `registry_data` carries over; and schema-1 manifests are
+  # refused, which nothing since Docker 20 pushes. The CLI pushes OCI images
+  # to it and the supervisor's daemon pulls them — neither cares which line
+  # answers. Upstream's own compose still says `registry:2`; the managed gate
+  # (deploy-tasks.sh pushes, the smoke runs a task) is the proof for this one.
   trigger-registry:
-    image: registry:2
+    image: registry:3.1.1
     container_name: trigger-registry
     restart: unless-stopped
     ports:
@@ -352,7 +365,7 @@ services:
   # deployed task is dequeued by nobody — which is exactly what this stack
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
-    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.5.12}
+    image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.5.16}
     container_name: trigger-supervisor
     restart: unless-stopped
     environment:
@@ -512,7 +525,20 @@ services:
     # `zitadel-image-matches-postgres.unit.test.ts` refuses a pairing of this
     # image with a Postgres major it cannot initialise against, in either
     # direction, so neither number can be moved alone by accident.
-    image: ghcr.io/zitadel/zitadel:v4.17.1
+    #
+    # v4.17.3 (2026-09-04) since 2026-09-06, owner go (0119 §3 item 2). 24
+    # commits over v4.17.1, three of them security fixes (TOTP reuse, IDP
+    # intent tokens under authenticated encryption, the auth-method permission
+    # checked on the user's own organisation). No schema migration between the
+    # two. The three facts this stack pins about v4.17.1 were re-read against
+    # the tag rather than assumed: `cmd/defaults.yaml` still ships
+    # `LoginV2.Required: true` (the-login-page-nobody-chose), the admin SMTP
+    # handler still implements only the two deprecated test verbs
+    # (the-mail-the-issuer-could-not-send), and `zitadel ready` still asks its
+    # external port (the healthcheck note below). Zitadel migrates its own
+    # schema at boot, on the persistent stack, so the gate run that proves this
+    # is the one that applies it.
+    image: ghcr.io/zitadel/zitadel:v4.17.3
     container_name: ownpace-idp
     restart: unless-stopped
     # `start-from-init` is init-then-start in one command and is idempotent: on
@@ -684,6 +710,17 @@ services:
         # container actually serves.
         aliases:
           - ${ZITADEL_NETWORK_ALIAS:-ownpace-idp}
+      # ON THE PROBE NETWORK THE PUBLIC NAME ALWAYS MEANS THIS CONTAINER. Only
+      # the status page is on it (see `status-probe` at the bottom of this
+      # file), so the derivation above stays exactly as it is for the API, and
+      # the page's `Identity provider` row — which probes the provider by that
+      # name, on this container's own port — reaches it whether or not something
+      # fronts the provider publicly. Fronted, the app-network alias is the
+      # container's name and this one is the domain; direct, both are the domain
+      # and the second is redundant, which is fine.
+      status-probe:
+        aliases:
+          - ${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}
 
   # MAKES THE PROVISIONING TOKEN'S DIRECTORY WRITABLE BY THE IDENTITY PROVIDER.
   #
@@ -720,7 +757,7 @@ services:
   # the name against. The default here is only for a hand-run `compose run` with
   # nothing exported.
   zitadel-machinekey:
-    image: busybox:1.37
+    image: busybox:1.38
     profiles: ["init"]
     command:
       - sh
@@ -842,6 +879,12 @@ services:
       MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
       MICROSOFT_OAUTH_TENANT: ${MICROSOFT_OAUTH_TENANT:-}
       API_URL: ${API_URL:-http://localhost:3001}
+      # Where the API reads the status page's own endpoint list, for the
+      # operator's support screen (0110 T5): the gatus container on this
+      # stack's network. The screen shows what the public page shows and no
+      # more. No `depends_on` on gatus for the same reason gatus has none on
+      # us — a page that does not answer is one of the screen's answers.
+      STATUS_URL: ${STATUS_URL:-http://gatus:8080}
       # How long a backup of this database is kept. Not a schedule — it is what
       # the close endpoint TELLS a customer about when their erasure actually
       # completes (0085 T5). Unset means the 7-day default in @openmig/shared.
@@ -971,18 +1014,30 @@ services:
       # stop and work out whether `zitadel` is even the right machine (owner,
       # 2026-08-25).
       #
-      # It is the SAME EXPRESSION as the network alias below, so the two cannot
-      # drift: whatever external domain the provider answers for, that name
-      # resolves to its container from everywhere on this network. On a fronted
-      # stack it renders `id.example.com:3126`.
+      # It is the SAME EXPRESSION as the provider's alias on the `status-probe`
+      # network below, so the two cannot drift: whatever external domain the
+      # provider answers for, that name resolves to its container from inside
+      # THIS container. On a fronted stack it renders `id.example.com:3126`.
+      #
+      # WHY A NETWORK OF ITS OWN. This used to lean on the provider's alias on
+      # the app network. That alias is derived now (zitadel-network-alias.sh):
+      # on a fronted stack the domain is deliberately NOT aliased there, so the
+      # API reaches the issuer through the front like a browser does. From in
+      # here the same name then resolved OUTWARD — public DNS, the ingress, this
+      # port — and nothing answered. The row read Unhealthy for a provider that
+      # was signing people in (the reference deployment, 2026-09-06). The
+      # probe-only network carries the name for the two containers that share
+      # it and for nobody else, so the API's route and the probe's route no
+      # longer have to be the same route.
       #
       # AND THE PORT IS THE TELL, deliberately left visible. `:3126` is the
       # container's own port, so this row proves the provider is SERVING and
-      # not that its public https name resolves — the alias means a probe for
-      # that name never leaves this network. Writing it as the bare public URL
-      # would hide that distinction behind an address that looks like the one a
-      # visitor uses. Probing the public path means running this page off this
-      # box, which gatus.yaml's header already names as the eventual plan.
+      # not that its public https name resolves — the probe network means a
+      # request for that name never leaves this stack. Writing it as the bare
+      # public URL would hide that distinction behind an address that looks
+      # like the one a visitor uses. Probing the public path means running this
+      # page off this box, which gatus.yaml's header already names as the
+      # eventual plan.
       STATUS_IDP_URL: ${STATUS_IDP_URL:-http://${ZITADEL_EXTERNALDOMAIN:-ownpace-idp}:${ZITADEL_PORT:-3126}}
       # THE PUBLIC SITE, OFF UNTIL BOTH ARE SET. `www.yml` is a separate deploy
       # that this stack does not start, so a row for it is opt-in: a red light
@@ -1005,6 +1060,9 @@ services:
       - "${STATUS_PORT:-3124}:8080"
     networks:
       - ownpace-network
+      # The second network exists for one name: see the provider's
+      # `status-probe` alias and the STATUS_IDP_URL comment above.
+      - status-probe
     # No `depends_on`. A status page that will not start until the thing it is
     # watching is healthy is a status page that is never there when it matters.
     # NO HEALTHCHECK, AND THIS IS NOT AN OMISSION.
@@ -1059,7 +1117,7 @@ services:
   # SMTP stays on the compose network: 1025 is not published, because the only
   # things that should reach it are services in this stack. The web UI is.
   mailpit:
-    image: axllent/mailpit:v1.31.0@sha256:c96991d9bef73594c246d89ca81411d4e916f03e76a7d2d72fa2ab5dd3c9ce24
+    image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
     container_name: ownpace-mailpit
     restart: unless-stopped
     environment:
@@ -1148,7 +1206,19 @@ services:
       SQLITE_DATABASE: nextcloud
       NEXTCLOUD_ADMIN_USER: admin
       NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:-admin_managed_pw}
-      NEXTCLOUD_TRUSTED_DOMAINS: "localhost nextcloud"
+      # WHICH NAMES IT WILL ANSWER TO. Nextcloud refuses any host header not on
+      # this list with its "untrusted domain" page — so publishing it on a mesh
+      # address is only half the job: reached at `http://100.97.25.131:8083`
+      # with the list unchanged, it refuses before a login form is ever drawn,
+      # and the refusal looks like a broken deployment rather than a setting.
+      # The two shipped names keep the demo scripts and the gate working
+      # (`localhost` from the host, `nextcloud` from the app network); an
+      # operator publishing it anywhere else adds that address here.
+      #
+      # THE IMAGE APPLIES THIS AT INSTALL. On an instance already installed,
+      # editing it changes nothing until `occ config:system:set trusted_domains`
+      # is run — docs/managed-bring-up.md carries the command.
+      NEXTCLOUD_TRUSTED_DOMAINS: "${NEXTCLOUD_TRUSTED_DOMAINS:-localhost nextcloud}"
       # ARMED ON PURPOSE (0103 T2 / ADR-0043). Without a mail server Nextcloud
       # cannot send anything, and the gate's "a migration sent no mail" would
       # be true by inability — the same silence-by-blindness the whole 0103
@@ -1161,7 +1231,35 @@ services:
       MAIL_FROM_ADDRESS: calendar
       MAIL_DOMAIN: ownpace.invalid
     ports:
-      - "${NEXTCLOUD_PORT:-8083}:80"
+      # WHICH INTERFACE, AND THE DEFAULT IS LOOPBACK — the same rule mailpit
+      # states above, for the same reason. This published on every interface
+      # from the day it arrived, and its admin account is the shipped
+      # `NEXTCLOUD_ADMIN_PASSWORD` default: on a box that has a public name,
+      # which ota.ownpace.eu does, that is an unauthenticated-by-default file
+      # store facing whatever can route to it.
+      #
+      # A PRIVATE MESH ADDRESS IS A DIFFERENT THING, as it is for mailpit. On
+      # WireGuard — NetBird, Tailscale — the peer address is reachable only by
+      # devices holding a key, so an operator who wants to browse the DAV
+      # backend from a laptop on the mesh sets NEXTCLOUD_BIND to that peer
+      # address and reaches it at http://<peer-address>:${NEXTCLOUD_PORT},
+      # with no tunnel. Add that same address to NEXTCLOUD_TRUSTED_DOMAINS
+      # above, or Nextcloud answers the untrusted-domain page instead.
+      #
+      # The host-side callers follow this variable rather than assuming
+      # localhost — smoke-managed.sh and setup-managed-demo.sh both read it —
+      # so moving the publish does not quietly break the gate.
+      - "${NEXTCLOUD_BIND:-127.0.0.1}:${NEXTCLOUD_PORT:-8083}:80"
+    # A NAME, SO THE DATA OUTLIVES THE CONTAINER (2026-09-06). This block
+    # declared no volume, and the image declares `VOLUME /var/www/html` — so
+    # every account, calendar, address book and file lived in an ANONYMOUS
+    # volume. That survives `restart` and a recreate, and a `docker compose
+    # down` orphans it: the next `up` installs Nextcloud again, empty, with
+    # the old data still on disk under a hash nobody will look up. Every
+    # other stateful service here was already named; this one was the
+    # exception nobody chose.
+    volumes:
+      - nextcloud_data:/var/www/html
     # The one probe here that is not an inference: `setup-nextcloud-users.sh`
     # has been running `docker exec <nextcloud> curl … http://localhost/status.php`
     # against this image on the Spark since the demo existed, so both the binary
@@ -1182,6 +1280,15 @@ services:
 networks:
   ownpace-network:
     driver: bridge
+  # TWO MEMBERS, ONE NAME. The status page and the identity provider, so the
+  # provider's public domain resolves to its container for the page's probe
+  # without being aliased on the app network — where, on a fronted stack, that
+  # alias shadowed the front for the API (the-alias-that-shadowed-the-front).
+  # `internal`: it carries a name, not traffic to anywhere; gatus reaches the
+  # world over ownpace-network as before.
+  status-probe:
+    driver: bridge
+    internal: true
 
 volumes:
   gatus_data:
@@ -1195,6 +1302,8 @@ volumes:
   trigger_shared:
   registry_data:
   minio_data:
+  # Accounts, calendars, address books and files of the DAV backend.
+  nextcloud_data:
   trigger_tls_data:
   trigger_tls_config:
   # Kept, not reused: the Bitnami-era event store. Safe to remove once

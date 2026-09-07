@@ -24,6 +24,7 @@ import { AlertCircle, Loader2, Play } from 'lucide-react';
 import { Link } from 'react-router';
 import type { MappingLifecycle } from '@openmig/shared';
 import { useT, useLocale } from '../i18n/index.tsx';
+import { Hint } from '../components/Hint.tsx';
 import { formatDateTime } from '../i18n/datetime.ts';
 import type { StringKey } from '../i18n/index.tsx';
 import DiscoveryCounts from '../components/confirm/DiscoveryCounts.tsx';
@@ -156,7 +157,7 @@ const Confirm: React.FC = () => {
       {mappings.length === 0 && (
         <div className="text-sm text-gray-500 space-y-2">
           <p>{t('confirm.noMappings')}</p>
-          <p>{t('confirm.noMappings.how')}</p>
+          <Hint className="" label="more" text={t('confirm.noMappings.how')} why={t('confirm.noMappings.more')} />
         </div>
       )}
 
@@ -191,7 +192,7 @@ const Confirm: React.FC = () => {
                     ? ` — ${formatDateTime(domains[0].discoveredAt, locale)}`
                     : ''}
                 </summary>
-                <p className="mt-1 mb-2 text-xs text-gray-500">{t('confirm.snapshot.note')}</p>
+                <p className="mt-1 mb-2 text-xs text-gray-500">{t('confirm.snapshot.more')}</p>
                 <DiscoveryCounts domains={domains} scanning={domains.length === 0} />
               </details>
             )}

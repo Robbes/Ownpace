@@ -33,7 +33,9 @@ import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import {
   ArchiveUnreadable,
+  ARCHIVE_ITEM_KINDS,
   ARCHIVE_PROVIDERS,
+  type ArchiveItemKind,
   type ArchiveHandle,
   type ArchiveItem,
   type ArchiveLocation,
@@ -71,22 +73,33 @@ const LAID_OUT: ReadonlyArray<FakeEntry> = [
 /** A reference reader: in memory, no filesystem, obeying the three rules. */
 function referenceReader(entries: ReadonlyArray<FakeEntry> = LAID_OUT): ArchiveReader {
   const collapse = (): ArchiveItem[] => {
-    const byHash = new Map<string, { entry: FakeEntry; folders: string[] }>();
+    const byHash = new Map<string, { entry: FakeEntry; folders: string[]; albums: string[] }>();
     for (const entry of entries) {
       const hash = createHash('sha256').update(entry.bytes).digest('hex');
+      // This fixture's albums live under `Albums/`; a year lives under
+      // `Photos/`. The reference reader knows its own layout, as every reader
+      // must, and hands placement the answer rather than the layout.
+      const album = entry.path.startsWith('Albums/') ? [entry.folder] : [];
       const seen = byHash.get(hash);
       if (seen) {
         seen.folders.push(entry.folder);
+        seen.albums.push(...album);
         continue;
       }
-      byHash.set(hash, { entry, folders: [entry.folder] });
+      byHash.set(hash, { entry, folders: [entry.folder], albums: album });
     }
-    return [...byHash].map(([contentHash, { entry, folders }]) => ({
+    return [...byHash].map(([contentHash, { entry, folders, albums }]) => ({
       contentHash,
       path: entry.path,
       sizeBytes: entry.bytes.byteLength,
       folders,
+      placeIn: albums.length > 0 ? albums : folders.slice(0, 1),
       ...(entry.createdAt ? { createdAt: entry.createdAt } : {}),
+      // Every entry in this fixture is an original. The reference reader does
+      // not classify — recognising `-edited` is Takeout's own convention and
+      // belongs to Takeout's reader (0116 T7), not to the seam. What the seam
+      // says is that the field EXISTS and that a summary breaks down by it.
+      kind: 'original' as const,
       metadata: { laidOutAs: entry.path },
     }));
   };
@@ -102,13 +115,26 @@ function referenceReader(entries: ReadonlyArray<FakeEntry> = LAID_OUT): ArchiveR
     async *items(): AsyncIterable<ArchiveItem> {
       yield* collapse();
     },
+    async content(_handle: ArchiveHandle, item: ArchiveItem): Promise<Uint8Array> {
+      const entry = entries.find(
+        (e) => createHash('sha256').update(e.bytes).digest('hex') === item.contentHash,
+      );
+      if (!entry) throw new Error(`no such item: ${item.path}`);
+      return entry.bytes;
+    },
     async summary(): Promise<ArchiveSummary> {
       const items = collapse();
       const dates = items.map((i) => i.createdAt).filter((d): d is string => Boolean(d)).sort();
+      const byKind = Object.fromEntries(ARCHIVE_ITEM_KINDS.map((k) => [k, 0])) as Record<
+        ArchiveItemKind,
+        number
+      >;
+      for (const item of items) byKind[item.kind] += 1;
       return {
         items: items.length,
         bytes: items.reduce((n, i) => n + i.sizeBytes, 0),
         folders: new Set(items.flatMap((i) => i.folders)).size,
+        byKind,
         ...(dates[0] ? { earliest: dates[0] } : {}),
         ...(dates.at(-1) ? { latest: dates.at(-1)! } : {}),
       };

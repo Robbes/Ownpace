@@ -20,6 +20,7 @@ import {
   runFileSync,
   runTaskSync,
   type FileSyncDeps,
+  failureSideOf,
 } from '@openmig/core';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
@@ -387,7 +388,15 @@ export const runDeltaSync = schemaTask({
           // stopped telling about "last sync".
           try {
             await withTenant(pool, tenantId, async (db) => {
-              await new PgMigrationStatusStore(db).markFailed(tenantId, mappingId, domain, errorMessage);
+              // With the side the pass tagged (0094 T5, second slice) —
+              // the same call orchestration's runOneDomain makes.
+              await new PgMigrationStatusStore(db).markFailed(
+                tenantId,
+                mappingId,
+                domain,
+                errorMessage,
+                failureSideOf(error),
+              );
             });
           } catch (statusErr) {
             log.error('Failed to mark domain status failed:', statusErr);

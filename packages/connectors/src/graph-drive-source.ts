@@ -15,11 +15,15 @@
  * - Rate limiting and throttling support
  */
 
+import { graphFailure } from './graph-refusal.ts';
 import type { FileSource, FileFolder, RawFileItem, SyncCursor, ThrottleLimiter, FileItem } from '@openmig/shared';
 import type { GraphDriveSourceConfig, GraphDriveItem, GraphDriveDeltaResponse, GraphDriveDeltaCursor, ParsedPath, NormalizePathOptions } from './graph-drive-source.types.ts';
 import { graphScopePrefix } from './graph-scope.ts';
 import type { HttpClient as _HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { log } from '@openmig/shared';
+
+/** The tick and the delegated scope this face needs — named in a refusal's way forward (0114 T6). */
+const FILES_FACE = { face: 'Files', scope: 'Files.Read' } as const;
 
 /**
  * Graph Drive source connector implementation.
@@ -90,7 +94,7 @@ export class GraphDriveSource implements FileSource {
         });
 
         if (response.status !== 200) {
-          throw new Error(`Failed to list drive items: ${response.status} - ${response.body}`);
+          throw new Error(graphFailure('Failed to list drive items', response, FILES_FACE));
         }
 
         const data = JSON.parse(response.body) as {
@@ -121,6 +125,58 @@ export class GraphDriveSource implements FileSource {
 
     await walk(`${this.scope}/drive/root/children`, '', 0);
     return folders;
+  }
+
+  /**
+   * The top level only, ONE request, for a probe or a qualification
+   * (workplan 0114 T10). `listFolders` above walks the whole drive — right
+   * for a pass, which migrates exactly what it answers, and wrong for a Test
+   * that has 20 seconds and a person waiting: the owner's whole-Dropbox Test
+   * of 2026-09-02 could not finish a recursive listing inside the browser's
+   * patience, and OneDrive is no smaller. So this asks Graph for the root's
+   * children once, keeps the folders, and says when the page was cut short —
+   * past the cap the count is a floor, and the probe words it as one.
+   */
+  async listTopLevelFolders(): Promise<{ folders: ReadonlyArray<FileFolder>; truncated: boolean }> {
+    const response = await this.makeRequest({
+      url: `${this.scope}/drive/root/children?$top=200`,
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (response.status !== 200) {
+      throw new Error(graphFailure('Failed to list the top level of the drive', response, FILES_FACE));
+    }
+    const data = JSON.parse(response.body) as {
+      value: GraphDriveItem[];
+      '@odata.nextLink'?: string;
+    };
+    const folders: FileFolder[] = data.value
+      .filter((item) => item.folder !== undefined)
+      .map((item) => ({ path: `/${item.name}`, name: item.name }));
+    return { folders, truncated: data['@odata.nextLink'] !== undefined };
+  }
+
+  /**
+   * How much the drive holds, from the one place Graph states it: the
+   * drive's own `quota.used`. One request, metadata only — the same cheap
+   * sizing Drive's `about` gives, and the number OneDrive's own storage page
+   * shows the person, so the Measured line agrees with what they can see.
+   */
+  async storageUsage(): Promise<{ bytes: number }> {
+    const response = await this.makeRequest({
+      url: `${this.scope}/drive`,
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (response.status !== 200) {
+      throw new Error(graphFailure("Failed to read the drive's quota", response, FILES_FACE));
+    }
+    const data = JSON.parse(response.body) as { quota?: { used?: number } };
+    const used = data.quota?.used;
+    if (typeof used !== 'number') {
+      throw new Error("the drive answered without a quota.used figure, so its size is unmeasured");
+    }
+    return { bytes: used };
   }
 
   /**
@@ -169,7 +225,10 @@ export class GraphDriveSource implements FileSource {
     items: ReadonlyArray<RawFileItem>;
     nextCursor: SyncCursor;
     removed?: ReadonlyArray<string>;
+    unreadable?: number;
   }> {
+    // Files this listing found and could not turn into a file to migrate.
+    let unreadable = 0;
     // Parse cursor to get delta link
     let deltaLink: string | undefined;
     
@@ -233,7 +292,7 @@ export class GraphDriveSource implements FileSource {
       });
 
       if (response.status !== 200) {
-        throw new Error(`Failed to list drive changes: ${response.status} - ${response.body}`);
+        throw new Error(graphFailure('Failed to list drive changes', response, FILES_FACE));
       }
 
       const data = JSON.parse(response.body) as GraphDriveDeltaResponse;
@@ -297,7 +356,12 @@ export class GraphDriveSource implements FileSource {
 
         fileItems.push(fileItem);
       } catch (error) {
-        // Skip files that fail to process
+        // COUNTED, NOT JUST LOGGED (2026-09-07). A `log.warn` and a `continue`
+        // put this file nowhere the owner looks: absent from the pass, from
+        // the total they approve, and from both sides of the verification
+        // gate, which then agree and report PASS. `unreadable` is how the
+        // skip earns its silence — see `ports.ts`.
+        unreadable += 1;
         log.warn(`Failed to process file ${item.id}:`, error);
       }
     }
@@ -317,6 +381,9 @@ export class GraphDriveSource implements FileSource {
       items: fileItems,
       nextCursor,
       ...(removed.length > 0 ? { removed } : {}),
+      // Omitted rather than sent as 0, so "none failed" and "this listing
+      // cannot report" read differently downstream.
+      ...(unreadable > 0 ? { unreadable } : {}),
     };
   }
 
@@ -334,7 +401,7 @@ export class GraphDriveSource implements FileSource {
     });
 
     if (response.status !== 200) {
-      throw new Error(`Failed to download file: ${response.status} - ${response.body}`);
+      throw new Error(graphFailure('Failed to download file', response, FILES_FACE));
     }
 
     // Convert response body to Uint8Array

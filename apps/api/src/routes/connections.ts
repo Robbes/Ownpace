@@ -16,6 +16,16 @@
  * `POST /api/connections/:id/test` — probe it NOW, through the same builders a
  * sync pass uses, and record what came back.
  *
+ * The list also says what is STANDING against each connection (workplan 0094
+ * T5). A sync pass that fails writes a category onto the migration's status
+ * row (0110 T3), and until 2026-09-05 nothing carried that back to the page
+ * where the credential lives: `status` here is what the last Test said, a
+ * pass failing afterwards left it `connected`, and the person who owns the
+ * credential had to open each migration to learn that the fix was on the page
+ * they had just left. `standingFailures` folds those categories per
+ * connection — both sides of every migration that signs in with it — so the
+ * card can show the remedy beside the Replace button.
+ *
  * SECRETS NEVER COME BACK OUT. The list returns names, kinds and states; the
  * only thing that touches decrypted credentials is the probe, and all it
  * returns is the provider's own verdict.
@@ -23,7 +33,8 @@
 
 import { Router } from 'express';
 import type { Response } from 'express';
-import { eq, and, inArray, or, sql } from 'drizzle-orm';
+import { eq, and, inArray, or, sql, isNotNull, ne } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import * as schema from '@openmig/ledger';
 import { PgLedger } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
@@ -36,19 +47,36 @@ import {
   isGoogleGrantKind,
   isQualifiableKind,
   qualifyAccount,
+  isArchiveKind,
+  qualifyArchive,
   qualifyDropbox,
   qualifyGoogleGrant,
   type AccountQualification,
 } from '@openmig/orchestration/account-qualification';
+import {
+  isMicrosoftGrantKind,
+  qualifyMicrosoftAccount,
+} from '@openmig/orchestration/microsoft-account-test';
 import { z } from 'zod';
 import {
+  ARCHIVE_PROVIDERS,
+  DISCOVERY_DOMAINS,
   credentialFieldsFor,
   halfGoogleClientPairProblem,
   halfDropboxClientPairProblem,
+  isArchiveProvider,
+  isFailureCategory,
+  isFailureSide,
   log,
   wizardTypeForConnectionKind,
 } from '@openmig/shared';
-import type { TenantId } from '@openmig/shared';
+import type {
+  CredentialField,
+  DiscoveryDomain,
+  FailureCategory,
+  FailureSide,
+  TenantId,
+} from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 // The SHAPE builders stay the create route's, deliberately: what a connection
@@ -74,7 +102,7 @@ function pool() {
 }
 
 /** Target kinds `probeTargetConnection` knows how to reach. */
-const TARGET_KINDS = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin'] as const;
+const TARGET_KINDS = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud'] as const;
 type TargetKind = (typeof TARGET_KINDS)[number];
 
 /**
@@ -113,7 +141,25 @@ async function qualifyAndRemember(
   actor: string,
   deadlineAt: number,
 ): Promise<AccountQualification | 'pending' | undefined> {
-  if (!isQualifiableKind(kind) && !isGoogleGrantKind(kind) && !isDropboxKind(kind)) {
+  // EVERY KIND THAT HAS A QUALIFIER, and this list is the whole reason the
+  // dispatch below can be trusted. It is also where 0116 T7 was briefly
+  // broken: `qualifyArchive` was wired into `qualifyAndRememberNow` and an
+  // `archive` row still never reached it, because this guard did not name the
+  // kind and returned `undefined` one function earlier. Nothing failed — the
+  // connection stored fine, the probe answered fine, and the Measured line
+  // simply never appeared. The unit tests called `qualifyArchive` directly and
+  // were green throughout.
+  //
+  // That is the family this repository keeps meeting: a new kind must reach
+  // every table, and the tables that GATE are the ones whose absence is
+  // invisible. `smoke-managed.sh` is what turned it into a failure.
+  if (
+    !isQualifiableKind(kind) &&
+    !isGoogleGrantKind(kind) &&
+    !isMicrosoftGrantKind(kind) &&
+    !isDropboxKind(kind) &&
+    !isArchiveKind(kind)
+  ) {
     return undefined;
   }
   return withinBudget(
@@ -141,12 +187,24 @@ async function qualifyAndRememberNow(
     // AND THE DROPBOX ACCOUNT (2026-09-02): one face, its top-level count
     // and the bytes in use — the Measured line the owner asked for on Drive,
     // on the connection he tested next.
+    // AND THE EXPORT ARCHIVE (workplan 0116 T7): items, bytes, folders, the
+    // span the export covers and the count broken down — the whole point of
+    // the archive's first slice, which is that somebody sees what their
+    // export holds BEFORE anyone commits to importing 25 GB of it. It takes
+    // no credentials, which is why it is the one qualifier here that is
+    // passed the config alone.
     const qualification =
       (await qualifyAccount(kind, config, creds)) ??
       (await qualifyGoogleGrant(kind, creds, {
         reach: { user: String(config.user ?? ''), config },
       })) ??
-      (await qualifyDropbox(kind, config, creds));
+      // AND THE MICROSOFT ACCOUNT (0114 T10): the grant read for what it
+      // carries, every carried face reached as a pass would, the drive's
+      // quota and the message count on the Measured line — the owner's
+      // first Microsoft Test read "no check exists", on a grant that worked.
+      (await qualifyMicrosoftAccount(kind, config, creds)) ??
+      (await qualifyDropbox(kind, config, creds)) ??
+      (await qualifyArchive(kind, config));
     if (!qualification) return undefined;
     await withTenantDb(tenantId, pool(), async (db) => {
       await db
@@ -180,6 +238,125 @@ async function qualifyAndRememberNow(
     log.error('[qualify] the account could not be qualified; the test result stands', err);
     return undefined;
   }
+}
+
+/**
+ * One standing failure of a migration that signs in with a connection
+ * (workplan 0094 T5). The category and nothing else: `last_error` is prose
+ * that routinely carries a mailbox address and a folder name, and it has a
+ * home on the migration's own page where the prose boundary applies.
+ */
+export interface StandingFailure {
+  readonly mappingId: string;
+  readonly mappingName: string | null;
+  readonly category: FailureCategory;
+  /** The domains this category stands on, in `DISCOVERY_DOMAINS` order. */
+  readonly domains: DiscoveryDomain[];
+  /** When the newest of those rows last changed — ISO. */
+  readonly asOf: string;
+  /**
+   * Which side the pass named (0094 T5, second slice): set when the entry is
+   * on THIS connection because the failure happened here; null when the
+   * pass could not tell and the entry is on both cards.
+   */
+  readonly side: FailureSide | null;
+}
+
+/** A `migration_status` row with the two connections its migration signs in with. */
+export interface StandingRow {
+  readonly mappingId: string;
+  readonly mappingName: string | null;
+  readonly sourceConnectionId: string | null;
+  readonly targetConnectionId: string | null;
+  readonly domain: DiscoveryDomain;
+  readonly category: string | null;
+  readonly failedSide: string | null;
+  readonly asOf: Date;
+}
+
+/**
+ * Fold status rows into one entry per connection, migration and category,
+ * latest first.
+ *
+ * ONE SIDE when the pass named it, BOTH when it could not. The pass tags a
+ * failure at the closure that threw (`failed_side`, 0094 T5's second slice),
+ * and a row that carries a side lands on that connection only. A row without
+ * one — an older build's, or a failure on neither side — still lands on both
+ * cards, because a category does not say which of the two connections failed
+ * (`target_refused` included: the classifier files a source's 403 there too)
+ * and guessing would put the line on the wrong card. The page says which
+ * case it is showing.
+ *
+ * A category this build has no sentence for (a value written by an older or
+ * newer one) is skipped — the rule `MigrationStatusStore` reads by. A side it
+ * has no word for is read as none.
+ */
+export function standingFailuresByConnection(
+  rows: ReadonlyArray<StandingRow>,
+  connectionIds: ReadonlySet<string>,
+): Map<string, StandingFailure[]> {
+  interface Folded {
+    mappingId: string;
+    mappingName: string | null;
+    category: FailureCategory;
+    domains: Set<DiscoveryDomain>;
+    asOf: Date;
+    side: FailureSide | null;
+  }
+  const perConnection = new Map<string, Map<string, Folded>>();
+  for (const row of rows) {
+    if (!isFailureCategory(row.category)) continue;
+    const side = isFailureSide(row.failedSide) ? row.failedSide : null;
+    // Where this row lands, and what it says about why it landed there.
+    const landings: ReadonlyArray<readonly [string | null, FailureSide | null]> =
+      side === 'source'
+        ? [[row.sourceConnectionId, 'source']]
+        : side === 'target'
+          ? [[row.targetConnectionId, 'target']]
+          : [
+              [row.sourceConnectionId, null],
+              [row.targetConnectionId, null],
+            ];
+    for (const [connectionId, placedBy] of landings) {
+      if (!connectionId || !connectionIds.has(connectionId)) continue;
+      let byKey = perConnection.get(connectionId);
+      if (!byKey) perConnection.set(connectionId, (byKey = new Map()));
+      const key = `${row.mappingId}\u0000${row.category}`;
+      const seen = byKey.get(key);
+      if (seen) {
+        seen.domains.add(row.domain);
+        if (row.asOf > seen.asOf) seen.asOf = row.asOf;
+        // A named side is a fact; an unnamed one is an absence. The fact wins.
+        seen.side ??= placedBy;
+      } else {
+        byKey.set(key, {
+          mappingId: row.mappingId,
+          mappingName: row.mappingName,
+          category: row.category,
+          domains: new Set([row.domain]),
+          asOf: row.asOf,
+          side: placedBy,
+        });
+      }
+    }
+  }
+  const out = new Map<string, StandingFailure[]>();
+  for (const [connectionId, byKey] of perConnection) {
+    out.set(
+      connectionId,
+      [...byKey.values()]
+        .map((f) => ({
+          mappingId: f.mappingId,
+          mappingName: f.mappingName,
+          category: f.category,
+          domains: DISCOVERY_DOMAINS.filter((d) => f.domains.has(d)),
+          asOf: f.asOf.toISOString(),
+          side: f.side,
+        }))
+        .sort((a, b) => b.asOf.localeCompare(a.asOf) || a.category.localeCompare(b.category)),
+    );
+  }
+  return out;
 }
 
 router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) => {
@@ -228,11 +405,52 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
         .groupBy(schema.mailbox.connectionId);
       const usedBy = new Map(usage.map((u) => [u.connectionId, u.used]));
 
+      // What is STANDING against each connection (workplan 0094 T5): the
+      // categorised failure on every domain row of every migration that
+      // signs in with it — on the side the pass named, or on both when it
+      // could not; `standingFailuresByConnection` says why. `done` migrations are over: a rotation would fix nothing
+      // for them. Paused ones stay; pausing is what a person does when a
+      // pass keeps failing. Read-only: no column, no migration.
+      const sourceBox = alias(schema.mailbox, 'source_box');
+      const targetBox = alias(schema.mailbox, 'target_box');
+      const standingRows = await db
+        .select({
+          mappingId: schema.mailboxMapping.id,
+          mappingName: schema.mailboxMapping.name,
+          sourceConnectionId: sourceBox.connectionId,
+          targetConnectionId: targetBox.connectionId,
+          domain: schema.migrationStatus.domain,
+          category: schema.migrationStatus.lastErrorCategory,
+          failedSide: schema.migrationStatus.failedSide,
+          asOf: schema.migrationStatus.updatedAt,
+        })
+        .from(schema.migrationStatus)
+        .innerJoin(
+          schema.mailboxMapping,
+          eq(schema.mailboxMapping.id, schema.migrationStatus.mappingId),
+        )
+        .innerJoin(sourceBox, eq(sourceBox.id, schema.mailboxMapping.sourceMailboxId))
+        .leftJoin(targetBox, eq(targetBox.id, schema.mailboxMapping.targetMailboxId))
+        .where(
+          and(
+            eq(schema.migrationStatus.tenantId, tenantId),
+            isNotNull(schema.migrationStatus.lastErrorCategory),
+            ne(schema.mailboxMapping.status, 'done'),
+          ),
+        );
+      const standing = standingFailuresByConnection(
+        standingRows,
+        new Set(connections.map((c) => c.id)),
+      );
+
       return connections.map(({ config, ...c }) => ({
         ...c,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
         usedByMailboxes: usedBy.get(c.id) ?? 0,
+        // Always an array, so a client cannot mistake "nothing stands" for
+        // "a server that does not say".
+        standingFailures: standing.get(c.id) ?? [],
         /**
          * What this connection already knows, so a rotation only asks for
          * what actually changed (workplan 0078). Built from `config` alone —
@@ -316,6 +534,31 @@ const AddSchema = z.object({
 });
 
 /**
+ * The config shape a kind's VALUES are checked against.
+ *
+ * `CreateMappingBase`'s objects are the create door's, and that door demands
+ * `username` of every source because every ACCOUNT has one: it names whose
+ * mailbox, whose Drive, whose calendar. An export archive is not an account.
+ * Its credential is a location (workplan 0116 T1), its descriptor carries
+ * `provider` and `path` and nothing else — and the first honest body ever
+ * posted here, the managed gate's, was refused with `invalid_values:
+ * username` for a field no screen shows for the kind (E2E (managed) #154).
+ * The browser's add-form posts only the descriptor's fields, so it was
+ * refused the same way: a card that could be offered and not added.
+ *
+ * So the demand FOLLOWS THE DESCRIPTOR: a kind whose fields include no
+ * `username` is not refused for lacking one, and every other kind keeps the
+ * create door's shape untouched. Read at both doors, add and rotate, so the
+ * two cannot drift apart on this.
+ */
+function configShapeFor(role: 'source' | 'target', fields: ReadonlyArray<CredentialField>) {
+  if (role === 'target') return CreateMappingBase.shape.targetConfig;
+  return fields.some((f) => f.key === 'username')
+    ? CreateMappingBase.shape.sourceConfig
+    : CreateMappingBase.shape.sourceConfig.extend({ username: z.string().optional() });
+}
+
+/**
  * Add a connection on its own, without creating a mapping (workplan 0063).
  *
  * PROBED BEFORE IT IS STORED, and stored either way with the outcome on
@@ -350,6 +593,21 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     if (missing.length > 0) {
       return void res.status(400).json(missingFieldsRefusal(missing));
     }
+    // WHICH export, checked by name before the shape (0116 T1). The shared
+    // parser behind `sourceConnectionConfig` throws on an export it does not
+    // read, and a throw there is a 500 wearing the wrong sentence. Refused
+    // here the way the create door refuses it — anchored to the field, naming
+    // the list — because the wrong reader does not fail, it finds none of its
+    // landmarks and reports an archive containing nothing.
+    if (role === 'source' && type === 'archive' && !isArchiveProvider(values.provider)) {
+      return void res.status(400).json({
+        error: 'invalid_values',
+        fields: ['provider'],
+        reason:
+          `provider: '${values.provider}' is not an export this product reads. ` +
+          `Choose ${ARCHIVE_PROVIDERS.join(' or ')}.`,
+      });
+    }
 
     // Through the SAME zod object the create route validates, so a value this
     // accepts is one create would accept — port coerced because a form sends
@@ -359,8 +617,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       ...(values.port ? { port: Number(values.port) } : {}),
       ...(values.mailPort ? { mailPort: Number(values.mailPort) } : {}),
     };
-    const configShape =
-      role === 'source' ? CreateMappingBase.shape.sourceConfig : CreateMappingBase.shape.targetConfig;
+    const configShape = configShapeFor(role, fields);
     const checked = configShape.safeParse(shaped);
     if (!checked.success) {
       return void res.status(400).json({
@@ -586,8 +843,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       ...(values.port ? { port: Number(values.port) } : {}),
       ...(values.mailPort ? { mailPort: Number(values.mailPort) } : {}),
     };
-    const configShape =
-      row.role === 'source' ? CreateMappingBase.shape.sourceConfig : CreateMappingBase.shape.targetConfig;
+    const configShape = configShapeFor(row.role, fields);
     const checked = configShape.safeParse(shaped);
     if (!checked.success) {
       return void res.status(400).json({

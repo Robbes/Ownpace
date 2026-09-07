@@ -53,7 +53,7 @@ describe('a Graph source naming a shared mailbox', () => {
   });
 
   it('does the same for calendar and contacts', () => {
-    for (const type of ['graph-calendar', 'graph-contacts'] as const) {
+    for (const type of ['graph-calendar', 'graph-contacts', 'graph-todo'] as const) {
       const config = parseMappingConfigJson(
         base({ type, tenantId: GRAPH_TENANT, mailbox: 'gedeeld@contoso.nl' }),
       );

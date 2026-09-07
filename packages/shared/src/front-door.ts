@@ -55,10 +55,25 @@ export const FRONT_DOOR_GROUPS: Readonly<Record<string, FrontDoorGroup>> = {
   dropbox: 'provider',
   box: 'provider',
   soverin: 'provider',
+  // A PROVIDER, not a protocol, even though every face it serves is a
+  // protocol this door also lists on its own. The lane answers "what is the
+  // person naming?" — and they are naming their Nextcloud, once, rather than
+  // three transports (2026-09-07).
+  nextcloud: 'provider',
   // The Apple ACCOUNT (workplan 0115) — a provider, and a family of exactly
   // one: there is no `icloud` or `apple-mail` kind beside it to collect,
   // because Apple has never published an API one could have been built on.
   apple: 'provider',
+  // The EXPORT ARCHIVE (workplan 0116 T1). The lane took a moment's thought,
+  // because an archive is neither a brand nor a wire format — and `provider`
+  // is still the honest answer. The protocol lane is "any server that speaks
+  // the words", the self-hoster's fallback; an archive is not a server at all,
+  // and nobody arrives at it thinking about a transport. They arrive thinking
+  // "I want my photos out of Google", which is a provider thought.
+  //
+  // One entry rather than one per export, for the reason `ARCHIVE_PROVIDERS`
+  // exists: which export it is belongs on the connection.
+  archive: 'provider',
 };
 
 /**
@@ -151,7 +166,18 @@ export const FRONT_DOOR_ICONS: Readonly<Record<string, FrontDoorIcon>> = {
   // Neutral slate until Soverin's own brand color is confirmed — a wrong
   // brand color would be a small guess, and this file does not guess.
   soverin: { kind: 'mark', initial: 'S', background: '#334155' },
+  // Nextcloud's own blue, which the project publishes and uses everywhere —
+  // no guess needed, unlike the slate above.
+  nextcloud: { kind: 'mark', initial: 'N', background: '#0082c9' },
   apple: { kind: 'mark', initial: 'A', background: '#1d1d1f' },
+  // A MARK, because the invariant below is pinned: marks on providers, glyphs
+  // on protocols, and mixing them is what re-mixes the levels T1 separated.
+  // But not a BRAND mark — this one card stands for a Google export and an
+  // Apple export at once, so wearing either company's colour would promise the
+  // wrong one to half the people who click it. Neutral slate and an E for
+  // Export, which is the same answer `soverin` gets and for a related reason:
+  // this file does not guess at a brand it has no right to.
+  archive: { kind: 'mark', initial: 'E', background: '#475569' },
 };
 
 /** The mark a family HEADING wears — the provider's face over its methods. */

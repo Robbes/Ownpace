@@ -22,6 +22,7 @@
  *     owner to cut over believing nothing was missed (hard rule 9).
  */
 
+import { graphRefusalBody } from './graph-refusal.ts';
 import {
   log,
   permissionsNotDiscoverable,
@@ -169,7 +170,7 @@ export async function resolveUserDriveId(
       // A 404 here is common and benign — plenty of mailboxes have no
       // OneDrive provisioned — but it is still "nothing was looked at",
       // not "nothing is shared".
-      reason: permissionsNotDiscoverable(`Graph answered ${res.status}: ${res.body}`),
+      reason: permissionsNotDiscoverable(`Graph answered ${res.status}: ${graphRefusalBody(res.body)}`),
     };
   }
   try {
@@ -323,7 +324,7 @@ async function getAll<T>(
         reason: `the request failed: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
-    if (res.status !== 200) return { ok: false, reason: `Graph answered ${res.status}: ${res.body}` };
+    if (res.status !== 200) return { ok: false, reason: `Graph answered ${res.status}: ${graphRefusalBody(res.body)}` };
 
     let parsed: GraphPage<T>;
     try {

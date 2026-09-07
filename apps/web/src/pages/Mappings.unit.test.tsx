@@ -245,9 +245,9 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
 
     // The sentence names what goes AND what is not touched, because that is
     // what makes one press enough.
-    expect(screen.getByText(/the record of what it has already copied/)).toBeInTheDocument();
+    expect(screen.getByText(/settings and record/)).toBeInTheDocument();
     expect(
-      screen.getByText(/Nothing at your source or your destination is touched/),
+      screen.getByText(/nothing at your source or destination is touched/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Type the migration name/)).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Inbox')).not.toBeInTheDocument();

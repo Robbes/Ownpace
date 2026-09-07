@@ -125,8 +125,8 @@ describe('nothing found', () => {
   it('refuses to claim the organisation has none', () => {
     renderPanel([]);
 
-    expect(screen.getByText(/not "your organisation has none"/)).toBeInTheDocument();
-    // The two reasons an owner can act on.
+    expect(screen.getByText(/Nothing listed; this source may not be able to list groups/)).toBeInTheDocument();
+    // The two reasons an owner can act on — under Why?, still on the page.
     expect(screen.getByText(/IMAP source cannot list groups/)).toBeInTheDocument();
     expect(screen.getByText(/application permissions/)).toBeInTheDocument();
   });

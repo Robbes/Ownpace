@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 91 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 97 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -85,6 +85,10 @@ reading a file drops off its entry by itself.
 
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 
+### `apps/api/src/routes/connections.ts`
+
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
+
 ### `apps/api/src/routes/migrations/google-account-consent.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
@@ -103,6 +107,7 @@ reading a file drops off its entry by itself.
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts) — The create-mapping validator ends in a catch-all that asks for AZURE credentials, and nothing pairs it against the source types that exist.
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `apps/api/src/routes/migrations/microsoft-consent.ts`
@@ -171,7 +176,6 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/Connections.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
-- [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
 ### `apps/web/src/pages/CreateMapping.tsx`
 
@@ -203,6 +207,7 @@ reading a file drops off its entry by itself.
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `apps/web/src/services/oidc.ts`
 
@@ -291,6 +296,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/managed.env.example`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
@@ -309,6 +315,7 @@ reading a file drops off its entry by itself.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
+- [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
@@ -331,6 +338,7 @@ reading a file drops off its entry by itself.
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 - [the-mail-the-issuer-could-not-send](../scripts/the-mail-the-issuer-could-not-send.unit.test.ts) — THE MAIL THE ISSUER COULD NOT SEND.
+- [the-state-that-lived-in-a-nameless-volume](../scripts/the-state-that-lived-in-a-nameless-volume.unit.test.ts) — STATE IN A NAMELESS VOLUME IS STATE NOBODY CAN FIND AGAIN.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 - [zitadel-image-matches-postgres](../scripts/zitadel-image-matches-postgres.unit.test.ts) — The identity provider and the database it initialises into are pinned in the same file, and they are not independent.
 
@@ -372,6 +380,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/setup-managed-demo.sh`
 
+- [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [seed-demo-dav-content](../scripts/seed-demo-dav-content.unit.test.ts) — The demo's DAV content, and the two ways seeding it goes quietly wrong.
 
 ### `deploy/compose/setup-zitadel.sh`
@@ -379,6 +388,7 @@ reading a file drops off its entry by itself.
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [a-check-that-was-never-valid](../scripts/a-check-that-was-never-valid.unit.test.ts) — A password check that was valid for zero seconds, and the general rule that would have stopped it.
 - [a-false-jq-could-not-report](../scripts/a-false-jq-could-not-report.unit.test.ts) — A `false` THE READER COULD NOT REPORT.
+- [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
@@ -395,6 +405,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/smoke-managed.sh`
 
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
+- [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
@@ -540,6 +551,22 @@ reading a file drops off its entry by itself.
 
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
+### `packages/connectors/src/graph-calendar-source.ts`
+
+- [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
+
+### `packages/connectors/src/graph-contacts-source.ts`
+
+- [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
+
+### `packages/connectors/src/graph-drive-source.ts`
+
+- [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
+
+### `packages/connectors/src/takeout-archive-reader.unit.test.ts`
+
+- [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
+
 ### `packages/core/src/apply-deletion.ts`
 
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
@@ -547,6 +574,7 @@ reading a file drops off its entry by itself.
 ### `packages/core/src/dav-sync.ts`
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
+- [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
 
 ### `packages/core/src/verification.ts`
 
@@ -621,6 +649,7 @@ reading a file drops off its entry by itself.
 
 - [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `packages/shared/src/discovery.ts`
 
@@ -630,14 +659,23 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/front-door.ts`
 
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `packages/shared/src/google-deployment-client.unit.test.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
+### `packages/shared/src/microsoft-scopes.ts`
+
+- [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
+
 ### `packages/shared/src/notifications.ts`
 
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
+
+### `packages/shared/src/ports.ts`
+
+- [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
 
 ### `packages/shared/src/provider-accounts.ts`
 
@@ -658,6 +696,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/qualification-gate.unit.test.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `packages/shared/src/target-domains.ts`
+
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `packages/shared/src/target-domains.unit.test.ts`
 
@@ -828,6 +870,10 @@ reading a file drops off its entry by itself.
 - [runs-without-a-transpiler](../scripts/runs-without-a-transpiler.unit.test.ts) — The API image runs `node apps/api/src/index.ts`.
 - [workspace-deps](../scripts/workspace-deps.unit.test.ts) — Every workspace package a file imports must be a DECLARED dependency.
 
+### `vitest.aliases.ts`
+
+- [a-subpath-the-alias-swallowed](../scripts/a-subpath-the-alias-swallowed.unit.test.ts) — A BARE ALIAS SWALLOWS ITS OWN SUBPATHS.
+
 ### `vitest.global-setup.ts`
 
 - [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts) — A DATABASE YOU CAN ASK, ON A MACHINE WITH NO CONTAINER RUNTIME.
@@ -922,6 +968,7 @@ Reads:
 - `apps/api/src/routes/migrations/microsoft-consent.ts`
 - `packages/orchestration/src/graph-domain-source-factory.ts`
 - `packages/orchestration/src/mail-source-factory.ts`
+- `packages/shared/src/microsoft-scopes.ts`
 
 ### [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts)
 
@@ -993,7 +1040,6 @@ Reads:
 - `apps/api/src/routes/migrations/google-account-consent.unit.test.ts`
 - `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
 - `apps/api/src/routes/provider-accounts.unit.test.ts`
-- `apps/web/src/pages/Connections.tsx`
 - `apps/web/src/services/mapping-service.ts`
 - `apps/worker/src/jobs/run-discovery.ts`
 - `packages/orchestration/src/domain-lanes.unit.test.ts`
@@ -1134,6 +1180,25 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/smoke-managed.sh`
 
+### [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts)
+
+A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
+
+Reads:
+
+- `deploy/compose/managed.env.example`
+- `deploy/compose/setup-zitadel.sh`
+
+### [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts)
+
+A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
+
+Reads:
+
+- `deploy/compose/managed.yml`
+- `deploy/compose/setup-managed-demo.sh`
+- `deploy/compose/smoke-managed.sh`
+
 ### [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts)
 
 VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
@@ -1237,6 +1302,27 @@ Reads:
 
 - `apps/api/src/routes/migrations/index.ts`
 
+### [a-subpath-the-alias-swallowed](../scripts/a-subpath-the-alias-swallowed.unit.test.ts)
+
+A BARE ALIAS SWALLOWS ITS OWN SUBPATHS.
+
+Reads:
+
+- `vitest.aliases.ts`
+
+### [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts)
+
+THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
+
+Reads:
+
+- `apps/api/src/routes/connections.ts`
+- `apps/api/src/routes/migrations/index.ts`
+- `apps/web/src/services/mapping-service.ts`
+- `packages/shared/src/credential-fields.ts`
+- `packages/shared/src/front-door.ts`
+- `packages/shared/src/target-domains.ts`
+
 ### [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts)
 
 `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
@@ -1317,6 +1403,18 @@ Reads:
 - `apps/selfhost/src/index.ts`
 - `vitest.global-setup.ts`
 
+### [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts)
+
+AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
+
+Reads:
+
+- `packages/connectors/src/graph-calendar-source.ts`
+- `packages/connectors/src/graph-contacts-source.ts`
+- `packages/connectors/src/graph-drive-source.ts`
+- `packages/core/src/dav-sync.ts`
+- `packages/shared/src/ports.ts`
+
 ### [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts)
 
 The three scripts a managed bring-up cannot get wrong, tested.
@@ -1345,6 +1443,7 @@ Reads:
 - `.github/workflows/e2e-o365.yml`
 - `.github/workflows/e2e.yml`
 - `apps/api/src/routes/migrations/index.ts`
+- `packages/connectors/src/takeout-archive-reader.unit.test.ts`
 - `packages/shared/src/config.ts`
 - `scripts/gate-coverage.unit.test.ts`
 
@@ -1723,6 +1822,14 @@ Reads:
 - `deploy/compose/trigger-cli-lib.sh`
 - `deploy/compose/trigger-credentials.sh`
 - `deploy/compose/zitadel-db-password.sh`
+
+### [the-state-that-lived-in-a-nameless-volume](../scripts/the-state-that-lived-in-a-nameless-volume.unit.test.ts)
+
+STATE IN A NAMELESS VOLUME IS STATE NOBODY CAN FIND AGAIN.
+
+Reads:
+
+- `deploy/compose/managed.yml`
 
 ### [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts)
 

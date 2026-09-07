@@ -1,6 +1,17 @@
 # Workplan 0112 — Google Photos, through Takeout
 
-## Status — 2026-09-03 (update this block at the end of every session)
+## Status — 2026-09-05 (update this block at the end of every session)
+
+**2026-09-05: superseded in practice by [0116](./0116-the-data-they-give-the-person-not-us.md),
+row by row.** The owner's decisions were taken there (0116 T0, 2026-09-04: the archive route, an
+archive as a kind of connection whose credential is a location, albums as folders with the year
+folder for a photo in no album). T1's reader is `takeout-archive-reader.ts` behind 0116 T2's
+seam (0116 T3a). T2's source kind is 0116 T1 plus the doors (0116 T8 and the create door). T3
+landed as 0116 T5 with one difference worth knowing: the sidecar's taken time and location go
+into the MANIFEST verbatim, not into the copy's EXIF — the original bytes are never touched and
+the manifest is what carries what Google knew (0116 T2, rule 3). T4 is 0116 T9 and waits on
+0116 T4. T6 is 0116 T7. T5 (the Picker) stays optional and unplanned. The rows below are left
+as written on 2026-09-03; this paragraph is where each one went.
 
 **2026-09-03: drafted for the owner's decision, nothing built.** The owner asked on
 2026-09-02, after the measured Drive figure matched Google's own to the megabyte and the

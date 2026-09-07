@@ -131,3 +131,20 @@ export function classifyFailure(message: unknown): FailureCategory {
   }
   return 'unknown';
 }
+
+/**
+ * WHICH SIDE a pass-level failure happened on (workplan 0094 T5, second
+ * slice). Recorded at the seam that knows — the shared domain pass tags an
+ * error where it calls a SOURCE closure or a TARGET closure — and never
+ * parsed out of the prose. Absent when the failure happened on neither (the
+ * ledger, a key derivation) or was written by a build that predates it; a
+ * screen must then say "one of the two" rather than guess.
+ */
+export const FAILURE_SIDES = ['source', 'target'] as const;
+
+export type FailureSide = (typeof FAILURE_SIDES)[number];
+
+/** Every side is a known one — for reading a value back out of the table. */
+export function isFailureSide(value: unknown): value is FailureSide {
+  return (FAILURE_SIDES as ReadonlyArray<unknown>).includes(value);
+}

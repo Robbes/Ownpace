@@ -950,3 +950,39 @@ END:VCALENDAR`;
     });
   });
 });
+
+/**
+ * A refusal speaks (workplan 0114 T6). Every Graph face reports through
+ * `graphFailure`; this pins the wiring for one of them, against the JSON
+ * Graph actually answers with, so the envelope cannot creep back into the
+ * sentence a person reads on the card.
+ */
+describe('a refusal, as a person reads it (0114 T6)', () => {
+  it('a 403 listing calendars names the scope and the tick, in Graph\'s words, without the envelope', async () => {
+    const mockClient = createMockHttpClient([
+      {
+        status: 403,
+        body: JSON.stringify({
+          error: {
+            code: 'Authorization_RequestDenied',
+            message: 'Insufficient privileges to complete the operation.',
+            innerError: { date: '2026-09-05T09:40:11', 'request-id': 'r-1', 'client-request-id': 'c-1' },
+          },
+        }),
+        headers: {},
+      },
+    ]);
+    const source = new GraphCalendarSource(createMockTokenProvider(), 'test-tenant-id', undefined, {
+      httpClient: mockClient,
+    });
+    const failure = await source.listFolders().then(
+      () => 'listed',
+      (err: unknown) => (err instanceof Error ? err.message : String(err)),
+    );
+    expect(failure).toContain('Failed to list calendars: 403 - Authorization_RequestDenied — Insufficient privileges');
+    expect(failure).toContain('does not include Calendars.Read');
+    expect(failure).toContain('reconnect the account with Calendar ticked');
+    expect(failure).not.toContain('{"error"');
+    expect(failure).not.toContain('request-id');
+  });
+});

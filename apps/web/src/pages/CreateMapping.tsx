@@ -1,6 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import React, { useState } from 'react';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
+import { Hint, whyKeyOf } from '../components/Hint.tsx';
 import {
   measuredText,
   probeText,
@@ -40,6 +41,7 @@ import {
   providerDefaultsFor,
   providerDefaultsProvenance,
   type CredentialField,
+  credentialFieldRequired,
 } from '@openmig/shared';
 // The SAME cron library — same pinned version — the managed tick evaluates
 // schedules with, so the "next syncs" echo below cannot disagree with what
@@ -55,7 +57,12 @@ import {
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
-import { SOURCE_CARDS, TARGET_CARDS } from '../components/front-door-cards.ts';
+import {
+  SOURCE_CARDS,
+  TARGET_CARDS,
+  migratableSourceCards,
+  type MigratableSourceCard,
+} from '../components/front-door-cards.ts';
 import { useMutation } from '@tanstack/react-query';
 import type { DiscoveryDomain } from '@openmig/shared';
 
@@ -64,8 +71,8 @@ type Step = 'source' | 'target' | 'migration' | 'review';
 
 interface FormData {
   name: string;
-  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'apple' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box';
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
+  sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'apple' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box' | 'archive';
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
    *  cleared field into NaN, which disabled Next with no clue — the honest
@@ -93,6 +100,10 @@ interface FormData {
   sourceRootPath: string;
   /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
   sourceBoxUserId: string;
+  /** Export archive (workplan 0116): WHICH export, from `ARCHIVE_PROVIDERS`. */
+  sourceArchiveProvider: string;
+  /** Export archive: WHERE the extracted folder is — this mapping's own answer. */
+  sourceArchivePath: string;
   /**
    * What to CALL the connection this side saves (workplan 0076).
    *
@@ -139,6 +150,8 @@ const initialFormData: FormData = {
   sourceRootFolderId: '',
   sourceRootPath: '',
   sourceBoxUserId: '',
+  sourceArchiveProvider: '',
+  sourceArchivePath: '',
   sourceConnectionName: '',
   targetConnectionName: '',
   sourceConnectionId: '',
@@ -251,6 +264,8 @@ function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
     sourceRootFolderId: '',
     sourceRootPath: '',
     sourceBoxUserId: '',
+    sourceArchiveProvider: '',
+    sourceArchivePath: '',
     sourceConnectionId: '',
   };
 }
@@ -276,11 +291,21 @@ const ConnectionPicker: React.FC<{
   onChange: (id: string) => void;
 }> = ({ labelKey, options, value, onChange }) => {
   const t = useT();
+  // Joined by id, not by sitting next to each other (0067 T7 (a)): a screen
+  // reader hears the label only through the association.
+  const id = React.useId();
   if (options.length === 0) return null;
   return (
     <div className="border border-gray-200 rounded-lg p-4 mb-4">
-      <label className="block text-sm font-medium text-gray-700 mb-1">{t(labelKey)}</label>
-      <select className="input w-full" value={value} onChange={(e) => onChange(e.target.value)}>
+      <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
+        {t(labelKey)}
+      </label>
+      <select
+        id={id}
+        className="input w-full"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
         <option value="">{t('wizard.reuseNone')}</option>
         {options.map((c) => (
           <option key={c.id} value={c.id}>
@@ -323,6 +348,8 @@ const DRAFT_FIELDS = [
   'sourceRootFolderId',
   'sourceRootPath',
   'sourceBoxUserId',
+  'sourceArchiveProvider',
+  'sourceArchivePath',
   'sourceTenantId',
   'targetHost',
   'targetPort',
@@ -478,6 +505,7 @@ const CreateMapping: React.FC = () => {
     suffix:
       | 'connect'
       | 'connect.hint'
+      | 'connect.why'
       | 'connect.needsClient'
       | 'connect.halfClient'
       | 'deploymentClient'
@@ -498,7 +526,17 @@ const CreateMapping: React.FC = () => {
   // 0046) — the probe must run on exactly what create would post, or "test
   // passed, create failed" becomes possible by construction.
   const builtSourceConfig = () =>
-    isDropboxSource
+    isArchiveSource
+      ? {
+          // No account behind it (0116 T1): the schema's `username` is
+          // posted empty and read by nothing on this kind, and the two values
+          // that ARE the connection — which export, where it is — travel as
+          // the create door names them.
+          username: '',
+          provider: formData.sourceArchiveProvider,
+          path: formData.sourceArchivePath.trim(),
+        }
+      : isDropboxSource
           ? {
               username: formData.sourceUsername,
               clientId: formData.sourceClientId,
@@ -563,8 +601,13 @@ const CreateMapping: React.FC = () => {
               useSsl: formData.sourceSsl,
             };
   const builtTargetConfig = () => ({
-    host: formData.targetHost,
-    port: Number(formData.targetPort),
+    // Host and port only where the target ASKS for them (2026-09-07). A
+    // Nextcloud does not, so this used to post an empty host and a port of
+    // `Number('')` — NaN, which the create schema refuses without ever
+    // reaching the sentence about what a Nextcloud actually needs.
+    ...(credentialFieldsFor('target', formData.targetType).some((f) => f.key === 'host')
+      ? { host: formData.targetHost, port: Number(formData.targetPort) }
+      : {}),
     username: formData.targetUsername,
     password: formData.targetPassword,
     useSsl: formData.targetSsl,
@@ -1085,6 +1128,26 @@ const CreateMapping: React.FC = () => {
   // uses the Client Credentials Grant (Box rotates refresh tokens, so none is
   // stored) — client id + secret plus the numeric subject user id.
   const isBoxSource = formData.sourceType === 'box';
+  // An EXPORT ARCHIVE (workplan 0116 T5/T6): no username, no secret — which
+  // export and where it is, and nothing else.
+  const isArchiveSource = formData.sourceType === 'archive';
+  /**
+   * What the picked source IS — one line after the card, the rest under
+   * More (0118 T1). Six amber panels of forty to seventy words stood here
+   * before; the facts are the same (which client or app it signs in with,
+   * what that costs, what cannot be migrated), the paragraph now opens on
+   * request, and the checklist link below still remembers the steps.
+   */
+  const aboutSource: StringKey | undefined =
+    (isO365Source && 'wizard.about.o365') ||
+    (isDriveSource && 'wizard.about.googleDrive') ||
+    (isDropboxSource && 'wizard.about.dropbox') ||
+    (isBoxSource && 'wizard.about.box') ||
+    (isGmailSource && 'wizard.about.gmail') ||
+    (isGoogleDavSource && 'wizard.about.googleDav') ||
+    (formData.sourceType === 'apple' && 'wizard.about.apple') ||
+    (isArchiveSource && 'wizard.about.archive') ||
+    undefined;
   // One half of a pair typed is a pair being typed, not a pair left to the
   // deployment: the server refuses the half rather than completing it, and a
   // customer's id with the deployment's secret would fail at the provider's
@@ -1127,10 +1190,20 @@ const CreateMapping: React.FC = () => {
     if (side === 'target') {
       // A reused target connection carries the server AND the account.
       if (formData.targetConnectionId) return out;
-      if (!formData.targetHost) out.push(t('wizard.host'));
-      if (!isValidPort(formData.targetPort)) out.push(t('wizard.port'));
-      if (!formData.targetUsername) out.push(t('wizard.targetUsername'));
-      if (formData.targetPassword === '') out.push(t('wizard.targetPassword'));
+      // THE DEMAND FOLLOWS THE DESCRIPTOR (2026-09-07). This asked for a
+      // host, a port, a username and a password whatever the target was — so
+      // the Nextcloud card, which is reached at a base URL and asks for no
+      // host at all, could never be got past: Next stayed disabled naming two
+      // fields that were not on the screen. Whatever a target declares
+      // required IS what gates it, and nothing else can be.
+      for (const field of credentialFieldsFor('target', formData.targetType)) {
+        if (!fieldRequiredNow(false, field)) continue;
+        const formKey = TARGET_FORM_FIELD[field.key];
+        if (!formKey) continue;
+        const value = String(formData[formKey] ?? '');
+        const missing = field.numeric ? !isValidPort(value) : value === '';
+        if (missing) out.push(t(field.labelKey as StringKey));
+      }
       return out;
     }
 
@@ -1139,10 +1212,15 @@ const CreateMapping: React.FC = () => {
     if (formData.sourceConnectionId) return out;
 
     // WHICH account, always — it names the mailbox or drive this migration
-    // moves, and no shared connection can know it.
-    if (!formData.sourceUsername) out.push(t('wizard.sourceUsername'));
+    // moves, and no shared connection can know it. Except for an export
+    // archive, which is not an account and has no address to ask for
+    // (0116 T1): its two questions are which export and where it is.
+    if (!isArchiveSource && !formData.sourceUsername) out.push(t('wizard.sourceUsername'));
 
-    if (isDropboxSource) {
+    if (isArchiveSource) {
+      if (formData.sourceArchiveProvider === '') out.push(t('wizard.archiveProvider'));
+      if (formData.sourceArchivePath.trim() === '') out.push(t('wizard.archivePath'));
+    } else if (isDropboxSource) {
       // Labelled as the Dropbox App Console labels it, which is not "Client
       // ID". The pair is the deployment's where it carries a Dropbox app
       // (2026-09-02: Connect with Dropbox); the token is always this
@@ -1302,6 +1380,9 @@ const CreateMapping: React.FC = () => {
     rootFolderId: 'sourceRootFolderId',
     rootPath: 'sourceRootPath',
     userId: 'sourceBoxUserId',
+    // The export archive's two fields (0116 T5/T6): which export, and where.
+    provider: 'sourceArchiveProvider',
+    path: 'sourceArchivePath',
   };
 
   /**
@@ -1313,15 +1394,29 @@ const CreateMapping: React.FC = () => {
    * service-account key is pasted (ADR-0033's either-flow). Same condition,
    * one place, so a marker cannot disagree with the gate it claims to explain.
    */
-  const sourceFieldRequiredNow = (field: CredentialField): boolean => {
-    if (isGoogleSource && ['clientId', 'clientSecret', 'refreshToken'].includes(field.key)) {
-      if (formData.sourceServiceAccountKey.trim() !== '') return false;
-      // The pair is the deployment's where it has one (ADR-0041); the token
-      // is always this account's.
-      return field.key === 'refreshToken' || clientPairRequired;
-    }
-    return field.required === true;
-  };
+  const sourceFieldRequiredNow = (field: CredentialField): boolean =>
+    // ONE RULE, EVERY PROVIDER (2026-09-07). This was Google-only, so a
+    // Microsoft or Dropbox pair — optional for exactly the same reason, and
+    // mandatory on an appliance for exactly the same reason — was still
+    // marked by the descriptor alone. The rule moved to shared so the
+    // Connections add-form asks the same question.
+    credentialFieldRequired(field, {
+      deploymentClient: !clientPairRequired || clientHalfTyped,
+      halfPairTyped: clientHalfTyped,
+      sideStepped: formData.sourceServiceAccountKey.trim() !== '',
+    });
+
+  /**
+   * The TARGET side asked the descriptor alone, which was right only because
+   * no target has a client pair yet. Asking the same function on both sides
+   * costs nothing and means the day one does, the marker already knows: a
+   * target has no deployment client to fold anything away, so every field it
+   * declares required is required.
+   */
+  const fieldRequiredNow = (isSource: boolean, field: CredentialField): boolean =>
+    isSource
+      ? sourceFieldRequiredNow(field)
+      : credentialFieldRequired(field, { deploymentClient: false });
 
   /** The shared-drive browse (0049), anchored to the field it fills. */
   const renderDriveBrowse = () => (
@@ -1454,6 +1549,11 @@ const CreateMapping: React.FC = () => {
      * here. `htmlFor`/`id` pair kept (0068 T10) so a screen reader can attach
      * the label to its box.
      */
+    /** The folded twin of a descriptor hint, by the `.why` convention. */
+    const fieldWhy = (hintKey: string): string | undefined => {
+      const key = whyKeyOf(hintKey);
+      return key ? t(key) : undefined;
+    };
     const fieldControl = (field: CredentialField): React.ReactNode => {
       const formKey = isSource ? SOURCE_FORM_FIELD[field.key] : TARGET_FORM_FIELD[field.key];
       if (!formKey) return null;
@@ -1467,7 +1567,7 @@ const CreateMapping: React.FC = () => {
         <div>
           <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
             {t(field.labelKey as StringKey)}
-            {(isSource ? sourceFieldRequiredNow(field) : field.required === true) && <Required />}
+            {fieldRequiredNow(isSource, field) && <Required />}
           </label>
           {field.multiline ? (
             <textarea
@@ -1478,6 +1578,19 @@ const CreateMapping: React.FC = () => {
               rows={4}
               placeholder={placeholder}
             />
+          ) : field.options ? (
+            // A CLOSED LIST IS A CHOICE, not a box to spell an id into
+            // (0116 T1's `options`). Which export an archive is selects the
+            // reader, and a misspelt `google-takeout` is not refused — the
+            // wrong reader finds none of its landmarks and reports nothing.
+            <select id={id} value={value} onChange={(e) => set(e.target.value)} className="input w-full">
+              <option value="">—</option>
+              {field.options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           ) : field.revealable ? (
             <div className="relative">
               <input
@@ -1513,21 +1626,31 @@ const CreateMapping: React.FC = () => {
             />
           )}
           {field.hintKey && (
-            <p
-              className={
-                field.key === 'serviceAccountKey'
-                  ? 'mt-1 text-xs text-amber-800'
-                  : 'mt-1 text-sm text-gray-500'
-              }
-            >
-              {t(field.hintKey as StringKey)}
-            </p>
+            // One line under the box; the why, where the dictionary has one,
+            // folds beneath it (0118 T1). The service-account key keeps its
+            // amber: it is the one line to read before pasting.
+            <Hint
+              text={t(field.hintKey as StringKey)}
+              why={fieldWhy(field.hintKey)}
+              tone={field.key === 'serviceAccountKey' ? 'caution' : 'muted'}
+            />
           )}
         </div>
       );
     };
     return (
       <div className="space-y-4">
+        {/* Read the asterisks: one line, because "(optional)" is gone from
+            the labels and the marker is now the only thing that says which
+            fields this deployment demands. Only where there IS one — a reused
+            connection hides all but its per-mapping fields, and a legend
+            about a marker nobody can see explains nothing. */}
+        {fields.some(
+          (f) =>
+            (!chosen || f.perMapping) &&
+            (isSource ? SOURCE_FORM_FIELD[f.key] : TARGET_FORM_FIELD[f.key]) !== undefined &&
+            fieldRequiredNow(isSource, f),
+        ) && <p className="text-xs text-gray-500">{t('form.requiredLegend')}</p>}
         {fields.map((field) => {
           // A stored connection answers everything except THIS mapping's own
           // question — whose files, and from which folder (0066 T4a).
@@ -1623,10 +1746,14 @@ const CreateMapping: React.FC = () => {
             is what it always was. */}
         {!chosen && (
           <div className="mb-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor={`${side}-connection-name`}
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               {t('wizard.connectionName')}
             </label>
             <input
+              id={`${side}-connection-name`}
               type="text"
               value={side === 'source' ? formData.sourceConnectionName : formData.targetConnectionName}
               onChange={(e) =>
@@ -1654,9 +1781,11 @@ const CreateMapping: React.FC = () => {
           >
             {probing ? t('wizard.testing') : t('wizard.testConnections')}
           </button>
-          <p className="text-sm text-gray-500">
-            {chosen ? t('wizard.testConnections.reused') : t('wizard.testConnections.hint')}
-          </p>
+          <Hint
+            className=""
+            text={chosen ? t('wizard.testConnections.reused') : t('wizard.testConnections.hint')}
+            why={chosen ? undefined : t('wizard.testConnections.why')}
+          />
         </div>
         {r && (
           <div className="mt-3 flex items-start gap-2 text-sm">
@@ -1734,7 +1863,12 @@ const CreateMapping: React.FC = () => {
       ? { ...card, hintKey: RESTRICTED_GOOGLE_HINT }
       : card;
 
-  const onPickSource = (type: (typeof SOURCE_CARDS)[number]) => {
+  // A MIGRATABLE card, not any card (0116 T1): a `connectionOnly` kind is one
+  // this product can connect to and not yet migrate from, and its id is not
+  // in `CreateMappingInput['sourceType']`. Widening this parameter is what the
+  // compiler refuses, which is the point. (The export archive was the first
+  // such kind and migrates since 0116 T5/T6; no card carries the flag today.)
+  const onPickSource = (type: MigratableSourceCard) => {
       // A verdict about the OLD provider must not survive the
       // switch (0073) — it is a statement about a credential
       // this screen no longer asks for.
@@ -1750,7 +1884,12 @@ const CreateMapping: React.FC = () => {
       // effect, and it is left as one rather than rewritten —
       // reshaping a live nested ternary is the edit 0070 T6
       // records going wrong.
-      void (type.id === 'google-drive' || type.id === 'dropbox' || type.id === 'box'
+      void (type.id === 'google-drive' ||
+      type.id === 'dropbox' ||
+      type.id === 'box' ||
+      // The export archive (0116 T5/T6) carries files and photos and nothing
+      // else, so it pins the same domain and the same targets Drive does.
+      type.id === 'archive'
         ? setFormData((prev) => ({
             ...prev,
             ...clearedSourceFields(prev, type.id),
@@ -1857,62 +1996,23 @@ const CreateMapping: React.FC = () => {
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectSource')}</h3>
               <FrontDoorChooser
-                cards={SOURCE_CARDS}
+                // Not SOURCE_CARDS: a `connectionOnly` kind is one this
+                // product can CONNECT to and cannot yet MIGRATE from, and
+                // walking six steps to a refusal is a worse answer than not
+                // being offered (0116 T1). The Connections page shows them.
+                cards={migratableSourceCards()}
                 selectedId={formData.sourceType}
                 onPick={onPickSource}
                 gridClass="sm:grid-cols-2"
                 cardFor={sourceCardFor}
               />
-              {/* 0037 T6, answered 2026-08-10: oauth2/graph use the
-                  per-customer Entra app registration (ADR-0006's row-14
-                  model) — say what these fields ARE and where the rest of
-                  the registration goes, instead of the retired interim
-                  confession that only username+password were collected. */}
-              {isO365Source && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.appRegistration')}
-                </p>
-              )}
-              {/* Workplan 0042: the customer's own Google OAuth client, a
-                  delegated read-only token, and the doc that walks all of it.
-                  Also the one place to say what happens to Google Docs —
-                  reported un-migratable one by one, by design, until export
-                  byte-stability is measured (T3). */}
-              {isDriveSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.driveSetup')}
-                </p>
-              )}
-              {/* Workplan 0055: Dropbox's App Console words mapped onto the
-                  shared credential fields, said up front. */}
-              {isDropboxSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.dropboxSetup')}
-                </p>
-              )}
-              {/* Workplan 0056: Box's Client Credentials Grant — why there is
-                  no refresh-token field, and where the admin authorization
-                  happens, said up front. */}
-              {isBoxSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.boxSetup')}
-                </p>
-              )}
-              {/* Workplan 0044: the same Google OAuth client as Drive, but the
-                  refresh token must be consented with the mail scope — the one
-                  mistake this box exists to prevent. */}
-              {isGmailSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.gmailSetup')}
-                </p>
-              )}
-              {/* Workplan 0045: same OAuth client, per-product consent — the
-                  scope each token must carry is the mistake this box exists
-                  to prevent, exactly like Gmail's. */}
-              {isGoogleDavSource && (
-                <p className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  {t('wizard.source.googleDavSetup')}
-                </p>
+              {aboutSource && (
+                <Hint
+                  className="mt-4"
+                  label="more"
+                  text={t(aboutSource)}
+                  why={t(`${aboutSource}.more` as StringKey)}
+                />
               )}
             </div>
 
@@ -2014,7 +2114,7 @@ const CreateMapping: React.FC = () => {
                   >
                     {ps('connect')}
                   </button>
-                  <p className="mt-1 text-sm text-gray-500">{ps('connect.hint')}</p>
+                  <Hint text={ps('connect.hint')} why={ps('connect.why')} />
                   {consentNote && (
                     <p
                       className={`mt-1 text-sm ${
@@ -2058,9 +2158,13 @@ const CreateMapping: React.FC = () => {
                   THEIRS. We migrate into it; we do not run it, monitor it,
                   back it up, or carry an SLA for it. Said before the
                   connection details are typed, not after. */}
-              <p className="mt-4 text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                {t('createMapping.target.userOperated')}
-              </p>
+              <Hint
+                className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3"
+                tone="body"
+                label="more"
+                text={t('createMapping.target.userOperated')}
+                why={t('createMapping.target.userOperated.more')}
+              />
             </div>
 
             <ConnectionPicker
@@ -2088,17 +2192,21 @@ const CreateMapping: React.FC = () => {
                   answer is for, so consolidating owners find it here rather
                   than in a source step that cannot know it is one of two. */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="target-folder-prefix"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   {t('wizard.targetPrefix')}
                 </label>
                 <input
+                  id="target-folder-prefix"
                   type="text"
                   value={formData.targetFolderPrefix}
                   onChange={(e) => updateField('targetFolderPrefix', e.target.value)}
                   className="input w-full"
                   placeholder={t('wizard.targetPrefix.placeholder')}
                 />
-                <p className="mt-1 text-sm text-gray-500">{t('wizard.targetPrefix.hint')}</p>
+                <Hint text={t('wizard.targetPrefix.hint')} why={t('wizard.targetPrefix.why')} />
               </div>
             </div>
             {renderProbe('target')}
@@ -2112,11 +2220,12 @@ const CreateMapping: React.FC = () => {
                 0070): this step is only what is true of THIS migration —
                 what to call it, what to move, and how often. */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="migration-name" className="block text-sm font-medium text-gray-700 mb-1">
                 {t('wizard.migrationName')}
                 <Required />
               </label>
               <input
+                id="migration-name"
                 type="text"
                 required
                 value={formData.name}
@@ -2124,14 +2233,12 @@ const CreateMapping: React.FC = () => {
                 className="input w-full"
                 placeholder="My Migration"
               />
-              <p className="mt-1 text-sm text-gray-500">{t('wizard.migrationNameHint')}</p>
             </div>
 
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-900">
                 {t('wizard.selectDataTypes')}
               </h3>
-              <p className="text-sm text-gray-500">{t('wizard.selectDataTypesHint')}</p>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {dataTypes.map((type) => {
@@ -2223,10 +2330,11 @@ const CreateMapping: React.FC = () => {
               </div>
 
               <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="custom-cron" className="block text-sm font-medium text-gray-700 mb-1">
                   {t('wizard.customCron')}
                 </label>
                 <input
+                  id="custom-cron"
                   type="text"
                   value={formData.schedule}
                   onChange={(e) => updateField('schedule', e.target.value)}
@@ -2323,11 +2431,13 @@ const CreateMapping: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm text-yellow-800">
-                  <strong>{t('wizard.review.noteLead')}</strong> {t('wizard.review.note')}
-                </p>
-              </div>
+              <Hint
+                className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"
+                tone="note"
+                label="more"
+                text={t('wizard.review.note')}
+                why={t('wizard.review.why')}
+              />
             </div>
           </div>
         );
@@ -2341,7 +2451,6 @@ const CreateMapping: React.FC = () => {
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">{t('wizard.title')}</h1>
-        <p className="text-gray-500 mt-1">{t('wizard.subtitle')}</p>
       </div>
 
       {/* Progress Steps */}

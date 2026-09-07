@@ -18,13 +18,11 @@
     "./graph-contacts-source.types": "./src/graph-contacts-source.types.ts"
   },
   "dependencies": {
-    "@azure/msal-node": "^5.6.0",
+    "@azure/msal-node": "^6.0.0",
+    "@openmig/core": "workspace:*",
     "@openmig/shared": "workspace:*",
-    "imapflow": "^1.7.6",
-    "jmap-jam": "^0.13.5",
-    "nodemailer": "^9.0.6"
-  },
-  "devDependencies": {
-    "@types/nodemailer": "^8.0.1"
+    "imapflow": "^1.7.8",
+    "jmap-jam": "^0.13.6",
+    "nodemailer": "^10.0.0"
   }
 }

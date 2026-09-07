@@ -101,13 +101,24 @@ describe('partitionFrontDoor — the one algorithm both doors render', () => {
     // no `icloud` or `apple-mail` kind beside it to collect, because Apple has
     // never published an API one could have been built on. Alphabetical among
     // the standalones, like box and dropbox.
-    expect(p.providers).toEqual(['apple', 'box', 'dropbox']);
+    //
+    // `archive` joined them on 2026-09-04 (0116 T1) and is standalone for a
+    // different reason: it is ONE card covering BOTH gatekeepers' exports,
+    // because which export it is lives on the connection rather than in the
+    // vocabulary. A family would have been the wrong shape twice over — it has
+    // no members to collect, and collecting it under Google or Apple would
+    // hide the half of it that is not theirs.
+    expect(p.providers).toEqual(['apple', 'archive', 'box', 'dropbox']);
     expect(p.protocols).toEqual(['imap']);
   });
 
-  it('splits the target vocabulary: the account kind is the provider lane, the five protocols the other', () => {
+  it('splits the target vocabulary: the account kinds are the provider lane, the five protocols the other', () => {
     const p = ids(connectableTypes('target'));
-    expect(p.providers).toEqual(['soverin']);
+    // Two account kinds now (2026-09-07). Both name a product a person has
+    // rather than a transport it speaks, which is what the lane is for — and
+    // `nextcloud` earns it while serving only protocols this door also lists
+    // separately, because the person is naming their Nextcloud, once.
+    expect(p.providers).toEqual(['soverin', 'nextcloud']);
     expect(p.families).toEqual([]);
     expect(p.protocols).toEqual(['jmap', 'imap', 'caldav', 'carddav', 'webdav']);
   });
