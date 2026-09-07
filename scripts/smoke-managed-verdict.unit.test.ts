@@ -1126,3 +1126,100 @@ describe("the status page's identity-provider lamp is read, not just the page", 
     expect(section).toMatch(/\[ "\$idp_lamp" = "unprobed" \] \|\| break/);
   });
 });
+
+describe('a target the reindexer could not see is not a verified target (2026-09-07)', () => {
+  /**
+   * THE THIRD FACE OF THE SAME COIN, and the one that was still missing after
+   * the other two were fixed. `state: done` says the run finished;
+   * `totalItemsSource` says the source had content; the skip loop says each
+   * domain was looked at. Nothing looked at what came back from the TARGET.
+   *
+   * The failure that gap admits is specific and quiet. A DAV listing query the
+   * server ACCEPTS and that matches nothing returns an empty multistatus — not
+   * an error, not a refusal, an empty collection. RFC 6352 §10.5 makes that
+   * reachable by accident: `test` defaults to `anyof`, so an
+   * `addressbook-query` filter carrying no prop-filter is an OR over zero
+   * tests. The reindexer then reports a perfectly healthy zero, and this gate
+   * called it a pass — because `missingOnTarget` growing is EXPECTED here (the
+   * apply half tombstones one item per run), so the number that would have
+   * said otherwise was the one nobody read.
+   *
+   * A floor, not a match, for the same reason `PASS` is not asserted: the
+   * tombstones make an equality red for the script's own correct behaviour.
+   *
+   * And NOT a new rule. `selfhost-verification.e2e.test.ts` has asserted
+   * `sourceCount > 0` / `targetCount === sourceCount` / `missingOnTarget === 0`
+   * all along — it can hold the equality because that flow has no apply half
+   * consuming an item per run. So the managed gate was the edition missing the
+   * check rather than the edition being held to a new one, which is hard rule
+   * 5 read the way it is meant to be: both editions, and this was the half
+   * that had drifted.
+   */
+  const block = smoke.match(/^for domain in "\$\{REQUIRED_DOMAINS\[@\]\}"; do[\s\S]*?\ndone$/m)?.[0];
+
+  /** Drive the real loop with a report body and a required-domain list. */
+  function verdict(rbody: string, required: string[]) {
+    const setup = `rbody='${rbody}'\nVERIFY_LABEL=test\nREQUIRED_DOMAINS=(${required.join(' ')})`;
+    const out = execFileSync('bash', ['-c', `${FAIL_PREAMBLE}\n${setup}\n${block}\necho "FAIL=$fail"`], {
+      encoding: 'utf8',
+    });
+    return out.trim().split('\n').pop()!.replace('FAIL=', '');
+  }
+
+  /** The real shape: per-domain blocks under a mapping id, each self-labelling. */
+  const report = (domains: Record<string, [number, number]>) =>
+    JSON.stringify({
+      report: {
+        m1: Object.fromEntries(
+          Object.entries(domains).map(([d, [sourceCount, targetCount]]) => [
+            d,
+            { dataType: d, sourceCount, targetCount, issues: [], status: 'PASS' },
+          ]),
+        ),
+      },
+    });
+
+  it('is extractable — the guard still exists to test', () => {
+    expect(block).toBeDefined();
+  });
+
+  it('FAILS when the source has items and the target listing found none', () => {
+    // The whole point: a CardDAV query the server accepted and that matched
+    // nothing looks exactly like this, and looked like a pass until today.
+    expect(verdict(report({ contacts: [6, 0] }), ['contacts'])).toBe('1');
+  });
+
+  it('passes when the target listing found items, even fewer than the source', () => {
+    // The tombstones: every run permanently consumes one item, so the target
+    // legitimately lags. That is why this is a floor and not an equality.
+    expect(verdict(report({ contacts: [6, 5] }), ['contacts'])).toBe('0');
+  });
+
+  it('passes an empty domain at BOTH ends, rather than inventing a failure', () => {
+    // Nothing on the target is the right answer to nothing at the source. A
+    // gate that reddened here would be red for a correct migration of nothing.
+    expect(verdict(report({ tasks: [0, 0] }), ['tasks'])).toBe('0');
+  });
+
+  it('catches the empty one among several required domains', () => {
+    const mixed = report({ calendar: [3, 3], contacts: [6, 0], files: [9, 8] });
+    expect(verdict(mixed, ['calendar', 'contacts', 'files'])).toBe('1');
+    // ...and stays quiet when it is not asked about the empty one.
+    expect(verdict(mixed, ['calendar', 'files'])).toBe('0');
+  });
+
+  it('fails on a report shape it cannot read, rather than assuming it was fine', () => {
+    // The `totalItemsSource` guard's stance, inherited: a report whose shape
+    // changed is not evidence that anything was verified. An older engine that
+    // omits `dataType` lands here, and says so.
+    expect(verdict(`{"report":{"m1":{"contacts":{"status":"PASS"}}}}`, ['contacts'])).toBe('1');
+  });
+
+  it('names the quiet cause, not just the number', () => {
+    // A gate that says "targetCount=0" sends somebody to the sync. The cause
+    // is as likely to be the listing query, and the message has to say so or
+    // the next person re-derives it from scratch.
+    expect(block).toMatch(/matches nothing|found nothing/i);
+    expect(block).toMatch(/listing query/i);
+  });
+});
