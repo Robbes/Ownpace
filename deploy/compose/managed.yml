@@ -1220,6 +1220,16 @@ services:
       MAIL_DOMAIN: ownpace.invalid
     ports:
       - "${NEXTCLOUD_PORT:-8083}:80"
+    # A NAME, SO THE DATA OUTLIVES THE CONTAINER (2026-09-06). This block
+    # declared no volume, and the image declares `VOLUME /var/www/html` — so
+    # every account, calendar, address book and file lived in an ANONYMOUS
+    # volume. That survives `restart` and a recreate, and a `docker compose
+    # down` orphans it: the next `up` installs Nextcloud again, empty, with
+    # the old data still on disk under a hash nobody will look up. Every
+    # other stateful service here was already named; this one was the
+    # exception nobody chose.
+    volumes:
+      - nextcloud_data:/var/www/html
     # The one probe here that is not an inference: `setup-nextcloud-users.sh`
     # has been running `docker exec <nextcloud> curl … http://localhost/status.php`
     # against this image on the Spark since the demo existed, so both the binary
@@ -1262,6 +1272,8 @@ volumes:
   trigger_shared:
   registry_data:
   minio_data:
+  # Accounts, calendars, address books and files of the DAV backend.
+  nextcloud_data:
   trigger_tls_data:
   trigger_tls_config:
   # Kept, not reused: the Bitnami-era event store. Safe to remove once

@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 92 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 93 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -331,6 +331,7 @@ reading a file drops off its entry by itself.
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 - [the-mail-the-issuer-could-not-send](../scripts/the-mail-the-issuer-could-not-send.unit.test.ts) — THE MAIL THE ISSUER COULD NOT SEND.
+- [the-state-that-lived-in-a-nameless-volume](../scripts/the-state-that-lived-in-a-nameless-volume.unit.test.ts) — STATE IN A NAMELESS VOLUME IS STATE NOBODY CAN FIND AGAIN.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 - [zitadel-image-matches-postgres](../scripts/zitadel-image-matches-postgres.unit.test.ts) — The identity provider and the database it initialises into are pinned in the same file, and they are not independent.
 
@@ -1745,6 +1746,14 @@ Reads:
 - `deploy/compose/trigger-cli-lib.sh`
 - `deploy/compose/trigger-credentials.sh`
 - `deploy/compose/zitadel-db-password.sh`
+
+### [the-state-that-lived-in-a-nameless-volume](../scripts/the-state-that-lived-in-a-nameless-volume.unit.test.ts)
+
+STATE IN A NAMELESS VOLUME IS STATE NOBODY CAN FIND AGAIN.
+
+Reads:
+
+- `deploy/compose/managed.yml`
 
 ### [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts)
 
