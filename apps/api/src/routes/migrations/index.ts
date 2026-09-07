@@ -741,16 +741,25 @@ export const CreateMappingBase = z.object({
     nativeFilePolicy: z.string().optional(),
   }),
   targetConfig: z.object({
-    host: z.string(),
-    port: z.number(),
+    /**
+     * WHERE the target is — and which pair of fields says so depends on the
+     * TARGET TYPE, the way `sourceConfig`'s does above (2026-09-07). Every
+     * target but one is reached at host+port, with `url` as an escape hatch;
+     * a Nextcloud is reached at its base URL and nothing else, because its
+     * DAV root is always behind `/remote.php/dav`. Demanded here, host+port
+     * made a Nextcloud mapping impossible to create at all — so the demand
+     * moved to the superRefine, where the type is visible.
+     */
+    host: z.string().optional(),
+    port: z.number().optional(),
     username: z.string(),
     password: z.string(),
     useSsl: z.boolean().default(true),
     /**
-     * DAV targets only (0105 T1): the full base URL, for a provider whose
-     * DAV root is not at the host root. When present it wins over host+port
-     * (`davUrl`'s precedence); host and port stay demanded so nothing about
-     * the existing doors changes shape.
+     * DAV targets (0105 T1): the full base URL, for a provider whose DAV
+     * root is not at the host root. When present it wins over host+port
+     * (`davUrl`'s precedence). On a `nextcloud` target it is not an escape
+     * hatch but the address, and the superRefine demands it.
      */
     url: z.string().optional(),
     /**
@@ -1246,6 +1255,45 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         path: ['throttleConfig'],
         message: err instanceof ConfigError ? err.message : String(err),
       });
+    }
+  }
+  // WHERE the target is, demanded per type (2026-09-07). `nextcloud` is the
+  // one target whose address is a URL: host and port cannot be right for it,
+  // so its door does not ask for them and this must not either. Every other
+  // type is still refused without a server to reach — the check moved, it
+  // did not weaken. A reused connection carries its own address, as ever.
+  if (!body.targetConnectionId) {
+    if (body.targetType === 'nextcloud') {
+      if (!body.targetConfig.url?.trim()) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['targetConfig', 'url'],
+          message:
+            'A Nextcloud target is reached at its DAV base URL, which is missing ' +
+            '(targetConfig.url). It is the address in your browser with /remote.php/dav ' +
+            'on the end, such as https://cloud.example.com/remote.php/dav — a host and ' +
+            'port cannot express it, which is why this target does not ask for them.',
+        });
+      }
+    } else {
+      if (!body.targetConfig.host?.trim()) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['targetConfig', 'host'],
+          message:
+            `A ${body.targetType} target needs the server to sign in to: ` +
+            'targetConfig.host is missing.',
+        });
+      }
+      if (body.targetConfig.port === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['targetConfig', 'port'],
+          message:
+            `A ${body.targetType} target needs the port to reach that server on: ` +
+            'targetConfig.port is missing.',
+        });
+      }
     }
   }
   const domainRefusal = targetDomainRefusal(body.targetType, body.syncConfig.domains);

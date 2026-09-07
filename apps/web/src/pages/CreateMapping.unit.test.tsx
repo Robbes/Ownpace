@@ -94,6 +94,17 @@ const renderWizard = () => {
   );
 };
 
+/**
+ * The target's host box, found by its LABEL rather than the example inside it.
+ *
+ * These lookups used to ask for the placeholder `jmap.example.com`, which
+ * every target door showed — including the five it was wrong for. Pinning the
+ * tests to the example is why nobody noticed an IMAP target suggesting a JMAP
+ * host on port 443 (2026-09-07). A label is what the field IS; a placeholder
+ * is a worked example, and the two must be free to differ per protocol.
+ */
+const targetHostBox = (): HTMLElement => screen.getByLabelText(/^Host/);
+
 const nextButton = () =>
   // AN EXACT MATCH, because a CARD is a button too (2026-09-07). `/Next|.../`
 // unanchored matched the "Nextcloud" target card as well as the wizard's own
@@ -117,7 +128,7 @@ const walkToReview = () => {
   fireEvent.click(nextButton());
 
   // Step 2 — Target: host, account, password (port prefilled, jmap preselected).
-  fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+  fireEvent.change(targetHostBox(), {
     target: { value: 'stalwart.acme.example' },
   });
   fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
@@ -328,7 +339,7 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
 
     // Target: pick the protocol, then its own host + account + password.
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${target}`) }));
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'dav.acme.example' },
     });
     fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
@@ -438,7 +449,7 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
     });
     satisfySourceStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'stalwart.acme.example' },
     });
     satisfyTargetStep();
@@ -551,8 +562,8 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     // own credentials too (workplan 0070), so it keeps gating — and keeps
     // naming what is left, rather than going quiet two screens early.
     expect(nextButton()).toBeDisabled();
-    expect(screen.getByRole('status').textContent).toContain('Source Username');
-    expect(screen.getByRole('status').textContent).toContain('Source client secret');
+    expect(screen.getByRole('status').textContent).toContain('Username');
+    expect(screen.getByRole('status').textContent).toContain('Client secret');
 
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
       target: { value: 'mailbox@acme.example' },
@@ -587,9 +598,9 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     // not a mailbox password — labelled as what it is, and required: without
     // it the client-credentials flow cannot mint a single token. It gates the
     // SOURCE step now, beside the registration it belongs to.
-    expect(screen.getByText('Source client secret')).toBeInTheDocument();
+    expect(screen.getByText('Client secret')).toBeInTheDocument();
     expect(nextButton()).toBeDisabled();
-    expect(screen.getByRole('status').textContent).toContain('Source client secret');
+    expect(screen.getByRole('status').textContent).toContain('Client secret');
 
     fireEvent.change(screen.getByPlaceholderText('••••••••'), {
       target: { value: 'shh-client-secret' },
@@ -597,7 +608,7 @@ describe('CreateMapping — oauth2/graph collect the app registration (0037 T6, 
     fireEvent.click(nextButton());
 
     // Target: its own server and its own account.
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'stalwart.acme.example' },
     });
     satisfyTargetStep();
@@ -668,7 +679,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
 
     // Step 2 — Target: the preselected jmap SURVIVES the source switch, so it
     // needs only its own server, account and password.
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'nextcloud.acme.example' },
     });
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
@@ -712,7 +723,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     });
     satisfySourceStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'nc.acme.example' },
     });
     satisfyTargetStep();
@@ -771,7 +782,7 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
 
     // Step 2 — Target: the preselected jmap survives (it carries email), and
     // asks only for its own server and account.
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'stalwart.acme.example' },
     });
     satisfyTargetStep();
@@ -811,7 +822,7 @@ describe('CreateMapping — a Gmail source (workplan 0044)', () => {
     });
     satisfySourceStep();
     fireEvent.click(nextButton());
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'stalwart.acme.example' },
     });
     satisfyTargetStep();
@@ -861,7 +872,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     // A target that carries both faces, so the domain step polices nothing
     // away and what is posted is what the account was ticked for.
     fireEvent.click(screen.getByRole('button', { name: /Soverin/ }));
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'dav.soverin.example' },
     });
     satisfyTargetStep();
@@ -948,7 +959,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: '1//granted' } });
     fireEvent.click(nextButton());
     fireEvent.click(screen.getByRole('button', { name: /Soverin/ }));
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'dav.soverin.example' },
     });
     satisfyTargetStep();
@@ -1373,7 +1384,7 @@ describe('the provider directory pre-fills a named provider’s boxes', () => {
   it('picking Soverin fills its DAV host, mail host and both ports, and says whose they are', () => {
     toTargetStep();
     fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
-    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('caldav.soverin.net');
+    expect(targetHostBox()).toHaveValue('caldav.soverin.net');
     expect(screen.getByDisplayValue('443')).toBeTruthy();
     expect(screen.getByPlaceholderText('imap.example.com')).toHaveValue('imap.soverin.net');
     expect(screen.getByDisplayValue('993')).toBeTruthy();
@@ -1384,23 +1395,23 @@ describe('the provider directory pre-fills a named provider’s boxes', () => {
 
   it('a typed box is never overwritten — not by the pick, not by a pick after a pick', () => {
     toTargetStep();
-    fireEvent.change(screen.getByPlaceholderText('jmap.example.com'), {
+    fireEvent.change(targetHostBox(), {
       target: { value: 'dav.mine.example' },
     });
     fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
-    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('dav.mine.example');
+    expect(targetHostBox()).toHaveValue('dav.mine.example');
     // The blank mail host still takes the default beside the typed DAV host.
     expect(screen.getByPlaceholderText('imap.example.com')).toHaveValue('imap.soverin.net');
     fireEvent.click(screen.getByRole('button', { name: /^JMAP/ }));
     fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
-    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('dav.mine.example');
+    expect(targetHostBox()).toHaveValue('dav.mine.example');
   });
 
   it('leaving Soverin empties the boxes still at its defaults; the port falls back to the wizard’s own 443', () => {
     toTargetStep();
     fireEvent.click(screen.getByRole('button', { name: /^Soverin/ }));
     fireEvent.click(screen.getByRole('button', { name: /^JMAP/ }));
-    expect(screen.getByPlaceholderText('jmap.example.com')).toHaveValue('');
+    expect(targetHostBox()).toHaveValue('');
     expect(screen.getByDisplayValue('443')).toBeTruthy();
     expect(screen.queryByDisplayValue('imap.soverin.net')).toBeNull();
     expect(screen.queryByText(/Pre-filled from/)).toBeNull();

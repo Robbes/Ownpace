@@ -341,10 +341,10 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
   archive: archiveFields(),
   box: [
     USER,
-    { key: 'clientId', labelKey: 'wizard.clientId', required: true },
-    SECRET,
     // The CCG subject — WHOSE files the token reads. One subject per mapping
-    // (ADR-0033), so it outlives a reused connection.
+    // (ADR-0033), so it outlives a reused connection. Beside the username
+    // rather than below the client pair (2026-09-07): both fields answer WHO,
+    // and a person who has just typed one is holding the other.
     {
       key: 'userId',
       labelKey: 'wizard.boxUserId',
@@ -352,6 +352,8 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
       placeholderKey: 'wizard.boxUserId.placeholder',
       perMapping: true,
     },
+    { key: 'clientId', labelKey: 'wizard.clientId', required: true },
+    SECRET,
     {
       key: 'rootFolderId',
       labelKey: 'wizard.boxRootFolderId',
@@ -446,6 +448,24 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
   ],
 };
 
+/**
+ * The EXAMPLE a target's host box shows, per protocol (2026-09-07).
+ *
+ * One shared list gave every target `jmap.example.com` and `443`, so six of
+ * the seven doors showed an example that was wrong for them — an IMAP target
+ * suggested a JMAP host on port 443 while the IMAP SOURCE door, two clicks
+ * away, correctly said 993. A placeholder is the only worked example most
+ * people read; one that names the wrong protocol teaches the wrong thing.
+ */
+const TARGET_HOST_EXAMPLE: Readonly<Record<string, { host: string; port: string }>> = {
+  jmap: { host: 'jmap.example.com', port: '443' },
+  imap: { host: 'imap.example.com', port: '993' },
+  caldav: { host: 'dav.example.com', port: '443' },
+  carddav: { host: 'dav.example.com', port: '443' },
+  webdav: { host: 'dav.example.com', port: '443' },
+  soverin: { host: 'caldav.soverin.net', port: '443' },
+};
+
 /** Every target speaks host/port/user/password; only the protocol differs. */
 const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
   { key: 'host', labelKey: 'wizard.host', required: true, placeholder: 'jmap.example.com' },
@@ -489,7 +509,45 @@ const TARGET_DAV_URL: CredentialField = {
 
 // `soverin` is DAV-shaped at the door (0106 T4a): one account, the DAV base
 // URL as its escape hatch, exactly like the protocol trio.
-const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav', 'soverin', 'nextcloud'] as const;
+const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav', 'soverin'] as const;
+
+/**
+ * WHERE, THEN WHO — the base URL belongs with host and port (2026-09-07).
+ *
+ * It was appended last, under the password, and that position is half the
+ * reason the owner asked "why do i have a host and a dav base url?": the
+ * field that ANSWERS host and port stood three boxes below them, reading as
+ * an afterthought to the credential rather than as the address it is. Beside
+ * them, the pair explains itself — type the URL and host and port stop
+ * mattering, which is exactly what `davUrl`'s precedence does.
+ */
+function withDavUrl(fields: ReadonlyArray<CredentialField>): ReadonlyArray<CredentialField> {
+  const afterPort = fields.findIndex((f) => f.key === 'port') + 1;
+  return [...fields.slice(0, afterPort), TARGET_DAV_URL, ...fields.slice(afterPort)];
+}
+
+/**
+ * THE NEXTCLOUD DOOR ASKS FOR THE ADDRESS A PERSON HAS (2026-09-07, the owner
+ * on his own stack: "why do i have a host and a dav base url?").
+ *
+ * Every other DAV door takes host+port and builds `https://host:port/`, with
+ * the base URL as an escape hatch for a provider whose root sits behind a
+ * path. For a Nextcloud that is exactly inverted: the root is ALWAYS behind
+ * `/remote.php/dav`, so host+port can never be right and the escape hatch is
+ * the only field that can be. Shipped the other way round, the card meant to
+ * replace three connections asked for three fields, two of them ignored, and
+ * marked the one that works "(optional)".
+ *
+ * So this door asks for the URL, required, and does not ask for host or port
+ * at all. The add route demands what the descriptor demands — "the demand
+ * FOLLOWS THE DESCRIPTOR", `configShapeFor` — so nothing else has to know.
+ */
+const NEXTCLOUD_TARGET_FIELDS: ReadonlyArray<CredentialField> = [
+  // Its own hint: `TARGET_DAV_URL`'s says "only when the DAV root is not at
+  // the host root", and this door has no host to compare a root against.
+  { ...TARGET_DAV_URL, required: true, hintKey: 'wizard.nextcloudDavUrl.hint' },
+  ...TARGET_FIELDS.filter((f) => f.key !== 'host' && f.key !== 'port'),
+];
 
 /**
  * The account kind's MAIL face (0106 T4b): the IMAP host the person's provider
@@ -509,6 +567,19 @@ const SOVERIN_MAIL_FIELDS: ReadonlyArray<CredentialField> = [
   { key: 'mailPort', labelKey: 'wizard.soverinMailPort', numeric: true, placeholder: '993' },
 ];
 
+/** TARGET_FIELDS with the host/port example this protocol actually uses. */
+function targetFieldsWithExample(type: string): ReadonlyArray<CredentialField> {
+  const example = TARGET_HOST_EXAMPLE[type];
+  if (!example) return TARGET_FIELDS;
+  return TARGET_FIELDS.map((f) =>
+    f.key === 'host'
+      ? { ...f, placeholder: example.host }
+      : f.key === 'port'
+        ? { ...f, placeholder: example.port }
+        : f,
+  );
+}
+
 /**
  * What to ask for, or `[]` when the type is not one this product connects to.
  * An empty list is a refusal to guess, not a form with no fields — callers
@@ -519,13 +590,16 @@ export function credentialFieldsFor(
   type: string,
 ): ReadonlyArray<CredentialField> {
   if (role === 'target') {
+    if (type === 'nextcloud') return NEXTCLOUD_TARGET_FIELDS;
     if (type === 'soverin') {
-      return [...TARGET_FIELDS, TARGET_DAV_URL, ...SOVERIN_MAIL_FIELDS];
+      return [...withDavUrl(targetFieldsWithExample(type)), ...SOVERIN_MAIL_FIELDS];
     }
     if ((DAV_TARGET_TYPES as ReadonlyArray<string>).includes(type)) {
-      return [...TARGET_FIELDS, TARGET_DAV_URL];
+      return withDavUrl(targetFieldsWithExample(type));
     }
-    return (TARGET_TYPES as ReadonlyArray<string>).includes(type) ? TARGET_FIELDS : [];
+    return (TARGET_TYPES as ReadonlyArray<string>).includes(type)
+      ? targetFieldsWithExample(type)
+      : [];
   }
   return SOURCE_FIELDS[type] ?? [];
 }
@@ -643,4 +717,53 @@ export function typesNeedingDisplayNames(): ReadonlyArray<string> {
 /** Whether every connectable type has a real name. Used by the lock test. */
 export function providerDisplayNamesCoverEveryType(): ReadonlyArray<string> {
   return typesNeedingDisplayNames().filter((t) => !(t in PROVIDER_DISPLAY_NAMES));
+}
+
+/**
+ * WHAT THIS DEPLOYMENT ACTUALLY DEMANDS, which is not what the descriptor
+ * alone can say (2026-09-07, the owner: "the appliance might require those
+ * fields").
+ *
+ * A client id and secret are `required: false` because the deployment MAY
+ * carry its own (ADR-0041) — true on the managed edition with
+ * `GOOGLE_OAUTH_CLIENT_ID` and friends set. On an appliance with none, the
+ * same two fields are the only way forward, and rendering them without the
+ * asterisk tells the operator they are optional at the one moment they are
+ * mandatory.
+ *
+ * The wizard had already learned this and fixed it for the Google sources
+ * alone — its `sourceFieldRequiredNow` says "a marker cannot disagree with
+ * the gate it claims to explain". The rule never travelled: the Connections
+ * add-form asked the descriptor directly, and neither door applied it to
+ * Microsoft or Dropbox, whose pairs are optional for exactly the same reason.
+ * One rule, one place, every door and every provider.
+ *
+ * `sideStepped` is ADR-0033's either-flow: a pasted service-account key makes
+ * the whole Google trio unnecessary, so nothing in it is required.
+ */
+export function credentialFieldRequired(
+  field: CredentialField,
+  where: {
+    /** Whether this deployment carries its own client for the provider. */
+    readonly deploymentClient: boolean;
+    /** One half of the pair typed — a pair being typed must be completed. */
+    readonly halfPairTyped?: boolean;
+    /** A Google service-account key was pasted; the OAuth trio is moot. */
+    readonly sideStepped?: boolean;
+  },
+): boolean {
+  const pairOrToken =
+    field.pairedWith !== undefined ||
+    field.key === 'clientSecret' ||
+    field.consent !== undefined;
+  if (!pairOrToken) return field.required === true;
+  if (where.sideStepped) return false;
+  // A CONSENT-MINTED TOKEN IS NEVER THE DEPLOYMENT'S TO CARRY: a client is
+  // an application, and this is whose data it may read. So the fold that
+  // hides the pair never hides the need for a token — the button fills it.
+  // Google's descriptor leaves it `required: false` only because the
+  // either-flow exists at all (`microsoftAccountFields`'s first difference
+  // says so); WHETHER THAT FLOW WAS TAKEN is `sideStepped`, answered above.
+  if (field.consent !== undefined) return true;
+  return !where.deploymentClient || where.halfPairTyped === true;
 }

@@ -41,6 +41,7 @@ import {
   providerDefaultsFor,
   providerDefaultsProvenance,
   type CredentialField,
+  credentialFieldRequired,
 } from '@openmig/shared';
 // The SAME cron library — same pinned version — the managed tick evaluates
 // schedules with, so the "next syncs" echo below cannot disagree with what
@@ -600,8 +601,13 @@ const CreateMapping: React.FC = () => {
               useSsl: formData.sourceSsl,
             };
   const builtTargetConfig = () => ({
-    host: formData.targetHost,
-    port: Number(formData.targetPort),
+    // Host and port only where the target ASKS for them (2026-09-07). A
+    // Nextcloud does not, so this used to post an empty host and a port of
+    // `Number('')` — NaN, which the create schema refuses without ever
+    // reaching the sentence about what a Nextcloud actually needs.
+    ...(credentialFieldsFor('target', formData.targetType).some((f) => f.key === 'host')
+      ? { host: formData.targetHost, port: Number(formData.targetPort) }
+      : {}),
     username: formData.targetUsername,
     password: formData.targetPassword,
     useSsl: formData.targetSsl,
@@ -1184,10 +1190,20 @@ const CreateMapping: React.FC = () => {
     if (side === 'target') {
       // A reused target connection carries the server AND the account.
       if (formData.targetConnectionId) return out;
-      if (!formData.targetHost) out.push(t('wizard.host'));
-      if (!isValidPort(formData.targetPort)) out.push(t('wizard.port'));
-      if (!formData.targetUsername) out.push(t('wizard.targetUsername'));
-      if (formData.targetPassword === '') out.push(t('wizard.targetPassword'));
+      // THE DEMAND FOLLOWS THE DESCRIPTOR (2026-09-07). This asked for a
+      // host, a port, a username and a password whatever the target was — so
+      // the Nextcloud card, which is reached at a base URL and asks for no
+      // host at all, could never be got past: Next stayed disabled naming two
+      // fields that were not on the screen. Whatever a target declares
+      // required IS what gates it, and nothing else can be.
+      for (const field of credentialFieldsFor('target', formData.targetType)) {
+        if (!fieldRequiredNow(false, field)) continue;
+        const formKey = TARGET_FORM_FIELD[field.key];
+        if (!formKey) continue;
+        const value = String(formData[formKey] ?? '');
+        const missing = field.numeric ? !isValidPort(value) : value === '';
+        if (missing) out.push(t(field.labelKey as StringKey));
+      }
       return out;
     }
 
@@ -1378,15 +1394,29 @@ const CreateMapping: React.FC = () => {
    * service-account key is pasted (ADR-0033's either-flow). Same condition,
    * one place, so a marker cannot disagree with the gate it claims to explain.
    */
-  const sourceFieldRequiredNow = (field: CredentialField): boolean => {
-    if (isGoogleSource && ['clientId', 'clientSecret', 'refreshToken'].includes(field.key)) {
-      if (formData.sourceServiceAccountKey.trim() !== '') return false;
-      // The pair is the deployment's where it has one (ADR-0041); the token
-      // is always this account's.
-      return field.key === 'refreshToken' || clientPairRequired;
-    }
-    return field.required === true;
-  };
+  const sourceFieldRequiredNow = (field: CredentialField): boolean =>
+    // ONE RULE, EVERY PROVIDER (2026-09-07). This was Google-only, so a
+    // Microsoft or Dropbox pair — optional for exactly the same reason, and
+    // mandatory on an appliance for exactly the same reason — was still
+    // marked by the descriptor alone. The rule moved to shared so the
+    // Connections add-form asks the same question.
+    credentialFieldRequired(field, {
+      deploymentClient: !clientPairRequired || clientHalfTyped,
+      halfPairTyped: clientHalfTyped,
+      sideStepped: formData.sourceServiceAccountKey.trim() !== '',
+    });
+
+  /**
+   * The TARGET side asked the descriptor alone, which was right only because
+   * no target has a client pair yet. Asking the same function on both sides
+   * costs nothing and means the day one does, the marker already knows: a
+   * target has no deployment client to fold anything away, so every field it
+   * declares required is required.
+   */
+  const fieldRequiredNow = (isSource: boolean, field: CredentialField): boolean =>
+    isSource
+      ? sourceFieldRequiredNow(field)
+      : credentialFieldRequired(field, { deploymentClient: false });
 
   /** The shared-drive browse (0049), anchored to the field it fills. */
   const renderDriveBrowse = () => (
@@ -1537,7 +1567,7 @@ const CreateMapping: React.FC = () => {
         <div>
           <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
             {t(field.labelKey as StringKey)}
-            {(isSource ? sourceFieldRequiredNow(field) : field.required === true) && <Required />}
+            {fieldRequiredNow(isSource, field) && <Required />}
           </label>
           {field.multiline ? (
             <textarea
@@ -1610,6 +1640,17 @@ const CreateMapping: React.FC = () => {
     };
     return (
       <div className="space-y-4">
+        {/* Read the asterisks: one line, because "(optional)" is gone from
+            the labels and the marker is now the only thing that says which
+            fields this deployment demands. Only where there IS one — a reused
+            connection hides all but its per-mapping fields, and a legend
+            about a marker nobody can see explains nothing. */}
+        {fields.some(
+          (f) =>
+            (!chosen || f.perMapping) &&
+            (isSource ? SOURCE_FORM_FIELD[f.key] : TARGET_FORM_FIELD[f.key]) !== undefined &&
+            fieldRequiredNow(isSource, f),
+        ) && <p className="text-xs text-gray-500">{t('form.requiredLegend')}</p>}
         {fields.map((field) => {
           // A stored connection answers everything except THIS mapping's own
           // question — whose files, and from which folder (0066 T4a).

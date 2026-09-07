@@ -367,13 +367,13 @@ const en = {
   'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
   'wizard.proto.dropbox.hint': 'Files from a Dropbox (read-only OAuth app)',
   'wizard.proto.box.hint': 'Files from a Box account (read-only platform app)',
-  'wizard.boxUserId': 'Box user id (numeric)',
+  'wizard.boxUserId': 'Box user ID (numeric)',
   'wizard.boxUserId.placeholder': 'e.g. 1234567890',
-  'wizard.boxRootFolderId': 'Root folder id (optional)',
+  'wizard.boxRootFolderId': 'Root folder ID',
   'wizard.boxRootFolderId.placeholder': 'Empty = All Files',
   'wizard.review.boxUser': 'Box user',
   'wizard.dropboxAppKey': 'App key',
-  'wizard.dropboxRootPath': 'Root folder path (optional)',
+  'wizard.dropboxRootPath': 'Root folder path',
   'wizard.dropboxRootPath.placeholder': 'e.g. /Team Docs',
   'wizard.browseDropboxFolders': 'Browse shared folders…',
   'wizard.noDropboxSharedFolders': 'This account sees no shared folders.',
@@ -382,13 +382,13 @@ const en = {
   'wizard.proto.gmail.hint': 'Email from a Gmail mailbox (OAuth over IMAP)',
   'wizard.proto.googleCalendar.hint': 'Calendars from a Google account (OAuth over CalDAV)',
   'wizard.proto.googleContacts.hint': 'Contacts from a Google account (OAuth over CardDAV)',
-  'wizard.gmailAppPassword': 'App password (optional)',
+  'wizard.gmailAppPassword': 'App password',
   'wizard.gmailAppPassword.hint': 'Personal Google accounts only; leave empty to use OAuth.',
   'wizard.gmailAppPassword.why':
     'Google recommends against it, and so do we: an app password opens the whole mailbox, where a consented token opens one thing. It needs 2-step verification on the account, does not exist on a Workspace account, and is withdrawn in the account’s own app-password list without touching Ownpace, which is the one real advantage it has.',
   'wizard.refreshToken': 'Refresh token',
   'wizard.refreshToken.hint': 'The account’s delegated token; treat it as a password.',
-  'wizard.rootFolderId': 'Root folder ID (optional)',
+  'wizard.rootFolderId': 'Root folder ID',
   'wizard.rootFolderId.placeholder': 'Empty = all of My Drive',
   'wizard.review.myDrive': 'My Drive',
   'wizard.targetPrefix': 'Target folder (optional)',
@@ -397,7 +397,7 @@ const en = {
   'wizard.targetPrefix.why':
     'Useful when several sources share one target and you want a subfolder per source, such as "Gmail". Empty is the default: one account, one place to work. Under a folder, Sent and Drafts arrive as ordinary folders inside it rather than becoming the account’s own Sent and Drafts; a mail app can only have one of each.',
   'hub.completionReport': 'Download the completion report (Markdown)',
-  'wizard.serviceAccountKey': 'Service account key (optional)',
+  'wizard.serviceAccountKey': 'Service account key',
   'wizard.serviceAccountKey.placeholder': 'Paste the whole JSON key file',
   'wizard.serviceAccountKey.width':
     'This key can read every user in the domain; revoke it at cutover.',
@@ -442,11 +442,20 @@ const en = {
   'wizard.selectTarget': 'Select Target System',
   'wizard.host': 'Host',
   'wizard.port': 'Port',
-  // The DAV escape hatch (0105 T1) — see credential-fields.ts.
-  'wizard.targetDavUrl': 'DAV base URL (optional)',
+  // The DAV escape hatch (0105 T1) — see credential-fields.ts. It is the
+  // ADDRESS rather than an escape hatch on the Nextcloud door, which is why
+  // the label no longer calls itself optional: the descriptor says whether
+  // it is demanded, and the asterisk repeats that answer.
+  'wizard.targetDavUrl': 'DAV base URL',
   'wizard.targetDavUrl.hint': 'Only when the server’s DAV root is not at the host root.',
   'wizard.targetDavUrl.why': 'When filled in, this full URL is used and host and port are ignored.',
-  'wizard.soverinMailHost': 'Mail server (optional)',
+  // The SAME field on the Nextcloud door, where it is not an escape hatch:
+  // the hint above talks about a host root, and that door has no host at all.
+  'wizard.nextcloudDavUrl.hint':
+    'The address you open Nextcloud at, with /remote.php/dav on the end.',
+  'wizard.nextcloudDavUrl.why':
+    'Nextcloud serves calendars, contacts and files under /remote.php/dav rather than at the root of the site, so a host and a port cannot say where it is. Paste the address from your browser’s bar — https://cloud.example.com — and add /remote.php/dav.',
+  'wizard.soverinMailHost': 'Mail server',
   'wizard.soverinMailHost.hint': 'Only needed if this account will also receive mail.',
   'wizard.soverinMailHost.why':
     'Calendars and contacts need no mail server. Test measures the host you enter; nothing is assumed from the provider’s name.',
@@ -458,10 +467,24 @@ const en = {
   'wizard.useSsl': 'Use SSL/TLS',
   'wizard.migrationName': 'Migration Name',
   'wizard.credentials': 'Credentials',
-  'wizard.sourceUsername': 'Source Username',
-  'wizard.sourcePassword': 'Source Password',
-  'wizard.targetUsername': 'Target Username',
-  'wizard.targetPassword': 'Target Password',
+  // WHAT THE STAR MEANS, said once (2026-09-07). Eight labels used to carry
+  // "(optional)" and the rest carried nothing, which read as "these eight are
+  // the optional ones" — and it was wrong the moment a deployment carried no
+  // OAuth client, because then the unmarked client pair was mandatory too.
+  // The asterisk answers that question per field and per deployment, so it is
+  // the only place the answer lives, and this line says how to read it.
+  'form.requiredLegend': 'Fields marked * are required.',
+  // NO SIDE IN THE LABEL (2026-09-07). These read "Source Username" and
+  // "Target Password" because the wizard was once one screen with both sides
+  // on it. It has had a step per side for some time, each under its own
+  // heading — and the Connections add-form has no sides at all, so a Google
+  // account added there was asking for a "Source Username" that is simply
+  // the address. The two keys stay separate because each side's gate and
+  // form map are keyed by them; only the words lost the prefix.
+  'wizard.sourceUsername': 'Username',
+  'wizard.sourcePassword': 'Password',
+  'wizard.targetUsername': 'Username',
+  'wizard.targetPassword': 'Password',
   'wizard.selectDataTypes': 'Select Data Types to Migrate',
   'wizard.domain.email.hint': 'Email messages and folders',
   'wizard.domain.calendar.hint': 'Events and appointments',
@@ -510,7 +533,7 @@ const en = {
   // Entra app registration (ADR-0006's row-14 model).
   'wizard.tenantId': 'Tenant ID',
   'wizard.clientId': 'Client ID (application ID)',
-  'wizard.sourceClientSecret': 'Source client secret',
+  'wizard.sourceClientSecret': 'Client secret',
   // 0037 T4: the coherence hint on an unselectable data type; the full
   // refusal sentence comes from shared and renders verbatim.
   'wizard.domain.notForTarget': 'Not available over the selected target protocol.',
@@ -1942,13 +1965,13 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
   'wizard.proto.dropbox.hint': 'Bestanden uit een Dropbox (alleen-lezen OAuth-app)',
   'wizard.proto.box.hint': 'Bestanden uit een Box-account (alleen-lezen platform-app)',
-  'wizard.boxUserId': 'Box-gebruikers-id (numeriek)',
+  'wizard.boxUserId': 'Box-gebruikers-ID (numeriek)',
   'wizard.boxUserId.placeholder': 'bijv. 1234567890',
-  'wizard.boxRootFolderId': 'Id van de hoofdmap (optioneel)',
+  'wizard.boxRootFolderId': 'ID van de hoofdmap',
   'wizard.boxRootFolderId.placeholder': 'Leeg = All Files',
   'wizard.review.boxUser': 'Box-gebruiker',
   'wizard.dropboxAppKey': 'App-sleutel',
-  'wizard.dropboxRootPath': 'Pad van de hoofdmap (optioneel)',
+  'wizard.dropboxRootPath': 'Pad van de hoofdmap',
   'wizard.dropboxRootPath.placeholder': 'bijv. /Team Docs',
   'wizard.browseDropboxFolders': 'Gedeelde mappen bekijken…',
   'wizard.noDropboxSharedFolders': 'Dit account ziet geen gedeelde mappen.',
@@ -1957,7 +1980,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.gmail.hint': 'E-mail uit een Gmail-postvak (OAuth via IMAP)',
   'wizard.proto.googleCalendar.hint': "Agenda's uit een Google-account (OAuth via CalDAV)",
   'wizard.proto.googleContacts.hint': 'Contacten uit een Google-account (OAuth via CardDAV)',
-  'wizard.gmailAppPassword': 'App-wachtwoord (optioneel)',
+  'wizard.gmailAppPassword': 'App-wachtwoord',
   'wizard.gmailAppPassword.hint':
     'Alleen voor persoonlijke Google-accounts; laat leeg om OAuth te gebruiken.',
   'wizard.gmailAppPassword.why':
@@ -1965,7 +1988,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.refreshToken': 'Refresh-token',
   'wizard.refreshToken.hint':
     'Het gedelegeerde token van het account; behandel het als een wachtwoord.',
-  'wizard.rootFolderId': 'Hoofdmap-ID (optioneel)',
+  'wizard.rootFolderId': 'Hoofdmap-ID',
   'wizard.rootFolderId.placeholder': 'Leeg = heel Mijn Drive',
   'wizard.review.myDrive': 'Mijn Drive',
   'wizard.targetPrefix': 'Doelmap (optioneel)',
@@ -1974,7 +1997,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.targetPrefix.why':
     'Handig wanneer meerdere bronnen één doel delen en u per bron een submap wilt, zoals "Gmail". Leeg is de standaard: één account, één plek om te werken. Onder een map komen Verzonden en Concepten als gewone mappen daarbinnen terecht, in plaats van de Verzonden en Concepten van het account zelf te worden; een mailprogramma kan er maar één van elk hebben.',
   'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
-  'wizard.serviceAccountKey': 'Serviceaccount-sleutel (optioneel)',
+  'wizard.serviceAccountKey': 'Serviceaccount-sleutel',
   'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand',
   'wizard.serviceAccountKey.width':
     'Deze sleutel kan elke gebruiker in het domein lezen; trek hem bij de overstap in.',
@@ -2016,11 +2039,15 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.selectTarget': 'Kies het doelsysteem',
   'wizard.host': 'Host',
   'wizard.port': 'Poort',
-  'wizard.targetDavUrl': 'DAV-basis-URL (optioneel)',
+  'wizard.targetDavUrl': 'DAV-basis-URL',
   'wizard.targetDavUrl.hint': 'Alleen wanneer de DAV-root van de server niet op de hostroot staat.',
   'wizard.targetDavUrl.why':
     'Indien ingevuld wordt deze volledige URL gebruikt en worden host en poort genegeerd.',
-  'wizard.soverinMailHost': 'Mailserver (optioneel)',
+  'wizard.nextcloudDavUrl.hint':
+    'Het adres waarop u Nextcloud opent, met /remote.php/dav erachter.',
+  'wizard.nextcloudDavUrl.why':
+    'Nextcloud biedt agenda’s, contacten en bestanden aan onder /remote.php/dav en niet op de root van de site, dus een host en poort kunnen niet zeggen waar het staat. Plak het adres uit de adresbalk — https://cloud.example.com — en zet er /remote.php/dav achter.',
+  'wizard.soverinMailHost': 'Mailserver',
   'wizard.soverinMailHost.hint': 'Alleen nodig als dit account ook e-mail gaat ontvangen.',
   'wizard.soverinMailHost.why':
     'Agenda’s en contacten hebben geen mailserver nodig. Test meet de host die u invult; er wordt niets aangenomen op basis van de naam van de aanbieder.',
@@ -2030,10 +2057,11 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.useSsl': 'SSL/TLS gebruiken',
   'wizard.migrationName': 'Naam van de migratie',
   'wizard.credentials': 'Inloggegevens',
-  'wizard.sourceUsername': 'Gebruikersnaam bron',
-  'wizard.sourcePassword': 'Wachtwoord bron',
-  'wizard.targetUsername': 'Gebruikersnaam doel',
-  'wizard.targetPassword': 'Wachtwoord doel',
+  'form.requiredLegend': 'Velden met * zijn verplicht.',
+  'wizard.sourceUsername': 'Gebruikersnaam',
+  'wizard.sourcePassword': 'Wachtwoord',
+  'wizard.targetUsername': 'Gebruikersnaam',
+  'wizard.targetPassword': 'Wachtwoord',
   'wizard.selectDataTypes': 'Kies de te migreren gegevenstypen',
   'wizard.domain.email.hint': 'E-mailberichten en mappen',
   'wizard.domain.calendar.hint': 'Afspraken en agenda-items',
@@ -2077,7 +2105,7 @@ const nl: Record<keyof typeof en, string> = {
     'Versleuteld opgeslagen, alleen gebruikt om te verbinden, en nooit meer getoond.',
   'wizard.tenantId': 'Tenant-ID',
   'wizard.clientId': 'Client-ID (applicatie-ID)',
-  'wizard.sourceClientSecret': 'Clientgeheim van de bron',
+  'wizard.sourceClientSecret': 'Clientgeheim',
   'wizard.domain.notForTarget': 'Niet beschikbaar via het gekozen doelprotocol.',
   'wizard.domain.measuredNo':
     'Dit account kan dit niet dragen; test het opnieuw als dat veranderd is.',

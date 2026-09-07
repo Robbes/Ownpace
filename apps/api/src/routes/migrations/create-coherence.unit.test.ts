@@ -651,3 +651,70 @@ describe('what a reused connection lets a mapping override (workplan 0067)', () 
     }
   });
 });
+
+/**
+ * WHERE THE TARGET IS, PER TARGET TYPE (2026-09-07).
+ *
+ * `targetConfig` demanded a host and a port for every target there is, which
+ * was true until `nextcloud` — whose DAV root is always behind
+ * `/remote.php/dav`, so its door asks for the base URL and no host at all.
+ * The two disagreed, and the disagreement was fatal in the quietest way: the
+ * wizard's Nextcloud card could be filled in completely and the create was
+ * refused for a missing `targetConfig.host` nobody had been asked for.
+ *
+ * The demand moved to where the type is visible. It did not weaken: every
+ * other target is still refused without a server to reach.
+ */
+describe('a nextcloud target is reached at its base URL (2026-09-07)', () => {
+  const nextcloud = (targetConfig: Record<string, unknown>) =>
+    body({
+      targetType: 'nextcloud',
+      targetConfig,
+      syncConfig: { domains: ['file'] },
+      sourceType: 'dropbox',
+      sourceConfig: {
+        username: 'a@example.nl',
+        clientId: 'k',
+        clientSecret: 's',
+        refreshToken: 'r',
+      },
+    });
+
+  it('accepts a url with no host and no port', () => {
+    const parsed = CreateMappingSchema.safeParse(
+      nextcloud({
+        url: 'https://cloud.example.com/remote.php/dav',
+        username: 'anna',
+        password: 'x',
+      }),
+    );
+    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+  });
+
+  it('refuses it without one, and the sentence says what a base URL looks like', () => {
+    const parsed = CreateMappingSchema.safeParse(
+      nextcloud({ username: 'anna', password: 'x' }),
+    );
+    expect(parsed.success).toBe(false);
+    const message = parsed.error?.issues.map((i) => i.message).join(' ') ?? '';
+    expect(message).toContain('/remote.php/dav');
+    // ...and it does not ask for the two fields the door never showed.
+    expect(message).not.toContain('targetConfig.host');
+  });
+
+  it('still refuses every OTHER target type with no host or port', () => {
+    for (const targetType of ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin']) {
+      const parsed = CreateMappingSchema.safeParse(
+        body({
+          targetType,
+          targetConfig: { username: 'anna', password: 'x' },
+          syncConfig: { domains: targetType === 'imap' || targetType === 'jmap' ? ['email'] : ['file'] },
+        }),
+      );
+      expect(parsed.success, `${targetType} was accepted with no server`).toBe(false);
+      const message = parsed.error?.issues.map((i) => i.message).join(' ') ?? '';
+      expect(message, targetType).toContain('targetConfig.host');
+      expect(message, targetType).toContain('targetConfig.port');
+    }
+  });
+});

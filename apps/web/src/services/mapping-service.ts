@@ -277,12 +277,19 @@ export interface CreateMappingInput {
     path?: string;
   };
   targetConfig: {
-    host: string;
-    port: number;
+    /** WHERE the target is, and which pair says so depends on the type
+     *  (2026-09-07): every target but `nextcloud` is reached at host+port,
+     *  and a Nextcloud at its base URL alone — its DAV root is always behind
+     *  /remote.php/dav, so a host cannot express it. The server's
+     *  CreateMappingSchema demands the right one by name. */
+    host?: string;
+    port?: number;
     username: string;
     password: string;
     useSsl?: boolean;
-    /** DAV targets (0105 T1): full DAV base URL; wins over host+port when set. */
+    /** DAV targets (0105 T1): full DAV base URL; wins over host+port when
+     *  set, and on a `nextcloud` target it is the address rather than an
+     *  escape hatch. */
     url?: string;
     /** soverin only (0106 T4b): the account's mail face — typed, never guessed. */
     mailHost?: string;
