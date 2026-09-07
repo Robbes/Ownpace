@@ -173,7 +173,7 @@ function googleFields(): ReadonlyArray<CredentialField> {
       placeholder: '…apps.googleusercontent.com',
       pairedWith: 'clientSecret',
     },
-    { ...SECRET, required: false },
+    { ...SECRET, required: false, pairedWith: 'clientId' },
     { ...REFRESH, consent: 'google' },
     SERVICE_ACCOUNT_KEY,
   ];
@@ -214,7 +214,7 @@ function microsoftAccountFields(): ReadonlyArray<CredentialField> {
       placeholder: '00000000-0000-0000-0000-000000000000',
       pairedWith: 'clientSecret',
     },
-    { ...SECRET, required: false },
+    { ...SECRET, required: false, pairedWith: 'clientId' },
     { ...REFRESH, required: true, consent: 'microsoft', placeholder: '0.AXoA…' },
     {
       key: 'tenantId',
@@ -368,7 +368,7 @@ const SOURCE_FIELDS: Readonly<Record<string, ReadonlyArray<CredentialField>>> = 
     // with Dropbox): the deployment may carry the app, as it may Google's
     // client, and a screen folds the pair away where it does.
     { key: 'clientId', labelKey: 'wizard.dropboxAppKey', pairedWith: 'clientSecret' },
-    { ...SECRET, required: false },
+    { ...SECRET, required: false, pairedWith: 'clientId' },
     { ...REFRESH, required: true, consent: 'dropbox' },
     {
       key: 'rootPath',
@@ -752,10 +752,16 @@ export function credentialFieldRequired(
     readonly sideStepped?: boolean;
   },
 ): boolean {
-  const pairOrToken =
-    field.pairedWith !== undefined ||
-    field.key === 'clientSecret' ||
-    field.consent !== undefined;
+  // A PAIR SAYS SO ITSELF, from both halves (2026-09-07). This read
+  // `field.key === 'clientSecret'` because only the id declared the pair —
+  // and that name-based catch was wrong for the two doors whose client pair
+  // is ALWAYS the customer's own: Box and the O365 app registration have no
+  // deployment application to fall back on, and both declare their secret
+  // `required: true` for exactly that reason. A caller asking this with
+  // `deploymentClient: true` (a deployment carrying SOME client) would have
+  // been told a Box secret was optional. Now the descriptor answers: only a
+  // half that names its partner folds.
+  const pairOrToken = field.pairedWith !== undefined || field.consent !== undefined;
   if (!pairOrToken) return field.required === true;
   if (where.sideStepped) return false;
   // A CONSENT-MINTED TOKEN IS NEVER THE DEPLOYMENT'S TO CARRY: a client is
