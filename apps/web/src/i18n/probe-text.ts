@@ -235,17 +235,23 @@ export function qualificationText(
  * owner's instruction, and sound because the consent door will not store a
  * partial grant, so an ungranted face is one nobody ticked.
  *
- * A failed MEASURE still speaks regardless of any of that: the face answered,
- * so it is on the carry line, and the number beside it is missing for a reason
- * worth one sentence.
+ * A failed MEASURE speaks WHERE THE MEASURES DO, and nowhere else — the
+ * `measures` option, added when the connection card dropped its `Found:` line
+ * (owner, 2026-09-07). The face answered, so it is on the carry line; what
+ * failed is the number beside it, and a sentence explaining a missing number
+ * under a card that shows no numbers explains nothing. The Test panel and the
+ * wizard still render both, together, which is the only place either half
+ * means anything.
  */
 export function qualificationEvidence(
   t: Translate,
   qualification:
     | { domains: QualifiedDomains }
     | undefined,
+  options: { readonly measures?: boolean } = {},
 ): string[] {
   if (!qualification) return [];
+  const measures = options.measures !== false;
   const lines: string[] = [];
   for (const domain of QUALIFICATION_KEYS) {
     const d = faceOf(qualification.domains, domain);
@@ -253,7 +259,7 @@ export function qualificationEvidence(
     // measure can still have failed, which the second arm covers.
     if (d.answer !== 'yes' && d.detail && reasonEarnsASentence(d.reason)) {
       lines.push(`${t(faceLabel(domain))}: ${d.detail}`);
-    } else if (d.volume?.failed) {
+    } else if (measures && d.volume?.failed) {
       lines.push(`${t(faceLabel(domain))} — ${t('probe.measured.failed')}: ${d.volume.failed}`);
     }
   }

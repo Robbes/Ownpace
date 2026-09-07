@@ -27,7 +27,7 @@ import {
   componentOfIcalendar,
 } from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
-import { davRefusalBody } from './gdata-refusal.ts';
+import { davRefusalBody } from '@openmig/shared';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { wellKnownUrl as buildWellKnownUrl, normalizeDavHref } from './dav-http.types.ts';
 import { parseRemovedHrefs } from './dav-removals.ts';
@@ -344,7 +344,7 @@ export class CalDAVSource implements CalendarSource {
     });
 
     if (response.status !== 207) {
-      throw new Error(`REPORT failed with status ${response.status}: ${response.body}`);
+      throw new Error(`REPORT failed with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
 
     return this.parseSyncCollectionResponse(response.body);

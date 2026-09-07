@@ -30,6 +30,7 @@ import {
   neutraliseScheduling,
 } from '@openmig/shared';
 import { CALENDAR_COMPONENTS, componentOfIcalendar } from '@openmig/shared';
+import { davRefusalBody } from '@openmig/shared';
 import type { CalendarComponent } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
 import {
@@ -504,7 +505,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // indistinguishable from "the target has no events", which verification
       // would report as total data loss (hard rule 9).
       throw new Error(
-        `PROPFIND on calendar home set ${homeSet} failed with status ${response.status}: ${response.body}`,
+        `PROPFIND on calendar home set ${homeSet} failed with status ${response.status}: ${davRefusalBody(response.body)}`,
       );
     }
 
@@ -595,7 +596,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
 
     if (response.status !== 207) {
       throw new Error(
-        `calendar-query REPORT on ${calendarPath} failed with status ${response.status}: ${response.body}`,
+        `calendar-query REPORT on ${calendarPath} failed with status ${response.status}: ${davRefusalBody(response.body)}`,
       );
     }
 
@@ -760,7 +761,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     });
 
     if (response.status !== 201) {
-      throw new Error(`MKCALENDAR failed for ${path} with status ${response.status}: ${response.body}`);
+      throw new Error(`MKCALENDAR failed for ${path} with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
   }
 
@@ -919,7 +920,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     icalendar: string,
     response: { status: number; body: string },
   ): Promise<string> {
-    const plain = `PUT failed for ${eventPath} with status ${response.status}: ${response.body}`;
+    const plain = `PUT failed for ${eventPath} with status ${response.status}: ${davRefusalBody(response.body)}`;
     const component = componentOfIcalendar(icalendar);
     if (!component) return plain;
     let accepted: ReadonlyArray<CalendarComponent> | undefined;
@@ -935,7 +936,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       `PUT failed for ${eventPath} with status ${response.status}: the target collection ` +
       `${calendarId} accepts ${accepted.join(', ')} and this object is a ${component}. ` +
       'A CalDAV collection declares which components it holds (RFC 4791 §5.2.3); this one ' +
-      `does not hold ${component}, so the write cannot land here. Server said: ${response.body}`
+      `does not hold ${component}, so the write cannot land here. Server said: ${davRefusalBody(response.body)}`
     );
   }
 

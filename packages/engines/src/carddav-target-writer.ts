@@ -21,6 +21,7 @@ import type {
   RemovalResult,
 } from '@openmig/shared';
 import { contactNaturalKeyHash, contactContentHash, isOnTarget } from '@openmig/shared';
+import { davRefusalBody } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
 import {
   parseMultiStatus,
@@ -367,7 +368,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       // An empty list here would read as "the target holds no contacts", which
       // verification reports as total data loss. Fail loudly (hard rule 9).
       throw new Error(
-        `PROPFIND on address book home set ${homeSet} failed with status ${response.status}: ${response.body}`,
+        `PROPFIND on address book home set ${homeSet} failed with status ${response.status}: ${davRefusalBody(response.body)}`,
       );
     }
 
@@ -411,7 +412,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
 
     if (response.status !== 207) {
       throw new Error(
-        `addressbook-query REPORT on ${bookPath} failed with status ${response.status}: ${response.body}`,
+        `addressbook-query REPORT on ${bookPath} failed with status ${response.status}: ${davRefusalBody(response.body)}`,
       );
     }
 
@@ -542,7 +543,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     });
 
     if (response.status !== 201) {
-      throw new Error(`MKCOL failed for ${path} with status ${response.status}: ${response.body}`);
+      throw new Error(`MKCOL failed for ${path} with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
   }
 
@@ -638,7 +639,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     }
 
     if (response.status !== 201 && response.status !== 204) {
-      throw new Error(`PUT failed for ${contactPath} with status ${response.status}: ${response.body}`);
+      throw new Error(`PUT failed for ${contactPath} with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
 
     return {
