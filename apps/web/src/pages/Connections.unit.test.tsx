@@ -1061,6 +1061,157 @@ describe('adding a connection through the front door', () => {
   });
 });
 
+describe('the card says WHAT, and the Test panel says HOW MUCH (owner 2026-09-07)', () => {
+  /**
+   * The owner, reading five live cards: *"I'm thinking of leaving out the
+   * default depiction of the measures, because we do that ad hoc when
+   * pressing Test, and during preflight we also do the measures more
+   * precisely… if one wants to know a bit more, they press Test or look at
+   * the preflight."*
+   *
+   * Three surfaces measure the same account and the CARD IS THE WORST OF
+   * THEM: its figures are from whenever Test was last pressed — his Google
+   * card read *43,377 messages ≈ 12.7 GB* beside a `4 days ago` that is the
+   * connection's CREATION date, not the measurement's — while Test
+   * re-measures on the spot and the preflight counts every collection for the
+   * decision that actually needs a number. A stale figure with no visible age
+   * is read as current, and somebody sizing a migration from it is using the
+   * least accurate number the product has.
+   *
+   * ## Why this file, and why it did not exist before
+   *
+   * Removing the line broke NOTHING. Ninety-nine tests passed over a card
+   * that had just lost a line it had rendered since 2026-09-02, because every
+   * assertion about `Found:` was pointed at a Test RESULT and none at the
+   * stored record. A surface nothing asserts about is a surface that can be
+   * changed by accident — and "the card is quiet" is exactly the kind of
+   * property that regresses by somebody adding one useful-looking line.
+   *
+   * So the pair is asserted together: absent on the card, present on the
+   * panel, from the same record in the same test.
+   */
+  const measured = {
+    domains: {
+      mail: {
+        answer: 'yes' as const,
+        detail: 'x',
+        count: 28,
+        unit: 'folder' as const,
+        volume: { items: 43_377, bytes: 13_600_000_000, estimated: true },
+      },
+      calendar: { answer: 'yes' as const, detail: 'x', count: 5, unit: 'calendar' as const },
+    },
+  };
+
+  it('the card names the faces and shows no quantities at all', async () => {
+    list.mockResolvedValue([conn({ kind: 'google', role: 'source', qualification: measured })]);
+    renderPage();
+
+    expect(await screen.findByText('Carries: Email · Calendar')).toBeTruthy();
+    // Not "no Found: lead" — no NUMBER. A card that dropped the lead and kept
+    // the figures would pass a lead-only check and fail the owner's ask.
+    expect(screen.queryByText(/Found:/)).toBeNull();
+    expect(screen.queryByText(/43,377/)).toBeNull();
+    expect(screen.queryByText(/28 folders/)).toBeNull();
+    expect(screen.queryByText(/12\.7 GB|GB/)).toBeNull();
+  });
+
+  it('and pressing Test answers with them, which is where they are fresh', async () => {
+    list.mockResolvedValue([conn({ kind: 'google', role: 'source', qualification: measured })]);
+    testConnection.mockResolvedValue({
+      ok: true,
+      detail: 'Connected. 5 calendars visible.',
+      qualification: measured,
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Test'));
+
+    expect(await screen.findByText(/Found: Email 28 folders, 43,377 messages/)).toBeTruthy();
+  });
+
+  it('a failed measure is silent on the card and speaks in the panel', async () => {
+    // The owner's Google card carried five lines of raw CardDAV JSON to say a
+    // COUNT was missing. With no counts on the card there is nothing for that
+    // sentence to footnote; in the panel, beside the numbers, it is the whole
+    // point. One record, two surfaces, two different right answers.
+    const halfMeasured = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'x', count: 28, unit: 'folder' as const },
+        contact: {
+          answer: 'yes' as const,
+          detail: 'x',
+          count: 1,
+          unit: 'addressBook' as const,
+          volume: { failed: 'addressbook-query REPORT failed with status 400' },
+        },
+      },
+    };
+    list.mockResolvedValue([conn({ kind: 'google', role: 'source', qualification: halfMeasured })]);
+    testConnection.mockResolvedValue({ ok: true, detail: 'Connected.', qualification: halfMeasured });
+    renderPage();
+
+    expect(await screen.findByText('Carries: Email · Contacts')).toBeTruthy();
+    expect(screen.queryByText(/addressbook-query/)).toBeNull();
+
+    fireEvent.click(screen.getByText('Test'));
+
+    expect(await screen.findByText(/Contacts — not measured: addressbook-query/)).toBeTruthy();
+  });
+
+  it('the card re-reads itself after a Test, so it cannot contradict the panel', async () => {
+    // `POST /:id/test` stores what it measured. Nothing refetched the list, so
+    // the card kept showing the record from page load while the panel beneath
+    // it showed the new one — which the owner read as the Test not having
+    // saved, and asked whether he should delete the connections and start
+    // again. (He should not: those rows are used by migrations, and
+    // `mailbox.connection_id` cascades on delete.)
+    const before = { domains: { mail: { answer: 'yes' as const, detail: 'x' } } };
+    const after = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'x' },
+        calendar: { answer: 'yes' as const, detail: 'x' },
+      },
+    };
+    list
+      .mockResolvedValueOnce([conn({ kind: 'google', role: 'source', qualification: before })])
+      .mockResolvedValue([conn({ kind: 'google', role: 'source', qualification: after })]);
+    testConnection.mockResolvedValue({ ok: true, detail: 'Connected.', qualification: after });
+    renderPage();
+
+    expect(await screen.findByText('Carries: Email')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Test'));
+
+    // The CARD, not the panel: the panel would say this from its own result
+    // even with no refetch at all.
+    await waitFor(() => {
+      expect(screen.getAllByText('Carries: Email · Calendar').length).toBeGreaterThan(1);
+    });
+  });
+
+  it('but a face the person can act on still speaks on the card', async () => {
+    // The line that must NOT be swept up with the quantities: a `refused`
+    // face's sentence is the remedy, and it is on the card precisely because
+    // a phone has no hover and pressing Test to discover why something is
+    // broken is a step too many.
+    const refused = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'x', count: 28, unit: 'folder' as const },
+        contact: {
+          answer: 'unknown' as const,
+          reason: 'refused' as const,
+          detail: 'Enable the Contacts CardDAV API for this project.',
+        },
+      },
+    };
+    list.mockResolvedValue([conn({ kind: 'google', role: 'source', qualification: refused })]);
+    renderPage();
+
+    expect(await screen.findByText(/Contacts: Enable the Contacts CardDAV API/)).toBeTruthy();
+  });
+});
+
 describe('why a face is `?` is on screen, not in a hover (owner 2026-09-02)', () => {
   const REFUSAL =
     'The grant carries https://www.googleapis.com/auth/carddav, but the face did not answer: ' +

@@ -229,6 +229,24 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
       setResult({ ok: false, reason: serverMessage(err) });
     } finally {
       setTesting(false);
+      // AND RE-READ THE ROW, or the card contradicts its own answer.
+      //
+      // `POST /:id/test` writes: the status, and the qualification
+      // `qualifyAndRemember` just measured. The list was fetched when the page
+      // opened and nothing refetched it, so the card kept rendering the
+      // record from page load while the panel directly beneath it showed the
+      // new one — the same account, the same screen, two different answers,
+      // for as long as nobody reloaded.
+      //
+      // The owner met this on 2026-09-07 and reasonably read it as the Test
+      // having failed to save, asking whether he should have deleted the
+      // connections and made them again. (He should not: every one of those
+      // rows was used by a migration, and `mailbox.connection_id` cascades.)
+      //
+      // In `finally` rather than beside the success: a failed probe writes
+      // `status: 'error'` too, so the card is out of date either way, and a
+      // refetch after a client-side throw costs one request and resyncs.
+      onChanged();
     }
   };
 
@@ -262,20 +280,34 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
             {qualificationText(t, connection.qualification)}
           </span>
         )}
-        {connection.qualification && measuredText(t, connection.qualification, locale) && (
-          /* How MUCH each reached face holds (2026-09-02) — beside the
-             capability line, never instead of it. */
-          <span className="block w-full text-xs text-gray-500">
-            {measuredText(t, connection.qualification, locale)}
-          </span>
+        {/* NO `Found:` LINE HERE, deliberately (owner, 2026-09-07).
+            
+            Three surfaces measure the same account and this is the worst of
+            them: the card's figures are from whenever Test was last pressed —
+            days, weeks — while Test re-measures on the spot and the preflight
+            counts every collection properly for the decision that actually
+            needs a number. Showing the stalest and least precise one
+            permanently, with no age beside it, invited people to size a
+            migration off it. *"If one wants to know a bit more, they press
+            Test or look at the preflight."*
+            
+            So the card answers WHICH connection this is and WHETHER it is
+            healthy — the two questions a list item is scanned for — and the
+            quantities live where they are fresh. `measuredText` is unchanged
+            and still renders in the three places below that show a result
+            somebody just asked for. */}
+        {/* WHY a face is missing, on screen (2026-09-02): the hover above is
+            not on a phone, and the sentence is the remedy. `measures: false`
+            drops the failed-MEASURE footnote with the line it footnotes — a
+            note explaining a missing number, under a card that shows no
+            numbers, explains nothing. It still speaks in the Test panel. */}
+        {qualificationEvidence(t, connection.qualification ?? undefined, { measures: false }).map(
+          (line) => (
+            <span key={line} className="block w-full text-xs text-amber-800 break-words">
+              {line}
+            </span>
+          ),
         )}
-        {/* And WHY each `?` is a `?`, on screen (2026-09-02): the hover
-            above is not on a phone, and the sentence is the remedy. */}
-        {qualificationEvidence(t, connection.qualification ?? undefined).map((line) => (
-          <span key={line} className="block w-full text-xs text-amber-800 break-words">
-            {line}
-          </span>
-        ))}
         {/* What is STANDING against this connection (workplan 0094 T5): a
             pass that failed since the last Test, by category, with the
             category's own remedy — and Replace credentials is beside it.
