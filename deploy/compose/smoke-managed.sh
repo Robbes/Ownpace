@@ -1473,6 +1473,15 @@ done
 # for this script's own correct behaviour, which is exactly why `PASS` is not
 # asserted twenty lines up. A domain whose source is empty is skipped here on
 # purpose: nothing on the target is the right answer to nothing at the source.
+#
+# NOT A NEW RULE — the SELF-HOSTED gate has always had it. `counts match
+# between the ledger and the target` in `selfhost-verification.e2e.test.ts`
+# asserts `sourceCount > 0`, `targetCount === sourceCount` and
+# `missingOnTarget === 0`, and it can assert the equality because that flow has
+# no apply half consuming an item per run. The managed gate was the edition
+# missing the check, not the edition being held to a new one; what differs here
+# is the floor, and the tombstones are the whole reason for it (hard rule 5:
+# both editions, and this is the half that had drifted).
 for domain in "${REQUIRED_DOMAINS[@]}"; do
   d_src="$(jq -r --arg d "$domain" 'first(.. | objects | select(.dataType? == $d) | .sourceCount) // "absent"' <<<"$rbody" 2>/dev/null || echo absent)"
   d_tgt="$(jq -r --arg d "$domain" 'first(.. | objects | select(.dataType? == $d) | .targetCount) // "absent"' <<<"$rbody" 2>/dev/null || echo absent)"

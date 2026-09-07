@@ -1146,6 +1146,14 @@ describe('a target the reindexer could not see is not a verified target (2026-09
    *
    * A floor, not a match, for the same reason `PASS` is not asserted: the
    * tombstones make an equality red for the script's own correct behaviour.
+   *
+   * And NOT a new rule. `selfhost-verification.e2e.test.ts` has asserted
+   * `sourceCount > 0` / `targetCount === sourceCount` / `missingOnTarget === 0`
+   * all along — it can hold the equality because that flow has no apply half
+   * consuming an item per run. So the managed gate was the edition missing the
+   * check rather than the edition being held to a new one, which is hard rule
+   * 5 read the way it is meant to be: both editions, and this was the half
+   * that had drifted.
    */
   const block = smoke.match(/^for domain in "\$\{REQUIRED_DOMAINS\[@\]\}"; do[\s\S]*?\ndone$/m)?.[0];
 
