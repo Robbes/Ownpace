@@ -1376,6 +1376,11 @@ const en = {
   'probe.measured.item.many': '{count} items',
   'probe.measured.driveNote': 'Docs, Sheets and Slides not counted',
   'probe.measured.failed': 'not measured',
+  // Items the listing found and could NOT read (2026-09-07). Shown beside the
+  // count rather than instead of it: "0 cards" and "0 cards, 25 could not be
+  // read" are different facts, and the second is the one worth acting on.
+  'probe.measured.unreadable.one': '{count} could not be read',
+  'probe.measured.unreadable.many': '{count} could not be read',
 
   'connections.ok': 'Reached it. The credentials still work.',
   'connections.failed': 'Could not reach it.',
@@ -2750,6 +2755,8 @@ const nl: Record<keyof typeof en, string> = {
   'probe.measured.item.many': '{count} items',
   'probe.measured.driveNote': 'Documenten, Spreadsheets en Presentaties niet meegeteld',
   'probe.measured.failed': 'niet gemeten',
+  'probe.measured.unreadable.one': '{count} niet te lezen',
+  'probe.measured.unreadable.many': '{count} niet te lezen',
 
   'connections.ok': 'Bereikt. De inloggegevens werken nog.',
   'connections.failed': 'Kon deze niet bereiken.',

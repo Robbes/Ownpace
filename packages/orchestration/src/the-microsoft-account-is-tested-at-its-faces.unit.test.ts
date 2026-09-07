@@ -49,7 +49,7 @@ function tokenFetch(scope: string, status = 200) {
 }
 
 /** Plain faces: each answers the listing (and a measure) the real source would. */
-function faces(overrides: Partial<Record<string, unknown>> = {}) {
+function faces(overrides: Partial<Record<string, unknown>> = {}, unreadableCards = 0) {
   return (face: string) => {
     if (face in overrides) return overrides[face];
     switch (face) {
@@ -63,7 +63,11 @@ function faces(overrides: Partial<Record<string, unknown>> = {}) {
       case 'contact':
         return {
           listFolders: async () => [{ path: 'Contacts' }],
-          listSince: async () => ({ items: [{}, {}, {}], nextCursor: '' }),
+          listSince: async () => ({
+            items: [{}, {}, {}],
+            nextCursor: '',
+            ...(unreadableCards > 0 ? { unreadable: unreadableCards } : {}),
+          }),
         };
       case 'file':
         return {
@@ -267,6 +271,33 @@ describe('the qualification: every face, against the grant', () => {
     expect(d.calendar.detail).toMatch(/connect the account again with calendars ticked/);
     expect(d.task.answer).toBe('no');
     expect(d.task.detail).toMatch(/Tasks\.Read/);
+  });
+
+  it('a card the listing could not read is counted beside the ones it could (2026-09-07)', async () => {
+    // The live report: "Contacts ✓ 1 address book · 0 cards", which no screen
+    // could tell apart from an address book whose every card failed to map.
+    tokenFetch('Contacts.Read');
+    const q = await qualifyMicrosoftAccount('microsoft', ROW, PAIR, {
+      tokenEndpoint: TOKEN_ENDPOINT,
+      source: faces({}, 25),
+    });
+
+    expect(q!.domains.contact).toMatchObject({
+      answer: 'yes',
+      volume: { items: 3, unreadable: 25 },
+    });
+  });
+
+  it('omits the count when every card read cleanly', async () => {
+    // Omitted rather than 0, so a screen renders nothing rather than a
+    // reassurance nobody asked for.
+    tokenFetch('Contacts.Read');
+    const q = await qualifyMicrosoftAccount('microsoft', ROW, PAIR, {
+      tokenEndpoint: TOKEN_ENDPOINT,
+      source: faces(),
+    });
+
+    expect(q!.domains.contact.volume).toEqual({ items: 3 });
   });
 
   it('a carried face that refuses is unknown, with the words — never a no', async () => {

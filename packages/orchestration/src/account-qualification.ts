@@ -101,6 +101,18 @@ export interface MeasuredVolume {
    *  and are exported on migration, so the target ends up larger. */
   readonly nativeFilesExcluded?: boolean;
   /**
+   * Items the listing FOUND and could not read (2026-09-07). Not the same as
+   * `failed`, which is the measure not happening at all: this measure
+   * happened, and this many items were not in it.
+   *
+   * Without it "Contacts 0 cards" is two different facts wearing one face —
+   * an empty address book, and an address book whose every card failed to
+   * map. The owner hit exactly that on a live account. The connectors count
+   * these as `unreadable` (see `ports.ts`); this carries the number to the
+   * screen the owner reads.
+   */
+  readonly unreadable?: number;
+  /**
    * Why the face could NOT be measured, when the face answered and the
    * measure did not (2026-09-02). Data rather than a clause in `detail`, so
    * a screen can show it beside the line on a phone — the owner's second
@@ -894,7 +906,11 @@ interface UsageMeasurable {
   storageUsage(): Promise<{ bytes: number; nativeFilesExcluded?: boolean }>;
 }
 interface CardListable {
-  listSince(folder: unknown): Promise<{ items: ReadonlyArray<unknown> }>;
+  listSince(folder: unknown): Promise<{
+    items: ReadonlyArray<unknown>;
+    /** Cards the listing found and could not read. See `ports.ts`. */
+    unreadable?: number;
+  }>;
 }
 const offers = <T>(source: unknown, method: keyof T & string): source is T =>
   typeof source === 'object' && source !== null && typeof (source as Record<string, unknown>)[method] === 'function';
@@ -920,8 +936,16 @@ async function measureGoogleFace(
     case 'contact': {
       if (!offers<CardListable>(source, 'listSince')) return undefined;
       let items = 0;
-      for (const folder of listed) items += (await source.listSince(folder)).items.length;
-      return { items };
+      // COUNTED BESIDE THE CARDS THAT READ. A listing that drops a card it
+      // cannot map would otherwise make an unreadable address book and an
+      // empty one the same number.
+      let unreadable = 0;
+      for (const folder of listed) {
+        const listing = await source.listSince(folder);
+        items += listing.items.length;
+        unreadable += listing.unreadable ?? 0;
+      }
+      return { items, ...(unreadable > 0 ? { unreadable } : {}) };
     }
     case 'file': {
       if (!offers<UsageMeasurable>(source, 'storageUsage')) return undefined;
