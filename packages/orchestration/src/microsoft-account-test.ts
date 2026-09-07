@@ -255,7 +255,11 @@ interface UsageMeasurable {
   storageUsage(): Promise<{ bytes: number }>;
 }
 interface CardListable {
-  listSince(folder: unknown): Promise<{ items: ReadonlyArray<unknown> }>;
+  listSince(folder: unknown): Promise<{
+    items: ReadonlyArray<unknown>;
+    /** Cards the listing found and could not read. See `ports.ts`. */
+    unreadable?: number;
+  }>;
 }
 
 /**
@@ -283,8 +287,16 @@ async function measureMicrosoftFace(
     case 'contact': {
       if (!offers<CardListable>(source, 'listSince')) return undefined;
       let items = 0;
-      for (const folder of listed) items += (await source.listSince(folder)).items.length;
-      return { items };
+      // COUNTED BESIDE THE CARDS THAT READ. A listing that drops a card it
+      // cannot map would otherwise make an unreadable address book and an
+      // empty one the same number.
+      let unreadable = 0;
+      for (const folder of listed) {
+        const listing = await source.listSince(folder);
+        items += listing.items.length;
+        unreadable += listing.unreadable ?? 0;
+      }
+      return { items, ...(unreadable > 0 ? { unreadable } : {}) };
     }
     case 'calendar':
     case 'task':
