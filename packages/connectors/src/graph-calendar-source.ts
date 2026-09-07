@@ -112,7 +112,13 @@ export class GraphCalendarSource implements CalendarSource {
   async listSince(
     folder: CalendarFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawCalendarEvent>; nextCursor: SyncCursor }> {
+  ): Promise<{
+    items: ReadonlyArray<RawCalendarEvent>;
+    nextCursor: SyncCursor;
+    unreadable?: number;
+  }> {
+    // Events this listing found and could not turn into an event to migrate.
+    let unreadable = 0;
     // Parse cursor to get delta link
     let deltaLink: string | undefined;
     
@@ -212,7 +218,12 @@ export class GraphCalendarSource implements CalendarSource {
 
         items.push(item);
       } catch (error) {
-        // Skip events that fail to parse
+        // COUNTED, NOT JUST LOGGED (2026-09-07). A `log.warn` and a `continue`
+        // put this event nowhere the owner looks: absent from the pass, from
+        // the total they approve, and from both sides of the verification
+        // gate, which then agree and report PASS. `unreadable` is how the
+        // skip earns its silence — see `ports.ts`.
+        unreadable += 1;
         log.warn(`Failed to process event ${event.id}:`, error);
       }
     }
@@ -225,7 +236,15 @@ export class GraphCalendarSource implements CalendarSource {
       }),
     };
 
-    return { items, nextCursor };
+    if (unreadable > 0) {
+      log.warn(
+        `Graph calendar: ${unreadable} event(s) in "${folder.path}" could not be read and were not listed`,
+      );
+    }
+
+    // Omitted rather than sent as 0, so "none failed" and "this listing
+    // cannot report" read differently downstream.
+    return { items, nextCursor, ...(unreadable > 0 ? { unreadable } : {}) };
   }
 
   // Private helper methods

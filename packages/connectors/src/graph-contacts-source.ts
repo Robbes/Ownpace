@@ -157,7 +157,13 @@ export class GraphContactsSource implements ContactSource {
   async listSince(
     folder: ContactFolder,
     cursor?: SyncCursor,
-  ): Promise<{ items: ReadonlyArray<RawContact>; nextCursor: SyncCursor }> {
+  ): Promise<{
+    items: ReadonlyArray<RawContact>;
+    nextCursor: SyncCursor;
+    unreadable?: number;
+  }> {
+    // Cards this listing found and could not turn into a card to migrate.
+    let unreadable = 0;
     // Parse cursor to get delta link
     let deltaLink: string | undefined;
     
@@ -256,7 +262,12 @@ export class GraphContactsSource implements ContactSource {
 
         items.push(item);
       } catch (error) {
-        // Skip contacts that fail to process
+        // COUNTED, NOT JUST LOGGED (2026-09-07). A `log.warn` and a `continue`
+        // put this contact nowhere the owner looks: absent from the pass, from
+        // the total they approve, and from both sides of the verification
+        // gate, which then agree and report PASS. `unreadable` is how the
+        // skip earns its silence — see `ports.ts`.
+        unreadable += 1;
         log.warn(`Failed to process contact ${contact.id}:`, error);
       }
     }
@@ -269,7 +280,15 @@ export class GraphContactsSource implements ContactSource {
       }),
     };
 
-    return { items, nextCursor };
+    if (unreadable > 0) {
+      log.warn(
+        `Graph contacts: ${unreadable} card(s) in "${folder.path}" could not be read and were not listed`,
+      );
+    }
+
+    // Omitted rather than sent as 0, so "none failed" and "this listing
+    // cannot report" read differently downstream.
+    return { items, nextCursor, ...(unreadable > 0 ? { unreadable } : {}) };
   }
 
   /**

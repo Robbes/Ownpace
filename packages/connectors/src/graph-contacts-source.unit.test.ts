@@ -514,6 +514,88 @@ it('follows nextLink to the SECOND page instead of re-requesting the first', asy
     });
   });
 
+  describe('a card it could not read is counted, not dropped in silence (2026-09-07)', () => {
+    /**
+     * The owner read "Contacts ✓ 1 address book · 0 cards" against a real
+     * Microsoft account and could not tell it apart from an address book whose
+     * every card failed to map. `listSince` feeds the real pass through
+     * core/reconcile.ts, so a swallowed card was not migrated AND not
+     * reported: both sides of the verification gate agreed on nothing.
+     */
+    const unreadableCard = {
+      id: 'contact-broken',
+      displayName: 'Malformed Payload',
+      // Not iterable, so the phone mapping throws — the shape a provider is
+      // free to send us and we are not free to lose a card over.
+      businessPhones: 42,
+    };
+
+    const readableCard = {
+      id: 'contact-ok',
+      displayName: 'Jane Smith',
+      emailAddresses: [{ address: 'jane@example.com', name: 'Jane Smith', type: 'work' }],
+    };
+
+    const listing = (value: ReadonlyArray<unknown>) => [
+      {
+        status: 200,
+        body: JSON.stringify({
+          value,
+          '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/me/contacts/delta?$deltatoken=t',
+        }),
+        headers: {},
+      },
+    ];
+
+    const folder = { path: '/contactFolders/contact-001', name: 'Contacts' };
+
+    it('reports the count beside the cards it could read', async () => {
+      const source = new GraphContactsSource(
+        createMockTokenProvider(),
+        'test-tenant-id',
+        undefined,
+        { httpClient: createMockHttpClient(listing([readableCard, unreadableCard])) },
+      );
+
+      const result = await source.listSince(folder);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.unreadable).toBe(1);
+    });
+
+    it('an address book of nothing but unreadable cards is not an empty one', async () => {
+      // The exact ambiguity the owner hit: without this field, both cases
+      // answer "0 cards".
+      const source = new GraphContactsSource(
+        createMockTokenProvider(),
+        'test-tenant-id',
+        undefined,
+        { httpClient: createMockHttpClient(listing([unreadableCard, unreadableCard])) },
+      );
+
+      const result = await source.listSince(folder);
+
+      expect(result.items).toHaveLength(0);
+      expect(result.unreadable).toBe(2);
+    });
+
+    it('omits the field when every card read cleanly', async () => {
+      // Omitted rather than 0, so "none failed" and "this listing cannot
+      // report" stay different answers downstream.
+      const source = new GraphContactsSource(
+        createMockTokenProvider(),
+        'test-tenant-id',
+        undefined,
+        { httpClient: createMockHttpClient(listing([readableCard])) },
+      );
+
+      const result = await source.listSince(folder);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.unreadable).toBeUndefined();
+    });
+  });
+
   describe('Graph contact → vCard 4.0 mapping', () => {
     it('should map basic contact fields to vCard 4.0', async () => {
       const tokenProvider = createMockTokenProvider();
