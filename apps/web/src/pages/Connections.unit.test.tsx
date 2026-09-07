@@ -201,8 +201,8 @@ describe('replacing credentials', () => {
 
     fireEvent.click(await screen.findByText('Replace credentials'));
 
-    expect(screen.getByText(/Source client secret/)).toBeTruthy();
-    expect(screen.queryByText(/Root folder id/), 'config is not re-asked').toBeNull();
+    expect(screen.getByText(/Client secret/)).toBeTruthy();
+    expect(screen.queryByText(/Root folder ID/), 'config is not re-asked').toBeNull();
   });
 
   /**
@@ -525,6 +525,59 @@ describe('adding a connection through the front door', () => {
       displayName: 'my photos',
       values: { provider: 'google-takeout', path: '/srv/exports/takeout-20260904' },
     });
+  });
+
+  /**
+   * THE ASTERISK TELLS THE TRUTH ON AN APPLIANCE TOO (2026-09-07, the owner:
+   * "the appliance might require those fields").
+   *
+   * A client pair is `required: false` because the DEPLOYMENT may carry one.
+   * This door asked the descriptor alone, so on an appliance carrying none —
+   * where those two fields are the only way forward — it rendered them
+   * unmarked and offered no fold either. The marker now asks
+   * `credentialFieldRequired`, the same question the wizard asks.
+   */
+  const marked = (): string[] =>
+    Array.from(document.querySelectorAll('label'))
+      .filter((l) => (l.textContent ?? '').trim().endsWith('*'))
+      .map((l) => (l.textContent ?? '').replace(/\s*\*\s*$/, '').trim());
+  /** By the label's OPENING words: "Client ID (application ID)" is one. */
+  const isMarked = (label: string): boolean => marked().some((l) => l.startsWith(label));
+
+  it('marks the client pair where the deployment carries no client of its own', async () => {
+    providerClients.mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'connection' });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+
+    await waitFor(() => expect(isMarked('Client ID')).toBe(true));
+    expect(isMarked('Client secret')).toBe(true);
+    // The token is the person's either way — no client ever mints it.
+    expect(isMarked('Refresh token')).toBe(true);
+  });
+
+  it('marks neither half where it does — the button supplies them', async () => {
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+
+    await waitFor(() => expect(isMarked('Client ID')).toBe(false));
+    expect(isMarked('Client secret')).toBe(false);
+    // ...and the account still is, because no deployment can know it.
+    expect(isMarked('Username')).toBe(true);
+  });
+
+  it('marks both again the moment one half is typed — half a pair is refused', async () => {
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    await waitFor(() => expect(isMarked('Client ID')).toBe(false));
+
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'my-own.apps.googleusercontent.com' },
+    });
+
+    await waitFor(() => expect(isMarked('Client ID')).toBe(true));
+    expect(isMarked('Client secret')).toBe(true);
   });
 
   it('folds the Google client pair away where the deployment carries the client (ADR-0041)', async () => {

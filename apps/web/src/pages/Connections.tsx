@@ -55,7 +55,12 @@ import {
   missingCredentialFields,
   serverMessage,
 } from '../services/api.ts';
-import { PROVIDER_ACCOUNT_DOMAINS, QUALIFICATION_KEYS, isProviderAccountKind } from '@openmig/shared';
+import {
+  PROVIDER_ACCOUNT_DOMAINS,
+  QUALIFICATION_KEYS,
+  credentialFieldRequired,
+  isProviderAccountKind,
+} from '@openmig/shared';
 import type { DiscoveryDomain, ProviderAccountKind } from '@openmig/shared';
 import { Hint } from '../components/Hint.tsx';
 
@@ -685,12 +690,27 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     // submit again for a keystroke, which is why only the landing counts.
   }, [consentLanded]);
 
+  /**
+   * THE ASTERISK TELLS THE TRUTH ON AN APPLIANCE TOO (2026-09-07). A client
+   * pair is `required: false` because the DEPLOYMENT may carry one; where it
+   * does not, the same two fields are the only way forward. Asking the
+   * descriptor alone marked them optional at the one moment they were
+   * mandatory. The shared rule knows the difference — and the wizard, which
+   * learned this first for Google, now asks the same one.
+   */
+  const requiredHere = (field: CredentialField): boolean =>
+    credentialFieldRequired(field, {
+      deploymentClient: Boolean(deploymentClient),
+      halfPairTyped: clientIdTyped !== clientSecretTyped,
+      sideStepped: (values.serviceAccountKey ?? '').trim() !== '',
+    });
+
   /** One labelled box; where it goes is the map below's decision. */
   const fieldBox = (field: CredentialField) => (
     <label className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
       <span className="block text-gray-700 mb-1">
         {t(field.labelKey as StringKey)}
-        {field.required && <span className="text-red-600"> *</span>}
+        {requiredHere(field) && <span className="text-red-600"> *</span>}
       </span>
       {field.multiline ? (
         <textarea
@@ -811,7 +831,16 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         )}
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      {/* Read the asterisks: one line, because "(optional)" is gone from the
+          labels and the marker is now the only thing that says which fields
+          this deployment demands. Only where there IS one — before a kind is
+          picked there are no fields, and a legend about a marker nobody can
+          see explains nothing. */}
+      {fields.some(requiredHere) && (
+        <p className="mt-4 text-xs text-gray-500">{t('form.requiredLegend')}</p>
+      )}
+
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
         <label className="text-sm sm:col-span-2">
           <span className="block text-gray-700 mb-1">{t('connections.name')}</span>
           <input
