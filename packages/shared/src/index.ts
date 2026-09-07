@@ -11,6 +11,7 @@ export * from './hash.ts';
 // deliberately: it exists only to produce something fileNaturalKeyHash can key.
 export * from './jmap-file-path.ts';
 export * from './dav-canonical.ts';
+export * from './carddav-query.ts';
 export * from './generated-message-id.ts';
 export * from './ports.ts';
 export * from './operating-contract.ts';

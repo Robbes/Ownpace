@@ -154,3 +154,58 @@ export function extractUid(body: string): string | undefined {
   const uid = match?.[1]?.trim();
   return uid && uid.length > 0 ? uid : undefined;
 }
+
+/**
+ * The href of the one resource in this 207 whose UID is exactly `uid`.
+ *
+ * THE PER-ITEM EXISTENCE CHECK, WHICH DECIDES CREATE-VS-UPDATE. Both DAV
+ * writers had their own copy of this, and both read:
+ *
+ *     const hrefMatches = response.matchAll(/<D:href>([^<]+)<\/D:href>/g);
+ *     for (const match of hrefMatches) {
+ *       if (match[1].includes(searchUid)) return match[1];
+ *     }
+ *
+ * Two failures, and this file's own header already names the first: `D:` is
+ * whatever prefix the server chose. SabreDAV and Nextcloud emit `<d:href>`,
+ * so against the target this product is most often pointed at, that regex
+ * matched nothing and every item took the create path. The reindexers were
+ * moved onto `parseMultiStatus` for exactly that reason; these two copies sat
+ * in the per-item fallback and were not.
+ *
+ * The second is worse where the first does not bite. A vCard whose UID is
+ * `1234` is "found" at `/…/12345.vcf`, because the test was whether the UID
+ * appeared ANYWHERE IN THE PATH — and hrefs are frequently the UID plus an
+ * extension, which is what made it look like it worked. Adopting the wrong
+ * resource means the next write PUTs one person's card over another's.
+ *
+ * So the answer comes from the DATA, not the path: the response's
+ * `address-data` / `calendar-data` (both queries ask for it), unescaped,
+ * unfolded, and its UID compared exactly. A CardDAV `text-match` is
+ * case-insensitive by default and a CalDAV one has no `match-type` at all
+ * (RFC 4791 has no equality option), so the server's answer is a superset and
+ * this comparison is what narrows it to one.
+ *
+ * A response the server sent no data for is NOT a match. That is deliberate
+ * and it is the safe direction: an unconfirmed "yes" overwrites somebody's
+ * card, an unconfirmed "no" writes a second copy that a person can see and
+ * delete.
+ *
+ * @param dataLocalName `address-data` for CardDAV, `calendar-data` for CalDAV.
+ */
+export function findHrefByUid(
+  body: string,
+  uid: string,
+  dataLocalName: 'address-data' | 'calendar-data',
+): string | undefined {
+  for (const item of parseMultiStatus(body)) {
+    const data = firstElementText(item.xml, dataLocalName);
+    if (data === undefined) continue; // the collection itself, or a propstat that 404'd
+    if (extractUid(unescapeXml(data)) !== uid) continue;
+    // Decoded, because that is what the collection listing keys by and what
+    // the ledger therefore holds; the two must agree or a second pass
+    // re-adopts nothing.
+    return decodeHref(item.href);
+  }
+  return undefined;
+}

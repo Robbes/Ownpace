@@ -562,6 +562,10 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `packages/connectors/src/carddav-source.ts`
+
+- [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
+
 ### `packages/connectors/src/google-token-provider.ts`
 
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
@@ -598,6 +602,10 @@ reading a file drops off its entry by itself.
 ### `packages/engines/package.json`
 
 - [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
+### `packages/engines/src/carddav-target-writer.ts`
+
+- [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
 
 ### `packages/ledger/migrations/0001_baseline.sql`
 
@@ -638,6 +646,7 @@ reading a file drops off its entry by itself.
 ### `packages/orchestration/src/deployment-application.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
 
 ### `packages/orchestration/src/domain-lanes.unit.test.ts`
 
@@ -663,10 +672,19 @@ reading a file drops off its entry by itself.
 ### `packages/orchestration/src/source-face-builders.ts`
 
 - [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts) — A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
+- [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
 
 ### `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+
+### `packages/shared/src/carddav-query.ts`
+
+- [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
+
+### `packages/shared/src/carddav-query.unit.test.ts`
+
+- [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
 
 ### `packages/shared/src/config.ts`
 
@@ -1442,6 +1460,19 @@ Reads:
 - `docs/adr/0000-template.md`
 - `docs/adr/OPERATIVE.md`
 - `scripts/adr-operative.mjs`
+
+### [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts)
+
+THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
+
+Reads:
+
+- `packages/connectors/src/carddav-source.ts`
+- `packages/engines/src/carddav-target-writer.ts`
+- `packages/orchestration/src/deployment-application.ts`
+- `packages/orchestration/src/source-face-builders.ts`
+- `packages/shared/src/carddav-query.ts`
+- `packages/shared/src/carddav-query.unit.test.ts`
 
 ### [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts)
 

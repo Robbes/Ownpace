@@ -21,11 +21,12 @@ import type {
   RemovalResult,
 } from '@openmig/shared';
 import { contactNaturalKeyHash, contactContentHash, isOnTarget } from '@openmig/shared';
-import { davRefusalBody } from '@openmig/shared';
+import { carddavMatchAllFilter, carddavUidFilter, davRefusalBody } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
 import {
   parseMultiStatus,
   firstElementText,
+  findHrefByUid,
   hasResourceType,
   extractUid,
   decodeHref,
@@ -286,6 +287,29 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
   /**
    * Find a contact by its natural key (UID).
    * Returns the contact ID if found, undefined otherwise.
+   *
+   * THE FALLBACK PATH, AND IT SPOKE CALDAV. `keysIn` answers this for the
+   * whole address book in one REPORT and this runs only where that could not
+   * be listed — so its wrongness was invisible for as long as the listing
+   * worked, and total on the day it did not. Four defects, all in this
+   * request:
+   *
+   *   - a `VADDRESSBOOK`/`VCARD` comp-filter nesting, copied from the CalDAV
+   *     writer beside it. RFC 6352 has no comp-filter; §8.6's own example
+   *     filters on a prop-filter directly, because a vCard is not a container
+   *     of components the way a VCALENDAR is;
+   *   - no `match-type`, which §10.5.4 defaults to `contains` — so the check
+   *     deciding create-vs-update was a substring search;
+   *   - no `Depth` header, which §8.6 makes a MUST and RFC 3253 defaults to
+   *     0 for REPORT: the query never left the collection resource itself.
+   *     Every other REPORT in this file and the CalDAV one sends `Depth: 1`;
+   *   - and the answer was read off the href rather than the card.
+   *
+   * Together they mean a server that rejected the body (400) and a server
+   * that accepted it (nothing at Depth 0) both said "not on the target", so
+   * every contact took the create path on every pass. Nothing was lost — the
+   * PUT is by UID-derived path, so it overwrites its own earlier copy — but
+   * an adoption that never happens is a ledger with no row to verify against.
    */
   async findContactByNaturalKey(
     folderId: string,
@@ -298,15 +322,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
           <D:resourcetype/>
           <C:address-data/>
         </D:prop>
-        <C:filter>
-          <C:comp-filter name="VADDRESSBOOK">
-            <C:comp-filter name="VCARD">
-              <C:prop-filter name="UID">
-                <C:text-match>${this.escapeXml(naturalKey)}</C:text-match>
-              </C:prop-filter>
-            </C:comp-filter>
-          </C:comp-filter>
-        </C:filter>
+        ${carddavUidFilter(naturalKey, 'C')}
       </C:addressbook-query>`;
 
     const response = await this.httpClient.request({
@@ -314,15 +330,16 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       url: this.buildUrl(folderId),
       body: query,
       headers: {
+        Depth: '1',
         'Content-Type': 'application/xml',
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
 
     if (response.status === 207) {
-      // Multi-status response - parse for matching resources
-      const href = this.parseMultiStatusResponse(response.body, naturalKey);
-      return href || undefined;
+      // The server's match is case-insensitive (§10.5.4's default collation);
+      // `findHrefByUid` compares the returned card's own UID exactly.
+      return findHrefByUid(response.body, naturalKey, 'address-data');
     }
 
     return undefined;
@@ -397,6 +414,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
             <C:prop name="UID"/>
           </C:address-data>
         </D:prop>
+        ${carddavMatchAllFilter('C')}
       </C:addressbook-query>`;
 
     const response = await this.httpClient.request({
@@ -646,23 +664,6 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       path: contactPath,
       ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}),
     };
-  }
-
-  private parseMultiStatusResponse(
-    response: string,
-    searchUid: string,
-  ): string | null {
-    // Parse XML response to find matching href
-    const hrefMatches = response.matchAll(/<D:href>([^<]+)<\/D:href>/g);
-    for (const match of hrefMatches) {
-      const href = match[1];
-      if (!href) continue;
-      // Check if this resource contains the matching UID
-      if (href.includes(searchUid)) {
-        return href;
-      }
-    }
-    return null;
   }
 
   private escapeXml(str: string): string {

@@ -11,6 +11,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseMultiStatus,
   firstElementText,
+  findHrefByUid,
   isCollection,
   hasResourceType,
   decodeHref,
@@ -145,5 +146,116 @@ describe('extractUid', () => {
 
   it('does not mistake a property that merely ends in UID', () => {
     expect(extractUid('X-MYUID:nope\r\nUID:real\r\n')).toBe('real');
+  });
+});
+
+describe('findHrefByUid', () => {
+  /** One 207 holding these UIDs, at hrefs named after them, as SabreDAV writes it. */
+  const bookHolding = (uids: string[], element = 'card'): string =>
+    `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav">` +
+    uids
+      .map(
+        (uid) =>
+          `<d:response><d:href>/remote.php/dav/addressbooks/users/rob/contacts/${uid}.vcf</d:href>` +
+          `<d:propstat><d:prop><${element}:address-data>BEGIN:VCARD\nVERSION:3.0\nUID:${uid}\nFN:X\nEND:VCARD` +
+          `</${element}:address-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`,
+      )
+      .join('') +
+    `</d:multistatus>`;
+
+  it('finds the card whose own UID matches', () => {
+    expect(findHrefByUid(bookHolding(['abc-123']), 'abc-123', 'address-data')).toBe(
+      '/remote.php/dav/addressbooks/users/rob/contacts/abc-123.vcf',
+    );
+  });
+
+  it('reads a body whatever prefix the server bound DAV: to', () => {
+    // THE FIRST DEFECT IN WHAT THIS REPLACES. Both writers matched the literal
+    // `<D:href>`; Nextcloud and SabreDAV — the target this product is most
+    // often pointed at — emit `<d:href>`. Against those, every existence check
+    // answered "not there" and every item took the create path.
+    expect(findHrefByUid(bookHolding(['abc-123']), 'abc-123', 'address-data')).toBeDefined();
+  });
+
+  it('does not adopt a card whose UID merely CONTAINS the one asked for', () => {
+    // THE SECOND DEFECT, and the one with teeth: `href.includes(searchUid)`.
+    // Ask for `1234` against a book holding `12345` and the old check returned
+    // `/…/12345.vcf` — so the writer adopted a different person's card and the
+    // next update PUT over it.
+    expect(findHrefByUid(bookHolding(['12345']), '1234', 'address-data')).toBeUndefined();
+    // ...and still finds it when it IS the one asked for.
+    expect(findHrefByUid(bookHolding(['12345', '1234']), '1234', 'address-data')).toBe(
+      '/remote.php/dav/addressbooks/users/rob/contacts/1234.vcf',
+    );
+  });
+
+  it('answers from the card, not from the path', () => {
+    // A server is free to name the resource anything; Google does not use the
+    // UID at all. The old check could only ever work where the href happened
+    // to embed the UID.
+    const body =
+      `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav">` +
+      `<d:response><d:href>/carddav/v1/principals/rob/lists/default/c9f4a1</d:href>` +
+      `<d:propstat><d:prop><card:address-data>BEGIN:VCARD\nUID:the-real-uid\nEND:VCARD` +
+      `</card:address-data></d:prop></d:propstat></d:response></d:multistatus>`;
+    expect(findHrefByUid(body, 'the-real-uid', 'address-data')).toBe(
+      '/carddav/v1/principals/rob/lists/default/c9f4a1',
+    );
+  });
+
+  it('matches case-sensitively, narrowing what the server matched loosely', () => {
+    // CardDAV's default collation is `i;unicode-casemap` and CalDAV's
+    // text-match has no equality option at all, so the server's answer is a
+    // superset. This comparison is what makes it one card.
+    expect(findHrefByUid(bookHolding(['ABC-123']), 'abc-123', 'address-data')).toBeUndefined();
+  });
+
+  it('undoes XML escaping and line folding before comparing', () => {
+    const body =
+      `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav">` +
+      `<d:response><d:href>/dav/c/1.vcf</d:href><d:propstat><d:prop><card:address-data>` +
+      `BEGIN:VCARD\r\nUID:a&amp;b-0123456789-0123456789-0123456789-0123456789-0123456\r\n 789-end\r\nEND:VCARD` +
+      `</card:address-data></d:prop></d:propstat></d:response></d:multistatus>`;
+    expect(
+      findHrefByUid(body, 'a&b-0123456789-0123456789-0123456789-0123456789-0123456789-end', 'address-data'),
+    ).toBe('/dav/c/1.vcf');
+  });
+
+  it('decodes the href, so it keys the way the collection listing keys', () => {
+    // `listContactsIn` stores `decodeHref(href)`; a fallback returning the raw
+    // href would make the same card look like two different ledger rows.
+    const body =
+      `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav">` +
+      `<d:response><d:href>/dav/c/Jan%20de%20Vries.vcf</d:href><d:propstat><d:prop>` +
+      `<card:address-data>UID:jan</card:address-data></d:prop></d:propstat></d:response></d:multistatus>`;
+    expect(findHrefByUid(body, 'jan', 'address-data')).toBe('/dav/c/Jan de Vries.vcf');
+  });
+
+  it('is not a match when the server sent no data for the resource', () => {
+    // Deliberate, and in the safe direction: an unconfirmed "yes" overwrites
+    // somebody's card, an unconfirmed "no" writes a second copy a person can
+    // see and delete. The collection's own <response> lands here too.
+    const body =
+      `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">` +
+      `<d:response><d:href>/dav/c/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/>` +
+      `</d:resourcetype></d:prop></d:propstat></d:response></d:multistatus>`;
+    expect(findHrefByUid(body, 'anything', 'address-data')).toBeUndefined();
+  });
+
+  it('reads calendar-data for the CalDAV writer', () => {
+    const body =
+      `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">` +
+      `<d:response><d:href>/dav/cal/e1.ics</d:href><d:propstat><d:prop><cal:calendar-data>` +
+      `BEGIN:VCALENDAR\nBEGIN:VTODO\nUID:task-9\nEND:VTODO\nEND:VCALENDAR` +
+      `</cal:calendar-data></d:prop></d:propstat></d:response></d:multistatus>`;
+    expect(findHrefByUid(body, 'task-9', 'calendar-data')).toBe('/dav/cal/e1.ics');
+    // ...and does not read one element's data as the other's.
+    expect(findHrefByUid(body, 'task-9', 'address-data')).toBeUndefined();
+  });
+
+  it('returns nothing for an empty multistatus', () => {
+    expect(
+      findHrefByUid('<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"/>', 'x', 'address-data'),
+    ).toBeUndefined();
   });
 });
