@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 95 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 96 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
