@@ -147,6 +147,31 @@ env_or() { # env_or NAME DEFAULT
 # create it, hence a function rather than a line at the top.
 load_env() {
   [ -f "$ENV_FILE" ] || die "$ENV_FILE does not exist yet — run the 'env' phase first."
+  # A .env THIS CAN SOURCE, checked before sourcing it (E2E (managed) #163).
+  #
+  # Compose parses `.env` with its own reader, which accepts a bare space in a
+  # value: `NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud 100.97.25.131` brings
+  # the container up and looks entirely right. Bash does not read it that way.
+  # Sourced, that line assigns `localhost` and then RUNS `nextcloud`, and the
+  # run ends at exit 127 on `nextcloud: command not found` — a sentence naming
+  # a program nobody invoked, in a file nobody mentioned, three steps before
+  # anything this script prints. The example this operator copied from shipped
+  # unquoted, so the shape was ours to produce and ours to catch.
+  #
+  # So: find the line, name it, and say the fix. A value with whitespace and no
+  # quotes is the only shape that does this, and quoting is always safe — the
+  # check is narrow enough to never argue with a legitimate file.
+  local bad
+  bad="$(grep -nE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=[^"'"'"'#]*[^"'"'"'#[:space:]][[:space:]]+[^#[:space:]]' "$ENV_FILE" || true)"
+  if [ -n "$bad" ]; then
+    echo "!!! $ENV_FILE has a value with a space in it and no quotes around it." >&2
+    echo "$bad" | sed 's/^/!!!   /' >&2
+    echo "!!! Compose accepts that; this script SOURCES the file with bash, which" >&2
+    echo "!!! assigns the first word and then tries to run the rest as a command." >&2
+    echo '!!! Put the value in quotes — KEY="first second" — in this file and in' >&2
+    echo "!!! any persisted copy the next run restores from, then run this again." >&2
+    exit 1
+  fi
   set -a
   # shellcheck disable=SC1090
   . "$ENV_FILE"
