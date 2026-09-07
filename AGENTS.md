@@ -66,6 +66,12 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
 - Optional dev stack: `docker compose -f deploy/compose/dev.yml up -d` (Postgres + Nextcloud).
   Stalwart isn't part of it — its two-phase startup can't be expressed as one compose service —
   bring it up with `deploy/selfhost/setup-stalwart.sh` instead.
+- **The managed stack runs out of `~/ownpace-managed`** on its host, matching the
+  compose project name `managed.yml` pins. Any command you hand somebody to run
+  against the live deployment starts there — see
+  [docs/managed-bring-up.md](docs/managed-bring-up.md#updating-a-running-deployment)
+  for the after-a-pull sequence, including when the Trigger.dev tasks need
+  re-deploying and when they do not.
 
 ## What we are building
 Sovereign migration/sync: families and SMBs move off US cloud (O365/Google/Dropbox) to EU targets. **JMAP is the primary target protocol** (Stalwart reference; mosa.cloud / La Suite / MijnBureau); **IMAP/CalDAV/CardDAV/WebDAV is the parallel second family** (Soverin, openDesk,
