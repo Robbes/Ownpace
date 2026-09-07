@@ -40,7 +40,12 @@ import {
   withDeploymentDropboxClient,
   withDeploymentGoogleClient,
 } from '@openmig/shared';
-import { QUALIFICATION_KEYS, publishedEndpoint, type QualificationKey } from '@openmig/shared';
+import {
+  QUALIFICATION_KEYS,
+  publishedEndpoint,
+  type QualificationKey,
+  type QualificationReason,
+} from '@openmig/shared';
 import type { DiscoveryDomain, ProbeUnit } from '@openmig/shared';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint.ts';
@@ -79,6 +84,13 @@ export interface QualifiedDomain {
    */
   readonly count?: number;
   readonly unit?: ProbeUnit;
+  /**
+   * WHY this face is not a tick (2026-09-07), for the screens — never for the
+   * gate, which still reads `answer` alone. Absent on a `yes`, and absent on
+   * a record written before the field existed, which `reasonEarnsASentence`
+   * reads as "say it anyway" so an upgrade swallows nothing.
+   */
+  readonly reason?: QualificationReason;
   /**
    * How MUCH the face holds, measured when it answered (2026-09-02, the
    * owner's "GB in Drive, number of contacts, GB of mail"): a sizing answer
@@ -238,6 +250,7 @@ async function askListable(
     // somebody hunting the wrong problem.
     return {
       answer: 'unknown',
+      reason: 'refused',
       detail: `Unmeasured — the probe was refused: ${
         err instanceof Error ? err.message : String(err)
       }`,
@@ -277,6 +290,7 @@ function notAFaceOf(kind: string, face: string): QualifiedDomain {
     : (carried[0] ?? 'other faces');
   return {
     answer: 'no',
+    reason: 'structural',
     detail: `A ${providerDisplayName(kind)} account carries ${carries}; ${face} is not a face of this connection.`,
   };
 }
@@ -305,6 +319,7 @@ function reasonedNo(kind: string, face: DiscoveryDomain): QualifiedDomain | unde
   if (kind === 'apple' && face === 'file') {
     return {
       answer: 'no',
+      reason: 'structural',
       detail:
         'Apple publishes no API for iCloud Drive — to anyone, not just to us — so these files ' +
         'cannot be read from the account the way mail, calendars, contacts and reminders can. ' +
@@ -344,7 +359,11 @@ export async function qualifyAccount(
             ),
       'folder',
     );
-    const notAskable: QualifiedDomain = { answer: 'unknown', detail: NOT_ASKABLE_DAV };
+    const notAskable: QualifiedDomain = {
+      answer: 'unknown',
+      reason: 'notAskable',
+      detail: NOT_ASKABLE_DAV,
+    };
     return {
       domains: { mail, calendar: notAskable, contact: notAskable, file: notAskable, task: notAskable },
     };
@@ -544,11 +563,15 @@ export async function qualifyAccount(
     (kind === 'soverin'
       ? {
           answer: 'unknown',
+          // `incomplete`, not `notAskable`: a Soverin account HAS a mailbox,
+          // and this row is one field short of reaching it. The sentence
+          // names that field, so it is one of the two a screen says aloud.
+          reason: 'incomplete',
           detail:
             'This account stores no mail server address, so mail was not measured — add the ' +
             'mail host (mailHost) to the connection to measure this face.',
         }
-      : { answer: 'unknown', detail: NOT_ASKABLE_MAIL });
+      : { answer: 'unknown', reason: 'notAskable', detail: NOT_ASKABLE_MAIL });
   return {
     domains: {
       mail,
@@ -575,11 +598,11 @@ async function qualifyJmap(
   const sessionUrl = `${baseUrl}/.well-known/jmap`;
   const unknownAll = (why: string): AccountQualification => ({
     domains: {
-      mail: { answer: 'unknown', detail: why },
-      calendar: { answer: 'unknown', detail: why },
-      contact: { answer: 'unknown', detail: why },
-      file: { answer: 'unknown', detail: why },
-      task: { answer: 'unknown', detail: why },
+      mail: { answer: 'unknown', reason: 'refused', detail: why },
+      calendar: { answer: 'unknown', reason: 'refused', detail: why },
+      contact: { answer: 'unknown', reason: 'refused', detail: why },
+      file: { answer: 'unknown', reason: 'refused', detail: why },
+      task: { answer: 'unknown', reason: 'refused', detail: why },
     },
   });
   let capabilities: Record<string, unknown>;
@@ -608,6 +631,7 @@ async function qualifyJmap(
       ? { answer: 'yes', detail: `The session advertises ${urn}.` }
       : {
           answer: 'no',
+          reason: 'structural',
           detail: `The session answered and does not advertise ${urn} — this server does not speak JMAP ${noun}.`,
         };
   return {
@@ -619,6 +643,7 @@ async function qualifyJmap(
       // caldav connection is the calendar door.
       calendar: {
         answer: 'no',
+        reason: 'structural',
         detail:
           'Calendars are not carried over JMAP by this product (0031 T1 parked) — use a caldav connection.',
       },
@@ -628,6 +653,7 @@ async function qualifyJmap(
       // above — a fact about what we carry, not a claim about this server.
       task: {
         answer: 'no',
+        reason: 'structural',
         detail:
           'Tasks are not carried over JMAP by this product — they are CalDAV VTODO collections, ' +
           'so use a caldav connection.',
@@ -636,6 +662,7 @@ async function qualifyJmap(
       // writer exists, but whether THIS server carries it is unmeasured.
       file: {
         answer: 'unknown',
+        reason: 'notAskable',
         detail: 'Unmeasured — no standard JMAP capability announces file storage.',
       },
     },
@@ -829,6 +856,7 @@ export function domainsToScopes(
  */
 const GOOGLE_NO_TASKS: QualifiedDomain = {
   answer: 'no',
+  reason: 'structural',
   detail:
     "Google's CalDAV service carries no VTODO components at all, so there is no task face to " +
     'grant. Google Tasks is a separate API this product does not migrate yet.',
@@ -839,7 +867,7 @@ const DWD_UNMEASURED =
   'console domain-wide delegation grant, which no token response enumerates.';
 
 function allUnknown(why: string): AccountQualification {
-  const domain: QualifiedDomain = { answer: 'unknown', detail: why };
+  const domain: QualifiedDomain = { answer: 'unknown', reason: 'refused', detail: why };
   return {
     domains: { mail: domain, calendar: domain, contact: domain, file: domain, task: GOOGLE_NO_TASKS },
   };
@@ -1015,6 +1043,7 @@ export async function qualifyDropbox(
   const creds = withDeploymentDropboxClient(true, rawCreds);
   const notAFace = (face: string): QualifiedDomain => ({
     answer: 'no',
+    reason: 'structural',
     detail: `A Dropbox carries files only; ${face} is not a face of this connection.`,
   });
   let file: QualifiedDomain;
@@ -1053,6 +1082,7 @@ export async function qualifyDropbox(
     // A refusal is NOT a no (the same rule as every other face).
     file = {
       answer: 'unknown',
+      reason: 'refused',
       detail: `Unmeasured — the probe was refused: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
@@ -1112,6 +1142,7 @@ export async function qualifyArchive(
   // not contain it" and the person is entitled to the true one.
   const liveInstead = (face: string): QualifiedDomain => ({
     answer: 'no',
+    reason: 'structural',
     detail:
       `An export archive is imported for files and photos only, so ${face} is not carried from ` +
       'it. The export does contain them — they are migrated from the account itself instead, ' +
@@ -1154,6 +1185,7 @@ export async function qualifyArchive(
     // UNKNOWN, with the reason. Never a measured no — see the header.
     file = {
       answer: 'unknown',
+      reason: 'refused',
       detail: `Unmeasured — the archive could not be opened: ${
         err instanceof Error ? err.message : String(err)
       }`,
@@ -1265,6 +1297,7 @@ export async function qualifyGoogleGrant(
     if (!carried) {
       return {
         answer: 'no',
+        reason: 'notGranted',
         detail:
           `The grant does not carry ${GOOGLE_DOMAIN_SCOPES[domain].asked} — asking is ` +
           'granting: re-consent with that scope to add this domain.',
@@ -1310,6 +1343,7 @@ export async function qualifyGoogleGrant(
       // when the switch behind the face is off, naming the API and the page.
       return {
         answer: 'unknown',
+        reason: 'refused',
         detail:
           `The grant carries ${carried}, but the face did not answer: ${
             err instanceof Error ? err.message : String(err)

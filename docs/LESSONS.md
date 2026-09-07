@@ -102,6 +102,14 @@ reading a file drops off its entry by itself.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
+### `apps/api/src/routes/migrations/google-consent.ts`
+
+- [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts) — A SILENCE ON ONE SCREEN THAT DEPENDS ON A REFUSAL IN ANOTHER FILE.
+
+### `apps/api/src/routes/migrations/google-consent.unit.test.ts`
+
+- [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts) — A SILENCE ON ONE SCREEN THAT DEPENDS ON A REFUSAL IN ANOTHER FILE.
+
 ### `apps/api/src/routes/migrations/index.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -163,6 +171,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/components/StatusLink.tsx`
 
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
+
+### `apps/web/src/i18n/probe-text.unit.test.tsx`
+
+- [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts) — A SILENCE ON ONE SCREEN THAT DEPENDS ON A REFUSAL IN ANOTHER FILE.
 
 ### `apps/web/src/i18n/strings.ts`
 
@@ -704,6 +716,10 @@ reading a file drops off its entry by itself.
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 
+### `packages/shared/src/qualification-gate.ts`
+
+- [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts) — A SILENCE ON ONE SCREEN THAT DEPENDS ON A REFUSAL IN ANOTHER FILE.
+
 ### `packages/shared/src/qualification-gate.unit.test.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
@@ -1097,6 +1113,17 @@ Reads:
 
 - `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
 - `scripts/a-domain-union-typed-out-by-hand.unit.test.ts`
+
+### [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts)
+
+A SILENCE ON ONE SCREEN THAT DEPENDS ON A REFUSAL IN ANOTHER FILE.
+
+Reads:
+
+- `apps/api/src/routes/migrations/google-consent.ts`
+- `apps/api/src/routes/migrations/google-consent.unit.test.ts`
+- `apps/web/src/i18n/probe-text.unit.test.tsx`
+- `packages/shared/src/qualification-gate.ts`
 
 ### [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts)
 

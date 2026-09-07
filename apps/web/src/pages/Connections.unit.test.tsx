@@ -1071,7 +1071,9 @@ describe('why a face is `?` is on screen, not in a hover (owner 2026-09-02)', ()
     domains: {
       mail: { answer: 'yes' as const, detail: '29 folders visible.', count: 29, unit: 'folder' as const },
       calendar: { answer: 'yes' as const, detail: '5 calendars visible.', count: 5, unit: 'calendar' as const },
-      contact: { answer: 'unknown' as const, detail: REFUSAL },
+      // `refused` — we asked, Google said no, and the sentence IS the remedy.
+    // That is the one unmeasured state the card still says out loud.
+    contact: { answer: 'unknown' as const, reason: 'refused' as const, detail: REFUSAL },
       file: { answer: 'yes' as const, detail: '3 folders visible.', count: 3, unit: 'folder' as const },
     },
   };
@@ -1088,15 +1090,20 @@ describe('why a face is `?` is on screen, not in a hover (owner 2026-09-02)', ()
 
     fireEvent.click(await screen.findByText('Test'));
 
-    expect(await screen.findByText(/Can carry: Email ✓ 29 folders · Calendar ✓ 5 calendars · Contacts \? · Files ✓ 3 folders/)).toBeTruthy();
-    expect(screen.getByText(/^Contacts \?: .*Google Contacts CardDAV API has not been used/)).toBeTruthy();
+    // The carry line names the faces that answered — Contacts is not among
+    // them and is no longer marked as absent (2026-09-07).
+    expect(await screen.findByText('Carries: Email · Calendar · Files')).toBeTruthy();
+    // …and the quantities live together on their own line.
+    expect(screen.getByText(/Found: Email 29 folders · Calendar 5 calendars · Files 3 folders/)).toBeTruthy();
+    // The sentence a person can act on is still on screen, not in a hover.
+    expect(screen.getByText(/^Contacts: .*Google Contacts CardDAV API has not been used/)).toBeTruthy();
   });
 
   it('the card shows it too, without pressing Test — the stored record is what a phone opens first', async () => {
     list.mockResolvedValue([conn({ kind: 'google', role: 'source', qualification })]);
     renderPage();
 
-    expect(await screen.findByText(/^Contacts \?: .*carddav\.googleapis\.com/)).toBeTruthy();
+    expect(await screen.findByText(/^Contacts: .*carddav\.googleapis\.com/)).toBeTruthy();
   });
 });
 
@@ -1119,11 +1126,15 @@ describe('the measured-volume line (2026-09-02)', () => {
 
     fireEvent.click(await screen.findByText('Test'));
 
-    expect(await screen.findByText(/Measured: Email 12,400 messages ≈ 3.2 GB/)).toBeTruthy();
-    expect(screen.getByText(/Contacts 412 cards/)).toBeTruthy();
-    expect(screen.getByText(/Files 1.8 GB \(Docs, Sheets and Slides not counted\)/)).toBeTruthy();
-    // The capability line is still its own line.
-    expect(screen.getByText(/Can carry: Email ✓ 29 folders/)).toBeTruthy();
+    // Collections and volume together, per face, on one line (2026-09-07):
+    // the collection count used to sit on the capability line as evidence
+    // that the tick was real, and read on screen as a quantity among
+    // quantities that were somewhere else.
+    expect(await screen.findByText(/Found: Email 29 folders, 12,400 messages, ≈ 3.2 GB/)).toBeTruthy();
+    expect(screen.getByText(/Contacts 1 address book, 412 cards/)).toBeTruthy();
+    expect(screen.getByText(/Files 6 folders, 1.8 GB, \(Docs, Sheets and Slides not counted\)/)).toBeTruthy();
+    // And the capability line is still its own line — names only.
+    expect(screen.getByText('Carries: Email · Calendar · Contacts · Files')).toBeTruthy();
   });
 });
 

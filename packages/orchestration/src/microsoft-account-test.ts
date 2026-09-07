@@ -322,7 +322,7 @@ const FACE_WORD: Readonly<Record<DiscoveryDomain, string>> = {
 };
 
 function allUnknown(why: string): AccountQualification {
-  const domain: QualifiedDomain = { answer: 'unknown', detail: why };
+  const domain: QualifiedDomain = { answer: 'unknown', reason: 'refused', detail: why };
   return { domains: { mail: domain, calendar: domain, contact: domain, file: domain, task: domain } };
 }
 
@@ -359,11 +359,16 @@ export async function qualifyMicrosoftAccount(
   const faceFromGrant = async (face: DiscoveryDomain): Promise<QualifiedDomain> => {
     const scope = microsoftFaceScope(face);
     if (!scope) {
-      return { answer: 'no', detail: `A Microsoft 365 account does not carry ${FACE_WORD[face]} through this product.` };
+      return {
+        answer: 'no',
+        reason: 'structural',
+        detail: `A Microsoft 365 account does not carry ${FACE_WORD[face]} through this product.`,
+      };
     }
     if (!grant.granted.has(scope)) {
       return {
         answer: 'no',
+        reason: 'notGranted',
         detail:
           `The consent did not include ${scope}, so ${FACE_WORD[face]} cannot be read — asking is ` +
           `granting: connect the account again with ${FACE_WORD[face]} ticked to add it.`,
@@ -394,6 +399,7 @@ export async function qualifyMicrosoftAccount(
       // carry" would be false, and nothing answered, so it is not a yes.
       return {
         answer: 'unknown',
+        reason: 'refused',
         detail: `The consent carries ${scope}, but the face did not answer: ${
           err instanceof Error ? err.message : String(err)
         }`,
