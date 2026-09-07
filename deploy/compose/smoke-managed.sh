@@ -1447,6 +1447,55 @@ for d in "${REQUIRED_DOMAINS[@]}"; do
     echo "verify ($VERIFY_LABEL): '${d}' was actually checked"
   fi
 done
+
+# AND A TARGET THE REINDEXER COULD NOT SEE IS NOT A VERIFIED TARGET.
+#
+# The third face of the same coin as the two guards above, and the one still
+# missing on 2026-09-07. Between them they assert that the run finished, that
+# the SOURCE had something in it, and that each domain was looked at. None of
+# them looks at what came back from the TARGET.
+#
+# That gap has a name, and it is the failure mode the CardDAV filter work of
+# 2026-09-07 could not rule out from a unit test: a target listing that the
+# server ACCEPTS and that matches nothing. `addressbook-query` is the live
+# example — RFC 6352 §10.5 defaults `test` to `anyof`, so a filter carrying no
+# prop-filter is an OR over zero tests, and a server reading that literally
+# answers with an empty multistatus. Not an error. Not a refusal. An empty
+# address book, reported by a reindexer that is working perfectly.
+#
+# This gate would have called that a pass. `state: done`, source non-zero,
+# every domain present and unskipped — and `missingOnTarget` growing, which is
+# EXPECTED here because the apply half tombstones one item per run. The one
+# number that would have said otherwise is the one nobody read.
+#
+# SO: where the SOURCE has items, the target listing must have found some.
+# Deliberately a floor and not a match — the tombstones make an equality red
+# for this script's own correct behaviour, which is exactly why `PASS` is not
+# asserted twenty lines up. A domain whose source is empty is skipped here on
+# purpose: nothing on the target is the right answer to nothing at the source.
+for domain in "${REQUIRED_DOMAINS[@]}"; do
+  d_src="$(jq -r --arg d "$domain" 'first(.. | objects | select(.dataType? == $d) | .sourceCount) // "absent"' <<<"$rbody" 2>/dev/null || echo absent)"
+  d_tgt="$(jq -r --arg d "$domain" 'first(.. | objects | select(.dataType? == $d) | .targetCount) // "absent"' <<<"$rbody" 2>/dev/null || echo absent)"
+  if [ "$d_src" = "absent" ] || [ "$d_tgt" = "absent" ]; then
+    echo ""
+    echo "verify ($VERIFY_LABEL): the '${domain}' block carries no sourceCount/targetCount pair."
+    echo "Every DataTypeVerification has both (packages/shared/src/verification-report.ts),"
+    echo "keyed by its own 'dataType' field — so a block without them is a report this"
+    echo "assertion cannot read, and an unreadable report is not evidence of a good one."
+    fail_at "verify ($VERIFY_LABEL) '${domain}' has no sourceCount/targetCount to check"
+  elif [ "$d_src" -gt 0 ] && [ "$d_tgt" -eq 0 ]; then
+    echo ""
+    echo "verify ($VERIFY_LABEL): '${domain}' has ${d_src} items at the SOURCE and 0 at the TARGET."
+    echo "The sync ran in this same job, so either nothing was copied or the target"
+    echo "reindexer listed an empty collection. The second is the quiet one: a DAV"
+    echo "query the server ACCEPTS and that matches nothing returns an empty"
+    echo "multistatus, which every consumer here reads as 'the collection is empty'."
+    echo "Check the listing query for that domain before assuming the sync is at fault."
+    fail_at "verify ($VERIFY_LABEL) '${domain}': sourceCount=${d_src} but targetCount=0 — the target listing found nothing"
+  else
+    echo "verify ($VERIFY_LABEL): '${domain}' target listing saw ${d_tgt} (source ${d_src})"
+  fi
+done
 }
 
 # Tenant A — mail, against the demo Stalwart.
