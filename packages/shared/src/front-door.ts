@@ -55,6 +55,11 @@ export const FRONT_DOOR_GROUPS: Readonly<Record<string, FrontDoorGroup>> = {
   dropbox: 'provider',
   box: 'provider',
   soverin: 'provider',
+  // A PROVIDER, not a protocol, even though every face it serves is a
+  // protocol this door also lists on its own. The lane answers "what is the
+  // person naming?" — and they are naming their Nextcloud, once, rather than
+  // three transports (2026-09-07).
+  nextcloud: 'provider',
   // The Apple ACCOUNT (workplan 0115) — a provider, and a family of exactly
   // one: there is no `icloud` or `apple-mail` kind beside it to collect,
   // because Apple has never published an API one could have been built on.
@@ -161,6 +166,9 @@ export const FRONT_DOOR_ICONS: Readonly<Record<string, FrontDoorIcon>> = {
   // Neutral slate until Soverin's own brand color is confirmed — a wrong
   // brand color would be a small guess, and this file does not guess.
   soverin: { kind: 'mark', initial: 'S', background: '#334155' },
+  // Nextcloud's own blue, which the project publishes and uses everywhere —
+  // no guess needed, unlike the slate above.
+  nextcloud: { kind: 'mark', initial: 'N', background: '#0082c9' },
   apple: { kind: 'mark', initial: 'A', background: '#1d1d1f' },
   // A MARK, because the invariant below is pinned: marks on providers, glyphs
   // on protocols, and mixing them is what re-mixes the levels T1 separated.

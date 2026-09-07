@@ -70,7 +70,12 @@ const renderWizard = () => {
   );
 };
 
-const nextButton = () => screen.getByRole('button', { name: /Next|Create Migration/ });
+// AN EXACT MATCH, because a CARD is a button too (2026-09-07). `/Next|.../`
+// unanchored matched the "Nextcloud" target card as well as the wizard's own
+// Next button the moment that card existed, and every step-through test began
+// failing with "found multiple elements" — a selector fault reading as a
+// product fault. Anchored, the query means the button it always meant.
+const nextButton = () => screen.getByRole('button', { name: /^(Next|Create Migration)$/ });
 
 /** The amber line beside a disabled Next, or null when nothing blocks it. */
 const blockedReason = () => screen.queryByRole('status')?.textContent ?? null;

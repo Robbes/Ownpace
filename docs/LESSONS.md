@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 95 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 96 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -85,6 +85,10 @@ reading a file drops off its entry by itself.
 
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 
+### `apps/api/src/routes/connections.ts`
+
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
+
 ### `apps/api/src/routes/migrations/google-account-consent.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
@@ -103,6 +107,7 @@ reading a file drops off its entry by itself.
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts) — The create-mapping validator ends in a catch-all that asks for AZURE credentials, and nothing pairs it against the source types that exist.
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `apps/api/src/routes/migrations/microsoft-consent.ts`
@@ -202,6 +207,7 @@ reading a file drops off its entry by itself.
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `apps/web/src/services/oidc.ts`
 
@@ -643,6 +649,7 @@ reading a file drops off its entry by itself.
 
 - [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `packages/shared/src/discovery.ts`
 
@@ -652,6 +659,7 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/front-door.ts`
 
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `packages/shared/src/google-deployment-client.unit.test.ts`
 
@@ -688,6 +696,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/qualification-gate.unit.test.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `packages/shared/src/target-domains.ts`
+
+- [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `packages/shared/src/target-domains.unit.test.ts`
 
@@ -1288,6 +1300,19 @@ A BARE ALIAS SWALLOWS ITS OWN SUBPATHS.
 Reads:
 
 - `vitest.aliases.ts`
+
+### [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts)
+
+THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
+
+Reads:
+
+- `apps/api/src/routes/connections.ts`
+- `apps/api/src/routes/migrations/index.ts`
+- `apps/web/src/services/mapping-service.ts`
+- `packages/shared/src/credential-fields.ts`
+- `packages/shared/src/front-door.ts`
+- `packages/shared/src/target-domains.ts`
 
 ### [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts)
 

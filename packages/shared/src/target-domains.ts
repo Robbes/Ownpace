@@ -34,7 +34,14 @@ import { PROVIDER_ACCOUNT_DOMAINS } from './provider-accounts.ts';
 import type { DiscoveryDomain } from './discovery.ts';
 
 /** The wizard's target vocabulary (mirrors CreateMappingSchema.targetType). */
-export type WizardTargetType = 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
+export type WizardTargetType =
+  | 'jmap'
+  | 'imap'
+  | 'caldav'
+  | 'carddav'
+  | 'webdav'
+  | 'soverin'
+  | 'nextcloud';
 
 export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<DiscoveryDomain>> = {
   jmap: ['email', 'contact', 'file'],
@@ -55,6 +62,26 @@ export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<Discove
   // stay out until a Soverin account MEASURES a file face (the
   // qualification's job, never this table's guess).
   soverin: ['email', 'calendar', 'contact', 'task'],
+  // ONE ROW FOR THE FOUR FACES ONE NEXTCLOUD ALREADY SERVES (2026-09-07, the
+  // owner's ask). Everything below was reachable before this line — as three
+  // separate connections, `caldav` and `carddav` and `webdav`, each retyping
+  // the same URL, username and password. The person adding them is describing
+  // one account to us three times, and one of the three is easy to forget.
+  //
+  // The plumbing was already here: `dav-endpoint.ts` has carried a
+  // `kind === 'nextcloud'` branch since the file domain needed one, appending
+  // Nextcloud's own `files/{username}/` convention to the base DAV URL, and
+  // the per-domain factories route any non-jmap kind to its DAV endpoint. Only
+  // this table and the doors that read it were missing.
+  //
+  // NO EMAIL, deliberately. Nextcloud Mail is an IMAP *client*, not a mail
+  // server: a Nextcloud gives a person calendars, address books, files and
+  // task lists, and their mail lives somewhere else. Listing `email` here
+  // would put a tick on the wizard that no writer could honour.
+  //
+  // Tasks ride the CalDAV face, as they do for soverin (0113 T5): a Nextcloud
+  // task list is a calendar collection that declares VTODO.
+  nextcloud: ['calendar', 'contact', 'file', 'task'],
 };
 
 const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
@@ -64,6 +91,7 @@ const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
   carddav: 'CardDAV',
   webdav: 'WebDAV',
   soverin: 'Soverin',
+  nextcloud: 'Nextcloud',
 };
 
 /** The selected domains the given target protocol cannot receive. */

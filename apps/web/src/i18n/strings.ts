@@ -424,6 +424,10 @@ const en = {
   'wizard.proto.carddav.hint': 'Contact protocol',
   'wizard.proto.webdav.hint': 'File storage',
   'wizard.proto.soverin.hint': 'One account — email, calendars and contacts',
+  // Says what it carries AND what it does not: a person whose mail is
+  // elsewhere should not have to discover that by ticking Email and
+  // finding no writer behind it.
+  'wizard.proto.nextcloud.hint': 'One account — calendars, contacts, files and tasks (no email)',
   'wizard.title': 'Create Migration',
   'wizard.step.source': 'Source',
   'wizard.step.target': 'Target',
@@ -1999,6 +2003,8 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.carddav.hint': 'Contactenprotocol',
   'wizard.proto.webdav.hint': 'Bestandsopslag',
   'wizard.proto.soverin.hint': 'Eén account — e-mail, agenda’s en contacten',
+  'wizard.proto.nextcloud.hint':
+    'Eén account — agenda’s, contacten, bestanden en taken (geen e-mail)',
   'wizard.title': 'Migratie aanmaken',
   'wizard.step.source': 'Bron',
   'wizard.step.target': 'Doel',

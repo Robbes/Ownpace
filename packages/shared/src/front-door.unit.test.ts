@@ -112,9 +112,13 @@ describe('partitionFrontDoor — the one algorithm both doors render', () => {
     expect(p.protocols).toEqual(['imap']);
   });
 
-  it('splits the target vocabulary: the account kind is the provider lane, the five protocols the other', () => {
+  it('splits the target vocabulary: the account kinds are the provider lane, the five protocols the other', () => {
     const p = ids(connectableTypes('target'));
-    expect(p.providers).toEqual(['soverin']);
+    // Two account kinds now (2026-09-07). Both name a product a person has
+    // rather than a transport it speaks, which is what the lane is for — and
+    // `nextcloud` earns it while serving only protocols this door also lists
+    // separately, because the person is naming their Nextcloud, once.
+    expect(p.providers).toEqual(['soverin', 'nextcloud']);
     expect(p.families).toEqual([]);
     expect(p.protocols).toEqual(['jmap', 'imap', 'caldav', 'carddav', 'webdav']);
   });

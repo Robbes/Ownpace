@@ -95,7 +95,12 @@ const renderWizard = () => {
 };
 
 const nextButton = () =>
-  screen.getByRole('button', { name: /Next|Create Migration/ });
+  // AN EXACT MATCH, because a CARD is a button too (2026-09-07). `/Next|.../`
+// unanchored matched the "Nextcloud" target card as well as the wizard's own
+  // Next button the moment that card existed, and every step-through test began
+  // failing with "found multiple elements" — a selector fault reading as a
+  // product fault. Anchored, the query means the button it always meant.
+  screen.getByRole('button', { name: /^(Next|Create Migration)$/ });
 
 /** Fill only what each step RENDERS and advance — the whole point of the
  *  0037 T1 pin. Fails on the old gates at the very first click. */
