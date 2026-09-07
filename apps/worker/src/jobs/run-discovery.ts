@@ -78,44 +78,89 @@ function tenantScopedStore(scopePool: Pool): DiscoveryStore {
   };
 }
 
-/** Build the per-domain discovery task: open the DB-backed source, count it, always close. */
-function buildTask(
+/**
+ * WHICH SOURCE EACH DOMAIN IS COUNTED THROUGH — a row per domain, never a
+ * fall-through.
+ *
+ * This was three `if`s and a bare `else`: email, calendar and contact were
+ * named and EVERYTHING ELSE opened the FILE deps. `task` arrived in workplan
+ * 0113 as the fifth domain and landed in that else, so a preflight over a
+ * mapping carrying tasks counted the file store instead — silently on a DAV
+ * account, whose task and file faces both resolve to `dav`, and loudly on a
+ * Microsoft one, where the owner's Tasks row reported `graph-drive source:
+ * clientId is not set`. A domain naming another domain's connector in its own
+ * error is the tell.
+ *
+ * `Record<DiscoveryDomain, …>` is the mechanism: a sixth domain added to
+ * `DISCOVERY_DOMAINS` fails to compile here until somebody says what it counts
+ * through, rather than quietly being counted as files.
+ *
+ * The literal `'mail'`/`'file'` arguments are not decoration either — each
+ * overload of `buildDomainDepsFromMapping` accepts exactly one literal, and
+ * the union is not one of them, which is the same reason `run-apply-deletion`
+ * branches per literal. `email` asks for `'mail'`; every other domain asks for
+ * its own name.
+ *
+ * `itemBytes` is set for the two domains whose listings carry a size, and left
+ * off the three that do not: a calendar object, a card and a to-do have no
+ * `.size` on the wire, and asking for one would report zero bytes as a
+ * measured fact rather than as an absent one.
+ */
+const DOMAIN_DISCOVERY: Readonly<
+  Record<
+    DiscoveryDomain,
+    {
+      open: (pool: Pool, tenantId: TenantId, mappingId: MappingId) => Promise<DomainDepsToCount>;
+      readonly itemBytes: boolean;
+    }
+  >
+> = {
+  email: {
+    open: (pool, t, m) => buildDomainDepsFromMapping(pool, t, m, 'mail'),
+    itemBytes: true,
+  },
+  calendar: {
+    open: (pool, t, m) => buildDomainDepsFromMapping(pool, t, m, 'calendar'),
+    itemBytes: false,
+  },
+  contact: {
+    open: (pool, t, m) => buildDomainDepsFromMapping(pool, t, m, 'contact'),
+    itemBytes: false,
+  },
+  file: {
+    open: (pool, t, m) => buildDomainDepsFromMapping(pool, t, m, 'file'),
+    itemBytes: true,
+  },
+  task: {
+    open: (pool, t, m) => buildDomainDepsFromMapping(pool, t, m, 'task'),
+    itemBytes: false,
+  },
+};
+
+/** What each row's `open` hands back: a source to count, and a pool to release. */
+interface DomainDepsToCount {
+  readonly source: Parameters<typeof discoverSource>[0];
+  close(): Promise<void>;
+}
+
+/**
+ * Build the per-domain discovery task: open the DB-backed source, count it,
+ * always close. Exported for
+ * `a-domain-counted-through-another-domains-source.unit.test.ts`.
+ */
+export function buildTask(
   scopePool: Pool,
   tenantId: TenantId,
   mappingId: MappingId,
   domain: DiscoveryDomain,
 ): DomainDiscoveryTask {
+  const counted = DOMAIN_DISCOVERY[domain];
   return {
     domain,
     run: async () => {
-      // Literal domain args pick the right buildDomainDepsFromMapping overload; email → 'mail'.
-      if (domain === 'email') {
-        const deps = await buildDomainDepsFromMapping(scopePool, tenantId, mappingId, 'mail');
-        try {
-          return await discoverSource(deps.source, { itemBytes: sizeOf });
-        } finally {
-          await deps.close();
-        }
-      }
-      if (domain === 'calendar') {
-        const deps = await buildDomainDepsFromMapping(scopePool, tenantId, mappingId, 'calendar');
-        try {
-          return await discoverSource(deps.source);
-        } finally {
-          await deps.close();
-        }
-      }
-      if (domain === 'contact') {
-        const deps = await buildDomainDepsFromMapping(scopePool, tenantId, mappingId, 'contact');
-        try {
-          return await discoverSource(deps.source);
-        } finally {
-          await deps.close();
-        }
-      }
-      const deps = await buildDomainDepsFromMapping(scopePool, tenantId, mappingId, 'file');
+      const deps = await counted.open(scopePool, tenantId, mappingId);
       try {
-        return await discoverSource(deps.source, { itemBytes: sizeOf });
+        return await discoverSource(deps.source, counted.itemBytes ? { itemBytes: sizeOf } : {});
       } finally {
         await deps.close();
       }

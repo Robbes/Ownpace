@@ -616,6 +616,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
+### `packages/orchestration/src/deployment-application.ts`
+
+- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+
 ### `packages/orchestration/src/domain-lanes.unit.test.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
@@ -640,6 +644,10 @@ reading a file drops off its entry by itself.
 ### `packages/orchestration/src/source-face-builders.ts`
 
 - [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts) — A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
+
+### `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`
+
+- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 ### `packages/shared/src/config.ts`
 
@@ -931,7 +939,9 @@ Reads:
 - `deploy/compose/set-task-env.sh`
 - `packages/orchestration/src/account-qualification.ts`
 - `packages/orchestration/src/build-deps-from-mapping.ts`
+- `packages/orchestration/src/deployment-application.ts`
 - `packages/orchestration/src/probe-connection.ts`
+- `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`
 - `packages/shared/src/google-deployment-client.unit.test.ts`
 
 ### [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts)

@@ -80,19 +80,52 @@ describe('both halves of the stack are given the client', () => {
 });
 
 describe('the fallback is gated where it has to be', () => {
-  it('the run path asks whether the connection is a Google one', () => {
-    // `clientId`/`clientSecret` are shared key names: Dropbox and Box store
-    // their own app pairs under them. An ungated fallback would hand Google's
-    // application to a Dropbox row.
+  /**
+   * BOTH SEAMS ASK THE SAME TABLE, and that is the fix rather than the tidy-up.
+   *
+   * These two used to pin the literal `withDeploymentGoogleClient(isGoogle…` in
+   * each seam, which held for Google and could not see the shape of the defect
+   * that followed: each seam nested the fillers BY HAND, and when Microsoft
+   * arrived in workplan 0114 the run path kept the two it was born with. A
+   * `microsoft` row that took the grant button was therefore built with no
+   * `clientId` and every Graph face refused inside the pass, while its Test —
+   * which nested all three — passed with real counts off the same account.
+   *
+   * So the question here is now "do both seams read the one table", and
+   * `deployment-application.ts` answers which kinds each provider claims.
+   * The behaviour half, per provider and derived from `GRANT_PROVIDERS`, is
+   * `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`.
+   */
+  it('the run path fills from the one table rather than a hand-nested chain', () => {
     const seam = read('packages/orchestration/src/build-deps-from-mapping.ts');
-    expect(seam).toContain('withDeploymentGoogleClient(isGoogleGrantKind(kind)');
+    expect(seam).toContain('withDeploymentApplication(kind,');
+    expect(seam, 'a seam nesting the fillers itself is one a provider can be missed from').not.toContain(
+      'withDeploymentGoogleClient(',
+    );
   });
 
   it('the PROBE applies the same fallback, or Test refuses what a pass accepts', () => {
     // "Test failed, create worked" is the same lie as its more famous twin,
-    // and reads as a broken product rather than a missing field.
+    // and reads as a broken product rather than a missing field. It went wrong
+    // the other way round once — Test passed and the run refused — which is
+    // why both seams now read the same table instead of each other.
     const probe = read('packages/orchestration/src/probe-connection.ts');
-    expect(probe).toContain('withDeploymentGoogleClient(isGoogleGrantKind(kind)');
+    expect(probe).toContain('withDeploymentApplication(kind,');
+    expect(probe).not.toContain('withDeploymentGoogleClient(');
+  });
+
+  it('the table gates every provider on the kinds that provider actually is', () => {
+    // `clientId`/`clientSecret` are shared key names: Dropbox and Box store
+    // their own app pairs under them. An ungated fallback would hand Google's
+    // application to a Dropbox row, which then fails at Dropbox naming nothing
+    // useful. Each provider names its kinds; none of them names all rows.
+    const table = read('packages/orchestration/src/deployment-application.ts');
+    for (const provider of ['google', 'dropbox', 'microsoft']) {
+      expect(table, `${provider} has no row in the fill table`).toContain(`${provider}:`);
+    }
+    expect(table).toContain('GOOGLE_GRANT_KINDS');
+    expect(table).toContain('DROPBOX_CONNECTION_KIND');
+    expect(table).toContain('MICROSOFT_ACCOUNT_KIND');
   });
 
   it('the QUALIFICATION applies it too, or the badges go quiet', () => {

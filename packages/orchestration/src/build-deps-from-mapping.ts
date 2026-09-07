@@ -22,11 +22,11 @@ import {
   type FileSource,
   DEFAULT_CONCURRENCY,
   parseGoogleDriveSource,
-  withDeploymentDropboxClient, withDeploymentGoogleClient,
+  type ProviderClientEnv,
   microsoftTenant,
   log,
 } from '@openmig/shared';
-import { isGoogleGrantKind } from './account-qualification.ts';
+import { withDeploymentApplication } from './deployment-application.ts';
 import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget } from '@openmig/ledger';
 import {
   createTokenProvider,
@@ -50,7 +50,6 @@ import {
   buildGoogleDriveSourceFrom,
 } from './drive-source-factory.ts';
 import {
-  DROPBOX_CONNECTION_KIND,
   STORED_DROPBOX_CREDENTIAL_NAMES,
   buildDropboxSourceFrom,
 } from './dropbox-source-factory.ts';
@@ -124,45 +123,46 @@ function mergeMappingCredentials(
  *
  * Three layers now, lowest first:
  *
- *   1. the DEPLOYMENT'S own Google client, where it configured one and this
- *      connection is a Google one;
+ *   1. the DEPLOYMENT'S own application, where it configured one for the
+ *      provider this connection's kind belongs to;
  *   2. the connection's stored credentials;
  *   3. the migrator's own grant for this mapping (0108 T4).
  *
- * The new layer is the bottom one, and it is a FALLBACK rather than an
- * override for the reason ADR-0041 exists: a customer who registered their own
- * Google application and typed its credentials keeps using it, and a
- * deployment-wide default that quietly replaced theirs would take that choice
- * away.
+ * The bottom layer is a FALLBACK rather than an override, for the reason
+ * ADR-0041 exists: a customer who registered their own application and typed
+ * its credentials keeps using it, and a deployment-wide default that quietly
+ * replaced theirs would take that choice away.
  *
- * **THE KIND GATE IS LOAD-BEARING, not tidiness.** `clientId` and
- * `clientSecret` are shared key names: Dropbox stores its App key and App
- * secret under exactly those, and Box its own client pair. Filling them in for
- * any connection that lacked them would hand Google's application credentials
- * to a Dropbox row, which then fails at Dropbox with an error naming nothing
- * useful. `isGoogleGrantKind` already enumerates the kinds whose credentials
- * are a Google OAuth client — the same list the qualification exchanges tokens
- * for — so this reads it rather than keeping a second one.
+ * **WHICH APPLICATION IS A TABLE, not a nesting.** This used to nest the
+ * fillers by hand — Dropbox around Google — and when Microsoft arrived in
+ * workplan 0114 it kept the two it was born with. A `microsoft` row that took
+ * the grant button therefore reached every Graph face with no `clientId`, and
+ * all five refused *"clientId is not set (the Entra app registration id)"*
+ * from inside the pass, on a connection whose Test had just measured 25
+ * messages and 3.8 GB through the same account. `deployment-application.ts`
+ * carries the table now, keyed on `GRANT_PROVIDERS`, so a fourth provider
+ * fails to compile there rather than silently not being filled here — and the
+ * kind gate it applies is load-bearing, since Dropbox and Box store their own
+ * pairs under the same `clientId`/`clientSecret` names.
  *
  * ONE FUNCTION FOR BOTH PATHS, like the merge it wraps: the mail path and
  * `loadDomainConnections` both come through here, and a client that worked for
  * somebody's calendar and not their mail is a bug a customer finds.
+ *
+ * Exported for `the-application-a-stored-row-leans-on.unit.test.ts`, which
+ * asks this seam and the probe's the same question and compares the answers —
+ * the two disagreeing is what "Test passed, the run refused" is made of.
  */
-function sourceCredentialsFor(
+export function sourceCredentialsFor(
   kind: string,
   role: 'source' | 'target',
   connectionCreds: Record<string, string>,
   mappingSecretRef: string | null | undefined,
+  env: ProviderClientEnv = process.env,
 ): Record<string, string> {
   return mergeMappingCredentials(
     role,
-    // The deployment's own Dropbox app fills a Dropbox row the same way
-    // Google's fills a Google one (2026-09-02), kind-gated for the same
-    // reason: the two share the key names and must never share the values.
-    withDeploymentDropboxClient(
-      kind === DROPBOX_CONNECTION_KIND,
-      withDeploymentGoogleClient(isGoogleGrantKind(kind), connectionCreds),
-    ),
+    withDeploymentApplication(kind, connectionCreds, env),
     mappingSecretRef,
   );
 }

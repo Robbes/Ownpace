@@ -206,3 +206,20 @@ export function graphEntraCredsFromEnv(): GraphEntraCredsAsFound {
     refreshToken: process.env.OAUTH2_REFRESH_TOKEN,
   };
 }
+
+/**
+ * The stored kind of a Microsoft 365 account row (workplan 0114 T3).
+ *
+ * It lives HERE, beside the builders it names, rather than in
+ * `microsoft-account-test.ts` where it was written. That file imports
+ * `build-deps-from-mapping.ts`, so anything the build path needs from it is a
+ * cycle — and the build path needs exactly this, to know whose deployment
+ * application a row leans on (`deployment-application.ts`). This module
+ * imports nothing local at all, which makes it the one place the name can be
+ * read from without pointing a dependency backwards.
+ */
+export const MICROSOFT_ACCOUNT_KIND = 'microsoft';
+
+export function isMicrosoftGrantKind(kind: string): boolean {
+  return kind === MICROSOFT_ACCOUNT_KIND;
+}
