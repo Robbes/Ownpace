@@ -29,8 +29,8 @@ import {
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { getTriggerClient } from '@openmig/scheduler';
-import type { DiscoveryDomain, TenantId, MappingId } from '@openmig/shared';
-import { resolveSyncJob, resolveCutoverJob } from './job-resolution.ts';
+import type { TenantId, MappingId } from '@openmig/shared';
+import { resolveSyncJob, resolveCutoverJob, resolveDiscoveryJob } from './job-resolution.ts';
 import {
   listDropboxSharedFolders,
   listGoogleSharedDrives,
@@ -2636,12 +2636,15 @@ router.post('/:mappingId/discover', authenticate, async (req: AuthenticatedReque
     const mapping = await loadMapping(tenantId, mappingId);
     if (!mapping) return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
 
-    const domains: DiscoveryDomain[] = body.domains ?? [...DISCOVERY_DOMAINS];
-    const run = await getTriggerClient().tasks.trigger(
-      'run-discovery',
-      { tenantId, mappingId, domains },
-      { tags: [`tenant:${tenantId}`, `mapping:${mappingId}`] },
-    );
+    // No `domains`: `run-discovery` resolves the mapping's own scope_selection
+    // when the payload omits them, exactly as the start route leaves it to
+    // `run-delta-sync`. See `resolveDiscoveryJob` for the Email row that
+    // naming all five here put on a migration whose owner had switched mail
+    // off, and what it said.
+    const { taskId, payload } = resolveDiscoveryJob(tenantId, mappingId, body);
+    const run = await getTriggerClient().tasks.trigger(taskId, payload, {
+      tags: [`tenant:${tenantId}`, `mapping:${mappingId}`],
+    });
     res.status(202).json({ success: true, runId: run.id, jobType: 'run-discovery', triggeredAt: new Date().toISOString() });
   } catch (error) {
     if (error instanceof z.ZodError) {

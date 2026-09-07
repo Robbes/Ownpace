@@ -112,13 +112,13 @@ function buildFace(kind: ProviderAccountKind, domain: DiscoveryDomain): unknown 
         row.creds,
       );
     case 'calendar':
-      return buildCalendarSourceFromConnection(src);
+      return buildCalendarSourceFromConnection(src, undefined);
     case 'contact':
-      return buildContactSourceFromConnection(src);
+      return buildContactSourceFromConnection(src, undefined);
     case 'task':
-      return buildTaskSourceFromConnection(src);
+      return buildTaskSourceFromConnection(src, undefined);
     case 'file':
-      return buildFileSourceFromConnection(src);
+      return buildFileSourceFromConnection(src, undefined);
     default:
       throw new Error(`this guard has no builder for the '${domain}' face`);
   }

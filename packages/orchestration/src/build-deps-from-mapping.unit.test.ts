@@ -23,8 +23,10 @@ import {
   buildSourceConnectorFromCredentials,
   buildTargetWriterFromCredentials,
   mailTargetConfigFromConnection,
+  tenantThrottleLimiter,
 } from './build-deps-from-mapping.ts';
 import { GmailFolderView } from './gmail-source-factory.ts';
+import { ThrottleLimiter, DEFAULT_THROTTLE_CONFIG } from '@openmig/shared';
 import type { SourceConfig, TargetConfig } from '@openmig/shared';
 
 const GRAPH_MAIL: SourceConfig = { type: 'graph-mail', tenantId: 'contoso.example' };
@@ -399,7 +401,7 @@ describe('buildFileSourceFromConnection', () => {
       kind: 'google_drive',
       config: { rootFolderId: 'shared-drive-1' },
       creds: DRIVE_CREDS,
-    });
+    }, undefined);
 
     expect(source).toBeInstanceOf(GoogleDriveSource);
   });
@@ -413,7 +415,7 @@ describe('buildFileSourceFromConnection', () => {
         kind: 'google_drive',
         config: {},
         creds: DRIVE_CREDS,
-      }),
+      }, undefined),
     ).not.toThrow();
   });
 
@@ -423,7 +425,7 @@ describe('buildFileSourceFromConnection', () => {
       kind: 'nextcloud',
       config: { url: 'https://cloud.example.net/remote.php/dav/' },
       creds: { username: 'u', password: 'p' },
-    });
+    }, undefined);
 
     expect(source).toBeInstanceOf(WebdavFileSource);
   });
@@ -436,7 +438,7 @@ describe('buildFileSourceFromConnection', () => {
         kind: 'google_drive',
         config: {},
         creds: { clientId: 'id', clientSecret: 'secret' },
-      }),
+      }, undefined),
     ).toThrow(/refreshToken/);
   });
 
@@ -450,7 +452,79 @@ describe('buildFileSourceFromConnection', () => {
         kind: 'google_drive',
         config: { nativeFilePolicy: 'export_office' },
         creds: DRIVE_CREDS,
-      }),
+      }, undefined),
     ).toThrow(/nativeFilePolicy/);
+  });
+});
+
+/**
+ * THE FOUR NON-MAIL FACES MET GRAPH WITH NO BACKOFF AT ALL.
+ *
+ * `buildDepsFromMapping` — the MAIL builder — has built a throttle limiter
+ * since workplan 0082 T5. `buildDomainDepsFromMapping`, which is what the
+ * preflight and every calendar, contact, file and task pass go through, built
+ * none, and the four source builders it calls could not accept one even if it
+ * had. Every Graph source guards its backoff with
+ *
+ *     if (this.throttleLimiter) { … }
+ *
+ * so "no limiter" is not "unthrottled but working". It is a 429 arriving as a
+ * FAILED ITEM instead of as a pause. The owner's preflight said so on
+ * 2026-09-07:
+ *
+ *     Failed to list drive items: 429 - activityLimitReached — The request
+ *     has been throttled
+ *
+ * against a OneDrive his connection card had measured at 4 folders and 3.8 GB
+ * minutes earlier. The preflight is where he saw it; a pass over those 3.8 GB
+ * is where it would have cost him, one lost item per throttled request.
+ *
+ * ## What guards what
+ *
+ * The COMPILER stops a builder being reached without one: `throttleLimiter` is
+ * required in position on all four `…FromConnection` builders, so a sixth
+ * domain — or a fifth face — cannot forget it the way the four existing ones
+ * were never given it. That is the important half and it needs no test.
+ *
+ * These pin the half a type cannot: that a limiter is actually BUILT rather
+ * than a well-typed `undefined` threaded through, and that a tenant who
+ * configured a rate gets theirs rather than the default.
+ */
+describe('tenantThrottleLimiter', () => {
+  // `PgRateBudget` stores the handle and only touches it when a request is
+  // actually charged, which nothing here does.
+  const db = {} as never;
+
+  it('builds a limiter when the mapping stored no throttle config at all', () => {
+    // "No custom limits" never meant "no limits" — it meant the defaults, and
+    // the defaults are what the shared budget enforces. This was the branch
+    // that used to leave `throttleLimiter` undefined.
+    expect(tenantThrottleLimiter(db, null)).toBeInstanceOf(ThrottleLimiter);
+    expect(tenantThrottleLimiter(db, undefined)).toBeInstanceOf(ThrottleLimiter);
+  });
+
+  it('runs at the default rate when nothing is stored', () => {
+    const limiter = tenantThrottleLimiter(db, null);
+    expect(limiter.config.requestsPerSecond).toBe(
+      DEFAULT_THROTTLE_CONFIG.requestsPerSecond,
+    );
+  });
+
+  it("uses the tenant's own stored rate rather than the default", () => {
+    const limiter = tenantThrottleLimiter(db, { requestsPerSecond: 3 });
+    expect(limiter.config.requestsPerSecond).toBe(3);
+  });
+
+  it('falls back to the caller mapping only when the mapping stored nothing', () => {
+    // Two sources of config, and the STORED one wins: it is the tenant's own
+    // decision, where the mapping argument is the process-wide default.
+    expect(
+      tenantThrottleLimiter(db, null, { mapping: { requestsPerSecond: 7 } }).config
+        .requestsPerSecond,
+    ).toBe(7);
+    expect(
+      tenantThrottleLimiter(db, { requestsPerSecond: 3 }, { mapping: { requestsPerSecond: 7 } })
+        .config.requestsPerSecond,
+    ).toBe(3);
   });
 });

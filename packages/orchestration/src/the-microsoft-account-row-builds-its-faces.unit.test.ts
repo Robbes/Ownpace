@@ -83,22 +83,22 @@ describe('a microsoft account row builds all five of its faces', () => {
   });
 
   it('builds the calendar face rather than asking for a DAV password', () => {
-    expect(() => buildCalendarSourceFromConnection(microsoft())).not.toThrow();
+    expect(() => buildCalendarSourceFromConnection(microsoft(), undefined)).not.toThrow();
   });
 
   it('builds the contact face', () => {
-    expect(() => buildContactSourceFromConnection(microsoft())).not.toThrow();
+    expect(() => buildContactSourceFromConnection(microsoft(), undefined)).not.toThrow();
   });
 
   it('builds the file face', () => {
-    expect(() => buildFileSourceFromConnection(microsoft())).not.toThrow();
+    expect(() => buildFileSourceFromConnection(microsoft(), undefined)).not.toThrow();
   });
 
   it('builds the task face — Microsoft To Do, the fifth (0114 T9)', () => {
     // The one task face that is not a CalDAV collection. Before T9 this seam
     // answered `dav` or refused; a Microsoft row reaching it now gets the
     // Graph To Do source, built from the same registration as its siblings.
-    expect(() => buildTaskSourceFromConnection(microsoft())).not.toThrow();
+    expect(() => buildTaskSourceFromConnection(microsoft(), undefined)).not.toThrow();
   });
 
   it('resolves every face to a Graph builder, never to a protocol one', () => {
@@ -129,10 +129,10 @@ describe('the refusals speak the managed vocabulary', () => {
 
   it('names the stored clientId, not OAUTH2_CLIENT_ID', () => {
     for (const build of [
-      () => buildCalendarSourceFromConnection(microsoft({})),
-      () => buildContactSourceFromConnection(microsoft({})),
-      () => buildFileSourceFromConnection(microsoft({})),
-      () => buildTaskSourceFromConnection(microsoft({})),
+      () => buildCalendarSourceFromConnection(microsoft({}), undefined),
+      () => buildContactSourceFromConnection(microsoft({}), undefined),
+      () => buildFileSourceFromConnection(microsoft({}), undefined),
+      () => buildTaskSourceFromConnection(microsoft({}), undefined),
     ]) {
       const reason = refusalFor(build);
       expect(reason, 'a row with no credentials built anyway').not.toBe('');
@@ -151,7 +151,7 @@ describe('the refusals speak the managed vocabulary', () => {
 
   it('names the stored refreshToken when neither flow was chosen', () => {
     const reason = refusalFor(() =>
-      buildCalendarSourceFromConnection(microsoft({ clientId: 'entra-app-id' })),
+      buildCalendarSourceFromConnection(microsoft({ clientId: 'entra-app-id' }), undefined),
     );
     expect(reason).toContain('refreshToken');
     expect(reason).not.toContain('OAUTH2_REFRESH_TOKEN');

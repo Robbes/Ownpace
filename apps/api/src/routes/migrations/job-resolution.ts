@@ -42,3 +42,44 @@ export function resolveCutoverJob(
     },
   };
 }
+
+/**
+ * Resolve the preflight (discovery) task + payload.
+ *
+ * THE POINT OF THIS FUNCTION IS THE `domains` KEY IT DOES NOT WRITE.
+ *
+ * The route used to fill an omitted list in with every domain the product
+ * carries. That default is wrong here for the reason `resolveSyncJob`'s
+ * payload has never carried one: only `scope_selection` knows which domains
+ * the owner ticked, and it is the job — the one thing that can read it — that
+ * must decide. A copy of the list made at the API is a copy that can be
+ * stale, and it silently overrode the owner's choice rather than deferring to
+ * it.
+ *
+ * What that cost, live on 2026-09-07: a migration carrying calendars,
+ * contacts, files and tasks — everything BUT mail — showed an Email row on
+ * its preflight reading `Unsupported target type: undefined`, because the
+ * mail arm went looking for a mail target this mapping was never given. Four
+ * real rows and one that could only ever fail.
+ *
+ * A caller that names domains still gets exactly those, so a narrower
+ * re-count stays possible; it just cannot happen by accident.
+ */
+export function resolveDiscoveryJob(
+  tenantId: string,
+  mappingId: string,
+  opts: { domains?: readonly string[] },
+): { taskId: 'run-discovery'; payload: Record<string, unknown> } {
+  return {
+    taskId: 'run-discovery',
+    payload: {
+      tenantId,
+      mappingId,
+      // Spread, not `domains: opts.domains` — an explicit `undefined` would
+      // survive JSON.stringify as a missing key here but reads as a value
+      // somebody chose, and the job's schema marks the field optional rather
+      // than nullable. Absent means absent.
+      ...(opts.domains ? { domains: [...opts.domains] } : {}),
+    },
+  };
+}

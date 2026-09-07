@@ -348,21 +348,7 @@ export async function buildDepsFromMapping(
     | Partial<import('@openmig/shared').ThrottleConfig>
     | null
     | undefined;
-  // The budget the WHOLE SERVICE shares for this tenant and provider, not just
-  // this pass (workplan 0082 T5). Trigger.dev runs each pass in its own
-  // process, so an in-process bucket was one private copy of the limit per
-  // concurrent pass — against a provider quota that is singular, because SAD
-  // §13 specifies one multi-tenant Entra app for every customer.
-  const sharedBudget = new PgRateBudget(db, {
-    requestsPerSecond:
-      storedThrottle?.requestsPerSecond ?? DEFAULT_THROTTLE_CONFIG.requestsPerSecond,
-  });
-  // Built unconditionally now, where it used to be skipped when no throttle
-  // config was stored. "No custom limits" never meant "no limits" — it meant
-  // the defaults, and the defaults are what the shared budget enforces.
-  const throttleLimiter = storedThrottle
-    ? createThrottleLimiterFromMapping({ mapping: storedThrottle }, {}, sharedBudget)
-    : createThrottleLimiterFromMapping(throttleConfigMapping, {}, sharedBudget);
+  const throttleLimiter = tenantThrottleLimiter(db, storedThrottle, throttleConfigMapping);
 
   // The daily DOWNLOAD meter for the mail source's endpoint (workplan 0090
   // T3). Which endpoints get one is `imapDownloadPlan`'s decision — keyed by
@@ -459,6 +445,8 @@ async function loadDomainConnections(
   source: { config: Record<string, unknown>; creds: Record<string, string>; kind: string };
   target: { config: Record<string, unknown>; creds: Record<string, string>; kind: string };
   targetFolderPrefix?: string;
+  /** The mapping's stored throttle choice, for `tenantThrottleLimiter`. */
+  throttleConfig?: Partial<import('@openmig/shared').ThrottleConfig> | null;
 }> {
   return withTenant(pool, tenantId, async (txDb) => {
     const mappingRows = await txDb
@@ -469,6 +457,10 @@ async function loadDomainConnections(
         sourceConfigOverride: mailboxMapping.sourceConfigOverride,
         targetConfigOverride: mailboxMapping.targetConfigOverride,
         sourceSecretRef: mailboxMapping.sourceSecretRef,
+        // Selected here so the non-mail faces get the SAME budget the mail
+        // path has always had (2026-09-07) — the column existed, this query
+        // just never asked for it.
+        throttleConfig: mailboxMapping.throttleConfig,
       })
       .from(mailboxMapping)
       .where(and(eq(mailboxMapping.tenantId, tenantId), eq(mailboxMapping.id, mappingId)));
@@ -548,8 +540,55 @@ async function loadDomainConnections(
       source: await load('source'),
       target: await load('target'),
       ...(mapping.targetFolderPrefix ? { targetFolderPrefix: mapping.targetFolderPrefix } : {}),
+      throttleConfig: mapping.throttleConfig as
+        | Partial<import('@openmig/shared').ThrottleConfig>
+        | null,
     };
   });
+}
+
+/**
+ * THE TENANT'S RATE BUDGET, BUILT THE ONE WAY (workplan 0082 T5).
+ *
+ * Extracted 2026-09-07 because only ONE of the two builders had it. The mail
+ * path built this; `buildDomainDepsFromMapping` — the builder behind calendar,
+ * contact, file and task, for the preflight AND for every non-mail sync pass —
+ * built nothing, and the four source builders it calls did not even accept a
+ * limiter. Every Graph source guards its backoff with `if (this.throttleLimiter)`,
+ * so with none supplied a 429 stopped being a pause and became an error:
+ *
+ *     Failed to list drive items: 429 - activityLimitReached — The request has
+ *     been throttled
+ *
+ * on the owner's preflight, 2026-09-07, against a OneDrive his connection card
+ * had measured at 4 folders and 3.8 GB minutes earlier. The preflight is where
+ * he saw it; the pass is where it would have cost him, one failed item per
+ * throttled request across 3.8 GB.
+ *
+ * The same fan-out shape as the Entra clientId that morning: the mail path was
+ * wired, the four faces added after it were not. One function now, called by
+ * both, so a sixth caller inherits it rather than re-deciding it.
+ *
+ * The budget is Pg-backed because it belongs to the TENANT's quota at the
+ * provider, not to one pass: Trigger.dev runs each pass in its own process, so
+ * an in-process bucket would be one private copy of a singular limit (SAD §13
+ * specifies one multi-tenant Entra app for every customer).
+ *
+ * Built unconditionally: "no custom limits" never meant "no limits", it meant
+ * the defaults, and the defaults are what the shared budget enforces.
+ */
+export function tenantThrottleLimiter(
+  db: ReturnType<typeof createPgDb>,
+  storedThrottle: Partial<import('@openmig/shared').ThrottleConfig> | null | undefined,
+  throttleConfigMapping: ThrottleConfigMapping = {},
+): ReturnType<typeof createThrottleLimiterFromMapping> {
+  const sharedBudget = new PgRateBudget(db, {
+    requestsPerSecond:
+      storedThrottle?.requestsPerSecond ?? DEFAULT_THROTTLE_CONFIG.requestsPerSecond,
+  });
+  return storedThrottle
+    ? createThrottleLimiterFromMapping({ mapping: storedThrottle }, {}, sharedBudget)
+    : createThrottleLimiterFromMapping(throttleConfigMapping, {}, sharedBudget);
 }
 
 /**
@@ -566,6 +605,7 @@ export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mapping
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'file'): Promise<WithClose<FileSyncDeps>>;
 /** Tasks: the calendar shapes, because on the wire a task IS a calendar object (0113). */
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'task'): Promise<WithClose<CalendarSyncDeps>>;
+
 export async function buildDomainDepsFromMapping(
   pool: Pool,
   tenantId: string,
@@ -593,7 +633,14 @@ export async function buildDomainDepsFromMapping(
       source: src,
       target: tgt,
       targetFolderPrefix,
+      throttleConfig,
     } = await loadDomainConnections(pool, tenantId, mappingId);
+    // THE FOUR NON-MAIL FACES GET THE TENANT'S BUDGET TOO (2026-09-07).
+    // Until today only `buildDepsFromMapping` built one, so every calendar,
+    // contact, file and task source — in the preflight AND in every non-mail
+    // pass — met Microsoft with no backoff at all. See `tenantThrottleLimiter`
+    // for the 429 that made it visible.
+    const throttleLimiter = tenantThrottleLimiter(db, throttleConfig);
     const common = { tenantId: tId, mappingId: mId, ledger, cursors };
     const targetDeps = { ledger, tenantId: tId, mappingId: mId };
 
@@ -615,7 +662,7 @@ export async function buildDomainDepsFromMapping(
           // the answer is a name. A provider arriving is a row there, and a
           // provider MISSING from there is a failing guard rather than a
           // silent fall-through to DAV.
-          source: buildCalendarSourceFromConnection(src),
+          source: buildCalendarSourceFromConnection(src, throttleLimiter),
           target: buildCalendarTarget(calendarTargetEndpoint, targetDeps),
           // The verdict, recorded before the mapping's first calendar write
           // (0105 T0) — measured on the SAME endpoint the writer just got.
@@ -636,7 +683,7 @@ export async function buildDomainDepsFromMapping(
       return withClose(
         {
           ...common,
-          source: buildTaskSourceFromConnection(src),
+          source: buildTaskSourceFromConnection(src, throttleLimiter),
           target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps),
         } satisfies CalendarSyncDeps,
         db,
@@ -647,7 +694,7 @@ export async function buildDomainDepsFromMapping(
         {
           ...common,
           // The calendar seam's argument, verbatim, over the contact face.
-          source: buildContactSourceFromConnection(src),
+          source: buildContactSourceFromConnection(src, throttleLimiter),
           // Contacts can go over JMAP where the target speaks it (0031 T2).
           // Read off the connection's own `kind`, which has allowed `jmap`
           // since the 0001 baseline, so this needs no migration and no new
@@ -662,7 +709,7 @@ export async function buildDomainDepsFromMapping(
         db,
       );
     }
-    const fileSource = buildFileSourceFromConnection(src);
+    const fileSource = buildFileSourceFromConnection(src, throttleLimiter);
     const fileTgtEndpoint = fileEndpointFromCreds('target', tgt.config, tgt.creds, tgt.kind);
     return withClose(
       {
@@ -699,11 +746,34 @@ export async function buildDomainDepsFromMapping(
  * `buildFileSourceFromConnection`: the choice and its refusal are the
  * behaviour worth pinning, and they need no database to prove.
  */
-export function buildCalendarSourceFromConnection(src: {
-  config: Record<string, unknown>;
-  creds: Record<string, string>;
-  kind: string;
-}): ReturnType<typeof buildCalendarSource> {
+export function buildCalendarSourceFromConnection(
+  src: {
+    config: Record<string, unknown>;
+    creds: Record<string, string>;
+    kind: string;
+  },
+  /**
+   * THE TENANT'S SHARED RATE BUDGET, OR `undefined` WHERE THERE IS NONE TO
+   * KEY ONE ON (2026-09-07).
+   *
+   * REQUIRED IN POSITION, nullable in type, and the position is the point.
+   * Every Graph source guards its backoff with `if (this.throttleLimiter)`,
+   * so a caller that simply forgot does not run unthrottled loudly — it meets
+   * a 429 as a FAILED ITEM instead of as a pause. An optional parameter would
+   * make forgetting silent, which is the exact shape of the two defects this
+   * file has already been repaired for: the Entra clientId that was not
+   * threaded, and the task domain that fell through to files. Writing
+   * `undefined` is a decision somebody made on purpose; omitting the argument
+   * no longer compiles.
+   *
+   * The two callers that legitimately pass `undefined` are the connection
+   * Test and the Microsoft qualification: both are one-shot probes over a
+   * connection that may not be saved to any mapping yet, so there is no
+   * tenant budget row to charge. See `tenantThrottleLimiter` for the one the
+   * passes and the preflight share.
+   */
+  throttleLimiter: ThrottleLimiter | undefined,
+): ReturnType<typeof buildCalendarSource> {
   const builder = sourceFaceBuilder(src.kind, 'calendar');
   switch (builder) {
     case 'google-dav':
@@ -716,12 +786,13 @@ export function buildCalendarSourceFromConnection(src: {
       return buildGraphCalendarSourceFrom(
         graphEndpointFromConnection(src),
         graphCredsFromConnection(src.creds),
-        undefined,
+        throttleLimiter,
         STORED_GRAPH_FIELD_NAMING,
       );
     case 'dav':
       return buildCalendarSource(
         davEndpointFromCreds('source', src.config, src.creds, src.kind, 'calendar'),
+        throttleLimiter,
       );
     default:
       throw faceHasNoBuilder('calendar', src.kind, builder);
@@ -743,11 +814,15 @@ export function buildCalendarSourceFromConnection(src: {
  * resolves to anything else is a defect, and this refuses by name rather than
  * falling through.
  */
-export function buildTaskSourceFromConnection(src: {
-  config: Record<string, unknown>;
-  creds: Record<string, string>;
-  kind: string;
-}): ReturnType<typeof buildTaskSource> {
+export function buildTaskSourceFromConnection(
+  src: {
+    config: Record<string, unknown>;
+    creds: Record<string, string>;
+    kind: string;
+  },
+  /** The tenant's shared rate budget — see `buildCalendarSourceFromConnection`. */
+  throttleLimiter: ThrottleLimiter | undefined,
+): ReturnType<typeof buildTaskSource> {
   const builder = sourceFaceBuilder(src.kind, 'task');
   switch (builder) {
     case 'graph-todo':
@@ -757,22 +832,29 @@ export function buildTaskSourceFromConnection(src: {
       return buildGraphTodoSourceFrom(
         graphEndpointFromConnection(src),
         graphCredsFromConnection(src.creds),
-        undefined,
+        throttleLimiter,
         STORED_GRAPH_FIELD_NAMING,
       );
     case 'dav':
-      return buildTaskSource(davEndpointFromCreds('source', src.config, src.creds, src.kind, 'task'));
+      return buildTaskSource(
+        davEndpointFromCreds('source', src.config, src.creds, src.kind, 'task'),
+        throttleLimiter,
+      );
     default:
       throw faceHasNoBuilder('task', src.kind, builder);
   }
 }
 
 /** The calendar builder's sibling over the contact face — same three, same rule. */
-export function buildContactSourceFromConnection(src: {
-  config: Record<string, unknown>;
-  creds: Record<string, string>;
-  kind: string;
-}): ReturnType<typeof buildContactSource> {
+export function buildContactSourceFromConnection(
+  src: {
+    config: Record<string, unknown>;
+    creds: Record<string, string>;
+    kind: string;
+  },
+  /** The tenant's shared rate budget — see `buildCalendarSourceFromConnection`. */
+  throttleLimiter: ThrottleLimiter | undefined,
+): ReturnType<typeof buildContactSource> {
   const builder = sourceFaceBuilder(src.kind, 'contact');
   switch (builder) {
     case 'google-dav':
@@ -785,12 +867,13 @@ export function buildContactSourceFromConnection(src: {
       return buildGraphContactsSourceFrom(
         graphEndpointFromConnection(src),
         graphCredsFromConnection(src.creds),
-        undefined,
+        throttleLimiter,
         STORED_GRAPH_FIELD_NAMING,
       );
     case 'dav':
       return buildContactSource(
         davEndpointFromCreds('source', src.config, src.creds, src.kind, 'contact'),
+        throttleLimiter,
       );
     default:
       throw faceHasNoBuilder('contact', src.kind, builder);
@@ -874,11 +957,15 @@ function faceHasNoBuilder(domain: string, kind: string, builder: SourceFaceBuild
  * `buildSourceConnectorFromCredentials` below: the branch and its refusals are
  * the behaviour worth pinning, and they need no database to prove.
  */
-export function buildFileSourceFromConnection(src: {
-  config: Record<string, unknown>;
-  creds: Record<string, string>;
-  kind: string;
-}): FileSource {
+export function buildFileSourceFromConnection(
+  src: {
+    config: Record<string, unknown>;
+    creds: Record<string, string>;
+    kind: string;
+  },
+  /** The tenant's shared rate budget — see `buildCalendarSourceFromConnection`. */
+  throttleLimiter: ThrottleLimiter | undefined,
+): FileSource {
   const builder = sourceFaceBuilder(src.kind, 'file');
   switch (builder) {
     case 'graph-drive':
@@ -888,7 +975,7 @@ export function buildFileSourceFromConnection(src: {
       return buildGraphDriveSourceFrom(
         graphEndpointFromConnection(src),
         graphCredsFromConnection(src.creds),
-        undefined,
+        throttleLimiter,
         STORED_GRAPH_FIELD_NAMING,
       );
     case 'dropbox':
@@ -943,7 +1030,10 @@ export function buildFileSourceFromConnection(src: {
       // fall through to `dav` and aim a WebDAV client at a folder on a disk.
       return buildArchiveSourceFrom(src.config);
     case 'dav':
-      return buildFileSource(fileEndpointFromCreds('source', src.config, src.creds, src.kind));
+      return buildFileSource(
+        fileEndpointFromCreds('source', src.config, src.creds, src.kind),
+        throttleLimiter,
+      );
     default:
       throw faceHasNoBuilder('file', src.kind, builder);
   }
