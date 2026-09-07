@@ -124,6 +124,31 @@ export interface CalendarSource {
     items: ReadonlyArray<RawCalendarEvent>;
     nextCursor: SyncCursor;
     /**
+     * Items this listing FOUND but could not turn into something migratable —
+     * a card, event or file whose mapping threw. Omitted (or 0) when there
+     * were none.
+     *
+     * NOT the same thing as mail's `unkeyable`, and the difference is the
+     * whole point: an unkeyable message is still migrated, under a key the
+     * sync generates. An unreadable item is LOST. Counting them in one field
+     * would let discovery report a lost item as a carried one.
+     *
+     * The mail connector settled the rule this exists to keep (see
+     * `SourceConnector.listSince`): *"Skipping is honest exactly when the same
+     * object is already accounted for somewhere the owner looks."* Until
+     * 2026-09-07 the Graph contact, calendar and drive listings each caught a
+     * per-item mapping failure, wrote `log.warn`, and continued — so the item
+     * was absent from the pass, absent from the count the customer approves,
+     * and absent from the verification totals on both sides, which then agreed
+     * with each other and reported PASS. The owner's "Contacts ✓ 1 address
+     * book · 0 cards" could not be told apart from an address book whose every
+     * card failed to map.
+     *
+     * A source that cannot fail this way omits the field; that absence is
+     * legitimate, not a blind spot being hidden.
+     */
+    unreadable?: number;
+    /**
      * Source hrefs the server reported as REMOVED on this poll (RFC 6578).
      *
      * `sync-collection` answers an incremental poll with the changed objects AND
@@ -162,6 +187,31 @@ export interface ContactSource {
   ): Promise<{
     items: ReadonlyArray<RawContact>;
     nextCursor: SyncCursor;
+    /**
+     * Items this listing FOUND but could not turn into something migratable —
+     * a card, event or file whose mapping threw. Omitted (or 0) when there
+     * were none.
+     *
+     * NOT the same thing as mail's `unkeyable`, and the difference is the
+     * whole point: an unkeyable message is still migrated, under a key the
+     * sync generates. An unreadable item is LOST. Counting them in one field
+     * would let discovery report a lost item as a carried one.
+     *
+     * The mail connector settled the rule this exists to keep (see
+     * `SourceConnector.listSince`): *"Skipping is honest exactly when the same
+     * object is already accounted for somewhere the owner looks."* Until
+     * 2026-09-07 the Graph contact, calendar and drive listings each caught a
+     * per-item mapping failure, wrote `log.warn`, and continued — so the item
+     * was absent from the pass, absent from the count the customer approves,
+     * and absent from the verification totals on both sides, which then agreed
+     * with each other and reported PASS. The owner's "Contacts ✓ 1 address
+     * book · 0 cards" could not be told apart from an address book whose every
+     * card failed to map.
+     *
+     * A source that cannot fail this way omits the field; that absence is
+     * legitimate, not a blind spot being hidden.
+     */
+    unreadable?: number;
     /** Hrefs the server reported as removed. See `CalendarSource.listSince`. */
     removed?: ReadonlyArray<string>;
   }>;
@@ -194,6 +244,31 @@ export interface FileSource {
   ): Promise<{
     items: ReadonlyArray<RawFileItem>;
     nextCursor: SyncCursor;
+    /**
+     * Items this listing FOUND but could not turn into something migratable —
+     * a card, event or file whose mapping threw. Omitted (or 0) when there
+     * were none.
+     *
+     * NOT the same thing as mail's `unkeyable`, and the difference is the
+     * whole point: an unkeyable message is still migrated, under a key the
+     * sync generates. An unreadable item is LOST. Counting them in one field
+     * would let discovery report a lost item as a carried one.
+     *
+     * The mail connector settled the rule this exists to keep (see
+     * `SourceConnector.listSince`): *"Skipping is honest exactly when the same
+     * object is already accounted for somewhere the owner looks."* Until
+     * 2026-09-07 the Graph contact, calendar and drive listings each caught a
+     * per-item mapping failure, wrote `log.warn`, and continued — so the item
+     * was absent from the pass, absent from the count the customer approves,
+     * and absent from the verification totals on both sides, which then agreed
+     * with each other and reported PASS. The owner's "Contacts ✓ 1 address
+     * book · 0 cards" could not be told apart from an address book whose every
+     * card failed to map.
+     *
+     * A source that cannot fail this way omits the field; that absence is
+     * legitimate, not a blind spot being hidden.
+     */
+    unreadable?: number;
     /**
      * Source refs the service REPORTED as deleted on this poll.
      *

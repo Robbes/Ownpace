@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 94 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 95 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -545,6 +545,18 @@ reading a file drops off its entry by itself.
 
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
+### `packages/connectors/src/graph-calendar-source.ts`
+
+- [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
+
+### `packages/connectors/src/graph-contacts-source.ts`
+
+- [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
+
+### `packages/connectors/src/graph-drive-source.ts`
+
+- [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
+
 ### `packages/connectors/src/takeout-archive-reader.unit.test.ts`
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -556,6 +568,7 @@ reading a file drops off its entry by itself.
 ### `packages/core/src/dav-sync.ts`
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
+- [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
 
 ### `packages/core/src/verification.ts`
 
@@ -651,6 +664,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/notifications.ts`
 
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
+
+### `packages/shared/src/ports.ts`
+
+- [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
 
 ### `packages/shared/src/provider-accounts.ts`
 
@@ -1351,6 +1368,18 @@ Reads:
 
 - `apps/selfhost/src/index.ts`
 - `vitest.global-setup.ts`
+
+### [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts)
+
+AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
+
+Reads:
+
+- `packages/connectors/src/graph-calendar-source.ts`
+- `packages/connectors/src/graph-contacts-source.ts`
+- `packages/connectors/src/graph-drive-source.ts`
+- `packages/core/src/dav-sync.ts`
+- `packages/shared/src/ports.ts`
 
 ### [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts)
 
