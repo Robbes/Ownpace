@@ -17,7 +17,7 @@
 
 import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@openmig/shared';
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types.ts';
-import { davRefusalBody } from './gdata-refusal.ts';
+import { davRefusalBody } from '@openmig/shared';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
   wellKnownUrl as buildWellKnownUrl,
@@ -371,7 +371,7 @@ export class CarddavSource implements ContactSource {
     });
 
     if (response.status !== 207) {
-      throw new Error(`addressbook-query REPORT failed with status ${response.status}: ${response.body}`);
+      throw new Error(`addressbook-query REPORT failed with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
 
     const { objects } = this.parseSyncCollectionResponse(response.body);

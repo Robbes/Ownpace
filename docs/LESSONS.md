@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 98 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 99 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -595,6 +595,10 @@ reading a file drops off its entry by itself.
 
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 
+### `packages/engines/package.json`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
 ### `packages/ledger/migrations/0001_baseline.sql`
 
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
@@ -684,9 +688,17 @@ reading a file drops off its entry by itself.
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
+### `packages/shared/src/gdata-refusal.unit.test.ts`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
 ### `packages/shared/src/google-deployment-client.unit.test.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+
+### `packages/shared/src/index.ts`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 
 ### `packages/shared/src/microsoft-scopes.ts`
 
@@ -1264,6 +1276,16 @@ Reads:
 - `apps/api/src/scripts/seed-managed.ts`
 - `deploy/compose/seed-managed.sh`
 - `docs/managed-bring-up.md`
+
+### [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts)
+
+A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
+Reads:
+
+- `packages/engines/package.json`
+- `packages/shared/src/gdata-refusal.unit.test.ts`
+- `packages/shared/src/index.ts`
 
 ### [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts)
 
