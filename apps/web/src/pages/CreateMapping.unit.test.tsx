@@ -124,6 +124,13 @@ const walkToReview = () => {
   fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
     target: { value: 'source@acme.example' },
   });
+  // The password too, which this comment has claimed since 0070 and this walk
+  // did not type: the gate read a hand-written branch that asked for a host
+  // and a port only, and now it reads the descriptor, which has always marked
+  // an IMAP source's password required (2026-09-07).
+  fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
+    target: { value: 'source-password' },
+  });
   expect(nextButton()).toBeEnabled();
   fireEvent.click(nextButton());
 
@@ -156,8 +163,12 @@ const walkToReview = () => {
 const satisfySourceStep = () => {
   const user = screen.queryAllByPlaceholderText('user@example.com')[0];
   if (user) fireEvent.change(user, { target: { value: 'source@acme.example' } });
-  document
-    .querySelectorAll('input[type="password"]')
+  // BY PLACEHOLDER, NOT BY TYPE (2026-09-07): a test that pressed the
+  // show/hide toggle first left the box `type="text"`, so a type selector
+  // filled nothing and the step never advanced. The mask state is the thing
+  // under test elsewhere; it must not decide what this helper can reach.
+  screen
+    .queryAllByPlaceholderText('••••••••')
     .forEach((el) => fireEvent.change(el, { target: { value: 'secret-value' } }));
   const refresh = screen.queryByPlaceholderText('1//…');
   if (refresh) fireEvent.change(refresh, { target: { value: '1//refresh-token' } });
@@ -328,12 +339,16 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
   beforeEach(() => createMock.mockReset());
 
   const walkToDataTypes = (target: string) => {
-    // Source: host + account (its credentials live here now).
+    // Source: host + account + password (its credentials live here now, and
+    // the gate reads the descriptor, which has always required the password).
     fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
       target: { value: 'mail.old-provider.example' },
     });
     fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
       target: { value: 'source@acme.example' },
+    });
+    fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
+      target: { value: 'source-password' },
     });
     fireEvent.click(nextButton());
 

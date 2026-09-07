@@ -26,15 +26,12 @@ import {
   appleAuthRefusal,
   isCredentialRefusal,
   microsoftFaceScope,
-  withDeploymentDropboxClient,
-  withDeploymentGoogleClient,
-  withDeploymentMicrosoftClient,
+  type ProviderClientEnv,
 } from '@openmig/shared';
-import { isGoogleGrantKind } from './account-qualification.ts';
+import { withDeploymentApplication } from './deployment-application.ts';
 import {
   MICROSOFT_ACCOUNT_KIND,
   MICROSOFT_FACE_UNIT,
-  isMicrosoftGrantKind,
   listMicrosoftFace,
   microsoftFaceSource,
   microsoftFacesInProbeOrder,
@@ -368,6 +365,34 @@ export interface ProbeDeps {
   readonly microsoftTokenEndpoint?: string;
 }
 
+/**
+ * THE DEPLOYMENT'S OWN APPLICATION, where it has one and this row is that
+ * provider's (ADR-0041, owner decision 2026-09-01 — option B).
+ *
+ * Here rather than at the four call sites in `apps/api`, for the reason this
+ * whole file exists: **the probe must build exactly what a pass builds.** A
+ * fallback applied on the run path and not on the probe means Test refuses a
+ * connection the migration would have accepted — "test failed, create worked",
+ * which is the same lie as its more famous twin and reads as a broken product
+ * rather than as a missing field.
+ *
+ * It went wrong the other way round once, which is worse. This used to nest
+ * the three fillers by hand and the BUILD path nested two of them, so a
+ * `microsoft` row that took the grant button passed its Test with real counts
+ * and refused every face of the migration for a `clientId` it was never given.
+ * Both paths ask `withDeploymentApplication` now — one table over
+ * `GRANT_PROVIDERS`, so the two cannot drift apart a provider at a time.
+ *
+ * Exported so the guard can compare this answer with the build path's.
+ */
+export function credentialsForProbe(
+  kind: string,
+  rawCreds: Record<string, string>,
+  env: ProviderClientEnv = process.env,
+): Record<string, string> {
+  return withDeploymentApplication(kind, rawCreds, env);
+}
+
 export function probeSourceConnection(
   kind: string,
   config: Record<string, unknown>,
@@ -383,32 +408,7 @@ async function probeSourceNow(
   rawCreds: Record<string, string>,
   deps: ProbeDeps,
 ): Promise<ProbeResult> {
-  /**
-   * THE DEPLOYMENT'S OWN GOOGLE CLIENT, where it has one and this row is a
-   * Google one (ADR-0041, owner decision 2026-09-01 — option B).
-   *
-   * Here rather than at the four call sites in `apps/api`, for the reason this
-   * whole file exists: **the probe must build exactly what a pass builds.** A
-   * fallback applied on the run path and not on the probe means Test refuses a
-   * connection the migration would have accepted — "test failed, create
-   * worked", which is the same lie as its more famous twin and reads as a
-   * broken product rather than as a missing field.
-   *
-   * The kind gate is not tidiness: Dropbox and Box store their own app key and
-   * secret under the same `clientId`/`clientSecret` names, and handing them
-   * Google's application would fail at their provider naming nothing useful.
-   */
-  // AND THE DEPLOYMENT'S OWN MICROSOFT REGISTRATION (0114 T1), the same way
-  // and for the same reason: a row that took the grant button stores a
-  // refresh token and no pair, and the pass fills the pair from the
-  // deployment — so the probe must too, or Test refuses what the run accepts.
-  const creds = withDeploymentMicrosoftClient(
-    isMicrosoftGrantKind(kind),
-    withDeploymentDropboxClient(
-      kind === DROPBOX_CONNECTION_KIND,
-      withDeploymentGoogleClient(isGoogleGrantKind(kind), rawCreds),
-    ),
-  );
+  const creds = credentialsForProbe(kind, rawCreds);
   const user = String(config.user ?? '');
   switch (kind) {
     case GMAIL_CONNECTION_KIND:

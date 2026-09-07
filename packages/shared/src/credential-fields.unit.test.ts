@@ -364,6 +364,27 @@ describe('credentialFieldRequired', () => {
     expect(credentialFieldRequired(field('username'), where)).toBe(true);
   });
 
+  it('never folds a pair that is always the customer\'s own', () => {
+    // Box's client pair and the O365 app registration have no deployment
+    // application to fall back on — there is no BOX_OAUTH_CLIENT_ID and never
+    // will be, because Box's CCG flow is per-customer. Both declare their
+    // secret `required: true` and their id unpaired for that reason, and the
+    // rule used to override it by matching the KEY NAME: a caller asking
+    // "does this deployment carry a client?" with a plain `true` was told a
+    // Box secret was optional.
+    for (const type of ['box', 'graph', 'oauth2']) {
+      for (const key of ['clientId', 'clientSecret']) {
+        const f = field(key, credentialFieldsFor('source', type));
+        for (const deploymentClient of [true, false]) {
+          expect(
+            credentialFieldRequired(f, { deploymentClient, halfPairTyped: false }),
+            `${type}/${key} with deploymentClient=${deploymentClient}`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
   it('leaves every other field exactly as the descriptor declared it', () => {
     // The rule is about the pair and the token. A guard that quietly changed
     // an unrelated field's requiredness would be a second source of truth.

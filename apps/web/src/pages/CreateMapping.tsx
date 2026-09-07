@@ -1122,8 +1122,12 @@ const CreateMapping: React.FC = () => {
   // four above — one OAuth client, one refresh token — and the only one whose
   // consent asks for a SET of scopes, decided by the domains ticked.
   const isGoogleAccountSource = formData.sourceType === 'google';
-  const isGoogleSource =
-    isDriveSource || isGmailSource || isGoogleDavSource || isGoogleAccountSource || isDropboxSource;
+  // `isGoogleSource` — the four Google kinds plus Dropbox, grouped because
+  // they share the refresh-token shape — stood here and gated the source step
+  // (2026-09-07). A list of kinds maintained by hand is exactly what left the
+  // Microsoft and Apple accounts with no branch at all, so the gate reads the
+  // descriptors instead and `isGrantSource` above answers the same question
+  // from the `consent` a token field declares.
   // Box (workplan 0056) is deliberately NOT in the refresh-token group: it
   // uses the Client Credentials Grant (Box rotates refresh tokens, so none is
   // stored) — client id + secret plus the numeric subject user id.
@@ -1211,56 +1215,39 @@ const CreateMapping: React.FC = () => {
     // step, and the step hides them all. Nothing left to require.
     if (formData.sourceConnectionId) return out;
 
-    // WHICH account, always — it names the mailbox or drive this migration
-    // moves, and no shared connection can know it. Except for an export
-    // archive, which is not an account and has no address to ask for
-    // (0116 T1): its two questions are which export and where it is.
-    if (!isArchiveSource && !formData.sourceUsername) out.push(t('wizard.sourceUsername'));
-
-    if (isArchiveSource) {
-      if (formData.sourceArchiveProvider === '') out.push(t('wizard.archiveProvider'));
-      if (formData.sourceArchivePath.trim() === '') out.push(t('wizard.archivePath'));
-    } else if (isDropboxSource) {
-      // Labelled as the Dropbox App Console labels it, which is not "Client
-      // ID". The pair is the deployment's where it carries a Dropbox app
-      // (2026-09-02: Connect with Dropbox); the token is always this
-      // account's, and on the consent path what is missing is named by the
-      // button that fills it — as for Google below.
-      if (clientPairRequired) {
-        if (formData.sourceClientId.trim() === '') out.push(t('wizard.dropboxAppKey'));
-        if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
-      }
-      if (formData.sourceRefreshToken === '') {
-        out.push(clientPairRequired ? t('wizard.refreshToken') : t('wizard.dropbox.connect'));
-      }
-    } else if (isBoxSource) {
-      if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
-      // The CCG subject: without it there is no "whose files" to read.
-      if (formData.sourceBoxUserId.trim() === '') out.push(t('wizard.boxUserId'));
-      if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
-    } else if (isGoogleSource) {
-      // Either flow (ADR-0033): a service-account key, or the OAuth trio —
-      // of which the client pair is the deployment's to supply where it has
-      // one (ADR-0041), and the refresh token never is: it says whose data.
-      if (formData.sourceServiceAccountKey.trim() === '') {
-        if (clientPairRequired) {
-          if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
-          if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
-        }
-        // On the consent path the token box sits inside the fold, so what is
-        // missing is named by the button that fills it, not by a box the
-        // person is not looking at.
-        if (formData.sourceRefreshToken === '') {
-          out.push(clientPairRequired ? t('wizard.refreshToken') : t('wizard.google.connect'));
-        }
-      }
-    } else if (isO365Source) {
-      if (formData.sourceTenantId.trim() === '') out.push(t('wizard.tenantId'));
-      if (formData.sourceClientId.trim() === '') out.push(t('wizard.clientId'));
-      if (formData.sourceClientSecret === '') out.push(t('wizard.sourceClientSecret'));
-    } else {
-      if (!formData.sourceHost) out.push(t('wizard.host'));
-      if (!isValidPort(formData.sourcePort)) out.push(t('wizard.port'));
+    // THE DEMAND FOLLOWS THE DESCRIPTOR HERE TOO (2026-09-07, after #842 did
+    // the target side).
+    //
+    // This was a switch of hand-written branches — one per provider family,
+    // and a final `else` asking for a host and a port. Two shipped source
+    // kinds had no branch: the Microsoft 365 account and the Apple account,
+    // both added after the switch was last touched. So both fell to that
+    // `else`, and picking either card left Next disabled for ever, saying
+    // "To continue, fill in: Host" on a step whose three boxes are an
+    // address, a password and a name. The Apple card has no host to fill.
+    //
+    // A list of providers kept by hand beside a list of providers generated
+    // from the descriptors will diverge the moment somebody adds a door and
+    // edits one of them, which is exactly what happened twice. So the fields
+    // a source DECLARES are the fields it gates on, and a new kind is gated
+    // correctly the day its descriptor exists.
+    for (const field of credentialFieldsFor('source', formData.sourceType)) {
+      if (!sourceFieldRequiredNow(field)) continue;
+      const formKey = SOURCE_FORM_FIELD[field.key];
+      if (!formKey) continue;
+      const value = String(formData[formKey] ?? '');
+      const missing = field.numeric ? !isValidPort(value) : value === '';
+      if (!missing) continue;
+      // On the consent path the token box sits inside the fold with the pair
+      // it belongs to, so what is missing is named by the BUTTON that fills
+      // it rather than by a box the person is not looking at. Which provider
+      // names it is the descriptor's answer — `consent` — and `ps` says it in
+      // that provider's own words.
+      out.push(
+        field.consent !== undefined && !clientPairRequired
+          ? ps('connect')
+          : t(field.labelKey as StringKey),
+      );
     }
     return out;
   };

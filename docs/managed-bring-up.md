@@ -475,7 +475,7 @@ reads like a broken deployment rather than a setting.
 ```bash
 # deploy/compose/.env
 NEXTCLOUD_BIND=100.97.25.131
-NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud 100.97.25.131
+NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud 100.97.25.131"
 ```
 
 Keep `localhost` and `nextcloud` on the list: the gate asks on the first, the

@@ -236,6 +236,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/bootstrap-managed.sh`
 
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
+- [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
@@ -300,6 +301,7 @@ reading a file drops off its entry by itself.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+- [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
@@ -512,6 +514,7 @@ reading a file drops off its entry by itself.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts) — A REFUSAL THAT NAMED NO REMEDY.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+- [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 
 ### `docs/operator-runbook.md`
 
@@ -616,6 +619,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
+### `packages/orchestration/src/deployment-application.ts`
+
+- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+
 ### `packages/orchestration/src/domain-lanes.unit.test.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
@@ -640,6 +647,10 @@ reading a file drops off its entry by itself.
 ### `packages/orchestration/src/source-face-builders.ts`
 
 - [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts) — A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
+
+### `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`
+
+- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 ### `packages/shared/src/config.ts`
 
@@ -932,7 +943,9 @@ Reads:
 - `deploy/compose/set-task-env.sh`
 - `packages/orchestration/src/account-qualification.ts`
 - `packages/orchestration/src/build-deps-from-mapping.ts`
+- `packages/orchestration/src/deployment-application.ts`
 - `packages/orchestration/src/probe-connection.ts`
+- `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`
 - `packages/shared/src/google-deployment-client.unit.test.ts`
 
 ### [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts)
@@ -1380,6 +1393,16 @@ Reads:
 - `docs/adr/0000-template.md`
 - `docs/adr/OPERATIVE.md`
 - `scripts/adr-operative.mjs`
+
+### [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts)
+
+AN ENV FILE COMPOSE READ AND BASH COULD NOT.
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/managed.env.example`
+- `docs/managed-bring-up.md`
 
 ### [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts)
 

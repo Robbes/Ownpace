@@ -58,12 +58,15 @@ import {
 } from './build-deps-from-mapping.ts';
 import type { AccountQualification, MeasuredVolume, QualifiedDomain } from './account-qualification.ts';
 
-/** The stored kind of a Microsoft 365 account row (0114 T3). */
-export const MICROSOFT_ACCOUNT_KIND = 'microsoft';
-
-export function isMicrosoftGrantKind(kind: string): boolean {
-  return kind === MICROSOFT_ACCOUNT_KIND;
-}
+/**
+ * The stored kind of a Microsoft 365 account row (0114 T3), re-exported from
+ * the Graph factory that now owns it. It moved because the BUILD path needs
+ * the name too — to know whose deployment application a row leans on — and
+ * this file imports `build-deps-from-mapping.ts`, so reading it from here
+ * would have been a cycle. Every existing importer keeps its import.
+ */
+import { MICROSOFT_ACCOUNT_KIND, isMicrosoftGrantKind } from './graph-domain-source-factory.ts';
+export { MICROSOFT_ACCOUNT_KIND, isMicrosoftGrantKind };
 
 /**
  * The faces in the order the headline probe tries them: the calendar first —
