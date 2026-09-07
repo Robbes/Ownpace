@@ -71,7 +71,7 @@ type Step = 'source' | 'target' | 'migration' | 'review';
 interface FormData {
   name: string;
   sourceType: 'imap' | 'oauth2' | 'graph' | 'microsoft' | 'apple' | 'google-drive' | 'gmail' | 'google-calendar' | 'google-contacts' | 'google' | 'dropbox' | 'box' | 'archive';
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin';
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud';
   sourceHost: string;
   /** Kept as the raw INPUT string (0037 T3): parseInt on change turned a
    *  cleared field into NaN, which disabled Next with no clue — the honest

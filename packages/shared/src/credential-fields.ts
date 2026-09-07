@@ -468,7 +468,7 @@ const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
   },
 ];
 
-const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin'] as const;
+const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud'] as const;
 
 /**
  * The DAV targets' escape hatch (0105 T1): a full base URL, for a provider
@@ -489,7 +489,7 @@ const TARGET_DAV_URL: CredentialField = {
 
 // `soverin` is DAV-shaped at the door (0106 T4a): one account, the DAV base
 // URL as its escape hatch, exactly like the protocol trio.
-const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav', 'soverin'] as const;
+const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav', 'soverin', 'nextcloud'] as const;
 
 /**
  * The account kind's MAIL face (0106 T4b): the IMAP host the person's provider
@@ -619,6 +619,11 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   carddav: 'CardDAV',
   webdav: 'WebDAV',
   soverin: 'Soverin',
+  // The PRODUCT, not the protocols. A person with a Nextcloud does not think
+  // "I have a CalDAV, a CardDAV and a WebDAV" — they think they have a
+  // Nextcloud, and describing it three times is the friction this card
+  // removes (owner's ask, 2026-09-07).
+  nextcloud: 'Nextcloud',
 };
 
 /**

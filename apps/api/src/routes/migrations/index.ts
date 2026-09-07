@@ -695,7 +695,7 @@ export const CreateMappingBase = z.object({
    */
   sourceConnectionId: z.string().uuid().optional(),
   targetConnectionId: z.string().uuid().optional(),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
     // 'oauth2'/'graph' (the per-customer Entra app registration — ADR-0006,

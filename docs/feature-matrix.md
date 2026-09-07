@@ -75,6 +75,16 @@ contact mappings through the same writers the protocol kinds use (mail via the s
 `mailHost`, see Email). What the account actually answers per face is measured and stored
 (the 0106 qualification), never assumed.
 
+Also a target: **Nextcloud** (`nextcloud`, 2026-09-07) — the second **account** kind, and the
+one a person is most likely to be running themselves: one connection row carrying calendars,
+address books, files *and* task lists through the same DAV writers the protocol kinds use.
+Before it, the same Nextcloud had to be described three times — as `caldav`, `carddav` and
+`webdav` — each retyping the same URL, username and password. **No email face**: Nextcloud
+Mail is an IMAP *client*, not a server, so a Nextcloud carries no mailbox to write into.
+The file face resolves its own root, since Nextcloud serves files at
+`…/remote.php/dav/files/{username}/` while calendars and address books sit under
+`…/remote.php/dav/`.
+
 Also a source: **Google** (`google`, workplan 0106 T3b) — the same account shape on the
 grant side. One connection row, one OAuth grant, several faces: **calendars and contacts
 today**. Mail and files are absent for a reason that is Google's rather than ours — it
@@ -149,8 +159,9 @@ description, the recurrence as an `RRULE`. Google Tasks needs its own API.
 | **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`) — wired in workplan 0054, same story as calendars, **including the same page-one-forever delta loop and `/$delta` path, both fixed in workplan 0059**; appliance mapping files; shared via `source.mailbox` | ⏳ CardDAV with OAuth (`google-contacts`, workplan 0045) — Stage 6 |
 | **Target** | ✅ CardDAV | — | 🚫 never a target |
 
-Also a target: **JMAP** (workplan 0031 T2), and **Soverin** (`soverin`) — the account kind's
-contact face, riding the same CardDAV writer (see Calendars).
+Also a target: **JMAP** (workplan 0031 T2), **Soverin** (`soverin`) and **Nextcloud**
+(`nextcloud`) — the account kinds' contact face, riding the same CardDAV writer (see
+Calendars).
 
 Also a source: **Apple** (`apple`, workplan 0115) — the contact face of the iCloud account,
 at `contacts.icloud.com`. Worth stating separately because it is a **different host** to the

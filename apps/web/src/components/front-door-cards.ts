@@ -100,6 +100,11 @@ export const TARGET_CARDS = [
   { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint' },
   { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint' },
   { id: 'soverin', name: 'Soverin', hintKey: 'wizard.proto.soverin.hint' },
+  // ONE CARD FOR A NEXTCLOUD, not three (owner's ask, 2026-09-07). The three
+  // protocol cards above it stay: somebody with a DAV server that is not a
+  // Nextcloud still needs them, and somebody with an atypical Nextcloud path
+  // may still prefer them.
+  { id: 'nextcloud', name: 'Nextcloud', hintKey: 'wizard.proto.nextcloud.hint' },
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export type SourceCard = (typeof SOURCE_CARDS)[number];

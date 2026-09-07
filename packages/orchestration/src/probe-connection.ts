@@ -525,7 +525,7 @@ async function probeSourceNow(
  * JMAP client here starts with.
  */
 export function probeTargetConnection(
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin',
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud',
   config: Record<string, unknown>,
   creds: Record<string, string>,
 ): Promise<ProbeResult> {
@@ -533,7 +533,7 @@ export function probeTargetConnection(
 }
 
 async function probeTargetNow(
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin',
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud',
   config: Record<string, unknown>,
   creds: Record<string, string>,
 ): Promise<ProbeResult> {

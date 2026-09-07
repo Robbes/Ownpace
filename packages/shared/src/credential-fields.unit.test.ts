@@ -94,6 +94,10 @@ describe('what each side can offer', () => {
       'carddav',
       'webdav',
       'soverin',
+      // The second ACCOUNT kind on the target side (2026-09-07): one row for
+      // the calendars, address books, files and task lists one Nextcloud
+      // already serves, instead of three protocol rows describing it.
+      'nextcloud',
     ]);
   });
 });
