@@ -20,6 +20,22 @@
  *
  * Anything that is not a GData error document passes through unchanged. A
  * Nextcloud or a Stalwart refuses in its own shape and loses nothing here.
+ *
+ * ## In shared since 2026-09-07, because one site is not the family
+ *
+ * This shipped applied to FOUR PROPFIND refusals in `@openmig/connectors` and
+ * to none of the nine others that interpolate a response body the same way.
+ * The owner met one of the nine on his own card five days later — the
+ * addressbook-query fallback, printing the same GData envelope this function
+ * exists to remove — so the fix had been written, tested, and not reached the
+ * line that needed it.
+ *
+ * `@openmig/engines` cannot import from `@openmig/connectors`, which is why
+ * its five DAV writers could not have used it where it was. Both packages
+ * depend on shared, and it is a pure string function with no dependencies of
+ * its own, so shared is where it can actually be reached from.
+ * `scripts/a-refusal-that-pastes-its-envelope.unit.test.ts` fails on a tenth
+ * site that forgets.
  */
 
 const GDATA_ERRORS = /<errors\b[^>]*xmlns="http:\/\/schemas\.google\.com\/g\/2005"/;

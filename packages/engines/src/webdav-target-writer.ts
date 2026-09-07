@@ -22,6 +22,7 @@ import type {
   RemovalResult,
 } from '@openmig/shared';
 import { fileNaturalKeyHash, fileContentHash, isOnTarget } from '@openmig/shared';
+import { davRefusalBody } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
 import { readEtag, ownershipOf } from './dav-target-version.ts';
@@ -448,7 +449,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       // looks identical to an empty one, and verification would report that as
       // total data loss (hard rule 9).
       throw new Error(
-        `PROPFIND on ${dir || '/'} failed with status ${response.status}: ${response.body}`,
+        `PROPFIND on ${dir || '/'} failed with status ${response.status}: ${davRefusalBody(response.body)}`,
       );
     }
 
@@ -655,7 +656,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       // silently treated as success, and the ledger recorded a false "copied" status that then
       // permanently blocked retries via its own fast-path (confirmed live).
       if (response.status !== 201 && response.status !== 204) {
-        throw new Error(`PUT failed for ${filePath} with status ${response.status}: ${response.body}`);
+        throw new Error(`PUT failed for ${filePath} with status ${response.status}: ${davRefusalBody(response.body)}`);
       }
       return {
         path: filePath,
@@ -691,7 +692,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
         },
       });
       if (response.status !== 200 && response.status !== 201 && response.status !== 204) {
-        throw new Error(`Chunked PUT failed for ${filePath} with status ${response.status}: ${response.body}`);
+        throw new Error(`Chunked PUT failed for ${filePath} with status ${response.status}: ${davRefusalBody(response.body)}`);
       }
     }
 

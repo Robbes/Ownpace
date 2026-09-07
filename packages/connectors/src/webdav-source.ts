@@ -29,6 +29,7 @@ import type {
   PropfindResponse,
 } from './webdav-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
+import { davRefusalBody } from '@openmig/shared';
 import {
   TRASHBIN_PROPFIND_BODY,
   nextcloudTrashbinUrl,
@@ -231,7 +232,7 @@ export class WebdavFileSource implements FileSource {
       return { paths: [], unnameable: 0 };
     }
     if (response.status !== 207) {
-      throw new Error(`trashbin PROPFIND failed with status ${response.status}: ${response.body}`);
+      throw new Error(`trashbin PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
 
     const paths: string[] = [];
@@ -358,7 +359,7 @@ export class WebdavFileSource implements FileSource {
     });
     
     if (response.status !== 207) {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${response.body}`);
+      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
     }
     
     return this.parsePropfindResponse(response.body);
