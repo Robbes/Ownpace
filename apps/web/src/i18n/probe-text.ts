@@ -53,6 +53,7 @@ interface QualifiedFace {
     readonly bytes?: number;
     readonly estimated?: boolean;
     readonly nativeFilesExcluded?: boolean;
+    readonly unreadable?: number;
     readonly failed?: string;
   };
 }
@@ -293,6 +294,19 @@ export function measuredText(
       bits.push(`${v.estimated ? '≈ ' : ''}${formatBytes(v.bytes)}`);
     }
     if (v.nativeFilesExcluded) bits.push(`(${t('probe.measured.driveNote')})`);
+    // BESIDE THE COUNT, NOT INSTEAD OF IT (2026-09-07). "0 cards" and "0
+    // cards, 25 could not be read" are different facts, and the owner read
+    // the first on a live account without being able to tell which it was.
+    if (v.unreadable !== undefined && v.unreadable > 0) {
+      bits.push(
+        t(
+          v.unreadable === 1
+            ? 'probe.measured.unreadable.one'
+            : 'probe.measured.unreadable.many',
+          { count: numberFormat.format(v.unreadable) },
+        ),
+      );
+    }
     if (bits.length > 0) parts.push(`${t(faceLabel(domain))} ${bits.join(' ')}`);
   }
   if (parts.length === 0) return null;

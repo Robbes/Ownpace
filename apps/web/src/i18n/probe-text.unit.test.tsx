@@ -341,6 +341,38 @@ describe('measuredText — how much each reached face holds (2026-09-02)', () =>
     expect(dutch).toContain('niet meegeteld');
   });
 
+  it('says how many it could not read, beside the count and not instead of it (2026-09-07)', () => {
+    // The owner read "Contacts ✓ 1 address book · 0 cards" on a live account
+    // and could not tell an empty address book from one whose every card
+    // failed to map. Both facts now reach the line.
+    const partlyUnreadable = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'x' },
+        calendar: { answer: 'yes' as const, detail: 'x' },
+        contact: { answer: 'yes' as const, detail: 'x', volume: { items: 0, unreadable: 25 } },
+        file: { answer: 'yes' as const, detail: 'x' },
+      },
+    };
+
+    expect(measuredText(en, partlyUnreadable, 'en')).toBe(
+      'Measured: Contacts 0 cards 25 could not be read',
+    );
+    expect(measuredText(nl, partlyUnreadable, 'nl')).toContain('25 niet te lezen');
+  });
+
+  it('says nothing extra when every item read cleanly', () => {
+    const clean = {
+      domains: {
+        mail: { answer: 'yes' as const, detail: 'x' },
+        calendar: { answer: 'yes' as const, detail: 'x' },
+        contact: { answer: 'yes' as const, detail: 'x', volume: { items: 12, unreadable: 0 } },
+        file: { answer: 'yes' as const, detail: 'x' },
+      },
+    };
+
+    expect(measuredText(en, clean, 'en')).toBe('Measured: Contacts 12 cards');
+  });
+
   it('with no measured face at all there is no line', () => {
     const bare = {
       domains: {

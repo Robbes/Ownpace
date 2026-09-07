@@ -225,7 +225,10 @@ export class GraphDriveSource implements FileSource {
     items: ReadonlyArray<RawFileItem>;
     nextCursor: SyncCursor;
     removed?: ReadonlyArray<string>;
+    unreadable?: number;
   }> {
+    // Files this listing found and could not turn into a file to migrate.
+    let unreadable = 0;
     // Parse cursor to get delta link
     let deltaLink: string | undefined;
     
@@ -353,7 +356,12 @@ export class GraphDriveSource implements FileSource {
 
         fileItems.push(fileItem);
       } catch (error) {
-        // Skip files that fail to process
+        // COUNTED, NOT JUST LOGGED (2026-09-07). A `log.warn` and a `continue`
+        // put this file nowhere the owner looks: absent from the pass, from
+        // the total they approve, and from both sides of the verification
+        // gate, which then agree and report PASS. `unreadable` is how the
+        // skip earns its silence — see `ports.ts`.
+        unreadable += 1;
         log.warn(`Failed to process file ${item.id}:`, error);
       }
     }
@@ -373,6 +381,9 @@ export class GraphDriveSource implements FileSource {
       items: fileItems,
       nextCursor,
       ...(removed.length > 0 ? { removed } : {}),
+      // Omitted rather than sent as 0, so "none failed" and "this listing
+      // cannot report" read differently downstream.
+      ...(unreadable > 0 ? { unreadable } : {}),
     };
   }
 

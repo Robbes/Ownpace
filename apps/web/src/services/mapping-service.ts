@@ -574,6 +574,8 @@ export interface TestConnectionResult {
           estimated?: boolean;
           /** Drive: Docs, Sheets and Slides weigh nothing here. */
           nativeFilesExcluded?: boolean;
+          /** Items the listing found and could not read (2026-09-07). */
+          unreadable?: number;
           /** Why the face answered but could not be measured. */
           failed?: string;
         };
