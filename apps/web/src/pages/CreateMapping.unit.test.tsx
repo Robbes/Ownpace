@@ -323,15 +323,40 @@ describe('CreateMapping — field-level honesty on the credentials and review st
     expect(screen.queryByText('Name & credentials')).not.toBeInTheDocument();
   });
 
-  it('the review note no longer claims sync starts on create — it names the paused truth', () => {
+  /**
+   * THE REVIEW STEP EXPLAINS NOTHING (owner, 2026-09-07).
+   *
+   * It carried a yellow note — "Creating starts nothing: the migration is
+   * created paused" — with a folded `.why` under it. Owner's call after
+   * walking the wizard: *"after adding the source and target, it's weird to
+   * read the pauze message. just leave it out: people will just have to
+   * create it and find out its first pauzed."*
+   *
+   * The same judgement he made about the green connection panel two days
+   * earlier, and the same reasoning: a person on this step has not yet
+   * wondered whether creating starts a copy, so answering it teaches them
+   * there is something to worry about. The next screen — the preflight, with
+   * its explicit Start button — says it by BEING it, which is the stronger
+   * way to say it.
+   *
+   * The note's own history is why this test replaces it rather than simply
+   * going away: it existed because an earlier version said "the initial sync
+   * may take some time", and an admin who read that navigated away believing
+   * migration was underway. That sentence must not come back either.
+   */
+  it('the review step explains nothing about pausing — creating and finding out is the answer', () => {
     createMock.mockResolvedValue({} as never);
     renderWizard();
     walkToReview();
 
-    expect(screen.getByText(/starts nothing/)).toBeInTheDocument();
-    expect(screen.getByText(/created paused/)).toBeInTheDocument();
-    expect(screen.getByText(/explicit start/)).toBeInTheDocument();
+    expect(screen.queryByText(/starts nothing/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/created paused/)).not.toBeInTheDocument();
+    // And the sentence the note was introduced to remove stays removed: it
+    // claimed a copy was under way when nothing was (0037 T3).
     expect(screen.queryByText(/may take some time/)).not.toBeInTheDocument();
+
+    // What the step DOES carry is unchanged — it is a summary, not a lecture.
+    expect(screen.getByText('Acme mail')).toBeInTheDocument();
   });
 });
 
@@ -456,38 +481,57 @@ describe('CreateMapping — choices that cannot work are constrained (0037 T4)',
     ).toBeGreaterThan(0);
   });
 
-  it('garbage cron blocks Next with the reason; a valid one echoes its next runs', () => {
+  /**
+   * THE FREQUENCY IS A CHOICE FROM A LIST, NOT AN EXPRESSION (owner, 2026-09-07).
+   *
+   * This step used to offer four preset buttons AND a free-text cron box
+   * beneath them, with a validator, an `aria-invalid`, a refusal sentence
+   * beside a disabled Next, and an echo of the next three firings. All of it
+   * worked. None of it belonged: *"also remove the manual picking of the
+   * frequency: we offer a few predefined frequenties for the migrations."*
+   *
+   * A person migrating their mail does not have an opinion about the five
+   * fields of a cron expression, and a box that can be wrong WILL be wrong —
+   * every one of those five mechanisms existed only to catch a mistake the
+   * box itself made possible. Deleting the box deletes the mistake, and with
+   * it a whole refusal path from the wizard's gate.
+   *
+   * The server still validates: `describeCronScheduleProblem` guards
+   * `POST /api/migrations`, because a schedule can still arrive from a
+   * caller that is not this wizard. What is gone is the screen that invited
+   * one.
+   */
+  it('offers the four preset frequencies and no box to type a cron into', () => {
     renderWizard();
-    // Source, then target — each finished on its own step (workplan 0070).
-    fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
-      target: { value: 'mail.old-provider.example' },
-    });
-    satisfySourceStep();
-    fireEvent.click(nextButton());
-    fireEvent.change(targetHostBox(), {
-      target: { value: 'stalwart.acme.example' },
-    });
-    satisfyTargetStep();
-    fireEvent.click(nextButton());
+    walkToDataTypes('JMAP');
 
-    // The migration step carries the name, the data types AND the schedule:
-    // the cron is no longer two clicks past the name.
-    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
-      target: { value: 'Acme mail' },
-    });
+    // The presets are the whole offer, and each is a button a person reads
+    // rather than an expression they compose.
+    for (const label of [/Hourly/i, /Daily/i, /Every 6 hours/i, /Every 15 minutes/i]) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+    }
 
-    const cronInput = screen.getByPlaceholderText('0 2 * * *');
-    fireEvent.change(cronInput, { target: { value: 'every day at noon' } });
-    expect(nextButton()).toBeDisabled();
-    expect(screen.getByRole('status').textContent).toContain('five fields');
-    expect(cronInput).toHaveAttribute('aria-invalid', 'true');
+    // The box, its label, its hint and its echo are all gone. The placeholder
+    // is the load-bearing check — it is how the removed test drove the box.
+    expect(screen.queryByPlaceholderText('0 2 * * *')).toBeNull();
+    expect(screen.queryByTestId('cron-next-runs')).toBeNull();
+    expect(screen.queryByLabelText(/Cron/i)).toBeNull();
+  });
 
-    fireEvent.change(cronInput, { target: { value: '0 3 * * *' } });
+  it('a preset click is the schedule, and Next is never blocked on one', () => {
+    renderWizard();
+    walkToDataTypes('JMAP');
+    // JMAP carries email, which the IMAP source preselected, so the step is
+    // already satisfiable — no schedule is required to move on.
     expect(nextButton()).toBeEnabled();
-    // The echo: next firings computed by the same croner the tick uses.
-    expect(screen.getByTestId('cron-next-runs').textContent).toContain(
-      'the next syncs would run',
-    );
+
+    const daily = screen.getByRole('button', { name: /Daily/i });
+    fireEvent.click(daily);
+    expect(daily.className).toContain('border-blue-500');
+    // Nothing a person can click here can refuse them: with no free-text
+    // box there is no invalid schedule to be told about.
+    expect(nextButton()).toBeEnabled();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });
 
