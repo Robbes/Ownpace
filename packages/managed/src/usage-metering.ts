@@ -1,17 +1,48 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * Usage Metering Service
- * 
- * Handles usage metering from real migration runs.
- * Implements hybrid approach:
- * - Storage/Egress: Derive-at-read from item ledger (perfect idempotency)
- * - Compute/API calls: Idempotent upsert from job runs (retry-safe)
- * 
+ * Usage metering — every figure DERIVED AT READ, none of them written.
+ *
+ * ## What this used to be, and why it changed
+ *
+ * The design was a hybrid: storage and egress derived from the `item` ledger
+ * ("perfect idempotency", said the header), compute and sync operations
+ * UPSERTED into `usage_metric` from each job run ("retry-safe"). Workplan 0121
+ * fixed the upsert's key, which was per PERIOD rather than per pass, so a
+ * month of 15-minute passes recorded the duration of the last one. That fix
+ * was right and it cost 2 976 rows per mapping per month — measured at
+ * 18.7 MB, on a table nothing prunes.
+ *
+ * The owner asked the obvious question: why write those rows at all?
+ *
+ * ## Nothing is written now
+ *
+ * Compute and sync operations derive from the `run` table, exactly as storage
+ * and egress derive from `item`. A `run` row is one pass of one mapping. It is
+ * written regardless of billing, carries `started_at` and `finished_at`, and
+ * always closes (#860). `SUM(finished_at - started_at)` over a period IS the
+ * compute; `COUNT(*)` IS the number of sync operations. No second record, no
+ * rows, and idempotency by construction rather than by care — you cannot
+ * double-count what you never wrote.
+ *
+ * `usage_metric` consequently has NO WRITER AT ALL. It is left in place
+ * holding what 0121 wrote before this landed; nothing reads it any more.
+ *
+ * ## What makes this safe to prune later
+ *
+ * Deriving billing from `run` would ordinarily make that table load-bearing
+ * for ever — and every OTHER reader of it touches only the newest 21 rows per
+ * mapping (`listRunsWithEvents`) or rows still `running`/`queued` (the sync
+ * tick, the purge, the erasure quiesce). Its historical body has no other
+ * consumer. So `recordUsageOnInvoice` freezes the measured quantities onto the
+ * invoice at issue, where ADR-0044 makes them immutable, and the run rows go
+ * back to being audit trail. Retention on `run` is then a storage decision
+ * rather than a correctness one. Do not remove that freeze.
+ *
  * Security: All operations use withTenant for RLS enforcement.
  */
 
 import { type PgDatabase } from '@openmig/ledger/db';
-import { and, eq, inArray, gte, lte, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, gte, lte, lt, isNotNull, sql, type SQL } from 'drizzle-orm';
 import * as ledgerSchema from '@openmig/ledger/schema-pg';
 import * as billingSchema from './schema-managed.ts';
 
@@ -19,61 +50,13 @@ import * as billingSchema from './schema-managed.ts';
 // exactly as they did before the tables moved (ADR-0036). The core tables this
 // meters FROM stay in the ledger; the table it meters INTO is billing's.
 const schema = { ...ledgerSchema, ...billingSchema };
-import type { TenantId, MappingId } from '@openmig/shared';
-import type { DiscoveryDomain } from '@openmig/shared';
+import type { TenantId } from '@openmig/shared';
 
 export interface UsageMetricsResult {
   storageBytes: number;
   egressBytes: number;
   computeHours: number;
   apiCallCount: number;
-}
-
-export interface ComputeUsageInput {
-  tenantId: TenantId;
-  mappingId: MappingId;
-  domain: DiscoveryDomain;
-  /**
-   * WHICH PASS this measurement is of (workplan 0121).
-   *
-   * The row's key, not a label. Before this, compute was keyed by
-   * (tenant, period, metricType, `domain-<domain>`) and the write REPLACED —
-   * so a period's compute for a domain was the duration of the LAST pass
-   * metered in it, while the invoice line said "compute hours". A month of
-   * 15-minute passes billed one pass.
-   *
-   * Keyed by the run instead, the write is still idempotent — a Trigger.dev
-   * retry of the same run rewrites its OWN row rather than adding a second —
-   * and the read sums, which it already did. That is the whole change: the
-   * same upsert, a narrower key.
-   */
-  runId: string;
-  startedAt: Date;
-  completedAt: Date;
-  periodStart: string;
-  periodEnd: string;
-}
-
-export interface ApiCallUsageInput {
-  tenantId: TenantId;
-  mappingId: MappingId;
-  domain: DiscoveryDomain;
-  /** Which pass — see `ComputeUsageInput.runId`. Same key, same reason. */
-  runId: string;
-  periodStart: string;
-  periodEnd: string;
-}
-
-/**
- * The row key for one measurement of one pass.
- *
- * ONE function, used by both meters, because the property that matters is
- * that the key is per-run and both of them have it — a metric keyed per
- * period behaves completely reasonably on its own and is simply wrong when
- * summed beside one that is not.
- */
-export function perPassResource(kind: 'domain' | 'sync', domain: string, runId: string): string {
-  return `${kind}-${domain}#${runId}`;
 }
 
 /**
@@ -119,151 +102,115 @@ export async function deriveStorageAndEgressForPeriod(
 }
 
 /**
- * Record compute usage for ONE PASS, via idempotent upsert.
+ * The RUN KINDS that count as billable compute.
  *
- * ## What was wrong with it
+ * `run.kind` allows six values and only two are ever written: `incremental`
+ * by the delta pass (both editions) and `initial_copy` by the full sync.
+ * `cutover`, `verify`, `discovery` and `backup` are in the CHECK constraint
+ * with no writer — verification keeps its own `verification_run` table — so
+ * naming them here would be a filter against rows that cannot exist.
  *
- * The key was (tenantId, periodStart, metricType, `domain-<domain>`) and the
- * write REPLACES rather than increments — which is what makes it retry-safe,
- * and is also what made the number mean the wrong thing. One row per domain
- * per PERIOD, overwritten by each pass, so a month of 15-minute passes
- * recorded the duration of the LAST one. The invoice line said "compute
- * hours" and carried the length of a single pass: at a 20-second pass and
- * €0.05/hour, €0.00 for a month of continuous copying.
- *
- * ## The fix, which is a narrower key and nothing else
- *
- * The row is keyed by the RUN as well, so each pass has its own and the
- * period's compute is their sum — which is what the read already did
- * (`getUsageMetricsForPeriod`). The upsert stays: a Trigger.dev retry of the
- * same run rewrites its own row rather than adding a second, so retry-safety
- * is kept rather than traded away. That was the whole objection to simply
- * making the write accumulate.
- *
- * Owner's decision, 2026-09-08, chosen over accumulate-in-place and over
- * leaving it: *"the actual measures of compute are for me to understand if the
- * pricing is somewhat balanced and fair"* — which needs the per-pass grain,
- * not only a correct total.
- *
- * Key: (tenantId, periodStart, metricType, resource)
- * where resource = `domain-<domain>#<runId>` for compute
- * 
- * @param db - PostgreSQL database client (already tenant-scoped)
- * @param input - Compute usage input with timing info
- * @param pricing - Pricing configuration
+ * Listed rather than left open BECAUSE the list will grow: the day something
+ * starts writing `verify` rows, whether a verification run is billable
+ * compute is a pricing answer somebody has to give, and an open filter would
+ * answer it silently by starting to charge for it.
  */
-export async function recordComputeForRun(
-  db: PgDatabase,
-  input: ComputeUsageInput,
-  pricing: { computePricePerHour: number }
-): Promise<void> {
-  const durationMinutes = (input.completedAt.getTime() - input.startedAt.getTime()) / (1000 * 60);
-  const durationHours = durationMinutes / 60;
-  // EXACT, not rounded to the cent. `total_cost` is `numeric`, and once the
-  // row is per PASS the rounding that used to happen once a month happens
-  // 2 976 times: at €0.05/hour a 20-second pass costs 0.028 cents, which
-  // `Math.round` makes 0, and a month of them sums to 0 while the same passes
-  // sum to 16.5 real hours. The invoice never read this column — it prices the
-  // SUMMED hours through `calculateCost`, which rounds once, at the end, where
-  // rounding belongs — but the usage history does, and it would have shown a
-  // month of work costing nothing beside a cost line saying otherwise.
-  const cost = durationHours * pricing.computePricePerHour;
+export const BILLABLE_RUN_KINDS = ['initial_copy', 'incremental'] as const;
 
-  await db.insert(schema.usageMetric)
-    .values({
-      tenantId: input.tenantId,
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
-      metricType: 'compute',
-      resource: perPassResource('domain', input.domain, input.runId),
-      quantity: String(durationHours),
-      unit: 'hours',
-      unitPrice: String(pricing.computePricePerHour),
-      totalCost: String(cost),
-      metadata: {
-        mappingId: input.mappingId,
-        domain: input.domain,
-        runId: input.runId,
-        startedAt: input.startedAt.toISOString(),
-        completedAt: input.completedAt.toISOString(),
-        durationMinutes,
-      },
-    })
-    .onConflictDoUpdate({
-      target: [
-        schema.usageMetric.tenantId,
-        schema.usageMetric.periodStart,
-        schema.usageMetric.metricType,
-        schema.usageMetric.resource,
-      ],
-      set: {
-        quantity: String(durationHours),
-        totalCost: String(cost),
-        updatedAt: new Date(),
-      },
-    });
+/** Compute for a period, and where it went. */
+export interface ComputeUsage {
+  /** Wall-clock hours across every billable pass that finished in the period. */
+  computeHours: number;
+  /** How many such passes ran — the "sync operations" the invoice counts. */
+  passCount: number;
+  /** Seconds per domain, from `run.stats.domainSeconds`. Empty before #866. */
+  byDomain: Record<string, number>;
 }
 
 /**
- * Record ONE sync operation, via idempotent upsert.
+ * Derive compute for a billing period from the run ledger. No writes.
  *
- * The same defect as compute above and the same fix: keyed per period and
- * overwritten with `quantity: '1'`, the count of sync operations in a month
- * was the number of DOMAINS that had ever run in it — never more than five,
- * whether the mapping synced twice or three thousand times. Keyed by the run,
- * each pass is its own row and the read's sum is the count.
+ * ## The window is half-open, deliberately
  *
- * Key: (tenantId, periodStart, metricType, resource)
- * where resource = `sync-<domain>#<runId>` for api_calls
- * 
- * @param db - PostgreSQL database client (already tenant-scoped)
- * @param input - API call usage input
+ * `periodEnd` is a DATE ('2026-07-31'), and a date compared against a
+ * timestamp is that date at midnight — so `<= periodEnd` silently drops
+ * everything that happened ON the last day of the month. This asks for
+ * `< periodEnd + 1 day` instead, which is the whole month.
+ *
+ * NOTE, and NOT fixed here because it changes a billed number and is somebody's
+ * decision rather than mine: `deriveStorageAndEgressForPeriod` above still
+ * uses `lte(periodEnd)` and therefore under-counts the last day of every
+ * period. Same class of error, different figure, its own change.
+ *
+ * ## Why wall clock, and what it includes
+ *
+ * A run covers every domain of one mapping, so its duration includes the gaps
+ * between domains and the run-ledger bookkeeping. That is the time the machine
+ * was actually occupied on this customer's behalf, which is the honest thing
+ * to price compute on — and it is a slightly LARGER number than the sum of the
+ * per-domain passes that 0121 metered. Said out loud because an invoice line
+ * quietly changing meaning is worse than one that changes visibly.
+ *
+ * A pass killed outright (an OOM, a `maxDuration` kill) never closes, so it
+ * has no `finished_at` and contributes nothing. That matches the policy the
+ * upsert had — it only ever metered on the success path — so nothing is billed
+ * now that was not billed before.
  */
-export async function recordApiCallForRun(
+export async function deriveComputeForPeriod(
   db: PgDatabase,
-  input: ApiCallUsageInput
-): Promise<void> {
-  await db.insert(schema.usageMetric)
-    .values({
-      tenantId: input.tenantId,
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
-      metricType: 'api_calls',
-      resource: perPassResource('sync', input.domain, input.runId),
-      quantity: '1',
-      unit: 'request',
-      unitPrice: '0',
-      totalCost: '0',
-      metadata: {
-        mappingId: input.mappingId,
-        domain: input.domain,
-        runId: input.runId,
-      },
+  tenantId: TenantId,
+  periodStart: string,
+  periodEnd: string,
+): Promise<ComputeUsage> {
+  const from = new Date(periodStart);
+  const until = new Date(periodEnd);
+  until.setUTCDate(until.getUTCDate() + 1);
+
+  const window = and(
+    eq(schema.run.tenantId, tenantId),
+    gte(schema.run.createdAt, from),
+    lt(schema.run.createdAt, until),
+    inArray(schema.run.kind, [...BILLABLE_RUN_KINDS]),
+    isNotNull(schema.run.finishedAt),
+  );
+
+  const [totals] = await db
+    .select({
+      seconds: sql<string>`COALESCE(SUM(EXTRACT(EPOCH FROM (${schema.run.finishedAt} - ${schema.run.startedAt}))), 0)`,
+      passes: sql<string>`COUNT(*)`,
     })
-    .onConflictDoUpdate({
-      target: [
-        schema.usageMetric.tenantId,
-        schema.usageMetric.periodStart,
-        schema.usageMetric.metricType,
-        schema.usageMetric.resource,
-      ],
-      set: {
-        quantity: '1',
-        updatedAt: new Date(),
-      },
-    });
+    .from(schema.run)
+    .where(window);
+
+  // The per-domain split, folded IN THE DATABASE rather than by reading every
+  // row's `stats` into the process. A 50-mailbox customer's month is ~148 800
+  // run rows; shipping their jsonb here to sum five numbers would undo the
+  // point of not writing rows in the first place.
+  const perDomain = await db
+    .select({
+      domain: sql<string>`d.key`,
+      seconds: sql<string>`SUM(d.value::numeric)`,
+    })
+    .from(sql`${schema.run}, jsonb_each_text(COALESCE(${schema.run.stats} -> 'domainSeconds', '{}'::jsonb)) AS d`)
+    .where(window)
+    .groupBy(sql`d.key`);
+
+  const byDomain: Record<string, number> = {};
+  for (const row of perDomain) byDomain[row.domain] = Number(row.seconds);
+
+  return {
+    computeHours: Number(totals?.seconds ?? 0) / 3600,
+    passCount: Number(totals?.passes ?? 0),
+    byDomain,
+  };
 }
 
 /**
- * Get all usage metrics for a tenant and period.
- * 
- * Combines derived metrics (storage/egress) with upserted metrics (compute/api_calls).
- * 
- * @param db - PostgreSQL database client (already tenant-scoped)
- * @param tenantId - Tenant ID
- * @param periodStart - Period start date
- * @param periodEnd - Period end date
- * @returns Complete usage metrics
+ * Every usage figure for a tenant and period — all four derived, none stored.
+ *
+ * Storage and egress come from the `item` ledger, compute and sync operations
+ * from the `run` ledger. `usage_metric` is not read: it has no writer, and the
+ * rows 0121 left in it would double-count anything still in range.
  */
 export async function getUsageMetricsForPeriod(
   db: PgDatabase,
@@ -271,43 +218,21 @@ export async function getUsageMetricsForPeriod(
   periodStart: string,
   periodEnd: string
 ): Promise<UsageMetricsResult> {
-  // Get derived storage/egress
   const { storageBytes, egressBytes } = await deriveStorageAndEgressForPeriod(
     db,
     tenantId,
     periodStart,
     periodEnd
   );
-
-  // Get upserted compute and api_calls
-  const metrics = await db.select({
-    metricType: schema.usageMetric.metricType,
-    quantity: schema.usageMetric.quantity,
-    resource: schema.usageMetric.resource,
-  })
-  .from(schema.usageMetric)
-  .where(
-    and(
-      eq(schema.usageMetric.tenantId, tenantId),
-      eq(schema.usageMetric.periodStart, periodStart),
-    )
-  );
-
-  let computeHours = 0;
-  let apiCallCount = 0;
-
-  for (const metric of metrics) {
-    if (metric.metricType === 'compute') {
-      computeHours += Number(metric.quantity);
-    } else if (metric.metricType === 'api_calls') {
-      apiCallCount += Number(metric.quantity);
-    }
-  }
+  const compute = await deriveComputeForPeriod(db, tenantId, periodStart, periodEnd);
 
   return {
     storageBytes,
     egressBytes,
-    computeHours,
-    apiCallCount,
+    computeHours: compute.computeHours,
+    // One pass is one sync operation. Keyed per period the old upsert made
+    // this the count of DOMAINS that had ever run in the month; keyed per
+    // pass it was a row each; derived it is simply how many runs there were.
+    apiCallCount: compute.passCount,
   };
 }

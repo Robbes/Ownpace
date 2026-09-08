@@ -16,7 +16,7 @@ import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middle
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { calculateCost } from '../../services/billing-service.ts';
 import { getMollieService } from '../../services/mollie/index.ts';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import {
   getUsageMetricsForPeriod,
   resolveTenantPricing,
@@ -26,8 +26,13 @@ import {
   type ViesRequester,
 } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
+// The run ledger lives in @openmig/ledger (ADR-0036): compute derives from it.
+import { run as runTable } from '@openmig/ledger/schema-pg';
 import { log } from '@openmig/shared';
 import { NO_TIER_BILLING_CODE, NO_TIER_BILLING_REASON } from './no-bill-we-do-not-sell.ts';
+
+/** Decimal GB, as `invoice-generation.ts` uses — a price list is not binary. */
+const BYTES_PER_GB = 1_000_000_000;
 import { serverFault } from '../../server-fault.ts';
 
 const router = Router();
@@ -222,75 +227,50 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
       return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
     }
 
-    // Get all usage metrics grouped by period, plus this tenant's agreed prices
-    const { metrics, pricing } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
-      metrics: await db.select({
-        periodStart: schema.usageMetric.periodStart,
-        periodEnd: schema.usageMetric.periodEnd,
-        metricType: schema.usageMetric.metricType,
-        quantity: schema.usageMetric.quantity,
-        totalCost: schema.usageMetric.totalCost,
-      })
-      .from(schema.usageMetric)
-      .where(eq(schema.usageMetric.tenantId, tenantId))
-      .orderBy(desc(schema.usageMetric.periodStart)),
+    /**
+     * DERIVED per period, not read out of `usage_metric` (workplan 0121 T3).
+     *
+     * This used to sum stored rows. Nothing writes them any more — compute and
+     * sync operations come from the `run` ledger, storage and egress from the
+     * `item` ledger — so summing that table would answer zero for every month
+     * and look exactly like a customer who had never synced.
+     *
+     * The months are taken from the run ledger, which is the record of when
+     * this tenant actually ran. A month with passes in it is a month worth a
+     * row; a month with none is not history, it is silence.
+     */
+    const { months, pricing } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
+      months: await db
+        .select({ month: sql<string>`to_char(${runTable.createdAt}, 'YYYY-MM')` })
+        .from(runTable)
+        .where(eq(runTable.tenantId, tenantId))
+        .groupBy(sql`to_char(${runTable.createdAt}, 'YYYY-MM')`)
+        .orderBy(sql`to_char(${runTable.createdAt}, 'YYYY-MM') DESC`),
       pricing: await resolveTenantPricing(db, tenantId),
     }));
 
-    // Aggregate metrics by period
-    const periodMap = new Map<string, {
-      period: string;
-      storageUsedGB: number;
-      egressGB: number;
-      computeHours: number;
-      syncCount: number;
-      totalCost: number;
-    }>();
+    const usageHistory = [];
+    for (const { month } of months) {
+      const [year, mon] = month.split('-').map(Number);
+      if (!year || !mon) continue;
+      const periodStart = `${month}-01`;
+      // Day 0 of the NEXT month is the last day of this one, in UTC so the
+      // boundary does not move with the server's timezone.
+      const periodEnd = new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10);
 
-    for (const metric of metrics) {
-      const period = metric.periodStart.slice(0, 7); // YYYY-MM
-      if (!periodMap.has(period)) {
-        periodMap.set(period, {
-          period,
-          storageUsedGB: 0,
-          egressGB: 0,
-          computeHours: 0,
-          syncCount: 0,
-          totalCost: 0,
-        });
-      }
+      const usage = await withTenantDb(tenantId, getSharedPool(), (db) =>
+        getUsageMetricsForPeriod(db, tenantId as never as import('@openmig/shared').TenantId, periodStart, periodEnd),
+      );
 
-      const usage = periodMap.get(period)!;
-      switch (metric.metricType) {
-        case 'storage':
-          usage.storageUsedGB += Number(metric.quantity);
-          break;
-        case 'egress':
-          usage.egressGB += Number(metric.quantity);
-          break;
-        case 'compute':
-          usage.computeHours += Number(metric.quantity);
-          break;
-        case 'api_calls':
-          usage.syncCount += Number(metric.quantity);
-          break;
-      }
-      usage.totalCost += Number(metric.totalCost);
-    }
-
-    // Convert to array and calculate full cost breakdown
-    const usageHistory = Array.from(periodMap.values()).map((u) => {
-      const cost = calculateCost({
-        storageUsedGB: u.storageUsedGB,
-        egressGB: u.egressGB,
-        computeHours: u.computeHours,
-        syncCount: u.syncCount,
-      }, pricing);
-      return {
-        ...u,
-        cost,
+      const shaped = {
+        period: month,
+        storageUsedGB: usage.storageBytes / BYTES_PER_GB,
+        egressGB: usage.egressBytes / BYTES_PER_GB,
+        computeHours: usage.computeHours,
+        syncCount: usage.apiCallCount,
       };
-    });
+      usageHistory.push({ ...shaped, cost: calculateCost(shaped, pricing) });
+    }
 
     res.json({
       usage: usageHistory,

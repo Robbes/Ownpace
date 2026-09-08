@@ -2,6 +2,11 @@
 
 ## Status — 2026-09-08 (update this block at the end of every session)
 
+**2026-09-08, second session: T3 built. Compute is DERIVED and `usage_metric` has no
+writer left at all.** T1/T2 shipped as #865 (per-pass rows, correct and expensive). The owner
+then asked why the rows existed, and the answer was that they did not need to — so this
+replaces them. See §4a. T4 remains the owner's.
+
 **2026-09-08: T1 and T2 built and merged-ready; T3 and T4 are the owner's, and both are
 about money rather than code.** The defect and the fix are described below and are real:
 compute and sync operations were metered with a row key that had no pass in it, and an
@@ -23,8 +28,9 @@ Per-pass rows do.
 |---|---|---|
 | T1 The key names the pass | ✅ Done | `perPassResource(kind, domain, runId)`; both meters and the managed dispatcher. Per-pass cost stored exact, not rounded to the cent. |
 | T2 The guard | ✅ Done | `scripts/a-month-billed-as-one-pass.unit.test.ts` (15) + four integration cases against a real Postgres, every one proved by breaking. |
-| T3 The rows this costs | 📋 **Owner's call** — §4 | 2 976× more rows, measured at 18.7 MB per mapping per month, with no time-based retention. §4 states the arithmetic and the zero-row alternative — which, on the evidence gathered 2026-09-08, is the better design and is recommended. |
-| T4 What compute is FOR | 📋 **Owner's call** — §5 | The invoice speaks tiers (0109). If it always will, the compute line is instrumentation and belongs somewhere cheaper than a billing table. The free-tier idea lands here. |
+| T3 The rows this costs | ✅ **Done** — §4a | Owner chose the zero-row alternative. Compute and sync operations derive from the `run` ledger; `usage_metric` has no writer; the measured quantities are frozen onto the invoice, which is what keeps `run` prunable. |
+| T4 What compute is FOR | 📋 **Owner's call** — §5 | The invoice speaks tiers (0109). Partly answered by the scraper PR: trends belong in Grafana, which is already instrumented and not yet scraped. The free-tier idea lands here. |
+| T5 Run retention | 📋 Planned, own PR | Owner 2026-09-08: two months, `DELETE`, configurable — and the log window comes down to match, because `run_event.run_id` is `ON DELETE CASCADE`. Depends on T3's freeze, which is what makes deleting safe. |
 
 ## 1. The defect
 
@@ -258,3 +264,58 @@ either dispatcher call, or metering the status row's window again, each fails 1.
 This branch is cut from **#863's** (`claude/mailbox-sync-errors-c2xsw2-paused-and-why`), not
 from `main`, because the three lines it edits in `run-delta-sync.ts` are the three lines
 #863 rewrites. **#863 must merge first.**
+
+
+## 4a. T3 as built — nothing is written
+
+**`deriveComputeForPeriod`** sums the `run` ledger: `SUM(finished_at - started_at)` over
+`initial_copy` and `incremental` — the only two kinds anything writes. `COUNT(*)` is the
+number of sync operations. `usage_metric` is neither read nor written by any code path; it
+is left in place holding what #865 put there.
+
+**Four things fell out of doing it.**
+
+1. **The initial copy starts being billed.** `run-full-sync.ts` opens `initial_copy` runs and
+   contains no metering call at all — so the largest compute of any migration has been
+   charged at zero since 0011 T4. Deriving from `run` bills it because the row was always
+   there. This is a change in what gets billed, not a cleanup.
+2. **A billing write left the path that can fail a migration.** Both upserts sat inside the
+   per-domain `try` in `run-delta-sync.ts`, one line above the `catch` that logs
+   `Domain <domain> sync failed` and calls `markFailed`. A constraint violation or an
+   exhausted pool was reported to the customer as their mail failing to migrate.
+3. **The window is half-open.** `periodEnd` is a DATE, so `<= periodEnd` is midnight and
+   drops the whole last day of the month. `deriveComputeForPeriod` asks for
+   `< periodEnd + 1 day`. **`deriveStorageAndEgressForPeriod` still uses `lte` and therefore
+   still under-counts the last day of every period** — same class of error, different figure,
+   deliberately not fixed here because it changes a billed number.
+4. **`/api/billing/usage/history` had to be rewritten.** It summed `usage_metric` directly,
+   so with no writer it would have answered zero for every month — indistinguishable from a
+   customer who never synced. It now derives per month, taking the months from the run
+   ledger.
+
+**The grain survives at zero rows.** Per-domain seconds ride in `run.stats.domainSeconds`, a
+jsonb on a row written regardless, folded in the database with `jsonb_each_text` rather than
+by reading a month of runs into a process.
+
+**The freeze is load-bearing.** `invoice-generation.ts` writes the measured quantities into
+the invoice's metadata beside `costByDriver`. Without it, deriving would give the historical
+body of `run` its first consumer and make the table unprunable for ever — every other reader
+touches only the newest 21 rows of a mapping or the rows still `running`/`queued`. With it,
+those rows are audit trail and T5 is possible. The code says so, at length, so nobody deletes
+it as redundant.
+
+### Evidence
+
+Against a real Postgres (`./scripts/local-pg.sh`), 38 tests over three files: the metering
+suite (13) and both billing suites (25). Break-proof on the derivation:
+
+| Break | result |
+|---|---|
+| window closed (`lte`) — drops the last day | 1 failed |
+| bill passes that never closed | 1 failed |
+| drop `initial_copy` from the billable kinds | 1 failed |
+| count domains instead of passes | 1 failed |
+
+`scripts/a-month-billed-as-one-pass.unit.test.ts` (10) holds the seam the three files must
+agree on: the kinds, the predicate, the absent write, the dispatcher's `domainSeconds`, and
+the invoice freeze.

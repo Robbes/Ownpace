@@ -129,7 +129,38 @@ export async function generateInvoiceForPeriod(
     };
   }
 
-  const metadata = { costByDriver, generatedAt: new Date().toISOString() };
+  /**
+   * WHAT WAS MEASURED, frozen onto the invoice beside what was charged.
+   *
+   * ## Do not remove this as redundant. It is what keeps `run` prunable.
+   *
+   * Every figure above is DERIVED at read — storage and egress from the `item`
+   * ledger, compute and sync operations from the `run` ledger (workplan 0121
+   * T3). Derivation is why none of it costs rows. It is also why, without
+   * this, the run rows for a period could never be deleted: they would BE the
+   * invoice's basis, for ever.
+   *
+   * Nothing else needs them. Every other reader of `run` touches the newest
+   * twenty-one rows of a mapping (`listRunsWithEvents`) or rows still
+   * `running`/`queued` (the sync tick, `managed-purge-closed`, the erasure
+   * quiesce). Its historical body has no other consumer at all. So freezing
+   * the quantities here — on a row ADR-0044 and migration 0014 already make
+   * immutable at `draft -> sent`, by trigger and by column grant — returns
+   * those rows to being audit trail, and makes retention on `run` a storage
+   * decision instead of a correctness one.
+   *
+   * Quantities, not money: `costByDriver` beside it is what was charged, and
+   * an invoice that records only its own total cannot answer "how many hours
+   * was that?" a year later without re-deriving from rows that may be gone.
+   */
+  const measured = {
+    computeHours: usage.computeHours,
+    syncCount: usage.apiCallCount,
+    storageBytes: usage.storageBytes,
+    egressBytes: usage.egressBytes,
+  };
+
+  const metadata = { costByDriver, measured, generatedAt: new Date().toISOString() };
 
   // Upsert the draft invoice — one per (tenant, period) via the unique index.
   // The `setWhere` guard makes the "only drafts regenerate" rule ATOMIC: if

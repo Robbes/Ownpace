@@ -31,7 +31,7 @@ import {
   PgMigrationStatusStore,
   RunStore,
 } from '@openmig/ledger';
-import { recordComputeForRun, recordApiCallForRun, resolveTenantPricing, PgBytesMovedStore } from '@openmig/managed';
+import { PgBytesMovedStore } from '@openmig/managed';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { log, passDeadlineFrom } from '@openmig/shared';
 
@@ -130,28 +130,18 @@ if (!DATABASE_URL) {
 // Create a persistent pool for jobs
 const pool = new Pool({ connectionString: DATABASE_URL });
 
-// No pricing literal here any more. This file used to carry
-// `const PRICING = { computePricePerHour: 5 }` under a "should come from
-// config/env in production" comment, while the API invoiced from its own
-// separate copy — two numbers that must agree, in two packages, either of
-// which could be changed alone. Metering now prices each pass at the tenant's
-// own agreed rates via resolveTenantPricing (@openmig/managed), which is the
-// same function the invoice uses.
-
-/**
- * Get current billing period dates
- */
-function getCurrentPeriod(): { periodStart: string; periodEnd: string } {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth(); // 0-11
-  
-  const periodStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  const periodEnd = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
-  
-  return { periodStart, periodEnd };
-}
+// NOTHING ABOUT BILLING LIVES HERE ANY MORE (workplan 0121 T3).
+//
+// This file has shed three generations of it. First a `PRICING` literal, which
+// duplicated the API's copy so two numbers in two packages had to agree. Then
+// `resolveTenantPricing` plus two `usage_metric` upserts, which fixed that and
+// left a billing write inside the per-domain `try` — where a constraint or an
+// exhausted pool was reported to the customer as their mail failing to
+// migrate. Now neither: compute DERIVES from the `run` row this task already
+// opens and closes, so a pass records what it did and prices nothing.
+//
+// What it still owes billing is one field: `domainSeconds` in `run.stats`,
+// which is where the per-domain grain went when the per-domain rows left.
 
 // Concurrency 1, partitioned by `concurrencyKey: mappingId` at trigger time
 // (the sync tick sets it): one running delta sync per mapping, ever — a slow
@@ -192,7 +182,6 @@ export const runDeltaSync = schemaTask({
     // was asked for less", and only scope_selection knows which is which.
     const selected = await enabledDomains(pool, tenantId, mappingId);
     const domains = typedPayload.domains ?? [...selected];
-    const { periodStart, periodEnd } = getCurrentPeriod();
 
     /**
      * WHEN THIS PASS STOPS TAKING NEW WORK.
@@ -239,6 +228,18 @@ export const runDeltaSync = schemaTask({
     let itemsProcessed = 0;
 
     /**
+     * Seconds per domain for THIS run, closed over by the domain loop and
+     * handed to `finishRun` below.
+     *
+     * The per-domain grain compute used to have when it was upserted per
+     * domain per pass. It rides in `run.stats` — a jsonb on a row that is
+     * written regardless — so keeping it costs no rows, and
+     * `deriveComputeForPeriod` can fold it in the database with
+     * `jsonb_each_text` rather than reading a month of runs into a process.
+     */
+    const domainSeconds: Record<string, number> = {};
+
+    /**
      * The run row closes EXACTLY ONCE, whichever way this task leaves.
      *
      * It used to close on the success path and in the catch, with no net
@@ -261,7 +262,7 @@ export const runDeltaSync = schemaTask({
       runClosed = true;
       try {
         await withTenant(pool, tenantId, async (db) => {
-          await new RunStore(db).finishRun(runId, outcome, { itemsProcessed, errors });
+          await new RunStore(db).finishRun(runId, outcome, { itemsProcessed, errors, domainSeconds });
         });
       } catch (finishErr) {
         // Best-effort — never mask the real error with a bookkeeping one.
@@ -497,55 +498,33 @@ export const runDeltaSync = schemaTask({
           });
 
           /**
-           * Metering (all domains): compute + one sync op for THE PASS THAT
-           * JUST RAN, priced at this tenant's agreed rates (pinned when the
-           * tenant was first billed — the operator's template moves on, an
-           * existing customer's prices do not).
+           * Where this domain's pass spent its wall time — recorded, not
+           * metered (workplan 0121 T3).
            *
-           * ## Measured here, not read back off the status row
+           * ## Nothing is written to `usage_metric` any more
            *
-           * This used to re-read `migration_status` and meter
-           * `completedAt - startedAt`, gated on `completedAt` being set. That
-           * window is only this pass's duration when this pass COMPLETED.
-           * `markInProgress` writes `started_at = now()` at the top of every
-           * pass while `completed_at` still holds the PREVIOUS pass's finish,
-           * so for a pass that ran and did not complete — one that paused at
-           * the day's ceiling, or at its own deadline — the subtraction is
-           * `oldCompletion - thisPassStart`, which is NEGATIVE. A negative
-           * quantity and a negative cost, on a pass that did real work: a
-           * credit for copying somebody's mail.
+           * Two upserts used to happen HERE, inside this `try`, one line above
+           * the `catch` below that logs `Domain <domain> sync failed` and
+           * calls `markFailed`. So a billing write that threw — a constraint,
+           * an exhausted pool, a lock — was reported to the customer as their
+           * mail migration failing. A billing concern could break a migration.
            *
-           * The pass's own wall clock cannot be wrong about which pass it
-           * measured, so it is used instead. Reached only on the success path,
-           * which keeps the existing policy — a pass that threw is not billed
-           * — while a pass that paused is billed for the compute it actually
-           * spent, because it spent it.
+           * Compute now DERIVES from the `run` row this task already opens and
+           * closes (`deriveComputeForPeriod`), the way storage and egress
+           * already derive from the `item` ledger. There is no write, so there
+           * is no failure mode, no row growth, and no second record of one
+           * fact that could disagree with the first.
            *
-           * The row is keyed by the RUN (workplan 0121), so each pass's
-           * measurement is its own and the period's compute is their sum.
-           * Before that it was keyed per period and REPLACED, which is what
-           * made it retry-safe and also what made it mean the wrong thing: a
-           * month of 15-minute passes recorded the duration of the last one.
-           * The upsert is unchanged — a retry of this run rewrites its own
-           * row — so retry-safety was kept rather than traded away.
+           * What is kept is the GRAIN. A run covers every domain of a mapping,
+           * so its duration alone cannot say where the time went — and the
+           * owner asked for exactly that, to judge whether the pricing is
+           * fair. These seconds ride into `run.stats` at `finishRun`, which is
+           * one jsonb field on a row that exists regardless: the per-domain
+           * split at ZERO extra rows.
            */
-          const passEndedAt = new Date();
-          await withTenant(pool, tenantId, async (db) => {
-            await recordComputeForRun(db, {
-              tenantId,
-              mappingId,
-              domain,
-              // The row's KEY, so this pass's measurement is its own and the
-              // period's compute is their sum. A retry of this run rewrites
-              // this row rather than adding another (workplan 0121).
-              runId,
-              startedAt: domainPassStartedAt,
-              completedAt: passEndedAt,
-              periodStart,
-              periodEnd,
-            }, await resolveTenantPricing(db, tenantId));
-            await recordApiCallForRun(db, { tenantId, mappingId, domain, runId, periodStart, periodEnd });
-          });
+          domainSeconds[domain] =
+            (domainSeconds[domain] ?? 0) +
+            (Date.now() - domainPassStartedAt.getTime()) / 1000;
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           log.error(`Domain ${domain} sync failed:`, errorMessage);
