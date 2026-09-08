@@ -191,16 +191,16 @@ describe('the five Graph faces build from what the run path hands them', () => {
   });
 
   it('builds the calendar face', () => {
-    expect(() => buildCalendarSourceFromConnection(row())).not.toThrow();
+    expect(() => buildCalendarSourceFromConnection(row(), undefined)).not.toThrow();
   });
   it('builds the contact face', () => {
-    expect(() => buildContactSourceFromConnection(row())).not.toThrow();
+    expect(() => buildContactSourceFromConnection(row(), undefined)).not.toThrow();
   });
   it('builds the file face', () => {
-    expect(() => buildFileSourceFromConnection(row())).not.toThrow();
+    expect(() => buildFileSourceFromConnection(row(), undefined)).not.toThrow();
   });
   it('builds the task face', () => {
-    expect(() => buildTaskSourceFromConnection(row())).not.toThrow();
+    expect(() => buildTaskSourceFromConnection(row(), undefined)).not.toThrow();
   });
   it('builds the mail face', () => {
     expect(() =>

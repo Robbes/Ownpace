@@ -162,7 +162,7 @@ describe('the file face an archive claims', () => {
       kind: ARCHIVE_CONNECTION_KIND,
       config: { type: 'archive', provider: 'google-takeout', path: '/srv/exports/x' },
       creds: {},
-    });
+    }, undefined);
     expect(source.snapshot).toBe(true);
     expect(source.listKeys).toBeUndefined();
     expect(source.listTrashedPaths).toBeUndefined();
@@ -177,7 +177,7 @@ describe('the file face an archive claims', () => {
         kind: ARCHIVE_CONNECTION_KIND,
         config: { type: 'archive', provider: 'apple-privacy', path: '/srv/exports/x' },
         creds: {},
-      }),
+      }, undefined),
     ).toThrow(/wiring gap in this product, not a problem with your export/);
   });
 });

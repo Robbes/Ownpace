@@ -211,14 +211,18 @@ export function microsoftFaceSource(
       } as unknown as SourceConfig;
       return buildSourceConnectorFromCredentials(sourceConfig, creds);
     }
+    // No throttle limiter, said out loud (2026-09-07). The qualification is a
+    // handful of bounded reads against a connection that may not belong to any
+    // mapping yet, so there is no tenant budget row to charge it to — unlike a
+    // pass or the preflight, which both go through `tenantThrottleLimiter`.
     case 'calendar':
-      return buildCalendarSourceFromConnection(src);
+      return buildCalendarSourceFromConnection(src, undefined);
     case 'contact':
-      return buildContactSourceFromConnection(src);
+      return buildContactSourceFromConnection(src, undefined);
     case 'file':
-      return buildFileSourceFromConnection(src);
+      return buildFileSourceFromConnection(src, undefined);
     case 'task':
-      return buildTaskSourceFromConnection(src);
+      return buildTaskSourceFromConnection(src, undefined);
   }
 }
 

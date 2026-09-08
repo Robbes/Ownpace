@@ -23,6 +23,7 @@ import type {
 import { withTenant, PgDiscoveryStore } from '@openmig/ledger';
 import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { discoverDomains, type DomainDiscoveryTask } from '@openmig/orchestration/discovery';
+import { enabledDomains } from '@openmig/orchestration/enabled-domains';
 import { DISCOVERY_DOMAINS, log } from '@openmig/shared';
 
 /**
@@ -168,6 +169,47 @@ export function buildTask(
   };
 }
 
+/**
+ * WHICH DOMAINS THIS PREFLIGHT COUNTS.
+ *
+ * No explicit list means "the mapping's OWN selection", never "all five" —
+ * the same rule `run-delta-sync` learned live (#207, 2026-08-11) and for the
+ * same reason: the API's preflight enqueue passes no domains, so an all-five
+ * default counted domains the owner had switched off, through connections
+ * this mapping has not got.
+ *
+ * It is not merely a spare row on the screen. A migration carrying everything
+ * BUT mail got an Email row reading
+ *
+ *     Unsupported target type: undefined
+ *
+ * — the mail arm resolving a target the owner never configured — sitting on
+ * the preflight beside four real ones (2026-09-07). The owner reads that as
+ * the product failing to see their mail; what it means is that nobody asked
+ * for mail.
+ *
+ * An empty selection stays empty. No `scope_selection` row means "not
+ * selected" here exactly as it does in the tick and in the sync job; filling
+ * it back in with everything is the bug this replaces.
+ *
+ * An explicit list still wins, so a narrower manual re-count stays possible —
+ * but it can only ever NARROW what the caller names, because the caller names
+ * it on purpose.
+ *
+ * Exported for `a-preflight-that-counts-a-domain-nobody-asked-for.unit.test.ts`:
+ * the choice is the behaviour worth pinning, and it needs a fake row set
+ * rather than a database.
+ */
+export async function domainsToCount(
+  scopePool: Pool,
+  tenantId: TenantId,
+  mappingId: MappingId,
+  asked: readonly DiscoveryDomain[] | undefined,
+): Promise<DiscoveryDomain[]> {
+  if (asked) return [...asked];
+  return [...(await enabledDomains(scopePool, tenantId, mappingId))];
+}
+
 export const runDiscovery = schemaTask({
   id: 'run-discovery',
   description: 'Pre-sync discovery (read-only counts)',
@@ -179,7 +221,7 @@ export const runDiscovery = schemaTask({
     }
     const tenantId = typed.tenantId as TenantId;
     const mappingId = typed.mappingId as MappingId;
-    const domains: DiscoveryDomain[] = typed.domains ?? [...DISCOVERY_DOMAINS];
+    const domains = await domainsToCount(pool, tenantId, mappingId, typed.domains);
 
     log.info('Starting discovery', { tenantId, mappingId, domains });
 

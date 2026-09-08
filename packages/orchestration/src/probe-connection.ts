@@ -402,6 +402,17 @@ export function probeSourceConnection(
   return withProbeDeadline(() => probeSourceNow(kind, config, rawCreds, deps));
 }
 
+/**
+ * Every source built here passes `undefined` for the throttle limiter, and
+ * that is a decision rather than an omission (2026-09-07).
+ *
+ * A probe runs against a connection somebody is still typing — it may belong
+ * to no mapping at all, so there is no tenant budget row to charge it to. It
+ * is also bounded by `withProbeDeadline` and asks one cheap question, where a
+ * pass asks thousands. The passes and the preflight both go through
+ * `tenantThrottleLimiter`; this is the one place that legitimately does not,
+ * which is why the builders take the argument in a required position.
+ */
 async function probeSourceNow(
   kind: string,
   config: Record<string, unknown>,
@@ -417,7 +428,7 @@ async function probeSourceNow(
         'folder',
       );
     case GOOGLE_DRIVE_CONNECTION_KIND:
-      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder', kind);
+      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }, undefined), 'folder', kind);
     case DROPBOX_CONNECTION_KIND:
       // The same builder a pass uses (workplan 0055), a CHEAPER question
       // (2026-09-02): `listFolders` is one recursive listing of the whole
@@ -425,7 +436,7 @@ async function probeSourceNow(
       // the browser's 30 s. The top level, capped, proves "reachable and
       // listing" in one round trip; past the cap the count is a floor.
       return probeBounded(() => {
-        const source = buildFileSourceFromConnection({ config, creds, kind });
+        const source = buildFileSourceFromConnection({ config, creds, kind }, undefined);
         if (!(source instanceof DropboxFileSource)) {
           throw new Error('the file-source builder did not answer a Dropbox source for the dropbox kind');
         }
@@ -434,7 +445,7 @@ async function probeSourceNow(
     case BOX_CONNECTION_KIND:
       // Box (workplan 0056): same route again — the builder holds the CCG
       // branching, so test-connection proves exactly what a pass builds.
-      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }), 'folder', kind);
+      return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }, undefined), 'folder', kind);
     // The ACCOUNT kind answers with its CALENDAR face (workplan 0106 T3b),
     // the same choice T4a made for `soverin` and for the same reason: it is
     // the face the scheduling verdict belongs to, and a headline probe has to
