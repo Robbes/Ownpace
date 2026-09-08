@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 108 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 109 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -595,9 +595,25 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `packages/connectors/src/archive-file-source.ts`
+
+- [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
+
+### `packages/connectors/src/box-file-source.ts`
+
+- [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
+
 ### `packages/connectors/src/carddav-source.ts`
 
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
+
+### `packages/connectors/src/dropbox-file-source.ts`
+
+- [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
+
+### `packages/connectors/src/google-drive-source.ts`
+
+- [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/connectors/src/google-token-provider.ts`
 
@@ -614,10 +630,15 @@ reading a file drops off its entry by itself.
 ### `packages/connectors/src/graph-drive-source.ts`
 
 - [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
+- [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/connectors/src/takeout-archive-reader.unit.test.ts`
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
+
+### `packages/connectors/src/webdav-source.ts`
+
+- [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/core/src/apply-deletion.ts`
 
@@ -1959,6 +1980,19 @@ Reads:
 - `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/zitadel-db-password.sh`
+
+### [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts)
+
+The same UTF-8 round trip, sitting in a second connector for three weeks.
+
+Reads:
+
+- `packages/connectors/src/archive-file-source.ts`
+- `packages/connectors/src/box-file-source.ts`
+- `packages/connectors/src/dropbox-file-source.ts`
+- `packages/connectors/src/google-drive-source.ts`
+- `packages/connectors/src/graph-drive-source.ts`
+- `packages/connectors/src/webdav-source.ts`
 
 ### [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts)
 

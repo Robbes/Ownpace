@@ -288,17 +288,35 @@ export class ThrottleLimiter {
 
   /**
    * Execute a request with throttling, retry logic, and backoff
-   * 
+   *
    * @param tenantId - The tenant ID
    * @param provider - The provider name (e.g., 'graph.microsoft.com')
-   * @param requestFn - Async function that returns { status, headers, body }
+   * @param requestFn - Async function returning anything with a `status`
+   * @param retryAfterOf - How to read Retry-After off that response
    * @returns The response from the request
+   *
+   * GENERIC OVER THE RESPONSE, AND ONLY SINCE 0120 T5. It was fixed to
+   * `{ status, headers, body }` — a body already read as a STRING — which
+   * meant every caller had to decode before it could be throttled. That is
+   * how `GraphDriveSource` came to text-decode a JPEG: the shape it had to
+   * satisfy here had already made the decision, one layer down, for file
+   * bytes and JSON alike.
+   *
+   * The default type parameter and the default reader keep every existing
+   * caller exactly as it was. What is new is that a caller may hand back a
+   * `Response` and read its own bytes afterwards — the header lookup differs
+   * (`Headers.get`, not an index), which is why the reader is a parameter
+   * rather than an assumption.
    */
-  async executeWithThrottling(
+  async executeWithThrottling<
+    T extends { status: number } = { status: number; headers: Record<string, string>; body: string },
+  >(
     tenantId: string,
     provider: string,
-    requestFn: () => Promise<{ status: number; headers: Record<string, string>; body: string }>,
-  ): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+    requestFn: () => Promise<T>,
+    retryAfterOf: (response: T) => string | undefined = (response) =>
+      (response as { headers?: Record<string, string> }).headers?.['retry-after'],
+  ): Promise<T> {
     let lastError: Error | undefined;
     let attempt = 0;
 
@@ -313,7 +331,7 @@ export class ThrottleLimiter {
         // Check for rate limited response
         if (response.status === 429 || response.status === 503) {
           this.stats.retryAttempts++;
-          const retryAfter = response.headers['retry-after'];
+          const retryAfter = retryAfterOf(response);
           const waitTime = this.handleRateLimited(response.status, retryAfter);
           
           this.stats.totalWaitTimeMs += waitTime;

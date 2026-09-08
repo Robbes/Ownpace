@@ -29,7 +29,7 @@ import type {
   PropfindResponse,
 } from './webdav-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
-import { davRefusalBody } from '@openmig/shared';
+import { davRefusalBody, STREAM_FILES_LARGER_THAN_BYTES } from '@openmig/shared';
 import {
   TRASHBIN_PROPFIND_BODY,
   nextcloudTrashbinUrl,
@@ -887,15 +887,16 @@ export class WebdavFileSource implements FileSource {
  * Create a default HTTP client using Node.js fetch.
  */
 /**
- * Above this, a file is read as a stream rather than into memory.
+ * Re-exported, not defined here.
  *
- * Not the memory ceiling (`MAX_BUFFERED_FILE_BYTES`, which is where a path
- * that CANNOT stream gives up) — this is where streaming starts being worth
- * its machinery. Deliberately far below that ceiling so the streaming path is
- * exercised by ordinary files in ordinary runs, rather than only by the rare
- * enormous one, where a defect would be found by a customer.
+ * The threshold moved to `@openmig/shared` beside `MAX_BUFFERED_FILE_BYTES`
+ * when the Graph connector became the second one to stream (0120 T5): it is a
+ * property of the seam, not of DAV, and every connector must decide at the
+ * same size or a file of a given size behaves differently depending on where
+ * it came from. This line keeps it on `@openmig/connectors`, where callers and
+ * guards already import it from.
  */
-export const STREAM_FILES_LARGER_THAN_BYTES = 8 * 1024 * 1024;
+export { STREAM_FILES_LARGER_THAN_BYTES } from '@openmig/shared';
 
 function createDefaultHttpClient(): HttpClient {
   return {
