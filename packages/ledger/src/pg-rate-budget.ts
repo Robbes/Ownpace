@@ -47,24 +47,82 @@ const FALLBACK_WAIT_MS = 50;
 /** Never sleep longer than this in one go, so a slow refill stays interruptible. */
 const MAX_WAIT_MS = 2_000;
 
+/** A tenant id shaped like one. The column is `uuid`; this refuses earlier. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export class PgRateBudget implements RateBudget {
   private readonly rate: number;
   private readonly burst: number;
 
+  /**
+   * OUR TENANT, BOUND AT CONSTRUCTION — never the one the caller passes.
+   *
+   * `RateBudget.acquire(scope, provider)` reads like it takes a tenant, and
+   * the module header opposite says the `(tenant, provider)` keying "was right
+   * from the start". The design was. The WIRING never delivered a tenant, and
+   * on 2026-09-08 it turned out no caller ever had:
+   *
+   *   - the four Graph sources pass `this.config.tenantId` — the ENTRA tenant,
+   *     which for a multi-tenant app registration is the literal `common`;
+   *   - the three DAV sources pass the literal string `'dav'`;
+   *   - the mail sources never call the shared budget at all, only
+   *     `handleRateLimited`.
+   *
+   * So `${tenantId}::uuid` had never once been handed a uuid, and this budget
+   * had never written a row in production. It stayed invisible because the
+   * only path that built a `PgRateBudget` was the mail one, whose sources do
+   * not reach it — until the four non-mail faces were given a limiter and
+   * every domain of a Microsoft preflight died on `invalid input syntax for
+   * type uuid: "common"`.
+   *
+   * The crash is the lesser half. `common` is the SAME STRING for every
+   * customer of one multi-tenant app, so a budget keyed on it would have been
+   * one bucket shared by every tenant on the deployment — the exact opposite
+   * of the per-tenant quota this class exists to keep. A cast error that is
+   * loud is a kinder failure than a limiter that silently throttles strangers
+   * against each other.
+   *
+   * The fix is the shape `PgByteBudget`'s caller already uses: the seam that
+   * KNOWS the tenant (`tenantThrottleLimiter`) binds it, and the connector's
+   * argument is treated as what it actually is — a scope label.
+   */
+  private readonly tenantId: string;
+
   private readonly db: PgDatabase;
   constructor(
     db: PgDatabase,
-    config: RateBudgetConfig,
+    config: RateBudgetConfig & { readonly tenantId: string },
   ) {
     this.db = db;
     this.rate = config.requestsPerSecond;
     this.burst = config.burst ?? config.requestsPerSecond;
     if (!(this.rate > 0)) throw new Error(`requestsPerSecond must be positive, got ${this.rate}`);
+    // REFUSED HERE, not at the first request. A bad tenant is a wiring fault,
+    // and a wiring fault should stop the build of the deps rather than surface
+    // as a Postgres cast error in the middle of somebody's migration, one per
+    // domain, with the SQL in the report (0090 T4's rule: refuse before the
+    // lockout, not after).
+    this.tenantId = config.tenantId;
+    if (!UUID.test(this.tenantId)) {
+      throw new Error(
+        `PgRateBudget needs this deployment's tenant id, got ${JSON.stringify(this.tenantId)}. ` +
+          'A provider-side tenant (Entra\'s `common`) or a protocol label (`dav`) is not one — ' +
+          'see the tenantId field for why that distinction is the whole point of this class.',
+      );
+    }
   }
 
-  async acquire(tenantId: string, provider: string): Promise<void> {
+  /**
+   * @param _scope What the connector calls its tenant: `dav`, or the Entra
+   *   tenant. DELIBERATELY UNUSED for the row key — see `tenantId`. It stays
+   *   in the signature because `RateBudget` is a port with a second
+   *   implementation (`InProcessRateBudget`), whose per-process map may key by
+   *   it harmlessly; folding it in here would fragment one tenant's real quota
+   *   into a bucket per label.
+   */
+  async acquire(_scope: string, provider: string): Promise<void> {
     for (;;) {
-      const wait = await this.take(tenantId, provider);
+      const wait = await this.take(this.tenantId, provider);
       if (wait <= 0) return;
       await new Promise((resolve) => setTimeout(resolve, Math.min(wait, MAX_WAIT_MS)));
     }

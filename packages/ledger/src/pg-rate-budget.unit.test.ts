@@ -67,11 +67,11 @@ describe('PgRateBudget', () => {
     // machine. At 100/s this passed alone and failed in the full suite, which
     // is the shape of a test that would later be called flaky and retried
     // rather than read.
-    const a = new PgRateBudget(db, { requestsPerSecond: 1, burst: 10 });
-    const b = new PgRateBudget(db, { requestsPerSecond: 1, burst: 10 });
+    const a = new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 1, burst: 10 });
+    const b = new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 1, burst: 10 });
 
-    for (let i = 0; i < 5; i++) await a.acquire(TENANT, 'graph');
-    for (let i = 0; i < 5; i++) await b.acquire(TENANT, 'graph');
+    for (let i = 0; i < 5; i++) await a.acquire('common', 'graph');
+    for (let i = 0; i < 5; i++) await b.acquire('common', 'graph');
 
     // Ten taken from a bucket of ten. If the two instances kept separate
     // counts, each would have spent five of its own ten and this would be
@@ -82,21 +82,60 @@ describe('PgRateBudget', () => {
   });
 
   it('keeps one tenant out of another tenant s budget', async () => {
-    // Rate is immaterial here: the assertion is about a row that does not exist
-    // yet and then one freshly created, neither of which has elapsed time to
-    // refill over.
-    const budget = new PgRateBudget(db, { requestsPerSecond: 1, burst: 5 });
-    for (let i = 0; i < 5; i++) await budget.acquire(TENANT, 'graph');
+    // The property is unchanged and the mechanism is not (2026-09-08). This
+    // used to pass TWO tenants to one instance, which is what the interface
+    // suggested and what nothing in production ever did: every connector hands
+    // `acquire` a label of its own — `dav`, or Entra's `common` — so the second
+    // tenant here was reachable only from a test. Separation now comes from the
+    // tenant each budget is BUILT with, which is what the callers actually have.
+    const mine = new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 1, burst: 5 });
+    const theirs = new PgRateBudget(db, { tenantId: OTHER_TENANT, requestsPerSecond: 1, burst: 5 });
+
+    for (let i = 0; i < 5; i++) await mine.acquire('common', 'graph');
     // A separate row, untouched — a noisy tenant must not throttle a quiet one.
     expect(await tokensLeft(OTHER_TENANT, 'graph')).toBeNull();
-    await budget.acquire(OTHER_TENANT, 'graph');
+    await theirs.acquire('common', 'graph');
     expect(await tokensLeft(OTHER_TENANT, 'graph')).toBeCloseTo(4, 0);
   });
 
+  /**
+   * THE ARGUMENT THAT LOOKED LIKE A TENANT AND NEVER WAS.
+   *
+   * Every Graph source calls `acquire(this.config.tenantId, …)` and every DAV
+   * source `acquire('dav', …)`. Neither is this deployment's tenant, and
+   * `common` is the SAME string for every customer of one multi-tenant Entra
+   * app — so honouring it would put every tenant in one bucket while the
+   * `::uuid` cast, mercifully, crashed instead.
+   *
+   * Both labels must now land on one row: one tenant, one provider, one quota.
+   */
+  it('spends one bucket whatever the connector calls its tenant', async () => {
+    const budget = new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 1, burst: 10 });
+
+    for (let i = 0; i < 5; i++) await budget.acquire('common', 'graph.microsoft.com');
+    for (let i = 0; i < 5; i++) await budget.acquire('dav', 'graph.microsoft.com');
+
+    const left = await tokensLeft(TENANT, 'graph.microsoft.com');
+    expect(left, 'a connector label must not fragment one tenant s real quota').not.toBeNull();
+    expect(left!).toBeLessThan(1);
+  });
+
+  it('refuses a tenant that is not one, at construction', () => {
+    // The values production actually passed. Refused where a person can fix
+    // the wiring, rather than as a Postgres cast error per domain mid-pass.
+    for (const notATenant of ['common', 'dav', '', 'contoso.onmicrosoft.com']) {
+      expect(
+        () => new PgRateBudget(db, { tenantId: notATenant, requestsPerSecond: 1 }),
+        `${notATenant} is not this deployment's tenant`,
+      ).toThrow(/tenant id/i);
+    }
+    expect(() => new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 1 })).not.toThrow();
+  });
+
   it('keeps one provider out of another provider s budget', async () => {
-    const budget = new PgRateBudget(db, { requestsPerSecond: 1, burst: 5 });
-    for (let i = 0; i < 5; i++) await budget.acquire(TENANT, 'graph');
-    await budget.acquire(TENANT, 'jmap');
+    const budget = new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 1, burst: 5 });
+    for (let i = 0; i < 5; i++) await budget.acquire('common', 'graph');
+    await budget.acquire('common', 'jmap');
     expect(await tokensLeft(TENANT, 'jmap')).toBeCloseTo(4, 0);
   });
 
@@ -104,11 +143,11 @@ describe('PgRateBudget', () => {
     // Two per second, burst of two: the third acquire cannot be served for
     // roughly half a second. Measured loosely — the assertion is that it
     // waited at all, not how precisely.
-    const budget = new PgRateBudget(db, { requestsPerSecond: 2, burst: 2 });
-    await budget.acquire(TENANT, 'slow');
-    await budget.acquire(TENANT, 'slow');
+    const budget = new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 2, burst: 2 });
+    await budget.acquire('common', 'slow');
+    await budget.acquire('common', 'slow');
     const started = Date.now();
-    await budget.acquire(TENANT, 'slow');
+    await budget.acquire('common', 'slow');
     expect(Date.now() - started).toBeGreaterThanOrEqual(200);
   }, 20_000);
 
@@ -127,9 +166,9 @@ describe('PgRateBudget', () => {
     // cannot be separated — which is what makes the row lock sufficient on a
     // real server. Genuine multi-connection contention needs the integration
     // tier, and the property that would break first is this one.
-    const budget = new PgRateBudget(db, { requestsPerSecond: 1, burst: 20 });
+    const budget = new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 1, burst: 20 });
     await Promise.all(
-      Array.from({ length: 20 }, () => budget.acquire(TENANT, 'race')),
+      Array.from({ length: 20 }, () => budget.acquire('common', 'race')),
     );
     const left = await tokensLeft(TENANT, 'race');
     // Twenty taken from twenty. A read-then-write split would leave several
@@ -142,8 +181,8 @@ describe('PgRateBudget', () => {
     // There is no process holding a timer, so refill has to be a function of
     // the row's own refilled_at. Rewind it and the tokens must come back.
     // Again slow, so draining the bucket is not racing its own refill.
-    const budget = new PgRateBudget(db, { requestsPerSecond: 1, burst: 10 });
-    for (let i = 0; i < 10; i++) await budget.acquire(TENANT, 'graph');
+    const budget = new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 1, burst: 10 });
+    for (let i = 0; i < 10; i++) await budget.acquire('common', 'graph');
     expect((await tokensLeft(TENANT, 'graph'))!).toBeLessThan(1);
 
     await conn.query(
@@ -153,13 +192,13 @@ describe('PgRateBudget', () => {
     );
     // Sixty seconds at one per second is sixty tokens' worth, capped at the
     // burst of ten; one is then spent.
-    await budget.acquire(TENANT, 'graph');
+    await budget.acquire('common', 'graph');
     expect((await tokensLeft(TENANT, 'graph'))!).toBeCloseTo(9, 0);
   });
 
   it('refuses a rate that would never grant anything', async () => {
-    expect(() => new PgRateBudget(db, { requestsPerSecond: 0 })).toThrow(/positive/);
-    expect(() => new PgRateBudget(db, { requestsPerSecond: -1 })).toThrow(/positive/);
+    expect(() => new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 0 })).toThrow(/positive/);
+    expect(() => new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: -1 })).toThrow(/positive/);
   });
 });
 
