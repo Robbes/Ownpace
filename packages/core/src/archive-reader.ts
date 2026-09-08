@@ -235,4 +235,20 @@ export interface ArchiveReader {
    * is the size of somebody's photo library.
    */
   content(handle: ArchiveHandle, item: ArchiveItem): Promise<Uint8Array>;
+  /**
+   * The item's bytes as a stream, for a file too large to hold (0120 T5).
+   *
+   * OPTIONAL, and that is the safe way round: a reader that cannot stream
+   * simply omits it, `ArchiveFileSource` keeps buffering for that reader, and
+   * `MAX_BUFFERED_FILE_BYTES` still turns "the container died" into a
+   * sentence. Requiring it would have made every reader a compile error to
+   * gain a capability only some of them have.
+   *
+   * MUST BE RE-OPENABLE, like every `FileBody.open()`: a retry after a
+   * half-written upload starts from the beginning, and a stream that has been
+   * consumed cannot. For the Takeout reader that is trivially cheap — it reads
+   * an EXTRACTED tree, so an item is a file on disk and re-opening is another
+   * `createReadStream`, not a second pass over an archive.
+   */
+  contentStream?(handle: ArchiveHandle, item: ArchiveItem): Promise<ReadableStream<Uint8Array>>;
 }

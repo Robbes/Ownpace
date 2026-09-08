@@ -2,6 +2,8 @@
 
 import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { Readable } from 'node:stream';
 import { basename, join } from 'node:path';
 import {
   ARCHIVE_ITEM_KINDS,
@@ -313,6 +315,28 @@ export function createTakeoutArchiveReader(): ArchiveReader {
   const collapsedOnce = (handle: TakeoutHandle): Promise<Collapsed> =>
     (handle.collapsed ??= collapse(handle));
 
+  /**
+   * Where an item's bytes are, BY HASH rather than by name.
+   *
+   * The same bytes sit under up to four names in a Takeout and any one of them
+   * serves. An item this handle never listed is a caller mixing two archives,
+   * which is a bug worth a sentence and not a silent read of whatever happens to
+   * be at a guessed path.
+   *
+   * Shared by `content` and `contentStream` so the buffered and streamed reads
+   * can never resolve to different files — which would be invisible, since both
+   * would return plausible bytes.
+   */
+  async function locate(handle: ArchiveHandle, item: ArchiveItem): Promise<string> {
+    const at = (await collapsedOnce(handle as TakeoutHandle)).whereabouts.get(item.contentHash);
+    if (!at) {
+      throw new Error(
+        `This archive holds no item with hash ${item.contentHash.slice(0, 12)}… (${item.path}).`,
+      );
+    }
+    return at;
+  }
+
   return {
     provider: 'google-takeout',
 
@@ -345,17 +369,22 @@ export function createTakeoutArchiveReader(): ArchiveReader {
     },
 
     async content(handle: ArchiveHandle, item: ArchiveItem): Promise<Uint8Array> {
-      // By hash, not by name: the same bytes sit under up to four names, and
-      // any one of them serves. An item this handle never listed is a caller
-      // mixing two archives, which is a bug worth a sentence and not a
-      // silent read of whatever happens to be at a guessed path.
-      const at = (await collapsedOnce(handle as TakeoutHandle)).whereabouts.get(item.contentHash);
-      if (!at) {
-        throw new Error(
-          `This archive holds no item with hash ${item.contentHash.slice(0, 12)}… (${item.path}).`,
-        );
-      }
-      return new Uint8Array(await readFile(at));
+      return new Uint8Array(await readFile(await locate(handle, item)));
+    },
+
+    /**
+     * The same file, as a stream (0120 T5).
+     *
+     * Cheap here in a way it is not for any other connector: this reader takes
+     * an EXTRACTED tree, so an item is a file on disk and re-opening is one
+     * more `createReadStream` — no second pass over an archive, no re-issued
+     * request, no signed URL to expire. It resolves the path through the SAME
+     * `locate` the buffered read uses, so the two cannot come to disagree
+     * about which of Takeout's four copies is the item.
+     */
+    async contentStream(handle: ArchiveHandle, item: ArchiveItem): Promise<ReadableStream<Uint8Array>> {
+      const at = await locate(handle, item);
+      return Readable.toWeb(createReadStream(at)) as ReadableStream<Uint8Array>;
     },
 
     async summary(handle: ArchiveHandle): Promise<ArchiveSummary> {
