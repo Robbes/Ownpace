@@ -39,6 +39,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# One reader for this file, shared with every other script here: what
+# check-env-agreement.sh accepts, env_value reads — quoted or bare, the same
+# way Compose and `source` would. See deploy/compose/env-read.sh.
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+
 ENV_FILE="${SCRIPT_DIR}/.env"
 UPSERT="${SCRIPT_DIR}/env-upsert.sh"
 
@@ -54,13 +60,14 @@ esac
 
 [ -f "$ENV_FILE" ] || die "${ENV_FILE} does not exist — run bootstrap-managed.sh --only env first."
 
-# Cut at the first whitespace: managed.env.example documents keys with a comment
-# on the same line, and env-upsert.sh refuses any value containing whitespace,
-# so everything past the first space is a comment. See
-# scripts/two-readings-of-one-env-file.unit.test.ts.
+# Through env_value, like every other reader here: managed.env.example documents
+# keys with a comment on the same line, and a value may now be single-quoted
+# (env-upsert.sh writes that form when the value is not bare-safe), so where a
+# value ends is not something to work out per script. See
+# deploy/compose/env-read.sh and scripts/two-readings-of-one-env-file.unit.test.ts.
 read_env() { # read_env <key> [default]
   local v
-  v="$(grep -E "^${1}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+  v="$(env_value "$ENV_FILE" "${1}")"
   [ -n "$v" ] && printf '%s' "$v" || printf '%s' "${2:-}"
 }
 
