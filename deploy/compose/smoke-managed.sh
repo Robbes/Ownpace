@@ -4215,6 +4215,39 @@ else
   fail_at
 fi
 
+# ...AND VERIFIED FIRST, which is what makes the delete below mean anything.
+#
+# THE GAP THIS CLOSES (found 2026-09-08, after migration 0042 shipped). This
+# gate has always deleted a mapping here, and it always passed — because the
+# mapping it deletes is the paused draft created six lines up, which has never
+# done anything. Every foreign key to `mailbox_mapping` is satisfied vacuously
+# by a mapping with no history, so the delete proves nothing about the ones
+# that are not.
+#
+# Meanwhile 0042's own header says what the customer saw: "a migration that has
+# ever been VERIFIED could not be deleted at all" — HTTP 500, with no way past
+# it from the screen, for five weeks. This gate ran nightly throughout and
+# could not have noticed, because it verifies the DEMO mapping and deletes a
+# different one. The two halves never met.
+#
+# So: one verification run against this sentinel mapping, then the same delete.
+# The scan itself is expected to get nowhere (the source credentials are
+# sentinel strings that are never followed to Dropbox) and that is fine — the
+# row is the point, not the result. `verify/start` inserts it before it
+# attempts anything, and the FK does not care how the run ended.
+r="$(http POST "$API/api/migrations/${nc_mapping_id}/verify/start" "$TOK_R")"
+nc_verify_code="${r%% *}"
+# Asserted from the DATABASE, not from the response code, and that is
+# deliberate: what the delete below needs is a ROW, and a 202 that wrote none
+# would leave this gate passing for the old reason again.
+nc_verify_rows="$(q "SELECT count(*) FROM verification_run WHERE mapping_id = '${nc_mapping_id}'")"
+if [ "${nc_verify_rows:-0}" -ge 1 ]; then
+  echo "nextcloud mapping verified once (HTTP $nc_verify_code): it now has the dependant row that used to make Delete answer 500"
+else
+  echo "no verification_run row for the nextcloud mapping (HTTP $nc_verify_code) — the delete below would prove nothing"
+  fail_at
+fi
+
 # ...AND TAKEN BACK, all three rows of it. `DELETE /api/migrations/:id` removes
 # the mapping row and nothing else, but a create makes a source connection and a
 # target connection beside it, named after the mapping. Leaving those would add
@@ -4232,8 +4265,16 @@ if [ -n "$nc_mapping_id" ]; then
     r="$(http DELETE "$API/api/connections/${nc_conn_id}" "$TOK_R")"
     case "${r%% *}" in 200|204) ;; *) nc_left=$((nc_left + 1)) ;; esac
   done
+  # The dependant went with it (migration 0042 made both of these cascade). A
+  # verification run of a mapping that no longer exists is unreachable rather
+  # than preserved: every read of that table is keyed by `mapping_id`.
+  nc_verify_left="$(q "SELECT count(*) FROM verification_run WHERE mapping_id = '${nc_mapping_id}'")"
+  if [ "${nc_verify_left:-0}" != "0" ]; then
+    echo "the verification run outlived its mapping (${nc_verify_left} row(s)) — nothing can reach it now"
+    fail_at
+  fi
   if [ "$nc_left" = "0" ]; then
-    echo "and taken back: mapping and both of its connections are gone again"
+    echo "and taken back: a VERIFIED mapping, both of its connections, and the verification run with it"
   else
     echo "the gate's nextcloud rows did not all delete ($nc_left left) — they will accumulate"
     fail_at
