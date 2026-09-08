@@ -776,7 +776,13 @@ export const verificationRun = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenant.id),
-    mappingId: uuid('mapping_id').notNull().references(() => mailboxMapping.id),
+    // Cascades, like `verification` above: a run of a mapping that no longer
+    // exists is not a record of anything, and every read here is keyed by
+    // mapping. It said nothing until migration 0042, and an omitted action is
+    // NO ACTION — so Delete on the migration answered a 500 instead.
+    mappingId: uuid('mapping_id')
+      .notNull()
+      .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
     state: text('state', { enum: ['running', 'done', 'failed'] }).notNull(),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
@@ -800,7 +806,15 @@ export const applyReceipt = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenant.id),
-    mappingId: uuid('mapping_id').notNull().references(() => mailboxMapping.id),
+    // Cascades (migration 0042). This row is the poller's outcome plus
+    // per-item idempotency, and both are mapping-scoped — every read of this
+    // table is keyed by `mappingId`, so a receipt kept without one is
+    // unreachable rather than preserved. The durable record that somebody
+    // ORDERED a removal is the `audit_log` row both apply routes write, which
+    // has no foreign key to a mapping and is not pruned.
+    mappingId: uuid('mapping_id')
+      .notNull()
+      .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
     naturalKeyHash: text('natural_key_hash').notNull(),
     // Which destructive action this receipt records. One item can be in BOTH
     // queues at once (renamed, then the new name deleted), so a receipt must
