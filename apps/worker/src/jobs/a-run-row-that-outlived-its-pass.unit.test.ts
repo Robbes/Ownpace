@@ -53,6 +53,29 @@ describe('how long a running row is believed', () => {
   });
 });
 
+/**
+ * JUST the two clauses this file is about.
+ *
+ * The assertions below count operators and bind parameters, and they used to
+ * count them across the WHOLE query. That was fine while the query held
+ * nothing else measured against a clock — and wrong the moment it did: adding
+ * the failing-mapping back-off (2026-09-08) put two more `started_at > now()`
+ * comparisons and a second `$n::int` into the string, and both assertions went
+ * red over a partition that had not changed at all. A guard that fails when
+ * something ELSE is added is a guard that teaches people to edit guards.
+ *
+ * Everything between the two column aliases is the running/stale pair and
+ * nothing else, so a clause inserted BETWEEN them is still caught — which is
+ * the case that would actually break the partition.
+ */
+function stalenessClauses(sql: string): string {
+  const from = sql.indexOf('AS last_started');
+  const to = sql.indexOf('AS stale_since');
+  expect(from, 'the last_started column is no longer recognisable').toBeGreaterThan(-1);
+  expect(to, 'the stale_since column is no longer recognisable').toBeGreaterThan(from);
+  return sql.slice(from, to);
+}
+
 describe('the clauses that decide whether a mapping is enqueued', () => {
   it('only counts a row as running while it is younger than the threshold', () => {
     // Without the age bound this is the original defect verbatim: any open
@@ -76,16 +99,18 @@ describe('the clauses that decide whether a mapping is enqueued', () => {
     // the boundary is both running and stale; two `<`s and it is neither —
     // a mapping neither skipped nor reported, which is the silent case again
     // wearing a different hat.
-    const comparisons = [...ACTIVE_MAPPINGS_SQL.matchAll(/started_at\s*(>=|<=|>|<)\s*now\(\)/g)].map(
-      (m) => m[1],
-    );
+    const comparisons = [
+      ...stalenessClauses(ACTIVE_MAPPINGS_SQL).matchAll(/started_at\s*(>=|<=|>|<)\s*now\(\)/g),
+    ].map((m) => m[1]);
     expect(comparisons).toEqual(['>', '<=']);
   });
 
   it('measures both clauses against the SAME threshold parameter', () => {
     // Two thresholds would reopen the gap between them by hand. One `$1`, used
     // twice, cannot drift from itself.
-    const params = [...ACTIVE_MAPPINGS_SQL.matchAll(/\$(\d+)::int/g)].map((m) => m[1]);
+    const params = [...stalenessClauses(ACTIVE_MAPPINGS_SQL).matchAll(/\$(\d+)::int/g)].map(
+      (m) => m[1],
+    );
     expect(params).toEqual(['1', '1']);
   });
 
