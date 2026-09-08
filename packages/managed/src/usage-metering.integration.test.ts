@@ -11,13 +11,11 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createPgDb } from '@openmig/ledger/db';
-import { 
+import {
   deriveStorageAndEgressForPeriod,
-  recordComputeForRun,
-  recordApiCallForRun,
+  deriveComputeForPeriod,
   getUsageMetricsForPeriod,
-  type ComputeUsageInput,
-  type ApiCallUsageInput,
+  BILLABLE_RUN_KINDS,
 } from './usage-metering.ts';
 import {
   tenant as tenantTable,
@@ -26,6 +24,7 @@ import {
   mailboxMapping as mailboxMappingTable,
   item as itemTable,
   migrationStatus as migrationStatusTable,
+  run as runTable,
 } from '@openmig/ledger/schema-pg';
 import { usageMetric as usageMetricTable } from './schema-managed.ts';
 import type { TenantId, MappingId } from '@openmig/shared';
@@ -63,6 +62,7 @@ describe('Usage Metering - Integration', () => {
   beforeEach(async () => {
     // Clean up test data
     await db.delete(usageMetricTable);
+    await db.delete(runTable);
     await db.delete(itemTable);
     await db.delete(migrationStatusTable);
     await db.delete(mailboxMappingTable);
@@ -291,299 +291,179 @@ describe('Usage Metering - Integration', () => {
     });
   });
 
-  describe('Compute/API call upsert', () => {
-    it('should idempotently record compute usage', async () => {
-      await db.insert(tenantTable).values({
-        id: TEST_TENANT_ID,
-        name: 't4-test-compute',
-        status: 'active',
-      });
-
-      const periodStart = '2026-07-01';
-      const periodEnd = '2026-07-31';
-      const startedAt = new Date('2026-07-15T10:00:00Z');
-      const completedAt = new Date('2026-07-15T11:00:00Z'); // 1 hour
-
-      const computeInput: ComputeUsageInput = {
-        tenantId: TEST_TENANT_ID,
-        mappingId: TEST_MAPPING_ID,
-        domain: 'email',
-        // The row's key. A RETRY of this run is the same key and must not
-        // double; a DIFFERENT pass is a different key and must add.
-        runId: 'run-one',
-        startedAt,
-        completedAt,
-        periodStart,
-        periodEnd,
-      };
-
-      // First record
-      await recordComputeForRun(db, computeInput, _PRICING);
-
-      // Get usage
-      const usage1 = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
-      expect(usage1.computeHours).toBe(1);
-
-      // Retry with same key - should REPLACE, not increment
-      await recordComputeForRun(db, computeInput, _PRICING);
-
-      const usage2 = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
-      expect(usage2.computeHours).toBe(1); // Same, not doubled
-    });
-
-    it('should idempotently record API call usage', async () => {
-      await db.insert(tenantTable).values({
-        id: TEST_TENANT_ID,
-        name: 't4-test-api',
-        status: 'active',
-      });
-
-      const periodStart = '2026-07-01';
-      const periodEnd = '2026-07-31';
-
-      const apiInput: ApiCallUsageInput = {
-        tenantId: TEST_TENANT_ID,
-        mappingId: TEST_MAPPING_ID,
-        domain: 'email',
-        runId: 'run-one',
-        periodStart,
-        periodEnd,
-      };
-
-      // First record
-      await recordApiCallForRun(db, apiInput);
-
-      const usage1 = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
-      expect(usage1.apiCallCount).toBe(1);
-
-      // Retry - should REPLACE
-      await recordApiCallForRun(db, apiInput);
-
-      const usage2 = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
-      expect(usage2.apiCallCount).toBe(1); // Same, not doubled
-    });
-
-    it('should allow separate tracking per domain', async () => {
-      await db.insert(tenantTable).values({
-        id: TEST_TENANT_ID,
-        name: 't4-test-multi-domain',
-        status: 'active',
-      });
-
-      const periodStart = '2026-07-01';
-      const periodEnd = '2026-07-31';
-
-      await recordApiCallForRun(db, {
-        tenantId: TEST_TENANT_ID,
-        mappingId: TEST_MAPPING_ID,
-        domain: 'email',
-        runId: 'run-one',
-        periodStart,
-        periodEnd,
-      });
-
-      await recordApiCallForRun(db, {
-        tenantId: TEST_TENANT_ID,
-        mappingId: TEST_MAPPING_ID,
-        domain: 'calendar',
-        runId: 'run-one',
-        periodStart,
-        periodEnd,
-      });
-
-      const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
-      expect(usage.apiCallCount).toBe(2); // Both domains
-    });
-  });
-
   /**
-   * The behaviour workplan 0121 is about: a period's compute is every pass in
-   * it, not the last one.
+   * Compute, DERIVED from the run ledger. Nothing is written.
    *
-   * The tests above prove the upsert is idempotent, which it was before and
-   * still is. What they cannot see is the grain of the key: with
-   * `resource = 'domain-email'` they pass identically, because every pass of a
-   * domain writes the same row. These read a period that had MORE THAN ONE
-   * PASS in it, which is what every real month is, and which nothing asserted
-   * on until now.
+   * These are the same properties 0121's per-pass rows were built to satisfy —
+   * a period with more than one pass in it sums, a retry does not double —
+   * asserted against a mechanism that stores nothing. That is deliberate: they
+   * were the specification the derivation had to meet, so they survive the
+   * change that replaced the thing they were written for.
    */
-  describe('A month of passes, summed', () => {
-    it('adds the compute of two passes in one period', async () => {
-      await db.insert(tenantTable).values({
-        id: TEST_TENANT_ID,
-        name: 't4-test-two-passes',
-        status: 'active',
-      });
+  describe('Compute derived from the run ledger', () => {
+    const PERIOD_START = '2026-07-01';
+    const PERIOD_END = '2026-07-31';
 
-      const periodStart = '2026-07-01';
-      const periodEnd = '2026-07-31';
-      const pass = (runId: string, from: string, to: string): ComputeUsageInput => ({
-        tenantId: TEST_TENANT_ID,
+    /** One closed run of `seconds`, `dayOfMonth` days into the period. */
+    async function seedRun(
+      tenantId: TenantId,
+      opts: {
+        seconds: number;
+        dayOfMonth?: number;
+        kind?: string;
+        finished?: boolean;
+        domainSeconds?: Record<string, number>;
+      },
+    ) {
+      const startedAt = new Date(Date.UTC(2026, 6, opts.dayOfMonth ?? 15, 10, 0, 0));
+      await db.insert(runTable).values({
+        tenantId,
         mappingId: TEST_MAPPING_ID,
-        domain: 'email',
-        runId,
-        startedAt: new Date(from),
-        completedAt: new Date(to),
-        periodStart,
-        periodEnd,
+        kind: (opts.kind ?? 'incremental') as 'incremental',
+        trigger: 'schedule',
+        status: 'succeeded',
+        stats: opts.domainSeconds ? { domainSeconds: opts.domainSeconds } : {},
+        startedAt,
+        createdAt: startedAt,
+        finishedAt:
+          opts.finished === false ? null : new Date(startedAt.getTime() + opts.seconds * 1000),
       });
+    }
 
-      // Two passes of the SAME domain, in the same period: 1 hour, then 2.
-      await recordComputeForRun(db, pass('run-one', '2026-07-15T10:00:00Z', '2026-07-15T11:00:00Z'), _PRICING);
-      await recordComputeForRun(db, pass('run-two', '2026-07-16T10:00:00Z', '2026-07-16T12:00:00Z'), _PRICING);
-
-      const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
-      // Keyed per period, this read 2 — the second pass having overwritten the
-      // first — and the customer was billed for one pass of a month's work.
-      expect(usage.computeHours).toBe(3);
-
-      // Two rows, one per pass, each named by its run.
-      const rows = await db.select().from(usageMetricTable);
-      const compute = rows.filter((r) => r.metricType === 'compute');
-      expect(compute.map((r) => r.resource).sort()).toEqual([
-        'domain-email#run-one',
-        'domain-email#run-two',
-      ]);
+    beforeEach(async () => {
+      await createFixture(TEST_TENANT_ID, TEST_MAPPING_ID);
     });
 
-    it('counts two passes as two sync operations, and a retry of one as one', async () => {
-      await db.insert(tenantTable).values({
-        id: TEST_TENANT_ID,
-        name: 't4-test-two-syncs',
-        status: 'active',
-      });
+    it('adds every pass in the period, rather than reporting the last one', async () => {
+      await seedRun(TEST_TENANT_ID, { seconds: 3600, dayOfMonth: 15 });
+      await seedRun(TEST_TENANT_ID, { seconds: 7200, dayOfMonth: 16 });
 
-      const periodStart = '2026-07-01';
-      const periodEnd = '2026-07-31';
-      const sync = (runId: string): ApiCallUsageInput => ({
+      const usage = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
+      // The defect 0121 fixed, restated against the derivation: this read 2.
+      expect(usage.computeHours).toBeCloseTo(3, 6);
+      expect(usage.passCount).toBe(2);
+    });
+
+    it('counts a pass once however often the task retried, because nothing is written', async () => {
+      // A Trigger.dev retry re-enters the SAME task run and closes the SAME
+      // run row. Idempotency is structural here: there is no second row to
+      // add, and no upsert whose key could be got wrong.
+      await seedRun(TEST_TENANT_ID, { seconds: 1800 });
+
+      const first = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
+      const second = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
+      expect(second).toEqual(first);
+      expect(second.passCount).toBe(1);
+    });
+
+    it('bills the initial copy, which the old meter never wrote a row for', async () => {
+      // run-full-sync opens `initial_copy` runs and never called either meter,
+      // so the biggest compute of a migration was charged at zero.
+      await seedRun(TEST_TENANT_ID, { seconds: 3600, kind: 'initial_copy', dayOfMonth: 2 });
+      await seedRun(TEST_TENANT_ID, { seconds: 3600, kind: 'incremental', dayOfMonth: 3 });
+
+      const usage = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
+      expect(usage.computeHours).toBeCloseTo(2, 6);
+      expect(BILLABLE_RUN_KINDS).toContain('initial_copy');
+    });
+
+    it('ignores a pass that never closed', async () => {
+      // Killed outright: no finished_at. The upsert only ever metered on the
+      // success path, so this bills nothing now that was billed before.
+      await seedRun(TEST_TENANT_ID, { seconds: 3600, finished: false });
+
+      const usage = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
+      expect(usage.computeHours).toBe(0);
+      expect(usage.passCount).toBe(0);
+    });
+
+    it('counts the last day of the period', async () => {
+      // `periodEnd` is a DATE, so `<= periodEnd` is midnight and drops the
+      // whole of the 31st. The window is half-open on purpose.
+      await seedRun(TEST_TENANT_ID, { seconds: 3600, dayOfMonth: 31 });
+
+      const usage = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
+      expect(usage.passCount).toBe(1);
+    });
+
+    it('excludes a pass outside the period', async () => {
+      await db.insert(runTable).values({
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
-        domain: 'email',
-        runId,
-        periodStart,
-        periodEnd,
+        kind: 'incremental',
+        trigger: 'schedule',
+        status: 'succeeded',
+        stats: {},
+        startedAt: new Date('2026-08-01T10:00:00Z'),
+        createdAt: new Date('2026-08-01T10:00:00Z'),
+        finishedAt: new Date('2026-08-01T11:00:00Z'),
       });
 
-      await recordApiCallForRun(db, sync('run-one'));
-      await recordApiCallForRun(db, sync('run-two'));
-      // A Trigger.dev retry of the FIRST run — same key, so it rewrites its
-      // own row. This is the property the per-period key was chosen for, and
-      // the narrower key keeps it.
-      await recordApiCallForRun(db, sync('run-one'));
+      const usage = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
+      expect(usage.passCount).toBe(0);
+    });
 
-      const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
+    it('keeps the per-domain split, summed across passes, at no extra rows', async () => {
+      await seedRun(TEST_TENANT_ID, {
+        seconds: 100,
+        dayOfMonth: 10,
+        domainSeconds: { email: 60, calendar: 40 },
+      });
+      await seedRun(TEST_TENANT_ID, {
+        seconds: 50,
+        dayOfMonth: 11,
+        domainSeconds: { email: 30, file: 20 },
+      });
+
+      const usage = await deriveComputeForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
+      expect(usage.byDomain).toEqual({ email: 90, calendar: 40, file: 20 });
+
+      // And the whole point: not one row was written to do it.
+      const written = await db.select().from(usageMetricTable);
+      expect(written).toHaveLength(0);
+    });
+
+    it('is what the read model serves for compute and sync operations', async () => {
+      await seedRun(TEST_TENANT_ID, { seconds: 3600, dayOfMonth: 5 });
+      await seedRun(TEST_TENANT_ID, { seconds: 3600, dayOfMonth: 6 });
+
+      const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, PERIOD_START, PERIOD_END);
+      expect(usage.computeHours).toBeCloseTo(2, 6);
       expect(usage.apiCallCount).toBe(2);
-    });
-
-    it('keeps the cost of short passes rather than rounding each to nothing', async () => {
-      await db.insert(tenantTable).values({
-        id: TEST_TENANT_ID,
-        name: 't4-test-short-passes',
-        status: 'active',
-      });
-
-      const periodStart = '2026-07-01';
-      const periodEnd = '2026-07-31';
-
-      // Twelve 20-second passes — an hour of a real mapping's day. At
-      // €0.05/hour each costs 0.028 cents, which rounded to the cent is zero.
-      for (let pass = 0; pass < 12; pass++) {
-        const startedAt = new Date(Date.UTC(2026, 6, 15, 10, pass * 5, 0));
-        await recordComputeForRun(db, {
-          tenantId: TEST_TENANT_ID,
-          mappingId: TEST_MAPPING_ID,
-          domain: 'email',
-          runId: `run-${pass}`,
-          startedAt,
-          completedAt: new Date(startedAt.getTime() + 20_000),
-          periodStart,
-          periodEnd,
-        }, _PRICING);
-      }
-
-      const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
-      expect(usage.computeHours).toBeCloseTo((12 * 20) / 3600, 6);
-
-      // The stored costs sum to the same thing the hours do. Rounded per row
-      // this was 0 — a month of work costing nothing, on a billing screen.
-      const rows = await db.select().from(usageMetricTable);
-      const stored = rows
-        .filter((r) => r.metricType === 'compute')
-        .reduce((sum, r) => sum + Number(r.totalCost), 0);
-      expect(stored).toBeCloseTo(usage.computeHours * _PRICING.computePricePerHour, 6);
-      expect(stored).toBeGreaterThan(0);
-    });
-
-    it('keeps each pass of each domain separate', async () => {
-      await db.insert(tenantTable).values({
-        id: TEST_TENANT_ID,
-        name: 't4-test-passes-per-domain',
-        status: 'active',
-      });
-
-      const periodStart = '2026-07-01';
-      const periodEnd = '2026-07-31';
-      for (const runId of ['run-one', 'run-two']) {
-        for (const domain of ['email', 'calendar'] as const) {
-          await recordApiCallForRun(db, {
-            tenantId: TEST_TENANT_ID,
-            mappingId: TEST_MAPPING_ID,
-            domain,
-            runId,
-            periodStart,
-            periodEnd,
-          });
-        }
-      }
-
-      // Two domains × two passes. Keyed per period this was 2 for any number
-      // of passes: the count of DOMAINS that had ever run in the month.
-      const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
-      expect(usage.apiCallCount).toBe(4);
     });
   });
 
   describe('Cross-tenant isolation', () => {
     it('should not expose tenant B usage to tenant A', async () => {
-      // Create two tenants
       await db.insert(tenantTable).values([
-        {
-          id: TEST_TENANT_ID,
-          name: 't4-tenant-a',
-          status: 'active',
-        },
-        {
-          id: TEST_TENANT_2_ID,
-          name: 't4-tenant-b',
-          status: 'active',
-        },
+        { id: TEST_TENANT_ID, name: 't4-tenant-a', status: 'active' },
+        { id: TEST_TENANT_2_ID, name: 't4-tenant-b', status: 'active' },
       ]);
 
       const periodStart = '2026-07-01';
       const periodEnd = '2026-07-31';
       const startedAt = new Date('2026-07-15T10:00:00Z');
-      const completedAt = new Date('2026-07-15T12:00:00Z'); // 2 hours
 
-      // Record usage for tenant B
-      await recordComputeForRun(db, {
+      // Two hours of compute, for tenant B only. `mappingId` is null: the
+      // billing window is (tenant, period), and RLS is what this is about.
+      await db.insert(runTable).values({
         tenantId: TEST_TENANT_2_ID,
-        mappingId: TEST_MAPPING_ID,
-        domain: 'email',
-        runId: 'run-tenant-b',
+        mappingId: null,
+        kind: 'incremental',
+        trigger: 'schedule',
+        status: 'succeeded',
+        stats: {},
         startedAt,
-        completedAt,
-        periodStart,
-        periodEnd,
-      }, _PRICING);
+        createdAt: startedAt,
+        finishedAt: new Date('2026-07-15T12:00:00Z'),
+      });
 
-      // Tenant A should see nothing
       const usageA = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
       expect(usageA.computeHours).toBe(0);
       expect(usageA.storageBytes).toBe(0);
 
-      // Tenant B should see their own usage
       const usageB = await getUsageMetricsForPeriod(db, TEST_TENANT_2_ID, periodStart, periodEnd);
-      expect(usageB.computeHours).toBe(2);
+      expect(usageB.computeHours).toBeCloseTo(2, 6);
     });
   });
 });

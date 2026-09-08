@@ -126,26 +126,16 @@ describe('Billing Route Isolation', () => {
 
   describe('GET /api/billing/usage', () => {
     it('should return usage for authenticated tenant', async () => {
-      // Get current period
       const now = new Date();
-      const periodStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
 
-      // Record usage using T4 metering schema (usageMetric table)
-      const runId = randomUUID();
-      
-      // Record compute usage (10 hours)
+      // Compute and sync operations are DERIVED from the run ledger (0121 T3):
+      // there is no `usage_metric` row to seed, because nothing writes one.
+      // Ten hours in one closed pass — the route reads what actually ran.
+      const startedAt = new Date(now.getTime() - 10 * 60 * 60 * 1000);
       await superuserPool.query(`
-        INSERT INTO usage_metric (id, tenant_id, period_start, period_end, metric_type, resource, quantity, unit, unit_price, total_cost, metadata, created_at)
-        VALUES ($1, $2, $3, $4, 'compute', 'domain-test', $5, 'hours', $6, $7, '{"mappingId":"m1","domain":"test"}', NOW())
-      `, [runId, API_TENANT_A, periodStart, periodEnd, 10, 5, 50]);
-
-      // Record API call usage (1 sync)
-      const runId2 = randomUUID();
-      await superuserPool.query(`
-        INSERT INTO usage_metric (id, tenant_id, period_start, period_end, metric_type, resource, quantity, unit, unit_price, total_cost, metadata, created_at)
-        VALUES ($1, $2, $3, $4, 'api_calls', 'sync-test', $5, 'request', $6, $7, '{}', NOW())
-      `, [runId2, API_TENANT_A, periodStart, periodEnd, 1, 0, 0]);
+        INSERT INTO run (id, tenant_id, mapping_id, kind, trigger, status, stats, started_at, finished_at, created_at)
+        VALUES ($1, $2, NULL, 'incremental', 'schedule', 'succeeded', '{}'::jsonb, $3, $4, $3)
+      `, [randomUUID(), API_TENANT_A, startedAt, now]);
 
       const response = await request
         .get('/api/billing/usage')

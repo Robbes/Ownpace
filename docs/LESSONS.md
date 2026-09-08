@@ -157,6 +157,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/api/src/services/invoice-generation.ts`
 
+- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 - [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
 
 ### `apps/selfhost/src/index.ts`
@@ -240,7 +241,7 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/jobs/run-delta-sync.ts`
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
-- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — compute and sync operations are metered per PASS and summed at read.
+- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 
 ### `apps/worker/src/jobs/run-discovery.ts`
@@ -624,6 +625,7 @@ reading a file drops off its entry by itself.
 ### `packages/ledger/src/retention.ts`
 
 - [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
+- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 
 ### `packages/ledger/src/schema-pg.ts`
 
@@ -643,11 +645,11 @@ reading a file drops off its entry by itself.
 
 ### `packages/managed/src/usage-metering.integration.test.ts`
 
-- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — compute and sync operations are metered per PASS and summed at read.
+- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 
 ### `packages/managed/src/usage-metering.ts`
 
-- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — compute and sync operations are metered per PASS and summed at read.
+- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 
 ### `packages/orchestration/src/account-qualification.ts`
 
@@ -1217,11 +1219,13 @@ Reads:
 
 ### [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts)
 
-A month of passes must not be billed as the last one — compute and sync operations are metered per PASS and summed at read.
+A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 
 Reads:
 
+- `apps/api/src/services/invoice-generation.ts`
 - `apps/worker/src/jobs/run-delta-sync.ts`
+- `packages/ledger/src/retention.ts`
 - `packages/managed/src/usage-metering.integration.test.ts`
 - `packages/managed/src/usage-metering.ts`
 

@@ -87,12 +87,29 @@ describe('a pass that stopped at the day’s ceiling is not marked completed', (
   });
 });
 
-describe('the managed worker meters the pass it ran', () => {
+describe('the managed worker times the pass it ran, and bills nothing', () => {
   const src = read(MANAGED);
 
-  it('hands the metering its own wall clock', () => {
+  /**
+   * SUPERSEDED, and stronger for it (workplan 0121 T3, 2026-09-08).
+   *
+   * This used to assert that the metering call was handed
+   * `startedAt: domainPassStartedAt` — the pass's own wall clock — because
+   * reading `completedAt` off the status row produced a NEGATIVE duration for
+   * any pass that ran and did not complete, and billed a credit for copying
+   * somebody's mail.
+   *
+   * There is no metering call here any more: compute derives from the `run`
+   * row this task already opens and closes. A dispatcher that bills nothing
+   * cannot bill a negative hour, so the property this guard exists for is now
+   * structural. What is still asserted is the clock — `domainSeconds` measures
+   * from the same per-pass start, and is the thing the derivation's per-domain
+   * split is built from — and, in place of the old assertion, that the two
+   * writes really are gone rather than moved somewhere quieter.
+   */
+  it('measures each domain from the pass’s own start', () => {
     expect(src).toContain('const domainPassStartedAt = new Date();');
-    expect(src).toContain('startedAt: domainPassStartedAt,');
+    expect(src).toMatch(/domainSeconds\[domain\][\s\S]{0,120}domainPassStartedAt\.getTime\(\)/);
   });
 
   it('never times a pass by a completion the row is still carrying', () => {
@@ -102,5 +119,12 @@ describe('the managed worker meters the pass it ran', () => {
       src.includes('domainStatus.completedAt'),
       'metering must not read a completion time off the status row — see this file’s comment',
     ).toBe(false);
+  });
+
+  it('writes no billing row from inside the domain pass', () => {
+    // Both upserts sat one line above the catch that calls markFailed, so a
+    // billing write that threw was reported as a failed mail migration.
+    expect(src).not.toContain('recordComputeForRun');
+    expect(src).not.toContain('recordApiCallForRun');
   });
 });
