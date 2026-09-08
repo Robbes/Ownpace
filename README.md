@@ -103,8 +103,8 @@ Active development, pre-release. License: Apache-2.0 (see `LICENSE`). "Ownpace" 
 trademark of Archico B.V. — the code is free, the name is not; see [`TRADEMARK.md`](./TRADEMARK.md).
 
 The **migration core** is done and property-tested for idempotency: O365 → JMAP/IMAP-DAV mail,
-plus calendar/contacts/files domains (worker `runAllDomains` orchestration) and the cutover
-machine.
+plus calendar/contacts/files/tasks domains (worker `runAllDomains` orchestration) and the
+cutover machine.
 
 The **managed edition** runs on one execution plane (workplan 0022): every job — sync, verify,
 apply, discovery — executes as a deployed Trigger.dev task, started by a scheduled tick; there is
@@ -114,7 +114,7 @@ a Mollie webhook end-to-end, and the compose operator stack is live-verified
 (`docs/operator-runbook.md`, `smoke-managed.sh`).
 
 The **self-host edition** (a single-tenant NAS/Pi appliance) is complete through workplan 0010,
-including the restart-resume idempotency gate across all four domains — and since ADR-0028 it can
+including the restart-resume idempotency gate across all five domains — and since ADR-0028 it can
 run with **no database server at all** (embedded PGlite, one container; the e2e gate is green on
 both backends). See the [quickstart](./docs/selfhost-quickstart.md) and `deploy/selfhost/`.
 
@@ -123,6 +123,31 @@ both backends). See the [quickstart](./docs/selfhost-quickstart.md) and `deploy/
 runbook (owner decision, 2026-07-16). Rollback therefore does not restore DNS or notify users; see
 [`docs/rollback-mechanisms.md`](./docs/rollback-mechanisms.md). See
 [`docs/workplans/`](./docs/workplans/) for per-slice Status blocks.
+
+## How this code is written
+
+Ownpace is built by one person working with **generative AI coding assistants**,
+and says so here because you should be able to judge the code knowing that.
+
+**Where they are used**: application logic, tests, refactors, documentation and
+commit messages — most of the repository has passed through one. **Where the
+human stays accountable**: every design decision, every ADR, every trade-off
+recorded in `docs/workplans/`, and the review that decides whether a change
+lands at all.
+
+The discipline that makes this safe to rely on is not the assistant, it is the
+guards. **Every safety property is a test that has been proven by breaking it** —
+written, then deliberately falsified to confirm it fails, then restored. Agents
+draft; the guards decide. A change that cannot be shown to fail when the
+behaviour it protects is removed does not count as tested here.
+
+**Provenance is in the git history, not a claim in this file.** Commits produced
+with assistance carry a `Co-Authored-By:` trailer naming the model. `git log` is
+the authoritative record of what was assisted and what was not.
+
+Contributors are welcome to use these tools on the same terms: disclose it in
+the commit, and hold yourself to the same guard discipline — a test you have not
+watched fail is not evidence.
 
 ## Contributing
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`AGENTS.md`](./AGENTS.md) (guidance for coding agents).
