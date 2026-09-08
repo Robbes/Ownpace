@@ -24,9 +24,6 @@ import {
   parseGoogleDriveSource,
   type ProviderClientEnv,
   microsoftTenant,
-  TARGET_TYPE_DOMAINS,
-  targetDomainRefusal,
-  type WizardTargetType,
   log,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
@@ -82,6 +79,7 @@ import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
 import { withClose, type WithClose } from './deps-lifecycle.ts';
+import { refuseDomainTheTargetCannotCarry } from './pass-domain-refusal.ts';
 import {
   STORED_CREDENTIAL_NAMES,
   buildGraphMailSourceFrom,
@@ -659,6 +657,21 @@ export async function buildDomainDepsFromMapping(
     // pass — met Microsoft with no backoff at all. See `tenantThrottleLimiter`
     // for the 429 that made it visible.
     const throttleLimiter = tenantThrottleLimiter(db, tenantId, throttleConfig);
+
+    // ASKED ONCE, FOR EVERY DOMAIN, BEFORE ANY BRANCH RUNS.
+    //
+    // #858 asked it for mail alone, inside the mail target's config builder,
+    // because that is where the owner's `Unsupported target type: undefined`
+    // came from. The other four had no such question — and the reason they
+    // need one is not hypothetical: `TARGET_TYPE_DOMAINS` gained `task` in
+    // 0113 and `nextcloud` on 2026-09-07, and a mapping created before a row
+    // changed keeps a tick that nothing re-checks (`scope_selection` is
+    // written once at creation and never updated).
+    //
+    // Here rather than in each branch, for the reason this file has been
+    // repaired twice already: four branches asking the same question by hand
+    // is three chances to forget it.
+    refuseDomainTheTargetCannotCarry(domain, tgt.kind);
     const common = { tenantId: tId, mappingId: mId, ledger, cursors };
     const targetDeps = { ledger, tenantId: tId, mappingId: mId };
 
@@ -1403,10 +1416,14 @@ export function mailTargetConfigFromConnection(
   // Asked BEFORE the stored-config shortcut below, because the question is
   // answered by the KIND and not by a config blob: a row carrying a stale
   // `type` must not talk its way past a face it has not got.
-  if (kind in TARGET_TYPE_DOMAINS) {
-    const refusal = targetDomainRefusal(kind as WizardTargetType, ['email']);
-    if (refusal) throw new Error(refusal);
-  }
+  //
+  // Through the SAME function the other four domains ask (2026-09-08). #858
+  // wrote this question out here by hand, for mail alone, because mail was the
+  // domain the owner's preflight failed on. Two hand-written copies of one
+  // table lookup is how this file's last two defects started, so mail asks the
+  // shared one and `a-domain-whose-pass-never-asked.unit.test.ts` fails the
+  // build if either seam stops calling it.
+  refuseDomainTheTargetCannotCarry('mail', kind);
 
   if (kind !== 'soverin') {
     if (typeof config.type === 'string' && config.type !== '') {
