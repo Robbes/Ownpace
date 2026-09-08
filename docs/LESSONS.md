@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 103 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 104 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -240,6 +240,7 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/jobs/run-delta-sync.ts`
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
+- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — compute and sync operations are metered per PASS and summed at read.
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 
 ### `apps/worker/src/jobs/run-discovery.ts`
@@ -639,6 +640,14 @@ reading a file drops off its entry by itself.
 ### `packages/managed/src/support-views.unit.test.ts`
 
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
+
+### `packages/managed/src/usage-metering.integration.test.ts`
+
+- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — compute and sync operations are metered per PASS and summed at read.
+
+### `packages/managed/src/usage-metering.ts`
+
+- [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — compute and sync operations are metered per PASS and summed at read.
 
 ### `packages/orchestration/src/account-qualification.ts`
 
@@ -1205,6 +1214,16 @@ Reads:
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/trigger-remember-token.sh`
 - `packages/testing/fixtures/stalwart/config.json`
+
+### [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts)
+
+A month of passes must not be billed as the last one — compute and sync operations are metered per PASS and summed at read.
+
+Reads:
+
+- `apps/worker/src/jobs/run-delta-sync.ts`
+- `packages/managed/src/usage-metering.integration.test.ts`
+- `packages/managed/src/usage-metering.ts`
 
 ### [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts)
 
