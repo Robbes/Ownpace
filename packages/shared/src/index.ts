@@ -36,6 +36,7 @@ export * from './front-door.ts';
 export * from './qualification-gate.ts';
 export * from './cron-schedule.ts';
 export * from './throttling.ts';
+export * from './pass-deadline.ts';
 export * from './rate-budget.ts';
 export * from './credential-refusals.ts';
 export * from './failure-category.ts';

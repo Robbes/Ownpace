@@ -22,7 +22,7 @@ import {
   type FileSyncDeps,
   failureSideOf,
 } from '@openmig/core';
-import type { TenantId, MappingId } from '@openmig/shared';
+import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
 import {
@@ -32,7 +32,7 @@ import {
 } from '@openmig/ledger';
 import { recordComputeForRun, recordApiCallForRun, resolveTenantPricing, PgBytesMovedStore } from '@openmig/managed';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { log } from '@openmig/shared';
+import { log, passDeadlineFrom } from '@openmig/shared';
 
 /**
  * ADR-0031 (accepted 2026-08-16): apply open relocations unattended, after a
@@ -193,6 +193,20 @@ export const runDeltaSync = schemaTask({
     const domains = typedPayload.domains ?? [...selected];
     const { periodStart, periodEnd } = getCurrentPeriod();
 
+    /**
+     * WHEN THIS PASS STOPS TAKING NEW WORK.
+     *
+     * Computed once, here, and shared by every domain — not per domain. Five
+     * domains each given the whole budget is five times the budget, and the
+     * runner's kill does not care how the time was divided. What the deadline
+     * bounds is THIS RUN.
+     *
+     * From now rather than from the run row's `started_at`: the difference is
+     * a database round trip, and anchoring to the later of the two is the
+     * direction that runs OVER the budget.
+     */
+    const deadline = passDeadlineFrom(Date.now());
+
     // Open the run-ledger row up front so an in-flight run is visible in the UI
     // and a crash leaves a `running` row rather than no trace at all.
     // Absent rather than wrong if the shape ever changes again: an absent
@@ -222,6 +236,37 @@ export const runDeltaSync = schemaTask({
     );
 
     let itemsProcessed = 0;
+
+    /**
+     * The run row closes EXACTLY ONCE, whichever way this task leaves.
+     *
+     * It used to close on the success path and in the catch, with no net
+     * between them — and a `run` row left at `running` is not merely untidy:
+     * `managed-sync-tick` skips any mapping that has one, so the mapping stops
+     * being enqueued at all. Silently, and for ever, because nothing reaps a
+     * stale row (retention deliberately excludes `running`).
+     *
+     * BE HONEST ABOUT WHAT THIS COVERS. A `finally` runs when the task returns
+     * or throws — including an abort that unwinds as an exception. It does NOT
+     * run when the process is killed outright, which is what a `maxDuration`
+     * kill or an OOM does. That case is why the soft deadline exists (so the
+     * kill is not reached) AND why `managed-sync-tick` now treats a long-stale
+     * `running` row as not running. Three layers, because the cheap two do not
+     * cover the case that actually wedged a mapping.
+     */
+    let runClosed = false;
+    const closeRun = async (outcome: 'succeeded' | 'failed', errors: number): Promise<void> => {
+      if (runClosed) return;
+      runClosed = true;
+      try {
+        await withTenant(pool, tenantId, async (db) => {
+          await new RunStore(db).finishRun(runId, outcome, { itemsProcessed, errors });
+        });
+      } catch (finishErr) {
+        // Best-effort — never mask the real error with a bookkeeping one.
+        log.error(`Failed to close run row as ${outcome}:`, finishErr);
+      }
+    };
 
     try {
       if (domains.length === 0) {
@@ -266,15 +311,23 @@ export const runDeltaSync = schemaTask({
 
           // Build + run + release the deps' pool per domain. Literal domain
           // args pick the right overload; the finally never leaks the pool.
-          let result: { created: number; skipped: number; firstCopyBytes?: number };
+          let result: {
+            created: number;
+            skipped: number;
+            firstCopyBytes?: number;
+            budgetPause?: BudgetPause;
+            deadlinePause?: DeadlinePause;
+          };
           if (domain === 'email') {
             // SECURITY: Build deps with tenant scoping (RLS enforced).
             const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
             try {
-              const pass = await runShadowPass(deps);
+              const pass = await runShadowPass({ ...deps, deadline });
               result = {
                 created: pass.created,
                 skipped: pass.skipped,
+                ...(pass.budgetPause ? { budgetPause: pass.budgetPause } : {}),
+                ...(pass.deadlinePause ? { deadlinePause: pass.deadlinePause } : {}),
                 ...(pass.firstCopyBytes !== undefined
                   ? { firstCopyBytes: pass.firstCopyBytes }
                   : {}),
@@ -284,10 +337,10 @@ export const runDeltaSync = schemaTask({
             }
           } else if (domain === 'calendar') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar');
-            try { result = await runCalendarSync(deps); } finally { await deps.close(); }
+            try { result = await runCalendarSync({ ...deps, deadline }); } finally { await deps.close(); }
           } else if (domain === 'contact') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact');
-            try { result = await runContactSync(deps); } finally { await deps.close(); }
+            try { result = await runContactSync({ ...deps, deadline }); } finally { await deps.close(); }
           } else if (domain === 'task') {
             // The managed half of the seventh fan-out (workplan 0113). This
             // file had the same bare `else` as orchestration's runOneDomain,
@@ -298,14 +351,14 @@ export const runDeltaSync = schemaTask({
             // `a-domain-the-dispatchers-forgot.unit.test.ts` now holds them
             // together.
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task');
-            try { result = await runTaskSync(deps); } finally { await deps.close(); }
+            try { result = await runTaskSync({ ...deps, deadline }); } finally { await deps.close(); }
           } else if (domain === 'file') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
             // Captured BEFORE the pass: ADR-0031's survived-a-pass gate keeps
             // a move this pass records from being auto-applied by this pass.
             const passStartedAt = new Date().toISOString();
             try {
-              result = await runFileSync(deps);
+              result = await runFileSync({ ...deps, deadline });
               await autoApplyOpenRelocations(tenantId, mappingId, runId, deps, passStartedAt);
             } finally { await deps.close(); }
           } else {
@@ -322,9 +375,71 @@ export const runDeltaSync = schemaTask({
             );
           }
 
-          await withTenant(pool, tenantId, async (db) => {
-            await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);
-          });
+          /**
+           * A PAUSED DOMAIN IS NOT A COMPLETED ONE.
+           *
+           * `markCompleted` says so in its own comment — it is "the one state
+           * that positively asserts the domain finished", which is why it
+           * clears `lastError` on that basis. A domain that stopped at the
+           * day's byte ceiling or at this pass's deadline has NOT finished:
+           * its cursors are exactly where they were and the next pass carries
+           * on from them, so calling it completed would put a "last synced"
+           * time on the customer's screen for a migration still half-copied.
+           *
+           * It stays `in_progress`, which is literally true — the domain is in
+           * progress ACROSS PASSES — and the next pass that does finish it
+           * marks it completed then.
+           *
+           * The byte ceiling has been reaching this line since 0090 T4 with
+           * nobody reading its pause: `budgetPause` is produced by the loop,
+           * carried through the result, and consumed by nothing. So a mail
+           * pass that stopped at Gmail's daily ceiling was marked completed
+           * and logged "N created, M skipped" as though it had finished the
+           * mailbox. Handling only the deadline here would have added a
+           * second silence beside the first.
+           */
+          const pause = result.deadlinePause
+            ? {
+                why:
+                  `stopped at this pass's own deadline after ${result.deadlinePause.ranForMs}ms` +
+                  (result.deadlinePause.collectionsNotReached
+                    ? `, with ${result.deadlinePause.collectionsNotReached} collection(s) not reached`
+                    : ''),
+                detail: { deadlinePause: result.deadlinePause },
+              }
+            : result.budgetPause
+              ? {
+                  why:
+                    `stopped at the day's download budget for ${result.budgetPause.provider} ` +
+                    `(${result.budgetPause.spentBytes} of ${result.budgetPause.ceilingBytes} bytes)` +
+                    (result.budgetPause.windowResetsAt
+                      ? `, which resets at ${result.budgetPause.windowResetsAt}`
+                      : ''),
+                  detail: { budgetPause: result.budgetPause },
+                }
+              : undefined;
+
+          if (!pause) {
+            await withTenant(pool, tenantId, async (db) => {
+              await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);
+            });
+          } else {
+            // Said on the run, in the words the reader needs: WHICH clock ran
+            // out, and that nothing failed. 'info' rather than 'warn' — a
+            // scheduled pause is the system working, and colouring it as a
+            // problem is how an owner comes to distrust a migration that is
+            // fine (hard rule 9 cuts both ways).
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'info',
+                `${domain}: ${pause.why}. Nothing failed and nothing is owed a retry; the ` +
+                  'cursors stayed where they are and the next scheduled pass continues from them.',
+                { domain, ...pause.detail },
+              );
+            });
+          }
           // The data axis (0109 T3): this pass's first-copy bytes join the
           // tenant's lifetime meter. Managed-side by construction — the
           // engine's number is a neutral pass statistic; pricing it is this
@@ -338,7 +453,15 @@ export const runDeltaSync = schemaTask({
             });
           }
           itemsProcessed += result.created + result.skipped;
-          log.info(`${domain} sync completed: ${result.created} created, ${result.skipped} skipped`);
+          // "completed" only when it did. The counts are the same either way —
+          // the pass really copied them — but a line that says a paused domain
+          // completed is the same untruth as the status row would have been,
+          // just somewhere a customer cannot see it, which makes it worse to
+          // debug rather than better.
+          log.info(
+            `${domain} sync ${pause ? 'paused' : 'completed'}: ` +
+              `${result.created} created, ${result.skipped} skipped`,
+          );
           await withTenant(pool, tenantId, async (db) => {
             await new RunStore(db).logEvent(tenantId, runId, 'info',
               `${domain}: ${result.created} created, ${result.skipped} skipped`,
@@ -408,9 +531,7 @@ export const runDeltaSync = schemaTask({
 
       log.info('Delta sync completed successfully');
 
-      await withTenant(pool, tenantId, async (db) => {
-        await new RunStore(db).finishRun(runId, 'succeeded', { itemsProcessed, errors: 0 });
-      });
+      await closeRun('succeeded', 0);
 
       return {
         success: true,
@@ -420,15 +541,17 @@ export const runDeltaSync = schemaTask({
       };
     } catch (error) {
       // Close the run row as failed so history shows the failure instead of a
-      // row stuck in `running` forever. Best-effort — never mask the real error.
-      try {
-        await withTenant(pool, tenantId, async (db) => {
-          await new RunStore(db).finishRun(runId, 'failed', { itemsProcessed, errors: 1 });
-        });
-      } catch (finishErr) {
-        log.error('Failed to close run row as failed:', finishErr);
-      }
+      // row stuck in `running` forever.
+      await closeRun('failed', 1);
       throw error;
+    } finally {
+      // The net. A no-op on both paths above, and the only thing standing
+      // between an unexpected exit and a mapping that never syncs again.
+      // Recorded as failed rather than succeeded: leaving by a route this
+      // function does not know about is not a success, and a run wrongly
+      // called failed costs a re-list the ledger makes free, while one
+      // wrongly called successful costs the truth.
+      await closeRun('failed', 1);
     }
   },
 });

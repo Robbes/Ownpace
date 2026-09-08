@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 100 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 101 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -244,6 +244,10 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/jobs/run-discovery.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `apps/worker/trigger.config.ts`
+
+- [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
 
 ### `deploy/compose/bootstrap-managed.sh`
 
@@ -725,6 +729,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/notifications.ts`
 
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
+
+### `packages/shared/src/pass-deadline.ts`
+
+- [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
 
 ### `packages/shared/src/ports.ts`
 
@@ -1215,6 +1223,15 @@ Reads:
 - `docs/testing.md`
 - `docs/windows-appliance-runbook.md`
 - `test/e2e/selfhost-backup-restore.e2e.test.ts`
+
+### [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts)
+
+A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
+
+Reads:
+
+- `apps/worker/trigger.config.ts`
+- `packages/shared/src/pass-deadline.ts`
 
 ### [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts)
 

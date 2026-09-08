@@ -16,6 +16,7 @@ import { applyTargetFolderPrefix,
   DEFAULT_EXCLUDE_SPECIAL_USE,
   DEFAULT_CONCURRENCY,
   discardedScanCursorKey,
+  passClock,
 } from '@openmig/shared';
 import { runDomainSync, type DomainSyncDeps as _DomainSyncDeps } from './domain-sync.ts';
 
@@ -62,6 +63,7 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     ledger,
     cursors,
     concurrency,
+    ...passClock(deps),
     // FOLDERS THE OWNER ASKED US TO LEAVE BEHIND never reach the loop.
     //
     // Filtered here rather than inside the loop because a skipped folder is not
@@ -219,6 +221,7 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     // A scheduled pause is a fact the pass summary must carry — a caller who
     // sees created: 0 with no reason would read a pause as a stall.
     ...(result.budgetPause ? { budgetPause: result.budgetPause } : {}),
+    ...(result.deadlinePause ? { deadlinePause: result.deadlinePause } : {}),
   };
 };
 
