@@ -283,14 +283,38 @@ describe('mailTargetConfigFromConnection — kind resolves protocol at ONE seam'
     });
   });
 
-  it('a row that carries its type is passed through untouched, and a DAV protocol row without one still has no mail face', () => {
+  it('a row that carries its type is passed through untouched', () => {
     const typed = { type: 'imap-dav', host: 'h', port: 993, tls: true, user: 'u' };
     expect(mailTargetConfigFromConnection('imap', typed, CREDS)).toBe(typed);
+  });
+
+  /**
+   * THIS TEST USED TO ASSERT THE DEFECT (2026-09-08).
+   *
+   * Its other half read:
+   *
+   *     expect(mailTargetConfigFromConnection('caldav', dav, CREDS)).toBe(dav);
+   *     expect(() => buildTargetWriterFromCredentials(dav, …))
+   *       .toThrow(/Unsupported target type: undefined/);
+   *
+   * — the DAV row passing through untyped, and the writer printing the absent
+   * value back. That is precisely what the owner's preflight showed on the
+   * Email row of a Microsoft → Nextcloud migration, and it survived a green
+   * suite because THIS assertion said it was correct.
+   *
+   * The fact it was reaching for is still true and still worth pinning: a DAV
+   * protocol target has no mail face. What changed is that saying so is now
+   * the seam's job, in the sentence the create wizard already uses, rather
+   * than the writer's job in a sentence naming nothing.
+   */
+  it('a DAV protocol row has no mail face, and the refusal says which and why', () => {
     const dav = { host: 'dav.example.nl', port: 443, url: 'https://dav.example.nl/dav/' };
-    expect(mailTargetConfigFromConnection('caldav', dav, CREDS)).toBe(dav);
-    expect(() =>
-      buildTargetWriterFromCredentials(dav as unknown as TargetConfig, { password: 'pw' }),
-    ).toThrow(/Unsupported target type: undefined/);
+
+    expect(() => mailTargetConfigFromConnection('caldav', dav, CREDS)).toThrow(
+      /CalDAV target cannot receive the 'email' data type/,
+    );
+    // Never the old sentence, whatever the wording becomes.
+    expect(() => mailTargetConfigFromConnection('caldav', dav, CREDS)).not.toThrow(/undefined/);
   });
 
   it('turns a soverin row with a stored mail face into the imap-dav shape, writer included', () => {
