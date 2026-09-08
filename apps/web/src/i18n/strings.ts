@@ -509,8 +509,6 @@ const en = {
   'wizard.schedule.sixHourly.hint': 'Six times per day',
   'wizard.schedule.quarterHourly': 'Every 15 minutes',
   'wizard.schedule.quarterHourly.hint': 'Frequent sync',
-  'wizard.customCron': 'Custom Cron Expression (optional)',
-  'wizard.customCronHint': 'Empty = daily at 2 AM',
   'wizard.readyToCreate': 'Ready to create migration',
   'wizard.reviewDetails': 'Migration Details',
   'wizard.review.name': 'Name',
@@ -519,12 +517,6 @@ const en = {
   'wizard.review.schedule': 'Schedule',
   'wizard.review.scheduleDefault': 'Daily at 2 AM',
   'wizard.review.dataTypes': 'Data Types',
-  // The truth of 0013 T5/T6 (0037 T3): creating starts NOTHING. The old note
-  // said "the initial sync may take some time" — an admin who navigated away
-  // believing migration was underway left it paused forever.
-  'wizard.review.note': 'Creating starts nothing: the migration is created paused.',
-  'wizard.review.why':
-    'Next you review what a read-only scan finds in your source and give the explicit start; nothing is copied until then.',
   'wizard.back': 'Back',
   'wizard.cancel': 'Cancel',
   'wizard.next': 'Next',
@@ -549,8 +541,6 @@ const en = {
   // full evidence sentence rides the hover title; unknown never locks.
   'wizard.domain.measuredNo': 'This account cannot carry this; test it again if that changed.',
   'wizard.domain.unmeasured': 'Not yet measured for this account; a test answers it.',
-  'wizard.cron.invalidLead': 'Not a valid schedule —',
-  'wizard.cron.nextRuns': 'With this schedule, the next syncs would run:',
   // 0037 T5: leaving a dirty wizard is a question, not a silent discard.
   'wizard.leaveConfirm': 'Leave this wizard? Everything you typed here will be discarded.',
   'billing.title': 'Billing',
@@ -2094,8 +2084,6 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.schedule.sixHourly.hint': 'Zes keer per dag',
   'wizard.schedule.quarterHourly': 'Elk kwartier',
   'wizard.schedule.quarterHourly.hint': 'Frequente synchronisatie',
-  'wizard.customCron': 'Eigen cron-expressie (optioneel)',
-  'wizard.customCronHint': 'Leeg = dagelijks om 02:00',
   'wizard.readyToCreate': 'Klaar om de migratie aan te maken',
   'wizard.reviewDetails': 'Migratiegegevens',
   'wizard.review.name': 'Naam',
@@ -2104,9 +2092,6 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.review.schedule': 'Schema',
   'wizard.review.scheduleDefault': 'Dagelijks om 02:00',
   'wizard.review.dataTypes': 'Gegevenstypen',
-  'wizard.review.note': 'Aanmaken start niets: de migratie wordt gepauzeerd aangemaakt.',
-  'wizard.review.why':
-    'Daarna beoordeelt u wat een alleen-lezen scan in uw bron vindt en geeft u expliciet het startsein; tot die tijd wordt er niets gekopieerd.',
   'wizard.back': 'Terug',
   'wizard.cancel': 'Annuleren',
   'wizard.next': 'Volgende',
@@ -2125,8 +2110,6 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.domain.measuredNo':
     'Dit account kan dit niet dragen; test het opnieuw als dat veranderd is.',
   'wizard.domain.unmeasured': 'Nog niet gemeten voor dit account; een test geeft het antwoord.',
-  'wizard.cron.invalidLead': 'Geen geldig schema —',
-  'wizard.cron.nextRuns': 'Met dit schema draaien de volgende synchronisaties op:',
   'wizard.leaveConfirm': 'Deze wizard verlaten? Alles wat u hier hebt ingevuld gaat verloren.',
   'billing.title': 'Facturatie',
   'billing.subtitle': 'Beheer uw abonnement, verbruik en betalingen',

@@ -1,6 +1,6 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import React, { useState } from 'react';
-import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
+import { useT, useLocale } from '../i18n/index.tsx';
 import { Hint, whyKeyOf } from '../components/Hint.tsx';
 import {
   measuredText,
@@ -33,7 +33,6 @@ import {
   sourceTypeDomains,
   sourceDomainRefusal,
   targetDomainRefusal,
-  describeCronScheduleProblem,
   credentialFieldsFor,
   qualifiedAnswerFor,
   applyProviderDefaults,
@@ -42,10 +41,6 @@ import {
   type CredentialField,
   credentialFieldRequired,
 } from '@openmig/shared';
-// The SAME cron library — same pinned version — the managed tick evaluates
-// schedules with, so the "next syncs" echo below cannot disagree with what
-// the scheduler will actually do.
-import { Cron } from 'croner';
 import {
   connectionsApi,
   mappingApi,
@@ -394,7 +389,6 @@ export function clearDraft(): void {
 
 const CreateMapping: React.FC = () => {
   const { t, locale } = useLocale();
-  const { dateTime } = useFormatters();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(0);
@@ -1165,10 +1159,6 @@ const CreateMapping: React.FC = () => {
   // descriptor requires it, and the door answers "Still needed" without it.
   const accountMissing = formData.sourceUsername.trim() === '';
 
-  /** The problem with a non-empty custom cron, or null (empty = default). */
-  const cronProblem = (): string | null =>
-    formData.schedule.trim() === '' ? null : describeCronScheduleProblem(formData.schedule);
-
   // Each step's gate checks only fields that step RENDERS (0037 T1, pulled
   // forward into 0033 T3 because no wizard test can exist without it): the
   // old source/target gates required sourceUsername/targetUsername — inputs
@@ -1265,9 +1255,7 @@ const CreateMapping: React.FC = () => {
           formData.name.trim() !== '' &&
           formData.domains.length > 0 &&
           targetDomainRefusal(formData.targetType, formData.domains) === null &&
-          sourceDomainRefusal(formData.sourceType, formData.domains, googleAccountDomains) ===
-            null &&
-          cronProblem() === null // empty = the default cadence, fine
+          sourceDomainRefusal(formData.sourceType, formData.domains, googleAccountDomains) === null
         );
       case 'review':
         return true;
@@ -1303,29 +1291,16 @@ const CreateMapping: React.FC = () => {
     if (canProceed()) return null;
     const stepId = steps[currentStep].id;
     if (stepId === 'migration') {
-      // The data types and the schedule share this step now (workplan 0070),
-      // so neither reason may return early on the other's behalf: an
-      // incoherent domain used to answer for a broken cron with `null`,
-      // leaving Next disabled and silent — the exact defect 0037 T3 removed.
+      // The schedule shares this step and can no longer be wrong: the four
+      // presets are the whole offer (owner, 2026-09-07), so the only refusal
+      // left here is an incoherent data type.
       const refusal =
         targetDomainRefusal(formData.targetType, formData.domains) ??
         sourceDomainRefusal(formData.sourceType, formData.domains, googleAccountDomains);
       if (refusal) return refusal;
-      const problem = cronProblem();
-      if (problem) return `${t('wizard.cron.invalidLead')} ${problem}`;
     }
     const fields = missingFields();
     return fields.length > 0 ? `${t('wizard.missing.lead')} ${fields.join(', ')}` : null;
-  };
-
-  /** The next few firings of a VALID custom cron, so the admin can check
-   *  their expression says what they meant (0037 T4's human-readable echo). */
-  const nextRuns = (): Date[] => {
-    try {
-      return new Cron(formData.schedule.trim()).nextRuns(3);
-    } catch {
-      return [];
-    }
   };
 
   /**
@@ -2310,34 +2285,6 @@ const CreateMapping: React.FC = () => {
                   </button>
                 ))}
               </div>
-
-              <div className="mt-4">
-                <label htmlFor="custom-cron" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('wizard.customCron')}
-                </label>
-                <input
-                  id="custom-cron"
-                  type="text"
-                  value={formData.schedule}
-                  onChange={(e) => updateField('schedule', e.target.value)}
-                  className="input w-full"
-                  placeholder="0 2 * * *"
-                  aria-invalid={cronProblem() !== null}
-                />
-                <p className="mt-1 text-xs text-gray-500">{t('wizard.customCronHint')}</p>
-                {/* The echo (0037 T4): a VALID expression shows its next
-                    firings — computed by the exact croner version the tick
-                    worker uses — so "did I say what I meant?" has an answer
-                    before the value is stored. */}
-                {formData.schedule.trim() !== '' && cronProblem() === null && (
-                  <p className="mt-2 text-xs text-gray-600" data-testid="cron-next-runs">
-                    {t('wizard.cron.nextRuns')}{' '}
-                    {nextRuns()
-                      .map((d) => dateTime(d))
-                      .join(' · ')}
-                  </p>
-                )}
-              </div>
             </div>
           </div>
         );
@@ -2412,14 +2359,6 @@ const CreateMapping: React.FC = () => {
                   ))}
                 </div>
               </div>
-
-              <Hint
-                className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"
-                tone="note"
-                label="more"
-                text={t('wizard.review.note')}
-                why={t('wizard.review.why')}
-              />
             </div>
           </div>
         );
