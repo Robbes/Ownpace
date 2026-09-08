@@ -171,6 +171,10 @@ reading a file drops off its entry by itself.
 - [a-version-you-can-see-before-you-sign-in](../scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts) — THE BUILD STAMP WAS ON EVERY PAGE EXCEPT THE ONES YOU CAN SEE.
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 
+### `apps/web/src/components/ProviderConsent.tsx`
+
+- [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
 ### `apps/web/src/components/StatusLink.tsx`
 
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
@@ -1027,6 +1031,7 @@ Reads:
 - `apps/api/src/routes/migrations/index.ts`
 - `apps/api/src/routes/provider-accounts.ts`
 - `apps/api/src/routes/provider-accounts.unit.test.ts`
+- `apps/web/src/components/ProviderConsent.tsx`
 - `apps/web/src/i18n/strings.ts`
 - `apps/web/src/pages/Connections.tsx`
 - `apps/web/src/pages/CreateMapping.tsx`
