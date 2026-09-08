@@ -75,13 +75,22 @@ export const PURGED_TABLES = [
   // what the erasure actually removed, which is the one thing a receipt is for.
   'path_lifecycle',
   'scope_selection',
-  // Before `verification` AND before `mailbox_mapping`: a run references both,
-  // and its foreign key to the mapping has no ON DELETE clause — so it
-  // RESTRICTS. Absent from this list, a tenant with a single verification run
-  // could not be erased at all: `purgeTenant` threw
-  // `verification_run_mapping_id_fkey` partway through, leaving a tenant
-  // marked `deleting` and half emptied. Found 2026-08-27 by seeding the
-  // fixture with the rows a real tenant actually has.
+  // Before `verification` AND before `mailbox_mapping`: a run references both.
+  //
+  // Its foreign keys used to name no ON DELETE action — so they RESTRICTED,
+  // and absent from this list a tenant with a single verification run could
+  // not be erased at all: `purgeTenant` threw `verification_run_mapping_id_fkey`
+  // partway through, leaving a tenant marked `deleting` and half emptied.
+  // Found 2026-08-27 by seeding the fixture with the rows a real tenant has.
+  //
+  // Migrations 0042 and 0043 gave both keys a stated fate, so the restriction
+  // is gone — and this entry STAYS, for the reason the header above gives: a
+  // row swept by a cascade is a row `erasure_record.purged_counts` cannot
+  // count, and under-reporting what an erasure removed is the one thing a
+  // receipt must not do. What those migrations removed was the trap for every
+  // OTHER caller. Fixing it here in August fixed erasure and left the same
+  // default in front of the customer's own Delete button, which answered a
+  // 500 with no way forward until 0042.
   'verification_run',
   'verification',
   'cutover_event',

@@ -775,7 +775,14 @@ export const verificationRun = pgTable(
   'verification_run',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    tenantId: uuid('tenant_id').notNull().references(() => tenant.id),
+    // Cascades (migration 0043), like the thirty-four other references to a
+    // tenant. It said nothing until then — the same accident as the mapping
+    // key below, in the same table definition. `purgeTenant` still deletes
+    // this table explicitly and first, because `erasure_record.purged_counts`
+    // is a receipt and rows swept by a cascade are rows it cannot count.
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
     // Cascades, like `verification` above: a run of a mapping that no longer
     // exists is not a record of anything, and every read here is keyed by
     // mapping. It said nothing until migration 0042, and an omitted action is
@@ -805,7 +812,11 @@ export const applyReceipt = pgTable(
   'apply_receipt',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    tenantId: uuid('tenant_id').notNull().references(() => tenant.id),
+    // Cascades (migration 0043); see verification_run above for why the
+    // erasure path still names this table explicitly.
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
     // Cascades (migration 0042). This row is the poller's outcome plus
     // per-item idempotency, and both are mapping-scoped — every read of this
     // table is keyed by `mappingId`, so a receipt kept without one is
