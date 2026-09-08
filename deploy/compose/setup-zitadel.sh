@@ -39,6 +39,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# One reader for this file, shared with every other script here: what
+# check-env-agreement.sh accepts, env_value reads — quoted or bare, the same
+# way Compose and `source` would. See deploy/compose/env-read.sh.
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
 UPSERT="${SCRIPT_DIR}/env-upsert.sh"
@@ -81,7 +87,7 @@ say "generating any missing secrets"
 
 read_env() { # read_env <key> [default]
   local v
-  v="$(grep -E "^${1}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+  v="$(env_value "$ENV_FILE" "${1}")"
   [ -n "$v" ] && printf '%s' "$v" || printf '%s' "${2:-}"
 }
 

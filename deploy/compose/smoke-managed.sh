@@ -72,6 +72,12 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# One reader for this file, shared with every other script here: what
+# check-env-agreement.sh accepts, env_value reads — quoted or bare, the same
+# way Compose and `source` would. See deploy/compose/env-read.sh.
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # WHAT THE OPERATOR ACTUALLY SET, READ OUT OF THE FILE.
@@ -89,7 +95,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # documented setting is used is a bug in the gate, and it fails pointing at the
 # wrong thing.
 smoke_env_value() {   # <key> — the last assignment in .env, or empty
-  grep -E "^$1=.+" "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true
+  env_value "${SCRIPT_DIR}/.env" "$1"
 }
 
 api_port="$(smoke_env_value API_PORT)"
@@ -2343,7 +2349,7 @@ fi
 # caller exports what it exports, and on the nightly that is not this key.
 # Without it, a stack whose operator never configured mail would fail a gate for
 # a channel they never asked for, which is a gate inventing a requirement.
-smtp_configured="$(grep -E '^SMTP_HOST=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+smtp_configured="$(env_value "${SCRIPT_DIR}/.env" SMTP_HOST)"
 
 if [ -z "$smtp_configured" ]; then
   note "the identity provider's own mail: no SMTP_HOST in .env, so nothing to assert"
@@ -2497,8 +2503,8 @@ report_json "redirect URIs" "/api/redirect-uris" '.entries | length'
 # A stack that carries no client is also correct (an appliance never does), and
 # then the fact reads `connection` and the consent refuses `no_google_client`,
 # which is asserted in its own right rather than skipped.
-gate_client_id="$(grep -E '^GOOGLE_OAUTH_CLIENT_ID=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
-gate_client_secret="$(grep -E '^GOOGLE_OAUTH_CLIENT_SECRET=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+gate_client_id="$(env_value "${SCRIPT_DIR}/.env" GOOGLE_OAUTH_CLIENT_ID)"
+gate_client_secret="$(env_value "${SCRIPT_DIR}/.env" GOOGLE_OAUTH_CLIENT_SECRET)"
 if [ -n "$gate_client_id" ] && [ -n "$gate_client_secret" ]; then
   report_json "provider accounts (google client)" "/api/provider-accounts" '.google.client' deployment
 
@@ -2576,8 +2582,8 @@ fi
 # token_access_type=offline and no secret in it; half a pair is refused. The
 # gate's pair is a sentinel that never reaches Dropbox — the URL is built,
 # never opened.
-gate_dbx_id="$(grep -E '^DROPBOX_OAUTH_CLIENT_ID=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
-gate_dbx_secret="$(grep -E '^DROPBOX_OAUTH_CLIENT_SECRET=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+gate_dbx_id="$(env_value "${SCRIPT_DIR}/.env" DROPBOX_OAUTH_CLIENT_ID)"
+gate_dbx_secret="$(env_value "${SCRIPT_DIR}/.env" DROPBOX_OAUTH_CLIENT_SECRET)"
 if [ -n "$gate_dbx_id" ] && [ -n "$gate_dbx_secret" ]; then
   report_json "provider clients (dropbox)" "/api/provider-clients" '.dropbox' deployment
 
@@ -2629,8 +2635,8 @@ fi
 # that never reaches Microsoft: the URL is built, never opened. A stack that
 # carries no pair reports `connection` and refuses `no_microsoft_client`,
 # asserted in its own right rather than skipped.
-gate_ms_id="$(grep -E '^MICROSOFT_OAUTH_CLIENT_ID=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
-gate_ms_secret="$(grep -E '^MICROSOFT_OAUTH_CLIENT_SECRET=.+' "${SCRIPT_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+gate_ms_id="$(env_value "${SCRIPT_DIR}/.env" MICROSOFT_OAUTH_CLIENT_ID)"
+gate_ms_secret="$(env_value "${SCRIPT_DIR}/.env" MICROSOFT_OAUTH_CLIENT_SECRET)"
 if [ -n "$gate_ms_id" ] && [ -n "$gate_ms_secret" ]; then
   report_json "provider clients (microsoft)" "/api/provider-clients" '.microsoft' deployment
 

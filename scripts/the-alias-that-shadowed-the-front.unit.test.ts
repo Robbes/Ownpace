@@ -58,7 +58,7 @@ beforeEach(() => {
   mkdirSync(compose, { recursive: true });
   // The real script AND the real upsert it writes through — a fixture upsert
   // could accept a value the shipped one refuses.
-  for (const name of ['zitadel-network-alias.sh', 'env-upsert.sh']) {
+  for (const name of ['zitadel-network-alias.sh', 'env-upsert.sh', 'env-read.sh']) {
     const p = join(compose, name);
     copyFileSync(join(COMPOSE_DIR, name), p);
     chmodSync(p, 0o755);

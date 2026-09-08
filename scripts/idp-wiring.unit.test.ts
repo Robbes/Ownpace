@@ -242,6 +242,7 @@ describe('the admin password is one the provider will accept', () => {
     dir = mkdtempSync(join(tmpdir(), 'secrets-'));
     copyFileSync(SCRIPT, join(dir, 'ensure-env-secrets.sh'));
     copyFileSync(join(REPO, 'deploy/compose/env-upsert.sh'), join(dir, 'env-upsert.sh'));
+    copyFileSync(join(REPO, 'deploy/compose/env-read.sh'), join(dir, 'env-read.sh'));
     chmodSync(join(dir, 'env-upsert.sh'), 0o755);
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));

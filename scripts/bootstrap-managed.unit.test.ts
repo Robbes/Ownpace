@@ -127,9 +127,11 @@ describe('env-upsert.sh', () => {
     expect(read()).toContain('TRIGGER_SECRET_KEY=tr_prod_x');
   });
 
-  it('refuses a value the shell would re-interpret, and writes nothing at all', () => {
+  it('refuses a value it cannot represent, and writes nothing at all', () => {
+    // A single quote is the one character with no form both compose's dotenv
+    // and bash's `source` read identically, so the value itself has to change.
     const before = read();
-    const r = run(UPSERT, [envFile, 'POSTGRES_PASSWORD=has$dollar', 'API_PORT=3002']);
+    const r = run(UPSERT, [envFile, "POSTGRES_PASSWORD=don't", 'API_PORT=3002']);
 
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('POSTGRES_PASSWORD');
@@ -137,14 +139,36 @@ describe('env-upsert.sh', () => {
     expect(read()).toBe(before);
   });
 
+  it('refuses a newline, which would be one key over two lines', () => {
+    expect(run(UPSERT, [envFile, 'K=first\nsecond']).status).toBe(1);
+  });
+
+  // These five used to be REFUSED, on the reasoning that the file is sourced by
+  // a shell and no value this repo writes needs any of them. That held until
+  // check-env-agreement.sh started telling operators to SINGLE-QUOTE such a
+  // value — at which point the writer was refusing the remedy the checker
+  // prescribed, and the two scripts gave opposite instructions about one line.
+  // They are now written quoted, and what matters is that the bytes survive.
   it.each([
-    ['whitespace', 'K=two words'],
-    ['a double quote', 'K=say"what'],
-    ['a single quote', "K=don't"],
-    ['a backtick', 'K=`id`'],
-    ['a backslash', 'K=back\\slash'],
-  ])('refuses %s', (_label, pair) => {
-    expect(run(UPSERT, [envFile, pair]).status).toBe(1);
+    ['whitespace', 'two words'],
+    ['a double quote', 'say"what'],
+    ['a dollar', 'has$dollar'],
+    ['a backtick', '`id`'],
+    ['a backslash', 'back\\slash'],
+    ['a brace, as setup-zitadel writes', 'https://idp/ui/console/users/{sub}'],
+  ])('stores %s single-quoted, byte for byte', (_label, value) => {
+    expect(run(UPSERT, [envFile, `K=${value}`]).status).toBe(0);
+    expect(read()).toContain(`K='${value}'`);
+
+    // And a shell reading the file back gets the value that went in — the
+    // property the old refusal was protecting, now held by the quoting.
+    const back = run('bash', [
+      '-c',
+      'set -a; . "$1"; set +a; printf %s "$K"',
+      'sh',
+      envFile,
+    ]);
+    expect(back.stdout).toBe(value);
   });
 
   it('refuses something that is not a KEY=VALUE pair, and a bad variable name', () => {

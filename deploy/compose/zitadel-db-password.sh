@@ -63,6 +63,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# One reader for this file, shared with every other script here: what
+# check-env-agreement.sh accepts, env_value reads — quoted or bare, the same
+# way Compose and `source` would. See deploy/compose/env-read.sh.
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+
 ENV_FILE="${SCRIPT_DIR}/.env"
 CONTAINER="${OWNPACE_DB_CONTAINER:-ownpace-db}"
 # Inside the container Postgres listens on 5432 whatever POSTGRES_PORT publishes
@@ -93,7 +99,7 @@ read_env() { # read_env <key> [default]
   local v
   # `|| true` because a missing key is a normal answer, and `set -o pipefail`
   # would otherwise make grep's empty result fail the script.
-  v="$(grep -E "^${1}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+  v="$(env_value "$ENV_FILE" "${1}")"
   [ -n "$v" ] && printf '%s' "$v" || printf '%s' "${2:-}"
 }
 

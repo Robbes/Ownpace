@@ -91,16 +91,37 @@ fi
 touch "$ENV_FILE"
 
 # VALUE RULES. Every consumer of this file sources it with `set -a; . .env`
-# (deploy-tasks.sh, set-task-env.sh, the e2e workflow), so the file is not
-# just read as data — it is EXECUTED by a shell. A value containing a quote,
-# a backtick, a `$` or whitespace either changes meaning on the way in or runs
-# as a command, and compose's own parser would disagree with the shell about
-# which happened. None of the values this repo writes needs any of them, so
-# rather than invent a quoting convention two parsers must agree on, refuse.
+# (deploy-tasks.sh, set-task-env.sh, the e2e workflow), so the file is not just
+# read as data — it is EXECUTED by a shell. A value containing a quote, a
+# backtick, a `$` or whitespace either changes meaning on the way in or runs as
+# a command, and compose's own parser would disagree with the shell about which
+# happened.
 #
-# The refusal is the feature: it fires at the moment a password with a `$` in
-# it is being written, naming the key, instead of at the next `docker compose
-# up` with a login failure that looks like the wrong password.
+# This used to REFUSE all of those, on the reasoning that no value this repo
+# writes needs them and that a quoting convention two parsers must agree on was
+# not worth inventing. `check-env-agreement.sh` then went and specified exactly
+# such a convention, because operators do have values that need them — a
+# trusted-domains list is a sentence with spaces in it, and an OAuth secret is
+# whatever the provider minted. Refusing here while the checker prescribes
+# single quotes over there left the two scripts giving opposite instructions
+# about the same line.
+#
+# So: a BARE-SAFE value is written bare, exactly as before — every value this
+# repo generates is hex or a hostname, and those lines do not change. Anything
+# else is written SINGLE-QUOTED, the one form neither Compose's dotenv nor
+# bash's `source` expands, and the one `env-read.sh` and the checker both
+# understand.
+#
+# Two things are still refused, because quoting cannot settle them:
+#
+#   - a value containing a SINGLE QUOTE. There is no representation both
+#     parsers read identically, so the value itself has to change.
+#   - a NEWLINE. One key, two lines, and the second is a command to the shell.
+#
+# Note this is deliberately less strict than `check-env-agreement.sh --fix`,
+# which will not quote a `$` value: it sees only text, and cannot know whether
+# `$HOME` was meant to expand. Here the caller passed the value it wants
+# stored, so the intent is not in doubt — the bytes are the value.
 reject() {
   echo "[env-upsert] REFUSED ${1}: ${2}" >&2
   echo "[env-upsert] Nothing was written to ${ENV_FILE}." >&2
@@ -118,14 +139,24 @@ for pair in "$@"; do
   value="${pair#*=}"
   [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] ||
     reject "$name" "not a valid environment variable name"
-  [[ "$value" == *$'\n'* ]] && reject "$name" "value contains a newline"
+  [[ "$value" == *$'\n'* ]] &&
+    reject "$name" "value contains a newline — one key over two lines, and the second line is a command to the shell"
   case "$value" in
-    *[[:space:]]* | *\"* | *\'* | *\$* | *\`* | *\\*)
-      reject "$name" "value contains whitespace or one of \" ' \$ \` \\ — every consumer sources this file with \`. .env\`, so such a value would be re-interpreted by the shell"
+    *\'*)
+      reject "$name" "value contains a single quote — there is no form both compose's dotenv and bash's \`source\` read identically, so the value itself has to change"
       ;;
   esac
+  # Bare when it can be, single-quoted when it cannot. Same set of characters
+  # check-env-agreement.sh calls unambiguous, so what this writes is what that
+  # accepts — the two are one rule stated twice, which is why they are tested
+  # against each other.
+  if [[ "$value" =~ ^[A-Za-z0-9_@%+=:,./-]*$ ]]; then
+    written="$value"
+  else
+    written="'${value}'"
+  fi
   NAMES+=("$name")
-  VALUES+=("$value")
+  VALUES+=("$written")
 done
 
 # --if-absent: drop the pairs whose key already carries a non-empty value.
