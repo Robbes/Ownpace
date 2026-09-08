@@ -83,6 +83,12 @@ import {
   type HousekeepingClean,
   type HousekeepingRow,
 } from './operator-housekeeping.ts';
+import {
+  SECRET_SITES,
+  secretSummary,
+  tallySite,
+  type SiteTally,
+} from './secret-readability.ts';
 
 const USAGE = `Usage:
   operator:list
@@ -93,6 +99,7 @@ const USAGE = `Usage:
   operator:leave <subject> --all
   operator:check [kind]
   operator:clean <kind> [--confirm]
+  operator:secrets
 
 DATABASE_URL must be the OWNER connection — app_user cannot write this table,
 which is the point of it.`;
@@ -856,6 +863,43 @@ async function main(): Promise<void> {
             : `\n${total} finding(s). Each line above carries what resolves it; the ones\n` +
                 `\`clean\` can do for you are marked with a clean command.`,
         );
+        break;
+      }
+
+      case 'secrets': {
+        // Cross-tenant, like every other operator verb: the question is about
+        // the deployment, and a per-tenant answer would miss exactly the rows
+        // nobody is looking at.
+        await requireCrossTenantSight(pool);
+
+        const tallies: SiteTally[] = [];
+        for (const site of SECRET_SITES) {
+          const { rows } = await pool.query<{ id: string; label: string; ref: string }>(site.find);
+          tallies.push(tallySite(site, rows));
+        }
+
+        for (const tally of tallies) {
+          const legacy = tally.site.legacy ? ' (legacy column, still read by revocation)' : '';
+          if (tally.checked === 0) {
+            log.info(`\n${tally.site.at}: no rows${legacy}`);
+            continue;
+          }
+          if (tally.unreadable.length === 0) {
+            // Said, not omitted — see secretSummary.
+            log.info(`\n${tally.site.at}: ${tally.checked} readable${legacy}`);
+            continue;
+          }
+          log.info(
+            `\n${tally.site.at}: ${tally.unreadable.length} of ${tally.checked} UNREADABLE${legacy}`,
+          );
+          for (const bad of tally.unreadable) {
+            log.info(`  ${bad.verdict}  ${bad.label}`);
+            log.info(`      ${bad.id}`);
+            log.info(`      → ${bad.remedy}`);
+          }
+        }
+
+        log.info(`\n${secretSummary(tallies)}`);
         break;
       }
 
