@@ -113,10 +113,47 @@ async function autoApplyOpenRelocations(
 }
 
 // Job input schema
+const SYNC_DOMAINS = ['file', 'email', 'calendar', 'contact', 'task'] as const;
+
 const DeltaSyncJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
-  domains: z.array(z.enum(['file', 'email', 'calendar', 'contact', 'task'])).optional(),
+  domains: z.array(z.enum(SYNC_DOMAINS)).optional(),
+  /**
+   * Scan from the beginning instead of from the stored cursor — `true` for
+   * every domain this pass runs, or a LIST to pick which.
+   *
+   * ## Why this exists at all
+   *
+   * There used to be a second task, `run-full-sync`, whose whole difference
+   * from this one was that it passed no cursor store. Everything else about
+   * it was this file, minus every improvement made since: no per-domain
+   * `migration_status` rows, no pause handling, no deadline, no failure
+   * category — and, because it called `runShadowPass` directly rather than
+   * looping the domains, **it synced MAIL AND NOTHING ELSE**. A customer who
+   * pressed a full re-sync on a mapping carrying calendars, contacts, files
+   * and tasks got their mail copied and a success report. That is the same
+   * defect `resolveDiscoveryJob` records from 2026-09-07, one layer down: the
+   * mail path mistaken for the whole product.
+   *
+   * One job, one option. The cursors were the only real difference.
+   *
+   * ## Why a LIST and not a flag
+   *
+   * The operational question is almost never "redo everything". It is "tasks
+   * came out wrong, redo those" — and a whole-mapping rescan to fix one
+   * domain re-reads a mailbox that was already right, against a source with a
+   * daily byte ceiling (workplan 0090) that the re-read spends for nothing.
+   *
+   * ## What it does NOT do
+   *
+   * It does not reset the stored cursors (owner's decision, 2026-09-08: "that
+   * is a different decision"). `cursors` is the STORE, so withholding it makes
+   * the pass both read no cursor and write none — the saved position is left
+   * exactly where it was, and the next ordinary pass resumes from it. A full
+   * scan is a thing this pass does, not a thing it leaves behind.
+   */
+  forceFullScan: z.union([z.boolean(), z.array(z.enum(SYNC_DOMAINS))]).optional(),
 });
 
 type DeltaSyncJobPayload = z.infer<typeof DeltaSyncJobSchema>;
@@ -182,6 +219,19 @@ export const runDeltaSync = schemaTask({
     // was asked for less", and only scope_selection knows which is which.
     const selected = await enabledDomains(pool, tenantId, mappingId);
     const domains = typedPayload.domains ?? [...selected];
+
+    /**
+     * Does THIS domain scan from the beginning this pass?
+     *
+     * Withholding `cursors` is the whole mechanism: the domain sync reads a
+     * previous position only `if (cursors)` and saves one only `if (cursors)`,
+     * so a full scan reads everything and leaves the saved position untouched.
+     */
+    const scansFromTheBeginning = (domain: string): boolean =>
+      typedPayload.forceFullScan === true ||
+      (Array.isArray(typedPayload.forceFullScan) && typedPayload.forceFullScan.includes(
+        domain as (typeof SYNC_DOMAINS)[number],
+      ));
 
     /**
      * WHEN THIS PASS STOPS TAKING NEW WORK.
@@ -316,6 +366,10 @@ export const runDeltaSync = schemaTask({
           // status row. Taken after the row is opened so the two agree.
           const domainPassStartedAt = new Date();
 
+          // Whether this domain rescans from scratch — per domain, so "redo the
+          // tasks" does not re-read a mailbox that was already right.
+          const fullScan = scansFromTheBeginning(domain);
+
           // Build + run + release the deps' pool per domain. Literal domain
           // args pick the right overload; the finally never leaks the pool.
           let result: {
@@ -329,7 +383,11 @@ export const runDeltaSync = schemaTask({
             // SECURITY: Build deps with tenant scoping (RLS enforced).
             const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
             try {
-              const pass = await runShadowPass({ ...deps, deadline });
+              const pass = await runShadowPass({
+                ...deps,
+                deadline,
+                ...(fullScan ? { cursors: undefined } : {}),
+              });
               result = {
                 created: pass.created,
                 skipped: pass.skipped,
@@ -344,10 +402,14 @@ export const runDeltaSync = schemaTask({
             }
           } else if (domain === 'calendar') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar');
-            try { result = await runCalendarSync({ ...deps, deadline }); } finally { await deps.close(); }
+            try {
+              result = await runCalendarSync({ ...deps, deadline, ...(fullScan ? { cursors: undefined } : {}) });
+            } finally { await deps.close(); }
           } else if (domain === 'contact') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact');
-            try { result = await runContactSync({ ...deps, deadline }); } finally { await deps.close(); }
+            try {
+              result = await runContactSync({ ...deps, deadline, ...(fullScan ? { cursors: undefined } : {}) });
+            } finally { await deps.close(); }
           } else if (domain === 'task') {
             // The managed half of the seventh fan-out (workplan 0113). This
             // file had the same bare `else` as orchestration's runOneDomain,
@@ -358,14 +420,16 @@ export const runDeltaSync = schemaTask({
             // `a-domain-the-dispatchers-forgot.unit.test.ts` now holds them
             // together.
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task');
-            try { result = await runTaskSync({ ...deps, deadline }); } finally { await deps.close(); }
+            try {
+              result = await runTaskSync({ ...deps, deadline, ...(fullScan ? { cursors: undefined } : {}) });
+            } finally { await deps.close(); }
           } else if (domain === 'file') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
             // Captured BEFORE the pass: ADR-0031's survived-a-pass gate keeps
             // a move this pass records from being auto-applied by this pass.
             const passStartedAt = new Date().toISOString();
             try {
-              result = await runFileSync({ ...deps, deadline });
+              result = await runFileSync({ ...deps, deadline, ...(fullScan ? { cursors: undefined } : {}) });
               await autoApplyOpenRelocations(tenantId, mappingId, runId, deps, passStartedAt);
             } finally { await deps.close(); }
           } else {

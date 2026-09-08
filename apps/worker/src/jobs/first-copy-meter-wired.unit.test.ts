@@ -25,7 +25,9 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 
 /** The jobs that run sync passes today, and must therefore flush the meter. */
-const PASS_RUNNING_JOBS = ['run-delta-sync.ts', 'run-full-sync.ts'];
+// One job runs passes now: `run-full-sync.ts` was deleted because a full scan
+// is an option, not a second copy of this file (it synced mail alone).
+const PASS_RUNNING_JOBS = ['run-delta-sync.ts'];
 
 describe('the meter flush is wired in every pass-running job', () => {
   for (const job of PASS_RUNNING_JOBS) {

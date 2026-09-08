@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 104 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 105 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -220,6 +220,7 @@ reading a file drops off its entry by itself.
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+- [a-full-sync-that-only-did-the-mail](../scripts/a-full-sync-that-only-did-the-mail.unit.test.ts) — One job runs passes, a full scan is an option on it, and EVERY domain honours that option.
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `apps/web/src/services/oidc.ts`
@@ -241,6 +242,7 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/jobs/run-delta-sync.ts`
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
+- [a-full-sync-that-only-did-the-mail](../scripts/a-full-sync-that-only-did-the-mail.unit.test.ts) — One job runs passes, a full scan is an option on it, and EVERY domain honours that option.
 - [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 
@@ -1165,6 +1167,15 @@ Reads:
 
 - `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
 - `scripts/a-domain-union-typed-out-by-hand.unit.test.ts`
+
+### [a-full-sync-that-only-did-the-mail](../scripts/a-full-sync-that-only-did-the-mail.unit.test.ts)
+
+One job runs passes, a full scan is an option on it, and EVERY domain honours that option.
+
+Reads:
+
+- `apps/web/src/services/mapping-service.ts`
+- `apps/worker/src/jobs/run-delta-sync.ts`
 
 ### [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts)
 

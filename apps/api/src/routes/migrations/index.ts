@@ -1541,7 +1541,11 @@ router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, 
 const TriggerSyncSchema = z.object({
   type: z.enum(['full', 'delta']).optional(),
   mode: z.string().optional(), // Accept legacy 'mode' field for tests
-  forceFullScan: z.boolean().default(false),
+  // `true` for every domain the pass runs, or a list to pick which — "the
+  // tasks came out wrong, do those again" without re-reading the mailbox.
+  forceFullScan: z
+    .union([z.boolean(), z.array(z.enum(['file', 'email', 'calendar', 'contact', 'task']))])
+    .default(false),
 }).passthrough(); // Allow additional fields
 
 // No gracePeriodHours: the cutover task prepares and verifies, then stops at

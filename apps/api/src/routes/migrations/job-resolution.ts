@@ -7,16 +7,54 @@
  * content (§12/§17); the worker loads connections/credentials under RLS.
  */
 
-/** Resolve the sync task: full-sync when requested, else the incremental delta. */
+/**
+ * Resolve the sync task. There is ONE, and a full scan is an option on it.
+ *
+ * ## What the second task was, and what it cost
+ *
+ * `run-full-sync` existed because a full pass passes no cursor store. That
+ * was its only real difference; everything else about it was `run-delta-sync`
+ * as of a much earlier release — no per-domain `migration_status`, no pause
+ * handling, no deadline, no failure category. And because it called
+ * `runShadowPass` directly instead of looping the mapping's domains, **it
+ * synced mail and nothing else.** A customer who pressed a full re-sync on a
+ * mapping carrying calendars, contacts, files and tasks had their mail copied
+ * and was told it succeeded.
+ *
+ * That is the defect `resolveDiscoveryJob` below records from 2026-09-07, one
+ * layer down and with the same cause: the mail path taken for the whole
+ * product. Deleting the task is the fix — two copies of a 592-line job is how
+ * one of them silently stopped being the product.
+ *
+ * ## `forceFullScan` may name domains
+ *
+ * `true` rescans every domain the pass runs. A LIST rescans only those, which
+ * is the question people actually ask — "the tasks came out wrong, do those
+ * again" — and avoids re-reading a mailbox that was already right against a
+ * source with a daily byte ceiling (workplan 0090).
+ *
+ * It does not reset the stored cursors (owner's decision, 2026-09-08). The
+ * job withholds the cursor STORE for the chosen domains, so the pass reads no
+ * saved position and writes none: the saved position survives, and the next
+ * ordinary pass resumes from it.
+ */
 export function resolveSyncJob(
   tenantId: string,
   mappingId: string,
-  opts: { type?: 'full' | 'delta'; forceFullScan?: boolean },
-): { taskId: 'run-full-sync' | 'run-delta-sync'; payload: Record<string, unknown> } {
-  const wantsFull = opts.type === 'full' || opts.forceFullScan === true;
-  return wantsFull
-    ? { taskId: 'run-full-sync', payload: { tenantId, mappingId, options: { forceFullScan: true } } }
-    : { taskId: 'run-delta-sync', payload: { tenantId, mappingId } };
+  opts: { type?: 'full' | 'delta'; forceFullScan?: boolean | readonly string[] },
+): { taskId: 'run-delta-sync'; payload: Record<string, unknown> } {
+  const domains = Array.isArray(opts.forceFullScan) ? [...opts.forceFullScan] : undefined;
+  const everything = opts.type === 'full' || opts.forceFullScan === true;
+  return {
+    taskId: 'run-delta-sync',
+    payload: {
+      tenantId,
+      mappingId,
+      // Absent means absent — an explicit `false` would read as a choice
+      // somebody made, and the job's schema marks the field optional.
+      ...(domains ? { forceFullScan: domains } : everything ? { forceFullScan: true } : {}),
+    },
+  };
 }
 
 /**

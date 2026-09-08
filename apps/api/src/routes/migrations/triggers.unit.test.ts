@@ -19,19 +19,41 @@ describe('resolveSyncJob', () => {
     });
   });
 
-  it("uses the full-sync task when type is 'full'", () => {
+  it("asks the one task for a full scan when type is 'full'", () => {
+    // There is no second task any more. `run-full-sync` existed because a full
+    // pass passes no cursor store — and because it called runShadowPass rather
+    // than looping the mapping's domains, it synced MAIL AND NOTHING ELSE, on
+    // a mapping that might carry four other domains.
     expect(resolveSyncJob(TENANT, MAPPING, { type: 'full' })).toEqual({
-      taskId: 'run-full-sync',
-      payload: { tenantId: TENANT, mappingId: MAPPING, options: { forceFullScan: true } },
+      taskId: 'run-delta-sync',
+      payload: { tenantId: TENANT, mappingId: MAPPING, forceFullScan: true },
     });
   });
 
-  it('uses the full-sync task when forceFullScan is set even without type', () => {
-    expect(resolveSyncJob(TENANT, MAPPING, { forceFullScan: true }).taskId).toBe('run-full-sync');
+  it('asks for a full scan when forceFullScan is set even without type', () => {
+    expect(resolveSyncJob(TENANT, MAPPING, { forceFullScan: true })).toEqual({
+      taskId: 'run-delta-sync',
+      payload: { tenantId: TENANT, mappingId: MAPPING, forceFullScan: true },
+    });
   });
 
-  it("uses delta for an explicit type 'delta'", () => {
-    expect(resolveSyncJob(TENANT, MAPPING, { type: 'delta', forceFullScan: false }).taskId).toBe('run-delta-sync');
+  it('carries a LIST through, so one domain can be redone alone', () => {
+    // "The tasks came out wrong, do those again" — without re-reading a
+    // mailbox that was already right, against a source with a daily byte
+    // ceiling (workplan 0090) that the re-read would spend for nothing.
+    expect(resolveSyncJob(TENANT, MAPPING, { forceFullScan: ['task'] })).toEqual({
+      taskId: 'run-delta-sync',
+      payload: { tenantId: TENANT, mappingId: MAPPING, forceFullScan: ['task'] },
+    });
+  });
+
+  it("omits the option entirely for an explicit type 'delta'", () => {
+    // Absent means absent: an explicit `false` would read as a choice somebody
+    // made, and the job's schema marks the field optional rather than nullable.
+    expect(resolveSyncJob(TENANT, MAPPING, { type: 'delta', forceFullScan: false })).toEqual({
+      taskId: 'run-delta-sync',
+      payload: { tenantId: TENANT, mappingId: MAPPING },
+    });
   });
 });
 
