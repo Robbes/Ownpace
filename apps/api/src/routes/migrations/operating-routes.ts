@@ -1110,6 +1110,54 @@ async function latestReceipt(
   return rows[0] ? receiptFromRow(rows[0]) : { state: 'none' };
 }
 
+/**
+ * Queue one destructive apply: the receipt AND the record that a person
+ * ordered it, in one transaction.
+ *
+ * The receipt is operational — it is what the poller reads and what makes a
+ * second press of the same button idempotent — and it is scoped to the
+ * mapping, so migration 0042 lets it go when the mapping is deleted. The
+ * durable half is the `audit_log` row: no foreign key to a mapping, not
+ * pruned by retention, and it is what answers "who ordered this removal"
+ * after the migration itself is gone.
+ *
+ * Until this existed, only the AUTOMATIC path wrote that row
+ * (`autoApplyRelocations`, workplan 0048, actor `system:auto-apply`). A
+ * removal a named operator pressed for was recorded less well than one the
+ * system made on its own, which is backwards.
+ *
+ * The row says ORDERED, not done — that is what is true at this moment, and
+ * the outcome lands on the receipt the poller reads. One transaction, so
+ * there is no window in which a queued removal has no attribution.
+ */
+async function queueApply(
+  s: Scoped,
+  actor: string,
+  hash: string,
+  action: 'deletion' | 'relocation',
+): Promise<{ id: string; requestedAt: Date }> {
+  return withTenantDb(s.tenantId, pool(), async (db) => {
+    const inserted = await db
+      .insert(schema.applyReceipt)
+      .values({
+        tenantId: s.tenantId,
+        mappingId: s.mappingId,
+        naturalKeyHash: hash,
+        action,
+        state: 'queued',
+      })
+      .returning({ id: schema.applyReceipt.id, requestedAt: schema.applyReceipt.requestedAt });
+    const receipt = inserted[0]!;
+    await new PgLedger(db).recordAuditEvent(s.tenantId as TenantId, {
+      actor,
+      action: `apply_${action}.ordered`,
+      entity: 'item',
+      detail: { mappingId: s.mappingId, naturalKeyHash: hash, receiptId: receipt.id },
+    });
+    return receipt;
+  });
+}
+
 router.post(
   '/:mappingId/deletions/:hash/apply',
   authenticate,
@@ -1175,19 +1223,7 @@ router.post(
         return void res.status(status).json({ error: verdict.code, reason: verdict.reason });
       }
 
-      const inserted = await withTenantDb(s.tenantId, pool(), (db) =>
-        db
-          .insert(schema.applyReceipt)
-          .values({
-            tenantId: s.tenantId,
-            mappingId: s.mappingId,
-            naturalKeyHash: hash,
-            action: 'deletion',
-            state: 'queued',
-          })
-          .returning({ id: schema.applyReceipt.id, requestedAt: schema.applyReceipt.requestedAt }),
-      );
-      const receipt = inserted[0]!;
+      const receipt = await queueApply(s, req.userId ?? 'unknown', hash, 'deletion');
 
       try {
         await getTriggerClient().tasks.trigger(
@@ -1317,19 +1353,7 @@ router.post(
         return void res.status(status).json({ error: verdict.code, reason: verdict.reason });
       }
 
-      const inserted = await withTenantDb(s.tenantId, pool(), (db) =>
-        db
-          .insert(schema.applyReceipt)
-          .values({
-            tenantId: s.tenantId,
-            mappingId: s.mappingId,
-            naturalKeyHash: hash,
-            action: 'relocation',
-            state: 'queued',
-          })
-          .returning({ id: schema.applyReceipt.id, requestedAt: schema.applyReceipt.requestedAt }),
-      );
-      const receipt = inserted[0]!;
+      const receipt = await queueApply(s, req.userId ?? 'unknown', hash, 'relocation');
 
       try {
         await getTriggerClient().tasks.trigger(

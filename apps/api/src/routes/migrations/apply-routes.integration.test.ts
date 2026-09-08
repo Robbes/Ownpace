@@ -252,6 +252,38 @@ describe('apply evaluate-then-queue routes (0017 T4)', () => {
       expect(receipt.body.error).toMatch(/Could not enqueue the removal/);
       expect(receipt.body.finishedAt).toBeDefined();
     });
+
+    it('records in audit_log that a NAMED person ordered the removal', async () => {
+      // The receipt is operational and mapping-scoped: migration 0042 makes it
+      // cascade, so deleting the migration takes it. What must outlive the
+      // migration is WHO ordered a destructive action, and that is the
+      // `audit_log` row — no foreign key to a mapping, not pruned by
+      // retention.
+      //
+      // Until this row existed, only the AUTOMATIC path wrote one
+      // (`autoApplyRelocations`, workplan 0048, actor `system:auto-apply`), so
+      // a removal a named operator pressed for was recorded less well than one
+      // the system made by itself. The press above is the one this asserts on:
+      // its enqueue died, and the order still stands as an order.
+      const rows = await pool.query(
+        `SELECT actor, action, entity, detail FROM audit_log
+          WHERE tenant_id = $1 AND detail ->> 'naturalKeyHash' = $2`,
+        [TENANT, HASH_QUEUEFAIL],
+      );
+
+      expect(
+        rows.rows.length,
+        'No audit row for a removal an operator ordered. Once the migration is deleted the\n' +
+          'receipt goes with it, and nothing anywhere records that a person asked for this.',
+      ).toBe(1);
+      const row = rows.rows[0];
+      expect(row.actor, 'the subject from the token, never "unknown" for an authenticated press').toBe(
+        `user-${TENANT}`,
+      );
+      expect(row.action).toBe('apply_deletion.ordered');
+      expect(row.entity).toBe('item');
+      expect(row.detail.mappingId).toBe(MAPPING);
+    });
   });
 
   describe('the RELOCATION pair (ADR-0030): same shape, its own receipts', () => {
