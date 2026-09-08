@@ -99,6 +99,7 @@
 #   ./deploy/compose/seed-demo-dav-content.sh --verify   # verify only
 #   ./deploy/compose/seed-demo-dav-content.sh --fresh    # seed a uniquely-tagged set (never tombstoned)
 #   ./deploy/compose/seed-demo-dav-content.sh --remove T # take one --fresh set back again
+#   ./deploy/compose/seed-demo-dav-content.sh --big-sha256 T  # the large file's sha256, one line
 #
 # Env overrides:
 #   NEXTCLOUD_CONTAINER  (default ownpace-nextcloud, matches managed.yml)
@@ -114,6 +115,13 @@
 #   SEED_DAV_TAG         the tag `--fresh` uses; defaults to a UTC timestamp
 #                        plus this process's pid. Set it to make a run
 #                        reproducible, never to a value used before.
+#   SEED_DAV_BIG_FILE_MB the size of the one file that crosses the streaming
+#                        threshold (default 32). Must be above 8 and below 256
+#                        — the two constants in packages/connectors and
+#                        packages/shared that decide whether a file is
+#                        streamed, buffered, or refused. Seeded by `--fresh`
+#                        only, from /dev/urandom inside the container, and
+#                        never written into this repository.
 #
 # Every request runs INSIDE the Nextcloud container against http://localhost,
 # which is always a trusted domain — so this needs no published port, no
@@ -134,6 +142,7 @@ TAG=""
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
 REMOVE_ONLY=0
+BIG_SHA_ONLY=0
 case "${1:-}" in
   --verify) VERIFY_ONLY=1 ;;
   --fresh) TAG="${2:-${SEED_DAV_TAG:-$(date -u +%Y%m%dT%H%M%SZ)-$$}}" ;;
@@ -150,8 +159,21 @@ case "${1:-}" in
     # The fixed fixture has no tag, and is the thing bring-up depends on. An
     # empty tag would match every resource in the account.
     ;;
+  # `--big-sha256 <tag>` is READ ONLY, and prints ONE LINE: the sha256 of the
+  # large file `--fresh <tag>` seeded, read back out of the SOURCE account.
+  #
+  # It exists so the managed smoke can compare that digest against the one the
+  # ledger stored (0120 T6) without learning this account's password. The
+  # alternative was for the smoke to parse a hash out of `--fresh`'s stdout,
+  # which the tag comment above already rejects for the tag: a second source of
+  # truth for one string. The file itself is the first and only one.
+  --big-sha256)
+    BIG_SHA_ONLY=1
+    TAG="${2:-}"
+    [ -n "$TAG" ] || fail "--big-sha256 needs the tag to read: --big-sha256 <tag>"
+    ;;
   "") ;;
-  *) fail "unknown argument '$1' (expected --verify, --fresh <tag>, --remove <tag>, or nothing)" ;;
+  *) fail "unknown argument '$1' (expected --verify, --fresh <tag>, --remove <tag>, --big-sha256 <tag>, or nothing)" ;;
 esac
 # The names carry the tag in the middle, so `openmig-demo-event-` stays the
 # prefix everything greps for — the verification below, and anybody reading the
@@ -170,6 +192,53 @@ docker exec "$NC" sh -lc 'command -v curl >/dev/null' \
 # and `text/calendar; charset=utf-8` arrives as one argument; I checked before
 # writing this rather than after. The array is used because it is obvious at a
 # glance that it holds, where the conditional form is a thing you have to know.
+# THE ONE FILE BIGGER THAN A CHUNK (workplan 0120 T6).
+#
+# WHY A FIXTURE HAS TO BE THIS BIG. Every other fixture in this repository is a
+# few hundred bytes, and that is exactly why buffering a whole file into memory
+# went unnoticed for as long as it did: no gate ever handed the file path more
+# than one chunk. `WebdavFileSource.fetch` streams above
+# STREAM_FILES_LARGER_THAN_BYTES (8 MB) and buffers below it, so a fixture
+# under that threshold exercises the branch the defect was NOT in.
+#
+# 32 MB: four times the threshold, an eighth of MAX_BUFFERED_FILE_BYTES (256
+# MB). Above, so it streams; well below, so it never reaches the refusal —
+# which is a different path and not what this proves. It is also small enough
+# that the runner does not notice: the demo Nextcloud writes it to its own
+# volume and the smoke reads it back once.
+#
+# RANDOM BYTES, NOT ZEROS. Zeros would hash to a constant and make the expected
+# digest a literal, which is tempting and wrong: a stream that emitted its
+# chunks out of order, or the same chunk twice, produces exactly the same file
+# of zeros and the same digest. Random content makes the digest depend on every
+# byte arriving once, in order. The cost is that the expected value cannot be
+# written down, which is what `--big-sha256` is for.
+#
+# NEVER COMMITTED. Generated inside the container at seed time and deleted
+# after. A 32 MB fixture in git is refused by the `No Committed Artifacts` job,
+# and would be permanent in the history even once removed.
+BIG_FILE_MB="${SEED_DAV_BIG_FILE_MB:-32}"
+case "$BIG_FILE_MB" in
+  '' | *[!0-9]*) fail "SEED_DAV_BIG_FILE_MB must be a whole number of megabytes, got '${BIG_FILE_MB}'" ;;
+esac
+# The two ends are named rather than assumed, because a size that drifts out of
+# this range does not fail — it passes, having tested the wrong branch.
+[ "$BIG_FILE_MB" -gt 8 ] \
+  || fail "SEED_DAV_BIG_FILE_MB=${BIG_FILE_MB} is not above STREAM_FILES_LARGER_THAN_BYTES (8 MB).
+    A file at or below the threshold is BUFFERED, so it proves the branch this
+    fixture exists to avoid. See packages/connectors/src/webdav-source.ts."
+[ "$BIG_FILE_MB" -lt 256 ] \
+  || fail "SEED_DAV_BIG_FILE_MB=${BIG_FILE_MB} reaches MAX_BUFFERED_FILE_BYTES (256 MB).
+    At the ceiling the path REFUSES the item rather than copying it — a
+    different behaviour, correctly, and not the one 0120 T6 is about.
+    See packages/shared/src/file-body.ts."
+
+# The path of this run's large file. Empty in fixed-fixture mode: a 32 MB write
+# on every bring-up buys nothing, and the fixed fixture's keys are single-use
+# tombstones anyway — it is the `--fresh` set that actually gets synced.
+BIG_FILE_NAME=""
+[ -n "$TAG" ] && BIG_FILE_NAME="openmig-demo-bigfile-${SUFFIX}1.bin"
+
 dav() {
   local method="$1" path="$2" ctype="${3:-}" body="${4:-}"
   local args=(-sS -o /dev/null -w '%{http_code}' -X "$method" -u "${DAVUSER}:${PASS}")
@@ -182,6 +251,35 @@ dav() {
   [ -n "$ctype" ] && args+=(-H "Content-Type: ${ctype}")
   [ -n "$body" ] && args+=(--data-binary @-)
   docker exec -i "$NC" curl "${args[@]}" "http://localhost/remote.php/dav/${path}" <<<"$body"
+}
+
+# dav_upload <path> <container-local file>  — PUT a file too big for a heredoc.
+#
+# `dav` pipes its body in through stdin, which is right for a vCard and wrong
+# for 32 MB: the bytes would cross bash, the docker socket and a here-string,
+# and bash would hold the whole thing as a variable first. `--upload-file` hands
+# curl a path INSIDE the container, so the bytes never leave it.
+dav_upload() {
+  local path="$1" file="$2"
+  docker exec "$NC" curl -sS -o /dev/null -w '%{http_code}' \
+    -u "${DAVUSER}:${PASS}" --upload-file "$file" \
+    "http://localhost/remote.php/dav/${path}"
+}
+
+# big_file_sha256 — the digest of the large file, read back out of the account.
+#
+# Downloaded to a file FIRST and hashed second, rather than piped. `curl | sha256sum`
+# in a pipeline reports the exit status of sha256sum, so a 404 prints the digest of
+# the empty string and returns 0 — a confident wrong answer, and one the smoke would
+# then compare against the ledger and call a mismatch in the product.
+big_file_sha256() {
+  docker exec "$NC" sh -c '
+    set -e
+    tmp=$(mktemp)
+    trap "rm -f \"$tmp\"" EXIT
+    curl -sSf -u "$1:$2" -o "$tmp" "http://localhost/remote.php/dav/$3"
+    sha256sum "$tmp" | cut -d" " -f1
+  ' _ "$DAVUSER" "$PASS" "${FILES}${BIG_FILE_NAME}"
 }
 
 # The read-side twin of `dav`, and defined HERE rather than beside its first
@@ -267,6 +365,17 @@ make_task_list() {
   esac
 }
 
+# `--big-sha256` answers and stops, ABOVE the banner below, because its whole
+# contract is one line on stdout that a caller can put in a variable. A script
+# that also prints where it looked is a script whose output has to be parsed.
+if [ "$BIG_SHA_ONLY" = "1" ]; then
+  big_file_sha256 \
+    || fail "could not read ${FILES}${BIG_FILE_NAME} from ${DAVUSER} — was --fresh ${TAG} ever run,
+    and did its large-file PUT succeed? A digest is only meaningful if the file
+    is there; this refuses rather than printing the digest of nothing."
+  exit 0
+fi
+
 echo "[seed-dav] account ${DAVUSER}"
 echo "[seed-dav]   calendar     ${CAL}"
 echo "[seed-dav]   addressbook  ${ABK}"
@@ -302,10 +411,18 @@ if [ "$REMOVE_ONLY" = "1" ]; then
     # target is not one anybody should write).
     task_spec=""
     [ -n "$TASKS" ] && task_spec="${TASKS}openmig-demo-task-${SUFFIX}${n}.ics"
+    # The large file is seeded once per set (n=1), so it is removed once too.
+    # It MUST be in this list: it is 32 MB, `--fresh` runs whenever the gate
+    # finds nothing eligible, and a set that nothing takes away would grow the
+    # demo source by a third of a gigabyte a month — the measurement changing
+    # the thing it measures, which is the whole reason `--remove` exists.
+    big_spec=""
+    [ "$n" = "1" ] && [ -n "$BIG_FILE_NAME" ] && big_spec="${FILES}${BIG_FILE_NAME}"
     for spec in "${CAL}openmig-demo-event-${SUFFIX}${n}.ics" \
                 ${task_spec:+"$task_spec"} \
                 "${ABK}openmig-demo-contact-${SUFFIX}${n}.vcf" \
-                "${FILES}openmig-demo-file-${SUFFIX}${n}.txt"; do
+                "${FILES}openmig-demo-file-${SUFFIX}${n}.txt" \
+                ${big_spec:+"$big_spec"}; do
       code=$(dav DELETE "$spec")
       case "$code" in
         204|200|404) gone=$((gone + 1)) ;;
@@ -319,7 +436,8 @@ if [ "$REMOVE_ONLY" = "1" ]; then
   # the verification below was written for.
   left=$(( $(count "$CAL" "openmig-demo-event-${SUFFIX}") \
          + $(count "$ABK" "openmig-demo-contact-${SUFFIX}") \
-         + $(count "$FILES" "openmig-demo-file-${SUFFIX}") ))
+         + $(count "$FILES" "openmig-demo-file-${SUFFIX}") \
+         + $(count "$FILES" "openmig-demo-bigfile-${SUFFIX}") ))
   [ -n "$TASKS" ] && left=$(( left + $(count "$TASKS" "openmig-demo-task-${SUFFIX}") ))
   [ "$left" = "0" ] || fail "${left} resource(s) tagged ${TAG} are still present after removal"
   echo "[seed-dav] source is clean of tag ${TAG}"
@@ -417,6 +535,50 @@ END:VCARD")
     echo "[seed-dav] file ${SUFFIX}${n}: HTTP ${code}"
     case "$code" in 201|204) ;; *) fail "file PUT ${SUFFIX}${n} returned ${code}" ;; esac
 
+    # THE ONE FILE BIGGER THAN A CHUNK (0120 T6). Once per fresh set, not once
+    # per n: the point is that ONE file crosses the streaming threshold, and a
+    # second would double the seed's cost to prove the same thing twice.
+    #
+    # Fresh sets only, for the same reason the canary above is: the fixed demo
+    # fixture belongs to the demo UI, and 32 MB rewritten on every bring-up is
+    # a cost with nothing behind it.
+    if [ "$n" = "1" ] && [ -n "$BIG_FILE_NAME" ]; then
+      # Generated in the container's own /tmp and removed in the same command,
+      # whichever way the PUT went. `conv=fsync` because the upload reads the
+      # file back immediately and a partially-flushed 32 MB would upload short
+      # and hash differently — a failure that would read as a streaming bug.
+      big_sha=$(docker exec "$NC" sh -c '
+        set -e
+        dd if=/dev/urandom of=/tmp/openmig-bigfile.bin bs=1M count="$1" conv=fsync 2>/dev/null
+        sha256sum /tmp/openmig-bigfile.bin | cut -d" " -f1
+      ' _ "$BIG_FILE_MB") \
+        || fail "could not generate the ${BIG_FILE_MB} MB fixture inside ${NC}"
+
+      code=$(dav_upload "${FILES}${BIG_FILE_NAME}" /tmp/openmig-bigfile.bin)
+      docker exec "$NC" rm -f /tmp/openmig-bigfile.bin || true
+      echo "[seed-dav] big file ${BIG_FILE_NAME}: HTTP ${code} (${BIG_FILE_MB} MB, sha256 ${big_sha})"
+      case "$code" in
+        201|204) ;;
+        # 413 is the one worth naming: Nextcloud's PHP limits, not this script.
+        413) fail "the ${BIG_FILE_MB} MB fixture was REFUSED as too large (413).
+    Raise upload_max_filesize/post_max_size in the Nextcloud container, or lower
+    SEED_DAV_BIG_FILE_MB — but never below 8, or it stops proving anything." ;;
+        *) fail "big file PUT ${BIG_FILE_NAME} returned ${code}" ;;
+      esac
+
+      # Read it BACK and compare. The PUT's status code says the server accepted
+      # a request; it does not say the bytes on the other side are the bytes that
+      # left. This is the same distinction the verification section below the
+      # loop was written for, and the whole gate downstream rests on this file's
+      # digest being the one the ledger will be asked to match.
+      landed=$(big_file_sha256) \
+        || fail "the big file was PUT and cannot be read back — ${FILES}${BIG_FILE_NAME}"
+      [ "$landed" = "$big_sha" ] \
+        || fail "the big file changed in transit: wrote ${big_sha}, read back ${landed}.
+    Nothing downstream can be trusted while that is true — the smoke compares the
+    ledger's content_hash against what this account holds."
+    fi
+
     # THE SHARE THE INVENTORY MUST FIND (0104 T2). The source really shares
     # its tagged file BY MAIL with a tag-addressed outsider — which SENDS ONE
     # MAIL FROM THE SOURCE, here, at seed time: the seed's own act, caught by
@@ -455,12 +617,27 @@ fi
 # fresh seed that wrote nothing at all report itself present.
 ev=$(count "$CAL" "openmig-demo-event-${SUFFIX}")
 ct=$(count "$ABK" "openmig-demo-contact-${SUFFIX}")
+# `openmig-demo-file-` does NOT match `openmig-demo-bigfile-`, so the two counts
+# are independent and neither can answer for the other. Counted separately for
+# exactly that reason: a fresh set whose small files landed and whose 32 MB one
+# did not would otherwise report `files:2` and look complete, while the one
+# fixture that crosses the streaming threshold was missing.
 fl=$(count "$FILES" "openmig-demo-file-${SUFFIX}")
+bg=0
+[ -n "$BIG_FILE_NAME" ] && bg=$(count "$FILES" "openmig-demo-bigfile-${SUFFIX}")
 tk=0
 [ -n "$TASKS" ] && tk=$(count "$TASKS" "openmig-demo-task-${SUFFIX}")
-echo "[seed-dav] present now — events:${ev} tasks:${tk} contacts:${ct} files:${fl}"
+echo "[seed-dav] present now — events:${ev} tasks:${tk} contacts:${ct} files:${fl} big:${bg}"
 [ "$ev" -ge 1 ] && [ "$ct" -ge 1 ] && [ "$fl" -ge 1 ] && [ "$tk" -ge 1 ] \
   || fail "seeding did not stick — nothing to sync, so the apply half would still find no item"
+# Only in fresh mode: the fixed fixture has never carried a large file and is
+# not the set the gate syncs.
+if [ -n "$BIG_FILE_NAME" ]; then
+  [ "$bg" -ge 1 ] \
+    || fail "the ${BIG_FILE_MB} MB fixture is not in the source (0120 T6).
+    Without it every file this set copies is under the 8 MB streaming threshold,
+    so the gate would run green having exercised only the buffered branch."
+fi
 
 # The heredoc below stays QUOTED. It contains `$POSTGRES_USER`, `$POSTGRES_DB`
 # and backticked words, all of which are meant to reach the reader literally —

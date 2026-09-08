@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 104 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 105 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -376,6 +376,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/seed-demo-dav-content.sh`
 
+- [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
 - [gate-net-zero](../scripts/gate-net-zero.unit.test.ts) — The managed gate takes back what it added.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [seed-demo-dav-content](../scripts/seed-demo-dav-content.unit.test.ts) — The demo's DAV content, and the two ways seeding it goes quietly wrong.
@@ -425,6 +426,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/smoke-managed.sh`
 
+- [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
@@ -1165,6 +1167,15 @@ Reads:
 
 - `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
 - `scripts/a-domain-union-typed-out-by-hand.unit.test.ts`
+
+### [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts)
+
+Every fixture was smaller than a chunk, so the buffering was never tested.
+
+Reads:
+
+- `deploy/compose/seed-demo-dav-content.sh`
+- `deploy/compose/smoke-managed.sh`
 
 ### [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts)
 

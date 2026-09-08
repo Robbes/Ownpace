@@ -1721,6 +1721,81 @@ if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
       | sed 's/^/  /'
     fail_at "the task domain copied NOTHING under tag ${BALANCE_TAG} (workplan 0113 T3a/T3b/T4/T5)"
   fi
+
+  # ---------- THE FILE BIGGER THAN A CHUNK LANDED (workplan 0120 T6) ----------
+  #
+  # WHY A SEPARATE ASSERTION FROM THE FILE DOMAIN. The file lane already copies
+  # two small text files every fresh set, so `domain='file'` rows exist whether
+  # or not anything ever crossed the streaming threshold. Until 0120 T6 NO
+  # fixture in this repository was larger than one chunk, which is precisely why
+  # `WebdavFileSource.fetch` buffering entire files into memory went unnoticed:
+  # every gate exercised the branch the defect was not in.
+  #
+  # WHAT THE HASH PROVES, and why a count would not. `WebDAVTargetWriter` takes
+  # the ledger's `content_hash` from a digest folded AS THE BYTES PASS
+  # (`streamingFileContentHash`) rather than from a buffer it holds — that is
+  # the change T4 made, and it is the one that can go wrong silently. A stream
+  # that truncates, repeats a chunk, reorders two, or hashes an empty body still
+  # produces a `copied` row with a plausible-looking 64 hex characters. Only
+  # comparing it against the SOURCE's own digest can tell those apart, and the
+  # source's digest cannot be a literal here because the fixture is random
+  # (deliberately: 32 MB of zeros hashes the same however the chunks arrive).
+  # So the seeder is asked, which reads the file back over DAV and hashes it.
+  #
+  # Polled like the task lane, and for the same reason: 32 MB takes longer to
+  # copy than a vCard, so the row the apply half waited for can land first.
+  BIG_TAGGED="$HREF_EXPR LIKE '%openmig-demo-bigfile-${BALANCE_TAG}%'"
+  big_row=""
+  i=0
+  while [ $i -lt "$PREP_POLLS" ]; do
+    big_row="$(q "SELECT coalesce(content_hash,'') || '|' || coalesce(size_bytes::text,'0') FROM item WHERE $TASK_SCOPE AND $BIG_TAGGED AND domain='file' AND status IN ('copied','updated') LIMIT 1")"
+    [ -n "${big_row%%|*}" ] && break
+    i=$((i + 1))
+    sleep "$POLL_SLEEP"
+  done
+  big_hash="${big_row%%|*}"
+  big_size="${big_row##*|}"
+
+  if [ -z "$big_hash" ]; then
+    echo "::error::the large file copied NOTHING under tag ${BALANCE_TAG} (workplan 0120 T6)."
+    echo "A file well above the 8 MB streaming threshold was seeded into the source, and no"
+    echo "'copied' file row carries its name. Either the seed did not land"
+    echo "(read the [seed-dav] big file line above), the file pass skipped it, or the streamed"
+    echo "PUT failed. What the ledger holds for this tag, per domain and status:"
+    q "SELECT domain, status, count(*) FROM item WHERE $TASK_SCOPE AND $TASK_TAGGED GROUP BY 1,2 ORDER BY 1,2" \
+      | sed 's/^/  /'
+    fail_at "the large file copied NOTHING under tag ${BALANCE_TAG} (workplan 0120 T6)"
+  else
+    # The size is read from the ledger rather than trusted from the seed: a row
+    # recorded at a few kilobytes would mean the pass saw a truncated body and
+    # the hash below would then agree with a truncated source. Both or neither.
+    if [ "${big_size:-0}" -le 8388608 ]; then
+      echo "::error::the large file's ledger row records ${big_size} bytes, which is at or below"
+      echo "the 8 MB streaming threshold — so whatever copied, it was NOT streamed. See"
+      echo "STREAM_FILES_LARGER_THAN_BYTES in packages/connectors/src/webdav-source.ts."
+      fail_at "the large file's row is ${big_size} bytes, under the streaming threshold (0120 T6)"
+    else
+      src_hash="$("$SCRIPT_DIR/seed-demo-dav-content.sh" --big-sha256 "$BALANCE_TAG" 2>/dev/null || true)"
+      if [ -z "$src_hash" ]; then
+        # Not a pass. The comparison is the assertion; without the source digest
+        # there is nothing to compare, and reporting the row's existence as a
+        # success would be the shape this gate has been fooled by twice.
+        echo "::error::could not read the source's own sha256 for the large file, so the"
+        echo "ledger's content_hash (${big_hash}) could not be checked against anything."
+        fail_at "the large file's source digest was unreadable, so nothing was verified (0120 T6)"
+      elif [ "$src_hash" = "$big_hash" ]; then
+        echo "prepare: the large file streamed — ${big_size} bytes, content_hash matches the source (${big_hash})"
+      else
+        echo "::error::THE LARGE FILE'S CONTENT HASH DOES NOT MATCH THE SOURCE (workplan 0120 T6)."
+        echo "  source ledger  ${src_hash}"
+        echo "  ledger row     ${big_hash}"
+        echo "The digest is folded as the bytes stream to the target, so a mismatch means the"
+        echo "streamed body was not the file: truncated, reordered, a chunk repeated, or hashed"
+        echo "empty. This is a defect in the file path, not in the fixture."
+        fail_at "the large file's content_hash does not match the source (0120 T6)"
+      fi
+    fi
+  fi
 fi
 
 if [ -z "$HASH" ]; then
