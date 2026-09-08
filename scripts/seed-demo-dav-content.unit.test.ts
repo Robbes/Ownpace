@@ -250,7 +250,12 @@ describe('--remove takes one --fresh set back (0100)', () => {
     }
   };
 
-  it('deletes exactly the eight paths --fresh writes, and nothing else', () => {
+  it('deletes exactly the nine paths --fresh writes, and nothing else', () => {
+    // NINE since 0120 T6 added the one file above the streaming threshold.
+    // It is in this list for a reason larger than arithmetic: `--fresh` runs
+    // whenever the gate finds nothing eligible, and that file is tens of
+    // megabytes, so a set nothing takes away grows the demo source without
+    // bound — the measurement changing the thing it measures.
     const r = run({ VERIFY_ANSWER: '' }, ['--remove', 'tag-1']);
     expect(r.status).toBe(0);
     const paths = deleted().map((u) => u.replace(/^.*remote\.php\/dav\//, ''));
@@ -265,6 +270,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
         // took back three would grow the demo source by a task a night.
         'calendars/tenant-b-source/openmig-tasks/openmig-demo-task-tag-1-1.ics',
         'calendars/tenant-b-source/openmig-tasks/openmig-demo-task-tag-1-2.ics',
+        'files/tenant-b-source/openmig-demo-bigfile-tag-1-1.bin',
         'files/tenant-b-source/openmig-demo-file-tag-1-1.txt',
         'files/tenant-b-source/openmig-demo-file-tag-1-2.txt',
       ].sort(),
@@ -277,7 +283,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
     // the other three domains are still taken back, and nothing is created.
     const r = run({ VERIFY_ANSWER: '', TASK_LIST_ANSWER: '404' }, ['--remove', 'tag-9']);
     expect(r.status).toBe(0);
-    expect(deleted()).toHaveLength(6);
+    expect(deleted()).toHaveLength(7);
     expect(deleted().join('\n')).not.toContain('openmig-demo-task-');
     expect(existsSync(join(dir, 'mkcalendar.txt'))).toBe(false);
   });
@@ -330,7 +336,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
     );
     expect(r.status).toBe(0);
     expect(deleted().every((u) => u.includes('tenant-b-target'))).toBe(true);
-    expect(deleted()).toHaveLength(8);
+    expect(deleted()).toHaveLength(9);
   });
 });
 
@@ -480,9 +486,14 @@ describe('--fresh seeds keys no tombstone can already own', () => {
     const r = run(
       {
         SEED_DAV_TAG: 'tag001',
+        // The verification PROPFIND's canned answer. It has to name the
+        // large file too since 0120 T6, because `--verify` now counts it
+        // separately and REFUSES a fresh set that landed everything except
+        // the one fixture above the streaming threshold.
         VERIFY_ANSWER:
           'openmig-demo-event-tag001-1 openmig-demo-task-tag001-1 ' +
-          'openmig-demo-contact-tag001-1 openmig-demo-file-tag001-1',
+          'openmig-demo-contact-tag001-1 openmig-demo-file-tag001-1 ' +
+          'openmig-demo-bigfile-tag001-1',
       },
       ['--fresh'],
     );
@@ -491,6 +502,7 @@ describe('--fresh seeds keys no tombstone can already own', () => {
     expect(all).toContain('openmig-demo-event-tag001-1.ics');
     expect(all).toContain('openmig-demo-contact-tag001-2.vcf');
     expect(all).toContain('openmig-demo-file-tag001-1.txt');
+    expect(all).toContain('openmig-demo-bigfile-tag001-1.bin');
     // The fixed keys are the spent ones. Writing them again is the no-op that
     // cost run #20, so a fresh seed must not touch them at all.
     expect(names(all)).not.toContain('openmig-demo-event-1.ics');

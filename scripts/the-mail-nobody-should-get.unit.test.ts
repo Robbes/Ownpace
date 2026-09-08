@@ -226,7 +226,14 @@ if [ "$1" = "-i" ]; then shift; fi
 shift                                  # container name
 case "$1" in
   true) exit 0 ;;
-  sh) exit 0 ;;
+  # \`sh -c\` is how the seeder generates the large fixture and reads its
+  # digest back (0120 T6). Both bodies end in \`sha256sum\`, and both callers
+  # compare what they get — so a stub that stayed silent would have them
+  # comparing "" to "", which passes while proving nothing. A fixed digest
+  # makes the write and the read-back agree for the right reason.
+  sh) case "\${2:-}" in *sha256sum*) printf '%s' "$FAKE_DIGEST" ;; esac; exit 0 ;;
+  # The fixture is deleted from the container after its PUT.
+  rm) exit 0 ;;
   curl) shift ;;
   *) echo "stub docker: unexpected command $1" >&2; exit 64 ;;
 esac
@@ -236,6 +243,10 @@ while [ $# -gt 0 ]; do
     -X) method="$2"; shift 2 ;;
     -w) wantscode=1; shift 2 ;;
     --data-binary) hasbody=1; shift 2 ;;
+    # curl infers PUT from --upload-file; there is no -X. The body is a path
+    # INSIDE the container, so there is nothing on this side to read — the
+    # stub records that the PUT happened and how big it claimed to be.
+    --upload-file) method="PUT"; hasbody=2; shift 2 ;;
     --data-urlencode) fields="$fields $2"; shift 2 ;;
     -H|-u|-o) shift 2 ;;
     -sS|-s|-S) shift ;;
@@ -245,9 +256,13 @@ done
 path="\${url#http://localhost/remote.php/dav/}"
 case "$method" in
   PUT)
-    [ "$hasbody" = 1 ] || { echo "stub docker: PUT without --data-binary" >&2; exit 64; }
-    mkdir -p "$CAP/puts"
-    cat > "$CAP/puts/$(printf '%s' "$path" | tr '/' '_')"
+    case "$hasbody" in
+      1) mkdir -p "$CAP/puts"
+         cat > "$CAP/puts/$(printf '%s' "$path" | tr '/' '_')" ;;
+      2) mkdir -p "$CAP/puts"
+         printf 'uploaded from a container path' > "$CAP/puts/$(printf '%s' "$path" | tr '/' '_')" ;;
+      *) echo "stub docker: PUT with neither --data-binary nor --upload-file" >&2; exit 64 ;;
+    esac
     printf '%s\\n' "$path" >> "$CAP/manifest.txt"
     printf 201 ;;
   POST)
@@ -260,12 +275,26 @@ case "$method" in
 esac
 `;
 
+  /**
+   * One digest for both `sha256sum` calls the seeder makes: the one over the
+   * generated fixture and the one over what it reads back. The seeder compares
+   * them and refuses a mismatch, so they have to agree here — what this stub
+   * is standing in for is a file that survived the round trip, not one that
+   * did not.
+   */
+  const FAKE_DIGEST = 'f'.repeat(64);
+
   function runSeed(args: string[]): { dir: string; stdout: string } {
     const dir = mkdtempSync(join(tmpdir(), 'seedbytes-'));
     writeFileSync(join(dir, 'docker'), STUB, { mode: 0o755 });
     const stdout = execFileSync('bash', [SEED, ...args], {
       encoding: 'utf8',
-      env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}`, SEED_STUB_DIR: dir },
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH ?? ''}`,
+        SEED_STUB_DIR: dir,
+        FAKE_DIGEST,
+      },
     });
     return { dir, stdout };
   }
