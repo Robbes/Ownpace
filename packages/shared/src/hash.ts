@@ -172,6 +172,70 @@ export function fileContentHash(content: Uint8Array): string {
   return createHash('sha256').update(content).digest('hex');
 }
 
+/**
+ * The same hash, over bytes nobody is holding.
+ *
+ * `fileContentHash` takes the whole file, which is fine when the whole file is
+ * already in memory and is the reason it could not be otherwise: hashing was
+ * one of the three places a large file had to be buffered (see `FileBody`).
+ * This one folds chunk by chunk, so a 40 GB file costs one chunk of memory
+ * and the same 64 hex characters at the end.
+ *
+ * It hashes AS THE BYTES PASS rather than in a read of its own: a second read
+ * would double the transfer, and on a metered source (0090's daily ceiling)
+ * would double what the customer is charged against their own limit. So it is
+ * a TRANSFORM — hand it the stream going to the target, write what comes out,
+ * then ask for the digest.
+ *
+ *   const hasher = streamingFileContentHash();
+ *   await upload(source.pipeThrough(hasher.through));
+ *   const hash = hasher.digest();
+ *
+ * `digest()` before the stream has finished is a lie about a file nobody has
+ * read to the end, so it refuses rather than answering a hash of a prefix —
+ * which would compare equal to nothing and unequal to everything, silently.
+ */
+export interface StreamingContentHash {
+  /** Pipe the bytes through this; it changes nothing and counts everything. */
+  readonly through: TransformStream<Uint8Array, Uint8Array>;
+  /** The hex digest. Throws until the stream has been read to its end. */
+  digest(): string;
+  /** Bytes seen so far — the truth about what actually crossed. */
+  bytesSeen(): number;
+}
+
+export function streamingFileContentHash(): StreamingContentHash {
+  const hash = createHash('sha256');
+  let seen = 0;
+  let done = false;
+  let digested: string | undefined;
+  const through = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      hash.update(chunk);
+      seen += chunk.byteLength;
+      controller.enqueue(chunk);
+    },
+    flush() {
+      done = true;
+    },
+  });
+  return {
+    through,
+    digest(): string {
+      if (!done) {
+        throw new Error(
+          'refusing to hash a file that has not been read to the end — a digest over a prefix ' +
+            'compares equal to nothing and unequal to everything, and would be recorded as if ' +
+            'it were the file',
+        );
+      }
+      digested ??= hash.digest('hex');
+      return digested;
+    },
+    bytesSeen: () => seen,
+  };
+}
+
 function sha256Hex(input: string): string {
   return createHash('sha256').update(input, 'utf8').digest('hex');
 }
