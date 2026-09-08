@@ -9,6 +9,13 @@ import type {
   ArchiveProvider,
   ArchiveReader,
 } from '@openmig/core/archive-reader';
+// The seam's threshold, not DAV's — every connector that moves to `FileBody`
+// decides at the same size, or a file of a given size behaves differently
+// depending on where it came from. It is defined in `webdav-source.ts` because
+// DAV was the first connector to move; #874 lifts it into `@openmig/shared`
+// beside `MAX_BUFFERED_FILE_BYTES` and re-exports it from there, so this
+// import resolves either way and can be retargeted when that lands.
+import { STREAM_FILES_LARGER_THAN_BYTES } from './webdav-source.ts';
 
 /**
  * AN EXPORT ARCHIVE AS A FILE SOURCE (workplan 0116 T5 + T6).
@@ -225,6 +232,40 @@ export class ArchiveFileSource implements FileSource {
       // bug; naming it beats reading whatever sits at a guessed path.
       throw new Error(`This archive holds no item for ${item.path} (ref ${item.sourceRef}).`);
     }
+    /**
+     * A LARGE ITEM ARRIVES AS A BODY, NOT AS BYTES (workplan 0120 T5).
+     *
+     * An archive is the size of somebody's photo library, and one video in it
+     * can be larger than the runner — which killed the process mid-pass, with
+     * no failure row and no sentence.
+     *
+     * THE CHEAPEST OF THE FIVE, and worth saying why, because it looked like
+     * the hard one. The Takeout reader takes an EXTRACTED tree, so an item is
+     * a file on disk: re-opening is one more `createReadStream`, with no
+     * second pass over an archive, no re-issued request and no signed URL to
+     * expire. The cost that would have made a body expensive here is one the
+     * reader deliberately does not have.
+     *
+     * `contentStream` is OPTIONAL on the port, so a reader without it keeps
+     * the buffered path and `MAX_BUFFERED_FILE_BYTES` still refuses by
+     * sentence rather than by death. The manifest never reaches here — it is
+     * returned above, synthesised in memory and small by construction, the
+     * same way Drive's exports stay buffered because their size is not known
+     * before they exist.
+     */
+    const streamable = this.reader.contentStream?.bind(this.reader);
+    if (streamable && item.size > STREAM_FILES_LARGER_THAN_BYTES) {
+      return {
+        item,
+        body: {
+          sizeBytes: item.size,
+          // A fresh read every time: a retry after a half-written upload
+          // starts from the beginning, and a consumed stream cannot.
+          open: async () => streamable(handle, found),
+        },
+      };
+    }
+
     return { item, content: await this.reader.content(handle, found) };
   }
 }
