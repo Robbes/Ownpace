@@ -42,6 +42,7 @@
 #   ./deploy/compose/operator.sh leave <subject> --all
 #   ./deploy/compose/operator.sh check [kind]
 #   ./deploy/compose/operator.sh clean <kind> [--confirm]
+#   ./deploy/compose/operator.sh secrets
 #
 # `<subject>` is the OIDC `sub`, never an email: sign in once, call
 # `GET /api/me`, and read `userId` back. operator.ts's header says why.
@@ -59,6 +60,13 @@
 # writes nothing. `clean` resolves the findings that need no decision, and even
 # then writes nothing without `--confirm` — see operator-housekeeping.ts, which
 # carries a paragraph per check on why it is a question worth asking.
+#
+# `secrets` asks the one question `check` cannot: not "is this row shaped
+# wrongly", which is SQL, but "can this credential still be DECRYPTED", which
+# needs the key and therefore TypeScript. A credential encrypted under a key the
+# deployment no longer holds looks perfect to every query — it fails only when
+# AES-GCM checks the tag, inside somebody's sync pass. It prints no plaintext:
+# a verdict, a name, and what to do.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,6 +84,7 @@ if [ "$#" -eq 0 ]; then
   echo "  ./deploy/compose/operator.sh leave <subject> --all" >&2
   echo "  ./deploy/compose/operator.sh check [kind]" >&2
   echo "  ./deploy/compose/operator.sh clean <kind> [--confirm]" >&2
+  echo "  ./deploy/compose/operator.sh secrets" >&2
   exit 1
 fi
 
