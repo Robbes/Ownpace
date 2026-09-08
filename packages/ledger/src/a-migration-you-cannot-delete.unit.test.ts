@@ -192,6 +192,66 @@ describe('deleting a migration that has been verified and has applied removals',
   });
 });
 
+describe('deleting a tenant, which the same two tables also stood in front of', () => {
+  /**
+   * The audit that followed migration 0042 (2026-09-08). These two are the
+   * ONLY two of thirty-eight references to `tenant` that named no action:
+   * thirty-four cascade, `invoice` sets null because it outlives the tenant
+   * for tax retention, and `access_request` says RESTRICT on purpose — which
+   * reads as `r` in the catalogue, not the `a` an omission produces.
+   *
+   * No caller was broken by it, and that is the interesting part rather than
+   * a reason to leave it. `purgeTenant` lists both tables in erasure order,
+   * and `clean empty-tenant` only removes a tenant with no mapping at all —
+   * and both tables require a mapping. The trap was live and unsprung, and
+   * `PURGED_TABLES` carries a comment dated 2026-08-27 showing it had already
+   * been met once and worked around for that one caller.
+   */
+  it('succeeds with both tables holding rows, rather than restricting', async () => {
+    const TEN = 'aaaaaaaa-0000-4000-8000-0000000000cf';
+    const CONN = 'bbbbbbbb-0000-4000-8000-0000000000cf';
+    await conn.query(`INSERT INTO tenant (id, name) VALUES ($1, 'to be erased')`, [TEN]);
+    await conn.query(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name)
+       VALUES ($1, $2, 'source', 'imap', 'src')`,
+      [CONN, TEN],
+    );
+    const mb = await conn.query<{ id: string }>(
+      `INSERT INTO mailbox (tenant_id, connection_id, external_id, kind)
+       VALUES ($1, $2, 'primary', 'user') RETURNING id`,
+      [TEN, CONN],
+    );
+    const mp = await conn.query<{ id: string }>(
+      `INSERT INTO mailbox_mapping (tenant_id, source_mailbox_id) VALUES ($1, $2) RETURNING id`,
+      [TEN, mb.rows[0]!.id],
+    );
+    await conn.query(
+      `INSERT INTO verification_run (tenant_id, mapping_id, state, finished_at)
+       VALUES ($1, $2, 'done', now())`,
+      [TEN, mp.rows[0]!.id],
+    );
+    await conn.query(
+      `INSERT INTO apply_receipt (tenant_id, mapping_id, natural_key_hash, action, state, finished_at)
+       VALUES ($1, $2, 'h', 'deletion', 'applied', now())`,
+      [TEN, mp.rows[0]!.id],
+    );
+
+    let refusal: string | null = null;
+    try {
+      await conn.query(`DELETE FROM tenant WHERE id = $1`, [TEN]);
+    } catch (err) {
+      refusal = err instanceof Error ? err.message : String(err);
+    }
+
+    expect(
+      refusal,
+      'A foreign key refused the tenant delete. Every caller today deletes these two tables\n' +
+        'first, so nothing is broken by it — but a trap that happens to be unsprung is still a\n' +
+        'trap, and this is the second one these same two columns laid.',
+    ).toBeNull();
+  });
+});
+
 describe('the schema states what happens to every reference to a mapping', () => {
   const source = readFileSync(
     fileURLToPath(new URL('./schema-pg.ts', import.meta.url)),
@@ -211,6 +271,23 @@ describe('the schema states what happens to every reference to a mapping', () =>
         'because nothing in the delete route turns a constraint violation into a sentence.\n' +
         'Say cascade (the row is mapping-scoped) or set null (the row outlives the mapping,\n' +
         'like a metered run), and make the column nullable if you choose set null.',
+    ).toEqual([]);
+  });
+
+  it('has no reference to tenant.id that leaves the question unanswered either', () => {
+    // Its own assertion rather than folded into the one above, so a failure
+    // names which parent is unanswered — the remedies differ. A tenant-scoped
+    // row cascades; a row that outlives the tenant (an invoice) sets null and
+    // needs a nullable column; a row that should BLOCK an erasure says
+    // restrict out loud, as `access_request` does.
+    const unstated = source.match(/\.references\(\(\)\s*=>\s*tenant\.id\s*\)/g) ?? [];
+
+    expect(
+      unstated,
+      'A reference to tenant.id with no onDelete. Postgres reads that as NO ACTION, so an\n' +
+        'erasure can refuse partway through and leave a tenant marked `deleting` and half\n' +
+        'emptied — which is what happened on 2026-08-27. Say cascade, set null, or restrict;\n' +
+        'restrict written out loud is a decision, and that is the difference this draws.',
     ).toEqual([]);
   });
 
