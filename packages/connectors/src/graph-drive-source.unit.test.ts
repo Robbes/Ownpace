@@ -469,9 +469,17 @@ describe('GraphDriveSource', () => {
         headers: new Map(),
       });
 
-      // Mock content fetch
+      // Mock content fetch.
+      //
+      // BYTES, NOT A STRING. This double used to answer only `text()`, which is
+      // why a text-decode of a file body passed here for as long as it did: a
+      // response modelled as a string has no bytes for a decode to lose. See
+      // `a-onedrive-file-that-was-not-text.unit.test.ts`, which hands this
+      // connector byte sequences that are not valid UTF-8 at all.
+      const contentBytes = new TextEncoder().encode('file content here');
       fetchMock.mockResolvedValueOnce({
         status: 200,
+        arrayBuffer: async () => contentBytes.buffer,
         text: async () => 'file content here',
         headers: new Map(),
       });
