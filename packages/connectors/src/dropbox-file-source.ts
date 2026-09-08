@@ -44,6 +44,16 @@ import type {
   DropboxListFolderResponse,
   DropboxTransport,
 } from './dropbox-file-source.types.ts';
+// The seam's threshold, not DAV's — every connector that moves to `FileBody`
+// decides at the same size, or a file of a given size behaves differently
+// depending on where it came from. It is defined in `webdav-source.ts` because
+// DAV was the first connector to move; #874 lifts it into `@openmig/shared`
+// beside `MAX_BUFFERED_FILE_BYTES` and re-exports it from here, so this import
+// keeps resolving either way and can be retargeted when that lands.
+import { STREAM_FILES_LARGER_THAN_BYTES } from './webdav-source.ts';
+
+/** What the transport hands back — named so `download()` can promise it. */
+type DropboxResponse = Awaited<ReturnType<DropboxTransport>>;
 
 const DEFAULT_API_BASE = 'https://api.dropboxapi.com/2';
 const DEFAULT_CONTENT_BASE = 'https://content.dropboxapi.com/2';
@@ -312,11 +322,15 @@ export class DropboxFileSource implements FileSource {
     return out;
   }
 
-  async fetch(item: FileItem): Promise<RawFileItem> {
-    const ref = item.sourceRef;
-    if (!ref) {
-      throw new Error(`No Dropbox file id recorded for "${item.path}" — cannot fetch it.`);
-    }
+  /**
+   * The one download, issued fresh each time it is called.
+   *
+   * Called once for a buffered read and once per `open()` for a streamed one —
+   * which is the point: a body must be RE-OPENABLE, because a retry after a
+   * half-written upload starts from the beginning and a stream that has been
+   * consumed cannot. Nothing is cached here, deliberately.
+   */
+  private async download(item: FileItem, ref: string): Promise<DropboxResponse> {
     const response = await this.transport(`${this.contentBase}/files/download`, {
       method: 'POST',
       headers: {
@@ -331,6 +345,53 @@ export class DropboxFileSource implements FileSource {
         `Dropbox refused the download of "${item.path}" (${response.status}): ${text.slice(0, 300)}`,
       );
     }
+    return response;
+  }
+
+  async fetch(item: FileItem): Promise<RawFileItem> {
+    const ref = item.sourceRef;
+    if (!ref) {
+      throw new Error(`No Dropbox file id recorded for "${item.path}" — cannot fetch it.`);
+    }
+
+    /**
+     * A LARGE FILE ARRIVES AS A BODY, NOT AS BYTES (workplan 0120 T5).
+     *
+     * Below the threshold nothing changes: most files are small and a buffer
+     * is simpler than the machinery. Above it, holding the file was the whole
+     * ceiling — a file larger than the runner's RAM killed the process
+     * mid-pass, with no failure row and no sentence, which from a customer's
+     * side is a migration that stops on one file and never says which.
+     *
+     * The threshold is the LISTING's size (`entry.size`, which `toFileItem`
+     * carries onto the item), because it is the only figure available before
+     * the download starts. Dropbox reports it exactly for every file, so
+     * unlike a provider that estimates, the branch here is taken on the same
+     * number the target will be told to expect.
+     */
+    if (item.size > STREAM_FILES_LARGER_THAN_BYTES) {
+      return {
+        item,
+        body: {
+          sizeBytes: item.size,
+          open: async () => {
+            const response = await this.download(item, ref);
+            if (!response.body) {
+              // A 200 with no body, on a file the listing gave a size to.
+              // Returning an empty stream here would write an empty file and
+              // record it as a copy — the worst outcome available to this
+              // code, so it is a throw and not a `?? empty`.
+              throw new Error(
+                `Dropbox answered ${response.status} for "${item.path}" with no body to read.`,
+              );
+            }
+            return response.body;
+          },
+        },
+      };
+    }
+
+    const response = await this.download(item, ref);
     return { item, content: new Uint8Array(await response.arrayBuffer()) };
   }
 
