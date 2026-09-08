@@ -40,8 +40,16 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import {
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+  readdirSync,
+  existsSync,
+  statSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -150,6 +158,189 @@ describe('a value two parsers would read differently is refused', () => {
     expect(verdict.output).toContain('A ');
     expect(verdict.output).toContain('B ');
     expect(verdict.output).toContain('2 value(s)');
+  });
+});
+
+describe('--fix quotes the value without retyping it', () => {
+  /**
+   * Four of the five values the first real deployment refused were secrets: an
+   * admin password, two OAuth client secrets, and a console URL. Hand-editing a
+   * line holding a secret to add two characters is a chance to MISTYPE the
+   * secret — and a mistyped SECRET_ENCRYPTION_KEY is the exact failure this
+   * script exists to prevent, reached through the remedy instead of the bug.
+   *
+   * So the bytes must survive untouched, the file must be backed up before it
+   * is replaced, and nothing may be printed. These run the real script.
+   */
+  const fixture = (content: string) => {
+    const dir = mkdtempSync(join(tmpdir(), 'envfix-'));
+    const file = join(dir, '.env');
+    writeFileSync(file, content, { mode: 0o600 });
+    return { dir, file };
+  };
+
+  // spawnSync rather than execFileSync: everything this script says goes to
+  // STDERR, and execFileSync hands back stdout only — so on a successful fix
+  // the output would come back empty and a test asserting on it would pass
+  // without reading anything. (It did, on the first run of this block.)
+  const fix = (file: string) => {
+    const res = spawnSync('bash', [CHECKER, '--fix', file], { encoding: 'utf8' });
+    return { ok: res.status === 0, output: `${res.stdout ?? ''}${res.stderr ?? ''}` };
+  };
+
+  it('quotes what it can and leaves the rest of the file alone', () => {
+    const { dir, file } = fixture('LOG_LEVEL=info\nSPACED=two words\nHEXY=abc123\n');
+    try {
+      fix(file);
+      expect(readFileSync(file, 'utf8')).toBe(
+        "LOG_LEVEL=info\nSPACED='two words'\nHEXY=abc123\n",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not retype the value — the bytes inside the quotes are the old bytes', () => {
+    // The whole point. A secret that comes out one character different is the
+    // failure this script is about, arrived at by fixing it.
+    const secret = 'aB3~x?y&z.q_-Qw+/=';
+    const { dir, file } = fixture(`MICROSOFT_OAUTH_CLIENT_SECRET=${secret}\n`);
+    try {
+      fix(file);
+      expect(readFileSync(file, 'utf8')).toBe(
+        `MICROSOFT_OAUTH_CLIENT_SECRET='${secret}'\n`,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('turns double quotes into single ones, keeping the body', () => {
+    const { dir, file } = fixture('TRUSTED="localhost nextcloud"\n');
+    try {
+      fix(file);
+      expect(readFileSync(file, 'utf8')).toBe("TRUSTED='localhost nextcloud'\n");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps a trailing comment where it was', () => {
+    const { dir, file } = fixture('K=a b   # a note\n');
+    try {
+      fix(file);
+      expect(readFileSync(file, 'utf8')).toBe("K='a b'   # a note\n");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to decide a $ for you', () => {
+    // Quoting `$HOME` freezes it to the literal. Only the operator knows
+    // whether that was meant to expand, and guessing is silent either way.
+    const { dir, file } = fixture('D=$HOME/x\n');
+    try {
+      const verdict = fix(file);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.output).toContain('decision is yours');
+      expect(readFileSync(file, 'utf8')).toBe('D=$HOME/x\n');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("names the single quote, because that one cannot be quoted at all", () => {
+    const { dir, file } = fixture("APOS=it's\n");
+    try {
+      const verdict = fix(file);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.output).toContain('SINGLE QUOTE');
+      expect(
+        verdict.output,
+        'Telling an operator to wrap this in single quotes is advice that cannot be\n' +
+          'followed. The value itself has to change, and the refusal must say so.',
+      ).toContain('the VALUE has to change');
+      expect(readFileSync(file, 'utf8')).toBe("APOS=it's\n");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('backs the file up first, byte for byte and mode for mode', () => {
+    const before = 'SPACED=two words\n';
+    const { dir, file } = fixture(before);
+    try {
+      fix(file);
+      const backups = readdirSync(dir).filter((n) => n.includes('.bak-'));
+      expect(backups, 'no backup was written').toHaveLength(1);
+      const backup = join(dir, backups[0]!);
+      expect(readFileSync(backup, 'utf8')).toBe(before);
+      expect(statSync(backup).mode & 0o777).toBe(0o600);
+      expect(statSync(file).mode & 0o777).toBe(0o600);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('never prints the value it is quoting', () => {
+    // This runs in CI on the managed gate. A refusal that quotes the offending
+    // value puts a secret in a log in order to complain about it.
+    const secret = 'sw0rdf1sh&hunter2';
+    const { dir, file } = fixture(`ZITADEL_ADMIN_PASSWORD=${secret}\n`);
+    try {
+      const verdict = fix(file);
+      expect(verdict.output).toContain('ZITADEL_ADMIN_PASSWORD');
+      expect(verdict.output).not.toContain(secret);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('touches nothing when there is nothing to fix', () => {
+    const before = "LOG_LEVEL=info\nQUOTED='a b'\n";
+    const { dir, file } = fixture(before);
+    try {
+      expect(fix(file).ok).toBe(true);
+      expect(readFileSync(file, 'utf8')).toBe(before);
+      expect(
+        readdirSync(dir).filter((n) => n.includes('.bak-')),
+        'a run that changed nothing must not leave a backup behind',
+      ).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves no working copy behind', () => {
+    const { dir, file } = fixture('SPACED=two words\n');
+    try {
+      fix(file);
+      expect(readdirSync(dir).filter((n) => n.includes('.fix.'))).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('a refusal always says why', () => {
+  it('explains a character that matches none of the named cases', () => {
+    // Rob\'s deployment, 2026-09-08: three of five refusals matched no branch of
+    // the reason `case` and printed the verdict with no explanation under it. A
+    // refusal an operator cannot act on is a refusal they switch off.
+    const verdict = check('AMPY=a&b\n');
+    expect(verdict.ok).toBe(false);
+    const lines = verdict.output.split('\n');
+    const at = lines.findIndex((l) => l.includes('AMPY'));
+    expect(at).toBeGreaterThan(-1);
+    expect(
+      lines[at + 1] ?? '',
+      'The line under the verdict must be a reason, not the next verdict or the fix.',
+    ).toContain('outside the set both parsers read the same way');
+  });
+
+  it('does not print the value while explaining it', () => {
+    const verdict = check('SECRETY=a&b-not-in-a-log\n');
+    expect(verdict.output).not.toContain('a&b-not-in-a-log');
   });
 });
 

@@ -395,6 +395,11 @@ describe('a catcher serving what looks like a real deployment', () => {
       };
       const program = [
         'set -uo pipefail',
+        // env_get now reads through env_value, the one reader shared with
+        // every other script here. Lifting the function out of bootstrap
+        // means lifting the file it stands on too, or the harness fails with
+        // `env_value: command not found` and says nothing about .env.
+        `. "${join(COMPOSE_DIR, 'env-read.sh')}"`,
         `ENV_FILE="${envFile}"`,
         'note() { echo "    $*"; }',
         fn('env_get'),
@@ -612,6 +617,11 @@ describe('the console config, read from the side a browser sees it from', () => 
       };
       const program = [
         'set -uo pipefail',
+        // env_get now reads through env_value, the one reader shared with
+        // every other script here. Lifting the function out of bootstrap
+        // means lifting the file it stands on too, or the harness fails with
+        // `env_value: command not found` and says nothing about .env.
+        `. "${join(COMPOSE_DIR, 'env-read.sh')}"`,
         `ENV_FILE="${envFile}"`,
         'note() { echo "    $*"; }',
         fn('env_get'),

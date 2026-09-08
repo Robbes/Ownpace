@@ -64,7 +64,7 @@ beforeEach(() => {
   // The script writes through env-upsert.sh, which it finds beside itself, so
   // the pair is copied rather than the one file: what is under test is the
   // whole write path, including the refusal to duplicate a key.
-  for (const name of ['trigger-remember-token.sh', 'env-upsert.sh']) {
+  for (const name of ['trigger-remember-token.sh', 'env-upsert.sh', 'env-read.sh']) {
     copyFileSync(join(COMPOSE, name), join(dir, name));
     chmodSync(join(dir, name), 0o755);
   }

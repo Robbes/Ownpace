@@ -43,6 +43,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# One reader for this file, shared with every other script here: what
+# check-env-agreement.sh accepts, env_value reads — quoted or bare, the same
+# way Compose and `source` would. See deploy/compose/env-read.sh.
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
@@ -122,7 +128,7 @@ env_get() { # env_get NAME — the value in force, i.e. the last one
   # `|| true` for the same reason as in ensure-env-secrets.sh: under
   # `set -o pipefail` a grep that finds nothing fails the whole pipeline, and
   # "this key is not set" is a normal answer, not an error.
-  grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true
+  env_value "$ENV_FILE" "$1"
 }
 
 # env_or NAME DEFAULT — the value in force, or DEFAULT when unset OR EMPTY.
@@ -268,8 +274,8 @@ note_env_divergence() {
   # subshell and the appends are thrown away at the end of it (0099).
   while IFS= read -r k; do
     [ -n "$k" ] || continue
-    a="$(grep -E "^${k}=" "$persisted" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
-    b="$(grep -E "^${k}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+    a="$(env_value "$persisted" "${k}")"
+    b="$(env_value "$ENV_FILE" "${k}")"
     [ "$a" = "$b" ] || differing+=("$k")
   done <<<"$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$persisted" | sort -u)"
 

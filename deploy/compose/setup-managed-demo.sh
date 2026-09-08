@@ -64,11 +64,17 @@ set -euo pipefail
 #     overrides it).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# One reader for this file, shared with every other script here: what
+# check-env-agreement.sh accepts, env_value reads — quoted or bare, the same
+# way Compose and `source` would. See deploy/compose/env-read.sh.
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 COMPOSE_ENV_FILE="${REPO_ROOT}/deploy/compose/.env"
 if [ -z "${NEXTCLOUD_ADMIN_PASSWORD:-}" ] && [ -f "$COMPOSE_ENV_FILE" ]; then
-  NEXTCLOUD_ADMIN_PASSWORD="$(grep -E '^NEXTCLOUD_ADMIN_PASSWORD=' "$COMPOSE_ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//')"
+  NEXTCLOUD_ADMIN_PASSWORD="$(env_value "$COMPOSE_ENV_FILE" NEXTCLOUD_ADMIN_PASSWORD)"
 fi
 
 # Must match the ACTUAL Docker network name docker compose creates for managed.yml's

@@ -159,6 +159,11 @@ describe('the bring-up says when the status page would probe itself', () => {
       };
       const program = [
         'set -uo pipefail',
+        // env_get now reads through env_value, the one reader shared with
+        // every other script here. Lifting the function out of bootstrap
+        // means lifting the file it stands on too, or the harness fails with
+        // `env_value: command not found` and says nothing about .env.
+        `. "${join(COMPOSE, 'env-read.sh')}"`,
         `ENV_FILE="${envFile}"`,
         'note() { echo "    $*"; }',
         fn('env_get'),
