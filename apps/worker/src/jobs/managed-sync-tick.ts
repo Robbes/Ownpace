@@ -33,7 +33,12 @@
 
 import { schedules, configure } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
-import { log, mapWithConcurrency, type DiscoveryDomain } from '@openmig/shared';
+import {
+  log,
+  mapWithConcurrency,
+  PASS_HARD_LIMIT_MS,
+  type DiscoveryDomain,
+} from '@openmig/shared';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
 import { enabledDomainsForMappings } from '@openmig/orchestration/enabled-domains';
 import { runDeltaSync } from './run-delta-sync.ts';
@@ -65,7 +70,63 @@ interface TickRow {
   readonly schedule: string | null;
   readonly last_started: Date | null;
   readonly running: boolean;
+  /** When the oldest STALE `running` row for this mapping started, if any. */
+  readonly stale_since: Date | null;
 }
+
+/**
+ * HOW LONG A `running` ROW IS BELIEVED — twice the runner's hard kill.
+ *
+ * A run row is opened when a pass starts and closed when it ends, and this
+ * tick skips a mapping that has one open. That is right while a pass is
+ * genuinely running and catastrophic afterwards: a pass killed outright — a
+ * `maxDuration` kill, an OOM, a supervisor restart mid-pass — never reaches
+ * the code that closes its row, so the row stays `running` for ever and this
+ * tick skips that mapping on every future firing. The migration stops.
+ * Silently. Nothing reaps it: `retention` deliberately never touches a
+ * `running` run's rows, and until now nothing else looked.
+ *
+ * TWICE the ceiling rather than a little over it, because a row is the only
+ * evidence a pass exists and cutting one loose while its process still runs
+ * would let two passes touch one mapping at once. The queue's
+ * `concurrencyKey: mappingId` still stands behind that (one running pass per
+ * mapping, enforced by the runner), so the cost of being slow here is bounded
+ * — one wasted cadence — while the cost of being fast is two writers.
+ *
+ * With the soft deadline in place a pass should end itself long before the
+ * kill, so reaching this at all is news, and it is logged as such.
+ */
+const STALE_RUN_AFTER_MS = 2 * PASS_HARD_LIMIT_MS;
+
+/**
+ * The mappings this tick considers, and what it believes about each.
+ *
+ * Exported so `a-run-row-that-outlived-its-pass.unit.test.ts` can read the two
+ * clauses that decide whether a mapping is enqueued at all — the same reason
+ * `managed-digest.ts` exports its predicates. A wrong clause here does not
+ * throw; it silently stops somebody's migration, which is a defect only a
+ * customer finds.
+ *
+ * `$1` is the staleness threshold in milliseconds, used TWICE and on purpose:
+ * `running` and `stale_since` must partition the open rows between them. If
+ * one used `<` and the other `<`, a row on the boundary would be both — or,
+ * worse, neither, which is a mapping that is neither skipped nor reported.
+ */
+export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
+              (SELECT max(r.started_at) FROM run r
+                WHERE r.tenant_id = m.tenant_id AND r.mapping_id = m.id) AS last_started,
+              EXISTS (SELECT 1 FROM run r
+                WHERE r.tenant_id = m.tenant_id AND r.mapping_id = m.id
+                  AND r.status = 'running'
+                  AND r.started_at > now() - ($1::int * interval '1 millisecond')) AS running,
+              (SELECT min(r.started_at) FROM run r
+                WHERE r.tenant_id = m.tenant_id AND r.mapping_id = m.id
+                  AND r.status = 'running'
+                  AND r.started_at <= now() - ($1::int * interval '1 millisecond')) AS stale_since
+         FROM mailbox_mapping m
+        WHERE m.status = 'active'`;
+
+export { STALE_RUN_AFTER_MS };
 
 export const managedSyncTick = schedules.task({
   id: 'managed-sync-tick',
@@ -93,19 +154,11 @@ export const managedSyncTick = schedules.task({
     // tick rather than sampled: it is one line, and the interesting value is
     // the tail, which sampling is exactly what loses.
     const startedAt = Date.now();
-    const { rows } = await pool.query<TickRow>(
-      `SELECT m.id, m.tenant_id, m.schedule,
-              (SELECT max(r.started_at) FROM run r
-                WHERE r.tenant_id = m.tenant_id AND r.mapping_id = m.id) AS last_started,
-              EXISTS (SELECT 1 FROM run r
-                WHERE r.tenant_id = m.tenant_id AND r.mapping_id = m.id
-                  AND r.status = 'running') AS running
-         FROM mailbox_mapping m
-        WHERE m.status = 'active'`
-    );
+    const { rows } = await pool.query<TickRow>(ACTIVE_MAPPINGS_SQL, [STALE_RUN_AFTER_MS]);
 
     let notDue = 0;
     let skippedRunning = 0;
+    let staleRuns = 0;
     let skippedNoDomains = 0;
 
     // Phase 1 — decide, in memory. No I/O in here, so the set of due mappings
@@ -115,6 +168,19 @@ export const managedSyncTick = schedules.task({
       if (m.running) {
         skippedRunning++;
         continue;
+      }
+      // Not skipped, and not silent either. A stale row means a pass died
+      // without closing its books, and the mapping has been standing still
+      // since — so say how long, once per tick, rather than quietly resuming
+      // and leaving nobody any the wiser about the pass that vanished.
+      if (m.stale_since) {
+        staleRuns++;
+        log.warn(
+          `[sync-tick] mapping ${m.id}: a run has been 'running' since ` +
+            `${m.stale_since.toISOString()}, longer than ${STALE_RUN_AFTER_MS}ms — treating it as ` +
+            'dead and enqueueing this mapping again. A run row is closed by the pass that opened ' +
+            'it, so one this old means the pass was killed rather than finished.',
+        );
       }
 
       // An explicit schedule is the owner's decision and is used as written.
@@ -187,6 +253,7 @@ export const managedSyncTick = schedules.task({
       triggered,
       notDue,
       skippedRunning,
+      staleRuns,
       skippedNoDomains,
       failedToEnqueue: failures.length,
       ms: Date.now() - startedAt,

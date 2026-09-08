@@ -27,7 +27,13 @@ import {
   DEFAULT_CONCURRENCY,
 } from '@openmig/shared';
 import { log, isLevelEnabled, type DiscardedListing, type PassMetrics } from '@openmig/shared';
-import type { BudgetPause, ByteBudgetState, DownloadMeter } from '@openmig/shared';
+import type {
+  BudgetPause,
+  ByteBudgetState,
+  DeadlinePause,
+  DownloadMeter,
+  PassClock,
+} from '@openmig/shared';
 import type { DiscoveryDomain } from '@openmig/shared';
 
 export type { PassMetrics };
@@ -350,7 +356,8 @@ function decided(
  * Dependency bundle for a domain sync operation.
  * Domain-specific functions are injected to keep the loop generic.
  */
-export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike = FolderLike> {
+export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike = FolderLike>
+  extends PassClock {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly domain: DiscoveryDomain;
@@ -642,6 +649,14 @@ export interface DomainSyncResult {
    * any pass that never hit the ceiling.
    */
   readonly budgetPause?: BudgetPause;
+  /**
+   * Set when the pass stopped because its own deadline arrived — the same
+   * kind of thing as `budgetPause` and reported apart from it on purpose, so
+   * a reader can tell "the day's bytes are spent, come back when the window
+   * resets" from "this pass's minutes are spent, the next one continues in a
+   * quarter of an hour". See `PASS_SOFT_DEADLINE_MS`.
+   */
+  readonly deadlinePause?: DeadlinePause;
 }
 
 /**
@@ -708,6 +723,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     listDiscardedKeys,
     downloadMeter,
     snapshot,
+    deadline,
+    now = Date.now,
   } = withSides(deps);
 
   const phases = startPhaseTiming();
@@ -827,18 +844,85 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     );
   };
 
+  /**
+   * Set when the pass ran out of ITS OWN minutes rather than the day's bytes
+   * (`PASS_SOFT_DEADLINE_MS`). Same contract as `budgetPause` in every
+   * respect that matters to the loop — no ledger row, no retry, no failure —
+   * and reported apart from it so the reader is told which clock ran out.
+   */
+  let deadlinePause: DeadlinePause | undefined;
+  const startedAtMs = now();
+  /** Collections listed for this domain that the pass never got to. */
+  let collectionsNotReached = 0;
+
+  /**
+   * HAS THIS PASS STOPPED TAKING NEW WORK?
+   *
+   * One question, two reasons today, and every site that must respect a pause
+   * asks it here instead of naming the reasons itself. There are FOUR such
+   * sites — whether to list folders at all, whether to open the next folder,
+   * whether to scan the next item, and whether the folder's cursor may
+   * advance — and the last one is the dangerous one: a cursor advanced past a
+   * pause retires work nobody did, and the next pass, the one the pause
+   * promises, would never list it again.
+   *
+   * That is precisely the shape this repository keeps paying for — a set of
+   * conditions that agree by hand until somebody adds a third and updates
+   * three of the four. `a-pass-that-stops-halfway-keeps-its-cursor.unit.test.ts`
+   * drives both reasons through all four.
+   */
+  const paused = (): boolean => budgetPause !== undefined || deadlinePause !== undefined;
+
+  /**
+   * Stop if this pass's own deadline has arrived. Returns true when it just
+   * did, so a caller can count what it never reached.
+   *
+   * Checked BEFORE work rather than after it, so the deadline bounds what the
+   * pass starts rather than what it finishes: the item in flight when the
+   * clock runs out is allowed to complete, and nothing new is begun.
+   */
+  const stopIfPastDeadline = (): boolean => {
+    if (deadlinePause || deadline === undefined) return false;
+    const at = now();
+    if (at < deadline) return false;
+    deadlinePause = {
+      deadlineAt: new Date(deadline).toISOString(),
+      ranForMs: at - startedAtMs,
+    };
+    // The same shape as the byte ceiling's sentence, and for the same reason:
+    // whoever reads this log has to be able to tell a scheduled stop from a
+    // failure without knowing this code (hard rule 9).
+    log.info(
+      `[sync] ${domain}: this pass has reached its own deadline after ${deadlinePause.ranForMs}ms ` +
+        `and is stopping cleanly. This is a scheduled pause, not an error: nothing failed, no item ` +
+        `is owed a retry, the cursors stay where they are, and the next scheduled pass continues ` +
+        `from them. A migration larger than one pass crosses several by design.`,
+    );
+    return true;
+  };
+
   // The pass-start reading. A pass that begins with nothing left to spend
   // has no business listing anything — yesterday's pass already said why.
   if (downloadMeter) {
     const opening = await downloadMeter.budget.state(downloadMeter.tenantId, downloadMeter.provider);
     if (opening.remainingBytes <= 0) pauseNow(opening);
   }
+  // …and a pass handed a deadline that has already passed lists nothing
+  // either. Not a hypothetical: a run that waited in the queue longer than
+  // its own budget arrives exactly like this, and listing a mailbox it cannot
+  // act on would spend the source's rate budget to learn nothing.
+  stopIfPastDeadline();
 
-  const folders = budgetPause ? [] : await listFolders();
+  const folders = paused() ? [] : await listFolders();
 
   for (const folder of folders) {
     // Set mid-pass by the pre-fetch gate below: stop LISTING new folders too.
-    if (budgetPause) break;
+    // Counted rather than merely broken out of: "stopped with four
+    // collections still to go" is a different sentence from "finished".
+    if (paused() || stopIfPastDeadline()) {
+      collectionsNotReached += 1;
+      continue;
+    }
     const collectionId = await ensureCollection(folder);
     // Hoisted: this is the source collection PATH (as opposed to `collectionId`,
     // the target's handle for it), and it is now needed three times — for the
@@ -899,7 +983,13 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       // scanned, not failed — they were never looked at. (Items already in
       // flight when the pause lands still finish; the overshoot is bounded
       // by `concurrency` bodies, the same bound the loop already accepts.)
-      if (budgetPause) return;
+      //
+      // The deadline is asked HERE as well as at the folder boundary because
+      // one folder can be the whole migration: a hundred thousand messages,
+      // or a single file store holding a hundred gigabytes. A pass that could
+      // only stop between folders would run until its runner killed it, which
+      // is the failure this deadline exists to remove.
+      if (paused() || stopIfPastDeadline()) return;
       scanned += 1;
       let naturalKeyHash = naturalKey(item);
       const version = sourceVersion?.(item);
@@ -1437,8 +1527,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // A PAUSED folder keeps its cursor too, for the same reason a retrying
     // one does: advancing it would retire the items the pause left
     // unprocessed, and the next pass — the one the pause promises — would
-    // never see them.
-    if (cursors && !retryablePending && !budgetPause) {
+    // never see them. `paused()` rather than a named reason, so a pause added
+    // later cannot advance a cursor by being forgotten in this one condition.
+    if (cursors && !retryablePending && !paused()) {
       await cursors.set(tenantId, mappingId, collectionPath, nextCursor);
     }
   }
@@ -1610,6 +1701,17 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     drift,
     ...(unplaceableDiscards ? { unplaceableDiscards } : {}),
     ...(budgetPause ? { budgetPause } : {}),
+    // `collectionsNotReached` only when the pass stopped BEFORE the last
+    // collection. Absent is not zero: zero would report a domain that got
+    // through everything, which a pass that stopped mid-collection did not.
+    ...(deadlinePause
+      ? {
+          deadlinePause: {
+            ...deadlinePause,
+            ...(collectionsNotReached > 0 ? { collectionsNotReached } : {}),
+          },
+        }
+      : {}),
     metrics: summarise(phases, scanned),
   };
 }

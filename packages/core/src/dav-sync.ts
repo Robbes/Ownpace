@@ -8,6 +8,8 @@
  */
 
 import { applyTargetFolderPrefix,
+  passClock,
+  type PassClock,
   type Ledger,
   type CursorStore,
   type CalendarSource,
@@ -37,7 +39,7 @@ import { runDomainSync, type DomainSyncResult } from './domain-sync.ts';
 /**
  * Dependencies for calendar (CalDAV) sync.
  */
-export interface CalendarSyncDeps {
+export interface CalendarSyncDeps extends PassClock {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly source: CalendarSource;
@@ -108,6 +110,7 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
     ensureCollection: (folder) => target.ensureCalendar(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
+    ...passClock(deps),
   });
 }
 
@@ -196,13 +199,14 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
     ensureCollection: (folder) => target.ensureCalendar(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
+    ...passClock(deps),
   });
 }
 
 /**
  * Dependencies for contact (CardDAV) sync.
  */
-export interface ContactSyncDeps {
+export interface ContactSyncDeps extends PassClock {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly source: ContactSource;
@@ -252,13 +256,14 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     contentHash: (raw) => contactContentHash((raw as RawContact).vcard),
     ensureCollection: (folder) => target.ensureContactFolder(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
+    ...passClock(deps),
   });
 }
 
 /**
  * Dependencies for file (WebDAV) sync.
  */
-export interface FileSyncDeps {
+export interface FileSyncDeps extends PassClock {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly source: FileSource;
@@ -374,6 +379,7 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
           : folder,
       ),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
+    ...passClock(deps),
     // A snapshot's absences are evidence of nothing (0116 §5) — the source
     // says so about itself, and the loop turns its absence-counting off.
     ...(source.snapshot ? { snapshot: true } : {}),

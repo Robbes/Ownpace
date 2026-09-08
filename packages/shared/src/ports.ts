@@ -2,6 +2,7 @@
 import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { TenantId, MappingId } from './ids.ts';
 import type { BudgetPause, DownloadMeter } from './rate-budget.ts';
+import type { DeadlinePause, PassClock } from './pass-deadline.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
 import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail.ts';
 import type { CalendarFolder, RawCalendarEvent } from './calendar.ts';
@@ -1795,7 +1796,7 @@ export interface Scheduler {
 }
 
 /** Dependency bundle for one mapping's shadow pass (DI for the T4 reconcile loop). */
-export interface ReconcileDeps {
+export interface ReconcileDeps extends PassClock {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly source: SourceConnector;
@@ -1900,6 +1901,14 @@ export interface ReconcileResult {
    * never hit the ceiling — including every pass with no meter at all.
    */
   readonly budgetPause?: BudgetPause;
+  /**
+   * Set when the pass stopped because its own deadline arrived rather than
+   * because the day's bytes ran out — see `DeadlinePause`. Carried here for
+   * the same reason `budgetPause` is: the caller decides what to tell the
+   * owner, and it cannot tell them which clock ran out if the result does not
+   * say.
+   */
+  readonly deadlinePause?: DeadlinePause;
 }
 
 /**

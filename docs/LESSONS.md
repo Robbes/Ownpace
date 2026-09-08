@@ -245,6 +245,10 @@ reading a file drops off its entry by itself.
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
+### `apps/worker/trigger.config.ts`
+
+- [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
+
 ### `deploy/compose/bootstrap-managed.sh`
 
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
@@ -725,6 +729,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/notifications.ts`
 
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
+
+### `packages/shared/src/pass-deadline.ts`
+
+- [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
 
 ### `packages/shared/src/ports.ts`
 
@@ -1224,6 +1232,15 @@ Reads:
 - `docs/testing.md`
 - `docs/windows-appliance-runbook.md`
 - `test/e2e/selfhost-backup-restore.e2e.test.ts`
+
+### [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts)
+
+A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
+
+Reads:
+
+- `apps/worker/trigger.config.ts`
+- `packages/shared/src/pass-deadline.ts`
 
 ### [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts)
 
