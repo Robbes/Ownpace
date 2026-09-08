@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 109 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 110 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -898,6 +898,10 @@ reading a file drops off its entry by itself.
 
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 
+### `scripts/dav-target-probe.mjs`
+
+- [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
+
 ### `scripts/every-service-somebody-starts.unit.test.ts`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -1276,6 +1280,14 @@ Reads:
 
 - `deploy/compose/set-task-env.sh`
 - `packages/ledger/src/retention.ts`
+
+### [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts)
+
+A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
+
+Reads:
+
+- `scripts/dav-target-probe.mjs`
 
 ### [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts)
 
