@@ -21,7 +21,13 @@ import type {
   TargetEntry,
   RemovalResult,
 } from '@openmig/shared';
-import { fileNaturalKeyHash, fileContentHash, isOnTarget } from '@openmig/shared';
+import {
+  fileNaturalKeyHash,
+  fileContentHash,
+  streamingFileContentHash,
+  tooLargeToBuffer,
+  isOnTarget,
+} from '@openmig/shared';
 import { davRefusalBody } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
@@ -177,14 +183,41 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       return { targetId: known.targetId, created: false };
     }
 
-    // Compute content hash for change detection (only for files with content, not directories)
-    const contentHashValue = raw.content ? fileContentHash(raw.content) : fileContentHash(new Uint8Array(0));
+    /**
+     * The content hash, computed WHEN it is needed and from whichever shape
+     * the source produced (workplan 0120).
+     *
+     * It used to be `fileContentHash(raw.content)`, unconditionally, at the
+     * top — which requires the whole file in memory before anything else can
+     * happen, and is one of the three places a large file had to be buffered.
+     *
+     * On the write path the digest comes back FROM the upload: the bytes are
+     * hashed as they pass on their way to the target, so a 40 GB file is read
+     * once and held never. On the adopt path there is no upload to ride, so
+     * the body is drained through the hasher and discarded — one read, the
+     * same one the buffered path always paid, with the memory bounded.
+     */
+    let contentHashValue: string | undefined;
+    const hashOfContent = async (): Promise<string> => {
+      if (contentHashValue !== undefined) return contentHashValue;
+      if (!raw.body) {
+        contentHashValue = fileContentHash(raw.content ?? new Uint8Array(0));
+        return contentHashValue;
+      }
+      const hasher = streamingFileContentHash();
+      await (await raw.body.open())
+        .pipeThrough(hasher.through)
+        .pipeTo(new WritableStream<Uint8Array>({ write() {} }));
+      contentHashValue = hasher.digest();
+      return contentHashValue;
+    };
+
     // The byte count goes in the SAME record. `recordIfAbsent` means whichever
     // layer writes first wins, and this one always does — so the sized record
     // the sync loop makes afterwards was a no-op and `totalBytesSource` came
     // back 0 for every domain, leaving §20's total-size comparison structurally
     // unable to measure anything.
-    const sizeBytes = raw.content?.byteLength ?? 0;
+    const sizeBytes = raw.body?.sizeBytes ?? raw.content?.byteLength ?? 0;
 
     // A COLLECTION where this file has to go is a conflict, not a hit.
     //
@@ -224,7 +257,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
         itemType: 'file',
         mappingId: this.mappingId,
         naturalKeyHash,
-        contentHash: contentHashValue,
+        contentHash: await hashOfContent(),
         targetId: existingId,
         createdAt: new Date().toISOString(),
         sizeBytes,
@@ -260,6 +293,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
 
     // Upload the file to the target
     const written = await this.uploadFile(raw);
+    // The digest the upload made on its way past, when it streamed. Falls back
+    // to the buffered hash, which is what every non-streaming source produces.
+    if (written.contentHash !== undefined) contentHashValue = written.contentHash;
     const fileId = written.path;
     (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), fileId);
 
@@ -269,7 +305,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
         itemType: 'file',
       mappingId: this.mappingId,
       naturalKeyHash,
-      contentHash: contentHashValue,
+      contentHash: await hashOfContent(),
       targetId: fileId,
       createdAt: new Date().toISOString(),
       sizeBytes,
@@ -581,7 +617,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     raw: RawFileItem,
     overwrite = false,
     expectedTargetVersion?: string,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean }> {
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean; contentHash?: string }> {
     // raw.item.path is root-relative and self-contained (see WebdavFileSource.toRelativePath);
     // resolve it directly instead of re-deriving it from a parent directory id.
     const filePath = this.normalizeRelativePath(raw.item.path);
@@ -595,6 +631,22 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       if (verdict === 'changed') {
         return { path: filePath, conflicted: true };
       }
+    }
+
+    /**
+     * A STREAMED BODY GOES STRAIGHT OUT, hashed on the way past.
+     *
+     * This is the half of the memory ceiling that lives at the target: even
+     * with a source that streams, a `PUT` whose body is a `Uint8Array` needs
+     * the whole file in memory to build. A stream body needs one chunk.
+     *
+     * The hash rides ALONG rather than being computed in a pass of its own: a
+     * second read would double the transfer, and on a metered source (0090's
+     * daily ceiling) would double what the customer spends against their own
+     * provider's limit for one file.
+     */
+    if (raw.body) {
+      return this.uploadStreamed(filePath, raw, overwrite);
     }
 
     // Check if file is large and should use chunked upload
@@ -665,6 +717,65 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     }
 
     return { path: filePath };
+  }
+
+  /**
+   * PUT a file whose bytes nobody is holding.
+   *
+   * One request with a streaming body, which is what makes a file larger than
+   * this process possible at all. NOT the chunked path: that exists for
+   * servers with a per-request size limit and needs the whole file addressable
+   * to divide it, which is the ceiling being removed here. A deployment that
+   * needs both — a huge file AND a server that caps request size — is the
+   * resumable-upload work, and this refuses rather than pretending.
+   */
+  private async uploadStreamed(
+    filePath: string,
+    raw: RawFileItem,
+    overwrite: boolean,
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean; contentHash?: string }> {
+    const body = raw.body!;
+    if (this.config.chunkedUploads && body.sizeBytes > (this.config.chunkSize || 10 * 1024 * 1024)) {
+      // Saying so beats a request the server will cut off half way, which
+      // leaves a partial file at the href and an error that names neither.
+      throw tooLargeToBuffer('written to', 'this WebDAV server in one request', raw.item.path, body.sizeBytes);
+    }
+    const hasher = streamingFileContentHash();
+    const response = await this.requestWithRetry({
+      method: 'PUT',
+      url: this.buildUrl(filePath),
+      body: (await body.open()).pipeThrough(hasher.through),
+      headers: {
+        'Content-Type': raw.item.mimeType || 'application/octet-stream',
+        // The length the source promised. Without it the request is chunked
+        // transfer-encoded, which some DAV servers refuse outright and others
+        // accept while reporting a size of zero afterwards.
+        'Content-Length': String(body.sizeBytes),
+        ...(overwrite ? {} : { 'If-None-Match': '*' }),
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
+    if (response.status === 412) {
+      if (overwrite) {
+        throw new Error(
+          `PUT for ${filePath} was refused with 412 on a deliberate rewrite. ` +
+            'The file was NOT replaced.',
+        );
+      }
+      return { path: filePath };
+    }
+    if (response.status !== 201 && response.status !== 204) {
+      throw new Error(
+        `PUT failed for ${filePath} with status ${response.status}: ${davRefusalBody(response.body)}`,
+      );
+    }
+    // Only after the stream has ended, which is when the digest is a fact
+    // about the file rather than about a prefix (see streamingFileContentHash).
+    return {
+      path: filePath,
+      contentHash: hasher.digest(),
+      ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}),
+    };
   }
 
   private async uploadFileChunked(
@@ -770,7 +881,12 @@ export interface HttpClient {
 export interface HttpRequestOptions {
   method: string;
   url: string;
-  body?: string | Buffer | Uint8Array;
+  /**
+   * A stream is what makes a file larger than this process uploadable at all
+   * (see `FileBody`): a `Uint8Array` body has to exist in full before the
+   * request can be built, and that is the ceiling.
+   */
+  body?: string | Buffer | Uint8Array | ReadableStream<Uint8Array>;
   headers?: Record<string, string>;
 }
 
@@ -795,10 +911,19 @@ export interface HttpResponse {
 function createDefaultHttpClient(): HttpClient {
   return {
     async request(options: HttpRequestOptions): Promise<HttpResponse> {
+      /**
+       * `duplex: 'half'` is not optional for a stream body: Node's fetch
+       * refuses one without it, with a TypeError about the RequestInit rather
+       * than about the file — so it reads as a bug in the writer. It is absent
+       * from the DOM typings, hence the cast, which is here rather than
+       * somewhere it would be easy to delete as noise.
+       */
+      const streaming = options.body instanceof ReadableStream;
       const response = await fetch(options.url, {
         method: options.method,
         headers: options.headers,
-        body: options.body,
+        body: options.body as RequestInit['body'],
+        ...(streaming ? ({ duplex: 'half' } as Record<string, unknown>) : {}),
       });
 
       // Read once as bytes. Reading `.text()` alone would leave no way to hash

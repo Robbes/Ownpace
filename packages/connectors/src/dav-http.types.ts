@@ -11,7 +11,36 @@ export interface HttpRequestOptions {
   url: string;
   method: string;
   headers?: Record<string, string>;
-  body?: string | Buffer | Uint8Array;
+  /**
+   * A stream is the one body type not every client here can send.
+   *
+   * The WebDAV client honours it (that is what lets a file larger than the
+   * runner's memory be uploaded at all — see `FileBody`); the CalDAV and
+   * CardDAV clients send XML and refuse anything they cannot, rather than
+   * dropping it. That refusal is the change: `body: typeof x === 'string' ? x
+   * : undefined` was already there, and would have turned an unsendable body
+   * into a request with NO body — a PUT that empties a file and reports 204.
+   */
+  body?: string | Buffer | Uint8Array | ReadableStream<Uint8Array>;
+  /**
+   * Hand the response back as a STREAM rather than reading it into memory.
+   *
+   * Off by default, because every DAV response but one is small XML that every
+   * caller reads as text. The exception is a file download, which is the whole
+   * reason this exists: `bodyBytes` on a 40 GB file is the ceiling this option
+   * removes.
+   */
+  stream?: boolean;
+}
+
+/**
+ * Whether a body is one a text-only client can send.
+ *
+ * Used by the DAV clients that speak XML, so that a body they cannot carry is
+ * a refusal with a sentence rather than a request that quietly goes out empty.
+ */
+export function isSendableAsText(body: HttpRequestOptions['body']): body is string | undefined {
+  return body === undefined || typeof body === 'string';
 }
 
 /** HTTP response from DAV requests. */
@@ -33,6 +62,14 @@ export interface HttpResponse {
    * migration went through exactly that (see WebdavFileSource.fetchFileContent).
    */
   bodyBytes?: Uint8Array;
+  /**
+   * The response body as a stream, when `stream: true` was asked for.
+   *
+   * Present INSTEAD of `bodyBytes`, never beside it: holding both would defeat
+   * the point. `body` is empty text on a streamed response for the same
+   * reason, and a caller that reads it is reading a body nobody buffered.
+   */
+  bodyStream?: ReadableStream<Uint8Array>;
   headers: Record<string, string>;
 }
 
