@@ -969,7 +969,7 @@ const en = {
   // The drain (managed migration 0023): the one thing on these screens that
   // writes, and the only pause a customer can neither derive nor wait out.
   'support.hold': 'Hold new passes',
-  'support.hold.hint': 'Stops new passes. Passes already running finish.',
+  'support.hold.hint': 'Stops new passes; the ones already running finish.',
   'support.hold.hint.why':
     'This is the drain: the sync tick stops enqueueing within a minute, and whatever is mid-pass finishes normally. Every signed-in customer sees a notice with your message on it, or a default sentence when you leave the box empty. Lifting the hold starts passes again on the next tick.',
   'support.hold.on': 'Held since {since}. No new passes are starting.',
@@ -1700,7 +1700,7 @@ const nl: Record<keyof typeof en, string> = {
   'support.noMigrations': 'Geen migraties.',
   'support.noInvoices': 'Geen facturen.',
   'support.hold': 'Nieuwe rondes pauzeren',
-  'support.hold.hint': 'Stopt nieuwe rondes. Lopende rondes worden afgerond.',
+  'support.hold.hint': 'Stopt nieuwe rondes; wat al loopt wordt afgerond.',
   'support.hold.hint.why':
     'Dit is de drain: de synchronisatietick stopt binnen een minuut met inplannen, en wat al loopt wordt normaal afgerond. Elke ingelogde klant ziet een melding met uw tekst, of een standaardzin als u het veld leeg laat. Zodra u de pauze opheft, starten de rondes bij de volgende tick weer.',
   'support.hold.on': 'Gepauzeerd sinds {since}. Er starten geen nieuwe rondes.',
