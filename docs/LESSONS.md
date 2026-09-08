@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 106 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 107 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -276,6 +276,10 @@ reading a file drops off its entry by itself.
 - [the-volume-a-recipe-forgot-to-prepare](../scripts/the-volume-a-recipe-forgot-to-prepare.unit.test.ts) — A RECIPE THAT DELETES WHAT ONLY ONE PHASE KNOWS HOW TO RESTORE.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ TWO DIFFERENT WAYS.
 
+### `deploy/compose/check-env-agreement.sh`
+
+- [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
+
 ### `deploy/compose/deploy-tasks.sh`
 
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
@@ -294,6 +298,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/ensure-env-secrets.sh`
 
+- [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
@@ -304,6 +309,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/env-upsert.sh`
 
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+- [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
@@ -324,6 +330,7 @@ reading a file drops off its entry by itself.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+- [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -401,6 +408,7 @@ reading a file drops off its entry by itself.
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
+- [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
 ### `deploy/compose/setup-managed-demo.sh`
@@ -1487,6 +1495,18 @@ Reads:
 - `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/set-task-env.sh`
 - `deploy/compose/trigger-remember-token.sh`
+
+### [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts)
+
+One file, two parsers, and nothing checked that they agreed.
+
+Reads:
+
+- `deploy/compose/check-env-agreement.sh`
+- `deploy/compose/ensure-env-secrets.sh`
+- `deploy/compose/env-upsert.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/set-task-env.sh`
 
 ### [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts)
 

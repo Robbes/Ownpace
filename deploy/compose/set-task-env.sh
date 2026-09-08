@@ -88,6 +88,24 @@ ENV_FILE="${SET_TASK_ENV_FILE:-${SCRIPT_DIR}/.env}"
   echo "FATAL: $ENV_FILE not found — copy managed.env.example and fill it in" >&2
   exit 1
 }
+# BEFORE THE SOURCE, and the order is the point.
+#
+# `source` on a file containing `KEY=$(...)` EXECUTES it — so a check that ran
+# afterwards would report the hazard having already suffered it. This scans the
+# text and assigns nothing.
+#
+# What it is looking for is not tidiness. This file is read by TWO parsers that
+# only mostly agree: Compose's Go dotenv (through managed.yml's `env_file:`) and
+# the bash `source` two lines below. A value they read differently gives the api
+# container one value and the task containers another, for the same key, both
+# looking right in isolation — and for SECRET_ENCRYPTION_KEY that is credentials
+# written by one and undecryptable by the other.
+"${SCRIPT_DIR}/check-env-agreement.sh" "$ENV_FILE" || {
+  echo "FATAL: $ENV_FILE holds values whose meaning depends on which parser reads them." >&2
+  echo "Nothing was uploaded. Fix the lines named above and run this again." >&2
+  exit 1
+}
+
 set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
