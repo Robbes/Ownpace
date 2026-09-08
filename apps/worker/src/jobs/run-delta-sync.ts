@@ -521,17 +521,13 @@ export const runDeltaSync = schemaTask({
            * — while a pass that paused is billed for the compute it actually
            * spent, because it spent it.
            *
-           * NOT fixed here, and worth knowing when reading an invoice until it
-           * is: `recordComputeForRun` REPLACES rather than accumulates (its
-           * own comment says so — it is what makes it retry-safe), and its key
-           * is (tenant, period, metricType, resource). So a period's compute
-           * for a domain is the duration of the LAST pass metered in it, not
-           * the period's total. The owner decided on 2026-09-08 to key the row
-           * by the RUN instead and sum at read — retry-safety kept, totals
-           * correct, the shape `bytes_moved` and `occupancy_peak` already use.
-           * That is a migration and its own change; this one only stops the
-           * arithmetic going negative, which is wrong under any of the
-           * options.
+           * The row is keyed by the RUN (workplan 0121), so each pass's
+           * measurement is its own and the period's compute is their sum.
+           * Before that it was keyed per period and REPLACED, which is what
+           * made it retry-safe and also what made it mean the wrong thing: a
+           * month of 15-minute passes recorded the duration of the last one.
+           * The upsert is unchanged — a retry of this run rewrites its own
+           * row — so retry-safety was kept rather than traded away.
            */
           const passEndedAt = new Date();
           await withTenant(pool, tenantId, async (db) => {
@@ -539,12 +535,16 @@ export const runDeltaSync = schemaTask({
               tenantId,
               mappingId,
               domain,
+              // The row's KEY, so this pass's measurement is its own and the
+              // period's compute is their sum. A retry of this run rewrites
+              // this row rather than adding another (workplan 0121).
+              runId,
               startedAt: domainPassStartedAt,
               completedAt: passEndedAt,
               periodStart,
               periodEnd,
             }, await resolveTenantPricing(db, tenantId));
-            await recordApiCallForRun(db, { tenantId, mappingId, domain, periodStart, periodEnd });
+            await recordApiCallForRun(db, { tenantId, mappingId, domain, runId, periodStart, periodEnd });
           });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';

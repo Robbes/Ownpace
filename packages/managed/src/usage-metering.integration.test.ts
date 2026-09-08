@@ -308,6 +308,9 @@ describe('Usage Metering - Integration', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         domain: 'email',
+        // The row's key. A RETRY of this run is the same key and must not
+        // double; a DIFFERENT pass is a different key and must add.
+        runId: 'run-one',
         startedAt,
         completedAt,
         periodStart,
@@ -342,6 +345,7 @@ describe('Usage Metering - Integration', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         domain: 'email',
+        runId: 'run-one',
         periodStart,
         periodEnd,
       };
@@ -373,6 +377,7 @@ describe('Usage Metering - Integration', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         domain: 'email',
+        runId: 'run-one',
         periodStart,
         periodEnd,
       });
@@ -381,12 +386,160 @@ describe('Usage Metering - Integration', () => {
         tenantId: TEST_TENANT_ID,
         mappingId: TEST_MAPPING_ID,
         domain: 'calendar',
+        runId: 'run-one',
         periodStart,
         periodEnd,
       });
 
       const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
       expect(usage.apiCallCount).toBe(2); // Both domains
+    });
+  });
+
+  /**
+   * The behaviour workplan 0121 is about: a period's compute is every pass in
+   * it, not the last one.
+   *
+   * The tests above prove the upsert is idempotent, which it was before and
+   * still is. What they cannot see is the grain of the key: with
+   * `resource = 'domain-email'` they pass identically, because every pass of a
+   * domain writes the same row. These read a period that had MORE THAN ONE
+   * PASS in it, which is what every real month is, and which nothing asserted
+   * on until now.
+   */
+  describe('A month of passes, summed', () => {
+    it('adds the compute of two passes in one period', async () => {
+      await db.insert(tenantTable).values({
+        id: TEST_TENANT_ID,
+        name: 't4-test-two-passes',
+        status: 'active',
+      });
+
+      const periodStart = '2026-07-01';
+      const periodEnd = '2026-07-31';
+      const pass = (runId: string, from: string, to: string): ComputeUsageInput => ({
+        tenantId: TEST_TENANT_ID,
+        mappingId: TEST_MAPPING_ID,
+        domain: 'email',
+        runId,
+        startedAt: new Date(from),
+        completedAt: new Date(to),
+        periodStart,
+        periodEnd,
+      });
+
+      // Two passes of the SAME domain, in the same period: 1 hour, then 2.
+      await recordComputeForRun(db, pass('run-one', '2026-07-15T10:00:00Z', '2026-07-15T11:00:00Z'), _PRICING);
+      await recordComputeForRun(db, pass('run-two', '2026-07-16T10:00:00Z', '2026-07-16T12:00:00Z'), _PRICING);
+
+      const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
+      // Keyed per period, this read 2 — the second pass having overwritten the
+      // first — and the customer was billed for one pass of a month's work.
+      expect(usage.computeHours).toBe(3);
+
+      // Two rows, one per pass, each named by its run.
+      const rows = await db.select().from(usageMetricTable);
+      const compute = rows.filter((r) => r.metricType === 'compute');
+      expect(compute.map((r) => r.resource).sort()).toEqual([
+        'domain-email#run-one',
+        'domain-email#run-two',
+      ]);
+    });
+
+    it('counts two passes as two sync operations, and a retry of one as one', async () => {
+      await db.insert(tenantTable).values({
+        id: TEST_TENANT_ID,
+        name: 't4-test-two-syncs',
+        status: 'active',
+      });
+
+      const periodStart = '2026-07-01';
+      const periodEnd = '2026-07-31';
+      const sync = (runId: string): ApiCallUsageInput => ({
+        tenantId: TEST_TENANT_ID,
+        mappingId: TEST_MAPPING_ID,
+        domain: 'email',
+        runId,
+        periodStart,
+        periodEnd,
+      });
+
+      await recordApiCallForRun(db, sync('run-one'));
+      await recordApiCallForRun(db, sync('run-two'));
+      // A Trigger.dev retry of the FIRST run — same key, so it rewrites its
+      // own row. This is the property the per-period key was chosen for, and
+      // the narrower key keeps it.
+      await recordApiCallForRun(db, sync('run-one'));
+
+      const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
+      expect(usage.apiCallCount).toBe(2);
+    });
+
+    it('keeps the cost of short passes rather than rounding each to nothing', async () => {
+      await db.insert(tenantTable).values({
+        id: TEST_TENANT_ID,
+        name: 't4-test-short-passes',
+        status: 'active',
+      });
+
+      const periodStart = '2026-07-01';
+      const periodEnd = '2026-07-31';
+
+      // Twelve 20-second passes — an hour of a real mapping's day. At
+      // €0.05/hour each costs 0.028 cents, which rounded to the cent is zero.
+      for (let pass = 0; pass < 12; pass++) {
+        const startedAt = new Date(Date.UTC(2026, 6, 15, 10, pass * 5, 0));
+        await recordComputeForRun(db, {
+          tenantId: TEST_TENANT_ID,
+          mappingId: TEST_MAPPING_ID,
+          domain: 'email',
+          runId: `run-${pass}`,
+          startedAt,
+          completedAt: new Date(startedAt.getTime() + 20_000),
+          periodStart,
+          periodEnd,
+        }, _PRICING);
+      }
+
+      const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
+      expect(usage.computeHours).toBeCloseTo((12 * 20) / 3600, 6);
+
+      // The stored costs sum to the same thing the hours do. Rounded per row
+      // this was 0 — a month of work costing nothing, on a billing screen.
+      const rows = await db.select().from(usageMetricTable);
+      const stored = rows
+        .filter((r) => r.metricType === 'compute')
+        .reduce((sum, r) => sum + Number(r.totalCost), 0);
+      expect(stored).toBeCloseTo(usage.computeHours * _PRICING.computePricePerHour, 6);
+      expect(stored).toBeGreaterThan(0);
+    });
+
+    it('keeps each pass of each domain separate', async () => {
+      await db.insert(tenantTable).values({
+        id: TEST_TENANT_ID,
+        name: 't4-test-passes-per-domain',
+        status: 'active',
+      });
+
+      const periodStart = '2026-07-01';
+      const periodEnd = '2026-07-31';
+      for (const runId of ['run-one', 'run-two']) {
+        for (const domain of ['email', 'calendar'] as const) {
+          await recordApiCallForRun(db, {
+            tenantId: TEST_TENANT_ID,
+            mappingId: TEST_MAPPING_ID,
+            domain,
+            runId,
+            periodStart,
+            periodEnd,
+          });
+        }
+      }
+
+      // Two domains × two passes. Keyed per period this was 2 for any number
+      // of passes: the count of DOMAINS that had ever run in the month.
+      const usage = await getUsageMetricsForPeriod(db, TEST_TENANT_ID, periodStart, periodEnd);
+      expect(usage.apiCallCount).toBe(4);
     });
   });
 
@@ -416,6 +569,7 @@ describe('Usage Metering - Integration', () => {
         tenantId: TEST_TENANT_2_ID,
         mappingId: TEST_MAPPING_ID,
         domain: 'email',
+        runId: 'run-tenant-b',
         startedAt,
         completedAt,
         periodStart,
