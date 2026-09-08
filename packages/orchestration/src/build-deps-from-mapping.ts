@@ -24,6 +24,9 @@ import {
   parseGoogleDriveSource,
   type ProviderClientEnv,
   microsoftTenant,
+  TARGET_TYPE_DOMAINS,
+  targetDomainRefusal,
+  type WizardTargetType,
   log,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
@@ -1355,6 +1358,41 @@ export function mailTargetConfigFromConnection(
   config: Record<string, unknown>,
   credentials: Record<string, string>,
 ): TargetConfig {
+  // A TARGET WITH NO MAIL FACE SAYS SO, IN THE SENTENCE THE WIZARD WOULD HAVE
+  // USED (2026-09-08).
+  //
+  // The comment below has claimed since 0106 T4b that "DAV protocol kinds have
+  // no mail face; they pass through and the switch refuses them by name". They
+  // pass through, and the switch does NOT refuse them by name: `config.type`
+  // is never set for those kinds, so the writer's `default:` arm printed
+  //
+  //     Unsupported target type: undefined
+  //
+  // and that is what the owner's preflight showed on the Email row of a
+  // Microsoft → Nextcloud migration, beside four real counts. It names no
+  // target, no domain and no remedy; a person reads it as the product failing
+  // to see their mail.
+  //
+  // The true sentence already exists and is already a prose boundary — the one
+  // the create wizard refuses this combination with:
+  //
+  //     A Nextcloud target cannot receive the 'email' data type — Nextcloud
+  //     carries 'calendar', 'contact', 'file', 'task' only. Choose a target
+  //     that speaks every selected data type, or drop the ones it cannot
+  //     receive.
+  //
+  // Reusing it rather than writing a second one is the point: the preflight now
+  // says exactly what the wizard says, so the two cannot drift, and a target
+  // kind added to `TARGET_TYPE_DOMAINS` gets this refusal for free.
+  //
+  // Asked BEFORE the stored-config shortcut below, because the question is
+  // answered by the KIND and not by a config blob: a row carrying a stale
+  // `type` must not talk its way past a face it has not got.
+  if (kind in TARGET_TYPE_DOMAINS) {
+    const refusal = targetDomainRefusal(kind as WizardTargetType, ['email']);
+    if (refusal) throw new Error(refusal);
+  }
+
   if (kind !== 'soverin') {
     if (typeof config.type === 'string' && config.type !== '') {
       return config as unknown as TargetConfig;
