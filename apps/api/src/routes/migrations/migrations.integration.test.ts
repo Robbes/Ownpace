@@ -420,8 +420,14 @@ describe('Migrations Routes - Tenant Isolation', () => {
         .send({ type: 'full' });
 
       expect(response.status).toBe(202);
-      expect(response.body.jobType).toBe('run-full-sync');
-      expect(triggerMock).toHaveBeenCalledWith('run-full-sync', expect.anything(), expect.anything());
+      // One sync task; a full scan is an option on it (the second task synced
+      // mail and nothing else — see resolveSyncJob).
+      expect(response.body.jobType).toBe('run-delta-sync');
+      expect(triggerMock).toHaveBeenCalledWith(
+        'run-delta-sync',
+        expect.objectContaining({ forceFullScan: true }),
+        expect.anything(),
+      );
     });
 
     it('should prevent tenant B from triggering sync on tenant A mapping (CROSS-TENANT TEST)', async () => {
