@@ -91,6 +91,11 @@ describe('discovery/confirm routes (0013 T4/T5)', () => {
 
   it('GET /:id/discovery reflects stored counts', async () => {
     await pool.query(
+      `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included)
+       VALUES ($1,$2,'email',true) ON CONFLICT (mapping_id, domain) DO UPDATE SET included = true`,
+      [TENANT, MAPPING],
+    );
+    await pool.query(
       `INSERT INTO migration_discovery (tenant_id, mapping_id, domain, collections, items, bytes)
        VALUES ($1,$2,'email',2,10,1024) ON CONFLICT (tenant_id, mapping_id, domain) DO UPDATE SET items = EXCLUDED.items`,
       [TENANT, MAPPING],
@@ -100,6 +105,43 @@ describe('discovery/confirm routes (0013 T4/T5)', () => {
     expect(res.body.discovered).toBe(true);
     expect(res.body.domains).toHaveLength(1);
     expect(res.body.domains[0]).toMatchObject({ domain: 'email', collections: 2, items: 10, bytes: 1024 });
+  });
+
+  it('GET /:id/discovery drops a stored row for a domain the mapping does not carry', async () => {
+    // The owner's fossil (2026-09-08): a pass from before #854 counted a
+    // domain nobody had ticked and filed the FILE numbers under it. Nothing
+    // deletes from migration_discovery, so the row outlived the fix and kept
+    // being presented as part of what was about to be migrated.
+    //
+    // Its numbers are the Files row's, byte for byte, which is what made it
+    // readable as a bug rather than as a count.
+    await pool.query(
+      `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included)
+       VALUES ($1,$2,'email',true), ($1,$2,'file',true)
+       ON CONFLICT (mapping_id, domain) DO UPDATE SET included = true`,
+      [TENANT, MAPPING],
+    );
+    await pool.query(
+      `INSERT INTO migration_discovery (tenant_id, mapping_id, domain, collections, items, bytes)
+       VALUES ($1,$2,'email',2,10,1024), ($1,$2,'file',6,180,899284070), ($1,$2,'task',6,180,899284070)
+       ON CONFLICT (tenant_id, mapping_id, domain) DO UPDATE SET items = EXCLUDED.items`,
+      [TENANT, MAPPING],
+    );
+
+    const res = await request.get(`/api/migrations/${MAPPING}/discovery`).set('Authorization', `Bearer ${token(TENANT)}`);
+    expect(res.status).toBe(200);
+    const domains: Array<{ domain: string }> = res.body.domains;
+    expect(domains.map((d) => d.domain).sort()).toEqual(['email', 'file']);
+    expect(domains.some((d) => d.domain === 'task')).toBe(false);
+
+    // The row is FILTERED, not deleted: the evidence of what that pass saw is
+    // still there for whoever has to explain it, and it comes back the moment
+    // the selection says so.
+    const stored = await pool.query(
+      `SELECT domain FROM migration_discovery WHERE tenant_id = $1 AND mapping_id = $2 AND domain = 'task'`,
+      [TENANT, MAPPING],
+    );
+    expect(stored.rowCount).toBe(1);
   });
 
   it('POST /:id/start activates the mapping (idempotent)', async () => {

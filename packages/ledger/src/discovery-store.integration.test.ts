@@ -133,6 +133,38 @@ describe('PgDiscoveryStore (0013 T2)', () => {
     expect(rows[0]).toMatchObject({ domain: 'contact', items: 7, lastError: 'CardDAV 401 Unauthorized' });
   });
 
+  it('leaves discoveredAt on the pass that took the counts, not on the one that failed', async () => {
+    // `discoveredAt` means WHEN THESE COUNTS WERE TAKEN. Re-stamping it here
+    // re-dated numbers the failing attempt never took — and the confirm screen
+    // prints it as when the migration was last checked, so an owner whose
+    // latest pass died on a rate-budget error read the older count as today's
+    // (2026-09-08).
+    const store = new PgDiscoveryStore(db);
+    await store.upsertDiscovery(TENANT_A, MAPPING_A, 'file', { collections: 3, items: 95_734 });
+    const counted = (await store.getDiscovery(TENANT_A, MAPPING_A)).find((r) => r.domain === 'file')
+      ?.discoveredAt;
+    expect(counted).toBeTruthy();
+
+    // `now()` is transaction-scoped in Postgres, so the two writes need
+    // separate statements AND a real gap for a moved timestamp to be visible.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    await store.recordDiscoveryError(TENANT_A, MAPPING_A, 'file', 'relation "rate_budget" does not exist');
+
+    const after = (await store.getDiscovery(TENANT_A, MAPPING_A)).find((r) => r.domain === 'file');
+    expect(after).toMatchObject({
+      items: 95_734,
+      lastError: 'relation "rate_budget" does not exist',
+      discoveredAt: counted,
+    });
+
+    // A pass that succeeds afterwards DOES move it: the counts are new.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    await store.upsertDiscovery(TENANT_A, MAPPING_A, 'file', { collections: 3, items: 95_800 });
+    const recounted = (await store.getDiscovery(TENANT_A, MAPPING_A)).find((r) => r.domain === 'file');
+    expect(recounted?.discoveredAt).not.toBe(counted);
+    expect(recounted?.lastError).toBeUndefined();
+  });
+
   it('enforces RLS: a tenant cannot see another tenant’s discovery (as app_user)', async () => {
     // Insert tenant A's discovery as app_user within tenant A's context (exercises the INSERT policy).
     await withTenant(appPool, TENANT_A, async (txDb) => {

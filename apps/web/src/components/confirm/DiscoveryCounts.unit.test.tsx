@@ -194,3 +194,63 @@ describe('the rows that have not landed yet', () => {
     expect(status).not.toHaveTextContent(/failed|error|wrong/i);
   });
 });
+
+
+/**
+ * A COUNT AND AN ERROR IN ONE ROW (2026-09-08).
+ *
+ * `recordDiscoveryError` keeps whatever counts a prior successful pass
+ * recorded — the right call, since throwing a good number away because the
+ * next attempt could not be made loses more than it saves. But the row that
+ * comes back then carries both, and the table alone gives the reader no way to
+ * tell which of the two is current. The owner's Microsoft preflight showed him
+ * `3430 / 95,734 / 21.6 GB` beside a red rate-budget error on 2026-09-08, with
+ * nothing to say the count was a week old and the failure was minutes old.
+ */
+describe('the numbers that came from an earlier check', () => {
+  it('names the domain whose count predates the error beside it', () => {
+    render(
+      <DiscoveryCounts
+        domains={[
+          record({ domain: 'calendar', collections: 2, items: 30 }),
+          record({
+            domain: 'file',
+            collections: 3430,
+            items: 95_734,
+            bytes: 23_193_571_328,
+            lastError: 'relation "rate_budget" does not exist',
+          }),
+        ]}
+      />,
+    );
+
+    const note = screen.getByRole('note');
+    expect(note).toHaveTextContent(/Numbers for Files are from an earlier check/);
+    expect(note).toHaveTextContent(/the latest one failed/);
+    // Named, not blanket: the calendar row's count IS this attempt's, and
+    // casting doubt on it would be the same dishonesty pointing the other way.
+    expect(note).not.toHaveTextContent(/Calendar/);
+    // The count itself stays on screen — it is real, just older.
+    expect(screen.getByText('95734')).toBeInTheDocument();
+    // …and so does the error, verbatim.
+    expect(screen.getByText('relation "rate_budget" does not exist')).toBeInTheDocument();
+  });
+
+  it('says nothing when a failed domain had no earlier count to keep', () => {
+    // `recordDiscoveryError` writes zeroes when no pass ever succeeded. That
+    // row's error is its whole answer, and "from an earlier check" would
+    // invent an earlier check.
+    render(
+      <DiscoveryCounts
+        domains={[record({ domain: 'task', collections: 0, items: 0, lastError: 'Tasks.Read not granted' })]}
+      />,
+    );
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(screen.getByText('Tasks.Read not granted')).toBeInTheDocument();
+  });
+
+  it('says nothing when every domain answered this time', () => {
+    render(<DiscoveryCounts domains={[record({ domain: 'file' })]} />);
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+});
