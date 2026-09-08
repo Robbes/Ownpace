@@ -53,6 +53,11 @@ const en = {
   // have gone wrong, and saying so would be a claim we cannot support (rule 9).
   'discovery.stillCounting.slow':
     'Still counting: {domains}. Taking longer than usual; reload to check again.',
+  // A count and an error in one row say nothing about which of the two is
+  // current. This names the rows where they disagree — the numbers are real,
+  // they are just older than the error beside them. See DiscoveryCounts.
+  'discovery.countedEarlier':
+    'Numbers for {domains} are from an earlier check; the latest one failed.',
   'discovery.th.type': 'Type',
   'discovery.th.collections': 'Collections',
   'discovery.th.items': 'Items',
@@ -1738,6 +1743,8 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.stillCounting': 'Nog aan het tellen: {domains}. Deze pagina werkt zichzelf bij.',
   'discovery.stillCounting.slow':
     'Nog aan het tellen: {domains}. Dit duurt langer dan normaal; herlaad om te kijken.',
+  'discovery.countedEarlier':
+    'Cijfers voor {domains} komen van een eerdere controle; de laatste poging mislukte.',
   'discovery.th.type': 'Type',
   'discovery.th.collections': 'Collecties',
   'discovery.th.items': 'Items',

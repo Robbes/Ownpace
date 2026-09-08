@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import type { DiscoveryDomain, DiscoveryRecord } from '@openmig/shared';
+import { domainsCountedBeforeTheirError, type DiscoveryDomain, type DiscoveryRecord } from '@openmig/shared';
 import { useT } from '../../i18n/index.tsx';
 import { formatBytes } from '../../i18n/bytes.ts';
 // The dictionary's own domain words — the old local map silently bypassed
@@ -76,6 +76,10 @@ export const DiscoveryCounts: React.FC<{
   const t = useT();
   const landed = new Set(domains.map((d) => d.domain));
   const pending = (expected ?? []).filter((d) => !landed.has(d));
+  // Rows carrying BOTH a count and an error: the count is the last successful
+  // pass's, the error is the latest attempt's, and the table on its own gives
+  // the reader no way to tell. See `domainsCountedBeforeTheirError`.
+  const countedEarlier = domainsCountedBeforeTheirError(domains);
   // A subset of `items`: these ARE migrated. Shown because we modify them.
   const generatedId = domains.reduce((sum, d) => sum + (d.generatedIdItems ?? 0), 0);
   // Items the destination already holds under a key matching something in the
@@ -160,6 +164,24 @@ export const DiscoveryCounts: React.FC<{
         <p className="mt-2 text-sm text-gray-500" role="status">
           {t(slow ? 'discovery.stillCounting.slow' : 'discovery.stillCounting', {
             domains: pending.map((d) => t(DOMAIN_KEY[d])).join(', '),
+          })}
+        </p>
+      )}
+
+      {/*
+        The numbers are real; they are just not this attempt's. Named for the
+        same reason the pending line names its domains — "some of these are
+        old" tells a reader to distrust the whole table, which is both more
+        alarming and less true than saying which two rows it is.
+
+        `role="note"` beside the two warnings below rather than `status` with
+        the line above: this is a caveat about what the table means, not
+        progress that is still moving.
+      */}
+      {countedEarlier.length > 0 && (
+        <p className="mt-2 text-sm text-amber-700" role="note">
+          {t('discovery.countedEarlier', {
+            domains: countedEarlier.map((d) => t(DOMAIN_KEY[d])).join(', '),
           })}
         </p>
       )}

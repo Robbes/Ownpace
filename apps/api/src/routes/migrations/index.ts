@@ -22,6 +22,7 @@ import {
   archiveProviderName,
   buildDomainStatusReports,
   DISCOVERY_DOMAINS,
+  discoveryForSelection,
   isArchiveProvider,
   isProviderAccountKind,
   log,
@@ -2658,6 +2659,17 @@ router.post('/:mappingId/discover', authenticate, async (req: AuthenticatedReque
 /**
  * GET /api/migrations/:mappingId/discovery (0013 T4)
  * Return the stored per-domain discovery counts. `discovered` is false until the first pass lands.
+ *
+ * THE MIGRATION'S OWN DOMAINS, on the way out as well as on the way in. The
+ * enqueue side learned this in #854 (`resolveDiscoveryJob`, and
+ * `domainsToCount` behind it); the read side had not, so every row any pass
+ * had ever written came back — including the ones written BY the defect #854
+ * removed. See `discoveryForSelection` for the Tasks row holding the Drive
+ * numbers that survived the fix and kept showing up on the owner's screen.
+ *
+ * Both reads in ONE tenant transaction: a selection read outside it could
+ * describe a different moment from the counts it filters, and the whole point
+ * of this route is that the two agree.
  */
 router.get('/:mappingId/discovery', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -2669,9 +2681,22 @@ router.get('/:mappingId/discovery', authenticate, async (req: AuthenticatedReque
     const mapping = await loadMapping(tenantId, mappingId);
     if (!mapping) return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
 
-    const domains = await withTenantDb(tenantId, getSharedPool(), (db) =>
-      new schema.PgDiscoveryStore(db).getDiscovery(tenantId as TenantId, mappingId as MappingId),
-    );
+    const domains = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      const [stored, scopeRows] = await Promise.all([
+        new schema.PgDiscoveryStore(db).getDiscovery(tenantId as TenantId, mappingId as MappingId),
+        db
+          .select({ domain: schema.scopeSelection.domain })
+          .from(schema.scopeSelection)
+          .where(
+            and(
+              eq(schema.scopeSelection.tenantId, tenantId),
+              eq(schema.scopeSelection.mappingId, mappingId),
+              eq(schema.scopeSelection.included, true),
+            ),
+          ),
+      ]);
+      return discoveryForSelection(stored, scopeRows.map((r) => r.domain));
+    });
     res.json({ mappingId, discovered: domains.length > 0, domains });
   } catch (error) {
     serverFault(res, 'discovery_read_failed', 'reading the discovery result', error);

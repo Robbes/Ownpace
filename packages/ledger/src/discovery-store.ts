@@ -100,10 +100,24 @@ export class PgDiscoveryStore implements DiscoveryStore {
           schemaPg.migrationDiscovery.mappingId,
           schemaPg.migrationDiscovery.domain,
         ],
-        // Keep whatever counts a prior successful pass recorded; only stamp the error + time.
+        // Keep whatever counts a prior successful pass recorded; stamp the
+        // error and NOTHING ELSE.
+        //
+        // `discoveredAt` used to move here too, which quietly re-dated the
+        // counts this branch exists to preserve: the row then said a failed
+        // attempt's time above numbers that attempt never took. The confirm
+        // screen prints that value as when the migration was last checked, so
+        // an owner whose Files count came from an earlier day and whose latest
+        // pass died on a rate-budget error was shown that older count under
+        // today's date (2026-09-08). One field, two meanings — and the customer
+        // had no way to tell which they were looking at.
+        //
+        // So it means one thing: WHEN THESE COUNTS WERE TAKEN. The insert
+        // branch above stamps it with zero counts beside it, which is the
+        // honest reading of a domain that has never been counted; the update
+        // branch leaves the successful pass's time exactly where it was.
         set: {
           lastError: error,
-          discoveredAt: sql`now()`,
         },
       });
   }
