@@ -16,8 +16,7 @@ edition runs on one execution plane (ADR-0004).
 | Task | Trigger | What it does |
 |---|---|---|
 | `managed-sync-tick` | declarative schedule, `* * * * *` | Evaluates every active mapping's own cron against the DB (croner; due = nextRun(last run start) ≤ now; invalid cron → loud log + default `*/15` cadence, never a dead stop) and triggers `run-delta-sync` per due mapping. |
-| `run-delta-sync` | the tick, or API `POST .../sync {"type":"delta"}` | Incremental pass over the mapping's **enabled domains only** (the #207 rule). Queue `delta-sync`, concurrency 1 per mapping (`concurrencyKey: mappingId`) — a duplicate run is a wasted idempotent delta, never duplicated data. |
-| `run-full-sync` | API `POST .../sync {"type":"full"}` | Full pass, same enabled-domains rule. |
+| `run-delta-sync` | the tick, or API `POST .../sync` (`"delta"` or `"full"`) | A pass over the mapping's **enabled domains only** (the #207 rule). Queue `delta-sync`, concurrency 1 per mapping (`concurrencyKey: mappingId`) — a duplicate run is a wasted idempotent delta, never duplicated data. `forceFullScan` makes it scan from the beginning: `true` for every domain, or a **list** to redo one without re-reading the others. It withholds the cursor STORE, so a full scan neither reads a saved position nor writes one — the saved position survives and the next ordinary pass resumes from it. |
 | `run-discovery` | mapping creation / API | Read-only, body-free per-domain counts into `migration_discovery` (the confirm screen's data). |
 | `run-verification` | API `POST .../verify/start` | The §20 gate as a job; drives `verification_run` to a terminal report the API serves at `GET .../verify/report`. |
 | `run-apply-deletion` | API apply → receipt | Re-runs ALL apply gates in the job, performs the one destructive removal, lands the `apply_receipt` terminal state (`applied`/`refused`/`failed`). |
@@ -119,3 +118,21 @@ pnpm test:integration   # testcontainers (Postgres + Stalwart + Nextcloud)
 - [Workplan 0022](../../docs/workplans/0022-syncs-on-trigger-tasks.md) — why there is no worker container
 - [ADR-0004](../../docs/adr/0004-orchestration-triggerdev-and-inprocess.md) — orchestration
 - [Trigger.dev docs](https://trigger.dev/docs)
+
+
+## A task that used to be here: `run-full-sync`
+
+Deleted 2026-09-08. It existed because a full pass passes no cursor store —
+that was its only real difference from `run-delta-sync`, and everything else
+about it was that file as of a much earlier release: no per-domain
+`migration_status` rows, no pause handling, no deadline, no failure category.
+
+The row above used to claim it obeyed "the same enabled-domains rule". **It did
+not.** It called `runShadowPass` directly instead of looping the mapping's
+domains, so it synced MAIL AND NOTHING ELSE — a customer pressing a full
+re-sync on a mapping carrying calendars, contacts, files and tasks had their
+mail copied and was told it succeeded.
+
+A full scan is now an option on the one job. Anything still holding the task id
+`run-full-sync` — a queued run, an operator script — should send
+`{"type":"full"}` to `POST .../sync` instead.
