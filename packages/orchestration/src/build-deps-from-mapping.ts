@@ -348,7 +348,7 @@ export async function buildDepsFromMapping(
     | Partial<import('@openmig/shared').ThrottleConfig>
     | null
     | undefined;
-  const throttleLimiter = tenantThrottleLimiter(db, storedThrottle, throttleConfigMapping);
+  const throttleLimiter = tenantThrottleLimiter(db, tenantId, storedThrottle, throttleConfigMapping);
 
   // The daily DOWNLOAD meter for the mail source's endpoint (workplan 0090
   // T3). Which endpoints get one is `imapDownloadPlan`'s decision — keyed by
@@ -579,10 +579,25 @@ async function loadDomainConnections(
  */
 export function tenantThrottleLimiter(
   db: ReturnType<typeof createPgDb>,
+  /**
+   * THIS DEPLOYMENT'S TENANT, and the reason this parameter is second rather
+   * than optional (2026-09-08).
+   *
+   * The budget is per (tenant, provider), and until today nothing supplied the
+   * tenant: `PgRateBudget.acquire` took it from the connector, and every
+   * connector passes a label of its own instead — `dav`, or Entra's `common`.
+   * This seam is the nearest caller that actually knows, exactly as it is for
+   * `PgByteBudget`, whose meter has been handed `tenantId` here all along.
+   *
+   * Required, so the next builder cannot omit it: an optional tenant is how
+   * the first one came to be missing.
+   */
+  tenantId: string,
   storedThrottle: Partial<import('@openmig/shared').ThrottleConfig> | null | undefined,
   throttleConfigMapping: ThrottleConfigMapping = {},
 ): ReturnType<typeof createThrottleLimiterFromMapping> {
   const sharedBudget = new PgRateBudget(db, {
+    tenantId,
     requestsPerSecond:
       storedThrottle?.requestsPerSecond ?? DEFAULT_THROTTLE_CONFIG.requestsPerSecond,
   });
@@ -640,7 +655,7 @@ export async function buildDomainDepsFromMapping(
     // contact, file and task source — in the preflight AND in every non-mail
     // pass — met Microsoft with no backoff at all. See `tenantThrottleLimiter`
     // for the 429 that made it visible.
-    const throttleLimiter = tenantThrottleLimiter(db, throttleConfig);
+    const throttleLimiter = tenantThrottleLimiter(db, tenantId, throttleConfig);
     const common = { tenantId: tId, mappingId: mId, ledger, cursors };
     const targetDeps = { ledger, tenantId: tId, mappingId: mId };
 

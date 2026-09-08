@@ -83,7 +83,7 @@ describe('PgRateBudget under real concurrency', () => {
     // unit test made at 1000/s and had to be corrected for.
     const budgets = Array.from(
       { length: SESSIONS },
-      () => new PgRateBudget(db, { requestsPerSecond: 1, burst: BURST }),
+      () => new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 1, burst: BURST }),
     );
 
     // Every session takes one token simultaneously. Eight are available; the
@@ -91,7 +91,7 @@ describe('PgRateBudget under real concurrency', () => {
     const granted: number[] = [];
     await Promise.all(
       budgets.map(async (budget, i) => {
-        await budget.acquire(TENANT, PROVIDER);
+        await budget.acquire('common', PROVIDER);
         granted.push(i);
       }),
     );
@@ -112,9 +112,9 @@ describe('PgRateBudget under real concurrency', () => {
   it('holds one row per (tenant, provider), not one per session', async () => {
     const budgets = Array.from(
       { length: 4 },
-      () => new PgRateBudget(db, { requestsPerSecond: 1, burst: 50 }),
+      () => new PgRateBudget(db, { tenantId: TENANT, requestsPerSecond: 1, burst: 50 }),
     );
-    await Promise.all(budgets.map((b) => b.acquire(TENANT, PROVIDER)));
+    await Promise.all(budgets.map((b) => b.acquire('common', PROVIDER)));
 
     const rows = await db
       .select({ tenantId: schemaPg.rateBudget.tenantId })

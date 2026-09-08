@@ -494,24 +494,26 @@ describe('tenantThrottleLimiter', () => {
   // `PgRateBudget` stores the handle and only touches it when a request is
   // actually charged, which nothing here does.
   const db = {} as never;
+  /** A tenant of ours, which is what the budget must be keyed by. */
+  const TENANT = '11111111-2222-3333-4444-555555555555';
 
   it('builds a limiter when the mapping stored no throttle config at all', () => {
     // "No custom limits" never meant "no limits" — it meant the defaults, and
     // the defaults are what the shared budget enforces. This was the branch
     // that used to leave `throttleLimiter` undefined.
-    expect(tenantThrottleLimiter(db, null)).toBeInstanceOf(ThrottleLimiter);
-    expect(tenantThrottleLimiter(db, undefined)).toBeInstanceOf(ThrottleLimiter);
+    expect(tenantThrottleLimiter(db, TENANT, null)).toBeInstanceOf(ThrottleLimiter);
+    expect(tenantThrottleLimiter(db, TENANT, undefined)).toBeInstanceOf(ThrottleLimiter);
   });
 
   it('runs at the default rate when nothing is stored', () => {
-    const limiter = tenantThrottleLimiter(db, null);
+    const limiter = tenantThrottleLimiter(db, TENANT, null);
     expect(limiter.config.requestsPerSecond).toBe(
       DEFAULT_THROTTLE_CONFIG.requestsPerSecond,
     );
   });
 
   it("uses the tenant's own stored rate rather than the default", () => {
-    const limiter = tenantThrottleLimiter(db, { requestsPerSecond: 3 });
+    const limiter = tenantThrottleLimiter(db, TENANT, { requestsPerSecond: 3 });
     expect(limiter.config.requestsPerSecond).toBe(3);
   });
 
@@ -519,12 +521,36 @@ describe('tenantThrottleLimiter', () => {
     // Two sources of config, and the STORED one wins: it is the tenant's own
     // decision, where the mapping argument is the process-wide default.
     expect(
-      tenantThrottleLimiter(db, null, { mapping: { requestsPerSecond: 7 } }).config
+      tenantThrottleLimiter(db, TENANT, null, { mapping: { requestsPerSecond: 7 } }).config
         .requestsPerSecond,
     ).toBe(7);
     expect(
-      tenantThrottleLimiter(db, { requestsPerSecond: 3 }, { mapping: { requestsPerSecond: 7 } })
+      tenantThrottleLimiter(db, TENANT, { requestsPerSecond: 3 }, { mapping: { requestsPerSecond: 7 } })
         .config.requestsPerSecond,
     ).toBe(3);
+  });
+
+  /**
+   * THE TENANT THE BUDGET IS FOR, WHICH NOTHING USED TO SUPPLY (2026-09-08).
+   *
+   * `PgRateBudget` took its tenant from `acquire`'s first argument, and every
+   * connector passes something else there: the Graph sources pass the ENTRA
+   * tenant (`common` for a multi-tenant app registration), the DAV sources the
+   * literal `dav`. The column is `uuid`, so the first real call died on
+   * `invalid input syntax for type uuid: "common"` — after four faces were
+   * given a limiter and reached the budget for the first time.
+   *
+   * This seam knows the tenant, so this seam supplies it. Required rather than
+   * optional: an optional tenant is exactly how the first one came to be
+   * missing, and a sixth builder must not be able to repeat it.
+   */
+  it('refuses to build a budget without one of our tenants', () => {
+    // The two values production actually passed, and the empty string.
+    for (const notATenant of ['common', 'dav', '']) {
+      expect(
+        () => tenantThrottleLimiter(db, notATenant, null),
+        `${notATenant || '(empty)'} is a connector's label, not our tenant`,
+      ).toThrow(/tenant id/i);
+    }
   });
 });
