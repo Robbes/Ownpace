@@ -232,6 +232,12 @@ describe('replacing credentials', () => {
     { kind: 'google_contacts', role: 'source' },
     { kind: 'dropbox', role: 'source' },
     { kind: 'box', role: 'source' },
+    // The ACCOUNT kinds, absent from this table until 2026-09-08 — and the
+    // two the owner could not replace credentials for. A table meant to cover
+    // every stored `connection.kind` that skips the two kinds "Connect with
+    // Google" and "Connect with Microsoft" create is covering the easy half.
+    { kind: 'google', role: 'source' },
+    { kind: 'microsoft', role: 'source' },
     { kind: 'jmap', role: 'target' },
     { kind: 'imap', role: 'target' },
     { kind: 'caldav', role: 'target' },
@@ -257,6 +263,97 @@ describe('replacing credentials', () => {
         `rotating a ${kind} ${role} would be refused for '${field.key}', which this panel never asks for`,
       ).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * The SECOND rule this table exists for (owner, 2026-09-08): **a rotate
+   * panel must offer the consent its descriptor names.**
+   *
+   * A refresh token is the credential most likely to need replacing — it is
+   * the one a provider revokes — and the panel offered a box for it with no
+   * button beside it. On a managed deployment the person has no client pair
+   * of their own, so there was no way anywhere in the product to mint a
+   * replacement for a connection that already existed. The owner met it on a
+   * Google connection and a Microsoft one: "it offers fields and no
+   * grant-button".
+   *
+   * Same shape as the required-fields rule above, and the same reason: a
+   * provider added later must fail HERE rather than in somebody's hands.
+   */
+  const CONSENT_KINDS = KINDS.filter(
+    ({ kind, role }) =>
+      credentialFieldsFor(role, wizardTypeForConnectionKind(kind)).find(
+        (f) => f.key === 'refreshToken',
+      )?.consent !== undefined && role === 'source',
+  );
+
+  it('has kinds whose descriptor names a consent, or the rule below proves nothing', () => {
+    expect(CONSENT_KINDS.length).toBeGreaterThan(0);
+  });
+
+  it.each(CONSENT_KINDS)('$role/$kind offers the consent its descriptor names', async ({ kind, role }) => {
+    list.mockResolvedValue([conn({ kind, role })]);
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Replace credentials'));
+
+    const provider = credentialFieldsFor(role, wizardTypeForConnectionKind(kind)).find(
+      (f) => f.key === 'refreshToken',
+    )!.consent!;
+    const label = STRINGS.en[`wizard.${provider}.connect` as keyof typeof STRINGS.en];
+    await waitFor(() =>
+      expect(
+        screen.queryAllByText(label).length,
+        `Replace credentials on a ${kind} connection asks for a refresh token and gives no way ` +
+          `to obtain one. On a managed deployment that is a dead end: the person has no client ` +
+          `pair to run a consent themselves, and the panel exists for exactly this credential.`,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it('runs the consent from the rotate panel, and the token lands in its own box', async () => {
+    // The whole point: the button is not decoration. It asks the provider,
+    // opens the popup, and the token the popup posts back fills the SAME box
+    // a pasted one fills (ADR-0037) — so Check and replace then has something
+    // to send.
+    // The MANAGED case, which is the dead end: the deployment carries the
+    // Google application, so the person has no pair of their own to run a
+    // consent with — this button is the only way to a new token.
+    providerClients.mockResolvedValue({ google: 'deployment' });
+    list.mockResolvedValue([
+      conn({ kind: 'google', role: 'source', knownValues: { username: 'anna@acme.net' } }),
+    ]);
+    googleAuthorize.mockResolvedValue({ url: 'https://accounts.google.example/o/oauth2/v2/auth?x=1' });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Replace credentials'));
+    // An account kind asks for the faces first; tick one so the button is live.
+    const connect = await screen.findByText(STRINGS.en['wizard.google.connect']);
+    await waitFor(() => expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByRole('checkbox')[0]!);
+    await waitFor(() => expect((connect as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(connect);
+
+    await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
+    expect(opened).toHaveBeenCalledWith(
+      'https://accounts.google.example/o/oauth2/v2/auth?x=1',
+      'ownpace-google-consent',
+      expect.stringContaining('popup'),
+    );
+
+    // The popup's answer, over the same postMessage the add form listens for.
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin: window.location.origin,
+          data: { type: 'ownpace-google-consent', refreshToken: 'granted-here' },
+        }),
+      );
+    });
+
+    await waitFor(() => expect(screen.getByDisplayValue('granted-here')).toBeTruthy());
+    opened.mockRestore();
   });
 
   it('offers a Google client id BESIDE its secret, so a rotated pair is a pair (ADR-0041)', async () => {

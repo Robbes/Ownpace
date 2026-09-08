@@ -31,11 +31,8 @@ import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { frontDoorCards } from '../components/front-door-cards.ts';
 import {
   connectionsApi,
-  mappingApi,
   type ConnectionSummary,
   type TestConnectionResult,
-  providerAccountsApi,
-  providerClientsApi,
 } from '../services/mapping-service.ts';
 import { useT, useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
 import {
@@ -54,14 +51,9 @@ import {
   missingCredentialFields,
   serverMessage,
 } from '../services/api.ts';
-import {
-  PROVIDER_ACCOUNT_DOMAINS,
-  QUALIFICATION_KEYS,
-  credentialFieldRequired,
-  isProviderAccountKind,
-} from '@openmig/shared';
-import type { DiscoveryDomain, ProviderAccountKind } from '@openmig/shared';
+import { QUALIFICATION_KEYS, credentialFieldRequired } from '@openmig/shared';
 import { Hint } from '../components/Hint.tsx';
+import { ProviderConsentPanel, useProviderConsent } from '../components/ProviderConsent.tsx';
 
 /**
  * A refusal in the reader's own language wherever we authored it (0071).
@@ -186,6 +178,26 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
   // whose partner; this reads it rather than naming Google here.
   const rotatableFields = allFields.filter((f) => f.required || f.secret || f.pairedWith);
   const refusalText = useRefusalText(allFields);
+  // AND THE WAY TO OBTAIN ONE (owner, 2026-09-08). A refresh token is the
+  // credential most likely to need replacing — it is the one a provider
+  // revokes — and this panel offered a box for it with no button beside it.
+  // On a managed deployment the person has no client pair of their own, so
+  // there was no way to mint a replacement anywhere in the product for a
+  // connection that already existed: the panel was unusable for exactly the
+  // credential it exists to fix.
+  //
+  // The same hook the add form uses, over the same descriptors, writing into
+  // the same box a pasted token goes in. Not a second implementation of the
+  // consent — the add door and this one are the same question asked about the
+  // same connection, and two implementations of that drift.
+  const rotateConsent = useProviderConsent({
+    role: connection.role,
+    type: wizardTypeForConnectionKind(connection.kind),
+    fields: rotatableFields,
+    values: newValues,
+    onToken: (refreshToken) => setNewValues((v) => ({ ...v, refreshToken })),
+    refusalText,
+  });
 
   /** The server decides whether this is allowed; its refusal is the message. */
   const remove = async () => {
@@ -420,6 +432,7 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
               </label>
             ))}
           </div>
+          <ProviderConsentPanel consent={rotateConsent} className="mt-3" />
           <button
             type="button"
             disabled={testing}
@@ -500,26 +513,21 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const provenance = providerDefaultsProvenance(role, type);
   const refusalText = useRefusalText(fields);
   const placeholderFor = usePlaceholderFor();
-  // WHOSE CONSENT mints this kind's token is the descriptor's answer
-  // (`consent` on the refresh-token field; 2026-09-02, Connect with Dropbox):
-  // Google's kinds say google, Dropbox says dropbox, and a kind that says
-  // nothing has no button and no fold. Not a list of kinds kept in this
-  // page, which would be a second copy of that table.
-  const grantProvider =
-    role === 'source' ? fields.find((f) => f.key === 'refreshToken')?.consent : undefined;
-  const grantKind = grantProvider !== undefined;
-  // Does this deployment carry its own application for THAT provider
-  // (ADR-0041)? One fact per provider, read over the wire, never compiled
-  // in, and defaulting to "no" while the answer is on its way — the
-  // direction that cannot under-ask.
-  const { data: providerClients } = useQuery({
-    queryKey: ['provider-clients'],
-    queryFn: providerClientsApi.get,
-    retry: false,
-    staleTime: Infinity,
+  // WHOSE CONSENT mints this kind's token, whether the deployment carries the
+  // application, which faces to ask for, and the round trip itself — all of it
+  // now lives in one place both doors import, because Replace credentials
+  // needed exactly this and had none of it (`components/ProviderConsent.tsx`).
+  const consent = useProviderConsent({
+    role,
+    type,
+    fields,
+    values,
+    onToken: (refreshToken) => setValues((v) => ({ ...v, refreshToken })),
+    refusalText,
   });
-  const deploymentClient =
-    grantProvider !== undefined && providerClients?.[grantProvider] === 'deployment';
+  const deploymentClient = consent.deploymentClient;
+  const clientIdTyped = (values.clientId ?? '').trim() !== '';
+  const clientSecretTyped = (values.clientSecret ?? '').trim() !== '';
   // THE PAIR FOLDS AWAY where the deployment carries the application (owner
   // remark 2026-09-02): a person grants Ownpace's own, and "use your own" is
   // the exception. The pair is the descriptor's to name — an id `pairedWith`
@@ -532,152 +540,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   // typed, so a box with an asterisk above the fold asked for what the button
   // below supplies. Inside the fold it is the manual alternative it always was.
   const pairedToken = folded ? fields.find((f) => f.key === 'refreshToken') : undefined;
-  /** The provider's own words for the shared button, fold and hints. */
-  const ps = (
-    suffix:
-      | 'connect'
-      | 'connect.hint'
-      | 'connect.why'
-      | 'connect.needsClient'
-      | 'connect.halfClient'
-      | 'deploymentClient'
-      | 'ownClient'
-      | 'redirectUri',
-  ) => t(`wizard.${grantProvider ?? 'google'}.${suffix}` as StringKey);
-
-  // THE CONSENT YOU CAN CLICK, on this door too (owner step 4, 2026-09-02).
-  // The wizard has had it since 0089 T1; this form folded the pair away
-  // (#709) and left no way to obtain the token the fold took the pair from —
-  // on a managed deployment its Gmail and Drive paths were dead ends. One
-  // button per provider the descriptor names, in that provider's words.
-  // The ACCOUNT kind asks for the faces ticked and nothing else (0106 T3b);
-  // a connection has no mapping yet to read them from, so it asks here.
-  // WHICH KINDS ARE ACCOUNTS — the faces are asked here because a connection
-  // has no mapping yet to read them from (0106 T3b). Was `grantProvider ===
-  // 'google' && type === 'google'`, a two-provider condition with Microsoft
-  // arriving third (workplan 0114).
-  //
-  // Read off `PROVIDER_ACCOUNT_KINDS` rather than a shape that happens to
-  // hold: the first attempt here asked whether the type equalled its own
-  // grant provider, which is true of `google` and `microsoft` — and also of
-  // `dropbox`, which is a SINGLE-face source. That version disabled Dropbox's
-  // button waiting for face ticks it never shows. An account kind is the one
-  // the table calls an account, and nothing else.
-  const isAccountKind = isProviderAccountKind(type);
-  /**
-   * THE FACES THIS PROVIDER CAN BE ASKED TO SERVE (2026-09-06). A fixed list
-   * of Google's four sat here since the account kind arrived, and every
-   * provider read it — so the Microsoft form never offered Tasks, the consent
-   * never asked for Tasks.Read, and the owner read "Tasks ✗" on an account
-   * whose registration carried the permission. Read from the deployment's
-   * own facts (a restricted-scope Google client narrows its list), with the
-   * shared table as the answer while the facts are still on their way.
-   */
-  const { data: providerAccounts } = useQuery({
-    queryKey: ['provider-accounts'],
-    queryFn: providerAccountsApi.get,
-    enabled: isAccountKind,
-  });
-  const grantFaces: ReadonlyArray<DiscoveryDomain> = isAccountKind
-    ? (providerAccounts?.[type]?.domains ?? PROVIDER_ACCOUNT_DOMAINS[type as ProviderAccountKind] ?? [])
-    : [];
-  const [domains, setDomains] = React.useState<DiscoveryDomain[]>([]);
-  const [consentNote, setConsentNote] = React.useState<string | null>(null);
-  const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
-  const clientIdTyped = (values.clientId ?? '').trim() !== '';
-  const clientSecretTyped = (values.clientSecret ?? '').trim() !== '';
-  // One half typed is a pair being typed, never a pair left to the
-  // deployment (ADR-0041): both or neither, as every door refuses it.
-  const pairRequired = !deploymentClient || clientIdTyped !== clientSecretTyped;
-  const ownPair =
-    clientIdTyped && clientSecretTyped
-      ? { clientId: (values.clientId ?? '').trim(), clientSecret: values.clientSecret ?? '' }
-      : {};
-  const pairMissing = pairRequired && !(clientIdTyped && clientSecretTyped);
-  const facesMissing = isAccountKind && domains.length === 0;
-  // THE ACCOUNT FIRST (owner's walk, 2026-09-02): a consent that lands saves
-  // and tests in one go, and the save needs the address — pressed before it
-  // was typed, the door answered "Still needed: username" to a form whose
-  // button had just said yes. Every required field but the token the consent
-  // fills.
-  const accountMissing = fields.some(
-    (f) => f.required && f.key !== 'refreshToken' && (values[f.key] ?? '').trim() === '',
-  );
-
-  // The popup hands the token back over postMessage; the wizard's own rule
-  // applies verbatim — same origin, the flow's own shape, a non-empty token —
-  // and it lands in the SAME field a pasted one does (ADR-0037).
-  // THIS kind's provider, read at the moment a message lands: a Google popup
-  // left open behind a Dropbox form must not hand its token to Dropbox's box.
-  const grantProviderRef = React.useRef(grantProvider);
-  grantProviderRef.current = grantProvider;
-  React.useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      const data = event.data as { type?: string; refreshToken?: string } | null;
-      if (event.origin !== window.location.origin) return;
-      const provider = grantProviderRef.current;
-      if (provider === undefined) return;
-      if (!data || data.type !== `ownpace-${provider}-consent`) return;
-      if (typeof data.refreshToken !== 'string' || data.refreshToken.length === 0) return;
-      setValues((v) => ({ ...v, refreshToken: data.refreshToken as string }));
-      setConsentNote('received');
-      setConsentLanded((n) => n + 1);
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, []);
-
-  const startConsent = async () => {
-    setConsentNote(null);
-    try {
-      // ONE ASK PER PROVIDER, off a table rather than a `?:` chain (workplan
-      // 0114). The chain here was `dropbox ? … : google…`, whose else branch
-      // ran GOOGLE's authorize for anything that was not Dropbox — so a third
-      // provider would not have failed to compile, it would have asked the
-      // wrong provider for a consent and reported success.
-      const beginConsent: Record<string, () => Promise<{ url: string; redirectUri?: string }>> = {
-        dropbox: () => mappingApi.dropboxAuthorize(ownPair),
-        // The ACCOUNT asks for exactly the faces ticked, so the consent screen
-        // and the ticks cannot disagree; the single-purpose kinds ask for
-        // their own one scope.
-        microsoft: () => mappingApi.microsoftAuthorize({ domains, ...ownPair }),
-        google: () =>
-          mappingApi.googleAuthorize(
-            isAccountKind
-              ? { domains, ...ownPair }
-              : {
-                  sourceType: type as
-                    | 'gmail'
-                    | 'google-calendar'
-                    | 'google-contacts'
-                    | 'google-drive',
-                  ...ownPair,
-                },
-          ),
-      };
-      const begin = grantProvider === undefined ? undefined : beginConsent[grantProvider];
-      if (!begin) {
-        // Never silently Google's. A descriptor naming a provider this table
-        // has no row for is a defect, and saying so beats consenting to the
-        // wrong company on somebody's behalf.
-        setConsentNote(t('wizard.consent.noProvider'));
-        return;
-      }
-      const { url, redirectUri } = await begin();
-      // The address this consent used, shown on every attempt: it has to be
-      // registered with the provider BEFORE the first one can work.
-      setConsentRedirect(redirectUri ?? null);
-      window.open(url, `ownpace-${grantProvider ?? 'google'}-consent`, 'popup,width=520,height=640');
-    } catch (err) {
-      setConsentNote(refusalText(err));
-    }
-  };
-
-  const resetConsent = () => {
-    setDomains([]);
-    setConsentNote(null);
-    setConsentRedirect(null);
-  };
+  const ps = consent.words;
 
   const submit = async (name: string = displayName) => {
     setBusy(true);
@@ -703,18 +566,17 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
    * the address when none was typed, the way the wizard names what it saves.
    * A counter, not the 'received' flag, so a second consent submits again.
    */
-  const [consentLanded, setConsentLanded] = React.useState(0);
   const submitRef = React.useRef<(name?: string) => Promise<void>>(async () => {});
   submitRef.current = submit;
   React.useEffect(() => {
-    if (consentLanded === 0) return;
+    if (consent.landed === 0) return;
     const name = displayName.trim() || (values.username ?? '').trim() || type;
     if (!displayName.trim()) setDisplayName(name);
     void submitRef.current(name);
     // The values of THIS render carry the token the handler just set; the
     // name is read the same way. Re-running on their later changes would
     // submit again for a keystroke, which is why only the landing counts.
-  }, [consentLanded]);
+  }, [consent.landed]);
 
   /**
    * THE ASTERISK TELLS THE TRUTH ON AN APPLIANCE TOO (2026-09-07). A client
@@ -820,7 +682,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
                 setType(first);
                 setValues({ ...providerDefaultsFor(r, first) });
                 setResult(null);
-                resetConsent();
+                consent.reset();
               }}
               className={`px-4 py-1.5 text-sm font-medium ${
                 role === r ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -846,7 +708,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
             // still starts from nothing, because "IMAP" names no provider.
             setValues({ ...providerDefaultsFor(role, card.id) });
             setResult(null);
-            resetConsent();
+            consent.reset();
           }}
           gridClass={role === 'source' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}
         />
@@ -897,62 +759,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         })}
       </div>
 
-      {grantKind && (
-        <div className="mt-4">
-          {isAccountKind && (
-            <fieldset className="mb-3">
-              <legend className="block text-sm text-gray-700 mb-1">
-                {t('connections.googleFaces')}
-              </legend>
-              <div className="flex flex-wrap gap-4">
-                {grantFaces.map((face) => (
-                  <label key={face} className="inline-flex items-center gap-1 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={domains.includes(face)}
-                      onChange={() =>
-                        setDomains((d) => (d.includes(face) ? d.filter((x) => x !== face) : [...d, face]))
-                      }
-                    />
-                    {t(`domain.${face}` as StringKey)}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          )}
-          <button
-            type="button"
-            onClick={startConsent}
-            disabled={pairMissing || facesMissing || accountMissing}
-            className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
-            title={
-              pairMissing
-                ? deploymentClient
-                  ? ps('connect.halfClient')
-                  : ps('connect.needsClient')
-                : facesMissing
-                  ? t('wizard.google.connect.needsDomains')
-                  : accountMissing
-                    ? t('wizard.consent.needsAccount')
-                    : undefined
-            }
-          >
-            {ps('connect')}
-          </button>
-          <Hint text={ps('connect.hint')} why={ps('connect.why')} />
-          {consentNote && (
-            <p className={`mt-1 text-sm ${consentNote === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
-              {consentNote === 'received' ? t('wizard.consent.received') : consentNote}
-            </p>
-          )}
-          {consentRedirect && consentNote !== 'received' && (
-            <p className="mt-1 text-sm text-gray-500">
-              {ps('redirectUri')}{' '}
-              <code className="break-all font-mono text-xs">{consentRedirect}</code>
-            </p>
-          )}
-        </div>
-      )}
+      <ProviderConsentPanel consent={consent} />
 
       {/* The prerequisites for whatever is selected — often the reason a value
           is missing is that nobody has been to the provider's console yet. */}
