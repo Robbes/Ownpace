@@ -59,9 +59,17 @@ import {
   type DriveFile,
   type DriveFileList,
   type DriveTransport,
+  type DriveResponse,
   type GoogleDriveSourceConfig,
   type NativeFilePolicy,
 } from './google-drive-source.types.ts';
+// The seam's threshold, not DAV's — every connector that moves to `FileBody`
+// decides at the same size, or a file of a given size behaves differently
+// depending on where it came from. It is defined in `webdav-source.ts` because
+// DAV was the first connector to move; #874 lifts it into `@openmig/shared`
+// beside `MAX_BUFFERED_FILE_BYTES` and re-exports it from there, so this
+// import resolves either way and can be retargeted when that lands.
+import { STREAM_FILES_LARGER_THAN_BYTES } from './webdav-source.ts';
 
 const DEFAULT_BASE = 'https://www.googleapis.com/drive/v3';
 
@@ -669,10 +677,69 @@ export class GoogleDriveSource implements FileSource {
       throw refusal;
     }
 
+    const exportUrl = this.exportUrlFor(meta);
     const url =
-      this.exportUrlFor(meta) ??
+      exportUrl ??
       `${this.baseUrl}/files/${encodeURIComponent(fileId)}?alt=media&${GET_ALL_DRIVES}`;
 
+    /**
+     * A LARGE FILE ARRIVES AS A BODY, NOT AS BYTES (workplan 0120 T5).
+     *
+     * Below the threshold nothing changes: most files are small and a buffer
+     * is simpler than the machinery. Above it, holding the file was the whole
+     * ceiling — a file larger than the runner's RAM killed the process
+     * mid-pass, with no failure row and no sentence.
+     *
+     * AN EXPORT IS NEVER STREAMED, and that is the Drive-specific decision.
+     * Drive reports no `size` for a native editor file — a Google Doc has no
+     * bytes until one is asked for — so the exported length is unknowable
+     * before the export exists. `FileBody.sizeBytes` has to be honest BEFORE a
+     * byte is read: the daily byte meter spends it ahead of the fetch and the
+     * target promises it as `Content-Length`. A guessed size there is worse
+     * than a buffer, and native exports are documents, which are small. So the
+     * branch is taken only when there is no export URL, i.e. for an ordinary
+     * file whose listing `size` came from Drive's own `size` field.
+     *
+     * The size CORRECTION below (`size: bytes.byteLength`) is therefore not
+     * lost by streaming: it exists for exports, where the listing size was
+     * absent, and exports still take the buffered path.
+     *
+     * The metadata call above still happens here rather than at `open()`,
+     * unlike the Graph and Dropbox bodies which issue nothing until opened.
+     * It has to: the refusal for a native file must land inside the sync
+     * loop's per-item boundary, and whether this file can be streamed at all
+     * is what that call answers.
+     */
+    if (exportUrl === undefined && item.size > STREAM_FILES_LARGER_THAN_BYTES) {
+      return {
+        item,
+        body: {
+          sizeBytes: item.size,
+          // A fresh GET per call. A retry after a half-written upload starts
+          // from the beginning, and a stream that has been consumed cannot.
+          open: async () => {
+            const streamed = await this.download(url, item);
+            if (!streamed.body) {
+              // A 200 with no body, on a file the listing gave a size to.
+              // An empty stream here would write an empty file and record it
+              // as a copy — the worst outcome available to this code.
+              throw new Error(
+                `Drive answered ${streamed.status} for "${item.path}" with no body to read.`,
+              );
+            }
+            return streamed.body;
+          },
+        },
+      };
+    }
+
+    const response = await this.download(url, item);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return { item: { ...item, size: bytes.byteLength }, content: bytes };
+  }
+
+  /** The one download, issued fresh each time — buffered read and `open()` alike. */
+  private async download(url: string, item: FileItem): Promise<DriveResponse> {
     const response = await this.transport(url);
     if (!response.ok) {
       throw new Error(
@@ -680,9 +747,7 @@ export class GoogleDriveSource implements FileSource {
           `${await safeText(response)}`,
       );
     }
-
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    return { item: { ...item, size: bytes.byteLength }, content: bytes };
+    return response;
   }
 
   /** Children of a folder: either the sub-folders, or everything that is not one. */
