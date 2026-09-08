@@ -2,6 +2,7 @@
 import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { TenantId, MappingId } from './ids.ts';
 import type { BudgetPause, DownloadMeter } from './rate-budget.ts';
+import type { PauseReason } from './pause-reason.ts';
 import type { DeadlinePause, PassClock } from './pass-deadline.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
 import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail.ts';
@@ -2095,6 +2096,13 @@ export interface MigrationStatus {
   readonly failedSide?: FailureSide;
   /** Where the last completed pass spent its wall time. Absent until one has. */
   readonly lastPassMetrics?: PassMetrics;
+  /**
+   * Why this domain stopped on purpose, when it did (migration 0041). A
+   * SCHEDULED pause, never a failure — the state stays `in_progress`, which is
+   * literally true across passes, and this says what is holding it up. Absent
+   * when nothing is.
+   */
+  readonly pausedReason?: PauseReason;
 }
 
 /**
@@ -2145,6 +2153,22 @@ export interface MigrationStatusStore {
     domain: DiscoveryDomain,
     /** Where this pass's time went, for §19's throughput dashboard. */
     metrics?: PassMetrics,
+  ): Promise<void>;
+
+  /**
+   * Mark a domain sync as PAUSED — stopped on purpose, with the reason.
+   *
+   * Deliberately not `markCompleted`: that call "positively asserts the domain
+   * finished" (its own comment, which is why it clears the last error), and a
+   * domain that stopped at the day's download ceiling has finished nothing.
+   * The state stays `in_progress` — true across passes — and the reason says
+   * what a reader is waiting for.
+   */
+  markPaused(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    reason: PauseReason,
   ): Promise<void>;
 
   /**

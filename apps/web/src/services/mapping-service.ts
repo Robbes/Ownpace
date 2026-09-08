@@ -150,6 +150,33 @@ export const MappingDomainStatusSchema = z.object({
   failedSide: z.enum(FAILURE_SIDES).optional().catch(undefined),
   /** PassMetrics — counts and durations only, never names or addresses. */
   lastPass: z.record(z.string(), z.number()).optional(),
+  /**
+   * When a pass last touched this domain (migration 0041's sibling change).
+   * Optional so a payload from a server that predates it parses; the strip
+   * simply shows no time, which is what it did before.
+   */
+  lastActiveAt: z.string().optional(),
+  /**
+   * Why the domain stopped on purpose, when it did. Parsed as the closed
+   * union the UI has sentences for — same rule as `lastErrorCategory`: an
+   * older or newer server sending something else drops the field rather than
+   * reaching a screen with nothing to say.
+   */
+  pausedReason: z
+    .discriminatedUnion('kind', [
+      z.object({
+        kind: z.literal('daily-download-ceiling'),
+        provider: z.string(),
+        windowResetsAt: z.string().nullable(),
+      }),
+      z.object({
+        kind: z.literal('operator-hold'),
+        since: z.string(),
+        message: z.string().optional(),
+      }),
+    ])
+    .optional()
+    .catch(undefined),
 });
 
 const MaskedConfigSchema = z.object({

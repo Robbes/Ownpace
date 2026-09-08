@@ -8,6 +8,8 @@ import {
   type MappingId,
   type PassMetrics,
   isFailureSide,
+  isPauseReason,
+  type PauseReason,
 } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
 import { eq, and, sql } from 'drizzle-orm';
@@ -73,6 +75,12 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // price attached to it.
         startedAt: sql`now()`,
         updatedAt: sql`now()`,
+        // A pass has STARTED, so whatever paused the last one is not this
+        // one's state. Cleared here rather than only where a pause is written,
+        // because this is the one call every pass makes first: a domain whose
+        // ceiling reset overnight would otherwise still be showing yesterday's
+        // "waiting for the daily limit" while it copies.
+        pausedReason: null,
       })
       .where(
         and(
@@ -123,10 +131,60 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // And the side (0094 T5): a side that outlived its failure would send
         // somebody to rotate a credential that works.
         failedSide: null,
+        // No terminal state is also a live pause (migration 0041). Cleared
+        // here, in markFailed and in markSkipped as well as at the top of the
+        // next pass, so that a row can never carry both and let a screen
+        // render "finished" and "waiting" at once.
+        pausedReason: null,
         // Only when the caller measured a pass. Writing nulls over a previous
         // pass's numbers would blank the dashboard on any path that completes
         // without measuring.
         ...(metrics ? { lastPassMetrics: metrics } : {}),
+      })
+      .where(
+        and(
+          eq(schemaPg.migrationStatus.tenantId, tenantId),
+          eq(schemaPg.migrationStatus.mappingId, mappingId),
+          eq(schemaPg.migrationStatus.domain, domain),
+        ),
+      );
+  }
+
+  /**
+   * The domain stopped on purpose, and here is why (migration 0041).
+   *
+   * NOT `markCompleted`. That call asserts the domain finished — it says so in
+   * its own comment above, which is the whole basis for clearing the last
+   * error there. A domain that stopped at the day's download ceiling has
+   * finished nothing: its cursors are where they were, and the next scheduled
+   * pass carries on from them.
+   *
+   * The state is left ALONE, at the `in_progress` that `markInProgress` wrote
+   * at the top of this pass. That is literally true of a migration that is in
+   * progress across passes, and it is what stops a "last synced" time from
+   * appearing beside a half-copied mailbox.
+   *
+   * The failure trio is cleared for exactly the reason `markCompleted` clears
+   * it: reaching here means the pass RETURNED — `markFailed` is the only thing
+   * that writes `last_error`, and it is only called when a pass threw. So an
+   * error still standing here is from a pass that has since been superseded by
+   * a clean one, and a stale error beside a scheduled pause reads as the
+   * cause of it.
+   */
+  async markPaused(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    reason: PauseReason,
+  ): Promise<void> {
+    await this.db
+      .update(schemaPg.migrationStatus)
+      .set({
+        pausedReason: reason,
+        updatedAt: sql`now()`,
+        lastError: null,
+        lastErrorCategory: null,
+        failedSide: null,
       })
       .where(
         and(
@@ -160,6 +218,9 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // already given. The prose is kept verbatim beside it — the category
         // is the actionable twin, not a replacement.
         lastErrorCategory: classifyFailure(error),
+        // See markCompleted: a failure is not a scheduled pause, and a row
+        // carrying both would say the domain is fine and broken at once.
+        pausedReason: null,
         updatedAt: sql`now()`,
       })
       .where(
@@ -180,6 +241,9 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       .update(schemaPg.migrationStatus)
       .set({
         state: 'skipped',
+        // See markCompleted. A domain nobody is copying is not one waiting
+        // for a window to reset.
+        pausedReason: null,
         updatedAt: sql`now()`,
       })
       .where(
@@ -231,6 +295,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         schemaPg.migrationStatus.lastErrorCategory,
         schemaPg.migrationStatus.failedSide,
         schemaPg.migrationStatus.lastPassMetrics,
+        schemaPg.migrationStatus.pausedReason,
       )
       .orderBy(schemaPg.migrationStatus.domain);
 
@@ -271,6 +336,12 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       // Through the guard for the same reason, though here the CHECK already
       // holds the column to two values: the guard is what the type rests on.
       ...(isFailureSide(row.status.failedSide) ? { failedSide: row.status.failedSide } : {}),
+      // Through the guard, never cast: `jsonb` accepts whatever the writer
+      // put there, and a reason from an older or newer build must not reach a
+      // screen with no sentence for it (migration 0041).
+      ...(isPauseReason(row.status.pausedReason)
+        ? { pausedReason: row.status.pausedReason }
+        : {}),
     }));
   }
 }

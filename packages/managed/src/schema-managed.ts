@@ -458,3 +458,37 @@ export const occupancyPeak = pgTable(
   },
   (t) => [primaryKey({ name: 'occupancy_peak_pkey', columns: [t.tenantId, t.month] })],
 );
+
+/**
+ * Operator holds on starting new sync passes — migration 0023.
+ *
+ * A log rather than a switch: the OPEN hold is the row with `endedAt` null,
+ * and the migration's partial unique index means at most one may exist, so no
+ * reader ever has to choose which sentence is the real one. Closed rows stay,
+ * because "when were we down, and what did we tell people" gets asked
+ * afterwards.
+ *
+ * Managed-only by construction. The appliance's operator IS the customer:
+ * there is nobody to tell, and stopping the container is the whole drain.
+ *
+ * The migration's two indexes are PARTIAL (`WHERE ended_at IS NULL`) — one of
+ * them the unique index that enforces "at most one open hold". Neither is
+ * declared here: this builder cannot express the predicate, and a declaration
+ * that dropped it would describe a different index from the one that exists.
+ * The guard over this file compares column names, which is what drifts.
+ */
+export const platformPause = pgTable('platform_pause', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Null while the hold is on. Set when it is lifted; never unset. */
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    /**
+     * The operator's own words, shown to customers VERBATIM (the prose
+     * boundary, ADR-0024). Null is fine — the screen carries a default
+     * sentence, so a hold is never wordless.
+     */
+    message: text('message'),
+    /** The OIDC subject that started it — this row IS the record of who. */
+    startedBy: text('started_by').notNull(),
+    endedBy: text('ended_by'),
+});

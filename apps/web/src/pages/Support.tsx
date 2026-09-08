@@ -44,7 +44,12 @@
  */
 
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  fetchPlatformPause,
+  startPlatformPause,
+  endPlatformPause,
+} from '../services/platform-service.ts';
 import { Link, useParams } from 'react-router';
 import { LifeBuoy, ArrowLeft, AlertTriangle, Clock } from 'lucide-react';
 import { isFailureCategory, isFailureSide } from '@openmig/shared';
@@ -365,6 +370,116 @@ const FindAPerson: React.FC = () => {
   );
 };
 
+/* ------------------------------------------------------------------ level 0 */
+
+/**
+ * THE DRAIN, WITH THE WORDS THAT GO WITH IT (managed migration 0023).
+ *
+ * On the operator's FIRST screen rather than beside a customer, because a hold
+ * is not about a customer: it stops copying for all of them. The tenant
+ * screen's `Platform` panel is the neighbouring thought — probed facts about
+ * the stack — and this is the one thing on these screens that WRITES.
+ *
+ * ## The message is the point
+ *
+ * A hold that nobody explains reads, from a customer's side, exactly like a
+ * migration that has died. The box is optional because a hold must never wait
+ * on somebody finding the right sentence — the screen has a default — but the
+ * default is generic, and the operator is the only one who knows whether this
+ * is ten minutes or overnight.
+ */
+const PlatformHold: React.FC = () => {
+  const t = useT();
+  const { dateTime } = useFormatters();
+  const client = useQueryClient();
+  const [message, setMessage] = React.useState('');
+
+  const query = useQuery({
+    queryKey: ['platform-pause'],
+    queryFn: fetchPlatformPause,
+    retry: false,
+  });
+
+  // Both mutations invalidate the SAME key the customer-facing banner reads,
+  // so an operator who holds and then looks at a migration sees what a
+  // customer sees rather than a stale screen of their own.
+  const start = useMutation({
+    mutationFn: () => startPlatformPause(message.trim() ? message.trim() : undefined),
+    onSuccess: async () => {
+      setMessage('');
+      await client.invalidateQueries({ queryKey: ['platform-pause'] });
+    },
+  });
+  const end = useMutation({
+    mutationFn: endPlatformPause,
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ['platform-pause'] });
+    },
+  });
+
+  const held = query.data?.held === true;
+  const busy = start.isPending || end.isPending;
+
+  return (
+    <section className="mb-6">
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        {t('support.hold')}
+      </h2>
+      <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm">
+        <Hint text={t('support.hold.hint')} why={t('support.hold.hint.why')} className="mb-2" />
+        {held && query.data?.since ? (
+          <>
+            <p className="text-amber-800">
+              {t('support.hold.on', { since: dateTime(query.data.since) })}
+            </p>
+            {query.data.message && (
+              // Verbatim, and shown back: an operator must be able to read
+              // what customers are reading without asking one of them.
+              <p className="mt-1 text-gray-700">{query.data.message}</p>
+            )}
+            <button
+              type="button"
+              onClick={() => end.mutate()}
+              disabled={busy}
+              className="mt-2 rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {t('support.hold.end')}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-700">{t('support.hold.off')}</p>
+            <label className="mt-2 block" htmlFor="platform-hold-message">
+              <span className="text-xs font-medium text-gray-700">
+                {t('support.hold.message')}
+              </span>
+              <input
+                id="platform-hold-message"
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder={t('support.hold.message.placeholder')}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => start.mutate()}
+              disabled={busy}
+              className="mt-2 rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {t('support.hold.start')}
+            </button>
+          </>
+        )}
+        {(start.isError || end.isError) && (
+          <p className="mt-2 text-sm text-red-700">{t('common.requestFailed')}</p>
+        )}
+      </div>
+    </section>
+  );
+};
+
 export const SupportTenants: React.FC = () => {
   const t = useT();
   const { dateTime } = useFormatters();
@@ -393,6 +508,8 @@ export const SupportTenants: React.FC = () => {
       {!query.isLoading && !query.isError && tenants.length === 0 && (
         <p className="text-sm text-gray-500">{t('support.noOrganisations')}</p>
       )}
+
+      <PlatformHold />
 
       <FindAPerson />
 

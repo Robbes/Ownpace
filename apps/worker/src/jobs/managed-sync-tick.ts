@@ -39,6 +39,8 @@ import {
   PASS_HARD_LIMIT_MS,
   type DiscoveryDomain,
 } from '@openmig/shared';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { readOpenPause } from '@openmig/managed';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
 import { enabledDomainsForMappings } from '@openmig/orchestration/enabled-domains';
 import { runDeltaSync } from './run-delta-sync.ts';
@@ -154,6 +156,54 @@ export const managedSyncTick = schedules.task({
     // tick rather than sampled: it is one line, and the interesting value is
     // the tail, which sampling is exactly what loses.
     const startedAt = Date.now();
+
+    /**
+     * AN OPERATOR HOLD STOPS THIS TICK STARTING ANYTHING (managed migration
+     * 0023).
+     *
+     * A drain is: start nothing new, let what is running finish, deploy, lift
+     * the hold. So the check is here, before the enumeration, and it stops
+     * only the ENQUEUE — passes already in flight are untouched, which is
+     * what makes this a drain rather than a kill.
+     *
+     * `run` rows are counted and reported rather than assumed away: "how much
+     * is still in flight" is the one number that tells an operator whether the
+     * drain has finished, and having to go and count it in SQL is how somebody
+     * ends up deploying over a live pass.
+     *
+     * Read through the owner pool, which bypasses RLS — the same trust
+     * boundary the mapping enumeration below documents, and the reason no
+     * `app.current_user` is set here.
+     */
+    const hold = await readOpenPause(drizzle(pool));
+    if (hold) {
+      // The SAME staleness window the enumeration uses. A `running` row from
+      // a pass that was killed outright never closes (see STALE_RUN_AFTER_MS),
+      // and counting those here would show a drain that never finishes — an
+      // operator waiting for a zero that cannot arrive, or deploying over a
+      // live pass because they stopped believing the number.
+      const { rows: inFlight } = await pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM run
+          WHERE status = 'running'
+            AND started_at > now() - ($1::int * interval '1 millisecond')`,
+        [STALE_RUN_AFTER_MS],
+      );
+      const stillRunning = Number(inFlight[0]?.count ?? '0');
+      const summary = {
+        heldSince: hold.startedAt,
+        stillRunning,
+        triggered: 0,
+        ms: Date.now() - startedAt,
+      };
+      log.info(
+        `[sync-tick] holding: no new passes are being started (since ${hold.startedAt})` +
+          (hold.message ? ` — "${hold.message}"` : '') +
+          `. ${stillRunning} pass(es) still in flight; the drain is done when that reaches 0.`,
+        summary,
+      );
+      return summary;
+    }
+
     const { rows } = await pool.query<TickRow>(ACTIVE_MAPPINGS_SQL, [STALE_RUN_AFTER_MS]);
 
     let notDue = 0;

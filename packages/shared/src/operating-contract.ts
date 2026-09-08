@@ -35,6 +35,7 @@
  */
 
 import type { FailureCategory, FailureSide } from './failure-category.ts';
+import type { PauseReason } from './pause-reason.ts';
 import {
   DELETION_CONFIRMATIONS,
   MAX_ITEM_ATTEMPTS,
@@ -218,6 +219,33 @@ export interface DomainStatusReport {
   readonly lastPass?: PassMetrics;
   readonly itemsRetrying: number;
   readonly itemsNeedingDecision: number;
+  /**
+   * Why this domain stopped on purpose, when it did (migration 0041). Present
+   * only while something is holding it up, and never for a failure — a paused
+   * domain has nothing wrong with it, which is exactly why it needs saying.
+   */
+  readonly pausedReason?: PauseReason;
+  /**
+   * When a pass last touched this domain — `migration_status.updated_at`.
+   *
+   * NOT the same claim as `lastSyncedAt`, which is a COMPLETION and is the
+   * only honest source for "this domain is up to date as of". Every screen
+   * time came from that completion, and the consequence was a first copy that
+   * runs for two days reading "never synced" on the migrations list while the
+   * counter beside it climbs — a working migration that looks dead, which is
+   * the same silence a pause was, one step earlier.
+   *
+   * Written by every state change a pass makes (in progress, paused,
+   * completed, failed, skipped), so it answers exactly "when did we last do
+   * something here" and nothing more.
+   *
+   * Optional in the TYPE and always present in what `buildDomainStatusReports`
+   * produces: a status row cannot exist without having been written. The
+   * optionality is for the payloads — a report built by a deployment older
+   * than this field, which a screen must render without it rather than print
+   * `undefined` beside a date.
+   */
+  readonly lastActiveAt?: string;
 }
 
 /**
@@ -252,6 +280,8 @@ export function buildDomainStatusReports(
       ...(s.lastErrorCategory ? { lastErrorCategory: s.lastErrorCategory } : {}),
       ...(s.failedSide ? { failedSide: s.failedSide } : {}),
       ...(s.lastPassMetrics ? { lastPass: s.lastPassMetrics } : {}),
+      ...(s.pausedReason ? { pausedReason: s.pausedReason } : {}),
+      lastActiveAt: s.updatedAt,
     };
   });
 }

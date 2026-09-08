@@ -40,6 +40,7 @@ import meRoutes from './routes/me.ts';
 import invitationRoutes from './routes/invitations.ts';
 import readyRoutes from './routes/ready.ts';
 import supportRoutes from './routes/support.ts';
+import platformPauseRoutes from './routes/platform-pause.ts';
 import { assertProductionAuthConfig, selectAuthMode } from './middleware/auth.ts';
 import { assertProductionUrlConfig } from './config-guards.ts';
 import { serverFault } from './server-fault.ts';
@@ -241,6 +242,18 @@ app.use('/api/billing/webhooks', billingWebhookRoutes);
  * customer, and that should be a decision rather than an inheritance.
  */
 app.use('/api/support', supportRoutes);
+
+/**
+ * The operator hold (managed migration 0023).
+ *
+ * NOT under `/api/support`, even though two of its three operations are an
+ * operator's: the READ is for the customer, and it is the sentence that
+ * explains why their migration is not moving. Everything under the support
+ * prefix is unreachable by anyone but an operator, by design. Read and write
+ * stay on one prefix because they are one resource, and splitting them to
+ * satisfy a naming instinct is how two halves of a thing drift apart.
+ */
+app.use('/api/platform-pause', platformPauseRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {

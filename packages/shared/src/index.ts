@@ -38,6 +38,7 @@ export * from './cron-schedule.ts';
 export * from './throttling.ts';
 export * from './pass-deadline.ts';
 export * from './rate-budget.ts';
+export * from './pause-reason.ts';
 export * from './credential-refusals.ts';
 export * from './failure-category.ts';
 export * from './provider-accounts.ts';

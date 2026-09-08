@@ -24,7 +24,12 @@
  */
 
 import React from 'react';
-import type { DomainStatusReport, FailureCategory, FailureSide } from '@openmig/shared';
+import type {
+  DomainStatusReport,
+  FailureCategory,
+  FailureSide,
+  PauseReason,
+} from '@openmig/shared';
 import { useT, useLocale, useFormatters } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
@@ -34,6 +39,7 @@ import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
 // And one map for the domain words, shared with the confirm screen and the
 // probe text — this was the fifth copy of it (workplan 0113 T5).
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
+import PausedBecause from './PausedBecause.tsx';
 
 export const DOMAIN_KEY = DOMAIN_STRING_KEY satisfies Record<
   DomainStatusReport['domain'],
@@ -53,6 +59,17 @@ export interface LiveProgressRow {
   readonly lastErrorCategory?: FailureCategory;
   /** Which side the pass named when it failed (0094 T5); absent when it could not tell. */
   readonly failedSide?: FailureSide;
+  /**
+   * Why this data type stopped on purpose, when it did (migration 0041).
+   * Absent while nothing is holding it up.
+   */
+  readonly pausedReason?: PauseReason;
+  /**
+   * When a pass last touched it — NOT the same claim as `lastSyncedAt`, which
+   * is a completion. Optional here only because a payload built before this
+   * field existed will not carry it.
+   */
+  readonly lastActiveAt?: string;
 }
 
 const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domains }) => {
@@ -89,6 +106,26 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
               <span className="text-gray-500">
                 {t('confirm.progress.lastSynced')} {relativeToNow(d.lastSyncedAt)}
               </span>
+            )}
+            {!d.lastSyncedAt && d.lastActiveAt && (
+              // A FIRST COPY HAS NO COMPLETION YET, AND IS NOT NOTHING.
+              //
+              // Every time on this strip came from `completedAt`, so a copy
+              // that runs for two days before it finishes anything showed no
+              // time at all while the counter beside it climbed — a working
+              // migration that reads as a dead one. Shown only until the first
+              // completion, because after that "last synced" is the stronger
+              // claim and two times would invite the reader to work out which
+              // one matters.
+              <span className="text-gray-500">
+                {t('confirm.progress.lastActive')} {relativeToNow(d.lastActiveAt)}
+              </span>
+            )}
+            {d.pausedReason && (
+              // Stopped on purpose, and why. Its own line rather than a chip:
+              // the reason is the whole point, and a word alone would send
+              // somebody looking for the rest of it.
+              <PausedBecause reason={d.pausedReason} />
             )}
             {d.lastErrorCategory && (
               // The way OUT, first: a sentence the person whose migration
