@@ -26,6 +26,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/e2e-managed.yml`
 
+- [a-nightly-that-drove-the-wrong-backend](../scripts/a-nightly-that-drove-the-wrong-backend.unit.test.ts) — A cron moved, and both nightlies quietly ran the same backend.
 - [a-pool-that-had-not-happened-yet](../scripts/a-pool-that-had-not-happened-yet.unit.test.ts) — A POOL THAT HAD NOT HAPPENED YET.
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -40,6 +41,7 @@ reading a file drops off its entry by itself.
 
 - [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts) — The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-nightly-that-drove-the-wrong-backend](../scripts/a-nightly-that-drove-the-wrong-backend.unit.test.ts) — A cron moved, and both nightlies quietly ran the same backend.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 - [a-workflow-step-bash-cannot-parse](../scripts/a-workflow-step-bash-cannot-parse.unit.test.ts) — AN APOSTROPHE IN A COMMENT TOOK THE WHOLE GATE DOWN.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -1268,6 +1270,15 @@ Reads:
 - `docs/testing.md`
 - `docs/windows-appliance-runbook.md`
 - `test/e2e/selfhost-backup-restore.e2e.test.ts`
+
+### [a-nightly-that-drove-the-wrong-backend](../scripts/a-nightly-that-drove-the-wrong-backend.unit.test.ts)
+
+A cron moved, and both nightlies quietly ran the same backend.
+
+Reads:
+
+- `.github/workflows/e2e-managed.yml`
+- `.github/workflows/e2e.yml`
 
 ### [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts)
 
