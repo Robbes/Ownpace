@@ -23,7 +23,7 @@ Per-pass rows do.
 |---|---|---|
 | T1 The key names the pass | ✅ Done | `perPassResource(kind, domain, runId)`; both meters and the managed dispatcher. Per-pass cost stored exact, not rounded to the cent. |
 | T2 The guard | ✅ Done | `scripts/a-month-billed-as-one-pass.unit.test.ts` (15) + four integration cases against a real Postgres, every one proved by breaking. |
-| T3 The rows this costs | 📋 **Owner's call** — §4 | 2 976× more rows, measured at 18.7 MB per mapping per month, with no time-based retention. §4 states the arithmetic and the zero-row alternative. |
+| T3 The rows this costs | 📋 **Owner's call** — §4 | 2 976× more rows, measured at 18.7 MB per mapping per month, with no time-based retention. §4 states the arithmetic and the zero-row alternative — which, on the evidence gathered 2026-09-08, is the better design and is recommended. |
 | T4 What compute is FOR | 📋 **Owner's call** — §5 | The invoice speaks tiers (0109). If it always will, the compute line is instrumentation and belongs somewhere cheaper than a billing table. The free-tier idea lands here. |
 
 ## 1. The defect
@@ -127,22 +127,81 @@ make them permanent rather than bounded by a migration's length.
 
 **Derive compute at read from the `run` table**, the way storage and egress are already
 derived from `item` (`deriveStorageAndEgressForPeriod` — the "hybrid approach" this module's
-own header describes). A `run` row is written per pass regardless of this workplan, it
-carries `started_at` and `finished_at`, it is immutable, and since #860 every run row is
-closed. `SUM(finished_at - started_at)` over a period is the compute hours, with no
-`usage_metric` row written at all.
+own header describes). A `run` row is written per pass regardless of this workplan; it
+carries `started_at` and `finished_at`; since #860 it always closes.
+`SUM(finished_at - started_at)` over a period is the compute hours, with no `usage_metric`
+row written at all.
 
-What it costs:
+It is **not a stored monthly aggregate.** Nothing is written and nothing is summarised: it
+is a `SUM` at read time over rows that exist for another reason, exactly as storage and
+egress already work.
 
-- **The per-domain split goes.** A run covers every domain of a mapping; its duration is not
-  attributable per domain without writing something extra. Arguably wall time occupied is
-  the more honest thing to bill for compute anyway, but it is a different number and the
-  invoice's line would mean something new.
-- **`api_calls` has no equivalent** — the count of passes IS the count of run rows, so that
-  half is free, but it stops being a stored metric.
-- **A repriced past.** A derived number is recomputed from today's code every time it is
-  read; a stored one is what was measured then. For a figure that reaches an invoice, that
-  distinction is worth stating out loud.
+The `run` table is the right thing to lean on, and `packages/ledger/src/retention.ts` has
+already said so in as many words:
+
+> **`run` is NOT pruned.** It is the answer to "when did this last work" […] and one small
+> row per pass is storage rather than load.
+
+Measured on the same cluster and the same way as the figures above:
+
+| | rows/day/mapping | bytes/row | per month |
+|---|---|---|---|
+| `run` — exists today either way | 96 | 300 | **0.9 MB** |
+| `usage_metric` at per-pass grain | 960 | 628 | **18.7 MB** |
+
+So the derivation does not trade one table's growth for another's. It removes 18.7 MB and
+keeps 0.9 MB that is already there and already kept for ever by decision.
+
+#### What is genuinely for it, beyond storage
+
+- **The metering write is in the hot path and can fail a customer's pass.**
+  `recordComputeForRun` and `recordApiCallForRun` sit inside the per-domain `try` in
+  `run-delta-sync.ts`, and the very next line is the `catch` that logs
+  `Domain <domain> sync failed` and calls `markFailed`. A billing write that throws — a
+  constraint, a pool exhaustion, a lock — is reported to the customer as a failed
+  migration of their mail. Deriving at read removes that class of failure completely,
+  because there is no write.
+- **`api_calls` stops needing a table at all.** The count of sync operations in a period IS
+  `COUNT(*)` over the run rows in it.
+- **One record of one fact.** `run` is already the record of what happened. Two records of
+  the same fact can disagree; one cannot.
+- **It finishes the shape the module already chose.** Its header calls the current design a
+  hybrid — derive-at-read for storage/egress because that gives "perfect idempotency",
+  upsert for compute because that is retry-safe. Derive-at-read is idempotent by
+  construction rather than by care.
+
+#### What it actually costs
+
+- **The per-domain split, unless it rides in `stats`.** A run covers every domain of a
+  mapping, so its duration is one number. But `RunStats` is an open jsonb
+  (`[key: string]: unknown`) already written once at `finishRun` — per-domain seconds can
+  go there for **zero extra rows**. The grain is not lost, it moves out of ten rows and
+  into one field of a row that exists anyway.
+- **Wall clock includes the gaps.** A run's duration covers the time between domains and
+  the run-ledger bookkeeping; today's per-domain sum does not. The derived number will be
+  slightly larger. For *"is my pricing balanced and fair"* the time the machine was
+  actually occupied is the better number, not the worse one — but it is a different number
+  and that has to be said out loud once.
+- **What counts as compute becomes a decision.** `run.kind` is
+  `initial_copy | incremental | cutover | verify | discovery | backup`. Only delta passes
+  are metered today; a verification or a discovery run is real compute that has never been
+  counted. Deriving forces the question of which kinds count. That is a pricing answer, not
+  a bug.
+- **The switch itself.** Existing `usage_metric` compute rows stay as history for the
+  periods they cover, or are deleted once the derivation covers those periods. Work, not
+  loss.
+
+#### Corrected, 2026-09-08
+
+An earlier draft of this section listed **"a repriced past"** as a cost — that a derived
+number is recomputed from today's code while a stored one is what was measured then. That
+overstates it, and the overstatement matters because it argued against the cheaper option.
+**An issued invoice cannot be repriced**: ADR-0044 and
+`packages/managed/migrations/0014_an_update_the_invoice_refuses.sql` make it immutable at
+the `draft → sent` line, enforced by a database trigger and column grants. What re-derives
+is the usage *screen*, which is an indication and always has been — the operator's usage
+history already recomputes `cost` from summed quantities and shows it beside the stored
+`total_cost`.
 
 **Not built, and deliberately not chosen unilaterally**: it changes what the compute line
 means, which is the owner's decision and not a refactor.
