@@ -58,6 +58,19 @@ const TICK = (() => {
   return whole.slice(body);
 })();
 
+/**
+ * Where the enumeration begins — the call, not its argument list.
+ *
+ * It used to be spelled with the parameters attached, and adding a fourth bind
+ * to the query (the failing-mapping back-off, 2026-09-08) silently made this
+ * anchor -1. `indexOf` then answered -1 for the end of every branch slice
+ * below, and the assertions that read those slices stopped meaning anything.
+ * The CALL is the structural fact this file is about; what is bound into it is
+ * not, and pinning the argument list made an unrelated change look like a
+ * regression in the drain.
+ */
+const ENUMERATION = 'pool.query<TickRow>(ACTIVE_MAPPINGS_SQL';
+
 describe('the sync tick honours an operator hold', () => {
   it('reads it at all', () => {
     expect(TICK, 'the tick no longer reads the open hold — the drain is a banner').toContain(
@@ -67,7 +80,7 @@ describe('the sync tick honours an operator hold', () => {
 
   it('reads it before it enumerates the mappings', () => {
     const hold = TICK.indexOf('readOpenPause');
-    const enumerate = TICK.indexOf('ACTIVE_MAPPINGS_SQL, [STALE_RUN_AFTER_MS]');
+    const enumerate = TICK.indexOf(ENUMERATION);
     expect(hold, 'readOpenPause is gone').toBeGreaterThan(-1);
     expect(enumerate, 'the active-mappings query is no longer recognisable').toBeGreaterThan(-1);
     expect(
@@ -81,7 +94,7 @@ describe('the sync tick honours an operator hold', () => {
     // must not appear inside it.
     const start = TICK.indexOf('if (hold) {');
     expect(start, 'the hold branch is no longer recognisable').toBeGreaterThan(-1);
-    const end = TICK.indexOf('ACTIVE_MAPPINGS_SQL, [STALE_RUN_AFTER_MS]', start);
+    const end = TICK.indexOf(ENUMERATION, start);
     const branch = TICK.slice(start, end);
     expect(branch, 'the held tick must return before enqueueing').toContain('return summary;');
     expect(
@@ -92,7 +105,7 @@ describe('the sync tick honours an operator hold', () => {
 
   it('cancels nothing — a drain lets running passes finish', () => {
     const start = TICK.indexOf('if (hold) {');
-    const end = TICK.indexOf('ACTIVE_MAPPINGS_SQL, [STALE_RUN_AFTER_MS]', start);
+    const end = TICK.indexOf(ENUMERATION, start);
     const branch = TICK.slice(start, end);
     for (const kill of ['cancel', 'abort', "status = 'cancelled'", 'UPDATE run']) {
       expect(
@@ -104,7 +117,7 @@ describe('the sync tick honours an operator hold', () => {
 
   it('reports how many passes are still in flight', () => {
     const start = TICK.indexOf('if (hold) {');
-    const end = TICK.indexOf('ACTIVE_MAPPINGS_SQL, [STALE_RUN_AFTER_MS]', start);
+    const end = TICK.indexOf(ENUMERATION, start);
     const branch = TICK.slice(start, end);
     expect(branch, 'the drain must count what is still running').toContain(
       "FROM run\n          WHERE status = 'running'",
@@ -120,7 +133,7 @@ describe('the sync tick honours an operator hold', () => {
 
   it('carries the operator’s own words into the log', () => {
     const start = TICK.indexOf('if (hold) {');
-    const end = TICK.indexOf('ACTIVE_MAPPINGS_SQL, [STALE_RUN_AFTER_MS]', start);
+    const end = TICK.indexOf(ENUMERATION, start);
     expect(TICK.slice(start, end)).toContain('hold.message');
   });
 });

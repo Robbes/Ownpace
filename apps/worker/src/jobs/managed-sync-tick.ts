@@ -40,9 +40,15 @@ import {
   type DiscoveryDomain,
 } from '@openmig/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { readOpenPause } from '@openmig/managed';
+import { readOpenPause, BILLABLE_RUN_KINDS } from '@openmig/managed';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
 import { enabledDomainsForMappings } from '@openmig/orchestration/enabled-domains';
+import {
+  FAILURE_WINDOW_MINUTES,
+  heldBackByFailures,
+  minGapMinutes,
+  SELF_HEALING_CATEGORIES,
+} from '@openmig/orchestration/failing-backoff';
 import { runDeltaSync } from './run-delta-sync.ts';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -70,6 +76,8 @@ interface TickRow {
   readonly id: string;
   readonly tenant_id: string;
   readonly schedule: string | null;
+  readonly consecutive_failures: string | number;
+  readonly any_self_healing: boolean;
   readonly last_started: Date | null;
   readonly running: boolean;
   /** When the oldest STALE `running` row for this mapping started, if any. */
@@ -113,6 +121,12 @@ const STALE_RUN_AFTER_MS = 2 * PASS_HARD_LIMIT_MS;
  * `running` and `stale_since` must partition the open rows between them. If
  * one used `<` and the other `<`, a row on the boundary would be both — or,
  * worse, neither, which is a mapping that is neither skipped nor reported.
+ *
+ * `$2` is `SELF_HEALING_CATEGORIES`, `$3` is `FAILURE_WINDOW_MINUTES` and `$4`
+ * is `BILLABLE_RUN_KINDS` — all passed in rather than written into the SQL so
+ * each has ONE definition. A category moved from one side of the self-healing
+ * split to the other, a ladder rung that needs a longer window, or a new run
+ * kind, cannot then leave a stale literal behind here.
  */
 export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
               (SELECT max(r.started_at) FROM run r
@@ -124,7 +138,47 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
               (SELECT min(r.started_at) FROM run r
                 WHERE r.tenant_id = m.tenant_id AND r.mapping_id = m.id
                   AND r.status = 'running'
-                  AND r.started_at <= now() - ($1::int * interval '1 millisecond')) AS stale_since
+                  AND r.started_at <= now() - ($1::int * interval '1 millisecond')) AS stale_since,
+              -- HOW LONG THIS HAS BEEN FAILING, and whether the cause is one
+              -- that clears by itself (failing-backoff.ts). Both computed
+              -- here rather than in a second pass: the tick already reads
+              -- every active mapping, and a query per mapping is what 0082
+              -- spent an afternoon removing.
+              --
+              -- BOTH scans are bounded by $3, and that bound is the point.
+              -- "Failures since the last success" without one is a scan back
+              -- to the beginning of history for a mapping that has never
+              -- succeeded — which is the mapping this column exists to find.
+              -- It would grow, once a minute, for ever: the exact shape 0023
+              -- removed. Bounded, a mapping whose last success predates the
+              -- window reads as never having succeeded, which is the answer
+              -- the ladder wants anyway.
+              --
+              -- Only the kinds this tick's own cadence produces ($4). A failed
+              -- discovery or verify is a real failure and belongs on the
+              -- customer's screen, but it is not evidence that COPYING is
+              -- broken, and counting it would hold back the first sync of a
+              -- mapping whose discovery failed a dozen times before somebody
+              -- fixed it. They are the billable kinds for the same reason they
+              -- are the throttled ones: they are the passes that move data.
+              (SELECT count(*) FROM run r
+                WHERE r.tenant_id = m.tenant_id AND r.mapping_id = m.id
+                  AND r.started_at > now() - ($3::int * interval '1 minute')
+                  AND r.status = 'failed'
+                  AND r.kind = ANY($4::text[])
+                  AND r.started_at > COALESCE(
+                        (SELECT max(ok.started_at) FROM run ok
+                          WHERE ok.tenant_id = m.tenant_id AND ok.mapping_id = m.id
+                            AND ok.started_at > now() - ($3::int * interval '1 minute')
+                            AND ok.kind = ANY($4::text[])
+                            AND ok.status = 'succeeded'),
+                        '-infinity'::timestamptz)) AS consecutive_failures,
+              -- ANY domain, not every one: a mapping with one self-healing
+              -- cause will move again shortly, and keeping its cadence costs
+              -- one request per pass.
+              EXISTS (SELECT 1 FROM migration_status ms
+                WHERE ms.tenant_id = m.tenant_id AND ms.mapping_id = m.id
+                  AND ms.last_error_category = ANY($2::text[])) AS any_self_healing
          FROM mailbox_mapping m
         WHERE m.status = 'active'`;
 
@@ -204,9 +258,15 @@ export const managedSyncTick = schedules.task({
       return summary;
     }
 
-    const { rows } = await pool.query<TickRow>(ACTIVE_MAPPINGS_SQL, [STALE_RUN_AFTER_MS]);
+    const { rows } = await pool.query<TickRow>(ACTIVE_MAPPINGS_SQL, [
+      STALE_RUN_AFTER_MS,
+      [...SELF_HEALING_CATEGORIES],
+      FAILURE_WINDOW_MINUTES,
+      [...BILLABLE_RUN_KINDS],
+    ]);
 
     let notDue = 0;
+    let heldBack = 0;
     let skippedRunning = 0;
     let staleRuns = 0;
     let skippedNoDomains = 0;
@@ -254,6 +314,28 @@ export const managedSyncTick = schedules.task({
         notDue++;
         continue;
       }
+
+      // Due by the schedule, and still not attempted: this mapping has been
+      // failing for a cause that will not clear by itself, so it is asked less
+      // often (`failing-backoff.ts`). Said out loud every time, because a
+      // mapping that is quietly attempted less is exactly the kind of thing
+      // nobody finds later.
+      const failing = {
+        consecutiveFailures: Number(m.consecutive_failures),
+        anySelfHealing: m.any_self_healing,
+        lastStartedAt: m.last_started,
+      };
+      if (heldBackByFailures(failing, now)) {
+        heldBack++;
+        log.info(
+          `[sync-tick] mapping ${m.id}: due, but held back — ` +
+            `${failing.consecutiveFailures} consecutive failed pass(es) with no self-healing ` +
+            `cause, so attempts are spaced at least ${minGapMinutes(failing)} minutes apart. ` +
+            'It stays active and resumes on its own as soon as a pass succeeds.',
+        );
+        continue;
+      }
+
       due.push(m);
     }
 
@@ -302,6 +384,7 @@ export const managedSyncTick = schedules.task({
       active: rows.length,
       triggered,
       notDue,
+      heldBack,
       skippedRunning,
       staleRuns,
       skippedNoDomains,
