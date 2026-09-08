@@ -291,6 +291,62 @@ describe('Usage Metering - Integration', () => {
     });
   });
 
+  describe('The last day of the period', () => {
+    it('counts storage synced on the final day', async () => {
+      // `periodEnd` is a DATE and `lastSyncedAt` a TIMESTAMP, so `lte` compared
+      // against midnight and dropped the whole of the 31st. A month lost a day
+      // of storage and egress; February lost 1/28th of itself.
+      await createFixture(TEST_TENANT_ID, TEST_MAPPING_ID);
+      await db.insert(itemTable).values([
+        {
+          tenantId: TEST_TENANT_ID,
+          mappingId: TEST_MAPPING_ID,
+          domain: 'email',
+          collection: 'Inbox',
+          naturalKey: 'last-day',
+          naturalKeyHash: 'hash-last-day',
+          sizeBytes: 4096n,
+          status: 'copied',
+          lastSyncedAt: new Date('2026-07-31T23:59:00Z'),
+        },
+      ]);
+
+      const { storageBytes, egressBytes } = await deriveStorageAndEgressForPeriod(
+        db,
+        TEST_TENANT_ID,
+        '2026-07-01',
+        '2026-07-31',
+      );
+      expect(storageBytes).toBe(4096);
+      expect(egressBytes).toBe(4096);
+    });
+
+    it('still excludes the first instant of the next period', async () => {
+      await createFixture(TEST_TENANT_ID, TEST_MAPPING_ID);
+      await db.insert(itemTable).values([
+        {
+          tenantId: TEST_TENANT_ID,
+          mappingId: TEST_MAPPING_ID,
+          domain: 'email',
+          collection: 'Inbox',
+          naturalKey: 'next-month',
+          naturalKeyHash: 'hash-next-month',
+          sizeBytes: 4096n,
+          status: 'copied',
+          lastSyncedAt: new Date('2026-08-01T00:00:00Z'),
+        },
+      ]);
+
+      const { storageBytes } = await deriveStorageAndEgressForPeriod(
+        db,
+        TEST_TENANT_ID,
+        '2026-07-01',
+        '2026-07-31',
+      );
+      expect(storageBytes).toBe(0);
+    });
+  });
+
   /**
    * Compute, DERIVED from the run ledger. Nothing is written.
    *

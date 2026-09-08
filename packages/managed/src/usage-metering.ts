@@ -42,7 +42,7 @@
  */
 
 import { type PgDatabase } from '@openmig/ledger/db';
-import { and, eq, inArray, gte, lte, lt, isNotNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, gte, lt, isNotNull, sql, type SQL } from 'drizzle-orm';
 import * as ledgerSchema from '@openmig/ledger/schema-pg';
 import * as billingSchema from './schema-managed.ts';
 
@@ -57,6 +57,28 @@ export interface UsageMetricsResult {
   egressBytes: number;
   computeHours: number;
   apiCallCount: number;
+}
+
+/**
+ * The half-open instant range a billing period actually covers.
+ *
+ * `periodStart` and `periodEnd` are DATES — '2026-07-01', '2026-07-31'. The
+ * columns they are compared against are TIMESTAMPS. A date promoted to a
+ * timestamp is that date at MIDNIGHT, so `<= periodEnd` means
+ * `<= 2026-07-31T00:00:00Z` and silently excludes everything that happened on
+ * the 31st. A month loses its last day; February loses 1/28th of itself.
+ *
+ * Both derivations ask `[from, until)` instead, with `until` the midnight that
+ * starts the following day. One function so the two cannot drift again: this
+ * bug existed in `deriveStorageAndEgressForPeriod` while
+ * `deriveComputeForPeriod` was written correctly beside it, which is exactly
+ * the shape that makes two figures on one invoice disagree.
+ */
+export function billingWindow(periodStart: string, periodEnd: string): { from: Date; until: Date } {
+  const from = new Date(periodStart);
+  const until = new Date(periodEnd);
+  until.setUTCDate(until.getUTCDate() + 1);
+  return { from, until };
 }
 
 /**
@@ -77,13 +99,17 @@ export async function deriveStorageAndEgressForPeriod(
   periodStart: string,
   periodEnd: string
 ): Promise<{ storageBytes: number; egressBytes: number }> {
+  const storage = billingWindow(periodStart, periodEnd);
   // Build WHERE conditions
   const conditions: SQL[] = [
     eq(schema.item.tenantId, tenantId),
     inArray(schema.item.status, ['copied', 'updated', 'skipped']),
-    // Filter by lastSyncedAt - items with NULL are automatically excluded
-    gte(schema.item.lastSyncedAt, new Date(periodStart)),
-    lte(schema.item.lastSyncedAt, new Date(periodEnd)),
+    // Filter by lastSyncedAt - items with NULL are automatically excluded.
+    // Half-open: `lte(periodEnd)` compared a timestamp against a DATE, which
+    // is that date at midnight, so every item synced on the last day of the
+    // period went uncounted. See `billingWindow`.
+    gte(schema.item.lastSyncedAt, storage.from),
+    lt(schema.item.lastSyncedAt, storage.until),
   ];
 
   const result = await db.select({
@@ -137,10 +163,9 @@ export interface ComputeUsage {
  * everything that happened ON the last day of the month. This asks for
  * `< periodEnd + 1 day` instead, which is the whole month.
  *
- * NOTE, and NOT fixed here because it changes a billed number and is somebody's
- * decision rather than mine: `deriveStorageAndEgressForPeriod` above still
- * uses `lte(periodEnd)` and therefore under-counts the last day of every
- * period. Same class of error, different figure, its own change.
+ * `deriveStorageAndEgressForPeriod` above had the same bug and was fixed in
+ * the same shape (owner's go-ahead, 2026-09-08); both now share
+ * `billingWindow` so they cannot drift apart again.
  *
  * ## Why wall clock, and what it includes
  *
@@ -162,9 +187,7 @@ export async function deriveComputeForPeriod(
   periodStart: string,
   periodEnd: string,
 ): Promise<ComputeUsage> {
-  const from = new Date(periodStart);
-  const until = new Date(periodEnd);
-  until.setUTCDate(until.getUTCDate() + 1);
+  const { from, until } = billingWindow(periodStart, periodEnd);
 
   const window = and(
     eq(schema.run.tenantId, tenantId),
