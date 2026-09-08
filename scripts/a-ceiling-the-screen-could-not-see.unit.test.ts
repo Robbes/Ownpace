@@ -170,12 +170,35 @@ describe('the second fact the screen could not see (ADR-0041, owner decision 202
     // unparsable or still-pending answer must keep demanding the pair. And
     // indexed by the provider the source's descriptor names — a Google
     // client is not a Dropbox app.
-    for (const rel of [WIZARD, 'apps/web/src/pages/Connections.tsx']) {
+    //
+    // TWO READERS, NOT THREE (2026-09-08). The Connections page had its own
+    // copy of this until the rotate panel needed the same consent and got a
+    // shared module instead of a third copy — so the file to grep for the
+    // page's half is `components/ProviderConsent.tsx`, which the add form and
+    // Replace credentials both import. The PROPERTY is unchanged and is what
+    // this asserts; only the file holding it moved.
+    for (const rel of [WIZARD, 'apps/web/src/components/ProviderConsent.tsx']) {
       expect(read(rel), `${rel} does not ask which applications the deployment carries`).toContain(
         'providerClientsApi',
       );
-      expect(read(rel)).toContain("providerClients?.[grantProvider] === 'deployment'");
+      // The SHAPE, not a local variable's name: indexed by whatever the file
+      // calls the provider its descriptor named, and compared against
+      // 'deployment'. The wizard says `grantProvider` and the shared module
+      // says `provider`; pinning either spelling here would fail the next
+      // rename while the property held.
+      expect(
+        read(rel),
+        `${rel} no longer indexes the answer by provider, or no longer compares against ` +
+          "'deployment' — an absent, unparsable or still-pending answer must keep demanding " +
+          'the pair, which comparing against \'connection\' would not do',
+      ).toMatch(/providerClients\?\.\[\w+\] === 'deployment'/);
     }
+    // And the page reaches it, rather than having quietly grown a copy back.
+    expect(
+      read('apps/web/src/pages/Connections.tsx'),
+      'Connections.tsx no longer goes through the shared consent — if it has its own ' +
+        'deployment-client question again, that is the second copy this module exists to prevent',
+    ).toContain('useProviderConsent');
   });
 
   it('the pair travels whole or not at all — never as empty strings', () => {
