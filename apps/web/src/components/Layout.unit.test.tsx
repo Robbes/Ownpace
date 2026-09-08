@@ -11,6 +11,7 @@
  */
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { editionFlag, authState } = vi.hoisted(() => ({
@@ -48,15 +49,28 @@ vi.mock('../stores/auth-store', () => ({
 
 import Layout from './Layout.tsx';
 
+/**
+ * A QueryClient, because the layout now asks a question.
+ *
+ * `PlatformPauseBanner` (managed migration 0023) reads whether the platform is
+ * holding, on every signed-in screen — which is where that notice has to be,
+ * since a hold stops copying for every migration a person has. `App.tsx` wraps
+ * the whole router in a provider; this mirrors it. `retry: false` so a failed
+ * read in a test is one attempt and no timers left running.
+ */
 const renderLayout = (path = '/') =>
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route path="*" element={<div>page-body</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route path="*" element={<div>page-body</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 beforeEach(() => {

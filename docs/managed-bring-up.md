@@ -1810,6 +1810,44 @@ inherit nothing from compose, so the environment is uploaded separately — run
 it only when a value in `.env` that the worker reads has changed (see phase 9).
 A code-only pull does not need it.
 
+### Draining first, and telling customers why
+
+A rebuild replaces the containers under whatever is running. For an api/web
+rebuild that is a few seconds of unavailability; for a task deploy it can
+interrupt a sync pass mid-flight. A pass that is interrupted loses only its
+own work — the cursors stay where the last completed folder left them, and the
+next pass carries on — but a customer watching a large migration sees it stop,
+and has no way to tell that from something broken.
+
+So there is a hold (workplan 0022 T2, managed migration 0023). It stops the
+sync tick starting **new** passes; passes already running finish normally,
+which is what makes it a drain rather than a kill. It is on the operator's
+first support screen, under **Hold new passes**, with a box for what customers
+will read.
+
+The sequence:
+
+1. Start the hold, with a sentence. *"Back in about an hour"* is worth more
+   than the default, because only you know whether this is ten minutes or
+   overnight. Leave it empty and customers get a generic sentence — a hold is
+   never wordless, but it is also never as useful.
+2. Watch the tick's log until the drain is done. Every minute it logs
+   `[sync-tick] holding: … N pass(es) still in flight; the drain is done when
+   that reaches 0.` A pass ends on its own clock well inside an hour, so this
+   normally clears in minutes.
+3. Pull, rebuild, re-deploy the tasks.
+4. Lift the hold. The next tick starts passes again.
+
+While the hold is on, every signed-in customer sees a note at the top of every
+screen with your sentence on it and the time it began. Nothing else about their
+migration changes: no cursor moves, nothing is marked failed, and nothing is
+owed a retry.
+
+The hold is platform-wide — there is no per-tenant hold, matching the owner's
+answer of 2026-08-27 on the same question one level up. Every hold is kept,
+with who started it, who lifted it and what it said, so *"when were we down and
+what did we tell people"* has an answer afterwards.
+
 ---
 
 ## Redoing a rollout somewhere else

@@ -98,6 +98,11 @@ tags:
       What a platform operator may see of a customer, to answer them when they
       ask. Metadata only, read-only, and every read is recorded — the views
       behind these operations decide who is an operator, not the API.
+  - name: Platform
+    description: |
+      Facts about the platform itself rather than about a customer. Read by
+      anyone signed in, because they explain a customer's own screen; written
+      only by an operator, and the database is what decides that.
 
 paths:
   /health:
@@ -3641,6 +3646,131 @@ paths:
                               format: date-time
                               nullable: true
                               description: When the newest result was taken; null when none has been.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/platform-pause:
+    get:
+      tags: [Platform]
+      summary: Is the platform holding, and what did we say about it
+      description: |
+        A hold is the operator stopping new sync passes on purpose, to update
+        the platform (managed migration 0023). Of the three things that can
+        stop a migration it is the only one a customer cannot derive from
+        their own screen and cannot wait out predictably, so the sentence
+        explaining it is served to every signed-in caller rather than to
+        operators only.
+
+        `held: false` is a shape rather than a 404: "we asked and the answer
+        is no" and "we could not ask" must not look the same to the screen
+        rendering it. `message` is the operator's own words and is rendered
+        VERBATIM; it is absent when they typed none, and the screen then
+        supplies its own default sentence in the reader's language.
+      responses:
+        '200':
+          description: Whether a hold is open, since when, and its message if it has one.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [held]
+                properties:
+                  held: { type: boolean }
+                  since: { type: string, format: date-time }
+                  message: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Platform]
+      summary: Start a hold
+      description: |
+        The sync tick stops enqueueing on its next firing, within a minute.
+        Passes already running finish normally — that is what makes this a
+        drain rather than a kill, and the tick logs how many are still in
+        flight so an operator knows when the drain is done.
+
+        Authorisation is NOT performed here: the operation authenticates a
+        subject and the INSERT carries `WHERE EXISTS (platform_operator …)`,
+        so a non-operator writes nothing and is answered `404` — an absence,
+        because to the database that is exactly what it is. A second hold
+        while one is open is refused by the database rather than folded into
+        the existing one, which would silently discard the new message.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  description: |
+                    What to tell customers, shown verbatim. Trimmed to 500
+                    characters — a message long enough to be a page is one
+                    nobody reads. Optional; the screen has a default.
+      responses:
+        '201':
+          description: The hold that is now open.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [held, since]
+                properties:
+                  held: { type: boolean }
+                  since: { type: string, format: date-time }
+                  message: { type: string }
+        '400': { description: message was given and is not a string. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Not an operator — an absence rather than a refusal. }
+    delete:
+      tags: [Platform]
+      summary: Lift the hold
+      description: |
+        The next tick starts passes again. `404` covers both "no hold is open"
+        and "you are not an operator", and the conflation is deliberate: to a
+        non-operator the table has no rows, so "nothing to end" is what the
+        database sees.
+      responses:
+        '200':
+          description: The hold is lifted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [held]
+                properties:
+                  held: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: No hold is open, or the caller is not an operator. }
+
+  /api/platform-pause/history:
+    get:
+      tags: [Platform]
+      summary: Every hold, newest first
+      description: |
+        The operator's own view. To anybody else the policies serve the open
+        hold and nothing more, which is the correct answer rather than a
+        refusal — the same doctrine the support views follow.
+      responses:
+        '200':
+          description: The holds this caller may see.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [holds]
+                properties:
+                  holds:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, startedAt, startedBy]
+                      properties:
+                        id: { type: string, format: uuid }
+                        startedAt: { type: string, format: date-time }
+                        endedAt: { type: string, format: date-time }
+                        message: { type: string }
+                        startedBy: { type: string }
+                        endedBy: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:

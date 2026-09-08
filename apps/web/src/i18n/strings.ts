@@ -966,6 +966,18 @@ const en = {
   'support.noInvoices': 'No invoices.',
   // The platform status the customer sees (workplan 0110 T5): readiness and
   // the status page's endpoints. The group names are the page's own.
+  // The drain (managed migration 0023): the one thing on these screens that
+  // writes, and the only pause a customer can neither derive nor wait out.
+  'support.hold': 'Hold new passes',
+  'support.hold.hint': 'Stops new passes; the ones already running finish.',
+  'support.hold.hint.why':
+    'This is the drain: the sync tick stops enqueueing within a minute, and whatever is mid-pass finishes normally. Every signed-in customer sees a notice with your message on it, or a default sentence when you leave the box empty. Lifting the hold starts passes again on the next tick.',
+  'support.hold.on': 'Held since {since}. No new passes are starting.',
+  'support.hold.off': 'Not held. New passes start on the usual schedule.',
+  'support.hold.start': 'Hold new passes',
+  'support.hold.end': 'Lift the hold',
+  'support.hold.message': 'What customers will read',
+  'support.hold.message.placeholder': 'Back in about an hour.',
   'support.platform': 'Platform, as the customer sees it',
   'support.platform.database': 'Database',
   'support.platform.signIn': 'Sign-in',
@@ -1040,6 +1052,29 @@ const en = {
   'confirm.progress.synced': 'synced',
   'confirm.progress.failed': 'failed',
   'confirm.progress.retrying': 'retrying',
+  // When a pass last touched this data type — NOT when it last finished.
+  // A first copy that runs for two days used to show no time at all, because
+  // every time on these screens came from a completion. A migration that is
+  // working must never look like one that has died.
+  'confirm.progress.lastActive': 'last active',
+  // One state, three reasons (see pause-reason.ts). The word is the same
+  // wherever it appears; the sentence under it says which of the three.
+  'pause.label': 'Paused',
+  'pause.ceiling':
+    '{provider} reached its daily download limit. Copying continues after {resets}.',
+  // Same fact, no window to name: the meter reported no running window, and
+  // inventing a time would be worse than saying "when it resets".
+  'pause.ceiling.unknown':
+    '{provider} reached its daily download limit. Copying continues when that resets.',
+  'pause.ceiling.why':
+    'The limit belongs to your old provider, not to us. Passing it can lock you out of your own live mailbox for about a day, so copying stops before that happens. Nothing has failed and nothing is lost — the next pass carries on from exactly where this one stopped.',
+  'pause.hold.heading': 'Copying is paused',
+  // The DEFAULT sentence: always present, so a hold is never wordless when
+  // nobody typed one. An operator's own words replace it, verbatim.
+  'pause.hold.default': 'We have paused copying while we update the platform.',
+  'pause.hold.since': 'Paused since',
+  'pause.hold.why':
+    'Nothing is wrong with your migration and nothing is lost. Migrations already running finish normally; new copying starts again by itself once the update is done, and continues from exactly where it stopped.',
   'confirm.snapshot.heading': 'Pre-start scan (snapshot)',
   'confirm.snapshot.more':
     'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update; live progress above is the ledger speaking.',
@@ -1664,6 +1699,16 @@ const nl: Record<keyof typeof en, string> = {
   'support.noConnections': 'Geen verbindingen.',
   'support.noMigrations': 'Geen migraties.',
   'support.noInvoices': 'Geen facturen.',
+  'support.hold': 'Nieuwe rondes pauzeren',
+  'support.hold.hint': 'Stopt nieuwe rondes; wat al loopt wordt afgerond.',
+  'support.hold.hint.why':
+    'Dit is de drain: de synchronisatietick stopt binnen een minuut met inplannen, en wat al loopt wordt normaal afgerond. Elke ingelogde klant ziet een melding met uw tekst, of een standaardzin als u het veld leeg laat. Zodra u de pauze opheft, starten de rondes bij de volgende tick weer.',
+  'support.hold.on': 'Gepauzeerd sinds {since}. Er starten geen nieuwe rondes.',
+  'support.hold.off': 'Niet gepauzeerd. Nieuwe rondes starten volgens schema.',
+  'support.hold.start': 'Nieuwe rondes pauzeren',
+  'support.hold.end': 'Pauze opheffen',
+  'support.hold.message': 'Wat klanten te lezen krijgen',
+  'support.hold.message.placeholder': 'Over ongeveer een uur weer terug.',
   'support.platform': 'Platform, zoals de klant het ziet',
   'support.platform.database': 'Database',
   'support.platform.signIn': 'Inloggen',
@@ -2448,6 +2493,19 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.progress.synced': 'gesynchroniseerd',
   'confirm.progress.failed': 'mislukt',
   'confirm.progress.retrying': 'in nieuwe poging',
+  'confirm.progress.lastActive': 'laatst actief',
+  'pause.label': 'Gepauzeerd',
+  'pause.ceiling':
+    '{provider} heeft de daglimiet voor downloaden bereikt. Kopiëren gaat verder na {resets}.',
+  'pause.ceiling.unknown':
+    '{provider} heeft de daglimiet voor downloaden bereikt. Kopiëren gaat verder zodra die reset.',
+  'pause.ceiling.why':
+    'De limiet is van uw oude provider, niet van ons. Erover gaan kan u ongeveer een dag buitensluiten uit uw eigen live mailbox, dus stopt het kopiëren daarvóór. Er is niets misgegaan en er gaat niets verloren — de volgende ronde gaat verder waar deze stopte.',
+  'pause.hold.heading': 'Kopiëren is gepauzeerd',
+  'pause.hold.default': 'We hebben het kopiëren gepauzeerd terwijl we het platform bijwerken.',
+  'pause.hold.since': 'Gepauzeerd sinds',
+  'pause.hold.why':
+    'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond; nieuw kopiëren start vanzelf weer zodra de update klaar is, en gaat verder waar het stopte.',
   'confirm.snapshot.heading': 'Scan van voor de start (momentopname)',
   'confirm.snapshot.more':
     'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet; de live voortgang hierboven komt uit het grootboek.',
