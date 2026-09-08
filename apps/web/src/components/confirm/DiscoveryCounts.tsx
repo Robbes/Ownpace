@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import type { DiscoveryRecord } from '@openmig/shared';
+import type { DiscoveryDomain, DiscoveryRecord } from '@openmig/shared';
 import { useT } from '../../i18n/index.tsx';
 import { formatBytes } from '../../i18n/bytes.ts';
 // The dictionary's own domain words — the old local map silently bypassed
@@ -31,12 +31,51 @@ import { DOMAIN_STRING_KEY as DOMAIN_KEY } from '../../i18n/domain-words.ts';
 // it; re-exported here for the importers this file already has.
 export { formatBytes };
 
+/**
+ * WHAT IS STILL COMING IS PART OF THE ANSWER (2026-09-07).
+ *
+ * `scanning` was a single boolean, and it was false the moment the FIRST
+ * domain landed. From then on this table showed whatever had arrived so far
+ * as though it were the whole answer. The owner's preflight over a four-domain
+ * migration therefore read as a finished three-row table — three counts, no
+ * fourth row, and nothing anywhere saying a fourth was on its way. He refreshed
+ * by hand to find it.
+ *
+ * Discovery lands one domain at a time, because each opens its own connector
+ * and walks its own provider, and a mailbox takes longer than a to-do list. A
+ * screen that can only say "started" or "finished" cannot describe that, and
+ * the failure mode is the worst one available: a number that looks complete
+ * and is not.
+ *
+ * So the component is told what to EXPECT — the domains the migration carries
+ * — and says which of them have not answered yet. Rows appear as they land,
+ * and the sentence under them names the ones still counting.
+ *
+ * `expected` is optional and the fall-back is the old behaviour: a caller that
+ * cannot know the selection (nothing today) still gets a table, just without
+ * the sentence. It is not defaulted to every domain — that would put a
+ * permanent "still counting: Email" under a migration that carries no mail,
+ * which is the screen-side twin of the defect `resolveDiscoveryJob` removed.
+ */
 export const DiscoveryCounts: React.FC<{
   domains: ReadonlyArray<DiscoveryRecord>;
-  /** Shown instead of the table while the first pass has not landed. */
-  scanning?: boolean;
-}> = ({ domains, scanning }) => {
+  /**
+   * Every domain this migration carries. The rows still to come are these
+   * minus the ones that have landed — a domain that answered with an error
+   * HAS landed: `lastError` is a final answer, and waiting on it for ever
+   * would be the same silence in a different place.
+   */
+  expected?: ReadonlyArray<DiscoveryDomain>;
+  /**
+   * The caller has stopped waiting (its poll hit its ceiling), so say the
+   * longer sentence. Not an error: a domain that has not answered in five
+   * minutes has not failed, it is slow, and a large mailbox genuinely is.
+   */
+  slow?: boolean;
+}> = ({ domains, expected, slow }) => {
   const t = useT();
+  const landed = new Set(domains.map((d) => d.domain));
+  const pending = (expected ?? []).filter((d) => !landed.has(d));
   // A subset of `items`: these ARE migrated. Shown because we modify them.
   const generatedId = domains.reduce((sum, d) => sum + (d.generatedIdItems ?? 0), 0);
   // Items the destination already holds under a key matching something in the
@@ -45,7 +84,7 @@ export const DiscoveryCounts: React.FC<{
   // and not in a verification report after the fact.
   const colliding = domains.reduce((sum, d) => sum + (d.targetColliding ?? 0), 0);
 
-  if (scanning || domains.length === 0) {
+  if (domains.length === 0) {
     return (
       <p className="text-sm text-gray-500" role="status">
         {t('discovery.scanning')}
@@ -106,6 +145,24 @@ export const DiscoveryCounts: React.FC<{
           </tbody>
         </table>
       </div>
+
+      {/*
+        Named, not counted. "1 more to go" tells somebody to wait without
+        telling them what for; "Still counting: Files" lets them judge whether
+        the number they are looking at is the one they care about.
+
+        `role="status"` for the same reason the scanning line has it: this
+        appears without the reader doing anything, and a screen reader that
+        never announces it leaves them with the same finished-looking table
+        this whole change exists to prevent.
+      */}
+      {pending.length > 0 && (
+        <p className="mt-2 text-sm text-gray-500" role="status">
+          {t(slow ? 'discovery.stillCounting.slow' : 'discovery.stillCounting', {
+            domains: pending.map((d) => t(DOMAIN_KEY[d])).join(', '),
+          })}
+        </p>
+      )}
 
       {generatedId > 0 && (
         <p className="mt-2 text-sm text-amber-700" role="note">

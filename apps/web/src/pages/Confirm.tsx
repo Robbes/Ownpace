@@ -178,7 +178,22 @@ const Confirm: React.FC = () => {
 
             {m.migrationStatus === 'paused' ? (
               // Before the start, the scan IS the decision input -- prominent.
-              <DiscoveryCounts domains={domains} scanning={domains.length === 0} />
+              //
+              // NO `expected` HERE, and `m.domains` is the trap that makes it
+              // look easy (2026-09-07). This page's `domains` are
+              // `DomainStatusReport[]` — built by `buildDomainStatusReports`
+              // from `migration_status` rows, which describe what a PASS did.
+              // A paused mapping has never run, so that list is EMPTY, and
+              // mapping it to names would tell the component "nothing is
+              // pending" at the one moment everything is. On a partly-run
+              // mapping it would be worse than useless: it would name the
+              // domains that have SYNCED as the ones still being counted.
+              //
+              // The customer's confirm screen has the honest source —
+              // `syncConfig.domains`, the scope selection — and uses it. Here
+              // the component falls back to its old behaviour, which is what
+              // this page had anyway.
+              <DiscoveryCounts domains={domains} />
             ) : (
               // After the start it is a historical snapshot: the source keeps
               // changing and these numbers do not. Folded, labelled with WHEN
@@ -193,7 +208,11 @@ const Confirm: React.FC = () => {
                     : ''}
                 </summary>
                 <p className="mt-1 mb-2 text-xs text-gray-500">{t('confirm.snapshot.more')}</p>
-                <DiscoveryCounts domains={domains} scanning={domains.length === 0} />
+                {/* No `expected` here: this is a HISTORICAL snapshot, and
+                    "still counting" would be false about a run that finished
+                    long ago. A domain missing from an old snapshot is missing
+                    from the record, not in flight. */}
+                <DiscoveryCounts domains={domains} />
               </details>
             )}
 

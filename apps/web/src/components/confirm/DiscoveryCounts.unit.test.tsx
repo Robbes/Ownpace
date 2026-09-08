@@ -31,7 +31,7 @@ function record(over: Partial<DiscoveryRecord> = {}): DiscoveryRecord {
 
 describe('the counts', () => {
   it('shows a scanning message rather than an empty table before the first pass', () => {
-    render(<DiscoveryCounts domains={[]} scanning />);
+    render(<DiscoveryCounts domains={[]} expected={['email', 'calendar']} />);
     expect(screen.getByRole('status')).toHaveTextContent(/Scanning your source/);
   });
 
@@ -106,5 +106,91 @@ describe('formatBytes', () => {
   it('scales', () => {
     expect(formatBytes(512)).toBe('512 B');
     expect(formatBytes(2048)).toBe('2.0 KB');
+  });
+});
+
+/**
+ * A TABLE THAT IS STILL FILLING IN MUST NOT READ AS FINISHED (2026-09-07).
+ *
+ * Discovery lands one domain at a time. The old `scanning` boolean went false
+ * at the FIRST one, so from then on this table presented whatever had arrived
+ * as the whole answer: the owner's four-domain migration settled on three
+ * rows, with nothing on the page saying a fourth was coming, and he found it
+ * by reloading the browser himself.
+ *
+ * Three rows and a sentence is an honest partial answer. Three rows alone is a
+ * wrong complete one.
+ */
+describe('the rows that have not landed yet', () => {
+  it('names the domains still being counted, beside the ones that have', () => {
+    render(
+      <DiscoveryCounts
+        domains={[record({ domain: 'calendar' }), record({ domain: 'contact' })]}
+        expected={['calendar', 'contact', 'file', 'task']}
+      />,
+    );
+
+    // The counts that arrived are shown — waiting is not a reason to hide them.
+    expect(screen.getByText('Calendar')).toBeInTheDocument();
+    // And the two that have not are named, not merely counted: "2 to go" does
+    // not tell somebody whether the number they came for is in yet.
+    expect(screen.getByRole('status')).toHaveTextContent(/Still counting: Files, Tasks/);
+  });
+
+  it('says nothing once every expected domain has answered', () => {
+    render(
+      <DiscoveryCounts
+        domains={[record({ domain: 'calendar' }), record({ domain: 'file' })]}
+        expected={['calendar', 'file']}
+      />,
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('treats a domain that answered with an error as landed', () => {
+    // `lastError` is a final answer and its row already carries it verbatim.
+    // Waiting on it for ever would be the same silence in a new place.
+    render(
+      <DiscoveryCounts
+        domains={[record({ domain: 'calendar' }), record({ domain: 'file', lastError: '401' })]}
+        expected={['calendar', 'file']}
+      />,
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByText('401')).toBeInTheDocument();
+  });
+
+  it('waits only for what this migration carries, never for all five', () => {
+    // The screen-side twin of the preflight's own defect: a mapping carrying
+    // no mail must not sit under a permanent "still counting: Email".
+    render(
+      <DiscoveryCounts
+        domains={[record({ domain: 'calendar' }), record({ domain: 'file' })]}
+        expected={['calendar', 'file']}
+      />,
+    );
+    expect(screen.queryByText(/Email/)).not.toBeInTheDocument();
+  });
+
+  it('says nothing about waiting when the caller cannot say what to expect', () => {
+    // The historical-snapshot case: a domain absent from an old record is
+    // missing from the record, not in flight.
+    render(<DiscoveryCounts domains={[record({ domain: 'calendar' })]} />);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('says the longer sentence once the caller has stopped waiting', () => {
+    render(
+      <DiscoveryCounts
+        domains={[record({ domain: 'calendar' })]}
+        expected={['calendar', 'file']}
+        slow
+      />,
+    );
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent(/Still counting: Files/);
+    expect(status).toHaveTextContent(/Taking longer than usual/);
+    // Never an error: nothing is known to have gone wrong (hard rule 9).
+    expect(status).not.toHaveTextContent(/failed|error|wrong/i);
   });
 });
