@@ -68,10 +68,22 @@ name: E2E (managed)
 
 on:
   schedule:
-    # 05:30 UTC — after e2e.yml's 01:30 (postgres) and 03:30 (pglite) firings.
-    # The Spark is one shared box: three stacks at once would fight over Docker
-    # and the loser would be blamed on whatever it happened to be testing.
-    - cron: '30 5 * * *'
+    # 03:30 UTC — after e2e.yml's 23:30 (postgres, the night before) and 01:30
+    # (pglite) firings. The Spark is one shared box: three stacks at once would
+    # fight over Docker and the loser would be blamed on whatever it happened
+    # to be testing. Two hours between each, which is ten times the longest run
+    # this gate has taken.
+    #
+    # WHY THIS MOVED (2026-09-08). It was 05:30, and GitHub was dispatching it
+    # at ~09:50 — four and a half hours late, every day since 27 August, on
+    # every scheduled workflow in this repository. Nothing was skipped: 21
+    # scheduled runs in 21 days. But the nightly had walked into the working
+    # day, and the watch routine that reads this gate fires in the morning, so
+    # it was reading YESTERDAY's run and calling it today's — which is how
+    # three consecutive red runs (#163-#165) went unreported. Read the drift as
+    # a fact about GitHub, not about this file: it can change again, so the
+    # watch now checks how old a run is instead of trusting the clock.
+    - cron: '30 3 * * *'
   workflow_dispatch:
 
 concurrency:

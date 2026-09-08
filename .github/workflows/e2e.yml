@@ -63,17 +63,30 @@ name: E2E (self-hosted)
 # ==============================================================================
 on:
   # SAD §22's "e2e nightly", scheduled at last (0025 T5): BOTH persistence
-  # backends every night, as two firings — 01:30 UTC runs the Postgres stack,
-  # 03:30 UTC the PGlite one. A schedule event carries no inputs, so which
-  # backend a firing drives is derived from WHICH cron fired (the exact
-  # `github.event.schedule` string) in the two `pglite` expressions below —
-  # change a cron here and those two expressions must follow. Staggered, not
-  # matrixed: the runner is a single shared box and `concurrency` already
-  # queues rather than cancels, so two spaced firings beat two parallel jobs
-  # fighting over Docker.
+  # backends every night, as two firings — 23:30 UTC (the night before) runs
+  # the Postgres stack, 01:30 UTC the PGlite one. A schedule event carries no
+  # inputs, so which backend a firing drives is derived from WHICH cron fired
+  # (the exact `github.event.schedule` string) in the two `pglite` expressions
+  # below — change a cron here and those two expressions must follow, which
+  # `a-nightly-that-drove-the-wrong-backend.unit.test.ts` now refuses to let
+  # anybody forget. Staggered, not matrixed: the runner is a single shared box
+  # and `concurrency` already queues rather than cancels, so two spaced firings
+  # beat two parallel jobs fighting over Docker.
+  #
+  # WHY THESE TIMES MOVED (2026-09-08). They used to be 01:30 and 03:30, with
+  # the managed gate at 05:30. GitHub does not honour a cron on this
+  # repository: from 27 August it dispatched every scheduled run FOUR TO FIVE
+  # HOURS LATE, without ever skipping one — 01:30 landed at ~06:25, 03:30 at
+  # ~08:05, and the managed gate's 05:30 at ~09:50. Nothing was lost, but the
+  # whole nightly block had walked into the working day, and the two watch
+  # routines that read these gates fired BEFORE the runs they were reading and
+  # so reported yesterday's result as today's every morning. Shifted two hours
+  # earlier at the owner's ask so the block runs in the night again; the
+  # watches now check a run's age rather than assume it is fresh, because a
+  # drift that moved once can move again.
   schedule:
-    - cron: '30 1 * * *' # postgres
-    - cron: '30 3 * * *' # pglite
+    - cron: '30 23 * * *' # postgres
+    - cron: '30 1 * * *' # pglite
   workflow_dispatch:
     inputs:
       seed_count:
@@ -100,7 +113,7 @@ env:
   # spliced only into the `docker compose` calls below) because the gate itself
   # reads it: `selfhost-restart-resume.e2e.test.ts` restarts the appliance and
   # therefore has to address the same stack this workflow brought up.
-  SELFHOST_COMPOSE_OVERRIDE: ${{ (inputs.persistence == 'pglite' || github.event.schedule == '30 3 * * *') && 'deploy/selfhost/compose.pglite.yml' || '' }}
+  SELFHOST_COMPOSE_OVERRIDE: ${{ (inputs.persistence == 'pglite' || github.event.schedule == '30 1 * * *') && 'deploy/selfhost/compose.pglite.yml' || '' }}
   # Every `docker compose` call below uses THIS, unquoted, so the flags split.
   # One list in one place: before this, `up` passed compose.dev.yml while `ps`
   # and `logs` in the very same step did not, which is how a diagnostic dump can
@@ -108,7 +121,7 @@ env:
   SELFHOST_COMPOSE_FILES: >-
     -f deploy/selfhost/compose.yml
     -f deploy/selfhost/compose.dev.yml
-    ${{ (inputs.persistence == 'pglite' || github.event.schedule == '30 3 * * *') && '-f deploy/selfhost/compose.pglite.yml' || '' }}
+    ${{ (inputs.persistence == 'pglite' || github.event.schedule == '30 1 * * *') && '-f deploy/selfhost/compose.pglite.yml' || '' }}
   # SELFHOST_PORT is NOT fixed here — it's computed in "Pick free host ports"
   # below and exported to $GITHUB_ENV so it's free regardless of what else is
   # running on this box.

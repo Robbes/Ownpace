@@ -30,7 +30,7 @@ run's tag, and a net-zero take-back.
 
 Everything this section creates — tenant, connections, mappings — is the
 **persistent registration the nightly reuses**: it lives in the Spark's
-long-lived managed stack (the same one the 05:30 hermetic gate runs
+long-lived managed stack (the same one the nightly hermetic gate runs
 against), rows in its Postgres with credentials SecretStore-encrypted. The
 gate recreates its own containers but never `down -v`'s the volumes and
 never touches a foreign tenant, so this survives night after night. The one

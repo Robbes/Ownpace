@@ -940,13 +940,28 @@ threatened at this size.
 - **The reading habit.** T4 describes what happens on red; making that real
   means a check-in that reads the run each morning, which is a standing
   arrangement rather than a file in the repo. **Arranged 2026-08-19**, as a
-  scheduled routine at 06:30 UTC — an hour after the 05:30 cron, and clear of
-  the existing 05:00 self-hosted watch. It is deliberately not a
+  scheduled routine an hour after the gate's cron and clear of the self-hosted
+  watch — 08:30 UTC since 2026-09-08, when the whole nightly block moved two
+  hours earlier and both watches were rewritten. It is deliberately not a
   read-the-conclusion check: it asserts the VERDICT line says `apply: applied`
   or `refused` (run #6 went green with that half skipped), that prepare fires
   about once in six runs rather than every night (more often means the fixture
   is draining faster than the model says), and that `an eligible item appeared
   after Ns` is not creeping toward the 120s budget.
+
+  **And it checks the run's AGE before anything else, which it did not used to
+  and which cost three unread red nights.** GitHub does not honour a cron on
+  this repository: from 27 August 2026 every scheduled run was dispatched four
+  to five hours late, every day, without one being skipped. The gate's 05:30
+  cron was landing at ~09:50, so the 06:30 watch read YESTERDAY's run every
+  morning and reported it as today's — on 7 September it found the 6th's green
+  and said green, while that day's run failed four hours later and stayed
+  failed for two more days before the owner found it by dispatching one by
+  hand. The block has since moved earlier (23:30 / 01:30 / 03:30 UTC) and the
+  watch fires later, but the real fix is that a run older than about eighteen
+  hours is now reported as *today's run has not fired yet* rather than as
+  today's result. A drift that moved once can move again; a watch that assumes
+  the clock is a watch that will lie again.
 
   **NOT yet verified**, and worth knowing before trusting it: the routine's
   fired sessions must be able to reach the GitHub MCP tools, and the creation
