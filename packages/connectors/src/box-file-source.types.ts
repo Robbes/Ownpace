@@ -19,6 +19,17 @@ export type BoxTransport = (
   json(): Promise<unknown>;
   arrayBuffer(): Promise<ArrayBuffer>;
   text(): Promise<string>;
+  /**
+   * The response's bytes, unread, when the transport can offer them
+   * (workplan 0120 T5).
+   *
+   * OPTIONAL, and that is the safe way round: a transport that cannot stream
+   * simply omits it, and the streamed path refuses the item by name rather
+   * than returning an empty stream — which would write an empty file and
+   * record it as a copy. Requiring it would have made every existing double a
+   * compile error and taught nothing.
+   */
+  readonly body?: ReadableStream<Uint8Array> | null;
 }>;
 
 export interface BoxFileSourceConfig {

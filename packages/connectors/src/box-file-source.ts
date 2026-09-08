@@ -43,6 +43,16 @@ import type {
   TrashListing,
 } from '@openmig/shared';
 import type { BoxFileSourceConfig, BoxItem, BoxItemList, BoxTransport } from './box-file-source.types.ts';
+// The seam's threshold, not DAV's — every connector that moves to `FileBody`
+// decides at the same size, or a file of a given size behaves differently
+// depending on where it came from. It is defined in `webdav-source.ts` because
+// DAV was the first connector to move; #874 lifts it into `@openmig/shared`
+// beside `MAX_BUFFERED_FILE_BYTES` and re-exports it from there, so this
+// import resolves either way and can be retargeted when that lands.
+import { STREAM_FILES_LARGER_THAN_BYTES } from './webdav-source.ts';
+
+/** What the transport hands back — named so `download()` can promise it. */
+type BoxResponse = Awaited<ReturnType<BoxTransport>>;
 
 const DEFAULT_BASE = 'https://api.box.com/2.0';
 /** Box's spelling of the account root ("All Files"). */
@@ -261,6 +271,58 @@ export class BoxFileSource implements FileSource {
     if (!ref) {
       throw new Error(`No Box file id recorded for "${item.path}" — cannot fetch it.`);
     }
+    /**
+     * A LARGE FILE ARRIVES AS A BODY, NOT AS BYTES (workplan 0120 T5).
+     *
+     * Below the threshold nothing changes: most files are small and a buffer
+     * is simpler than the machinery. Above it, holding the file was the whole
+     * ceiling — a file larger than the runner's RAM killed the process
+     * mid-pass, with no failure row and no sentence, which from a customer's
+     * side is a migration that stops on one file and never says which.
+     *
+     * The threshold is the LISTING's size: `ITEM_FIELDS` asks Box for `size`
+     * and `toFileItem` carries it, so this is Box's own figure rather than a
+     * guess. When Box omits it the item reads as 0, falls below the threshold
+     * and takes the buffered path below — which corrects the size from the
+     * bytes it read. That is the safe direction, and it is why the correction
+     * stays where it is.
+     */
+    if (item.size > STREAM_FILES_LARGER_THAN_BYTES) {
+      return {
+        item,
+        body: {
+          sizeBytes: item.size,
+          open: async () => {
+            const streamed = await this.download(item, ref);
+            if (!streamed.body) {
+              // A 200 with no body, on a file the listing gave a size to.
+              // An empty stream here would write an empty file and record it
+              // as a copy — the worst outcome available to this code.
+              throw new Error(
+                `Box answered ${streamed.status} for "${item.path}" with no body to read.`,
+              );
+            }
+            return streamed.body;
+          },
+        },
+      };
+    }
+
+    const response = await this.download(item, ref);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return { item: { ...item, size: bytes.byteLength }, content: bytes };
+  }
+
+  /**
+   * The one download, issued fresh each time it is called.
+   *
+   * Once for a buffered read and once per `open()` for a streamed one — which
+   * is the point: a body must be RE-OPENABLE, because a retry after a
+   * half-written upload starts from the beginning and a stream that has been
+   * consumed cannot. Nothing is cached, deliberately. Box answers a redirect
+   * to a signed URL and `fetch` follows it, so each call gets its own.
+   */
+  private async download(item: FileItem, ref: string): Promise<BoxResponse> {
     const response = await this.transport(
       `${this.baseUrl}/files/${encodeURIComponent(ref)}/content`,
       { method: 'GET', headers: {} },
@@ -270,8 +332,7 @@ export class BoxFileSource implements FileSource {
         `Box refused the download of "${item.path}" (${response.status}): ${await safeText(response)}`,
       );
     }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    return { item: { ...item, size: bytes.byteLength }, content: bytes };
+    return response;
   }
 
   /** Children of a folder, one type at a time, marker-paged to the end. */
