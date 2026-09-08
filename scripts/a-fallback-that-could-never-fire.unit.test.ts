@@ -105,7 +105,11 @@ describe('a fallback that could never fire', () => {
         const runner = join(dir, 'run.sh');
         writeFileSync(
           runner,
-          `set -euo pipefail\nENV_FILE="${env}"\n${getFn}\n${orFn}\n${script}\n`,
+          // env_get reads through env_value now — the one reader shared with
+          // every script here — so the harness has to stand on the same file.
+          // Without it this fails with `env_value: command not found`, which
+          // says nothing at all about .env.
+          `set -euo pipefail\n. "${join(COMPOSE, 'env-read.sh')}"\nENV_FILE="${env}"\n${getFn}\n${orFn}\n${script}\n`,
         );
         return execFileSync('bash', [runner], { encoding: 'utf8' }).trim();
       } finally {

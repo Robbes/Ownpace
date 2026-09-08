@@ -12,6 +12,12 @@
 # too, neither of which touches the CLI — because the thing they have to agree
 # about is which ENVIRONMENT they are acting on, and agreement needs one copy.
 #
+# env_value comes from the shared reader beside this file, sourced here
+# rather than by the callers: a library that relies on whoever sourced it
+# having sourced something else too breaks on the day a new caller appears.
+# shellcheck source=deploy/compose/env-read.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/env-read.sh"
+
 # WHICH TRIGGER ENVIRONMENT THIS STACK ACTS ON — one name, one resolution.
 #
 # Three scripts choose an environment, and until 2026-08-31 they disagreed
@@ -51,8 +57,8 @@ trigger_env() {
     # `|| true`: under `set -o pipefail` a grep that finds nothing fails the
     # pipeline, and "this key is not set" is a normal answer (bootstrap's
     # env_get says the same thing for the same reason).
-    from_file="$(grep -E '^TRIGGER_ENV=' "$file" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
-    legacy_file="$(grep -E '^TRIGGER_ENV_SLUG=' "$file" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+    from_file="$(env_value "$file" TRIGGER_ENV)"
+    legacy_file="$(env_value "$file" TRIGGER_ENV_SLUG)"
   fi
   want="${TRIGGER_ENV:-$from_file}"
   legacy="${TRIGGER_ENV_SLUG:-$legacy_file}"

@@ -9,6 +9,16 @@ row always closes, and NEITHER helps a file that cannot fit in the runner at
 all. T1–T4 are done and are one PR; T5 (the other five connectors) is not, and
 until it lands those paths refuse above a stated ceiling rather than dying.
 
+**2026-09-08, later: the Graph half of T5, and a defect found underneath it.**
+Moving OneDrive onto the seam meant reading `GraphDriveSource.fetchFileContent`,
+which turned out to be doing the UTF-8 round trip that had already been found
+and fixed on the DAV path — `new TextEncoder().encode(await res.text())`. Every
+OneDrive file that was not valid UTF-8 was destroyed on read, and the ledger
+hash was taken from the corrupted bytes, so the copy agreed with its own record
+and both sides of the verification gate agreed with each other. That fix ships
+with the streaming half, because they are the same three lines. Dropbox, Google
+Drive, Box and the archive source still buffer.
+
 **2026-09-08, later: T5 one connector per PR.** Google Drive is done here;
 Graph is in #874 (which also carries a defect found while reading it — that
 connector was text-decoding file bodies, destroying every OneDrive file that

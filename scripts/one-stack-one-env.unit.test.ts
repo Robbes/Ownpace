@@ -301,7 +301,7 @@ describe('ensure-env-secrets.sh, run for real, does not de-link the .env', () =>
     const compose = join(REPO_ROOT, 'deploy/compose');
     const work = join(dir, 'checkout');
     mkdirSync(work, { recursive: true });
-    for (const f of ['ensure-env-secrets.sh', 'env-upsert.sh']) {
+    for (const f of ['ensure-env-secrets.sh', 'env-upsert.sh', 'env-read.sh']) {
       copyFileSync(join(compose, f), join(work, f));
       chmodSync(join(work, f), 0o755);
     }

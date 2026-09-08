@@ -51,6 +51,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# One reader for this file, shared with every other script here: what
+# check-env-agreement.sh accepts, env_value reads — quoted or bare, the same
+# way Compose and `source` would. See deploy/compose/env-read.sh.
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+
 ENV_FILE="${SCRIPT_DIR}/.env"
 KEY=TRIGGER_ACCESS_TOKEN
 
@@ -75,7 +81,7 @@ CONFIG="${TRIGGER_CLI_CONFIG:-${HOME}/.config/trigger/config.json}"
 # this shell first, then the file, then the CLI's own default.
 profile="${TRIGGER_CLI_PROFILE:-}"
 if [ -z "$profile" ] && [ -f "$ENV_FILE" ]; then
-  profile="$(grep -E '^TRIGGER_CLI_PROFILE=' "$ENV_FILE" | tail -1 | cut -d= -f2- | sed 's/[[:space:]].*$//' || true)"
+  profile="$(env_value "$ENV_FILE" TRIGGER_CLI_PROFILE)"
 fi
 profile="${profile:-default}"
 

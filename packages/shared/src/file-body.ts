@@ -64,6 +64,25 @@ export interface FileBody {
 export const MAX_BUFFERED_FILE_BYTES = 256 * 1024 * 1024;
 
 /**
+ * Above this, a file is read as a stream rather than into memory.
+ *
+ * Not the memory ceiling above (`MAX_BUFFERED_FILE_BYTES`, which is where a
+ * path that CANNOT stream gives up) — this is where streaming starts being
+ * worth its machinery. Deliberately far below that ceiling so the streaming
+ * path is exercised by ordinary files in ordinary runs, rather than only by
+ * the rare enormous one, where a defect would be found by a customer.
+ *
+ * It lives here, beside the ceiling and the seam it belongs to, because it is
+ * a property of the SEAM and not of any one protocol: every connector that
+ * moves to `FileBody` decides at the same size, so a file of a given size
+ * behaves the same whichever provider it came from. It was defined in
+ * `webdav-source.ts` while DAV was the only connector that had moved, and
+ * importing a DAV constant into the Graph connector would have said something
+ * untrue about where the rule comes from.
+ */
+export const STREAM_FILES_LARGER_THAN_BYTES = 8 * 1024 * 1024;
+
+/**
  * The refusal for a file too large for a path that cannot stream it.
  *
  * A SENTENCE, not a crash. The item lands in the failure queue like any other

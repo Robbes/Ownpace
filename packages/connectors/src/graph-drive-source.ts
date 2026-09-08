@@ -20,7 +20,7 @@ import type { FileSource, FileFolder, RawFileItem, SyncCursor, ThrottleLimiter, 
 import type { GraphDriveSourceConfig, GraphDriveItem, GraphDriveDeltaResponse, GraphDriveDeltaCursor, ParsedPath, NormalizePathOptions } from './graph-drive-source.types.ts';
 import { graphScopePrefix } from './graph-scope.ts';
 import type { HttpClient as _HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
-import { log } from '@openmig/shared';
+import { log, STREAM_FILES_LARGER_THAN_BYTES } from '@openmig/shared';
 
 /** The tick and the delegated scope this face needs — named in a refusal's way forward (0114 T6). */
 const FILES_FACE = { face: 'Files', scope: 'Files.Read' } as const;
@@ -387,26 +387,63 @@ export class GraphDriveSource implements FileSource {
     };
   }
 
+  /** The one GET that reads an item's bytes. Used buffered and streamed alike. */
+  private contentUrl(itemId: string): string {
+    return `${this.scope}/drive/items/${itemId}/content`;
+  }
+
+  /**
+   * Ask for an item's bytes, and hand back the response unread.
+   *
+   * Unread on purpose: the caller decides whether to buffer it or stream it,
+   * and a body read here would settle that question for both.
+   */
+  private async openContent(itemId: string): Promise<Response> {
+    return this.sendRaw({
+      url: this.contentUrl(itemId),
+      method: 'GET',
+      headers: { 'Accept': 'application/octet-stream' },
+    });
+  }
+
   /**
    * Fetch file content as Uint8Array.
+   *
+   * THIS USED TO DESTROY EVERY FILE THAT WAS NOT PLAIN TEXT.
+   *
+   * It read `makeRequest(...).body` — which is `await response.text()` — and
+   * then re-encoded it: `new TextEncoder().encode(response.body)`. A UTF-8
+   * decode followed by a UTF-8 re-encode is lossless only for input that IS
+   * valid UTF-8. Every other byte sequence became U+FFFD on the way in, and
+   * re-encoding cannot recover it: the bytes are gone at the decode, not at
+   * the encode.
+   *
+   * The same defect was found and fixed on the DAV path (see
+   * `webdav-source.ts`, where it was measured on a 476 KB JPEG that came back
+   * as 863 KB of replacement characters). It survived here because nothing
+   * downstream can notice: the ledger's `content_hash` is computed from
+   * whatever these bytes are, so the copy agrees with its own record and count
+   * parity is perfect. Every JPEG, PDF, MP4 and Office document copied out of
+   * OneDrive was corrupt, and the only thing able to see it is a reader
+   * opening the file at the far end.
+   *
+   * `arrayBuffer()` is the whole fix. There is no encoding step because there
+   * is no text: bytes come out as they went in.
    */
   private async fetchFileContent(itemId: string): Promise<Uint8Array> {
-    const url = `${this.scope}/drive/items/${itemId}/content`;
-    const response = await this.makeRequest({
-      url,
-      method: 'GET',
-      headers: {
-        'Accept': 'application/octet-stream',
-      },
-    });
+    const response = await this.openContent(itemId);
 
     if (response.status !== 200) {
-      throw new Error(graphFailure('Failed to download file', response, FILES_FACE));
+      throw new Error(
+        graphFailure(
+          'Failed to download file',
+          { status: response.status, body: await response.text() },
+          FILES_FACE,
+        ),
+      );
     }
 
-    // Convert response body to Uint8Array
-    const encoder = new TextEncoder();
-    return encoder.encode(response.body);
+    return new Uint8Array(await response.arrayBuffer());
   }
 
   /**
@@ -417,6 +454,55 @@ export class GraphDriveSource implements FileSource {
     const itemId = item.sourceRef;
     if (!itemId) {
       throw new Error(`Item missing sourceRef: ${JSON.stringify(item)}`);
+    }
+
+    /**
+     * A LARGE FILE ARRIVES AS A BODY, NOT AS BYTES (workplan 0120 T5).
+     *
+     * Below the threshold nothing changes: most files are small and a buffer
+     * is simpler than the machinery. Above it, holding the file was the whole
+     * ceiling — a file larger than the runner's RAM killed the process
+     * mid-pass, with no failure row and no sentence, which from a customer's
+     * side is a migration that stops on one file and never says which.
+     *
+     * The threshold is the LISTING's size (`item.size`, Graph's own `size`
+     * field), because it is the only figure available before the download
+     * starts. A source that under-reports costs one buffered read of something
+     * bigger than advertised — which is what every file did before this.
+     *
+     * `open()` re-issues the GET, because a body must be re-openable: a retry
+     * after a half-written upload starts from the beginning, and a stream that
+     * has been consumed cannot. A second GET is what "start again" means here.
+     */
+    if (item.size > STREAM_FILES_LARGER_THAN_BYTES) {
+      return {
+        item,
+        body: {
+          sizeBytes: item.size,
+          open: async () => {
+            const response = await this.openContent(itemId);
+            if (response.status !== 200) {
+              throw new Error(
+                graphFailure(
+                  `Failed to open ${item.path} for reading`,
+                  { status: response.status, body: await response.text() },
+                  FILES_FACE,
+                ),
+              );
+            }
+            if (!response.body) {
+              // A 200 with no body, on a file the listing gave a size to.
+              // Returning an empty stream here would write an empty file and
+              // record it as a copy — the worst outcome available to this
+              // code, which is why it is a throw and not a `?? empty`.
+              throw new Error(
+                `${item.path}: Graph answered ${response.status} with no body to read`,
+              );
+            }
+            return response.body;
+          },
+        },
+      };
     }
 
     // Fetch content
@@ -434,9 +520,36 @@ export class GraphDriveSource implements FileSource {
    * Make an authenticated HTTP request to Graph API.
    */
   private async makeRequest(options: HttpRequestOptions): Promise<HttpResponse> {
+    const response = await this.sendRaw(options);
+
+    const body = await response.text();
+    const headers: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+
+    return { status: response.status, body, headers };
+  }
+
+  /**
+   * One request, one retry policy, and the body left unread.
+   *
+   * Every Graph call in this file goes through here. It returns the `Response`
+   * rather than a decoded one because THE CALLER OWNS THE DECODE: JSON wants
+   * `text()`, a file wants `arrayBuffer()`, and a large file wants the stream
+   * and nothing else. Reading the body here is what made `fetchFileContent`
+   * text-decode a JPEG — the decision had already been taken for it, one
+   * layer down, for every response alike.
+   *
+   * This was two copies of the same closure (`executeRequest` and
+   * `doRequest`), identical but for which one ran inside the throttle
+   * limiter — so the retry-after handling had to be got right twice, and a
+   * change to one was a silent divergence from the other.
+   */
+  private async sendRaw(options: HttpRequestOptions): Promise<Response> {
     const token = await this.config.tokenProvider.getToken();
 
-    const executeRequest = async (): Promise<HttpResponse> => {
+    const attempt = async (): Promise<Response> => {
       const response = await fetch(options.url, {
         method: options.method,
         headers: {
@@ -446,68 +559,37 @@ export class GraphDriveSource implements FileSource {
         body: typeof options.body === 'string' ? options.body : undefined,
       });
 
-      const body = await response.text();
-      const headers: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
-        headers[key] = value;
-      });
-
       // Handle 429/503 responses with Retry-After
       if ((response.status === 429 || response.status === 503) && this.throttleLimiter) {
+        // Discard the throttle response's own body before asking again. An
+        // unread body holds its connection open, and a retry loop that leaks
+        // one per attempt exhausts the pool exactly when the provider has
+        // asked us to slow down.
+        await response.body?.cancel().catch(() => {});
         const retryAfter = response.headers.get('retry-after');
         const waitTime = this.throttleLimiter.handleRateLimited(response.status, retryAfter || undefined);
         await new Promise(resolve => setTimeout(resolve, waitTime));
-        return executeRequest(); // Retry
+        return attempt(); // Retry
       }
 
-      return {
-        status: response.status,
-        body,
-        headers,
-      };
+      return response;
     };
 
     // If throttling is enabled, use the throttle limiter
     if (this.throttleLimiter) {
-      const doRequest = async (): Promise<HttpResponse> => {
-        const response = await fetch(options.url, {
-          method: options.method,
-          headers: {
-            'Authorization': `Bearer ${token.accessToken}`,
-            ...options.headers,
-          },
-          body: typeof options.body === 'string' ? options.body : undefined,
-        });
-
-        const body = await response.text();
-        const headers: Record<string, string> = {};
-        response.headers.forEach((value, key) => {
-          headers[key] = value;
-        });
-
-        // Check for rate limited response and retry
-        if ((response.status === 429 || response.status === 503) && this.throttleLimiter) {
-          const retryAfter = response.headers.get('retry-after');
-          const waitTime = this.throttleLimiter.handleRateLimited(response.status, retryAfter || undefined);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          return doRequest(); // Retry
-        }
-
-        return {
-          status: response.status,
-          body,
-          headers,
-        };
-      };
-
       return this.throttleLimiter.executeWithThrottling(
         this.config.tenantId,
         this.provider,
-        doRequest,
+        attempt,
+        // `Headers` is not an object with keys — the limiter's default reader
+        // would index it and find nothing, so a 429 that reached the outer
+        // loop would back off on the default instead of on what Graph asked
+        // for.
+        (response) => response.headers.get('retry-after') ?? undefined,
       );
     }
 
-    return executeRequest();
+    return attempt();
   }
 
   /**
