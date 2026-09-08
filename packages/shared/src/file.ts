@@ -1,6 +1,8 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /** WebDAV file model for migration. */
 
+import type { FileBody } from './file-body.ts';
+
 /** File permissions (simplified). */
 export interface FilePermissions {
   readonly read: boolean;
@@ -45,6 +47,24 @@ export interface FileItem {
 export interface RawFileItem {
   readonly item: FileItem;
   readonly content?: Uint8Array; // Only present for files, not directories
+  /**
+   * The bytes WITHOUT holding them — a size and a way to read (see
+   * `FileBody`).
+   *
+   * Beside `content` rather than instead of it, and a source supplies one or
+   * the other. Small files stay buffered, which is simpler and is what almost
+   * every file is; a large one arrives as a body, and then nothing between the
+   * source and the target ever holds the whole of it. The ceiling this removes
+   * is the runner's RAM, which is not a property of the file, the customer or
+   * the provider — and crossing it killed the process rather than failing the
+   * item.
+   *
+   * A consumer that reads `content` alone still works on every source that has
+   * not moved; one that must handle both reads `content ?? body`, and a target
+   * that cannot stream refuses above `MAX_BUFFERED_FILE_BYTES` rather than
+   * trying.
+   */
+  readonly body?: FileBody;
 }
 
 /** File folder/collection. */

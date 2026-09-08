@@ -23,6 +23,7 @@ import {
   wellKnownUrl as buildWellKnownUrl,
   normalizeDavHref,
   davPathOf,
+  isSendableAsText,
 } from './dav-http.types.ts';
 import { parseRemovedHrefs } from './dav-removals.ts';
 
@@ -1132,10 +1133,26 @@ export class CarddavSource implements ContactSource {
 function createDefaultHttpClient(): HttpClient {
   return {
     async request(options: HttpRequestOptions): Promise<HttpResponse> {
+      // A BODY THIS CLIENT CANNOT SEND IS A REFUSAL, NOT A SILENCE.
+      //
+      // This read `typeof body === 'string' ? body : undefined`, which turns
+      // any other body into a request that goes out EMPTY — a PUT that blanks
+      // a resource and answers 204, with nothing anywhere saying why. Nothing
+      // hands this client bytes today; the point is that the day something
+      // does, it says so. (Streams belong to the WebDAV client, which carries
+      // files; see `HttpRequestOptions.body`.)
+      if (!isSendableAsText(options.body)) {
+        throw new Error(
+          `this DAV client sends XML and was handed a ${
+            options.body instanceof ReadableStream ? 'stream' : 'binary'
+          } body for ${options.method} ${options.url} — refusing rather than sending the ` +
+            'request without it, which would empty the resource and report success',
+        );
+      }
       const response = await fetch(options.url, {
         method: options.method,
         headers: options.headers,
-        body: typeof options.body === 'string' ? options.body : undefined,
+        body: options.body,
       });
 
       const body = await response.text();

@@ -276,7 +276,60 @@ export class WebdavFileSource implements FileSource {
     if (!item.sourceRef) {
       throw new Error(`WebDAV file has no sourceRef and cannot be fetched: ${item.path}`);
     }
-    const content = await this.fetchFileContent(this.resolveHref(item.sourceRef));
+    const url = this.resolveHref(item.sourceRef);
+
+    /**
+     * A LARGE FILE ARRIVES AS A BODY, NOT AS BYTES (workplan 0120).
+     *
+     * Below the threshold nothing changes: most files are small, a buffer is
+     * simpler, and one round trip per item is cheaper than the machinery.
+     * Above it, holding the file was the whole ceiling — a file larger than
+     * the runner's RAM killed the process mid-pass, with no failure row and no
+     * sentence, which from a customer's side is a migration that stops on one
+     * file and never says which.
+     *
+     * The threshold is the LISTING's size, which is the only figure available
+     * before the download starts — that is the point of using it. A source
+     * that lies about size costs a buffered read of something bigger than
+     * advertised, which is what happened to every file before this.
+     *
+     * `open()` re-issues the GET, because a body must be re-openable: a retry
+     * after a half-written upload starts from the beginning, and a stream that
+     * has been consumed cannot. A second GET is what "start again" means here.
+     */
+    if (item.size > STREAM_FILES_LARGER_THAN_BYTES) {
+      return {
+        item,
+        body: {
+          sizeBytes: item.size,
+          open: async () => {
+            const response = await this.send({
+              method: 'GET',
+              url,
+              headers: { Authorization: this.getAuthorizationHeader() },
+              stream: true,
+            });
+            if (response.status !== 200 && response.status !== 204) {
+              throw new Error(
+                `Failed to open ${item.path} for reading: HTTP ${response.status}`,
+              );
+            }
+            if (!response.bodyStream) {
+              // A 200 with no body, on a file the listing gave a size to.
+              // Returning an empty stream here would write an empty file and
+              // record it as a copy — the worst outcome available to this
+              // code, and the reason `fetchRaw` refuses a missing body too.
+              throw new Error(
+                `${item.path}: the server answered ${response.status} with no body to read`,
+              );
+            }
+            return response.bodyStream;
+          },
+        },
+      };
+    }
+
+    const content = await this.fetchFileContent(url);
     return { item, content };
   }
 
@@ -833,6 +886,17 @@ export class WebdavFileSource implements FileSource {
 /**
  * Create a default HTTP client using Node.js fetch.
  */
+/**
+ * Above this, a file is read as a stream rather than into memory.
+ *
+ * Not the memory ceiling (`MAX_BUFFERED_FILE_BYTES`, which is where a path
+ * that CANNOT stream gives up) — this is where streaming starts being worth
+ * its machinery. Deliberately far below that ceiling so the streaming path is
+ * exercised by ordinary files in ordinary runs, rather than only by the rare
+ * enormous one, where a defect would be found by a customer.
+ */
+export const STREAM_FILES_LARGER_THAN_BYTES = 8 * 1024 * 1024;
+
 function createDefaultHttpClient(): HttpClient {
   return {
     async request(options: HttpRequestOptions): Promise<HttpResponse> {
@@ -852,11 +916,49 @@ function createDefaultHttpClient(): HttpClient {
         );
       }
 
-      const response = await fetch(options.url, {
+      /**
+       * A STREAMED REQUEST BODY, which is how a file larger than this process
+       * gets uploaded at all (see `FileBody`).
+       *
+       * `duplex: 'half'` is not optional: Node's fetch REFUSES a stream body
+       * without it ("RequestInit: duplex option is required when sending a
+       * body"), and the refusal is a TypeError at the call rather than
+       * anything about the file — so it looks like a bug in the connector.
+       * It is absent from the DOM's own typings, which is why the cast is
+       * here and not somewhere it would be easy to delete as noise.
+       */
+      const streaming = options.body instanceof ReadableStream;
+      const init: RequestInit = {
         method: options.method,
         headers: options.headers,
-        body: body as string | ArrayBuffer | Uint8Array | Buffer | undefined,
-      });
+        body: (streaming
+          ? options.body
+          : body) as RequestInit['body'],
+        ...(streaming ? ({ duplex: 'half' } as Record<string, unknown>) : {}),
+      };
+      const response = await fetch(options.url, init);
+
+      /**
+       * A STREAMED RESPONSE, for the same reason in the other direction.
+       *
+       * Handed back unread: `arrayBuffer()` below is the ceiling this option
+       * exists to remove, and calling it here "just to be safe" would remove
+       * the point instead. `body` is empty on this path and `bodyBytes` is
+       * absent — the response type says so, and a caller reading either is
+       * reading a body nobody buffered.
+       */
+      if (options.stream) {
+        const streamHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+          streamHeaders[key] = value;
+        });
+        return {
+          status: response.status,
+          body: '',
+          ...(response.body ? { bodyStream: response.body } : {}),
+          headers: streamHeaders,
+        };
+      }
 
       // Read the bytes once. Reading `.text()` alone left no way to get file
       // content back: the decode is lossy for anything that is not valid

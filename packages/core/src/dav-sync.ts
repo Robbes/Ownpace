@@ -310,18 +310,36 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     // someone's files is the worst failure this code can produce, and both
     // halves of verification would have agreed it was fine.
     fetchRaw: async (item) => {
-      const content = item.content ?? (await source.fetch(item.item)).content;
-      if (!content) {
+      /**
+       * BYTES OR A BODY, and a source produces one of the two (workplan 0120).
+       *
+       * The listing carries neither — it is metadata — so the fetch happens
+       * here, inside the loop's bounded concurrency. What changed is that a
+       * large file now arrives as a `FileBody`: a size and a way to read,
+       * which nothing between here and the target ever holds in full. Below
+       * the source's own threshold it is still a buffer, because most files
+       * are small and a buffer is simpler.
+       */
+      const fetched = item.content ? { content: item.content } : await source.fetch(item.item);
+      const content = fetched.content;
+      const body = 'body' in fetched ? fetched.body : undefined;
+      if (!content && !body) {
         // A source that lists a file and then cannot produce its bytes is
         // broken; writing an empty file in its place is not a recovery.
         throw new Error(`File source returned no content for ${item.item.path}`);
       }
       return {
-        raw: { item: item.item, content } as RawFileItem,
-        // Prefer the bytes we actually hold over the listing's advertised size
-        // — same reasoning as mail, where a missing `size` silently zeroed the
-        // whole domain's byte total.
-        sizeBytes: content.length || (item.item?.size ?? 0),
+        raw: {
+          item: item.item,
+          ...(content ? { content } : {}),
+          ...(body ? { body } : {}),
+        } as RawFileItem,
+        // Prefer what we actually hold over the listing's advertised size —
+        // same reasoning as mail, where a missing `size` silently zeroed the
+        // whole domain's byte total. A body's size is the source's own figure
+        // for the file it is about to stream, which is the best number
+        // available before a byte has moved.
+        sizeBytes: content?.length || body?.sizeBytes || (item.item?.size ?? 0),
       };
     },
     upsert: async (parentId, raw, _item, options) =>
