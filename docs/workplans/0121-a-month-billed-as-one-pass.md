@@ -285,9 +285,10 @@ is left in place holding what #865 put there.
    exhausted pool was reported to the customer as their mail failing to migrate.
 3. **The window is half-open.** `periodEnd` is a DATE, so `<= periodEnd` is midnight and
    drops the whole last day of the month. `deriveComputeForPeriod` asks for
-   `< periodEnd + 1 day`. **`deriveStorageAndEgressForPeriod` still uses `lte` and therefore
-   still under-counts the last day of every period** — same class of error, different figure,
-   deliberately not fixed here because it changes a billed number.
+   `< periodEnd + 1 day`. `deriveStorageAndEgressForPeriod` had the same bug and was raised
+   rather than fixed in that PR, because it moves a billed figure — **fixed separately on the
+   owner's go-ahead, 2026-09-08**, with both derivations now sharing `billingWindow` so they
+   cannot drift apart again.
 4. **`/api/billing/usage/history` had to be rewritten.** It summed `usage_metric` directly,
    so with no writer it would have answered zero for every month — indistinguishable from a
    customer who never synced. It now derives per month, taking the months from the run
