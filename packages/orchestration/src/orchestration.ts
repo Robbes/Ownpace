@@ -45,6 +45,8 @@ import {
   taskNaturalKeyHash,
   contactNaturalKeyHash,
   fileNaturalKeyHash,
+  budgetPauseToReason,
+  type BudgetPause,
 } from '@openmig/shared';
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps, type LedgerOptions } from './build-deps.ts';
@@ -353,6 +355,24 @@ export async function runAllDomains(
     // longer this domain's result.
     let outcome: DomainSyncResult | undefined;
 
+    /**
+     * A PAUSED DOMAIN IS NOT A COMPLETED ONE — the appliance's half.
+     *
+     * The byte ceiling (workplan 0090 T4) has reached this function since
+     * 2026-08-26 with nobody reading it: every branch below dropped
+     * `budgetPause` on the floor and fell through to `markCompleted`, so an
+     * appliance copying a Gmail mailbox stopped at 2 500 MB and reported the
+     * mailbox finished. The managed dispatcher had the same hole and it was
+     * closed there first; leaving this one open would be exactly the edition
+     * split hard rule 5 forbids, in the edition where the owner has nobody to
+     * phone about it.
+     *
+     * The pass deadline is NOT read here, and that is not an omission: it is
+     * the runner's kill this appliance does not have, so no pass here has a
+     * deadline to reach.
+     */
+    let budgetPause: BudgetPause | undefined;
+
     try {
       // Each builder opens a Postgres pool; always release it after the pass
       // (finally) so a long-running scheduler never leaks a pool per domain.
@@ -360,6 +380,8 @@ export async function runAllDomains(
         const deps = await buildDeps(config, ledger);
         try {
           const result = await runShadowPass(deps);
+          // The day's ceiling, carried out of the branch (see budgetPause above).
+          budgetPause = result.budgetPause;
           outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, moved: result.moved ?? 0, failed: 0 };
           // Said out loud, every pass. Quietly not copying someone's Deleted
           // Items is the same class of failure as quietly copying it, and this
@@ -378,6 +400,8 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'calendar', ledger);
         try {
           const result = await runCalendarSync(deps);
+          // The day's ceiling, carried out of the branch (see budgetPause above).
+          budgetPause = result.budgetPause;
           outcome = {
             domain,
             scanned: result.scanned,
@@ -400,6 +424,8 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'contact', ledger);
         try {
           const result = await runContactSync(deps);
+          // The day's ceiling, carried out of the branch (see budgetPause above).
+          budgetPause = result.budgetPause;
           outcome = {
             domain,
             scanned: result.scanned,
@@ -438,6 +464,8 @@ export async function runAllDomains(
         const deps = buildDomainDeps(config, 'task', ledger);
         try {
           const result = await runTaskSync(deps);
+          // The day's ceiling, carried out of the branch (see budgetPause above).
+          budgetPause = result.budgetPause;
           outcome = {
             domain,
             scanned: result.scanned,
@@ -468,6 +496,8 @@ export async function runAllDomains(
               ? { targetFolderPrefix: config.targetFolderPrefix }
               : {}),
           });
+          // The day's ceiling, carried out of the branch (see budgetPause above).
+          budgetPause = result.budgetPause;
           outcome = {
             domain,
             scanned: result.scanned,
@@ -523,7 +553,24 @@ export async function runAllDomains(
       }
 
       results.push(outcome);
-      await statusStore.markCompleted(tenantId, mappingId, domain, outcome.metrics);
+      if (budgetPause) {
+        // Stopped, not finished. See `budgetPause` above for why this branch
+        // exists at all. The pass metrics are still recorded — they measure
+        // the work this pass DID, which is real however it ended — but the
+        // domain keeps its `in_progress` state and gains a reason.
+        await statusStore.markPaused(tenantId, mappingId, domain, budgetPauseToReason(budgetPause));
+        log.info(
+          `[Worker] ${domain}: stopped at the day's download budget for ${budgetPause.provider} ` +
+            `(${budgetPause.spentBytes} of ${budgetPause.ceilingBytes} bytes)` +
+            (budgetPause.windowResetsAt
+              ? `, which resets at ${budgetPause.windowResetsAt}`
+              : '') +
+            '. Nothing failed and nothing is owed a retry; the cursors stayed where they are ' +
+            'and the next scheduled pass continues from them.',
+        );
+      } else {
+        await statusStore.markCompleted(tenantId, mappingId, domain, outcome.metrics);
+      }
       recordPassMetrics(tenantId, mappingId, domain, outcome);
       // `adopted` is reported alongside the rest: a pass that created nothing
       // because the destination already held the data reads very differently

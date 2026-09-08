@@ -33,6 +33,21 @@ export interface ComputeUsageInput {
   tenantId: TenantId;
   mappingId: MappingId;
   domain: DiscoveryDomain;
+  /**
+   * WHICH PASS this measurement is of (workplan 0121).
+   *
+   * The row's key, not a label. Before this, compute was keyed by
+   * (tenant, period, metricType, `domain-<domain>`) and the write REPLACED —
+   * so a period's compute for a domain was the duration of the LAST pass
+   * metered in it, while the invoice line said "compute hours". A month of
+   * 15-minute passes billed one pass.
+   *
+   * Keyed by the run instead, the write is still idempotent — a Trigger.dev
+   * retry of the same run rewrites its OWN row rather than adding a second —
+   * and the read sums, which it already did. That is the whole change: the
+   * same upsert, a narrower key.
+   */
+  runId: string;
   startedAt: Date;
   completedAt: Date;
   periodStart: string;
@@ -43,8 +58,22 @@ export interface ApiCallUsageInput {
   tenantId: TenantId;
   mappingId: MappingId;
   domain: DiscoveryDomain;
+  /** Which pass — see `ComputeUsageInput.runId`. Same key, same reason. */
+  runId: string;
   periodStart: string;
   periodEnd: string;
+}
+
+/**
+ * The row key for one measurement of one pass.
+ *
+ * ONE function, used by both meters, because the property that matters is
+ * that the key is per-run and both of them have it — a metric keyed per
+ * period behaves completely reasonably on its own and is simply wrong when
+ * summed beside one that is not.
+ */
+export function perPassResource(kind: 'domain' | 'sync', domain: string, runId: string): string {
+  return `${kind}-${domain}#${runId}`;
 }
 
 /**
@@ -90,13 +119,34 @@ export async function deriveStorageAndEgressForPeriod(
 }
 
 /**
- * Record compute usage via idempotent upsert.
- * 
- * Called at job completion to record the duration of a sync run.
- * Uses onConflictDoUpdate to REPLACE rather than increment, making it retry-safe.
- * 
+ * Record compute usage for ONE PASS, via idempotent upsert.
+ *
+ * ## What was wrong with it
+ *
+ * The key was (tenantId, periodStart, metricType, `domain-<domain>`) and the
+ * write REPLACES rather than increments — which is what makes it retry-safe,
+ * and is also what made the number mean the wrong thing. One row per domain
+ * per PERIOD, overwritten by each pass, so a month of 15-minute passes
+ * recorded the duration of the LAST one. The invoice line said "compute
+ * hours" and carried the length of a single pass: at a 20-second pass and
+ * €0.05/hour, €0.00 for a month of continuous copying.
+ *
+ * ## The fix, which is a narrower key and nothing else
+ *
+ * The row is keyed by the RUN as well, so each pass has its own and the
+ * period's compute is their sum — which is what the read already did
+ * (`getUsageMetricsForPeriod`). The upsert stays: a Trigger.dev retry of the
+ * same run rewrites its own row rather than adding a second, so retry-safety
+ * is kept rather than traded away. That was the whole objection to simply
+ * making the write accumulate.
+ *
+ * Owner's decision, 2026-09-08, chosen over accumulate-in-place and over
+ * leaving it: *"the actual measures of compute are for me to understand if the
+ * pricing is somewhat balanced and fair"* — which needs the per-pass grain,
+ * not only a correct total.
+ *
  * Key: (tenantId, periodStart, metricType, resource)
- * where resource = `domain-${domain}` for compute
+ * where resource = `domain-<domain>#<runId>` for compute
  * 
  * @param db - PostgreSQL database client (already tenant-scoped)
  * @param input - Compute usage input with timing info
@@ -109,7 +159,15 @@ export async function recordComputeForRun(
 ): Promise<void> {
   const durationMinutes = (input.completedAt.getTime() - input.startedAt.getTime()) / (1000 * 60);
   const durationHours = durationMinutes / 60;
-  const cost = Math.round(durationHours * pricing.computePricePerHour);
+  // EXACT, not rounded to the cent. `total_cost` is `numeric`, and once the
+  // row is per PASS the rounding that used to happen once a month happens
+  // 2 976 times: at €0.05/hour a 20-second pass costs 0.028 cents, which
+  // `Math.round` makes 0, and a month of them sums to 0 while the same passes
+  // sum to 16.5 real hours. The invoice never read this column — it prices the
+  // SUMMED hours through `calculateCost`, which rounds once, at the end, where
+  // rounding belongs — but the usage history does, and it would have shown a
+  // month of work costing nothing beside a cost line saying otherwise.
+  const cost = durationHours * pricing.computePricePerHour;
 
   await db.insert(schema.usageMetric)
     .values({
@@ -117,7 +175,7 @@ export async function recordComputeForRun(
       periodStart: input.periodStart,
       periodEnd: input.periodEnd,
       metricType: 'compute',
-      resource: `domain-${input.domain}`,
+      resource: perPassResource('domain', input.domain, input.runId),
       quantity: String(durationHours),
       unit: 'hours',
       unitPrice: String(pricing.computePricePerHour),
@@ -125,6 +183,7 @@ export async function recordComputeForRun(
       metadata: {
         mappingId: input.mappingId,
         domain: input.domain,
+        runId: input.runId,
         startedAt: input.startedAt.toISOString(),
         completedAt: input.completedAt.toISOString(),
         durationMinutes,
@@ -146,13 +205,16 @@ export async function recordComputeForRun(
 }
 
 /**
- * Record API call usage via idempotent upsert.
- * 
- * Called at job completion to record one sync operation.
- * Uses onConflictDoUpdate to REPLACE rather than increment.
- * 
+ * Record ONE sync operation, via idempotent upsert.
+ *
+ * The same defect as compute above and the same fix: keyed per period and
+ * overwritten with `quantity: '1'`, the count of sync operations in a month
+ * was the number of DOMAINS that had ever run in it — never more than five,
+ * whether the mapping synced twice or three thousand times. Keyed by the run,
+ * each pass is its own row and the read's sum is the count.
+ *
  * Key: (tenantId, periodStart, metricType, resource)
- * where resource = `sync-${domain}` for api_calls
+ * where resource = `sync-<domain>#<runId>` for api_calls
  * 
  * @param db - PostgreSQL database client (already tenant-scoped)
  * @param input - API call usage input
@@ -167,7 +229,7 @@ export async function recordApiCallForRun(
       periodStart: input.periodStart,
       periodEnd: input.periodEnd,
       metricType: 'api_calls',
-      resource: `sync-${input.domain}`,
+      resource: perPassResource('sync', input.domain, input.runId),
       quantity: '1',
       unit: 'request',
       unitPrice: '0',
@@ -175,6 +237,7 @@ export async function recordApiCallForRun(
       metadata: {
         mappingId: input.mappingId,
         domain: input.domain,
+        runId: input.runId,
       },
     })
     .onConflictDoUpdate({

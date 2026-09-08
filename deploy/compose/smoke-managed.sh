@@ -3861,6 +3861,85 @@ if [ -n "${STACK_ISSUER:-}" ]; then
       fail_at
     fi
 
+    # ---------- THE DRAIN, AND THE SENTENCE IT PUTS ON A CUSTOMER'S SCREEN ----------
+    #
+    # A hold stops the sync tick starting new passes while the platform is
+    # updated (managed migration 0023). Two halves, and only one of them is
+    # visible from an operator's side:
+    #
+    #   - only an operator may declare one. The route runs on
+    #     `authenticateSubject`, which asks for a token and nothing more, so
+    #     what refuses a customer is the `WHERE EXISTS (platform_operator …)`
+    #     inside the write and the policy behind it. Both are the database's,
+    #     and neither can be checked from a unit test against a mock.
+    #   - every signed-in customer may READ the open one. That is the whole
+    #     point: it is the sentence explaining why their migration stopped,
+    #     and a hold nobody can read is a drain that looks like a breakage.
+    #
+    # Held for three HTTP calls and lifted in the same block. The tick fires
+    # once a minute, so the worst this costs is one skipped firing, and every
+    # sync this gate cares about is triggered explicitly rather than waited for.
+    #
+    # A STALE ONE FIRST, for the window where a run died between the two:
+    # same backstop as the operator row above, and for the same reason — an
+    # open hold outliving a run would stop syncs on a demo stack for ever.
+    q "UPDATE platform_pause SET ended_at = now(), ended_by = 'smoke backstop'
+        WHERE ended_at IS NULL" >/dev/null 2>&1 || true
+
+    ph="$(http GET "$API/api/platform-pause" "$VERIFY_TOKEN")"
+    ph_held="$(jq -r '.held' <<<"${ph#* }" 2>/dev/null || echo '?')"
+    if [ "${ph%% *}" = "200" ] && [ "$ph_held" = "false" ]; then
+      echo "no hold is open, and a customer is told so as a shape rather than a 404"
+    else
+      echo "platform hold (customer, before): HTTP ${ph%% *}, .held -> ${ph_held}"
+      fail_at
+    fi
+
+    # A CUSTOMER CANNOT DECLARE ONE, and is told nothing — 404, because to the
+    # database there is nothing there to refuse.
+    ph="$(http POST "$API/api/platform-pause" "$VERIFY_TOKEN" '{"message":"mine now"}')"
+    ph_open="$(q "SELECT count(*) FROM platform_pause WHERE ended_at IS NULL" 2>/dev/null || echo '?')"
+    if [ "${ph%% *}" = "404" ] && [ "$ph_open" = "0" ]; then
+      echo "a customer cannot hold the platform: HTTP 404, and no row was written"
+    else
+      echo "a customer holding the platform: HTTP ${ph%% *}, open holds -> ${ph_open} — THE DRAIN IS ANYBODY'S"
+      fail_at
+    fi
+
+    ph="$(http POST "$API/api/platform-pause" "$OP_TOKEN" '{"message":"Gate hold, lifted in a moment."}')"
+    ph_held="$(jq -r '.held' <<<"${ph#* }" 2>/dev/null || echo '?')"
+    if [ "${ph%% *}" = "201" ] && [ "$ph_held" = "true" ]; then
+      echo "an operator holds the platform: HTTP 201"
+    else
+      echo "an operator holding the platform: HTTP ${ph%% *}, .held -> ${ph_held} — ${ph#* }"
+      fail_at
+    fi
+
+    # AND THE CUSTOMER READS THE OPERATOR'S OWN WORDS. Verbatim: a paraphrase
+    # would be a different claim, and the default sentence exists precisely so
+    # that this one does not have to be invented.
+    ph="$(http GET "$API/api/platform-pause" "$VERIFY_TOKEN")"
+    ph_held="$(jq -r '.held' <<<"${ph#* }" 2>/dev/null || echo '?')"
+    ph_msg="$(jq -r '.message // ""' <<<"${ph#* }" 2>/dev/null || echo '')"
+    if [ "${ph%% *}" = "200" ] && [ "$ph_held" = "true" ] &&
+       [ "$ph_msg" = "Gate hold, lifted in a moment." ]; then
+      echo "a customer reads the hold and the operator's own sentence"
+    else
+      echo "platform hold (customer, during): HTTP ${ph%% *}, .held -> ${ph_held}, .message -> ${ph_msg}"
+      fail_at
+    fi
+
+    ph="$(http DELETE "$API/api/platform-pause" "$OP_TOKEN")"
+    ph_after="$(http GET "$API/api/platform-pause" "$VERIFY_TOKEN")"
+    ph_held="$(jq -r '.held' <<<"${ph_after#* }" 2>/dev/null || echo '?')"
+    ph_kept="$(q "SELECT count(*) FROM platform_pause WHERE ended_by = '${OP_SUBJECT}'" 2>/dev/null || echo '?')"
+    if [ "${ph%% *}" = "200" ] && [ "$ph_held" = "false" ] && [ "$ph_kept" = "1" ]; then
+      echo "the hold was lifted, and the row that says who and when was kept"
+    else
+      echo "lifting the hold: HTTP ${ph%% *}, .held after -> ${ph_held}, closed rows by this operator -> ${ph_kept}"
+      fail_at
+    fi
+
     q "DELETE FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" >/dev/null
     left="$(q "SELECT count(*) FROM platform_operator WHERE user_id = '${OP_SUBJECT}'" 2>/dev/null || echo '?')"
     if [ "$left" = "0" ]; then

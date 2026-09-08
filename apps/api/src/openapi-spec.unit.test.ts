@@ -95,6 +95,11 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   // The operator's support surface (workplan 0110 T4). Its own prefix because
   // nothing under it resolves a tenant — these read across all of them.
   { prefix: '/api/support', files: ['src/routes/support.ts'] },
+  // The operator hold (managed migration 0023). Its own prefix because the
+  // READ is a customer's — the sentence explaining their own screen — while
+  // the writes are an operator's, and everything under `/api/support` is
+  // unreachable by anyone else.
+  { prefix: '/api/platform-pause', files: ['src/routes/platform-pause.ts'] },
 ];
 
 const METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;

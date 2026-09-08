@@ -77,10 +77,39 @@ describe('self-host /status secret hygiene (T4)', () => {
         'itemsNeedingDecision',
         'itemsRetrying',
         'itemsSynced',
+        // When a pass last touched this domain, so a first copy that has not
+        // completed anything yet does not read as a dead migration. A
+        // timestamp: no path, no address, no name.
+        'lastActiveAt',
         'lastSyncedAt',
         'state',
       ].sort(),
     );
+  });
+
+  it('a paused domain says why, and the reason names no file and no address', () => {
+    // `paused_reason` is jsonb on a row this formatter serialises whole, so
+    // "what may be inside it" is a hygiene question and not only a product
+    // one. A provider's ENDPOINT HOST and a window reset time; nothing else.
+    const base = statusWithHiddenSecret();
+    const paused: MigrationStatus = {
+      ...base,
+      state: 'in_progress',
+      pausedReason: {
+        kind: 'daily-download-ceiling',
+        provider: 'imap.gmail.com',
+        windowResetsAt: '2026-09-09T06:00:00.000Z',
+      },
+    };
+    const report = buildStatusReport([
+      { mappingId: 'm1', migrationStatus: 'active', statuses: [paused] },
+    ]);
+    const domain = report.mappings[0]!.domains[0]!;
+    expect(domain.pausedReason).toEqual(paused.pausedReason);
+    expect(Object.keys(domain.pausedReason!).sort()).toEqual(
+      ['kind', 'provider', 'windowResetsAt'].sort(),
+    );
+    expect(JSON.stringify(report)).not.toContain(SECRET);
   });
 
   it('passes a benign lastError through verbatim (§11.2) without inventing content', () => {

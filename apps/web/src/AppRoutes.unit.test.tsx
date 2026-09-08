@@ -12,6 +12,7 @@
  */
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { editionFlag, authFlag, whoFlag } = vi.hoisted(() => ({
@@ -81,11 +82,25 @@ vi.mock('./pages/NotFound', () => ({ default: () => <div>screen:not-found</div> 
 
 import AppRoutes from './AppRoutes.tsx';
 
+/**
+ * A QueryClient, because `Layout` now asks a question.
+ *
+ * The layout carries the platform-hold notice (managed migration 0023) — on
+ * every signed-in screen, because a hold stops copying for every migration a
+ * person has. `App.tsx` wraps the router in a provider; this mirrors it, and
+ * a test that renders routes without one is modelling an app that does not
+ * exist. `retry: false` so a failed read is one attempt with no timer left
+ * running behind the assertion.
+ */
 const renderAt = (path: string) =>
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <AppRoutes />
-    </MemoryRouter>,
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MemoryRouter initialEntries={[path]}>
+        <AppRoutes />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 beforeEach(() => {

@@ -34,6 +34,7 @@ export * from './offboarding.ts';
 export * from './migrate-managed.ts';
 export * as managedSchema from './schema-managed.ts';
 export * from './support-read-log.ts';
+export * from './platform-pause.ts';
 export * from './vies.ts';
 export * from './vat-treatment.ts';
 export * from './moneybird-tax-rates.ts';

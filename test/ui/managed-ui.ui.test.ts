@@ -94,6 +94,21 @@ const TOKEN = [
  * suite to accept a UI that could never work against the real one.
  */
 const FIXTURES: Record<string, unknown> = {
+  /**
+   * ASKED ON EVERY SIGNED-IN SCREEN, because that is where the answer belongs.
+   *
+   * `PlatformPauseBanner` sits in the layout: an operator hold stops copying
+   * for every migration a person has, so a notice on one of their pages would
+   * be the same silence one click away. That makes this the second fixture,
+   * after the build stamp, that every single page in this suite needs — and
+   * without it the browser logs a 404 for a resource on every load, which is
+   * exactly what `expectClean` is watching for.
+   *
+   * `held: false` is the shape the route answers when nothing is held. Not a
+   * 404: "we asked and the answer is no" and "we could not ask" must not look
+   * the same to the screen, and the banner renders nothing for either.
+   */
+  [`GET /api/platform-pause`]: { held: false },
   // The build stamp in the sidebar asks the server what IT is running
   // (services/build-identity.ts). Answered from the ROOT package.json rather
   // than a literal, for the same reason every other consumer reads it there:

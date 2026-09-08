@@ -23,6 +23,7 @@ import { useLocale } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { LOCALES } from '../i18n/strings.ts';
 import BuildStamp from './BuildStamp.tsx';
+import PlatformPauseBanner from './PlatformPauseBanner.tsx';
 import {
   activeNavHref,
   mappingRouteContext,
@@ -344,6 +345,13 @@ const Layout: React.FC = () => {
             keyboard float an overlay above the viewport bottom, which hid the
             wizard's Next button behind it with nothing left to scroll to. */}
         <main className="p-4 pb-24 lg:p-8 lg:pb-8">
+          {/* An operator hold, above whatever screen this is (migration
+              0023). Here rather than on one page because a hold is
+              platform-wide: it stops copying for every migration this person
+              has, so a notice on one of them would be the same silence one
+              click away. Renders nothing when nothing is held, and nothing on
+              the appliance, which has no such thing. */}
+          <PlatformPauseBanner />
           <Outlet />
         </main>
       </div>

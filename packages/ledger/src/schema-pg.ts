@@ -1105,6 +1105,16 @@ export const migrationStatus = pgTable(
      * Counts and durations only — never folder names or addresses.
      */
     lastPassMetrics: jsonb('last_pass_metrics'),
+    /**
+     * Why this domain stopped ON PURPOSE, when it did — migration 0041.
+     *
+     * A pause is not a state: `in_progress` already says the true thing about
+     * a domain whose cursors are where the last pass left them. What was
+     * missing was the reason, and without it a byte-ceiling stop was written
+     * as `completed` — a half-copied mailbox with a "last synced" time beside
+     * it. NULL means nothing is holding this domain up.
+     */
+    pausedReason: jsonb('paused_reason'),
   },
   (t) => [
     uniqueIndex('uk_migration_status_tenant_mapping_domain').on(

@@ -22,6 +22,7 @@ import {
   type FileSyncDeps,
   failureSideOf,
 } from '@openmig/core';
+import { budgetPauseToReason } from '@openmig/shared';
 import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
@@ -309,6 +310,11 @@ export const runDeltaSync = schemaTask({
             await status.markInProgress(tenantId, mappingId, domain);
           });
 
+          // What the metering below bills — see the comment there for why the
+          // pass measures itself rather than reading a window back off the
+          // status row. Taken after the row is opened so the two agree.
+          const domainPassStartedAt = new Date();
+
           // Build + run + release the deps' pool per domain. Literal domain
           // args pick the right overload; the finally never leaks the pool.
           let result: {
@@ -424,7 +430,29 @@ export const runDeltaSync = schemaTask({
               await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);
             });
           } else {
-            // Said on the run, in the words the reader needs: WHICH clock ran
+            /**
+             * The customer's half of the same fact — but only for the ceiling.
+             *
+             * A deadline pause happens on EVERY pass of a large migration by
+             * design, so putting it on the customer's screen would train
+             * people to scroll past a notice that is then in the way on the
+             * day the ceiling or an operator hold fires. It is reported in
+             * full in the run log below, where an engineer looks. The ceiling
+             * is the opposite: hours long, invisible, and indistinguishable
+             * from a dead migration.
+             */
+            if (result.budgetPause) {
+              const reason = budgetPauseToReason(result.budgetPause);
+              await withTenant(pool, tenantId, async (db) => {
+                await new PgMigrationStatusStore(db).markPaused(
+                  tenantId,
+                  mappingId,
+                  domain,
+                  reason,
+                );
+              });
+            }
+            // And on the run, in the words the reader needs: WHICH clock ran
             // out, and that nothing failed. 'info' rather than 'warn' — a
             // scheduled pause is the system working, and colouring it as a
             // problem is how an owner comes to distrust a migration that is
@@ -468,27 +496,55 @@ export const runDeltaSync = schemaTask({
               { domain, created: result.created, skipped: result.skipped });
           });
 
-          // Metering (all domains): record compute + one sync op from the run's
-          // migration_status timing, priced at THIS TENANT's agreed rates
-          // (pinned when the tenant was first billed — the operator's template
-          // moves on, an existing customer's prices do not). Guarded — skips
-          // cleanly if status is absent.
+          /**
+           * Metering (all domains): compute + one sync op for THE PASS THAT
+           * JUST RAN, priced at this tenant's agreed rates (pinned when the
+           * tenant was first billed — the operator's template moves on, an
+           * existing customer's prices do not).
+           *
+           * ## Measured here, not read back off the status row
+           *
+           * This used to re-read `migration_status` and meter
+           * `completedAt - startedAt`, gated on `completedAt` being set. That
+           * window is only this pass's duration when this pass COMPLETED.
+           * `markInProgress` writes `started_at = now()` at the top of every
+           * pass while `completed_at` still holds the PREVIOUS pass's finish,
+           * so for a pass that ran and did not complete — one that paused at
+           * the day's ceiling, or at its own deadline — the subtraction is
+           * `oldCompletion - thisPassStart`, which is NEGATIVE. A negative
+           * quantity and a negative cost, on a pass that did real work: a
+           * credit for copying somebody's mail.
+           *
+           * The pass's own wall clock cannot be wrong about which pass it
+           * measured, so it is used instead. Reached only on the success path,
+           * which keeps the existing policy — a pass that threw is not billed
+           * — while a pass that paused is billed for the compute it actually
+           * spent, because it spent it.
+           *
+           * The row is keyed by the RUN (workplan 0121), so each pass's
+           * measurement is its own and the period's compute is their sum.
+           * Before that it was keyed per period and REPLACED, which is what
+           * made it retry-safe and also what made it mean the wrong thing: a
+           * month of 15-minute passes recorded the duration of the last one.
+           * The upsert is unchanged — a retry of this run rewrites its own
+           * row — so retry-safety was kept rather than traded away.
+           */
+          const passEndedAt = new Date();
           await withTenant(pool, tenantId, async (db) => {
-            const statusStore = new PgMigrationStatusStore(db);
-            const statusList = await statusStore.getStatus(tenantId, mappingId);
-            const domainStatus = statusList.find((s) => s.domain === domain);
-            if (domainStatus && domainStatus.completedAt) {
-              await recordComputeForRun(db, {
-                tenantId,
-                mappingId,
-                domain,
-                startedAt: new Date(domainStatus.startedAt),
-                completedAt: new Date(domainStatus.completedAt),
-                periodStart,
-                periodEnd,
-              }, await resolveTenantPricing(db, tenantId));
-              await recordApiCallForRun(db, { tenantId, mappingId, domain, periodStart, periodEnd });
-            }
+            await recordComputeForRun(db, {
+              tenantId,
+              mappingId,
+              domain,
+              // The row's KEY, so this pass's measurement is its own and the
+              // period's compute is their sum. A retry of this run rewrites
+              // this row rather than adding another (workplan 0121).
+              runId,
+              startedAt: domainPassStartedAt,
+              completedAt: passEndedAt,
+              periodStart,
+              periodEnd,
+            }, await resolveTenantPricing(db, tenantId));
+            await recordApiCallForRun(db, { tenantId, mappingId, domain, runId, periodStart, periodEnd });
           });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
