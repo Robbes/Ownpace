@@ -142,11 +142,13 @@ describe('a scan that uploaded nothing cannot report green', () => {
 });
 
 describe('the vulnerability database survives between runs', () => {
-  it('Trivy is pointed away from the workspace checkout cleans', () => {
-    // The whole reason the DB was pulled cold every time. trivy-action caches
-    // by default into `$GITHUB_WORKSPACE/.cache/trivy`, and `actions/checkout`
-    // wipes that at the top of every run — so the default is a cache that can
-    // never hit.
+  it('Trivy is pointed out of the workspace, which is the one place the Spark cannot keep', () => {
+    // trivy-action defaults `cache-dir` to `$GITHUB_WORKSPACE/.cache/trivy`.
+    // On a GitHub-hosted runner that is harmless — the action's own cache
+    // restores it, and checkout has already run by then. On the SELF-HOSTED
+    // runner it is the whole problem: the workspace is reused between runs and
+    // `actions/checkout` cleans it at the top of each one, so the database is
+    // wiped on the very machine that could otherwise have kept it for free.
     expect(wf).toContain('cache-dir: ${{ env.TRIVY_CACHE_DIR }}');
     expect(wf).toMatch(/TRIVY_CACHE_DIR=\$HOME\/[^\n]*>> "\$GITHUB_ENV"/);
   });
@@ -165,19 +167,18 @@ describe('the vulnerability database survives between runs', () => {
     expect(wf).not.toMatch(/TRIVY_CACHE_DIR[^\n]*\/home\/\w+/);
   });
 
-  it('the ephemeral runners get actions/cache, and the Spark does not', () => {
-    // Two kinds of machine, two ways of surviving. On the Spark the directory
-    // persists by itself; uploading a cache there would move bytes that never
-    // leave the box. On a GitHub-hosted runner nothing persists, so the cache
-    // action is the only thing carrying the database across.
-    const restore = wf.slice(
-      wf.indexOf('- name: Restore the Trivy vulnerability database'),
+  it("trivy-action's own cache is on where the machine dies, and off where it does not", () => {
+    // trivy-action ALREADY caches: actions/cache over `cache-dir`, keyed by the
+    // day, with a `cache-trivy-` prefix to fall back on. The only thing it
+    // cannot work out for itself is which machine it is on. On the Spark $HOME
+    // survives the run, so shipping 83 MB to GitHub and back re-supplies a file
+    // that never left the box; everywhere else the machine is destroyed and the
+    // cache is the only thing carrying the database across.
+    const scan = wf.slice(
       wf.indexOf('- name: Trivy filesystem/dependency scan (SARIF)'),
+      wf.indexOf('- name: Upload SARIF to code scanning'),
     );
-    expect(restore).toContain('actions/cache@');
-    expect(restore).toContain("if: env.ON_SELF_HOSTED != 'true'");
-    expect(restore).toContain('path: ${{ env.TRIVY_CACHE_DIR }}');
-    expect(restore).toContain('restore-keys:');
+    expect(scan).toContain("cache: ${{ env.ON_SELF_HOSTED != 'true' }}");
   });
 
   it('the runner condition is stated once and cannot drift from runs-on', () => {
@@ -194,13 +195,22 @@ describe('the vulnerability database survives between runs', () => {
     ).toBe(true);
   });
 
-  it('the cache key rolls with the database, not with the commit', () => {
-    // The DB is rebuilt roughly every six hours. A per-commit key would miss
-    // every time and save a near-duplicate every time; a key that never
-    // changed would pin a stale database for ever. A daily bucket with
-    // restore-keys starts from yesterday's and lets Trivy bring it forward.
-    expect(wf).toContain('date -u +%Y-%m-%d');
-    expect(wf).toMatch(/key: trivy-db-[^\n]*daystamp\.outputs\.value/);
-    expect(wf).not.toMatch(/key: trivy-db-[^\n]*github\.sha/);
+  it('nothing caches the database a second time', () => {
+    // An earlier draft of this file added its own `actions/cache` beside the
+    // one trivy-action already runs — same directory, same daily key, same
+    // fallback prefix. Run 34333627931 shows what that costs: two ~83 MB
+    // uploads of identical bytes, `cache-trivy-2026-09-09` from the action and
+    // `trivy-db-Linux-X64-2026-09-09` from the duplicate, out of a cache quota
+    // this repository shares with every other workflow.
+    //
+    // So: this workflow gets its caching from trivy-action and from nowhere
+    // else. If a future change needs a cache here, it belongs on the action's
+    // own inputs, not beside them.
+    expect(wf, 'a second actions/cache is back beside trivy-action\'s own').not.toContain(
+      'actions/cache@',
+    );
+    expect(wf, 'a hand-rolled daystamp only ever existed to key that duplicate').not.toContain(
+      'date -u +%Y-%m-%d',
+    );
   });
 });

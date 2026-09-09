@@ -45,7 +45,8 @@ jobs:
       #
       # Which runner a run lands on decides how its Trivy database survives:
       # the Spark keeps a directory between runs for free, a GitHub-hosted
-      # runner is destroyed and needs actions/cache. See the two steps below.
+      # runner is destroyed and leans on trivy-action's own cache. It is read
+      # again further down, to switch that cache off where it is waste.
       ON_SELF_HOSTED: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       # `contents: write` for the SBOM attach on a tag: creating or updating a
@@ -77,53 +78,38 @@ jobs:
 
       # ---------- THE DATABASE THIS SCAN NEEDS, KEPT BETWEEN RUNS ----------
       #
-      # trivy-action caches by default and says so in its README — and the
-      # default is useless here, because it puts the cache at
-      # `$GITHUB_WORKSPACE/.cache/trivy`, inside the tree `actions/checkout`
-      # cleans at the top of every run. So Trivy has pulled its whole
-      # vulnerability database from ghcr.io on every single run of this
-      # workflow, and that anonymous pull is the thing that gets rate-limited
-      # — which is precisely the failure the assertion at the end of this job
-      # now refuses to pass over in silence.
+      # trivy-action ALREADY CARRIES A CACHE OF ITS OWN, and it is a good one:
+      # `actions/cache` over whatever `cache-dir` points at, keyed by the day,
+      # with a `cache-trivy-` prefix to fall back on when the day rolls over.
+      # Do not add a second `actions/cache` beside it. An earlier draft of this
+      # file did exactly that, and run 34333627931 saved two ~83 MB copies of
+      # one database under two keys — `cache-trivy-2026-09-09` from the action
+      # and `trivy-db-Linux-X64-2026-09-09` from the duplicate — spending twice
+      # the repository's cache quota to store the same bytes twice.
       #
-      # `$HOME` rather than the workspace, and computed HERE rather than in the
-      # job's `env:`, because GitHub's expression syntax cannot read the shell
-      # environment: `${{ env.HOME }}` is empty. Writing it at runtime also
-      # keeps the runner's username out of this file.
+      # What the built-in cache cannot know is WHICH MACHINE it is on, and this
+      # job runs on two of them (see ON_SELF_HOSTED above):
       #
-      # ONE PATH, TWO WAYS OF SURVIVING, because this job runs on two kinds of
-      # machine (see ON_SELF_HOSTED above). On the Spark the directory simply
-      # persists between runs and nothing else is needed. On a GitHub-hosted
-      # runner the machine is destroyed, so `actions/cache` below carries it.
+      #   a GitHub-hosted runner — destroyed after the run, so trivy-action's
+      #     own daily cache is exactly the right mechanism and stays ON.
+      #
+      #   the Spark — $HOME survives between runs, so the database is already
+      #     on disk when the job starts. Uploading and downloading 83 MB to
+      #     re-supply a file that never left the box is pure waste, so the
+      #     built-in cache is turned OFF there.
+      #
+      # Both want the database out of `$GITHUB_WORKSPACE`, which is where
+      # trivy-action would otherwise put it. On a self-hosted runner the
+      # workspace is REUSED between runs and `actions/checkout` cleans it at
+      # the top of each one, so a database kept there is the one thing that
+      # cannot survive on the very machine that could otherwise keep it.
+      #
+      # `$HOME` is resolved HERE, in a run step, rather than in the job's
+      # `env:` — GitHub's expression syntax cannot read the shell environment,
+      # so `${{ env.HOME }}` is empty. Doing it at runtime also keeps the
+      # runner's username out of this file.
       - name: Decide where the Trivy database lives
         run: echo "TRIVY_CACHE_DIR=$HOME/.cache/trivy" >> "$GITHUB_ENV"
-
-      # Only on the ephemeral runners — on the Spark this would upload and
-      # download a cache that never left the box. Note which runs those are:
-      # pull requests, the WEEKLY SCHEDULE and tags. The schedule is one of the
-      # runs the assertion treats as the security record, and it is the one
-      # most exposed to a cold pull, so it is the one that gains most here.
-      #
-      # A DAILY KEY, not a per-commit one. The database is rebuilt roughly
-      # every six hours, so a key that changed per commit would miss every
-      # time and save a near-duplicate every time. `restore-keys` lets a run
-      # start from yesterday's database and let Trivy bring it up to date,
-      # which is far cheaper than starting from nothing.
-      - name: What day is it, for the cache key
-        if: env.ON_SELF_HOSTED != 'true'
-        id: daystamp
-        run: echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
-
-      - name: Restore the Trivy vulnerability database
-        if: env.ON_SELF_HOSTED != 'true'
-        # v6.1.0, the same pin ci.yml uses and for the same reason: actions/cache
-        # v4 still declares `using: node20`.
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.TRIVY_CACHE_DIR }}
-          key: trivy-db-${{ runner.os }}-${{ runner.arch }}-${{ steps.daystamp.outputs.value }}
-          restore-keys: |
-            trivy-db-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Trivy filesystem/dependency scan (SARIF)
         id: trivy
@@ -133,9 +119,12 @@ jobs:
           format: sarif
           output: trivy.sarif
           severity: HIGH,CRITICAL
-          # Without this the action caches into the workspace, which checkout
-          # wipes — see "THE DATABASE THIS SCAN NEEDS" above.
+          # Out of the workspace, so the Spark can keep it — see "THE DATABASE
+          # THIS SCAN NEEDS" above.
           cache-dir: ${{ env.TRIVY_CACHE_DIR }}
+          # The action's own daily cache, on everywhere it is needed and off on
+          # the one machine that does not need it.
+          cache: ${{ env.ON_SELF_HOSTED != 'true' }}
         # Kept, and now it costs nothing: the step below reads
         # `steps.trivy.outcome`, and "the scan reported something" is asserted
         # at the end of the job. Without that pair this flag alone turned every
