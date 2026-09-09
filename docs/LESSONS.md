@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 113 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 114 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -558,6 +558,10 @@ reading a file drops off its entry by itself.
 
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
+### `docs/adr/0017-migration-tooling.md`
+
+- [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
+
 ### `docs/adr/OPERATIVE.md`
 
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
@@ -612,6 +616,10 @@ reading a file drops off its entry by itself.
 ### `docs/workplans/0115-the-account-apple-will-not-hand-over.md`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
+### `drizzle.config.ts`
+
+- [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 
 ### `packages/connectors/src/archive-file-source.ts`
 
@@ -681,6 +689,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/ledger/migrations/0001_baseline.sql`
 
+- [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 
 ### `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
@@ -695,6 +704,10 @@ reading a file drops off its entry by itself.
 ### `packages/ledger/src/schema-pg.ts`
 
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+
+### `packages/managed/migrations/0001_the_managed_service.sql`
+
+- [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 
 ### `packages/managed/src/pricing.ts`
 
@@ -934,6 +947,10 @@ reading a file drops off its entry by itself.
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
+### `scripts/how-migrations-are-authored.mjs`
+
+- [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
+
 ### `scripts/idp-wiring.unit.test.ts`
 
 - [status-page](../scripts/status-page.unit.test.ts) — The status page's configuration says what we think it says (workplan 0094).
@@ -953,6 +970,10 @@ reading a file drops off its entry by itself.
 ### `scripts/smoke-managed-verdict.unit.test.ts`
 
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
+
+### `scripts/squash-migrations.sh`
+
+- [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 
 ### `scripts/status-page.unit.test.ts`
 
@@ -1095,6 +1116,19 @@ Reads:
 - `packages/orchestration/src/probe-connection.ts`
 - `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`
 - `packages/shared/src/google-deployment-client.unit.test.ts`
+
+### [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts)
+
+A command the docs told you to run, that wrote a migration nobody can apply.
+
+Reads:
+
+- `docs/adr/0017-migration-tooling.md`
+- `drizzle.config.ts`
+- `packages/ledger/migrations/0001_baseline.sql`
+- `packages/managed/migrations/0001_the_managed_service.sql`
+- `scripts/how-migrations-are-authored.mjs`
+- `scripts/squash-migrations.sh`
 
 ### [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts)
 

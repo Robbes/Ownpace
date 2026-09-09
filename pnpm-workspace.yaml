@@ -152,8 +152,11 @@ overrides:
   # through that loader, and both still pass on 0.25.12 (which the tree already carried for
   # drizzle-kit's own use, so this dedupes rather than adding a version).
   #
-  # If a future drizzle-kit does break on it, the failure is loud and immediate — `pnpm db:generate`
-  # stops working — which is a far better failure than a known advisory nobody is allowed to fix.
+  # If a future drizzle-kit does break on it, the failure is loud and immediate — `npx drizzle-kit
+  # generate` stops reading the schema at all — which is a far better failure than a known advisory
+  # nobody is allowed to fix. Note it is `npx` and not `pnpm db:generate`: that script now refuses
+  # (scripts/how-migrations-are-authored.mjs), because generating into the real migration chain is
+  # what it used to do.
   esbuild@<0.25.0: ^0.25.0
 minimumReleaseAgeExclude:
   - brace-expansion@2.1.4

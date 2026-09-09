@@ -76,6 +76,21 @@ idempotent `recordIfAbsent(naturalKeyHash, contentHash, …)`.
 re-insert of the same `natural_key_hash` is a no-op returning the existing row; Stalwart has
 `source@`/`target@` accounts reachable.
 
+> **Correction 2026-09-09 — `pnpm db:migrate` is not how migrations are applied, and has not been
+> since [0010](./0010-selfhost-edition.md) T1.** `runMigrations` applies
+> `packages/ledger/migrations/*.sql` linearly under an advisory lock and records each in
+> `schema_migrations`; the appliance and the worker both call it at startup, and `pnpm test`
+> replays the whole chain on PGlite. Two more names in this row went the same way:
+> `migrations/0001_init.sql` was never committed under that name at all — the chain begins at
+> the squashed `0001_baseline.sql` (ADR-0016) — and the SQLite half is gone, since persistence
+> is Postgres everywhere, reached through PGlite on the appliance (ADR-0023, ADR-0028).
+>
+> The two scripts this row names were left pointing at drizzle-kit long after that, and running
+> either damaged the chain rather than failing: measured 2026-09-09, `pnpm db:generate` wrote a
+> `0000_*.sql` dump into `packages/ledger/migrations` and exited 0, and `0000_` sorts *below*
+> `0001_baseline.sql`. Both now run `scripts/how-migrations-are-authored.mjs`, which refuses and
+> says what to do instead.
+
 ### T1 — Core model + interfaces (the seams)
 In `packages/shared` / `packages/core`: define the normalized **MailItem** (Message-ID, folder +
 special-use role, flags, internaldate, size, raw RFC822 reference) and the key functions
