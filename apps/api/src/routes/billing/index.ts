@@ -16,7 +16,7 @@ import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middle
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { calculateCost } from '../../services/billing-service.ts';
 import { getMollieService } from '../../services/mollie/index.ts';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import {
   getUsageMetricsForPeriod,
   resolveTenantPricing,
@@ -34,6 +34,12 @@ import { NO_TIER_BILLING_CODE, NO_TIER_BILLING_REASON } from './no-bill-we-do-no
 /** Decimal GB, as `invoice-generation.ts` uses — a price list is not binary. */
 const BYTES_PER_GB = 1_000_000_000;
 import { serverFault } from '../../server-fault.ts';
+import {
+  ISSUED_INVOICE_STATUSES,
+  mergeUsageHistory,
+  rowFromIssuedInvoice,
+  type UsageHistoryRow,
+} from '../../services/usage-history.ts';
 
 const router = Router();
 
@@ -239,7 +245,7 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
      * this tenant actually ran. A month with passes in it is a month worth a
      * row; a month with none is not history, it is silence.
      */
-    const { months, pricing } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
+    const { months, pricing, issued } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
       months: await db
         .select({ month: sql<string>`to_char(${runTable.createdAt}, 'YYYY-MM')` })
         .from(runTable)
@@ -247,9 +253,34 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
         .groupBy(sql`to_char(${runTable.createdAt}, 'YYYY-MM')`)
         .orderBy(sql`to_char(${runTable.createdAt}, 'YYYY-MM') DESC`),
       pricing: await resolveTenantPricing(db, tenantId),
+      /**
+       * The months the run ledger can no longer answer for (0121 §4b).
+       *
+       * T5 prunes `run` after sixty days, so the GROUP BY above stops
+       * returning older months entirely. T3 froze the measured quantities onto
+       * the invoice for exactly this reason — `usage-history.ts` says which
+       * side wins and why the money comes off the invoice rather than being
+       * re-priced at today's list.
+       */
+      issued: await db
+        .select({
+          periodStart: schema.invoice.periodStart,
+          subtotal: schema.invoice.subtotal,
+          taxRate: schema.invoice.taxRate,
+          taxAmount: schema.invoice.taxAmount,
+          total: schema.invoice.total,
+          metadata: schema.invoice.metadata,
+        })
+        .from(schema.invoice)
+        .where(
+          and(
+            eq(schema.invoice.tenantId, tenantId),
+            inArray(schema.invoice.status, [...ISSUED_INVOICE_STATUSES]),
+          ),
+        ),
     }));
 
-    const usageHistory = [];
+    const usageHistory: UsageHistoryRow[] = [];
     for (const { month } of months) {
       const [year, mon] = month.split('-').map(Number);
       if (!year || !mon) continue;
@@ -269,11 +300,19 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
         computeHours: usage.computeHours,
         syncCount: usage.apiCallCount,
       };
-      usageHistory.push({ ...shaped, cost: calculateCost(shaped, pricing) });
+      usageHistory.push({ ...shaped, cost: calculateCost(shaped, pricing), source: 'ledger' });
     }
 
+    // Older periods, from the invoices that recorded them. `rowFromIssuedInvoice`
+    // drops any invoice that cannot answer — one issued before T3 froze the
+    // quantities has no `measured` block, and a row of zeros beside real months
+    // reads as a month in which nothing happened.
+    const fromInvoices = issued
+      .map((row) => rowFromIssuedInvoice(row))
+      .filter((row): row is UsageHistoryRow => row !== null);
+
     res.json({
-      usage: usageHistory,
+      usage: mergeUsageHistory(usageHistory, fromInvoices),
     });
   } catch (error) {
     serverFault(res, 'usage_history_failed', 'reading your usage history', error);
