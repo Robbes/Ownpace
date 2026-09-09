@@ -23,16 +23,25 @@ import {
   parseVatForVies,
   checkVat,
   decideVatTreatment,
+  observedTier,
+  PgOccupancyPeakStore,
+  PgBytesMovedStore,
   type ViesRequester,
 } from '@openmig/managed';
 import * as schema from '@openmig/managed/schema-managed';
 // The run ledger lives in @openmig/ledger (ADR-0036): compute derives from it.
 import { run as runTable } from '@openmig/ledger/schema-pg';
-import { log } from '@openmig/shared';
+// The live slot count, through the ONE authority on which states hold a slot
+// (`holdsASlot`, wrapped by `slotsHeld`) rather than a second list here.
+import { PgPathLifecycleStore } from '@openmig/ledger';
+import { log, type TenantId } from '@openmig/shared';
 import { NO_TIER_BILLING_CODE, NO_TIER_BILLING_REASON } from './no-bill-we-do-not-sell.ts';
 
 /** Decimal GB, as `invoice-generation.ts` uses — a price list is not binary. */
 const BYTES_PER_GB = 1_000_000_000;
+
+/** The authenticated tenant id in the ledger's branded type, said once. */
+const asTenantId = (id: string): TenantId => id as never as TenantId;
 import { serverFault } from '../../server-fault.ts';
 import {
   ISSUED_INVOICE_STATUSES,
@@ -189,30 +198,81 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     const periodStart = new Date().toISOString().slice(0, 7) + '-01'; // First day of current month
     const periodEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10); // Last day of current month
 
-    // Get REAL usage via T4's metering - derive storage/egress from item ledger, read compute/api from upserts,
-    // and this tenant's AGREED prices (never the operator's current template — see tenant-pricing.ts).
-    const { metrics, pricing } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
-      metrics: await getUsageMetricsForPeriod(db, tenantId as never as import('@openmig/shared').TenantId, periodStart, periodEnd),
-      pricing: await resolveTenantPricing(db, tenantId),
-    }));
+    // What was MEASURED this month, and the tier that measurement puts this
+    // tenant in. Every read here is READ-ONLY on purpose: `currentTier` trues
+    // the month up — it WRITES the peak it is about to read — because it runs
+    // at a moment that prices something. A customer opening their own usage
+    // screen prices nothing, so this assembles the same three numbers and
+    // hands them to `observedTier`, which derives the identical answer with
+    // nothing written (0109 T4's rule, applied to the tenant's own screen).
+    const { metrics, peak, pathsNow, bytesMoved } = await withTenantDb(
+      tenantId,
+      getSharedPool(),
+      async (db) => ({
+        metrics: await getUsageMetricsForPeriod(db, asTenantId(tenantId), periodStart, periodEnd),
+        peak: await new PgOccupancyPeakStore(db).forMonth(asTenantId(tenantId), new Date()),
+        pathsNow: await new PgPathLifecycleStore(db).slotsHeld(asTenantId(tenantId)),
+        bytesMoved: await new PgBytesMovedStore(db).total(asTenantId(tenantId)),
+      }),
+    );
 
-    // Map T4's result to the UI response shape
+    // DECIMAL GB, like every other reader of these bytes: `usage/history`
+    // below, `invoice-generation.ts`, and the tier table's own data axis
+    // ("1 TB = 1000 GB, the site's convention" — ADR-0014, tier-calculator).
+    //
+    // These two lines divided by 1024³ until 2026-09-09 — with BYTES_PER_GB
+    // declared at the top of this same file, and used by `/usage/history` a
+    // hundred lines below. So one screen showed the current month ~7% SMALLER
+    // than the same tenant's earlier months, and smaller than the figure that
+    // decides which tier they are on. Nothing was wrong with either number on
+    // its own, which is why it survived: the defect existed only between them.
     const usage = {
       tenantId,
       period: periodStart.slice(0, 7), // YYYY-MM
-      storageUsedGB: metrics.storageBytes / (1024 * 1024 * 1024), // Convert bytes to GB
-      egressGB: metrics.egressBytes / (1024 * 1024 * 1024), // Convert bytes to GB
+      storageUsedGB: metrics.storageBytes / BYTES_PER_GB,
+      egressGB: metrics.egressBytes / BYTES_PER_GB,
       computeHours: metrics.computeHours,
       syncCount: metrics.apiCallCount,
       lastUpdated: new Date().toISOString(),
     };
 
-    // Calculate current cost at the tenant's agreed prices
-    const cost = calculateCost(usage, pricing);
+    const { tier, decidedBy, evidence } = observedTier(
+      peak?.peakPaths ?? 0,
+      pathsNow,
+      Number(bytesMoved) / BYTES_PER_GB,
+    );
 
+    // NO `currentCost`. It used to carry `calculateCost` — base fee, per-GB
+    // storage and egress, per-hour compute, VAT and a total — which is the
+    // metered model ADR-0014 RETIRED on 2026-08-20 and that this API refuses
+    // to mint an invoice from (0109 T0). Serving it here quoted a customer a
+    // euro figure on a price list nothing would ever bill them at, itemised
+    // and totalled so it read exactly like a bill. Deleted rather than left
+    // behind a flag, per the same precedent as the generate route's body.
+    //
+    // What replaces it is what they WOULD be quoted: the tier, with the
+    // evidence that decided it (workplan 0121 T4, owner 2026-09-09 — the
+    // measurement is instrumentation, and the customer gets to see it).
     res.json({
       usage,
-      currentCost: cost,
+      // Null past the end of the table: the same deliberate "talk to us" the
+      // site publishes and the calculator returns.
+      tier: tier
+        ? {
+            id: tier.id,
+            name: tier.name,
+            paths: tier.paths,
+            dataGb: tier.dataGb,
+            setup: tier.setup,
+            monthly: tier.monthly,
+          }
+        : null,
+      decidedBy,
+      evidence: {
+        peakPaths: evidence.peakPaths,
+        peakAt: peak?.peakAt ?? null,
+        gbMoved: evidence.gbMoved,
+      },
       period: periodStart.slice(0, 7),
     });
   } catch (error) {
@@ -290,7 +350,7 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
       const periodEnd = new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10);
 
       const usage = await withTenantDb(tenantId, getSharedPool(), (db) =>
-        getUsageMetricsForPeriod(db, tenantId as never as import('@openmig/shared').TenantId, periodStart, periodEnd),
+        getUsageMetricsForPeriod(db, asTenantId(tenantId), periodStart, periodEnd),
       );
 
       const shaped = {

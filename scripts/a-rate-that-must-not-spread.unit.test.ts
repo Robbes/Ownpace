@@ -27,13 +27,16 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'packages/managed/src/pricing.ts': 'The definition, with the containment paragraph.',
   'packages/managed/src/pricing.unit.test.ts': 'Pins the definition.',
   'apps/api/src/services/billing-service.ts':
-    'The legacy usage-screen estimate — the one surface the constant survives for, ' +
-    'rewired against Moneybird in 0111 T4/T8.',
+    'The POST /estimate projection and the usage-history rows — the surfaces the constant ' +
+    'survives for, rewired against Moneybird in 0111 T4/T8.',
   'apps/api/src/services/invoice-generation.ts':
     'The RETIRED generator (unreachable since 0109 T0; replaced by 0109 T5). It keeps ' +
     'importing rather than redeclaring, per its own comment about the third copy.',
-  'apps/web/src/pages/Billing.tsx':
-    'A comment pointing at the server-side constant — words, not arithmetic.',
+  // apps/web/src/pages/Billing.tsx was here until 2026-09-09, for a comment
+  // beside the VAT line of the usage screen's cost breakdown. That breakdown
+  // is gone — the screen shows ADR-0014's tier now (0121 T4) — so the web app
+  // does not name the constant at all any more, and the list gets one entry
+  // SHORTER. That is the direction this guard exists to push.
 };
 
 function walk(dir: string, out: string[]): void {

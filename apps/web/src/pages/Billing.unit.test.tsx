@@ -72,9 +72,18 @@ const businessPartyFixture = {
   updatedAt: null,
 };
 
-/** A seeded usage fixture whose lines sum non-trivially: 999 + 500 + 2000 +
- *  100 = 3599; VAT 756; total 4355. The OLD screen rendered "Base Fee
- *  €35.99" from this — the whole subtotal on the base-fee line. */
+/**
+ * A seeded usage fixture: the quantities the customer's own screen reports,
+ * and the tier they put the tenant on.
+ *
+ * The numbers are chosen so the two axes DISAGREE and the higher one wins —
+ * 4 paths fits Small, but 900 GB does not (Small's ceiling is 750), so the
+ * answer is Medium and `decidedBy` is `data`. A fixture where both axes agree
+ * would pass against a screen that read either one.
+ *
+ * Medium is €15 setup and €8/month in ADR-0014's table, in WHOLE EUROS —
+ * which is the trap this fixture also pins, since the formatter takes cents.
+ */
 const usageFixture = {
   usage: {
     tenantId: 't1',
@@ -85,16 +94,9 @@ const usageFixture = {
     syncCount: 7,
     lastUpdated: '2026-08-09T12:00:00.000Z',
   },
-  currentCost: {
-    baseFee: 999,
-    storage: 500,
-    egress: 2000,
-    compute: 100,
-    subtotal: 3599,
-    taxRate: 0.21,
-    tax: 756,
-    total: 4355,
-  },
+  tier: { id: 'medium' as const, name: 'Medium', paths: 20, dataGb: 2000, setup: 15, monthly: 8 },
+  decidedBy: 'data' as const,
+  evidence: { peakPaths: 4, peakAt: '2026-08-12', gbMoved: 900 },
   period: '2026-08',
 };
 
@@ -347,23 +349,58 @@ describe('a VAT number that was actually checked (0111 T2)', () => {
   });
 });
 
-describe('the arithmetic is the served arithmetic (0039 T2)', () => {
-  it('Base Fee renders baseFee — not the whole subtotal — and the lines sum on screen', async () => {
+describe('the price on the screen is the published price (0121 T4)', () => {
+  it('shows the tier and its money in EUROS, not the table figure read as cents', async () => {
     renderBilling();
 
-    const baseFeeRow = (await screen.findByText('Base Fee')).parentElement!;
-    expect(baseFeeRow.textContent).toContain('9.99');
-    expect(baseFeeRow.textContent).not.toContain('35.99');
-    // The subtotal is still the subtotal, on its own line.
-    const subtotalRow = screen.getByText('Subtotal').parentElement!;
-    expect(subtotalRow.textContent).toContain('35.99');
+    expect(await screen.findByText('Medium')).toBeInTheDocument();
+    // ADR-0014: Medium is €15 setup + €8/month. `formatCurrency` takes CENTS,
+    // and the table is in whole euros, so a screen that forwards the raw
+    // figure prints €0.15 and €0.08 — a hundredth of the real price, on the
+    // one line a customer reads to decide whether to buy.
+    const money = screen.getByText(/to set up/).textContent ?? '';
+    expect(money).toContain('15.00');
+    expect(money).toContain('8.00');
+    expect(money).not.toContain('0.15');
   });
 
-  it('the VAT label derives from the served rate, and the period + as-of render', async () => {
+  it('names the axis that decided, and shows the evidence behind it', async () => {
     renderBilling();
 
-    expect(await screen.findByText('VAT (21%)')).toBeInTheDocument();
-    expect(screen.getByText(/Usage for 2026-08/)).toBeInTheDocument();
+    // 4 paths fits Small; 900 GB does not. The higher axis wins and the
+    // screen must say WHICH — the invoice quotes the same sentence.
+    expect(await screen.findByText('Set by how much data has been moved.')).toBeInTheDocument();
+    expect(screen.getByText('Most migrations at once')).toBeInTheDocument();
+    expect(screen.getByText('Data moved, all months')).toBeInTheDocument();
+    expect(screen.getByText('900.0 GB')).toBeInTheDocument();
+  });
+
+  it('no metered breakdown survives — the retired model is off the screen', async () => {
+    renderBilling();
+
+    await screen.findByText('Medium');
+    // Every line of the model ADR-0014 retired on 2026-08-20 and this API
+    // has refused to invoice from since 2026-08-27.
+    expect(screen.queryByText('Base Fee')).not.toBeInTheDocument();
+    expect(screen.queryByText('Subtotal')).not.toBeInTheDocument();
+    expect(screen.queryByText('VAT (21%)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cost Breakdown')).not.toBeInTheDocument();
+  });
+
+  it('past the end of the table it says talk to us, and does not render an error', async () => {
+    usageMock.mockResolvedValue({ ...usageFixture, tier: null, decidedBy: 'both' as const });
+    renderBilling();
+
+    expect(
+      await screen.findByText(/Past the published table/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Could not load/)).not.toBeInTheDocument();
+  });
+
+  it('the measured quantities are the insight, and keep their honest labels', async () => {
+    renderBilling();
+
+    expect(await screen.findByText(/Usage for 2026-08/)).toBeInTheDocument();
     // The tile is labeled what the metering writes (apiCallCount).
     expect(screen.getByText('API calls')).toBeInTheDocument();
     expect(screen.queryByText('Syncs')).not.toBeInTheDocument();

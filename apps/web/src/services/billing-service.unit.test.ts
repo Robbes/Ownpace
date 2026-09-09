@@ -55,7 +55,7 @@ describe('InvoiceSchema vs the invoices route', () => {
 });
 
 describe('UsageResponseSchema vs the usage route', () => {
-  it('parses the literal response, baseFee and taxRate included (0039 T2)', () => {
+  it('parses the literal response: measured quantities, the tier, and its evidence', () => {
     const parsed = UsageResponseSchema.parse({
       usage: {
         tenantId: 'a1b2c3d4-0000-0000-0000-000000000001',
@@ -66,25 +66,40 @@ describe('UsageResponseSchema vs the usage route', () => {
         syncCount: 7,
         lastUpdated: '2026-08-09T12:00:00.000Z',
       },
-      currentCost: {
-        baseFee: 999,
-        storage: 500,
-        egress: 2000,
-        compute: 100,
-        subtotal: 3599,
-        taxRate: 0.21,
-        tax: 756,
-        total: 4355,
-      },
+      tier: { id: 'medium', name: 'Medium', paths: 20, dataGb: 2000, setup: 15, monthly: 8 },
+      decidedBy: 'data',
+      evidence: { peakPaths: 4, peakAt: '2026-08-12', gbMoved: 900 },
       period: '2026-08',
     });
-    // The itemized lines sum to the subtotal — the on-screen arithmetic's
-    // precondition.
-    const c = parsed.currentCost;
-    expect(c.baseFee + c.storage + c.egress + c.compute).toBe(c.subtotal);
+    // Whole EUROS, as ADR-0014's table publishes them — not cents. A schema
+    // that shrugged here would let the screen print a hundredth of the price.
+    expect(parsed.tier?.setup).toBe(15);
+    expect(parsed.tier?.monthly).toBe(8);
+    expect(parsed.evidence.gbMoved).toBe(900);
   });
 
-  it('rejects a cost breakdown without baseFee — the shape that made the screen lie', () => {
+  it('accepts a null tier — past the table is an ANSWER, not a failure', () => {
+    const parsed = UsageResponseSchema.parse({
+      usage: {
+        tenantId: 't',
+        period: '2026-08',
+        storageUsedGB: 0,
+        egressGB: 0,
+        computeHours: 0,
+        syncCount: 0,
+        lastUpdated: '2026-08-09T12:00:00.000Z',
+      },
+      tier: null,
+      decidedBy: 'both',
+      evidence: { peakPaths: 900, peakAt: null, gbMoved: 90000 },
+      period: '2026-08',
+    });
+    // "Talk to us" is the site's published ending. A schema that rejected it
+    // would blank the whole screen for exactly the largest customer.
+    expect(parsed.tier).toBeNull();
+  });
+
+  it('rejects the RETIRED metered breakdown — the shape that quoted a dead price list', () => {
     expect(() =>
       UsageResponseSchema.parse({
         usage: {
@@ -96,7 +111,39 @@ describe('UsageResponseSchema vs the usage route', () => {
           syncCount: 0,
           lastUpdated: '2026-08-09T12:00:00.000Z',
         },
-        currentCost: { storage: 0, egress: 0, compute: 0, subtotal: 999, tax: 210, total: 1209 },
+        // What the route served until 2026-09-09: base fee, per-GB storage and
+        // egress, per-hour compute, VAT, total — every figure correct, none of
+        // them a price anybody would be charged (ADR-0014 amended 2026-08-20).
+        currentCost: {
+          baseFee: 999,
+          storage: 500,
+          egress: 2000,
+          compute: 100,
+          subtotal: 3599,
+          taxRate: 0.21,
+          tax: 756,
+          total: 4355,
+        },
+        period: '2026-08',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects a tier whose id is not one of ADR-0014\'s five', () => {
+    expect(() =>
+      UsageResponseSchema.parse({
+        usage: {
+          tenantId: 't',
+          period: '2026-08',
+          storageUsedGB: 0,
+          egressGB: 0,
+          computeHours: 0,
+          syncCount: 0,
+          lastUpdated: '2026-08-09T12:00:00.000Z',
+        },
+        tier: { id: 'enterprise', name: 'Enterprise', paths: 500, dataGb: 50000, setup: 0, monthly: 0 },
+        decidedBy: 'paths',
+        evidence: { peakPaths: 1, peakAt: null, gbMoved: 1 },
         period: '2026-08',
       }),
     ).toThrow();
