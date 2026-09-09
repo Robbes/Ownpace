@@ -12,10 +12,13 @@ findings worth the top of this page:
   five"*. A continuous lane needs a value in both, and the second is an amendment to a
   published ADR rather than a new constant. **D6** asks the question underneath it: does a
   path that never ends hold one of the tier's slots?
-- **T2 cannot be built from the ledger at all.** The row holds the SOURCE's hash and our
-  memory of our own write; §5's rule says our memory is not the gate. So T2 is a
-  confirmation pass, and how much of the library it re-reads is a cost decision — **D7**.
-  There is a research debt attached to D7 and it is flagged as unpaid.
+- **T2 cannot be built from the ledger at all**, and for a sharper reason than "the row
+  holds the source's hash". §7d: `item.content_hash` holds **five different algorithms**
+  depending on which source wrote it, and `hash.ts` already says nothing reads that column
+  to make a decision. T2 would be the first — for a decision that ends with somebody
+  deleting their originals. **D7** is therefore not "how much do we re-read" but "what is
+  being compared to what". And for calendar and contacts there is no byte-hash claim to be
+  made at all, by design.
 
 **Nothing is blocked on me.** D6 and D7 each fit in a sentence and each unblocks a build.
 T1's logic (§7b — where the detector must be absent, and the test that tells absent from
@@ -400,31 +403,48 @@ finds a tier still charging is a complaint, and a fair one. That sentence belong
 
 **D7 — what does "verified" mean in T2's list?** 🔨 **OPEN — blocks T2's first line.**
 
-§7c: the ledger holds the SOURCE's hash and our memory of our own write, and §5's rule says
-our memory is not the gate. So the list needs a target-side answer per item, and the
-question is how that answer is obtained.
+§7c: the ledger holds a hash the SOURCE published and our memory of our own write, and §5's
+rule says our memory is not the gate. So the list needs a target-side answer per item.
 
-- **(a) Re-read every item from the target and hash it.** The strongest claim available and
-  the one §5's words describe. It is also a full download of the library **from the target**
-  — for a family-sized file account that is hundreds of gigabytes and hours, per list.
-- **(b) Ask the target for its own recorded hash**, downloading nothing, and fall back to (a)
-  only where the platform does not publish one.
-- **(c) Existence and size only**, and say exactly that in the words — a weaker claim,
-  honestly labelled.
+**And the obvious comparison is not available**, for a reason found while surveying this
+(§7d): `item.content_hash` is **not one algorithm**. It is whatever each source publishes —
+Google's MD5, Box's SHA-1, Dropbox's block hash, Graph's quickXorHash, our own SHA-256 for
+archives and mail. That is fine for what the column does today, which is spot a change
+within one source, and it means "compare the ledger's hash to a hash of the target's bytes"
+silently mismatches most of the corpus.
 
-*Recommendation: **(b) where it is available, (a) where it is not, and never (c) silently.***
+So the branches are:
 
-> ⚠️ **Owed before D7 is answered** — 0105's never-guess rule, the same debt §1 records for
-> the Photos API. (b) is only worth choosing if the platforms actually publish a per-file
-> content hash in metadata. That is **plausible and unverified**: nobody has checked it for
-> this plan. Read each target platform's own API reference, confirm what hash it exposes
-> and over what bytes, and write the answer here with the date and the link — before the
-> recommendation above is treated as a finding rather than a hypothesis.
+- **(a) Re-read BOTH sides and hash both with our own SHA-256.** The only comparison that
+  is algorithm-safe without new code, and it downloads the library twice.
+- **(b) Re-read the target and hash it with the SOURCE platform's algorithm**, comparing
+  against the value already stored. One download instead of two, and it costs an
+  implementation of each algorithm — MD5 and SHA-1 are free, Dropbox's block hash is small,
+  quickXorHash is small and published.
+- **(c) Store our own SHA-256 as a second column at copy time**, so future migrations
+  compare for free. Does nothing for anything already copied.
+- **(d) Existence and size only**, labelled exactly that.
+
+*Recommendation: **(b), with (c) alongside it for everything copied from now on.** (b) makes
+today's corpus answerable at one download; (c) means the question gets cheaper forever
+rather than being re-answered expensively each time. (a) only if (b) turns out to be wrong
+about an algorithm. Never (d) silently.*
 
 *And one thing D7 does not get to decide: **whatever "verified" turns out to mean, the list
 says so on its face.** A person deleting their originals on the strength of a list is owed
 the definition next to the number, not in a footnote — that is the T2 half of T5's words,
-and it is not optional in any of the three branches.*
+and it is not optional in any of the four branches. It has to carry §7d's limit too: for
+**calendar and contacts there is no byte-hash claim to make**, by design.*
+
+> **Provenance, since this replaced an earlier draft of D7.** The first version of this
+> section asked what Drive, Dropbox and OneDrive publish, and carried a research debt
+> against their API references. That was **the wrong side of the migration**:
+> `TARGET_TYPES` (`packages/shared/src/credential-fields.ts`) is
+> `jmap, imap, caldav, carddav, webdav, soverin, nextcloud` — Google, Microsoft, Dropbox,
+> Box and Apple are sources only and can never hold the copy T2 confirms. Everything above
+> is read out of this repository instead, which is both stronger evidence and the right
+> question. The vendor-reference debt is withdrawn rather than paid: it was owed on a
+> question that does not arise.
 
 ## 7. T1 and T2, as they have to be built HERE (added 2026-09-09)
 
@@ -517,6 +537,43 @@ Two item states need naming before the list can be honest:
 
 **How much of the library that re-read touches is D7**, and it is a cost question, not a
 correctness one — which is exactly why it is not settled here.
+
+### 7d. Five algorithms live in `item.content_hash`, and T2 would be the first to decide on it
+
+Found while working out what T2 could compare against. Every value below read out of the
+tree on 2026-09-09:
+
+| written by | what it stores |
+|---|---|
+| `packages/connectors/src/google-drive-source.ts:802` | Google's **MD5** (`file.md5Checksum`) |
+| `packages/connectors/src/box-file-source.ts:384` | Box's **SHA-1** (`file.sha1`) |
+| `packages/connectors/src/dropbox-file-source.ts:408` | Dropbox's **content_hash** — SHA-256 over the SHA-256 of each 4 MiB block |
+| `packages/connectors/src/graph-drive-source.ts:348` | **quickXorHash**, with the comment *"Use quickXorHash as content hash for change detection"* |
+| `packages/connectors/src/archive-file-source.ts:133` | our own **SHA-256** of the bytes |
+| `packages/shared/src/hash.ts:136` (mail) | our own **SHA-256** of the RFC822 bytes |
+
+**This is not a defect.** The column's job today is to notice that an item changed *within
+one source*, where the algorithm is constant and the comparison is like-for-like. It is also
+already written down: `hash.ts` says *"Nothing reads `item.content_hash` to make a decision
+— deduplication is by `natural_key_hash`"*.
+
+**T2 would be the first thing to read it for a decision**, and the decision is destructive
+by proxy: somebody deletes their originals on the strength of it. A confirmation pass that
+compared this column against a SHA-256 of the target's bytes would report a mismatch for
+every Drive, Box, Dropbox and OneDrive item in the corpus — not because anything was wrong,
+but because it compared MD5 to SHA-256. **That is D7's real content**, and it is why the
+question is not "how much do we re-read" but "what exactly is being compared to what".
+
+**One more limit, from the target side.** `jmap-file-target.ts:828` gets a target hash the
+only way there is — it downloads the file and hashes it, reporting `checksumUnavailable`
+when it cannot. `jmap-contact-target.ts:782` deliberately implements no `contentHashFor` at
+all, and `hash.ts:143` records why: CalDAV and CardDAV servers re-serialise what they store,
+so *"a byte hash computed on the source can never equal one computed back off the target"*.
+So a per-item byte-hash claim is available for **files and mail**, and for **calendar and
+contacts it does not exist** — those get the canonical fingerprint, which is a weaker and
+differently-shaped claim. T2's list has to say which of the two it is holding for each row,
+because "verified" cannot mean both.
+
 
 ## Not in this plan
 
