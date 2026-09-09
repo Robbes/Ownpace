@@ -17,12 +17,14 @@
  *    three facts you need to choose between pinning it and living with it.
  *
  *  - ONE MODERATE was never fetched at all. `--audit-level=high` filters it out
- *    before anything can report it. That moderate (esbuild
- *    GHSA-67mh-4wv8-2f99) had already been reviewed and deliberately left
- *    unpinned, with the reasoning written into `pnpm-workspace.yaml` — and no
- *    CI run has ever mentioned it. A decision that is invisible in CI is
- *    indistinguishable from an oversight, and it is re-litigated from scratch
- *    by whoever next reads the audit.
+ *    before anything can report it. That moderate — esbuild
+ *    GHSA-67mh-4wv8-2f99 — had sat unpinned for weeks on a note in
+ *    `pnpm-workspace.yaml` reasoning that it was dev-only and the bump looked
+ *    risky. No CI run had ever named it, so nothing prompted anyone to check
+ *    whether that was still true. It was listed for the first time, the bump
+ *    was then actually measured, and it was fine: the advisory is now gone
+ *    from the tree entirely. A finding nobody states is a finding nobody
+ *    re-examines.
  *
  * The owner's ask, verbatim: "i do want 'moderate' also signalled, so we can
  * know those kind of vulnerabilities and decide to keep or mitigate those."
@@ -45,6 +47,11 @@
  *  5. **Production wins over dev.** A package reached by one prod path and ten
  *     dev paths is production. The opposite default would under-report the
  *     only rows that can reach a customer.
+ *  6. **`dev` never reaches the gate.** It is reported, never subtracted. The
+ *     owner's rule, verbatim: "i want vulnerabilities out of the product, we
+ *     are open source, all is in the open, i dont want vulnerabilities, also
+ *     not in dev." A dev-only high blocks exactly like a production one, and
+ *     the test below fails if anyone ever wires `dev` into `shouldFail`.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -127,8 +134,8 @@ describe('the advisory gate asks for moderates, and names what it finds', () => 
     expect(shouldFail(rows, 'critical'), 'nothing here is critical').toBe(false);
     expect(shouldFail(rows, 'high'), 'the qs row is high').toBe(true);
     expect(shouldFail(rows, 'moderate'), 'both rows are at or above moderate').toBe(true);
-    // The workflow's current position, stated so a change to it is deliberate.
-    expect(auditStep).toContain('--fail-at=never');
+    // The owner's rule, pinned: high and critical block, moderate and low do not.
+    expect(auditStep).toContain('--fail-at=high');
   });
 
   it('refuses a --fail-at it does not recognise instead of quietly not failing', () => {
@@ -141,6 +148,22 @@ describe('the advisory gate asks for moderates, and names what it finds', () => 
     // "never" is a real setting and must stay distinct from a typo.
     expect(shouldFail(rows, 'never')).toBe(false);
     expect(shouldFail(rows, undefined)).toBe(false);
+  });
+
+  it('gates on severity alone — a dev-only high still blocks', () => {
+    // The rule this encodes: dev tooling gets no discount. If someone later
+    // makes shouldFail() skip dev rows "because they do not ship", this fails.
+    const devOnlyHigh = collect({
+      advisories: {
+        '1': {
+          severity: 'high',
+          module_name: 'only-in-dev',
+          findings: [{ version: '1.0.0', dev: true, paths: ['.>eslint>only-in-dev'] }],
+        },
+      },
+    });
+    expect(devOnlyHigh[0]?.dev, 'the row is dev-only').toBe(true);
+    expect(shouldFail(devOnlyHigh, 'high'), 'and it must block anyway').toBe(true);
   });
 
   it('counts a package as production when ANY path to it is not dev', () => {
