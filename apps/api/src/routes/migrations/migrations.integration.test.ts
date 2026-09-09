@@ -370,6 +370,109 @@ describe('Migrations Routes - Tenant Isolation', () => {
       expect(check.rows.length).toBe(0);
     });
 
+    it('deletes a migration that has been VERIFIED, and takes its dependants with it', async () => {
+      // THE ONE THE 500 CAME THROUGH (migration 0042, 2026-09-08).
+      //
+      // The test above deletes a mapping that has never done anything: fresh
+      // mailbox, fresh mapping, no history. Every foreign key to
+      // `mailbox_mapping` is satisfied vacuously, so it passes whatever the
+      // FK actions say — which is exactly why it passed for the five weeks
+      // Delete answered `500 delete_failed` on any migration a customer had
+      // ever verified.
+      //
+      // Eighteen keys reference the mapping. Sixteen cascade; `run` sets null
+      // because a run is metered and outlives the mapping it measured. Two —
+      // `verification_run` and `apply_receipt` — named no action at all, and
+      // Postgres reads that as NO ACTION. This gives the mapping one row in
+      // each of the three and presses the same button the customer presses.
+      const vId = '5a1b0000-e29b-41d4-a716-446655443611';
+      const vMailbox = '5a1b0000-e29b-41d4-a716-446655443612';
+      const vRun = '5a1b0000-e29b-41d4-a716-446655443613';
+
+      // Cleaned up BEFORE, not after. A run that fails part-way — which is
+      // exactly what this test does when the FK actions regress — never
+      // reaches a trailing cleanup, and the next run then dies on a duplicate
+      // key instead of reporting the defect it was written to find. Found by
+      // running it against the reverted schema twice.
+      await superuserPool.query('DELETE FROM run WHERE id = $1', [vRun]);
+      await superuserPool.query('DELETE FROM apply_receipt WHERE mapping_id = $1', [vId]);
+      await superuserPool.query('DELETE FROM verification_run WHERE mapping_id = $1', [vId]);
+      await superuserPool.query('DELETE FROM mailbox_mapping WHERE id = $1', [vId]);
+      await superuserPool.query('DELETE FROM mailbox WHERE id = $1', [vMailbox]);
+
+      await superuserPool.query(
+        `INSERT INTO mailbox (id, tenant_id, connection_id, display_name, kind)
+         VALUES ($1, $2, $3, 'Verified', 'user')`,
+        [vMailbox, MIG_TENANT_A, '5a1b0000-e29b-41d4-a716-446655443301'],
+      );
+      await superuserPool.query(
+        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status, mode)
+         VALUES ($1, $2, $3, $3, 'active', 'mirror')`,
+        [vId, MIG_TENANT_A, vMailbox],
+      );
+
+      // It has been verified — the precondition the customer's 500 needed.
+      await superuserPool.query(
+        `INSERT INTO verification_run (tenant_id, mapping_id, state, started_at, finished_at)
+         VALUES ($1, $2, 'done', now(), now())`,
+        [MIG_TENANT_A, vId],
+      );
+      // And somebody pressed apply on an item once.
+      await superuserPool.query(
+        // `finished_at` is not decoration: apply_receipt_finished_check makes
+        // it exactly equivalent to "not queued", so a terminal receipt without
+        // one is refused by the database (0004).
+        `INSERT INTO apply_receipt (tenant_id, mapping_id, natural_key_hash, action, state, finished_at)
+         VALUES ($1, $2, 'sha256:integration-fixture', 'deletion', 'applied', now())`,
+        [MIG_TENANT_A, vId],
+      );
+      // And it has a metered pass, which must NOT go with it.
+      await superuserPool.query(
+        `INSERT INTO run (id, tenant_id, mapping_id, kind, status, started_at, finished_at)
+         VALUES ($1, $2, $3, 'incremental', 'succeeded', now(), now())`,
+        [vRun, MIG_TENANT_A, vId],
+      );
+
+      const response = await request
+        .delete(`/api/migrations/${vId}`)
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`);
+
+      // Before migration 0042 this was 500 with `delete_failed`, and there was
+      // no second door: the migration could not be removed from the screen at
+      // all. The body is asserted too — a 500 that happened to be shaped like
+      // a success would otherwise read the same here.
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+
+      const gone = await superuserPool.query(
+        'SELECT 1 FROM mailbox_mapping WHERE id = $1',
+        [vId],
+      );
+      expect(gone.rows.length).toBe(0);
+
+      // The dependants went with it. A receipt or a verification run kept
+      // without its mapping is unreachable rather than preserved — every read
+      // of both tables is keyed by `mapping_id`.
+      for (const table of ['verification_run', 'apply_receipt']) {
+        const left = await superuserPool.query(
+          `SELECT count(*)::int AS n FROM ${table} WHERE mapping_id = $1`,
+          [vId],
+        );
+        expect(left.rows[0].n, `${table} rows survived the mapping`).toBe(0);
+      }
+
+      // But the RUN did not, and that is the other half of the decision: a run
+      // is metered, and billing reads it long after the migration is gone.
+      // Cascading it to fix the 500 would have deleted invoice evidence
+      // silently, which is why the two answers are asserted together.
+      const run = await superuserPool.query(
+        'SELECT mapping_id FROM run WHERE id = $1',
+        [vRun],
+      );
+      expect(run.rows.length, 'the metered run was deleted with its mapping').toBe(1);
+      expect(run.rows[0].mapping_id).toBeNull();
+    });
+
     it('should prevent tenant B from deleting tenant A mapping (CROSS-TENANT TEST)', async () => {
       const response = await request
         .delete(`/api/migrations/${MIG_MAPPING_A}`)
