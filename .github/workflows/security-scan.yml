@@ -66,15 +66,21 @@ jobs:
         run: pnpm audit --audit-level=high || echo "::warning::pnpm audit reported advisories"
 
       - name: Trivy filesystem/dependency scan (SARIF)
+        id: trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           format: sarif
           output: trivy.sarif
           severity: HIGH,CRITICAL
+        # Kept, and now it costs nothing: the step below reads
+        # `steps.trivy.outcome`, and "the scan reported something" is asserted
+        # at the end of the job. Without that pair this flag alone turned every
+        # Trivy failure into a green step.
         continue-on-error: true
 
       - name: Upload SARIF to code scanning
+        id: upload_sarif
         if: always() && hashFiles('trivy.sarif') != ''
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
@@ -154,3 +160,63 @@ jobs:
           # append_body keeps hand-written prose if the release already exists
           # (the human may create it with notes before the workflow finishes).
           append_body: true
+
+      # ---------- A SCAN THAT SKIPPED ITSELF IS NOT A SCAN ----------
+      #
+      # Last, and `always()`, so that everything above still runs: the SBOM and
+      # the release attach have nothing to do with Trivy and must not be lost
+      # to a Trivy outage. This step only decides what the JOB is allowed to
+      # claim.
+      #
+      # THE SHAPE THIS CLOSES is the one this file's own header condemns twenty
+      # lines up, about the SBOM attach: "the step read as deliberate and did
+      # nothing, which is the worst shape a guard can have." The Trivy half had
+      # it too and never got the fix. Two lines conspired:
+      #
+      #   `continue-on-error: true` on the scan  — a Trivy failure reports GREEN.
+      #   `if: … hashFiles('trivy.sarif') != ''` — no file means the upload is
+      #                                            SKIPPED, not failed.
+      #
+      # So a Trivy that could not pull its vulnerability database (its ordinary
+      # failure: a rate-limited ghcr.io) produced a green Security Scan that had
+      # scanned nothing, uploaded nothing, and said nothing. Code scanning would
+      # simply show no new analysis, which looks exactly like a week with no
+      # findings.
+      #
+      # `-s` rather than `hashFiles`: hashFiles returns a hash for an existing
+      # EMPTY file, so a zero-byte trivy.sarif passes that gate and uploads a
+      # report with nothing in it. Non-empty is the property that matters.
+      #
+      # FATAL WHERE THE SCAN IS THE RECORD, warning where it is not — the same
+      # rule the SBOM step above already states in its own words ("Fatal on
+      # tags, warning elsewhere"). On main, on the weekly schedule and on a tag,
+      # this run IS the security record and a missing one must be visible. On a
+      # pull request it is not, and an upstream outage should not stand between
+      # a contributor and their merge.
+      - name: The scan produced a report, and it was uploaded
+        if: always()
+        env:
+          SCAN_IS_THE_RECORD: ${{ github.event_name != 'pull_request' }}
+          TRIVY_OUTCOME: ${{ steps.trivy.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload_sarif.outcome }}
+        run: |
+          set -uo pipefail
+          problems=""
+          [ "$TRIVY_OUTCOME" = "success" ] || problems="the Trivy step ended '$TRIVY_OUTCOME'"
+          if [ ! -s trivy.sarif ]; then
+            problems="${problems:+$problems; }no trivy.sarif was written (or it is empty)"
+          fi
+          if [ "$UPLOAD_OUTCOME" != "success" ]; then
+            problems="${problems:+$problems; }the SARIF upload ended '$UPLOAD_OUTCOME'"
+          fi
+
+          if [ -z "$problems" ]; then
+            echo "Trivy wrote $(wc -c < trivy.sarif) bytes of SARIF and code scanning accepted it."
+            exit 0
+          fi
+
+          if [ "$SCAN_IS_THE_RECORD" = "true" ]; then
+            echo "::error::This Security Scan uploaded no findings, and on ${GITHUB_REF_NAME} it IS the security record: ${problems}. A green run here would mean 'no new analysis', which reads exactly like a period with no vulnerabilities."
+            exit 1
+          fi
+          echo "::warning::This Security Scan uploaded no findings: ${problems}. Not fatal on a pull request — the scan on main is the record — but this branch has not been scanned."

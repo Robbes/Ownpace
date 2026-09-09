@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 111 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 112 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -49,6 +49,10 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/images.yml`
 
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
+
+### `.github/workflows/security-scan.yml`
+
+- [a-scan-that-skipped-itself](../scripts/a-scan-that-skipped-itself.unit.test.ts) — A security scan that skipped itself, and reported green.
 
 ### `.github/workflows/windows-payload.yml`
 
@@ -1490,6 +1494,14 @@ Reads:
 - `test/e2e/no-workspace-imports.unit.test.ts`
 - `test/e2e/selfhost-restart-resume.e2e.test.ts`
 - `test/e2e/selfhost-verification.e2e.test.ts`
+
+### [a-scan-that-skipped-itself](../scripts/a-scan-that-skipped-itself.unit.test.ts)
+
+A security scan that skipped itself, and reported green.
+
+Reads:
+
+- `.github/workflows/security-scan.yml`
 
 ### [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts)
 
