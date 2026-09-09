@@ -2,6 +2,18 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-09, evening: Redis decided — stay on 7.4 — and the Trigger.dev pin applied.**
+Item 3 closed with a revisit trigger rather than a shrug: `redis:7-alpine` is already
+7.4.11, it is what upstream's own compose tests against, and RSALv2 permits this use since
+Redis here is Trigger.dev's internal queue and not a service offered to anyone. Item 1 was
+applied on the reference machine in the owner's window — drain (0 `EXECUTING`), verified
+backup, `--from trigger`, task redeploy — and verified by the run counters: successes
+advancing one per minute-tick while `COMPLETED_WITH_ERRORS` and `SYSTEM_FAILURE` stayed
+frozen. Assembling those commands found a related defect, fixed in #893: the "four places"
+that must agree were six, and the root `package.json` plus `packages/scheduler` had been
+left on 4.5.12 while the images moved to v4.5.16. Only the object store (item 5) is still
+the owner's.
+
 **2026-09-09, later: the gate is on at three days, and the list is half its old size.** The
 owner took item 8 the same day it was raised: `minimumReleaseAge: 4320`. Three facts decided
 the number, all measured rather than read: the unit is **minutes** (a bare `3` would be three
@@ -78,7 +90,7 @@ a decision each, §3, for the owner.
 | T0 The audit | ✅ Done 2026-09-06 | §2. Registries queried directly (Docker Hub v2 API, GHCR token + paginated tag list, `git ls-remote` for the actions); `pnpm outdated -r` for npm. |
 | T1 Dependabot learns the images | ✅ Done 2026-09-06 | `docker` over the three Dockerfiles, `docker-compose` over `deploy/compose` and `deploy/selfhost`, weekly, minor+patch grouped, majors one PR each. The one-way images and the deliberate pins are ignored by name (§2.1). `@trigger.dev/*` ignored in npm: it moves through `trigger-version.sh` or not at all. The three digest-only pins (`node@sha256:…` ×3, `postgres@sha256:…`) carry their tag now — same digests, no version moved — because Dependabot compares tags, and a bare digest has nothing to compare. |
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
-| T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Still the owner's, §3: Redis (item 3, with the facts corrected), the object store (item 5, with a candidate named) and the release-age gate — item 8, raised and **taken** on 2026-09-09 (`minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). |
+| T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Still the owner's: the object store (item 5, with a candidate named). |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
 
 ## 1. Why this exists
@@ -194,7 +206,14 @@ is beside each; none is urgent tonight.
    still receives patches (recommended); Redis 8 under AGPLv3 when upstream's compose
    moves; or Valkey 8.1 (BSD-3, Linux Foundation, `valkey/valkey:8.1.10-alpine`,
    protocol-compatible with the 7.2 line) if OSI-only components are the rule. Nothing in
-   the stack asks for an 8-only feature. The owner's call, on record when made.
+   the stack asks for an 8-only feature. **TAKEN 2026-09-09: stay on 7.4.** The owner's
+   word: *"2: stay"*. Nothing moves, and that is the point — `redis:7-alpine` already
+   resolves to 7.4.11, it is the line Trigger.dev's own compose tests against, it still
+   receives patches, and RSALv2 permits this use because Redis here is Trigger.dev's
+   internal queue rather than a service offered to anyone. **The revisit trigger, so this
+   is not a decision that quietly expires:** upstream's compose moving to Redis 8, or the
+   7.4 line going out of patch support. Valkey stays the answer if OSI-only components
+   ever become the rule; that would be a new decision, not this one.
 4. **registry 2 → 3.** The 2 line has had no release since 2.8.3; 3.0 rewrote the
    configuration file. The registry only serves Trigger.dev's deploy images inside the
    stack; moving it is a config rewrite plus a bring-up, not a patch. **Taken
