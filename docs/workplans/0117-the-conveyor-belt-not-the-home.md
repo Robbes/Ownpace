@@ -2,6 +2,25 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-09, later still: T1 and T2 SURVEYED — and each turned out to contain a question
+that is not a programmer's to answer.** §7 is the survey: every attachment point read out of
+the tree, with file and line, so building these is execution rather than invention. Two
+findings worth the top of this page:
+
+- **T1 touches two lifecycle vocabularies, not one.** `mailbox_mapping.status` has four
+  values; `PATH_STATES` — the BILLING one — has five, and is documented as *"ADR-0014's
+  five"*. A continuous lane needs a value in both, and the second is an amendment to a
+  published ADR rather than a new constant. **D6** asks the question underneath it: does a
+  path that never ends hold one of the tier's slots?
+- **T2 cannot be built from the ledger at all.** The row holds the SOURCE's hash and our
+  memory of our own write; §5's rule says our memory is not the gate. So T2 is a
+  confirmation pass, and how much of the library it re-reads is a cost decision — **D7**.
+  There is a research debt attached to D7 and it is flagged as unpaid.
+
+**Nothing is blocked on me.** D6 and D7 each fit in a sentence and each unblocks a build.
+T1's logic (§7b — where the detector must be absent, and the test that tells absent from
+gated) needs neither of them and is buildable now.
+
 **2026-09-09, later: D4 TAKEN — after cutover we do not delete in the target because
 something changed at the source.** The owner's words, which are better than the drafted
 question because they are about the outcome rather than the machinery:
@@ -66,8 +85,8 @@ the owner says no to it, this document is a record of why and nothing more is wa
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
-| T1 The continuous lane | 📋 **Buildable — D1 and D4 both taken** | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
-| T2 The confirmed list | 📋 **Buildable — D1 and D4 both taken** | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
+| T1 The continuous lane | 📋 **Designed 2026-09-09 (§7a, §7b); logic unblocked, schema waits on D6** | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
+| T2 The confirmed list | 📋 **Surveyed 2026-09-09 (§7c) — blocked on D6's sibling, D7** | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The live item now** | The drain's consent (D5) defers with T3. What T1 and T2 need is smaller and real, and D4 added to it: a person must be told that a mapping keeps copying after cutover (continued access to a system they think they have left), that deletions at the source are **no longer mirrored** and why, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |
@@ -342,6 +361,162 @@ a place somebody will otherwise "fix" by making the drain phase run passes.*
 copying it.
 *Recommendation: **a separate, named, re-confirmable consent**, with the first drain
 run reported before it becomes routine.*
+
+---
+
+The two below were not in the original draft. They surfaced on 2026-09-09 while surveying
+where T1 and T2 actually attach (§7), and both are the same kind of thing: a question that
+sits inside an authorised task, that a programmer would otherwise answer by accident.
+
+**D6 — does a mapping in the continuous lane hold a billing slot?** 🔨 **OPEN — blocks T1's
+schema, not its logic.**
+
+ADR-0014's occupancy axis is *paths at once*, and `holdsASlot` is `active || paused`
+(`packages/ledger/src/path-lifecycle-store.ts`), whose own module comment calls it *"the one
+rule the tier calculator, the honesty surface and any future invoice all have to agree
+on"*. Every state in that vocabulary belongs to a migration, which is a thing that ends.
+**The continuous lane is a path that does not end**, so whichever way this goes, a pricing
+axis built for a finite job acquires an infinite one.
+
+And it is not only a code change. `PATH_STATES` is documented as *"ADR-0014's five, in the
+order a path travels them"* — `ready, active, paused, cutover, done`. A sixth is an
+**amendment to a published ADR**, and ADR-0014 has been amended for pricing before
+(2026-08-20, metered → tiers). So the answer here decides a document, not just a constant.
+
+- **(a) It holds a slot, like any other path.** The tier stands as it is; a customer running
+  a belt keeps paying the tier that belt occupies. The machine genuinely is working for
+  them, month after month.
+- **(b) It holds no slot.** After cutover the lane is free. Generous, and it makes leaving
+  stickier — but an unmetered resource is a resource somebody eventually leaves running by
+  the hundred, and this one costs real bytes every pass.
+- **(c) Its own line, priced separately** — the honest shape if the answer is "yes but not
+  at migration rates", and the most work.
+
+*Recommendation: **(a)**, on the grounds that it needs no new machinery and no new words on
+the invoice, and that the occupancy really is occupancy. But it carries an obligation that
+is not the code's: **the customer has to be told before they enter the lane that their bill
+does not stop at cutover.** Somebody who believes the price ends when the migration ends and
+finds a tier still charging is a complaint, and a fair one. That sentence belongs to T5.*
+
+**D7 — what does "verified" mean in T2's list?** 🔨 **OPEN — blocks T2's first line.**
+
+§7c: the ledger holds the SOURCE's hash and our memory of our own write, and §5's rule says
+our memory is not the gate. So the list needs a target-side answer per item, and the
+question is how that answer is obtained.
+
+- **(a) Re-read every item from the target and hash it.** The strongest claim available and
+  the one §5's words describe. It is also a full download of the library **from the target**
+  — for a family-sized file account that is hundreds of gigabytes and hours, per list.
+- **(b) Ask the target for its own recorded hash**, downloading nothing, and fall back to (a)
+  only where the platform does not publish one.
+- **(c) Existence and size only**, and say exactly that in the words — a weaker claim,
+  honestly labelled.
+
+*Recommendation: **(b) where it is available, (a) where it is not, and never (c) silently.***
+
+> ⚠️ **Owed before D7 is answered** — 0105's never-guess rule, the same debt §1 records for
+> the Photos API. (b) is only worth choosing if the platforms actually publish a per-file
+> content hash in metadata. That is **plausible and unverified**: nobody has checked it for
+> this plan. Read each target platform's own API reference, confirm what hash it exposes
+> and over what bytes, and write the answer here with the date and the link — before the
+> recommendation above is treated as a finding rather than a hypothesis.
+
+*And one thing D7 does not get to decide: **whatever "verified" turns out to mean, the list
+says so on its face.** A person deleting their originals on the strength of a list is owed
+the definition next to the number, not in a footnote — that is the T2 half of T5's words,
+and it is not optional in any of the three branches.*
+
+## 7. T1 and T2, as they have to be built HERE (added 2026-09-09)
+
+D1 and D4 authorised these two and settled what they must not do. Neither says where they
+attach to this codebase, and both turn out to contain a question that is not a
+programmer's to answer. This section is the survey — every claim below was read out of the
+tree on 2026-09-09, with the file and line, so the build is execution rather than
+invention — and the two questions are raised as **D6** and **D7** in §6.
+
+### 7a. T1 — where the phase attaches
+
+**A fifth lifecycle value.** `mailbox_mapping.status` is `active | paused | cutover | done`
+(managed migration 0001's CHECK, `packages/ledger/src/schema-pg.ts`). The continuous lane
+is a phase, per §4A, so it is a fifth value — `continuous` — entered from `cutover` or
+`done` and left to `done`. Not a flag on `active`: §3c already rejected that, because a
+flag reopens the window the lifecycle closes by stopping.
+
+**Three places decide today whether a mapping runs, and all three say `active`:**
+
+| where | what it does now | what T1 needs |
+|---|---|---|
+| `apps/selfhost/src/index.ts:842` | `if (status === 'active') scheduleMapping(m)` | schedules `continuous` too |
+| `apps/selfhost/src/index.ts:2686` | the manual trigger answers **409** `mapping is '<status>', not 'active'`, hinting *"A mapping in cutover or done no longer syncs"* | the hint stops being true for one value, and must say so |
+| `packages/shared/src/lifecycle.ts` | `isAfterCutover(status)` = `cutover \|\| done` (#899) | `continuous` joins it — it IS after cutover, and that membership is what makes the detector absent |
+
+That last row is the load-bearing one. D4's rule is expressed as "after cutover"; if
+`continuous` is not *in* `isAfterCutover`, the lane runs with the detector present and §3a's
+loop is back with no drain anywhere. **Adding the status and adding it to `isAfterCutover`
+are one commit, never two.**
+
+**Two vocabularies, not one, and it is easy to miss.** `mailbox_mapping.status` is
+`active, paused, cutover, done`; `PATH_STATES`
+(`packages/ledger/src/path-lifecycle-store.ts`) is `ready, active, paused, cutover, done` —
+five, with a `ready` the mapping has no equivalent of. 0109 T1 built the per-path store
+precisely so a path can end on its own, and its module comment records that the routes
+still read the mapping's column. **T1's new value has to land in both**, or the lane runs
+while the billing ledger believes those paths ended at cutover. Which is D6.
+
+### 7b. T1 — what "absent, not gated" means in this code
+
+Deletions reach the target through three sites, all read on 2026-09-09:
+
+- **`detectPathKeyedMoves`** (`packages/core/src/domain-sync.ts:1929`) — absence and move
+  correlation for path-keyed domains. This is where `deletions` come from for files.
+- **the reported stream** (`domain-sync.ts:1700`) — a source that announces its own
+  deletions, which is OneDrive's delta.
+- **`applyDeletion` / `autoApplyRelocations`** (`packages/orchestration/src/orchestration.ts:528`,
+  `:1078`) — the application, gated on `allowApplyDeletions`.
+
+§4D rejects the third as the place to stop, and it is right to: `allowApplyDeletions` is a
+gate, and a gate can be wrong once. **Absence means the first two are not called.** The pass
+for a mapping in `isAfterCutover` is assembled without them, so there is no code path — not
+even a disabled one — that can produce a deletion.
+
+**The test that tells absent from gated**, which is the definition-of-done rule D4 added:
+
+> Set `allowApplyDeletions: **true**` on a `continuous` mapping — the switch that normally
+> enables everything above. Delete an item at the source. Run a pass. Assert the target copy
+> is untouched **and that the pass reports `deletions: 0`**.
+
+A gated implementation passes the first half and fails the second: it reports "1 detected, 0
+applied". Only absence reports nothing detected. Turning the switch **on** is what makes the
+test mean something — a test that leaves it off proves only that the default is off.
+
+### 7c. T2 — the ledger cannot make this claim yet, and that is the whole task
+
+T2 hands somebody a list they will delete on the strength of. §5's rule for the drain
+applies with full force to the list as well, because the consequence is identical:
+
+> Confirm by re-reading the target, comparing content hash — never "we wrote it and got a
+> 200". The gate is the target's answer, not our memory of our own request.
+
+What the ledger holds per item (`item`, `packages/ledger/src/schema-pg.ts`):
+`contentHash` — **the source's hash at copy time**; `targetRef` and `targetVersion` — our
+memory of our own write; `status`, `lastSyncedAt`. There is no target-side confirmation
+anywhere in the row. `verification.ts` re-reads the target, but it is **sampled** (5% by
+default, `checksumSamplePercentage`) and answers per domain, not per item. A sample cannot
+tell one person which of their files is safe.
+
+So T2 is not a query over existing data. It is a **confirmation pass** that re-reads the
+target per item, plus somewhere to record what it found, plus the list.
+
+Two item states need naming before the list can be honest:
+
+- **`adopted`** — *"Already on the target under our natural key; nothing was written"*
+  (migration 0017). We never wrote these and never hashed them. They are the most likely to
+  be genuinely fine and the ones we have said least about.
+- **`skipped`** and **`left_behind`** — never placed. They must not appear as confirmed, and
+  a list that silently omits them tells somebody their library is smaller than it is.
+
+**How much of the library that re-read touches is D7**, and it is a cost question, not a
+correctness one — which is exactly why it is not settled here.
 
 ## Not in this plan
 
