@@ -26,7 +26,8 @@
 #                        task container has no credentials at all — the same
 #                        trap the SMTP values fell into.
 #   SMTP_* / NOTIFY_*  — the notification channel (workplan 0030), OPTIONAL.
-#   LEDGER_RETENTION_DAYS, TRIGGER_API_URL_IN_NETWORK, LOG_LEVEL — OPTIONAL
+#   LEDGER_RETENTION_DAYS, LEDGER_RUN_RETENTION_DAYS, TRIGGER_API_URL_IN_NETWORK,
+#   LOG_LEVEL — OPTIONAL
 #                        knobs the tasks read and nothing used to upload, so
 #                        setting them in .env did nothing at all.
 #                        Uploaded only when set, so a stack that does not want
@@ -200,6 +201,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   NOTIFY_TO="${NOTIFY_TO:-}" \
   NOTIFY_LOCALE="${NOTIFY_LOCALE:-}" \
   LEDGER_RETENTION_DAYS="${LEDGER_RETENTION_DAYS:-}" \
+  LEDGER_RUN_RETENTION_DAYS="${LEDGER_RUN_RETENTION_DAYS:-}" \
   TRIGGER_API_URL_IN_NETWORK="${TRIGGER_API_URL_IN_NETWORK:-}" \
   LOG_LEVEL="${LOG_LEVEL:-}" \
   FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
@@ -228,6 +230,10 @@ const { envvars } = require("@trigger.dev/sdk");
   //                               override, and on managed there was nowhere
   //                               to put it: managed-retention.ts reads it in
   //                               a task container, which inherits nothing.
+  //   LEDGER_RUN_RETENTION_DAYS   its sibling for run ROWS (0121 T5), added
+  //                               here in the same commit that made the task
+  //                               read it — the guard that named this defect
+  //                               failed first and is why this line exists.
   //   TRIGGER_API_URL_IN_NETWORK  the escape hatch beside the compose-network
   //                               default that makes due ticks work at all.
   //   LOG_LEVEL                   raising the log level on a task was impossible.
@@ -250,7 +256,8 @@ const { envvars } = require("@trigger.dev/sdk");
     "MICROSOFT_OAUTH_TENANT",
     "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD",
     "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
-    "LEDGER_RETENTION_DAYS", "TRIGGER_API_URL_IN_NETWORK", "LOG_LEVEL",
+    "LEDGER_RETENTION_DAYS", "LEDGER_RUN_RETENTION_DAYS",
+    "TRIGGER_API_URL_IN_NETWORK", "LOG_LEVEL",
   ]) {
     const value = process.env[name];
     if (value) variables[name] = value;
