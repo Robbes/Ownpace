@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 110 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 111 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -118,6 +118,7 @@ reading a file drops off its entry by itself.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts) — The create-mapping validator ends in a catch-all that asks for AZURE credentials, and nothing pairs it against the source types that exist.
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
+- [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `apps/api/src/routes/migrations/microsoft-consent.ts`
@@ -251,6 +252,7 @@ reading a file drops off its entry by itself.
 - [a-full-sync-that-only-did-the-mail](../scripts/a-full-sync-that-only-did-the-mail.unit.test.ts) — One job runs passes, a full scan is an option on it, and EVERY domain honours that option.
 - [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
+- [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 
 ### `apps/worker/src/jobs/run-discovery.ts`
 
@@ -404,6 +406,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/seed-demo-dav-content.sh`
 
 - [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
+- [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [gate-net-zero](../scripts/gate-net-zero.unit.test.ts) — The managed gate takes back what it added.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [seed-demo-dav-content](../scripts/seed-demo-dav-content.unit.test.ts) — The demo's DAV content, and the two ways seeding it goes quietly wrong.
@@ -458,6 +461,7 @@ reading a file drops off its entry by itself.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
+- [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
 - [gate-net-zero](../scripts/gate-net-zero.unit.test.ts) — The managed gate takes back what it added.
@@ -709,6 +713,10 @@ reading a file drops off its entry by itself.
 ### `packages/orchestration/src/build-deps-from-mapping.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+
+### `packages/orchestration/src/build-reindexers.ts`
+
+- [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 
 ### `packages/orchestration/src/deployment-application.ts`
 
@@ -1589,6 +1597,18 @@ Reads:
 
 - `deploy/compose/smoke-managed.sh`
 - `scripts/smoke-managed-verdict.unit.test.ts`
+
+### [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts)
+
+A verify that measured a race, and reported the race as a result.
+
+Reads:
+
+- `apps/api/src/routes/migrations/index.ts`
+- `apps/worker/src/jobs/run-delta-sync.ts`
+- `deploy/compose/seed-demo-dav-content.sh`
+- `deploy/compose/smoke-managed.sh`
+- `packages/orchestration/src/build-reindexers.ts`
 
 ### [a-version-you-can-see-before-you-sign-in](../scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts)
 

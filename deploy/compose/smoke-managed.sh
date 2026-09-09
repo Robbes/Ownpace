@@ -107,6 +107,13 @@ POLL_SLEEP="${SMOKE_POLL_SLEEP:-2}"
 # The prepare phase waits on a whole sync pass (runner start + DAV round trips),
 # which is a longer thing than polling one already-running verify.
 PREP_POLLS="${SMOKE_PREPARE_POLLS:-60}"
+# The verify half's own pass (see "the target has to be CURRENT"). Longer again
+# than prepare's, because this one waits on a pass over EVERYTHING the source
+# holds rather than on the first eligible row to appear in the ledger. It is a
+# gate budget and not a pass budget: PASS_SOFT_DEADLINE_MS is fifty minutes, so
+# running out here means "report it and measure what landed", never "the pass
+# is wrong".
+SYNC_POLLS="${SMOKE_SYNC_POLLS:-90}"
 OUT="${SMOKE_OUT:-/tmp/openmig-smoke-managed-$(date -u +%Y%m%dT%H%M%SZ).txt}"
 
 # Demo-seed fixtures (apps/api/src/scripts/seed-managed.ts).
@@ -1330,218 +1337,37 @@ else
   echo "swept ${swept:-0} membership(s) left behind by earlier runs"
 fi
 
-# ---------- VERIFY half ----------
+# ---------- PREPARE: give BOTH halves something this run can account for ----------
 #
-# TWO MAPPINGS, and until 2026-08-19 only one of them was ever verified.
+# THIS USED TO SIT BELOW THE VERIFY HALF, and that placement is what E2E
+# (managed) #166 and #167 were. The verify measured a target no pass in the job
+# had written to, and the sync that would have filled it ran five seconds
+# later, inside this block. #167 timed it: VERIFY (dav) failed at 06:50:53,
+# the enqueue went out at 06:50:58, and an eligible item existed by 06:51:02 —
+# four seconds. Nothing was broken; the gate simply asked before it told.
 #
-# The demo seed splits the domains across two tenants because `connection` has
-# exactly one source + one target row per tenant, so a single tenant cannot
-# point at Stalwart AND Nextcloud at once: tenant A is mail, tenant B is
-# calendar/contact/file. This half ran against tenant A alone, so every managed
-# run has reported `calendar/contacts/files: SKIPPED — verification was
-# disabled in the config` and nobody read it as a gap. **No run had ever
-# verified a calendar, a contact or a file on the managed stack** — the three
-# domains were exercised by the sync (that is where the apply half's eligible
-# item comes from) and checked by nothing.
-verify_mapping() { # verify_mapping <tenant> <sub> <mapping> <label> <required-domains...>
-  local tenant="$1" sub="$2" mapping="$3" label="$4"
-  shift 4
-  # GLOBALS on purpose, not sloppiness: `smoke-managed-verdict.unit.test.ts`
-  # extracts these two guards out of this file and RUNS them, which is the only
-  # way a shell decision gets tested rather than restated. A `local` is a syntax
-  # error outside a function, so declaring them here would make the real lines
-  # unextractable and the tests would have to paraphrase — which is exactly the
-  # drift that let the apply half's skip-that-passed survive review.
-  REQUIRED_DOMAINS=("$@")
-  VERIFY_LABEL="$label"
+# Moving it up is not only about the wait. The dav source carries FIXED demo
+# fixtures whose ledger rows are `tombstoned`, and `classifyKnownItem` refuses
+# for ever to re-create a tombstoned natural key — deliberately, since it
+# cannot tell a change of mind from an erasure request. On 2026-09-09 the demo
+# stack held task|tombstoned|2: BOTH fixed task fixtures, spent by this gate's
+# own picker back when FIXTURE_RE named only event, contact and file. Those two
+# will never copy again, so a verify that has only the fixed set to look at
+# reports the tasks domain as source=2 target=0 for ever, however long it
+# waits, and no sync-before-verify would have changed it.
+#
+# What DOES change it is the thing this phase already does for the apply half:
+# `--fresh` mints natural keys the ledger has never seen, which is the one kind
+# no tombstone can already own. Run it first, and the verify measures items
+# THIS run seeded and THIS run copied — the strongest evidence the gate can
+# offer, and immune to whatever earlier runs spent.
+#
+# The tombstones stay. The balance section keeps them on purpose ("1
+# tombstone(s) kept deliberately") and the apply half refuses to retract an
+# applied deletion, because a receipt pointing at an item claiming no deletion
+# was ever reported is a falsified record. A spent fixture is replaced, never
+# un-spent.
 
-  note "VERIFY ($label) — mapping $mapping (tenant $tenant, sub $sub)"
-  local tok vcode vbody i rcode state
-  # Whoever this stack is willing to believe for this tenant — see "signing in".
-  # `$sub` stays the label it always was; the token's real subject is whatever
-  # signed in, and the membership row seeded up there is what makes it belong.
-  case "$tenant" in
-    "$VERIFY_TENANT") tok="$VERIFY_TOKEN" ;;
-    "$APPLY_TENANT")  tok="$APPLY_TOKEN" ;;
-    *) echo "no signed-in person for tenant $tenant"; fail_at; return 1 ;;
-  esac
-  read -r vcode vbody <<<"$(http POST "$API/api/migrations/$mapping/verify/start" "$tok")"
-  echo "verify/start: HTTP $vcode"
-  echo "$vbody"
-  VERIFY_RESULT="not-started"
-  rbody=""
-  if [ "$vcode" = "202" ] || [ "$vcode" = "200" ]; then
-    i=0
-    while [ $i -lt "$POLLS" ]; do
-      sleep "$POLL_SLEEP"
-      i=$((i + 1))
-      read -r rcode rbody <<<"$(http GET "$API/api/migrations/$mapping/verify/report" "$tok")"
-      state="$(json_state "$rbody")"
-      if [ "$state" = "done" ] || [ "$state" = "failed" ]; then
-        echo "[poll $i] $rbody"
-        VERIFY_RESULT="$state"
-        break
-      fi
-    done
-    if [ "$VERIFY_RESULT" = "not-started" ]; then
-      VERIFY_RESULT="timeout"
-      echo "TIMEOUT after $((POLLS * POLL_SLEEP))s — landing the stuck row by hand (never leave 'running' pointing at nothing):"
-      q "UPDATE verification_run SET state='failed', finished_at=now(), error='smoke-managed: landed by hand after $((POLLS * POLL_SLEEP))s poll timeout' WHERE tenant_id='$tenant' AND mapping_id='$mapping' AND state='running'"
-    fi
-  else
-    VERIFY_RESULT="start-http-$vcode"
-  fi
-  echo "latest verification_run row:"
-  q "SELECT state, started_at, finished_at, left(coalesce(error,''),120) FROM verification_run WHERE tenant_id='$tenant' AND mapping_id='$mapping' ORDER BY started_at DESC LIMIT 1"
-  [ "$VERIFY_RESULT" = "done" ] || fail_at "verify ($VERIFY_LABEL) never reached 'done' — VERIFY_RESULT=$VERIFY_RESULT"
-
-  # A VERIFY THAT CHECKED NOTHING IS NOT A PASS.
-  #
-  # The same shape as the apply half's skip-that-passed, and it was still here
-  # after that one was fixed: `state: done` says the run finished, not that it
-  # compared anything. On a mailbox with no mail, verify reports
-  # `sourceCount: 0, targetCount: 0, PASS` — perfectly true, and worth nothing.
-VERIFIED_ITEMS="$(json_number "$rbody" totalItemsSource)"
-if [ "$VERIFY_RESULT" = "done" ] && [ "${VERIFIED_ITEMS:-0}" = "0" ]; then
-  echo ""
-  echo "verify ($VERIFY_LABEL) reached 'done' but compared NOTHING: totalItemsSource=0."
-  echo "FAILING rather than passing: an empty source verifies clean by definition, and a"
-  echo "gate that accepts it is reporting the absence of data as the absence of problems."
-  echo "The source for this mapping needs seeding: mail comes from"
-  echo "test/e2e/seed-imap-source.mjs, DAV from deploy/compose/seed-demo-dav-content.sh."
-  fail_at "verify ($VERIFY_LABEL) reached 'done' having compared nothing — totalItemsSource=0"
-fi
-
-  # AND A DOMAIN THAT WAS SKIPPED WAS NOT CHECKED, whatever the overall status
-  # says. The report spells this out itself — every skipped domain carries an
-  # issue with id `SKIPPED_<domain>` and the message "this domain was NOT
-  # checked" — so the assertion is simply that the ids we require are absent.
-  # Matching on that id rather than on the status field because the per-domain
-  # blocks contain nested `issues` arrays, which no `[^}]*` grep survives.
-  #
-  # ABSENT IS NOT THE SAME AS UNSKIPPED, and reading it as such is how this
-  # gate would have missed the very defect #750 fixed. Until #750 the report
-  # had four domain keys and no `tasks` at all: a `SKIPPED_tasks` grep finds
-  # nothing in that report, and "nothing found" was this loop's PASS. So a
-  # domain absent from the report is now its own failure, louder than a skip —
-  # a skip is a domain the engine declined to check, an absence is a domain
-  # the engine does not know exists.
-  #
-  # The presence probe is `"<domain>":{` because that is the shape the report
-  # actually has (`"report":{"<mappingId>":{"mail":{…},"calendar":{…},…}`).
-  # Bare `"<domain>"` would match the word anywhere in a nested issue message
-  # and hand back the same false pass in a new disguise.
-for d in "${REQUIRED_DOMAINS[@]}"; do
-  if ! grep -q "\"${d}\":{" <<<"$rbody"; then
-    echo ""
-    echo "verify ($VERIFY_LABEL) has NO '${d}' domain in its report at all."
-    echo "Not skipped — absent. The engine walks VERIFICATION_DOMAINS"
-    echo "(packages/shared/src/verification-report.ts) and builds a total record over it,"
-    echo "so a missing key means this stack is running an engine that predates the domain."
-    echo "That is the shape workplan 0113's fifth fan-out was: four keys, a ticked fifth"
-    echo "domain, and canProceedToCutover computed over four fifths of the migration."
-    fail_at "verify ($VERIFY_LABEL) report has no '${d}' domain key — the engine never knew about it"
-  elif grep -q "SKIPPED_${d}" <<<"$rbody"; then
-    echo ""
-    echo "verify ($VERIFY_LABEL) SKIPPED the '${d}' domain, which this mapping exists to cover."
-    echo "The report says it plainly: 'this domain was NOT checked'. A verify that skips"
-    echo "the domain in question is the same lie as an apply half that never runs — the"
-    echo "run is green and the thing it was for did not happen."
-    echo "Check the mapping's configured domains (seed-managed.ts: DemoTenant.domains)."
-    fail_at "verify ($VERIFY_LABEL) SKIPPED the '${d}' domain — see seed-managed.ts DemoTenant.domains"
-  else
-    echo "verify ($VERIFY_LABEL): '${d}' was actually checked"
-  fi
-done
-
-# AND A TARGET THE REINDEXER COULD NOT SEE IS NOT A VERIFIED TARGET.
-#
-# The third face of the same coin as the two guards above, and the one still
-# missing on 2026-09-07. Between them they assert that the run finished, that
-# the SOURCE had something in it, and that each domain was looked at. None of
-# them looks at what came back from the TARGET.
-#
-# That gap has a name, and it is the failure mode the CardDAV filter work of
-# 2026-09-07 could not rule out from a unit test: a target listing that the
-# server ACCEPTS and that matches nothing. `addressbook-query` is the live
-# example — RFC 6352 §10.5 defaults `test` to `anyof`, so a filter carrying no
-# prop-filter is an OR over zero tests, and a server reading that literally
-# answers with an empty multistatus. Not an error. Not a refusal. An empty
-# address book, reported by a reindexer that is working perfectly.
-#
-# This gate would have called that a pass. `state: done`, source non-zero,
-# every domain present and unskipped — and `missingOnTarget` growing, which is
-# EXPECTED here because the apply half tombstones one item per run. The one
-# number that would have said otherwise is the one nobody read.
-#
-# SO: where the SOURCE has items, the target listing must have found some.
-# Deliberately a floor and not a match — the tombstones make an equality red
-# for this script's own correct behaviour, which is exactly why `PASS` is not
-# asserted twenty lines up. A domain whose source is empty is skipped here on
-# purpose: nothing on the target is the right answer to nothing at the source.
-#
-# NOT A NEW RULE — the SELF-HOSTED gate has always had it. `counts match
-# between the ledger and the target` in `selfhost-verification.e2e.test.ts`
-# asserts `sourceCount > 0`, `targetCount === sourceCount` and
-# `missingOnTarget === 0`, and it can assert the equality because that flow has
-# no apply half consuming an item per run. The managed gate was the edition
-# missing the check, not the edition being held to a new one; what differs here
-# is the floor, and the tombstones are the whole reason for it (hard rule 5:
-# both editions, and this is the half that had drifted).
-for domain in "${REQUIRED_DOMAINS[@]}"; do
-  d_src="$(jq -r --arg d "$domain" 'first(.. | objects | select(.dataType? == $d) | .sourceCount) // "absent"' <<<"$rbody" 2>/dev/null || echo absent)"
-  d_tgt="$(jq -r --arg d "$domain" 'first(.. | objects | select(.dataType? == $d) | .targetCount) // "absent"' <<<"$rbody" 2>/dev/null || echo absent)"
-  if [ "$d_src" = "absent" ] || [ "$d_tgt" = "absent" ]; then
-    echo ""
-    echo "verify ($VERIFY_LABEL): the '${domain}' block carries no sourceCount/targetCount pair."
-    echo "Every DataTypeVerification has both (packages/shared/src/verification-report.ts),"
-    echo "keyed by its own 'dataType' field — so a block without them is a report this"
-    echo "assertion cannot read, and an unreadable report is not evidence of a good one."
-    fail_at "verify ($VERIFY_LABEL) '${domain}' has no sourceCount/targetCount to check"
-  elif [ "$d_src" -gt 0 ] && [ "$d_tgt" -eq 0 ]; then
-    echo ""
-    echo "verify ($VERIFY_LABEL): '${domain}' has ${d_src} items at the SOURCE and 0 at the TARGET."
-    echo "The sync ran in this same job, so either nothing was copied or the target"
-    echo "reindexer listed an empty collection. The second is the quiet one: a DAV"
-    echo "query the server ACCEPTS and that matches nothing returns an empty"
-    echo "multistatus, which every consumer here reads as 'the collection is empty'."
-    echo "Check the listing query for that domain before assuming the sync is at fault."
-    fail_at "verify ($VERIFY_LABEL) '${domain}': sourceCount=${d_src} but targetCount=0 — the target listing found nothing"
-  else
-    echo "verify ($VERIFY_LABEL): '${domain}' target listing saw ${d_tgt} (source ${d_src})"
-  fi
-done
-}
-
-# Tenant A — mail, against the demo Stalwart.
-verify_mapping "$VERIFY_TENANT" "$VERIFY_SUB" "$VERIFY_MAPPING" mail mail
-
-# Tenant B — calendar, contacts, files and tasks, against the demo Nextcloud.
-# The same mapping the apply half then acts on.
-#
-# DELIBERATELY NOT ASSERTED `PASS`, and the reason is this script itself. The
-# apply half removes one real item from the target every run and the tombstone
-# is permanent, so the target legitimately lacks items the source still lists —
-# `missingOnTarget` is EXPECTED here and grows by one per run. Asserting PASS
-# would make the gate red for its own correct behaviour. What is asserted is
-# the part that was missing: that each domain was CHECKED at all, and that the
-# comparison had something in it.
-#
-# `tasks` joins the required list here, and this is the SIXTH place workplan
-# 0113's fan-out reached. #750 made the engine walk every domain and taught
-# both self-hosted gates to read every one; this call still named three by
-# hand, so the managed gate would have gone on never asking about the task
-# domain with a report that finally had the answer in it.
-#
-# The spelling is the report's, not the tick's: VERIFICATION_DOMAINS says
-# `tasks`, the mapping config says `tasks`, the discovery domain says `task`
-# and the ledger row says `task`. Four vocabularies, still four (flagged on
-# #746, the owner's call) — this line speaks the report's.
-verify_mapping "$APPLY_TENANT" "$APPLY_SUB" "$APPLY_MAPPING" dav calendar contacts files tasks
-
-# ---------- APPLY half ----------
-note "APPLY — mapping $APPLY_MAPPING (tenant $APPLY_TENANT, sub $APPLY_SUB)"
-APPLY_RESULT="skipped-no-item"
 # `target_ref` is `jsonb NOT NULL DEFAULT '{}'` (schema-pg.ts), so the
 # `target_ref IS NOT NULL` this used to say was true of every row ever written
 # — a predicate that read like "and it landed somewhere on the target" and
@@ -1585,7 +1411,21 @@ APPLY_RESULT="skipped-no-item"
 # carry a tag between the type and the index, so "digits immediately followed by
 # the extension" identifies exactly the fixtures and nothing else.
 ELIGIBLE="status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> ''"
-FIXTURE_RE="openmig-demo-(event|contact|file)-[0-9]+[.][a-z]+$"
+#
+# `task` JOINED THAT LIST ON 2026-09-09, and its absence was an oversight with a
+# permanent cost. This regex was written on 2026-08-20; the task domain seeded
+# its first fixture on 2026-09-03 (0113 T7), and nobody widened the alternation
+# — so `openmig-demo-task-1.ics` and `-2.ics` were fixed demo fixtures that this
+# picker considered disposable. The apply half tombstones what it picks, and
+# `classifyKnownItem` never re-creates a tombstoned key, so the two seeded tasks
+# were exactly two runs from being gone for good and unrecoverable by re-seeding
+# — the run-#20 pathology, reopened by the one domain added after the fix.
+# Latent until now because nothing had copied them before the picker ran; the
+# sync above copies them every run, which is what turns a latent hole into a
+# fixture spent per run. Fresh keys carry a tag where the digits are
+# (`openmig-demo-task-smoke-...-1.ics`), so they stay disposable and the apply
+# half still has something to spend.
+FIXTURE_RE="openmig-demo-(event|contact|file|task)-[0-9]+[.][a-z]+$"
 # Fresh event 1 is the SCHEDULING CANARY (0103 T2), and the byte-check further
 # down reads its copy off the target AFTER this half has run — so the apply
 # half must never spend it. It did, once: E2E managed #88 applied a real
@@ -1641,8 +1481,28 @@ HASH="$(pick_disposable)"
 # So prepare asks for keys the ledger has NEVER seen. That is the one kind a
 # tombstone cannot already own, and it is still an honest fixture: it goes into
 # the SOURCE, and a real sync has to copy it before anything here is eligible.
-if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
+if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
   note "prepare (SMOKE_PREPARE_APPLY=1) — give the apply half something real to act on"
+
+  # AND IT IS NO LONGER SKIPPED BECAUSE SOMETHING ELIGIBLE HAPPENED TO BE LYING
+  # AROUND. This read `[ -z "$HASH" ] && [ PREPARE = 1 ]` until 2026-09-09,
+  # which sounds thrifty and is not, because finding the apply half an item is
+  # the least of what this phase does. It mints BALANCE_TAG, and four
+  # assertions hang off that tag: the task lane landed, the large file landed,
+  # the scheduling canary's bytes, and the balance section that hands back what
+  # this run created. A leftover row from an earlier run therefore never saved
+  # a seed — it silently disabled four checks and left the residue in place for
+  # the next run to inherit. That is this file's oldest failure shape, and the
+  # one it names twice above: green because the half that mattered never ran.
+  #
+  # It stayed invisible only because a leftover was rare. The CI stack is never
+  # torn down ("Nobody prepares this box between runs", e2e-managed.yml), and
+  # now that the verify half asks for a sync before it measures, a copied
+  # leftover is the NORMAL state at this line rather than the exception. So:
+  # when the gate says prepare, prepare — and start from nothing, so the item
+  # the apply half spends is one THIS run created under a tag the balance
+  # section can take back.
+  HASH=""
 
   # THE TAG IS CHOSEN HERE rather than left to the seeder's default, because
   # what this run created is what the balance section has to take back, and it
@@ -1803,6 +1663,422 @@ if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
     fi
   fi
 fi
+
+
+# ---------- VERIFY half ----------
+#
+# TWO MAPPINGS, and until 2026-08-19 only one of them was ever verified.
+#
+# The demo seed splits the domains across two tenants because `connection` has
+# exactly one source + one target row per tenant, so a single tenant cannot
+# point at Stalwart AND Nextcloud at once: tenant A is mail, tenant B is
+# calendar/contact/file. This half ran against tenant A alone, so every managed
+# run has reported `calendar/contacts/files: SKIPPED — verification was
+# disabled in the config` and nobody read it as a gap. **No run had ever
+# verified a calendar, a contact or a file on the managed stack** — the three
+# domains were exercised by the sync (that is where the apply half's eligible
+# item comes from) and checked by nothing.
+verify_mapping() { # verify_mapping <tenant> <sub> <mapping> <label> <required-domains...>
+  local tenant="$1" sub="$2" mapping="$3" label="$4"
+  shift 4
+  # GLOBALS on purpose, not sloppiness: `smoke-managed-verdict.unit.test.ts`
+  # extracts these two guards out of this file and RUNS them, which is the only
+  # way a shell decision gets tested rather than restated. A `local` is a syntax
+  # error outside a function, so declaring them here would make the real lines
+  # unextractable and the tests would have to paraphrase — which is exactly the
+  # drift that let the apply half's skip-that-passed survive review.
+  REQUIRED_DOMAINS=("$@")
+  VERIFY_LABEL="$label"
+
+  note "VERIFY ($label) — mapping $mapping (tenant $tenant, sub $sub)"
+  local tok vcode vbody i rcode state
+  # Whoever this stack is willing to believe for this tenant — see "signing in".
+  # `$sub` stays the label it always was; the token's real subject is whatever
+  # signed in, and the membership row seeded up there is what makes it belong.
+  case "$tenant" in
+    "$VERIFY_TENANT") tok="$VERIFY_TOKEN" ;;
+    "$APPLY_TENANT")  tok="$APPLY_TOKEN" ;;
+    *) echo "no signed-in person for tenant $tenant"; fail_at; return 1 ;;
+  esac
+  read -r vcode vbody <<<"$(http POST "$API/api/migrations/$mapping/verify/start" "$tok")"
+  echo "verify/start: HTTP $vcode"
+  echo "$vbody"
+  VERIFY_RESULT="not-started"
+  rbody=""
+  if [ "$vcode" = "202" ] || [ "$vcode" = "200" ]; then
+    i=0
+    while [ $i -lt "$POLLS" ]; do
+      sleep "$POLL_SLEEP"
+      i=$((i + 1))
+      read -r rcode rbody <<<"$(http GET "$API/api/migrations/$mapping/verify/report" "$tok")"
+      state="$(json_state "$rbody")"
+      if [ "$state" = "done" ] || [ "$state" = "failed" ]; then
+        echo "[poll $i] $rbody"
+        VERIFY_RESULT="$state"
+        break
+      fi
+    done
+    if [ "$VERIFY_RESULT" = "not-started" ]; then
+      VERIFY_RESULT="timeout"
+      echo "TIMEOUT after $((POLLS * POLL_SLEEP))s — landing the stuck row by hand (never leave 'running' pointing at nothing):"
+      q "UPDATE verification_run SET state='failed', finished_at=now(), error='smoke-managed: landed by hand after $((POLLS * POLL_SLEEP))s poll timeout' WHERE tenant_id='$tenant' AND mapping_id='$mapping' AND state='running'"
+    fi
+  else
+    VERIFY_RESULT="start-http-$vcode"
+  fi
+  echo "latest verification_run row:"
+  q "SELECT state, started_at, finished_at, left(coalesce(error,''),120) FROM verification_run WHERE tenant_id='$tenant' AND mapping_id='$mapping' ORDER BY started_at DESC LIMIT 1"
+  [ "$VERIFY_RESULT" = "done" ] || fail_at "verify ($VERIFY_LABEL) never reached 'done' — VERIFY_RESULT=$VERIFY_RESULT"
+
+  # A VERIFY THAT CHECKED NOTHING IS NOT A PASS.
+  #
+  # The same shape as the apply half's skip-that-passed, and it was still here
+  # after that one was fixed: `state: done` says the run finished, not that it
+  # compared anything. On a mailbox with no mail, verify reports
+  # `sourceCount: 0, targetCount: 0, PASS` — perfectly true, and worth nothing.
+VERIFIED_ITEMS="$(json_number "$rbody" totalItemsSource)"
+if [ "$VERIFY_RESULT" = "done" ] && [ "${VERIFIED_ITEMS:-0}" = "0" ]; then
+  echo ""
+  echo "verify ($VERIFY_LABEL) reached 'done' but compared NOTHING: totalItemsSource=0."
+  echo "FAILING rather than passing: an empty source verifies clean by definition, and a"
+  echo "gate that accepts it is reporting the absence of data as the absence of problems."
+  echo "The source for this mapping needs seeding: mail comes from"
+  echo "test/e2e/seed-imap-source.mjs, DAV from deploy/compose/seed-demo-dav-content.sh."
+  fail_at "verify ($VERIFY_LABEL) reached 'done' having compared nothing — totalItemsSource=0"
+fi
+
+  # AND A DOMAIN THAT WAS SKIPPED WAS NOT CHECKED, whatever the overall status
+  # says. The report spells this out itself — every skipped domain carries an
+  # issue with id `SKIPPED_<domain>` and the message "this domain was NOT
+  # checked" — so the assertion is simply that the ids we require are absent.
+  # Matching on that id rather than on the status field because the per-domain
+  # blocks contain nested `issues` arrays, which no `[^}]*` grep survives.
+  #
+  # ABSENT IS NOT THE SAME AS UNSKIPPED, and reading it as such is how this
+  # gate would have missed the very defect #750 fixed. Until #750 the report
+  # had four domain keys and no `tasks` at all: a `SKIPPED_tasks` grep finds
+  # nothing in that report, and "nothing found" was this loop's PASS. So a
+  # domain absent from the report is now its own failure, louder than a skip —
+  # a skip is a domain the engine declined to check, an absence is a domain
+  # the engine does not know exists.
+  #
+  # The presence probe is `"<domain>":{` because that is the shape the report
+  # actually has (`"report":{"<mappingId>":{"mail":{…},"calendar":{…},…}`).
+  # Bare `"<domain>"` would match the word anywhere in a nested issue message
+  # and hand back the same false pass in a new disguise.
+for d in "${REQUIRED_DOMAINS[@]}"; do
+  if ! grep -q "\"${d}\":{" <<<"$rbody"; then
+    echo ""
+    echo "verify ($VERIFY_LABEL) has NO '${d}' domain in its report at all."
+    echo "Not skipped — absent. The engine walks VERIFICATION_DOMAINS"
+    echo "(packages/shared/src/verification-report.ts) and builds a total record over it,"
+    echo "so a missing key means this stack is running an engine that predates the domain."
+    echo "That is the shape workplan 0113's fifth fan-out was: four keys, a ticked fifth"
+    echo "domain, and canProceedToCutover computed over four fifths of the migration."
+    fail_at "verify ($VERIFY_LABEL) report has no '${d}' domain key — the engine never knew about it"
+  elif grep -q "SKIPPED_${d}" <<<"$rbody"; then
+    echo ""
+    echo "verify ($VERIFY_LABEL) SKIPPED the '${d}' domain, which this mapping exists to cover."
+    echo "The report says it plainly: 'this domain was NOT checked'. A verify that skips"
+    echo "the domain in question is the same lie as an apply half that never runs — the"
+    echo "run is green and the thing it was for did not happen."
+    echo "Check the mapping's configured domains (seed-managed.ts: DemoTenant.domains)."
+    fail_at "verify ($VERIFY_LABEL) SKIPPED the '${d}' domain — see seed-managed.ts DemoTenant.domains"
+  elif grep -q "NOT_VERIFIABLE_${d}" <<<"$rbody"; then
+    # THE THIRD STATE, and the one E2E (managed) #168 was.
+    #
+    # A domain can be present, unskipped, and still never measured: verification
+    # asks `canVerifyTarget`, and when no target reindexer was built for the
+    # domain it emits NOT_VERIFIABLE — severity ERROR — with `sourceCount` from
+    # the ledger and `targetCount: 0`. Which is to say it looks EXACTLY like a
+    # domain nothing copied, and until this line the floor check below reported
+    # it as one: #168 said "the target listing found nothing" about a task
+    # domain whose two VTODOs were sitting on the target, because
+    # `buildTargetReindexers` collected four domains and not this one.
+    #
+    # Checked BEFORE the floor, because it is the more precise statement of the
+    # same evidence — and a refusal that names a symptom and not a state is half
+    # a refusal (rule 9). The floor keeps its own case: a domain WITH a
+    # reindexer whose target came back empty is a different fault with a
+    # different remedy.
+    echo ""
+    echo "verify ($VERIFY_LABEL): the '${d}' domain is NOT_VERIFIABLE — the engine could not"
+    echo "measure the target for it at all. That is not the same as a domain that copied"
+    echo "nothing: the report carries sourceCount from the ledger and targetCount 0"
+    echo "because nothing was ever asked to look, so the numbers below say nothing."
+    echo "Usually there is no target reindexer for this domain — buildTargetReindexers"
+    echo "(packages/orchestration/src/build-reindexers.ts) collects one per domain, and a"
+    echo "domain missing from that list goes quiet exactly like this."
+    echo "The report carries the engine's own reason; it is in the block above."
+    fail_at "verify ($VERIFY_LABEL) reported '${d}' NOT_VERIFIABLE — nothing measured the target for it"
+  else
+    echo "verify ($VERIFY_LABEL): '${d}' was actually checked"
+  fi
+done
+
+# AND A TARGET THE REINDEXER COULD NOT SEE IS NOT A VERIFIED TARGET.
+#
+# The third face of the same coin as the two guards above, and the one still
+# missing on 2026-09-07. Between them they assert that the run finished, that
+# the SOURCE had something in it, and that each domain was looked at. None of
+# them looks at what came back from the TARGET.
+#
+# That gap has a name, and it is the failure mode the CardDAV filter work of
+# 2026-09-07 could not rule out from a unit test: a target listing that the
+# server ACCEPTS and that matches nothing. `addressbook-query` is the live
+# example — RFC 6352 §10.5 defaults `test` to `anyof`, so a filter carrying no
+# prop-filter is an OR over zero tests, and a server reading that literally
+# answers with an empty multistatus. Not an error. Not a refusal. An empty
+# address book, reported by a reindexer that is working perfectly.
+#
+# This gate would have called that a pass. `state: done`, source non-zero,
+# every domain present and unskipped — and `missingOnTarget` growing, which is
+# EXPECTED here because the apply half tombstones one item per run. The one
+# number that would have said otherwise is the one nobody read.
+#
+# SO: where the SOURCE has items, the target listing must have found some.
+# Deliberately a floor and not a match — the tombstones make an equality red
+# for this script's own correct behaviour, which is exactly why `PASS` is not
+# asserted twenty lines up. A domain whose source is empty is skipped here on
+# purpose: nothing on the target is the right answer to nothing at the source.
+#
+# NOT A NEW RULE — the SELF-HOSTED gate has always had it. `counts match
+# between the ledger and the target` in `selfhost-verification.e2e.test.ts`
+# asserts `sourceCount > 0`, `targetCount === sourceCount` and
+# `missingOnTarget === 0`, and it can assert the equality because that flow has
+# no apply half consuming an item per run. The managed gate was the edition
+# missing the check, not the edition being held to a new one; what differs here
+# is the floor, and the tombstones are the whole reason for it (hard rule 5:
+# both editions, and this is the half that had drifted).
+for domain in "${REQUIRED_DOMAINS[@]}"; do
+  d_src="$(jq -r --arg d "$domain" 'first(.. | objects | select(.dataType? == $d) | .sourceCount) // "absent"' <<<"$rbody" 2>/dev/null || echo absent)"
+  d_tgt="$(jq -r --arg d "$domain" 'first(.. | objects | select(.dataType? == $d) | .targetCount) // "absent"' <<<"$rbody" 2>/dev/null || echo absent)"
+  if [ "$d_src" = "absent" ] || [ "$d_tgt" = "absent" ]; then
+    echo ""
+    echo "verify ($VERIFY_LABEL): the '${domain}' block carries no sourceCount/targetCount pair."
+    echo "Every DataTypeVerification has both (packages/shared/src/verification-report.ts),"
+    echo "keyed by its own 'dataType' field — so a block without them is a report this"
+    echo "assertion cannot read, and an unreadable report is not evidence of a good one."
+    fail_at "verify ($VERIFY_LABEL) '${domain}' has no sourceCount/targetCount to check"
+  elif [ "$d_src" -gt 0 ] && [ "$d_tgt" -eq 0 ]; then
+    echo ""
+    echo "verify ($VERIFY_LABEL): '${domain}' has ${d_src} items at the SOURCE and 0 at the TARGET."
+    # THREE CAUSES, AND THE THIRD IS THE ONE NO WAIT CAN FIX — so it is ASKED
+    # here rather than left to the reader. "It has not caught up yet" is already
+    # ruled out above: a sync for this mapping was enqueued and waited for, and
+    # on the managed gate `--fresh` seeded this domain before that. What is left
+    # is a listing the server accepted that matched nothing, or a source whose
+    # keys the ledger refuses to copy at all.
+    #
+    # The second one is why this branch exists at all in this shape. On
+    # 2026-09-09 the demo stack answered task|tombstoned|2 — BOTH fixed task
+    # fixtures — and the gate reported it as "the target listing found nothing",
+    # which sends the reader to a DAV query that is working perfectly. A refusal
+    # that names a symptom and not a state is half a refusal (rule 9), and it
+    # cost a database query by hand to find out which half.
+    #
+    # THE LEDGER'S SPELLING IS NOT THE REPORT'S. VERIFICATION_DOMAINS says
+    # `tasks`/`contacts`/`files`; the ledger row says `task`/`contact`/`file`.
+    # Four vocabularies, flagged on #746 and still four (the owner's call), so
+    # this is the fifth place they must be reconciled — done explicitly, because
+    # a LIKE that guessed would answer 0 for every domain and turn the branch
+    # below into a permanent "not tombstones" that nobody could see was wrong.
+    # VERIFICATION_DOMAINS -> DISCOVERY_DOMAINS, every member spelled out.
+    # `mail` is the one that catches people: the report says `mail` and the
+    # ledger row says `email`, so an identity fallback answers 0 tombstones for
+    # the mail lane for ever and nobody can see that it is wrong. The guard in
+    # a-verify-that-measured-a-race.unit.test.ts reads both arrays and fails if
+    # any member of either is missing from this case.
+    case "$domain" in
+      mail)     led=email ;;
+      tasks)    led=task ;;
+      contacts) led=contact ;;
+      files)    led=file ;;
+      calendar) led=calendar ;;
+      *)        led="$domain" ;;
+    esac
+    tombs="$(q "SELECT count(*) FROM item WHERE tenant_id='$tenant' AND mapping_id='$mapping' AND domain='$led' AND status='tombstoned'")"
+    if [ "${tombs:-0}" -ge "$d_src" ]; then
+      echo "EVERY source item in this domain is TOMBSTONED in the ledger (${tombs} row(s))."
+      echo "classifyKnownItem refuses for ever to re-create a tombstoned natural key — it"
+      echo "cannot tell a change of mind from an erasure request — so these cannot copy,"
+      echo "however long anything waits. The listing is not at fault and neither is the"
+      echo "sync: this fixture set is SPENT."
+      echo "The remedy is new keys, never an un-tombstone (the balance section keeps"
+      echo "tombstones on purpose, and the apply half will not retract an applied"
+      echo "deletion — a receipt pointing at an item claiming no deletion was ever"
+      echo "reported is a falsified record):"
+      echo "  ./deploy/compose/seed-demo-dav-content.sh --fresh <tag>"
+      echo "mints natural keys the ledger has never seen, which is the one kind no"
+      echo "tombstone can already own. That is what the prepare phase above does every"
+      echo "run, so a green gate does not depend on the fixed set surviving."
+      fail_at "verify ($VERIFY_LABEL) '${domain}': all ${d_src} source item(s) are tombstoned — the fixture set is spent, not the listing broken"
+    else
+      echo "${tombs} of them are tombstoned, so that is not the whole story. Either"
+      echo "nothing was copied, or the target reindexer listed an empty collection. The"
+      echo "second is the quiet one: a DAV query the server ACCEPTS and that matches"
+      echo "nothing returns an empty multistatus, which every consumer here reads as"
+      echo "'the collection is empty'."
+      echo "Check the listing query for that domain before assuming the sync is at fault."
+      fail_at "verify ($VERIFY_LABEL) '${domain}': sourceCount=${d_src} but targetCount=0 — the target listing found nothing"
+    fi
+  else
+    echo "verify ($VERIFY_LABEL): '${domain}' target listing saw ${d_tgt} (source ${d_src})"
+  fi
+done
+}
+
+# ---------- the target has to be CURRENT before it can be verified ----------
+#
+# WHAT E2E (MANAGED) #166 ACTUALLY FAILED ON, and it was not the reindexer this
+# gate had just learned to distrust. The DAV verify reported `calendar:
+# sourceCount=81, targetCount=0` and failed — correctly, by the rule added on
+# 2026-09-07 — but the thing it measured was a race this script had created
+# four lines earlier. Bring-up seeds the demo DAV source; the smoke's verify
+# half runs seconds after it (20:44:31 and 20:45:09 in that run). NOTHING in
+# between asks for a sync, and a mapping with no schedule of its own runs on
+# DEFAULT_SYNC_SCHEDULE = */15. So the verify compared a source that had just
+# been filled against a target no pass in this job had ever written to. Every
+# lane's pass showed `itemsProcessed: 0-1`; `files` passed only because its
+# rows are `adopted`, which is target content that predates the run. The
+# arithmetic was right and it was about nothing.
+#
+# The apply half has had the remedy since run #20 and states it in its own
+# words: "the scheduler's own cadence for a mapping with no schedule is
+# DEFAULT_SYNC_SCHEDULE = */15, which is far longer than a gate should sit
+# waiting. So: seed the source, then enqueue the sync directly." The verify
+# half never got the second half of that sentence, so the one number that
+# would have exposed the gap — `targetCount` — only became readable on
+# 2026-09-07, and the first thing it read was this.
+#
+# THIS IS NOT MANUFACTURING A FIXTURE, which is the line the prepare phase
+# below is careful not to cross. Nothing is seeded here and this script writes
+# nothing to either target: it asks the product, through the product's own
+# endpoint, to do NOW the work it would do inside the quarter hour. What the
+# verify then measures is the real target, listed by the real reindexer, and a
+# pass that copies nothing still reports zero. The only thing removed is the
+# wait — and a gate that reads the absence of a sync as the absence of a
+# target is not reporting on the stack.
+#
+# BOTH MAPPINGS, not just the one that went red. The mail lane races
+# identically (`seed-imap-source.mjs` runs a few workflow steps earlier); it
+# passes today only because that stack is never torn down and its target still
+# holds what some earlier run copied. "It happens to pass because the box is
+# old" is the kind of accident this file exists to stop relying on.
+#
+# AND IT RUNS EVEN THOUGH PREPARE JUST SYNCED THE DAV MAPPING, which is one
+# extra pass — four seconds, by #167's own timings, copying nothing new.
+# Prepare is OFF by default, because run by hand this script is an acceptance
+# test and not a fixture factory; without this phase the hand-run verify would
+# race exactly as CI's did. A floor that holds in BOTH modes is worth the four
+# seconds, and the alternative — a conditional enqueue that depends on whether
+# prepare ran — is the kind of branch that goes wrong silently.
+sync_and_wait() { # sync_and_wait <tenant> <mapping> <token> <label>
+  local tenant="$1" mapping="$2" tok="$3" label="$4"
+  local out code body ref i status processed
+
+  # An explicit JSON body: the endpoint runs req.body through zod, and an
+  # absent body is not the same thing as an empty object. The prepare phase
+  # spells it out for the same reason.
+  out="$(curl -sS -X POST -H 'Content-Type: application/json' -d '{"type":"delta"}' \
+    -H "Authorization: Bearer $tok" -w '\n%{http_code}' \
+    "$API/api/migrations/$mapping/sync")"
+  code="${out##*$'\n'}"
+  body="${out%$'\n'*}"
+  echo "sync ($label): enqueue -> HTTP $code"
+  echo "sync ($label): $body"
+  case "$code" in
+    200|202) ;;
+    *)
+      # NOT `fail_at`. The verify below is the gate and it is about to ask the
+      # real question; this phase only removes a wait. Saying so here means a
+      # refusal (a paused mapping answers 409) reads as itself rather than as
+      # a reindexer that found nothing.
+      echo "sync ($label): the enqueue was REFUSED — the verify below measures whatever the target already held."
+      return 0 ;;
+  esac
+
+  # FOLLOWED BY THE ORCHESTRATOR'S OWN ID, not by a timestamp window.
+  # `run-delta-sync` writes `ctx.run.id` onto the ledger row as
+  # `orchestrator_ref` (apps/worker/src/jobs/run-delta-sync.ts), and that id is
+  # what this response just handed back. Waiting on it waits for THE PASS THIS
+  # PHASE ASKED FOR; a `created_at >= now()` window would also match a
+  # scheduled tick that started in the same second and would then report a
+  # stranger's pass as this one's.
+  ref="$(jq -r '.runId // empty' <<<"$body" 2>/dev/null || true)"
+  if [ -z "$ref" ]; then
+    echo "sync ($label): HTTP $code carried no runId, so this pass cannot be followed — the verify below is unsynchronised."
+    return 0
+  fi
+
+  # THE ROW DOES NOT EXIST YET, and that is the first state worth waiting
+  # through. The API enqueues; `run-delta-sync` opens the ledger row only once
+  # a runner is actually executing it. An empty answer therefore means "no
+  # runner yet", which is a different fact from `running` and from a pass that
+  # ended — and if it never changes it is the failure the runner-proxy section
+  # further up exists to explain.
+  i=0
+  status=""
+  while [ $i -lt "$SYNC_POLLS" ]; do
+    status="$(q "SELECT status FROM run WHERE tenant_id='$tenant' AND orchestrator_ref='$ref'")"
+    case "$status" in succeeded|failed|cancelled) break ;; esac
+    i=$((i + 1))
+    sleep "$POLL_SLEEP"
+  done
+
+  case "$status" in
+    succeeded)
+      processed="$(q "SELECT coalesce(stats->>'itemsProcessed','?') FROM run WHERE tenant_id='$tenant' AND orchestrator_ref='$ref'")"
+      echo "sync ($label): the pass finished after $((i * POLL_SLEEP))s — itemsProcessed=${processed}"
+      ;;
+    failed|cancelled)
+      echo "sync ($label): the pass ended '$status' after $((i * POLL_SLEEP))s."
+      echo "sync ($label): the verify below still runs, and what it reports is what a $status pass left behind."
+      q "SELECT status, started_at, finished_at, left(stats::text,200) FROM run WHERE tenant_id='$tenant' AND orchestrator_ref='$ref'"
+      ;;
+    "")
+      echo "sync ($label): no ledger row for orchestrator run ${ref} after $((SYNC_POLLS * POLL_SLEEP))s."
+      echo "sync ($label): the enqueue was accepted and never became a runner — see the runner-log section below."
+      ;;
+    *)
+      echo "sync ($label): still '$status' after $((SYNC_POLLS * POLL_SLEEP))s — the verify below may read a half-copied target."
+      ;;
+  esac
+}
+
+note "SYNC before VERIFY — measure the target after a pass, never before one"
+sync_and_wait "$VERIFY_TENANT" "$VERIFY_MAPPING" "$VERIFY_TOKEN" mail
+sync_and_wait "$APPLY_TENANT" "$APPLY_MAPPING" "$APPLY_TOKEN" dav
+
+# Tenant A — mail, against the demo Stalwart.
+verify_mapping "$VERIFY_TENANT" "$VERIFY_SUB" "$VERIFY_MAPPING" mail mail
+
+# Tenant B — calendar, contacts, files and tasks, against the demo Nextcloud.
+# The same mapping the apply half then acts on.
+#
+# DELIBERATELY NOT ASSERTED `PASS`, and the reason is this script itself. The
+# apply half removes one real item from the target every run and the tombstone
+# is permanent, so the target legitimately lacks items the source still lists —
+# `missingOnTarget` is EXPECTED here and grows by one per run. Asserting PASS
+# would make the gate red for its own correct behaviour. What is asserted is
+# the part that was missing: that each domain was CHECKED at all, and that the
+# comparison had something in it.
+#
+# `tasks` joins the required list here, and this is the SIXTH place workplan
+# 0113's fan-out reached. #750 made the engine walk every domain and taught
+# both self-hosted gates to read every one; this call still named three by
+# hand, so the managed gate would have gone on never asking about the task
+# domain with a report that finally had the answer in it.
+#
+# The spelling is the report's, not the tick's: VERIFICATION_DOMAINS says
+# `tasks`, the mapping config says `tasks`, the discovery domain says `task`
+# and the ledger row says `task`. Four vocabularies, still four (flagged on
+# #746, the owner's call) — this line speaks the report's.
+verify_mapping "$APPLY_TENANT" "$APPLY_SUB" "$APPLY_MAPPING" dav calendar contacts files tasks
+
+# ---------- APPLY half ----------
+note "APPLY — mapping $APPLY_MAPPING (tenant $APPLY_TENANT, sub $APPLY_SUB)"
+APPLY_RESULT="skipped-no-item"
 
 if [ -z "$HASH" ]; then
   # NOT a skip. Found in the gate's first green run (e2e-managed #6, 2026-08-18):
