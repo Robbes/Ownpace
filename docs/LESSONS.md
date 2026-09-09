@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 112 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 113 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -53,6 +53,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/security-scan.yml`
 
 - [a-scan-that-skipped-itself](../scripts/a-scan-that-skipped-itself.unit.test.ts) — A security scan that skipped itself, and reported green.
+- [an-advisory-nobody-listed](../scripts/an-advisory-nobody-listed.unit.test.ts) — An advisory nobody listed, in a job that reported green.
 
 ### `.github/workflows/windows-payload.yml`
 
@@ -862,6 +863,10 @@ reading a file drops off its entry by itself.
 ### `packages/testing/fixtures/stalwart/config.json`
 
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+
+### `pnpm-workspace.yaml`
+
+- [an-advisory-nobody-listed](../scripts/an-advisory-nobody-listed.unit.test.ts) — An advisory nobody listed, in a job that reported green.
 
 ### `scripts/a-check-that-was-never-valid.unit.test.ts`
 
@@ -1673,6 +1678,15 @@ Reads:
 - `packages/orchestration/src/source-face-builders.ts`
 - `packages/shared/src/carddav-query.ts`
 - `packages/shared/src/carddav-query.unit.test.ts`
+
+### [an-advisory-nobody-listed](../scripts/an-advisory-nobody-listed.unit.test.ts)
+
+An advisory nobody listed, in a job that reported green.
+
+Reads:
+
+- `.github/workflows/security-scan.yml`
+- `pnpm-workspace.yaml`
 
 ### [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts)
 
