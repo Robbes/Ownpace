@@ -527,7 +527,7 @@ describe('the prepare phase (SMOKE_PREPARE_APPLY)', () => {
   )?.[0];
   const guard = smoke
     .split('\n')
-    .find((l) => l.startsWith('if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY'));
+    .find((l) => l.startsWith('if [ "${SMOKE_PREPARE_APPLY'));
 
   it('is OFF unless asked for — by hand this stays an acceptance test', () => {
     // Manufacturing its own fixture by default would be the same class of lie
@@ -537,10 +537,27 @@ describe('the prepare phase (SMOKE_PREPARE_APPLY)', () => {
     expect(guard).toContain('"${SMOKE_PREPARE_APPLY:-0}" = "1"');
   });
 
-  it('only runs when there is nothing to act on', () => {
-    // An eligible item that already exists is the real thing; seeding over it
-    // would replace a genuine precondition with a manufactured one.
-    expect(guard).toContain('[ -z "$HASH" ]');
+  it('runs whenever the gate asks for it, leftover item or not', () => {
+    // THIS TEST USED TO ASSERT THE OPPOSITE, and the reversal is the point.
+    // It held `[ -z "$HASH" ]` under the reading that "an eligible item that
+    // already exists is the real thing; seeding over it would replace a
+    // genuine precondition with a manufactured one." True about the item, and
+    // wrong about the phase — because finding the apply half an item is the
+    // least of what prepare does. It mints BALANCE_TAG, and four assertions
+    // are scoped to that tag: the task lane landed, the large file landed, the
+    // scheduling canary's bytes, and the balance section that hands back what
+    // the run created. Skipping prepare therefore never saved a seed; it
+    // silently disabled four checks and left the residue behind.
+    //
+    // It stayed harmless only while a leftover was rare. The CI stack is never
+    // torn down, and since the verify half now enqueues a sync before it
+    // measures (see a-verify-that-measured-a-race.unit.test.ts), a copied
+    // leftover is the normal state by the time this line is reached — so the
+    // old guard would have turned four live assertions off on every run.
+    expect(guard).not.toContain('[ -z "$HASH" ]');
+    // And it starts from nothing, so the item the apply half spends is one
+    // THIS run created under a tag the balance section can take back.
+    expect(block).toMatch(/^ {2}HASH=""$/m);
   });
 
   it('seeds the source and enqueues a sync — neither alone is enough', () => {
@@ -580,7 +597,7 @@ describe('the prepare phase (SMOKE_PREPARE_APPLY)', () => {
     // the extension; --fresh keys carry a tag there), and the refusal branch
     // exists so "only fixtures left" reports itself instead of being paid for.
     expect(smoke).toContain('pick_disposable()');
-    expect(smoke).toMatch(/FIXTURE_RE=.*openmig-demo-\(event\|contact\|file\)/);
+    expect(smoke).toMatch(/FIXTURE_RE=.*openmig-demo-\(event\|contact\|file\|task\)/);
     expect(smoke).toContain('!~');
     expect(smoke).toMatch(/REFUS|refuses to spend|now REFUSES/i);
   });

@@ -107,6 +107,13 @@ POLL_SLEEP="${SMOKE_POLL_SLEEP:-2}"
 # The prepare phase waits on a whole sync pass (runner start + DAV round trips),
 # which is a longer thing than polling one already-running verify.
 PREP_POLLS="${SMOKE_PREPARE_POLLS:-60}"
+# The verify half's own pass (see "the target has to be CURRENT"). Longer again
+# than prepare's, because this one waits on a pass over EVERYTHING the source
+# holds rather than on the first eligible row to appear in the ledger. It is a
+# gate budget and not a pass budget: PASS_SOFT_DEADLINE_MS is fifty minutes, so
+# running out here means "report it and measure what landed", never "the pass
+# is wrong".
+SYNC_POLLS="${SMOKE_SYNC_POLLS:-90}"
 OUT="${SMOKE_OUT:-/tmp/openmig-smoke-managed-$(date -u +%Y%m%dT%H%M%SZ).txt}"
 
 # Demo-seed fixtures (apps/api/src/scripts/seed-managed.ts).
@@ -1330,6 +1337,334 @@ else
   echo "swept ${swept:-0} membership(s) left behind by earlier runs"
 fi
 
+# ---------- PREPARE: give BOTH halves something this run can account for ----------
+#
+# THIS USED TO SIT BELOW THE VERIFY HALF, and that placement is what E2E
+# (managed) #166 and #167 were. The verify measured a target no pass in the job
+# had written to, and the sync that would have filled it ran five seconds
+# later, inside this block. #167 timed it: VERIFY (dav) failed at 06:50:53,
+# the enqueue went out at 06:50:58, and an eligible item existed by 06:51:02 —
+# four seconds. Nothing was broken; the gate simply asked before it told.
+#
+# Moving it up is not only about the wait. The dav source carries FIXED demo
+# fixtures whose ledger rows are `tombstoned`, and `classifyKnownItem` refuses
+# for ever to re-create a tombstoned natural key — deliberately, since it
+# cannot tell a change of mind from an erasure request. On 2026-09-09 the demo
+# stack held task|tombstoned|2: BOTH fixed task fixtures, spent by this gate's
+# own picker back when FIXTURE_RE named only event, contact and file. Those two
+# will never copy again, so a verify that has only the fixed set to look at
+# reports the tasks domain as source=2 target=0 for ever, however long it
+# waits, and no sync-before-verify would have changed it.
+#
+# What DOES change it is the thing this phase already does for the apply half:
+# `--fresh` mints natural keys the ledger has never seen, which is the one kind
+# no tombstone can already own. Run it first, and the verify measures items
+# THIS run seeded and THIS run copied — the strongest evidence the gate can
+# offer, and immune to whatever earlier runs spent.
+#
+# The tombstones stay. The balance section keeps them on purpose ("1
+# tombstone(s) kept deliberately") and the apply half refuses to retract an
+# applied deletion, because a receipt pointing at an item claiming no deletion
+# was ever reported is a falsified record. A spent fixture is replaced, never
+# un-spent.
+
+# `target_ref` is `jsonb NOT NULL DEFAULT '{}'` (schema-pg.ts), so the
+# `target_ref IS NOT NULL` this used to say was true of every row ever written
+# — a predicate that read like "and it landed somewhere on the target" and
+# filtered nothing. The ledger stores the handle as `{"id": "..."}`, so that is
+# what has to be non-empty.
+# ELIGIBILITY MIRRORS THE PRODUCT'S OWN GATE, which is `copied` OR `updated`
+# — see `ownershipCheck` in packages/core/src/apply-deletion.ts, whose comment
+# insists the same list be an equality rather than an approximation.
+#
+# It asked for `copied` alone until run #18, and that is how the gate came to
+# print an eligible item inside its own diagnosis and then declare there was
+# none: `file|updated|1|1` — one updated file, with a target_ref id, which the
+# apply path would have accepted. `updated` means WE wrote over a copy we had
+# written before; `copied` means we created it. Both are ours to remove. Only
+# `adopted` is not, and the product refuses that one for a reason worth keeping
+# separate: those bytes were the account owner's before we arrived.
+#
+# `smoke-managed-verdict.unit.test.ts` reads that function and fails if these
+# two lists ever stop agreeing, in either direction.
+# WHICH item, and why it must be a DISPOSABLE one.
+#
+# The apply half really deletes what it selects, and deliberately does NOT undo
+# it: the cleanup below retracts the fabricated evidence only when the deletion
+# was NOT applied, because retracting an applied one would leave a receipt
+# pointing at an item claiming no deletion was ever reported -- a falsified
+# record. The deleted key is then TOMBSTONED, and classifyKnownItem refuses
+# forever to re-create a tombstoned natural key (it cannot tell a change of mind
+# from an erasure request).
+#
+# So every run permanently consumed one item, and `ORDER BY natural_key_hash`
+# meant that item was whichever FIXED demo fixture sorted first. Observed live
+# 2026-08-20 across three runs of one stack: four tombstones, and the DAV verify
+# degrading 66/66 -> 65/66 files and 3/3 -> 1/3 calendar until it FAILED. The
+# gate was poisoning the fixtures its own other half measures, and no re-seed
+# could repair it, because the keys were tombstoned.
+#
+# This is fixture exhaustion, the same class of failure as E2E (managed) #20 --
+# and `seed-demo-dav-content.sh --fresh` was built by that fix precisely to mint
+# keys NO TOMBSTONE CAN ALREADY OWN. So: prefer an item that came from a
+# `--fresh` seed. Fixed fixtures are `openmig-demo-<type>-<n>.<ext>`; fresh ones
+# carry a tag between the type and the index, so "digits immediately followed by
+# the extension" identifies exactly the fixtures and nothing else.
+ELIGIBLE="status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> ''"
+#
+# `task` JOINED THAT LIST ON 2026-09-09, and its absence was an oversight with a
+# permanent cost. This regex was written on 2026-08-20; the task domain seeded
+# its first fixture on 2026-09-03 (0113 T7), and nobody widened the alternation
+# — so `openmig-demo-task-1.ics` and `-2.ics` were fixed demo fixtures that this
+# picker considered disposable. The apply half tombstones what it picks, and
+# `classifyKnownItem` never re-creates a tombstoned key, so the two seeded tasks
+# were exactly two runs from being gone for good and unrecoverable by re-seeding
+# — the run-#20 pathology, reopened by the one domain added after the fix.
+# Latent until now because nothing had copied them before the picker ran; the
+# sync above copies them every run, which is what turns a latent hole into a
+# fixture spent per run. Fresh keys carry a tag where the digits are
+# (`openmig-demo-task-smoke-...-1.ics`), so they stay disposable and the apply
+# half still has something to spend.
+FIXTURE_RE="openmig-demo-(event|contact|file|task)-[0-9]+[.][a-z]+$"
+# Fresh event 1 is the SCHEDULING CANARY (0103 T2), and the byte-check further
+# down reads its copy off the target AFTER this half has run — so the apply
+# half must never spend it. It did, once: E2E managed #88 applied a real
+# deletion to exactly that item (natural-key hash c52e5949…, the canary event)
+# four seconds before the read, and the gate reported its own deletion as an
+# unproven byte-check. Five other fresh items per seed stay disposable. The
+# prepare wait loop polls pick_disposable itself, so wait and pick carry this
+# exclusion by construction, not by agreement (the run-#18 lesson).
+CANARY_RE="openmig-demo-event-.+-1[.]ics$"
+HREF_EXPR="coalesce(source_ref_href, source_ref->>'href', '')"
+
+pick_disposable() {
+  q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE AND $HREF_EXPR !~ '$FIXTURE_RE' AND $HREF_EXPR !~ '$CANARY_RE' ORDER BY first_seen_at DESC, natural_key_hash LIMIT 1"
+}
+pick_fixture() {
+  q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE ORDER BY natural_key_hash LIMIT 1"
+}
+
+HASH="$(pick_disposable)"
+# ---------- optional: make the precondition exist, rather than wait for it ----------
+# OFF by default. Run by hand, this script is an ACCEPTANCE test: it reports what
+# the stack is, and manufacturing its own fixture would be the same class of lie
+# as the skip-that-passed. In CI there is nobody to prepare the box, so the gate
+# sets SMOKE_PREPARE_APPLY=1 and the preparation happens here — visibly, as its
+# own narrated phase, and still ending in the same honest check.
+#
+# Both halves are needed and neither is enough alone:
+#   the demo DAV source may have no content, and the scheduler's own cadence for
+#   a mapping with no schedule is DEFAULT_SYNC_SCHEDULE = */15, which is far
+#   longer than a gate should sit waiting. So: seed the source, then enqueue the
+#   sync directly.
+#
+# THE SEEDING IS NOW A FALLBACK, not the only path. `setup-managed-demo.sh`
+# seeds the DAV source at bring-up, beside the accounts it fills (0084) — so on
+# a stack brought up since 2026-08-19 this call finds the same fixed resources
+# already there and overwrites them, which is a no-op in every sense that
+# matters. It stays because a stack older than that change, or one whose demo
+# was reprovisioned by hand, still needs it, and because a prepare phase that
+# assumes its precondition would be the same mistake in a different place.
+#
+# `--fresh`, AND WHY THE PLAIN CALL COULD NOT WORK HERE (run #20, 2026-08-19).
+# The apply half below applies a REAL deletion, and `applyDeletion` writes
+# `status='tombstoned'`. `classifyKnownItem` then refuses forever to re-create a
+# tombstoned natural key — deliberately: it cannot tell a change of mind from an
+# erasure request. The bring-up seed writes FIXED keys (`openmig-demo-event-1`
+# and friends), so one green run spent one of exactly six items and re-seeding
+# could never give it back. Run #19 spent the last one; run #20, on a commit
+# whose PR was green and whose self-hosted e2e was green, failed with "no
+# eligible item" against 73 rows that were all `tombstoned` or `adopted`. The
+# gate was eating its own fixture, one run at a time, and nothing about it was
+# self-correcting.
+#
+# So prepare asks for keys the ledger has NEVER seen. That is the one kind a
+# tombstone cannot already own, and it is still an honest fixture: it goes into
+# the SOURCE, and a real sync has to copy it before anything here is eligible.
+if [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
+  note "prepare (SMOKE_PREPARE_APPLY=1) — give the apply half something real to act on"
+
+  # AND IT IS NO LONGER SKIPPED BECAUSE SOMETHING ELIGIBLE HAPPENED TO BE LYING
+  # AROUND. This read `[ -z "$HASH" ] && [ PREPARE = 1 ]` until 2026-09-09,
+  # which sounds thrifty and is not, because finding the apply half an item is
+  # the least of what this phase does. It mints BALANCE_TAG, and four
+  # assertions hang off that tag: the task lane landed, the large file landed,
+  # the scheduling canary's bytes, and the balance section that hands back what
+  # this run created. A leftover row from an earlier run therefore never saved
+  # a seed — it silently disabled four checks and left the residue in place for
+  # the next run to inherit. That is this file's oldest failure shape, and the
+  # one it names twice above: green because the half that mattered never ran.
+  #
+  # It stayed invisible only because a leftover was rare. The CI stack is never
+  # torn down ("Nobody prepares this box between runs", e2e-managed.yml), and
+  # now that the verify half asks for a sync before it measures, a copied
+  # leftover is the NORMAL state at this line rather than the exception. So:
+  # when the gate says prepare, prepare — and start from nothing, so the item
+  # the apply half spends is one THIS run created under a tag the balance
+  # section can take back.
+  HASH=""
+
+  # THE TAG IS CHOSEN HERE rather than left to the seeder's default, because
+  # what this run created is what the balance section has to take back, and it
+  # cannot take back a name it never learned. `--fresh` on its own mints a
+  # timestamp+pid inside a subprocess and prints it; parsing that back out of
+  # the log would be a second source of truth for one string.
+  BALANCE_TAG="smoke-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  if "$SCRIPT_DIR/seed-demo-dav-content.sh" --fresh "$BALANCE_TAG"; then
+    echo "prepare: DAV source seeded with fresh, never-tombstoned natural keys (tag ${BALANCE_TAG})"
+  else
+    echo "prepare: SEEDING FAILED — the diagnosis below will say what the ledger holds."
+  fi
+
+  TOK_P="$APPLY_TOKEN"
+  # An explicit JSON body: the endpoint runs req.body through zod, and an absent
+  # body is not the same thing as an empty object.
+  sync_out="$(curl -sS -X POST -H 'Content-Type: application/json' -d '{"type":"delta"}' \
+    -H "Authorization: Bearer $TOK_P" -w '\n%{http_code}' \
+    "$API/api/migrations/$APPLY_MAPPING/sync")"
+  echo "prepare: sync enqueue -> HTTP ${sync_out##*$'\n'}"
+  echo "prepare: ${sync_out%$'\n'*}"
+
+  # Poll for the row the apply half needs. A sync is a Trigger.dev run: a runner
+  # container has to start before anything is written, so seconds, not instants.
+  i=0
+  while [ $i -lt "$PREP_POLLS" ]; do
+    sleep "$POLL_SLEEP"
+    i=$((i + 1))
+    HASH="$(pick_disposable)"
+    if [ -n "$HASH" ]; then
+      echo "prepare: an eligible item appeared after $((i * POLL_SLEEP))s"
+      break
+    fi
+  done
+  [ -n "$HASH" ] || echo "prepare: still nothing after $((PREP_POLLS * POLL_SLEEP))s — see the diagnosis below."
+
+  # ---------- THE TASK LANE LANDED (workplan 0113 T7) ----------
+  #
+  # WHY THIS IS AN ASSERTION AND NOT A LINE IN THE INVENTORY. The diagnosis
+  # below already groups by `domain`, so a task row would SHOW there — and a
+  # run with no task rows at all would show nothing there and stay green,
+  # because the apply half takes whichever eligible item it finds and one
+  # calendar row satisfies it. That is the shape that has fooled this gate
+  # twice: green because the half that mattered never executed.
+  #
+  # So the task domain is checked BY NAME. What it proves is the whole of
+  # 0113 end to end against a real Nextcloud, and none of it is provable by a
+  # unit test:
+  #   - the source listed a collection declaring VTODO and nothing else (T3a),
+  #   - it yielded the VTODOs in it rather than skipping them (T3b),
+  #   - the writer created the target collection and PUT them (T4),
+  #   - the tick, the ledger domain and the natural key all agree (T5, T2).
+  # A regression in any one of those lands here as a count of zero.
+  #
+  # Scoped to THIS run's tag, so a task row left by an earlier run cannot
+  # answer for this one — the same rule the balance section works under.
+  # Polled rather than read once, because the sync is a Trigger.dev run and
+  # the calendar row the apply half waited for can land before the task one.
+  TASK_TAGGED="$HREF_EXPR LIKE '%${BALANCE_TAG}%'"
+  TASK_SCOPE="tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING'"
+  task_rows=0
+  i=0
+  while [ $i -lt "$PREP_POLLS" ]; do
+    task_rows="$(q "SELECT count(*) FROM item WHERE $TASK_SCOPE AND $TASK_TAGGED AND domain='task' AND status IN ('copied','updated')")"
+    [ "${task_rows:-0}" -gt 0 ] && break
+    i=$((i + 1))
+    sleep "$POLL_SLEEP"
+  done
+  if [ "${task_rows:-0}" -gt 0 ]; then
+    echo "prepare: the task lane landed — ${task_rows} VTODO row(s) copied under tag ${BALANCE_TAG}"
+  else
+    # Loud, and it FAILS the run. A task list that does not migrate is the
+    # defect 0113 exists to stop, and the owner found the last one in his own
+    # account rather than here.
+    echo "::error::the task domain copied NOTHING under tag ${BALANCE_TAG}."
+    echo "The source was seeded with a VTODO-only collection and the mapping selects 'task',"
+    echo "so zero copied rows means one of: the source skipped the collection (0113 T3a),"
+    echo "it skipped the VTODOs inside it (T3b), the writer refused them (T4), or the tick"
+    echo "never reached the domain at all (T5's fan-outs). What the ledger holds per domain"
+    echo "is in the inventory below."
+    q "SELECT domain, status, count(*) FROM item WHERE $TASK_SCOPE AND $TASK_TAGGED GROUP BY 1,2 ORDER BY 1,2" \
+      | sed 's/^/  /'
+    fail_at "the task domain copied NOTHING under tag ${BALANCE_TAG} (workplan 0113 T3a/T3b/T4/T5)"
+  fi
+
+  # ---------- THE FILE BIGGER THAN A CHUNK LANDED (workplan 0120 T6) ----------
+  #
+  # WHY A SEPARATE ASSERTION FROM THE FILE DOMAIN. The file lane already copies
+  # two small text files every fresh set, so `domain='file'` rows exist whether
+  # or not anything ever crossed the streaming threshold. Until 0120 T6 NO
+  # fixture in this repository was larger than one chunk, which is precisely why
+  # `WebdavFileSource.fetch` buffering entire files into memory went unnoticed:
+  # every gate exercised the branch the defect was not in.
+  #
+  # WHAT THE HASH PROVES, and why a count would not. `WebDAVTargetWriter` takes
+  # the ledger's `content_hash` from a digest folded AS THE BYTES PASS
+  # (`streamingFileContentHash`) rather than from a buffer it holds — that is
+  # the change T4 made, and it is the one that can go wrong silently. A stream
+  # that truncates, repeats a chunk, reorders two, or hashes an empty body still
+  # produces a `copied` row with a plausible-looking 64 hex characters. Only
+  # comparing it against the SOURCE's own digest can tell those apart, and the
+  # source's digest cannot be a literal here because the fixture is random
+  # (deliberately: 32 MB of zeros hashes the same however the chunks arrive).
+  # So the seeder is asked, which reads the file back over DAV and hashes it.
+  #
+  # Polled like the task lane, and for the same reason: 32 MB takes longer to
+  # copy than a vCard, so the row the apply half waited for can land first.
+  BIG_TAGGED="$HREF_EXPR LIKE '%openmig-demo-bigfile-${BALANCE_TAG}%'"
+  big_row=""
+  i=0
+  while [ $i -lt "$PREP_POLLS" ]; do
+    big_row="$(q "SELECT coalesce(content_hash,'') || '|' || coalesce(size_bytes::text,'0') FROM item WHERE $TASK_SCOPE AND $BIG_TAGGED AND domain='file' AND status IN ('copied','updated') LIMIT 1")"
+    [ -n "${big_row%%|*}" ] && break
+    i=$((i + 1))
+    sleep "$POLL_SLEEP"
+  done
+  big_hash="${big_row%%|*}"
+  big_size="${big_row##*|}"
+
+  if [ -z "$big_hash" ]; then
+    echo "::error::the large file copied NOTHING under tag ${BALANCE_TAG} (workplan 0120 T6)."
+    echo "A file well above the 8 MB streaming threshold was seeded into the source, and no"
+    echo "'copied' file row carries its name. Either the seed did not land"
+    echo "(read the [seed-dav] big file line above), the file pass skipped it, or the streamed"
+    echo "PUT failed. What the ledger holds for this tag, per domain and status:"
+    q "SELECT domain, status, count(*) FROM item WHERE $TASK_SCOPE AND $TASK_TAGGED GROUP BY 1,2 ORDER BY 1,2" \
+      | sed 's/^/  /'
+    fail_at "the large file copied NOTHING under tag ${BALANCE_TAG} (workplan 0120 T6)"
+  else
+    # The size is read from the ledger rather than trusted from the seed: a row
+    # recorded at a few kilobytes would mean the pass saw a truncated body and
+    # the hash below would then agree with a truncated source. Both or neither.
+    if [ "${big_size:-0}" -le 8388608 ]; then
+      echo "::error::the large file's ledger row records ${big_size} bytes, which is at or below"
+      echo "the 8 MB streaming threshold — so whatever copied, it was NOT streamed. See"
+      echo "STREAM_FILES_LARGER_THAN_BYTES in packages/connectors/src/webdav-source.ts."
+      fail_at "the large file's row is ${big_size} bytes, under the streaming threshold (0120 T6)"
+    else
+      src_hash="$("$SCRIPT_DIR/seed-demo-dav-content.sh" --big-sha256 "$BALANCE_TAG" 2>/dev/null || true)"
+      if [ -z "$src_hash" ]; then
+        # Not a pass. The comparison is the assertion; without the source digest
+        # there is nothing to compare, and reporting the row's existence as a
+        # success would be the shape this gate has been fooled by twice.
+        echo "::error::could not read the source's own sha256 for the large file, so the"
+        echo "ledger's content_hash (${big_hash}) could not be checked against anything."
+        fail_at "the large file's source digest was unreadable, so nothing was verified (0120 T6)"
+      elif [ "$src_hash" = "$big_hash" ]; then
+        echo "prepare: the large file streamed — ${big_size} bytes, content_hash matches the source (${big_hash})"
+      else
+        echo "::error::THE LARGE FILE'S CONTENT HASH DOES NOT MATCH THE SOURCE (workplan 0120 T6)."
+        echo "  source ledger  ${src_hash}"
+        echo "  ledger row     ${big_hash}"
+        echo "The digest is folded as the bytes stream to the target, so a mismatch means the"
+        echo "streamed body was not the file: truncated, reordered, a chunk repeated, or hashed"
+        echo "empty. This is a defect in the file path, not in the fixture."
+        fail_at "the large file's content_hash does not match the source (0120 T6)"
+      fi
+    fi
+  fi
+fi
+
+
 # ---------- VERIFY half ----------
 #
 # TWO MAPPINGS, and until 2026-08-19 only one of them was ever verified.
@@ -1501,17 +1836,192 @@ for domain in "${REQUIRED_DOMAINS[@]}"; do
   elif [ "$d_src" -gt 0 ] && [ "$d_tgt" -eq 0 ]; then
     echo ""
     echo "verify ($VERIFY_LABEL): '${domain}' has ${d_src} items at the SOURCE and 0 at the TARGET."
-    echo "The sync ran in this same job, so either nothing was copied or the target"
-    echo "reindexer listed an empty collection. The second is the quiet one: a DAV"
-    echo "query the server ACCEPTS and that matches nothing returns an empty"
-    echo "multistatus, which every consumer here reads as 'the collection is empty'."
-    echo "Check the listing query for that domain before assuming the sync is at fault."
-    fail_at "verify ($VERIFY_LABEL) '${domain}': sourceCount=${d_src} but targetCount=0 — the target listing found nothing"
+    # THREE CAUSES, AND THE THIRD IS THE ONE NO WAIT CAN FIX — so it is ASKED
+    # here rather than left to the reader. "It has not caught up yet" is already
+    # ruled out above: a sync for this mapping was enqueued and waited for, and
+    # on the managed gate `--fresh` seeded this domain before that. What is left
+    # is a listing the server accepted that matched nothing, or a source whose
+    # keys the ledger refuses to copy at all.
+    #
+    # The second one is why this branch exists at all in this shape. On
+    # 2026-09-09 the demo stack answered task|tombstoned|2 — BOTH fixed task
+    # fixtures — and the gate reported it as "the target listing found nothing",
+    # which sends the reader to a DAV query that is working perfectly. A refusal
+    # that names a symptom and not a state is half a refusal (rule 9), and it
+    # cost a database query by hand to find out which half.
+    #
+    # THE LEDGER'S SPELLING IS NOT THE REPORT'S. VERIFICATION_DOMAINS says
+    # `tasks`/`contacts`/`files`; the ledger row says `task`/`contact`/`file`.
+    # Four vocabularies, flagged on #746 and still four (the owner's call), so
+    # this is the fifth place they must be reconciled — done explicitly, because
+    # a LIKE that guessed would answer 0 for every domain and turn the branch
+    # below into a permanent "not tombstones" that nobody could see was wrong.
+    # VERIFICATION_DOMAINS -> DISCOVERY_DOMAINS, every member spelled out.
+    # `mail` is the one that catches people: the report says `mail` and the
+    # ledger row says `email`, so an identity fallback answers 0 tombstones for
+    # the mail lane for ever and nobody can see that it is wrong. The guard in
+    # a-verify-that-measured-a-race.unit.test.ts reads both arrays and fails if
+    # any member of either is missing from this case.
+    case "$domain" in
+      mail)     led=email ;;
+      tasks)    led=task ;;
+      contacts) led=contact ;;
+      files)    led=file ;;
+      calendar) led=calendar ;;
+      *)        led="$domain" ;;
+    esac
+    tombs="$(q "SELECT count(*) FROM item WHERE tenant_id='$tenant' AND mapping_id='$mapping' AND domain='$led' AND status='tombstoned'")"
+    if [ "${tombs:-0}" -ge "$d_src" ]; then
+      echo "EVERY source item in this domain is TOMBSTONED in the ledger (${tombs} row(s))."
+      echo "classifyKnownItem refuses for ever to re-create a tombstoned natural key — it"
+      echo "cannot tell a change of mind from an erasure request — so these cannot copy,"
+      echo "however long anything waits. The listing is not at fault and neither is the"
+      echo "sync: this fixture set is SPENT."
+      echo "The remedy is new keys, never an un-tombstone (the balance section keeps"
+      echo "tombstones on purpose, and the apply half will not retract an applied"
+      echo "deletion — a receipt pointing at an item claiming no deletion was ever"
+      echo "reported is a falsified record):"
+      echo "  ./deploy/compose/seed-demo-dav-content.sh --fresh <tag>"
+      echo "mints natural keys the ledger has never seen, which is the one kind no"
+      echo "tombstone can already own. That is what the prepare phase above does every"
+      echo "run, so a green gate does not depend on the fixed set surviving."
+      fail_at "verify ($VERIFY_LABEL) '${domain}': all ${d_src} source item(s) are tombstoned — the fixture set is spent, not the listing broken"
+    else
+      echo "${tombs} of them are tombstoned, so that is not the whole story. Either"
+      echo "nothing was copied, or the target reindexer listed an empty collection. The"
+      echo "second is the quiet one: a DAV query the server ACCEPTS and that matches"
+      echo "nothing returns an empty multistatus, which every consumer here reads as"
+      echo "'the collection is empty'."
+      echo "Check the listing query for that domain before assuming the sync is at fault."
+      fail_at "verify ($VERIFY_LABEL) '${domain}': sourceCount=${d_src} but targetCount=0 — the target listing found nothing"
+    fi
   else
     echo "verify ($VERIFY_LABEL): '${domain}' target listing saw ${d_tgt} (source ${d_src})"
   fi
 done
 }
+
+# ---------- the target has to be CURRENT before it can be verified ----------
+#
+# WHAT E2E (MANAGED) #166 ACTUALLY FAILED ON, and it was not the reindexer this
+# gate had just learned to distrust. The DAV verify reported `calendar:
+# sourceCount=81, targetCount=0` and failed — correctly, by the rule added on
+# 2026-09-07 — but the thing it measured was a race this script had created
+# four lines earlier. Bring-up seeds the demo DAV source; the smoke's verify
+# half runs seconds after it (20:44:31 and 20:45:09 in that run). NOTHING in
+# between asks for a sync, and a mapping with no schedule of its own runs on
+# DEFAULT_SYNC_SCHEDULE = */15. So the verify compared a source that had just
+# been filled against a target no pass in this job had ever written to. Every
+# lane's pass showed `itemsProcessed: 0-1`; `files` passed only because its
+# rows are `adopted`, which is target content that predates the run. The
+# arithmetic was right and it was about nothing.
+#
+# The apply half has had the remedy since run #20 and states it in its own
+# words: "the scheduler's own cadence for a mapping with no schedule is
+# DEFAULT_SYNC_SCHEDULE = */15, which is far longer than a gate should sit
+# waiting. So: seed the source, then enqueue the sync directly." The verify
+# half never got the second half of that sentence, so the one number that
+# would have exposed the gap — `targetCount` — only became readable on
+# 2026-09-07, and the first thing it read was this.
+#
+# THIS IS NOT MANUFACTURING A FIXTURE, which is the line the prepare phase
+# below is careful not to cross. Nothing is seeded here and this script writes
+# nothing to either target: it asks the product, through the product's own
+# endpoint, to do NOW the work it would do inside the quarter hour. What the
+# verify then measures is the real target, listed by the real reindexer, and a
+# pass that copies nothing still reports zero. The only thing removed is the
+# wait — and a gate that reads the absence of a sync as the absence of a
+# target is not reporting on the stack.
+#
+# BOTH MAPPINGS, not just the one that went red. The mail lane races
+# identically (`seed-imap-source.mjs` runs a few workflow steps earlier); it
+# passes today only because that stack is never torn down and its target still
+# holds what some earlier run copied. "It happens to pass because the box is
+# old" is the kind of accident this file exists to stop relying on.
+#
+# AND IT RUNS EVEN THOUGH PREPARE JUST SYNCED THE DAV MAPPING, which is one
+# extra pass — four seconds, by #167's own timings, copying nothing new.
+# Prepare is OFF by default, because run by hand this script is an acceptance
+# test and not a fixture factory; without this phase the hand-run verify would
+# race exactly as CI's did. A floor that holds in BOTH modes is worth the four
+# seconds, and the alternative — a conditional enqueue that depends on whether
+# prepare ran — is the kind of branch that goes wrong silently.
+sync_and_wait() { # sync_and_wait <tenant> <mapping> <token> <label>
+  local tenant="$1" mapping="$2" tok="$3" label="$4"
+  local out code body ref i status processed
+
+  # An explicit JSON body: the endpoint runs req.body through zod, and an
+  # absent body is not the same thing as an empty object. The prepare phase
+  # spells it out for the same reason.
+  out="$(curl -sS -X POST -H 'Content-Type: application/json' -d '{"type":"delta"}' \
+    -H "Authorization: Bearer $tok" -w '\n%{http_code}' \
+    "$API/api/migrations/$mapping/sync")"
+  code="${out##*$'\n'}"
+  body="${out%$'\n'*}"
+  echo "sync ($label): enqueue -> HTTP $code"
+  echo "sync ($label): $body"
+  case "$code" in
+    200|202) ;;
+    *)
+      # NOT `fail_at`. The verify below is the gate and it is about to ask the
+      # real question; this phase only removes a wait. Saying so here means a
+      # refusal (a paused mapping answers 409) reads as itself rather than as
+      # a reindexer that found nothing.
+      echo "sync ($label): the enqueue was REFUSED — the verify below measures whatever the target already held."
+      return 0 ;;
+  esac
+
+  # FOLLOWED BY THE ORCHESTRATOR'S OWN ID, not by a timestamp window.
+  # `run-delta-sync` writes `ctx.run.id` onto the ledger row as
+  # `orchestrator_ref` (apps/worker/src/jobs/run-delta-sync.ts), and that id is
+  # what this response just handed back. Waiting on it waits for THE PASS THIS
+  # PHASE ASKED FOR; a `created_at >= now()` window would also match a
+  # scheduled tick that started in the same second and would then report a
+  # stranger's pass as this one's.
+  ref="$(jq -r '.runId // empty' <<<"$body" 2>/dev/null || true)"
+  if [ -z "$ref" ]; then
+    echo "sync ($label): HTTP $code carried no runId, so this pass cannot be followed — the verify below is unsynchronised."
+    return 0
+  fi
+
+  # THE ROW DOES NOT EXIST YET, and that is the first state worth waiting
+  # through. The API enqueues; `run-delta-sync` opens the ledger row only once
+  # a runner is actually executing it. An empty answer therefore means "no
+  # runner yet", which is a different fact from `running` and from a pass that
+  # ended — and if it never changes it is the failure the runner-proxy section
+  # further up exists to explain.
+  i=0
+  status=""
+  while [ $i -lt "$SYNC_POLLS" ]; do
+    status="$(q "SELECT status FROM run WHERE tenant_id='$tenant' AND orchestrator_ref='$ref'")"
+    case "$status" in succeeded|failed|cancelled) break ;; esac
+    i=$((i + 1))
+    sleep "$POLL_SLEEP"
+  done
+
+  case "$status" in
+    succeeded)
+      processed="$(q "SELECT coalesce(stats->>'itemsProcessed','?') FROM run WHERE tenant_id='$tenant' AND orchestrator_ref='$ref'")"
+      echo "sync ($label): the pass finished after $((i * POLL_SLEEP))s — itemsProcessed=${processed}"
+      ;;
+    failed|cancelled)
+      echo "sync ($label): the pass ended '$status' after $((i * POLL_SLEEP))s."
+      echo "sync ($label): the verify below still runs, and what it reports is what a $status pass left behind."
+      q "SELECT status, started_at, finished_at, left(stats::text,200) FROM run WHERE tenant_id='$tenant' AND orchestrator_ref='$ref'"
+      ;;
+    "")
+      echo "sync ($label): no ledger row for orchestrator run ${ref} after $((SYNC_POLLS * POLL_SLEEP))s."
+      echo "sync ($label): the enqueue was accepted and never became a runner — see the runner-log section below."
+      ;;
+    *)
+      echo "sync ($label): still '$status' after $((SYNC_POLLS * POLL_SLEEP))s — the verify below may read a half-copied target."
+      ;;
+  esac
+}
+
+note "SYNC before VERIFY — measure the target after a pass, never before one"
+sync_and_wait "$VERIFY_TENANT" "$VERIFY_MAPPING" "$VERIFY_TOKEN" mail
+sync_and_wait "$APPLY_TENANT" "$APPLY_MAPPING" "$APPLY_TOKEN" dav
 
 # Tenant A — mail, against the demo Stalwart.
 verify_mapping "$VERIFY_TENANT" "$VERIFY_SUB" "$VERIFY_MAPPING" mail mail
@@ -1542,267 +2052,6 @@ verify_mapping "$APPLY_TENANT" "$APPLY_SUB" "$APPLY_MAPPING" dav calendar contac
 # ---------- APPLY half ----------
 note "APPLY — mapping $APPLY_MAPPING (tenant $APPLY_TENANT, sub $APPLY_SUB)"
 APPLY_RESULT="skipped-no-item"
-# `target_ref` is `jsonb NOT NULL DEFAULT '{}'` (schema-pg.ts), so the
-# `target_ref IS NOT NULL` this used to say was true of every row ever written
-# — a predicate that read like "and it landed somewhere on the target" and
-# filtered nothing. The ledger stores the handle as `{"id": "..."}`, so that is
-# what has to be non-empty.
-# ELIGIBILITY MIRRORS THE PRODUCT'S OWN GATE, which is `copied` OR `updated`
-# — see `ownershipCheck` in packages/core/src/apply-deletion.ts, whose comment
-# insists the same list be an equality rather than an approximation.
-#
-# It asked for `copied` alone until run #18, and that is how the gate came to
-# print an eligible item inside its own diagnosis and then declare there was
-# none: `file|updated|1|1` — one updated file, with a target_ref id, which the
-# apply path would have accepted. `updated` means WE wrote over a copy we had
-# written before; `copied` means we created it. Both are ours to remove. Only
-# `adopted` is not, and the product refuses that one for a reason worth keeping
-# separate: those bytes were the account owner's before we arrived.
-#
-# `smoke-managed-verdict.unit.test.ts` reads that function and fails if these
-# two lists ever stop agreeing, in either direction.
-# WHICH item, and why it must be a DISPOSABLE one.
-#
-# The apply half really deletes what it selects, and deliberately does NOT undo
-# it: the cleanup below retracts the fabricated evidence only when the deletion
-# was NOT applied, because retracting an applied one would leave a receipt
-# pointing at an item claiming no deletion was ever reported -- a falsified
-# record. The deleted key is then TOMBSTONED, and classifyKnownItem refuses
-# forever to re-create a tombstoned natural key (it cannot tell a change of mind
-# from an erasure request).
-#
-# So every run permanently consumed one item, and `ORDER BY natural_key_hash`
-# meant that item was whichever FIXED demo fixture sorted first. Observed live
-# 2026-08-20 across three runs of one stack: four tombstones, and the DAV verify
-# degrading 66/66 -> 65/66 files and 3/3 -> 1/3 calendar until it FAILED. The
-# gate was poisoning the fixtures its own other half measures, and no re-seed
-# could repair it, because the keys were tombstoned.
-#
-# This is fixture exhaustion, the same class of failure as E2E (managed) #20 --
-# and `seed-demo-dav-content.sh --fresh` was built by that fix precisely to mint
-# keys NO TOMBSTONE CAN ALREADY OWN. So: prefer an item that came from a
-# `--fresh` seed. Fixed fixtures are `openmig-demo-<type>-<n>.<ext>`; fresh ones
-# carry a tag between the type and the index, so "digits immediately followed by
-# the extension" identifies exactly the fixtures and nothing else.
-ELIGIBLE="status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> ''"
-FIXTURE_RE="openmig-demo-(event|contact|file)-[0-9]+[.][a-z]+$"
-# Fresh event 1 is the SCHEDULING CANARY (0103 T2), and the byte-check further
-# down reads its copy off the target AFTER this half has run — so the apply
-# half must never spend it. It did, once: E2E managed #88 applied a real
-# deletion to exactly that item (natural-key hash c52e5949…, the canary event)
-# four seconds before the read, and the gate reported its own deletion as an
-# unproven byte-check. Five other fresh items per seed stay disposable. The
-# prepare wait loop polls pick_disposable itself, so wait and pick carry this
-# exclusion by construction, not by agreement (the run-#18 lesson).
-CANARY_RE="openmig-demo-event-.+-1[.]ics$"
-HREF_EXPR="coalesce(source_ref_href, source_ref->>'href', '')"
-
-pick_disposable() {
-  q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE AND $HREF_EXPR !~ '$FIXTURE_RE' AND $HREF_EXPR !~ '$CANARY_RE' ORDER BY first_seen_at DESC, natural_key_hash LIMIT 1"
-}
-pick_fixture() {
-  q "SELECT natural_key_hash FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND $ELIGIBLE ORDER BY natural_key_hash LIMIT 1"
-}
-
-HASH="$(pick_disposable)"
-# ---------- optional: make the precondition exist, rather than wait for it ----------
-# OFF by default. Run by hand, this script is an ACCEPTANCE test: it reports what
-# the stack is, and manufacturing its own fixture would be the same class of lie
-# as the skip-that-passed. In CI there is nobody to prepare the box, so the gate
-# sets SMOKE_PREPARE_APPLY=1 and the preparation happens here — visibly, as its
-# own narrated phase, and still ending in the same honest check.
-#
-# Both halves are needed and neither is enough alone:
-#   the demo DAV source may have no content, and the scheduler's own cadence for
-#   a mapping with no schedule is DEFAULT_SYNC_SCHEDULE = */15, which is far
-#   longer than a gate should sit waiting. So: seed the source, then enqueue the
-#   sync directly.
-#
-# THE SEEDING IS NOW A FALLBACK, not the only path. `setup-managed-demo.sh`
-# seeds the DAV source at bring-up, beside the accounts it fills (0084) — so on
-# a stack brought up since 2026-08-19 this call finds the same fixed resources
-# already there and overwrites them, which is a no-op in every sense that
-# matters. It stays because a stack older than that change, or one whose demo
-# was reprovisioned by hand, still needs it, and because a prepare phase that
-# assumes its precondition would be the same mistake in a different place.
-#
-# `--fresh`, AND WHY THE PLAIN CALL COULD NOT WORK HERE (run #20, 2026-08-19).
-# The apply half below applies a REAL deletion, and `applyDeletion` writes
-# `status='tombstoned'`. `classifyKnownItem` then refuses forever to re-create a
-# tombstoned natural key — deliberately: it cannot tell a change of mind from an
-# erasure request. The bring-up seed writes FIXED keys (`openmig-demo-event-1`
-# and friends), so one green run spent one of exactly six items and re-seeding
-# could never give it back. Run #19 spent the last one; run #20, on a commit
-# whose PR was green and whose self-hosted e2e was green, failed with "no
-# eligible item" against 73 rows that were all `tombstoned` or `adopted`. The
-# gate was eating its own fixture, one run at a time, and nothing about it was
-# self-correcting.
-#
-# So prepare asks for keys the ledger has NEVER seen. That is the one kind a
-# tombstone cannot already own, and it is still an honest fixture: it goes into
-# the SOURCE, and a real sync has to copy it before anything here is eligible.
-if [ -z "$HASH" ] && [ "${SMOKE_PREPARE_APPLY:-0}" = "1" ]; then
-  note "prepare (SMOKE_PREPARE_APPLY=1) — give the apply half something real to act on"
-
-  # THE TAG IS CHOSEN HERE rather than left to the seeder's default, because
-  # what this run created is what the balance section has to take back, and it
-  # cannot take back a name it never learned. `--fresh` on its own mints a
-  # timestamp+pid inside a subprocess and prints it; parsing that back out of
-  # the log would be a second source of truth for one string.
-  BALANCE_TAG="smoke-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  if "$SCRIPT_DIR/seed-demo-dav-content.sh" --fresh "$BALANCE_TAG"; then
-    echo "prepare: DAV source seeded with fresh, never-tombstoned natural keys (tag ${BALANCE_TAG})"
-  else
-    echo "prepare: SEEDING FAILED — the diagnosis below will say what the ledger holds."
-  fi
-
-  TOK_P="$APPLY_TOKEN"
-  # An explicit JSON body: the endpoint runs req.body through zod, and an absent
-  # body is not the same thing as an empty object.
-  sync_out="$(curl -sS -X POST -H 'Content-Type: application/json' -d '{"type":"delta"}' \
-    -H "Authorization: Bearer $TOK_P" -w '\n%{http_code}' \
-    "$API/api/migrations/$APPLY_MAPPING/sync")"
-  echo "prepare: sync enqueue -> HTTP ${sync_out##*$'\n'}"
-  echo "prepare: ${sync_out%$'\n'*}"
-
-  # Poll for the row the apply half needs. A sync is a Trigger.dev run: a runner
-  # container has to start before anything is written, so seconds, not instants.
-  i=0
-  while [ $i -lt "$PREP_POLLS" ]; do
-    sleep "$POLL_SLEEP"
-    i=$((i + 1))
-    HASH="$(pick_disposable)"
-    if [ -n "$HASH" ]; then
-      echo "prepare: an eligible item appeared after $((i * POLL_SLEEP))s"
-      break
-    fi
-  done
-  [ -n "$HASH" ] || echo "prepare: still nothing after $((PREP_POLLS * POLL_SLEEP))s — see the diagnosis below."
-
-  # ---------- THE TASK LANE LANDED (workplan 0113 T7) ----------
-  #
-  # WHY THIS IS AN ASSERTION AND NOT A LINE IN THE INVENTORY. The diagnosis
-  # below already groups by `domain`, so a task row would SHOW there — and a
-  # run with no task rows at all would show nothing there and stay green,
-  # because the apply half takes whichever eligible item it finds and one
-  # calendar row satisfies it. That is the shape that has fooled this gate
-  # twice: green because the half that mattered never executed.
-  #
-  # So the task domain is checked BY NAME. What it proves is the whole of
-  # 0113 end to end against a real Nextcloud, and none of it is provable by a
-  # unit test:
-  #   - the source listed a collection declaring VTODO and nothing else (T3a),
-  #   - it yielded the VTODOs in it rather than skipping them (T3b),
-  #   - the writer created the target collection and PUT them (T4),
-  #   - the tick, the ledger domain and the natural key all agree (T5, T2).
-  # A regression in any one of those lands here as a count of zero.
-  #
-  # Scoped to THIS run's tag, so a task row left by an earlier run cannot
-  # answer for this one — the same rule the balance section works under.
-  # Polled rather than read once, because the sync is a Trigger.dev run and
-  # the calendar row the apply half waited for can land before the task one.
-  TASK_TAGGED="$HREF_EXPR LIKE '%${BALANCE_TAG}%'"
-  TASK_SCOPE="tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING'"
-  task_rows=0
-  i=0
-  while [ $i -lt "$PREP_POLLS" ]; do
-    task_rows="$(q "SELECT count(*) FROM item WHERE $TASK_SCOPE AND $TASK_TAGGED AND domain='task' AND status IN ('copied','updated')")"
-    [ "${task_rows:-0}" -gt 0 ] && break
-    i=$((i + 1))
-    sleep "$POLL_SLEEP"
-  done
-  if [ "${task_rows:-0}" -gt 0 ]; then
-    echo "prepare: the task lane landed — ${task_rows} VTODO row(s) copied under tag ${BALANCE_TAG}"
-  else
-    # Loud, and it FAILS the run. A task list that does not migrate is the
-    # defect 0113 exists to stop, and the owner found the last one in his own
-    # account rather than here.
-    echo "::error::the task domain copied NOTHING under tag ${BALANCE_TAG}."
-    echo "The source was seeded with a VTODO-only collection and the mapping selects 'task',"
-    echo "so zero copied rows means one of: the source skipped the collection (0113 T3a),"
-    echo "it skipped the VTODOs inside it (T3b), the writer refused them (T4), or the tick"
-    echo "never reached the domain at all (T5's fan-outs). What the ledger holds per domain"
-    echo "is in the inventory below."
-    q "SELECT domain, status, count(*) FROM item WHERE $TASK_SCOPE AND $TASK_TAGGED GROUP BY 1,2 ORDER BY 1,2" \
-      | sed 's/^/  /'
-    fail_at "the task domain copied NOTHING under tag ${BALANCE_TAG} (workplan 0113 T3a/T3b/T4/T5)"
-  fi
-
-  # ---------- THE FILE BIGGER THAN A CHUNK LANDED (workplan 0120 T6) ----------
-  #
-  # WHY A SEPARATE ASSERTION FROM THE FILE DOMAIN. The file lane already copies
-  # two small text files every fresh set, so `domain='file'` rows exist whether
-  # or not anything ever crossed the streaming threshold. Until 0120 T6 NO
-  # fixture in this repository was larger than one chunk, which is precisely why
-  # `WebdavFileSource.fetch` buffering entire files into memory went unnoticed:
-  # every gate exercised the branch the defect was not in.
-  #
-  # WHAT THE HASH PROVES, and why a count would not. `WebDAVTargetWriter` takes
-  # the ledger's `content_hash` from a digest folded AS THE BYTES PASS
-  # (`streamingFileContentHash`) rather than from a buffer it holds — that is
-  # the change T4 made, and it is the one that can go wrong silently. A stream
-  # that truncates, repeats a chunk, reorders two, or hashes an empty body still
-  # produces a `copied` row with a plausible-looking 64 hex characters. Only
-  # comparing it against the SOURCE's own digest can tell those apart, and the
-  # source's digest cannot be a literal here because the fixture is random
-  # (deliberately: 32 MB of zeros hashes the same however the chunks arrive).
-  # So the seeder is asked, which reads the file back over DAV and hashes it.
-  #
-  # Polled like the task lane, and for the same reason: 32 MB takes longer to
-  # copy than a vCard, so the row the apply half waited for can land first.
-  BIG_TAGGED="$HREF_EXPR LIKE '%openmig-demo-bigfile-${BALANCE_TAG}%'"
-  big_row=""
-  i=0
-  while [ $i -lt "$PREP_POLLS" ]; do
-    big_row="$(q "SELECT coalesce(content_hash,'') || '|' || coalesce(size_bytes::text,'0') FROM item WHERE $TASK_SCOPE AND $BIG_TAGGED AND domain='file' AND status IN ('copied','updated') LIMIT 1")"
-    [ -n "${big_row%%|*}" ] && break
-    i=$((i + 1))
-    sleep "$POLL_SLEEP"
-  done
-  big_hash="${big_row%%|*}"
-  big_size="${big_row##*|}"
-
-  if [ -z "$big_hash" ]; then
-    echo "::error::the large file copied NOTHING under tag ${BALANCE_TAG} (workplan 0120 T6)."
-    echo "A file well above the 8 MB streaming threshold was seeded into the source, and no"
-    echo "'copied' file row carries its name. Either the seed did not land"
-    echo "(read the [seed-dav] big file line above), the file pass skipped it, or the streamed"
-    echo "PUT failed. What the ledger holds for this tag, per domain and status:"
-    q "SELECT domain, status, count(*) FROM item WHERE $TASK_SCOPE AND $TASK_TAGGED GROUP BY 1,2 ORDER BY 1,2" \
-      | sed 's/^/  /'
-    fail_at "the large file copied NOTHING under tag ${BALANCE_TAG} (workplan 0120 T6)"
-  else
-    # The size is read from the ledger rather than trusted from the seed: a row
-    # recorded at a few kilobytes would mean the pass saw a truncated body and
-    # the hash below would then agree with a truncated source. Both or neither.
-    if [ "${big_size:-0}" -le 8388608 ]; then
-      echo "::error::the large file's ledger row records ${big_size} bytes, which is at or below"
-      echo "the 8 MB streaming threshold — so whatever copied, it was NOT streamed. See"
-      echo "STREAM_FILES_LARGER_THAN_BYTES in packages/connectors/src/webdav-source.ts."
-      fail_at "the large file's row is ${big_size} bytes, under the streaming threshold (0120 T6)"
-    else
-      src_hash="$("$SCRIPT_DIR/seed-demo-dav-content.sh" --big-sha256 "$BALANCE_TAG" 2>/dev/null || true)"
-      if [ -z "$src_hash" ]; then
-        # Not a pass. The comparison is the assertion; without the source digest
-        # there is nothing to compare, and reporting the row's existence as a
-        # success would be the shape this gate has been fooled by twice.
-        echo "::error::could not read the source's own sha256 for the large file, so the"
-        echo "ledger's content_hash (${big_hash}) could not be checked against anything."
-        fail_at "the large file's source digest was unreadable, so nothing was verified (0120 T6)"
-      elif [ "$src_hash" = "$big_hash" ]; then
-        echo "prepare: the large file streamed — ${big_size} bytes, content_hash matches the source (${big_hash})"
-      else
-        echo "::error::THE LARGE FILE'S CONTENT HASH DOES NOT MATCH THE SOURCE (workplan 0120 T6)."
-        echo "  source ledger  ${src_hash}"
-        echo "  ledger row     ${big_hash}"
-        echo "The digest is folded as the bytes stream to the target, so a mismatch means the"
-        echo "streamed body was not the file: truncated, reordered, a chunk repeated, or hashed"
-        echo "empty. This is a defect in the file path, not in the fixture."
-        fail_at "the large file's content_hash does not match the source (0120 T6)"
-      fi
-    fi
-  fi
-fi
 
 if [ -z "$HASH" ]; then
   # NOT a skip. Found in the gate's first green run (e2e-managed #6, 2026-08-18):
