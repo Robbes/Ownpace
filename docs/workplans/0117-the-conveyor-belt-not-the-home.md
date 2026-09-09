@@ -1,8 +1,32 @@
 # Workplan 0117 — The conveyor belt, not the home
 
-## Status — 2026-09-04 (update this block at the end of every session)
+## Status — 2026-09-09 (update this block at the end of every session)
 
-**2026-09-04: drafted for the owner's decision, nothing built.** The owner asked:
+**2026-09-09: D1 TAKEN — the continuous lane yes, the drain not yet.** The owner's words:
+
+> *"0117 D1 — yes to T1 + T2, not yet to the drain. I guess this is only something for after
+> the cutover?"*
+
+Yes, and not by coincidence: T1 has no pre-cutover meaning at all (before cutover, "keeps
+copying" is simply the migration), and T2 is the artefact you hand somebody once they have
+moved. **T1 and T2 are unblocked. T3, T4 and the drain half of T5 are deferred**, and D2/D3
+go with them — neither needs an answer while T3 does not exist.
+
+**But D1's answer promotes D4 from a detail to a precondition, and widens it.** §3c's
+protection is that after cutover the product *stops looking*: only `active` mappings run
+passes. T1 is precisely a mapping that keeps running after cutover, so **T1 reopens the
+window the lifecycle currently closes by stopping** — and §3b showed the conflict does not
+need a drain to bite: under T2 the person deletes in the source's own app, acting on our
+verified list, and a live mirror propagates that deletion onto the target and destroys the
+copy we just told them was safe.
+
+So D4 is no longer "deletion detection off *in the drain phase*". It is **off after
+cutover, full stop**, and it now blocks T1 and T2 rather than T3. It is a one-line rule and
+it is the one thing standing between "most of the value at almost none of the risk" and a
+product that eats a library one pass at a time while reporting success. **D4 is the live
+item; no T1 code should be written before it is answered.**
+
+Previous status (2026-09-04): drafted for the owner's decision, nothing built. The owner asked:
 
 > *"would a sync-to-target-and-delete-in-source be an interesting feature after cutover for
 > file platforms? some keep for instance Google and photos on android are automatically
@@ -20,12 +44,12 @@ the owner says no to it, this document is a record of why and nothing more is wa
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's decision | 🔨 **The only live item** | D1–D5 in §6. D1 alone decides whether the rest exists. |
-| T1 The continuous lane | 📋 Planned (needs D1) | A mapping that keeps copying after cutover, **deleting nothing**. Most of the value, almost none of the risk. |
-| T2 The confirmed list | 📋 Planned (needs D1) | "These N items are in your new home, verified by hash." No deletion by us. The ONLY possible answer for Google Photos. |
-| T3 The drain | 📋 Planned (needs D1 **and** D2) | Removal at the source, for the file platforms whose API permits it. The dangerous one. |
-| T4 The attributed tombstone | 📋 Planned (needs T3) | A deletion we caused is not a deletion we observed. §3's second wall. |
-| T5 The words | 📋 Planned | Consent, digest, receipt. Deleting somebody's data on a schedule is not a checkbox. |
+| T0 The owner's decision | 🟡 **D1 taken 2026-09-09; D4 is now the live one** | D1: the continuous lane yes, the drain not yet. That answer makes **D4** blocking for T1/T2 and widens it — see the Status block and §6. D2/D3 park with T3. |
+| T1 The continuous lane | 📋 **Unblocked by D1; waits on D4** | A mapping that keeps copying after cutover, **deleting nothing**. Most of the value, almost none of the risk — *provided* it runs with deletion detection off entirely (D4). Without that rule T1 reopens the window §3c closes by stopping, and does it silently, because everything still appears to work. |
+| T2 The confirmed list | 📋 **Unblocked by D1; waits on D4** | "These N items are in your new home, verified by hash." No deletion by us — but §3b: the person then deletes in the source's own app on the strength of our list, and a live mirror destroys the target copy we just certified. Needs the same rule as T1, for a reason that has nothing to do with a drain. |
+| T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
+| T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
+| T5 The words | 🟡 **Split by D1** | The drain's consent (D5) defers with T3. What T1 and T2 still need is smaller and real: a person must be told that a mapping keeps copying after cutover, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |
 
 ## Why this exists
 
@@ -241,6 +265,12 @@ day it runs, and the words must not say it is.
 value at almost none of the risk, and T2 is the only thing that can ever exist for Photos.
 Revisit T3 once T1 has run against real accounts for a while.
 
+> ✅ **TAKEN 2026-09-09, as recommended.** *"yes to T1 + T2, not yet to the drain."* The
+> owner also asked whether this is only for after the cutover: **yes**, and definitionally
+> so — T1 before cutover is just the migration, and T2 is what you hand somebody once they
+> have moved. Revisit trigger unchanged: T3 comes back after T1 has run against real
+> accounts for a while.
+
 **D2 — if the drain is built, on which platforms?** Drive, Dropbox, OneDrive, Box are
 possible; Photos is not.
 *Recommendation: **one platform first**, whichever the first customer actually asks for.*
@@ -253,6 +283,22 @@ decision that needs its own consent.*
 phase — or leave the lifecycle's incidental protection to carry it?
 *Recommendation: **make it explicit**, whatever is decided about D1. It is a one-line rule in
 a place somebody will otherwise "fix" by making the drain phase run passes.*
+
+> 🔨 **NOW THE LIVE DECISION, and wider than drafted (2026-09-09).** D1 deferred the drain,
+> which looks like it defers D4 too. It does the opposite. The protection in §3c is that
+> after cutover **nothing runs**; T1 is a mapping that keeps running after cutover, and T2
+> hands someone a list they will act on inside the source's own app. Either one restores
+> the §3a loop without a drain existing anywhere — §3b said as much and it was easy to read
+> as a remark about the drain. It is not.
+>
+> So the question is no longer *"off in the drain phase?"* but **"off after cutover, in
+> every phase that keeps running?"** — and the answer gates T1's first line of code rather
+> than T3's.
+>
+> *Recommendation, unchanged in substance and now urgent: **make it explicit.** Deletion
+> detection does not run after cutover. Not gated per item, not overridden, off — the same
+> words §4A already uses for the drain phase, for the same reason: after cutover the source
+> is no longer the authority on what exists.*
 
 **D5 — the consent.** Deleting a customer's data on a schedule is not the same permission as
 copying it.
