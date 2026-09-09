@@ -16,5 +16,20 @@ export declare function measure(
   dataLocalName: string,
 ): { responses: number; withData: number; uids: number };
 
-/** Ground truth: how many resources with `suffix` a Depth:1 PROPFIND found. */
-export declare function propfindResources(xml: string, suffix: string): number;
+/**
+ * Ground truth: how many MEMBERS a Depth:1 PROPFIND found under
+ * `collectionPath`. By path, not by file extension — see the probe's own note.
+ */
+export declare function propfindMembers(xml: string, collectionPath: string): number;
+
+/** The last assignment of `key` in a compose .env, unquoted. */
+export declare function envValue(key: string, file?: string): string | undefined;
+
+/**
+ * What a non-207 answer means, per status class.
+ *
+ * Every refusal used to read "the filter body is rejected outright" — true of a
+ * 400 and a confident lie about a 401 or a 404, both of which were met on the
+ * real thing. The unrecognised case names its status rather than guessing.
+ */
+export declare function refusal(status: number): string;
