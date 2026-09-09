@@ -16,5 +16,11 @@ export declare function measure(
   dataLocalName: string,
 ): { responses: number; withData: number; uids: number };
 
-/** Ground truth: how many resources with `suffix` a Depth:1 PROPFIND found. */
-export declare function propfindResources(xml: string, suffix: string): number;
+/**
+ * Ground truth: how many MEMBERS a Depth:1 PROPFIND found under
+ * `collectionPath`. By path, not by file extension — see the probe's own note.
+ */
+export declare function propfindMembers(xml: string, collectionPath: string): number;
+
+/** The last assignment of `key` in a compose .env, unquoted. */
+export declare function envValue(key: string, file?: string): string | undefined;

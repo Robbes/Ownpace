@@ -21,8 +21,11 @@
  * really for.
  */
 
-import { describe, it, expect } from 'vitest';
-import { measure, propfindResources } from './dav-target-probe.mjs';
+import { describe, it, expect, afterAll } from 'vitest';
+import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { measure, propfindMembers, envValue } from './dav-target-probe.mjs';
 
 const CALENDAR_WITH_DATA = `<?xml version="1.0"?>
 <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
@@ -100,6 +103,72 @@ describe('the probe counts what it says it counts', () => {
   it('excludes the collection itself from the ground-truth count', () => {
     // A Depth:1 PROPFIND returns the collection alongside its members. Counting
     // it would turn an empty collection into "1 resource" and hide cause (1).
-    expect(propfindResources(PROPFIND, '.ics')).toBe(2);
+    expect(propfindMembers(PROPFIND, '/remote.php/dav/calendars/u/personal')).toBe(2);
+  });
+
+  it('counts members by PATH, not by file extension', () => {
+    // The defect that produced a wrong verdict against the real server on
+    // 2026-09-09: filtering on `.vcf` reported an addressbook holding a card as
+    // empty, and "NOTHING WAS WRITTEN" was printed over a REPORT that had just
+    // returned that card. What makes something a member is where it sits.
+    const odd = `<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:">
+  <d:response><d:href>/remote.php/dav/addressbooks/users/u/contacts/</d:href></d:response>
+  <d:response><d:href>/remote.php/dav/addressbooks/users/u/contacts/card-no-extension</d:href></d:response>
+</d:multistatus>`;
+    expect(propfindMembers(odd, '/remote.php/dav/addressbooks/users/u/contacts')).toBe(1);
+  });
+
+  it('survives percent-encoding and a trailing slash on either side', () => {
+    const encoded = `<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:">
+  <d:response><d:href>/remote.php/dav/calendars/u/my%20cal/</d:href></d:response>
+  <d:response><d:href>/remote.php/dav/calendars/u/my%20cal/a.ics</d:href></d:response>
+</d:multistatus>`;
+    expect(propfindMembers(encoded, '/remote.php/dav/calendars/u/my cal/')).toBe(1);
+  });
+});
+
+describe('where the probe decides to look', () => {
+  const made: string[] = [];
+
+  /** A .env with the shapes these files actually carry. */
+  function envFile(body: string): string {
+    const dir = mkdtempSync(join(tmpdir(), 'probe-env-'));
+    made.push(dir);
+    const file = join(dir, '.env');
+    writeFileSync(file, body);
+    return file;
+  }
+
+  // `tests-clean-up-after-themselves` guards this, and caught the first draft:
+  // a suite that leaves a temp directory per run fills somebody's /tmp slowly
+  // enough that nobody connects it to a test.
+  afterAll(() => {
+    for (const dir of made) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('takes the LAST assignment, as the shell helpers do', () => {
+    // `env-read.sh` reads the last one. A probe that read the first would look
+    // somewhere no other tool in this repo looks.
+    const f = envFile('NEXTCLOUD_BIND=first\nOTHER=x\nNEXTCLOUD_BIND=second\n');
+    expect(envValue('NEXTCLOUD_BIND', f)).toBe('second');
+  });
+
+  it('unwraps a quoted value', () => {
+    const f = envFile('NEXTCLOUD_BIND="100.97.25.131"\n');
+    expect(envValue('NEXTCLOUD_BIND', f)).toBe('100.97.25.131');
+  });
+
+  it('answers undefined for a key that is not there, rather than throwing', () => {
+    // The probe falls back to localhost on undefined; an exception here would
+    // take the whole diagnostic down over a key a default already covers.
+    expect(envValue('NEXTCLOUD_BIND', envFile('API_PORT=3001\n'))).toBeUndefined();
+    expect(envValue('NEXTCLOUD_BIND', '/no/such/file')).toBeUndefined();
+  });
+
+  it('does not match a key that merely starts the same way', () => {
+    const f = envFile('NEXTCLOUD_BIND_EXTRA=nope\n');
+    expect(envValue('NEXTCLOUD_BIND', f)).toBeUndefined();
   });
 });

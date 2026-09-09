@@ -314,6 +314,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/env-read.sh`
 
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
+- [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
@@ -1287,6 +1288,7 @@ A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
 
 Reads:
 
+- `deploy/compose/env-read.sh`
 - `scripts/dav-target-probe.mjs`
 
 ### [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts)

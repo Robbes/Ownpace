@@ -48,7 +48,8 @@
  *
  *   node scripts/dav-target-probe.mjs
  *   node scripts/dav-target-probe.mjs --user tenant-b-source   # the source side
- *   node scripts/dav-target-probe.mjs --show-xml               # print the bodies
+ *   node scripts/dav-target-probe.mjs --show-xml               # print the queries
+ *   node scripts/dav-target-probe.mjs --dump                   # print the answers
  *   node scripts/dav-target-probe.mjs --base http://localhost:8083
  */
 
@@ -62,25 +63,56 @@ const flag = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 const SHOW_XML = args.includes('--show-xml');
+const DUMP = args.includes('--dump');
 
-// The stack's own .env is the source of truth for the port; the smoke reads
-// NEXTCLOUD_PORT the same way rather than assuming 8083.
-function envValue(key) {
+/**
+ * The LAST assignment of a key in the stack's own .env, like `env_value` in
+ * `deploy/compose/env-read.sh` — a file that sets a key twice means the second
+ * one, and reading the first would quietly disagree with every other tool here.
+ */
+export function envValue(key, file = 'deploy/compose/.env') {
   try {
-    const line = readFileSync('deploy/compose/.env', 'utf8')
+    const lines = readFileSync(file, 'utf8')
       .split('\n')
-      .find((l) => l.startsWith(`${key}=`));
-    return line ? line.slice(key.length + 1).trim() : undefined;
+      .filter((l) => l.startsWith(`${key}=`));
+    const last = lines[lines.length - 1];
+    if (last === undefined) return undefined;
+    // `KEY="value"` and `KEY=value` both occur in these files.
+    return last.slice(key.length + 1).trim().replace(/^(['"])(.*)\1$/, '$2');
   } catch {
     return undefined;
   }
 }
 
+/**
+ * THE PUBLISH MOVED AND THE CALLER STAYED AT LOCALHOST.
+ *
+ * `smoke-managed.sh` reads NEXTCLOUD_BIND for exactly this reason and says so
+ * in its own words: "an operator who binds the DAV backend to a private mesh
+ * address (NEXTCLOUD_BIND, for browsing it over the VPN) would otherwise leave
+ * every assertion below curling a loopback address nothing listens on any
+ * more". The first draft of this probe read the PORT and not the BIND, and on
+ * the reference box — where Nextcloud publishes on a Tailscale address —
+ * answered `fetch failed` three times for a server that was up and healthy.
+ *
+ * A diagnostic that cannot reach the thing it diagnoses reports the same
+ * "could not reach it" whether the service is down or the probe is looking in
+ * the wrong place, which is the one answer it must never be able to give by
+ * accident.
+ */
 const PORT = envValue('NEXTCLOUD_PORT') || '8083';
-const BASE = flag('base', `http://localhost:${PORT}`);
+const HOST = envValue('NEXTCLOUD_BIND') || 'localhost';
+const BASE = flag('base', `http://${HOST}:${PORT}`);
 const USER = flag('user', process.env.SMOKE_TARGET_DAV_USER || 'tenant-b-target');
 const PASS = flag('pass', process.env.SMOKE_TARGET_DAV_PASSWORD || 'tenant_b_target_pw');
-const TASK_LIST = process.env.SEED_DAV_TASK_LIST || 'e2e-tasks';
+// `seed-demo-dav-content.sh` — what the MANAGED gate runs — defaults to
+// openmig-tasks. `test/e2e/seed-dav-source.mjs`, the SELFHOST lane, defaults to
+// e2e-tasks, and taking that one made this probe ask a real server about a
+// collection nobody had created. It answered 404, which the probe reported as
+// "the filter body is rejected outright" — a confident wrong answer about a
+// query that was never the problem.
+const TASK_LIST =
+  process.env.DAV_TASK_COLLECTION || process.env.SEED_DAV_TASK_LIST || 'openmig-tasks';
 
 const auth = 'Basic ' + Buffer.from(`${USER}:${PASS}`).toString('base64');
 
@@ -158,10 +190,22 @@ export function measure(xml, dataLocalName) {
   return { responses, withData, uids };
 }
 
-/** Resources only — the collection itself answers a Depth:1 PROPFIND too. */
-export function propfindResources(xml, suffix) {
-  const hrefs = [...xml.matchAll(/<(?!\/)[^:>\s]*:?href[^>]*>([^<]+)</gi)].map((m) => m[1]);
-  return hrefs.filter((h) => h.toLowerCase().endsWith(suffix)).length;
+/**
+ * MEMBERS of the collection — the collection itself answers a Depth:1 PROPFIND
+ * too, and counting it turns an empty collection into "1 resource".
+ *
+ * By path depth, not by file extension. The first draft filtered on `.vcf` and
+ * `.ics`; a server free to name its resources anything then reported an
+ * addressbook holding cards as empty, and the verdict below believed it. What
+ * makes something a member is that its path sits UNDER the collection's, which
+ * is true whatever the server calls it.
+ */
+export function propfindMembers(xml, collectionPath) {
+  const base = decodeURIComponent(collectionPath).replace(/\/+$/, '');
+  const hrefs = [...xml.matchAll(/<(?!\/)[^:>\s]*:?href[^>]*>([^<]+)</gi)].map((m) =>
+    decodeURIComponent((m[1] ?? '').trim()).replace(/\/+$/, ''),
+  );
+  return hrefs.filter((h) => h !== base && h.includes(`${base}/`)).length;
 }
 
 const DOMAINS = [
@@ -170,21 +214,18 @@ const DOMAINS = [
     path: `calendars/${USER}/personal`,
     body: () => calendarQuery('VEVENT'),
     data: 'calendar-data',
-    suffix: '.ics',
   },
   {
     name: 'tasks',
     path: `calendars/${USER}/${TASK_LIST}`,
     body: () => calendarQuery('VTODO'),
     data: 'calendar-data',
-    suffix: '.ics',
   },
   {
     name: 'contacts',
     path: `addressbooks/users/${USER}/contacts`,
     body: () => addressbookQuery(),
     data: 'address-data',
-    suffix: '.vcf',
   },
 ];
 
@@ -211,8 +252,10 @@ async function main() {
       continue;
     }
 
-    const present = propfindResources(ground.text, d.suffix);
-    console.log(`  PROPFIND  HTTP ${ground.status} — ${present} ${d.suffix} resource(s) actually in the collection`);
+    const present = propfindMembers(ground.text, new URL(url).pathname);
+    console.log(
+      `  PROPFIND  HTTP ${ground.status} — ${present} member(s) actually in the collection`,
+    );
 
     if (report.status !== 207) {
       console.log(`  REPORT    HTTP ${report.status} — the server REFUSED the listing query`);
@@ -226,7 +269,16 @@ async function main() {
     console.log(`  REPORT    HTTP 207 — ${m.responses} <response>, ${m.withData} with <${d.data}>, ${m.uids} UID line(s)`);
 
     let verdict;
-    if (present === 0) {
+    if (present === 0 && m.withData > 0) {
+      // The two measurements contradict each other, and picking one would be a
+      // guess wearing a verdict's clothes. Seen for real on 2026-09-09: the
+      // member count said the addressbook was empty while the REPORT returned a
+      // card with data, because that count was filtering on a file extension.
+      // The probe now says so and prints both bodies instead of answering.
+      verdict =
+        'CONTRADICTION — PROPFIND found no members, but the REPORT returned ' +
+        `${m.withData} with data. One of the two is wrong; the bodies are below.`;
+    } else if (present === 0) {
       verdict = '(1) NOTHING WAS WRITTEN — the collection really is empty. The sync is at fault, not the listing.';
     } else if (m.responses === 0) {
       verdict = `(2) THE FILTER MATCHES NOTHING — ${present} resource(s) are there and the REPORT returned none. The filter body is wrong for this server.`;
@@ -237,7 +289,12 @@ async function main() {
     } else {
       verdict = `OK — ${m.responses} listed, ${m.withData} with data, ${m.uids} UID(s). This domain would count correctly.`;
     }
-    console.log(`  VERDICT   ${verdict}\n`);
+    console.log(`  VERDICT   ${verdict}`);
+    if (DUMP || verdict.startsWith('CONTRADICTION')) {
+      console.log(`  --- PROPFIND answer ---\n${ground.text}`);
+      console.log(`  --- REPORT answer ---\n${report.text}`);
+    }
+    console.log('');
     anyVerdict = true;
   }
 
