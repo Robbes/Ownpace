@@ -2,6 +2,27 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-09, later: D4 TAKEN — after cutover we do not delete in the target because
+something changed at the source.** The owner's words, which are better than the drafted
+question because they are about the outcome rather than the machinery:
+
+> *"indeed, after cutover the source is no longer the authority on what exists, so we will
+> not delete in target based on changes in the source."*
+
+**How it must be built, which §4D already settled and this record keeps attached to the
+rule: the detector does not RUN.** Not run-and-filter, not gated per item, not suppressed
+downstream — a gate strong enough to tell our deletion from the person's needs T4's
+tombstones anyway, and a gate is a thing that can be wrong once. Absence cannot.
+
+**T1 and T2 are now fully unblocked**, and the rule is written into their definition of
+done as a break-toward-the-safe-side test, per this plan's own extra rule: a test showing
+the lane *refusing* to mirror a post-cutover deletion is the one that matters.
+
+**One consequence to say out loud rather than discover:** somebody deletes a file at the
+old provider after cutover, and the copy in their new home stays. That is correct, and it
+is the opposite of what the product did before cutover — so it belongs in T5's words, along
+with the still-open choice of whether we simply stop noticing or say that we have.
+
 **2026-09-09: D1 TAKEN — the continuous lane yes, the drain not yet.** The owner's words:
 
 > *"0117 D1 — yes to T1 + T2, not yet to the drain. I guess this is only something for after
@@ -44,12 +65,12 @@ the owner says no to it, this document is a record of why and nothing more is wa
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's decision | 🟡 **D1 taken 2026-09-09; D4 is now the live one** | D1: the continuous lane yes, the drain not yet. That answer makes **D4** blocking for T1/T2 and widens it — see the Status block and §6. D2/D3 park with T3. |
-| T1 The continuous lane | 📋 **Unblocked by D1; waits on D4** | A mapping that keeps copying after cutover, **deleting nothing**. Most of the value, almost none of the risk — *provided* it runs with deletion detection off entirely (D4). Without that rule T1 reopens the window §3c closes by stopping, and does it silently, because everything still appears to work. |
-| T2 The confirmed list | 📋 **Unblocked by D1; waits on D4** | "These N items are in your new home, verified by hash." No deletion by us — but §3b: the person then deletes in the source's own app on the strength of our list, and a live mirror destroys the target copy we just certified. Needs the same rule as T1, for a reason that has nothing to do with a drain. |
+| T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
+| T1 The continuous lane | 📋 **Buildable — D1 and D4 both taken** | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
+| T2 The confirmed list | 📋 **Buildable — D1 and D4 both taken** | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
-| T5 The words | 🟡 **Split by D1** | The drain's consent (D5) defers with T3. What T1 and T2 still need is smaller and real: a person must be told that a mapping keeps copying after cutover, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |
+| T5 The words | 🔨 **The live item now** | The drain's consent (D5) defers with T3. What T1 and T2 need is smaller and real, and D4 added to it: a person must be told that a mapping keeps copying after cutover (continued access to a system they think they have left), that deletions at the source are **no longer mirrored** and why, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |
 
 ## Why this exists
 
@@ -299,6 +320,23 @@ a place somebody will otherwise "fix" by making the drain phase run passes.*
 > detection does not run after cutover. Not gated per item, not overridden, off — the same
 > words §4A already uses for the drain phase, for the same reason: after cutover the source
 > is no longer the authority on what exists.*
+>
+> ✅ **TAKEN 2026-09-09, as recommended.** *"indeed, after cutover the source is no longer
+> the authority on what exists, so we will not delete in target based on changes in the
+> source."*
+>
+> The owner stated it as an outcome; §4D fixes the mechanism, and the two are kept together
+> deliberately, because the outcome is reachable by a gate and the gate is the thing this
+> plan rejected. **The detector does not run.** A phase in which the code is absent cannot
+> be wrong on a Tuesday; a filter can.
+>
+> Scope, in one line for whoever implements it: **off after cutover, in every phase that
+> keeps running** — T1's continuous lane today, the drain if it is ever built.
+>
+> Consequence, for T5's words rather than for the code: a post-cutover deletion at the
+> source leaves the target copy in place. Correct, and the opposite of pre-cutover
+> behaviour, so it has to be said. Whether we also *report* the divergence ("N items you
+> removed at the old provider are still in your new home") is open and belongs with T5.
 
 **D5 — the consent.** Deleting a customer's data on a schedule is not the same permission as
 copying it.
@@ -320,6 +358,13 @@ must be provable by breaking it toward the safe side.** A test that shows the dr
 what it should is worth much less than one that shows it refusing to delete what it must not
 — an item the target never confirmed, an item outside the window, an item the person edited
 on the target, an item whose absence we ourselves caused.
+
+**Added by D4 (2026-09-09), binding on T1 and T2:** a post-cutover deletion at the source
+must leave the target copy in place, and the test must distinguish *absent* from *gated* —
+it has to fail if the detector runs and its output is filtered, not only if the filter is
+removed. Wiring the detector into a phase that keeps running is the regression this rule
+exists to catch, and it is one someone will otherwise introduce while fixing something
+else.
 
 ## Sources
 
