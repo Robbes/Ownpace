@@ -796,9 +796,20 @@ export class GoogleDriveSource implements FileSource {
       name: file.name,
       isDirectory: false,
       size: Number.parseInt(file.size ?? '0', 10) || 0,
-      // Drive's md5 for binary files. Absent on native files, which is one more
-      // reason they cannot ride the ordinary path: with no checksum there is
-      // nothing to compare and every pass would look like a change.
+      // Drive's MD5, for binary files only — see `FileItem.contentHash` for why
+      // that is not comparable with anything but another Drive listing.
+      //
+      // Absent on Google-native files. That is a SYMPTOM of why they cannot
+      // ride the ordinary path, not the reason: a native Doc has no stored
+      // bytes to hash or to download, only an export in some other format
+      // (0116).
+      //
+      // Until 2026-09-09 this comment gave the reason as the missing checksum
+      // itself, on the grounds that every pass would then see a difference.
+      // That is not a mechanism this codebase has — change detection is
+      // `sourceVersion`, in `classifyKnownItem`, and no hash reaches it. The
+      // exclusion was always right; the reason was not, and a wrong reason in
+      // a comment is what the next person changing this listing acts on.
       ...(file.md5Checksum ? { contentHash: file.md5Checksum } : {}),
       modifiedAt: file.modifiedTime ?? new Date(0).toISOString(),
       ...(file.createdTime ? { createdAt: file.createdTime } : {}),
