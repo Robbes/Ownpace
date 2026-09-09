@@ -1,6 +1,6 @@
 # ADR-0017: Migration tooling — Drizzle Kit (+ Atlas lint), not Liquibase
 
-- **Status:** Accepted
+- **Status:** Accepted; **the authoring-and-applying half superseded by [ADR-0045](./0045-migrations-are-hand-written-sql.md)** (2026-09-09) — Drizzle Kit does not author or apply migrations here and never did; hand-written SQL and `runMigrations` do. The Atlas lint, the data-migration properties and the rejection of Liquibase/Flyway below all still stand.
 - **Date:** 2026-06-20
 
 ## Operative rules
@@ -9,7 +9,8 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- Migrations are **hand-written numbered SQL** in `packages/ledger/migrations`, applied at startup by **`runMigrations`** (`packages/ledger/src/migrate.ts`) against `schema_migrations`; **Atlas** lints them in CI (`migration-lint`, destructive-change detection); no Liquibase/Flyway. **Drizzle Kit neither authors nor applies anything here** — `pnpm db:generate` and `pnpm db:migrate` refuse (`scripts/how-migrations-are-authored.mjs`), and the ORM half of Drizzle is untouched.
+- **The authoring and applying half is superseded by [ADR-0045](./0045-migrations-are-hand-written-sql.md):** migrations are hand-written numbered SQL applied by `runMigrations`; Drizzle Kit authors and applies nothing here. What this ADR still contributes is the bullets below.
+- **Atlas** lints both chains in CI (`migration-lint`, destructive-change detection); no Liquibase/Flyway.
 - Data migrations are idempotent, batched, expand-contract; migrations run at startup behind an advisory lock; the app **refuses to start if the schema is newer than it supports**; roll-forward preferred.
 - Two chains since ADR-0036: shared + managed, each with its own bookkeeping and lock.
 

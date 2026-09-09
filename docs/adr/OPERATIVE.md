@@ -209,7 +209,8 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0017: Migration tooling — Drizzle Kit (+ Atlas lint), not Liquibase](./0017-migration-tooling.md)
 
-- Migrations are **hand-written numbered SQL** in `packages/ledger/migrations`, applied at startup by **`runMigrations`** (`packages/ledger/src/migrate.ts`) against `schema_migrations`; **Atlas** lints them in CI (`migration-lint`, destructive-change detection); no Liquibase/Flyway. **Drizzle Kit neither authors nor applies anything here** — `pnpm db:generate` and `pnpm db:migrate` refuse (`scripts/how-migrations-are-authored.mjs`), and the ORM half of Drizzle is untouched.
+- **The authoring and applying half is superseded by [ADR-0045](./0045-migrations-are-hand-written-sql.md):** migrations are hand-written numbered SQL applied by `runMigrations`; Drizzle Kit authors and applies nothing here. What this ADR still contributes is the bullets below.
+- **Atlas** lints both chains in CI (`migration-lint`, destructive-change detection); no Liquibase/Flyway.
 - Data migrations are idempotent, batched, expand-contract; migrations run at startup behind an advisory lock; the app **refuses to start if the schema is newer than it supports**; roll-forward preferred.
 - Two chains since ADR-0036: shared + managed, each with its own bookkeeping and lock.
 
@@ -707,3 +708,11 @@ Nothing in this amendment is built. It records the decision the three tasks in
 - **The mirror is managed-chain data** (ADR-0036): the appliance carries no
   invoice tables' behaviour and no Moneybird credential. Credentials ride the
   vault/`.env`, never git, never the appliance image.
+
+## [ADR-0045: Migrations are hand-written SQL, applied by our own runner](./0045-migrations-are-hand-written-sql.md)
+
+- Migrations are **hand-written numbered SQL files**, one per change: `packages/ledger/migrations` for the shared chain, `packages/managed/migrations` for the managed-only one (ADR-0036).
+- **`runMigrations`** applies them at startup, linearly, under a Postgres advisory lock, recording each filename in `schema_migrations`; the appliance and the worker both call it. Nothing applies a migration by hand.
+- **Drizzle Kit authors and applies nothing here.** `pnpm db:generate` and `pnpm db:migrate` refuse (`scripts/how-migrations-are-authored.mjs`), and `drizzle.config.ts` points its `out` at a throwaway directory so the tool cannot write into a chain. Drizzle the ORM is untouched, and `schema-matches-migrations.unit.test.ts` compares it against the chain on every run.
+- Pre-release only, `scripts/squash-migrations.sh` folds the chain into `0001_baseline.sql` — by dumping an applied database, never by hand-merging SQL.
+- Nothing may sort below a chain's baseline; `scripts/a-command-the-docs-told-you-to-run.unit.test.ts` enforces it, because the runner applies files in sorted order.

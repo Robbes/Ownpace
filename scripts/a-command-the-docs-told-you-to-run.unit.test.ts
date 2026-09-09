@@ -135,19 +135,24 @@ describe('migrations are hand-written, and the tooling can no longer say otherwi
     expect(stray, `drizzle-kit debris in the chain: ${stray.join(', ')}`).toEqual([]);
   });
 
-  it("ADR-0017's operative rule names the runner that actually applies migrations", () => {
-    // This is where the trap was ARGUED, not just left lying around: the bullet
-    // read "Drizzle Kit authors and applies migrations", was assembled into
-    // OPERATIVE.md, and pointed every reader at the command that damaged the
-    // chain. Only the operative section is checked — the narrative below it is
-    // append-only and quotes the old wording on purpose.
-    const adr = read('docs/adr/0017-migration-tooling.md');
-    const operative = adr.slice(adr.indexOf('## Operative rules'), adr.indexOf('## Context'));
+  it('the operative layer names the runner that actually applies migrations', () => {
+    // This is where the trap was ARGUED, not just left lying around. ADR-0017's
+    // bullet read "Drizzle Kit authors and applies migrations", ADR-0038
+    // assembles operative bullets into OPERATIVE.md, and the result was a live
+    // instruction — to humans and agents alike — pointing at the command that
+    // damaged the chain.
+    //
+    // Asserted against the ASSEMBLED file rather than one ADR, because which
+    // ADR carries the rule is allowed to change and did: the owner superseded
+    // 0017 with 0045 on 2026-09-09 rather than amend its bullet, "since the
+    // ADR's need to reflect our decisions and may change over time". What must
+    // not change is what a reader of the operative layer is told.
+    const operative = read('docs/adr/OPERATIVE.md');
     expect(operative).toContain('runMigrations');
     expect(operative).toMatch(/hand-written/i);
     expect(
       operative,
-      'the operative rule claims drizzle-kit applies migrations again',
+      'the operative layer claims drizzle-kit authors and applies migrations again',
     ).not.toMatch(/Drizzle Kit\*\* authors and applies/);
   });
 
