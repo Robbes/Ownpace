@@ -158,6 +158,14 @@ overrides:
   # (scripts/how-migrations-are-authored.mjs), because generating into the real migration chain is
   # what it used to do.
   esbuild@<0.25.0: ^0.25.0
+# ⚠️ EVERY ENTRY BELOW IS INERT: `minimumReleaseAge` IS NOT SET, HERE OR ANYWHERE.
+# Measured 2026-09-09, not recalled — `pnpm config get minimumReleaseAge` answers `undefined`,
+# there is no .npmrc, and `git log -S'minimumReleaseAge:'` over this file and package.json
+# returns nothing in the whole history. The list arrived on 2026-08-18 (#443) and has been
+# maintained entry by entry since, which reads exactly like the escape hatch of a live gate.
+# It is not one. Whether to switch the gate on (and at what value) or drop the list is the
+# owner's call, with the measurement and both options in workplan 0119 §3 item 8.
+# Until it is taken, adding an entry here changes nothing — say so in the PR that adds one.
 minimumReleaseAgeExclude:
   - brace-expansion@2.1.4
   - brace-expansion@5.0.9
