@@ -68,6 +68,9 @@ first.
 | [0040](./0040-the-service-is-ownpace.md) | The service is Ownpace; the project keeps its own name | Accepted 2026-08-20 — three open follow-ups (repo rename, NOTICE assertion, backup naming) |
 | [0041](./0041-who-owns-the-oauth-client.md) | Who owns the OAuth client — managed brings its own, the appliance never does | Accepted 2026-08-21 |
 | [0042](./0042-who-holds-the-passwords.md) | Who holds the passwords — an issuer we can replace | Accepted 2026-08-22 — the first identity decision in the register. Accepted on condition the replaceability be confirmed; confirming it found the key-set URL was guessed and worked with neither candidate |
+| [0043](./0043-a-migration-is-silent-by-default.md) | A migration is silent by default — outward mail is a human-pressed action | Accepted 2026-08-25 |
+| [0044](./0044-the-books-are-not-ours.md) | The books are not ours — an external bookkeeping system is the record for invoices | Accepted 2026-08-28 |
+| [0045](./0045-migrations-are-hand-written-sql.md) | Migrations are hand-written SQL, applied by our own runner | Accepted 2026-09-09 — supersedes 0017's authoring-and-applying half, which credited a tool this repository has never used for it |
 
 ## Reading the statuses
 

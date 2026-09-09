@@ -558,12 +558,9 @@ reading a file drops off its entry by itself.
 
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
-### `docs/adr/0017-migration-tooling.md`
-
-- [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
-
 ### `docs/adr/OPERATIVE.md`
 
+- [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
 ### `docs/apple-setup.md`
@@ -1128,7 +1125,7 @@ A command the docs told you to run, that wrote a migration nobody can apply.
 
 Reads:
 
-- `docs/adr/0017-migration-tooling.md`
+- `docs/adr/OPERATIVE.md`
 - `drizzle.config.ts`
 - `packages/ledger/migrations/0001_baseline.sql`
 - `packages/managed/migrations/0001_the_managed_service.sql`
