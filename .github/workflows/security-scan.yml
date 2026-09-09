@@ -73,8 +73,31 @@ jobs:
           which pnpm
       - run: pnpm install
 
+      # ---------- WHAT IS IN THE TREE, NAMED ONE BY ONE ----------
+      #
+      # `--audit-level=moderate`, so moderates are FETCHED. The line this
+      # replaces asked for `high`, which meant a moderate the owner had already
+      # read and accepted — see the esbuild note in pnpm-workspace.yaml — was
+      # never mentioned by any run. A decision nobody can see in CI is
+      # indistinguishable from nothing being there.
+      #
+      # `|| true` because pnpm exits non-zero whenever it finds anything at the
+      # level asked for, and the exit code that matters here is the reporter's,
+      # not pnpm's.
+      #
+      # JSON rather than the table, because the table does not carry
+      # `findings[].dev`, and whether every path to a package is dev tooling is
+      # the fact most of these turn on: a HIGH in the SBOM generator and a
+      # MODERATE in express are not the same problem.
+      #
+      # --fail-at=never TODAY: report everything, block on nothing. Raising it
+      # to `high` is a one-word change, and it is deliberately left as the
+      # owner's call — the accepted moderate must not make every run red, which
+      # is how a step stops being read at all.
       - name: pnpm audit (advisory gate)
-        run: pnpm audit --audit-level=high || echo "::warning::pnpm audit reported advisories"
+        run: |
+          pnpm audit --audit-level=moderate --json > pnpm-audit.json || true
+          node scripts/audit-advisories.mjs --fail-at=never pnpm-audit.json
 
       # ---------- THE DATABASE THIS SCAN NEEDS, KEPT BETWEEN RUNS ----------
       #
