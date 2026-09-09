@@ -276,6 +276,47 @@ describe('it waits for the pass, rather than enqueuing and hoping', () => {
   });
 });
 
+describe('a domain nothing measured is not a domain that copied nothing', () => {
+  const loop = (() => {
+    const at = smoke.indexOf('for d in "${REQUIRED_DOMAINS[@]}"');
+    expect(at, 'the per-domain presence loop is gone').toBeGreaterThan(-1);
+    return smoke.slice(at, smoke.indexOf('\ndone\n', at));
+  })();
+
+  it('NOT_VERIFIABLE is its own refusal, beside absent and skipped', () => {
+    // THREE WAYS A DOMAIN GOES UNCHECKED, and this loop had two of them. A
+    // domain absent from the report is an engine that never knew it existed; a
+    // SKIPPED domain is one the engine declined to check; a NOT_VERIFIABLE one
+    // is present, unskipped, and still never measured — verification emits it
+    // when `canVerifyTarget` says no, with sourceCount from the ledger and
+    // targetCount 0.
+    //
+    // Which reads EXACTLY like a domain nothing copied. E2E (managed) #168
+    // reported the task domain as "the target listing found nothing" while its
+    // two VTODOs sat on the target, because buildTargetReindexers collected
+    // four domains and not that one.
+    expect(loop).toContain('NOT_VERIFIABLE_${d}');
+    expect(loop).toMatch(/fail_at[^\n]*NOT_VERIFIABLE/);
+  });
+
+  it('and it is asked BEFORE the floor, which would misattribute it', () => {
+    // Order is the assertion: the floor check reads the same two numbers and
+    // has a different remedy (a listing query, not a missing reindexer), so
+    // whichever runs first owns the message. The precise one has to win.
+    const notVerifiable = smoke.indexOf('NOT_VERIFIABLE_${d}');
+    const floor = smoke.indexOf('items at the SOURCE and 0 at the TARGET');
+    expect(notVerifiable).toBeGreaterThan(-1);
+    expect(floor).toBeGreaterThan(-1);
+    expect(notVerifiable).toBeLessThan(floor);
+  });
+
+  it('names where the reindexers are built, because that is the usual cause', () => {
+    // A refusal that names a symptom and not a state is half a refusal. The
+    // reader needs the file, not the feeling.
+    expect(loop).toContain('build-reindexers.ts');
+  });
+});
+
 describe('every fixed fixture the seeder writes is one the apply half refuses to spend', () => {
   /**
    * The `openmig-demo-<type>-` names the seeder PUTs with the shared

@@ -1784,6 +1784,33 @@ for d in "${REQUIRED_DOMAINS[@]}"; do
     echo "run is green and the thing it was for did not happen."
     echo "Check the mapping's configured domains (seed-managed.ts: DemoTenant.domains)."
     fail_at "verify ($VERIFY_LABEL) SKIPPED the '${d}' domain — see seed-managed.ts DemoTenant.domains"
+  elif grep -q "NOT_VERIFIABLE_${d}" <<<"$rbody"; then
+    # THE THIRD STATE, and the one E2E (managed) #168 was.
+    #
+    # A domain can be present, unskipped, and still never measured: verification
+    # asks `canVerifyTarget`, and when no target reindexer was built for the
+    # domain it emits NOT_VERIFIABLE — severity ERROR — with `sourceCount` from
+    # the ledger and `targetCount: 0`. Which is to say it looks EXACTLY like a
+    # domain nothing copied, and until this line the floor check below reported
+    # it as one: #168 said "the target listing found nothing" about a task
+    # domain whose two VTODOs were sitting on the target, because
+    # `buildTargetReindexers` collected four domains and not this one.
+    #
+    # Checked BEFORE the floor, because it is the more precise statement of the
+    # same evidence — and a refusal that names a symptom and not a state is half
+    # a refusal (rule 9). The floor keeps its own case: a domain WITH a
+    # reindexer whose target came back empty is a different fault with a
+    # different remedy.
+    echo ""
+    echo "verify ($VERIFY_LABEL): the '${d}' domain is NOT_VERIFIABLE — the engine could not"
+    echo "measure the target for it at all. That is not the same as a domain that copied"
+    echo "nothing: the report carries sourceCount from the ledger and targetCount 0"
+    echo "because nothing was ever asked to look, so the numbers below say nothing."
+    echo "Usually there is no target reindexer for this domain — buildTargetReindexers"
+    echo "(packages/orchestration/src/build-reindexers.ts) collects one per domain, and a"
+    echo "domain missing from that list goes quiet exactly like this."
+    echo "The report carries the engine's own reason; it is in the block above."
+    fail_at "verify ($VERIFY_LABEL) reported '${d}' NOT_VERIFIABLE — nothing measured the target for it"
   else
     echo "verify ($VERIFY_LABEL): '${d}' was actually checked"
   fi
