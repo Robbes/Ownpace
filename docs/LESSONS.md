@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 114 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 115 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -877,8 +877,13 @@ reading a file drops off its entry by itself.
 
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 
+### `pnpm-lock.yaml`
+
+- [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts) — A supply-chain gate with an exclude list, an escape hatch, and no gate.
+
 ### `pnpm-workspace.yaml`
 
+- [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts) — A supply-chain gate with an exclude list, an escape hatch, and no gate.
 - [an-advisory-nobody-listed](../scripts/an-advisory-nobody-listed.unit.test.ts) — An advisory nobody listed, in a job that reported green.
 
 ### `scripts/a-check-that-was-never-valid.unit.test.ts`
@@ -1301,6 +1306,15 @@ Reads:
 
 - `apps/web/src/services/mapping-service.ts`
 - `apps/worker/src/jobs/run-delta-sync.ts`
+
+### [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts)
+
+A supply-chain gate with an exclude list, an escape hatch, and no gate.
+
+Reads:
+
+- `pnpm-lock.yaml`
+- `pnpm-workspace.yaml`
 
 ### [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts)
 

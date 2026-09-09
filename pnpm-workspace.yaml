@@ -158,27 +158,54 @@ overrides:
   # (scripts/how-migrations-are-authored.mjs), because generating into the real migration chain is
   # what it used to do.
   esbuild@<0.25.0: ^0.25.0
-# ⚠️ EVERY ENTRY BELOW IS INERT: `minimumReleaseAge` IS NOT SET, HERE OR ANYWHERE.
-# Measured 2026-09-09, not recalled — `pnpm config get minimumReleaseAge` answers `undefined`,
-# there is no .npmrc, and `git log -S'minimumReleaseAge:'` over this file and package.json
-# returns nothing in the whole history. The list arrived on 2026-08-18 (#443) and has been
-# maintained entry by entry since, which reads exactly like the escape hatch of a live gate.
-# It is not one. Whether to switch the gate on (and at what value) or drop the list is the
-# owner's call, with the measurement and both options in workplan 0119 §3 item 8.
-# Until it is taken, adding an entry here changes nothing — say so in the PR that adds one.
+# A COOLDOWN ON BRAND-NEW RELEASES. Owner's decision, 2026-09-09: three days.
+#
+# THE UNIT IS MINUTES, NOT DAYS. 4320 = 3 days. Writing `3` here means three MINUTES and
+# silently disables the gate — measured from pnpm's own resolver, which computes the cutoff
+# as `Date.now() - minimumReleaseAge * 60 * 1000`.
+#
+# WHY IT EXISTS. A package published in the last few days is the shape a compromised publish
+# takes: uploaded, installed by whoever updates that day, yanked within hours once it is
+# noticed. Three days puts this repository behind that window without slowing anything else
+# down — measured on 2026-09-09 against the whole lockfile, a 3-day floor flags NOTHING that
+# is already installed (7 days would have flagged ten packages, 14 days forty-nine).
+#
+# IT IS NOT ONLY ABOUT NEW VERSIONS. pnpm 11 verifies the WHOLE LOCKFILE against this policy
+# on every install, `--frozen-lockfile` included, and exits 1 on a violation
+# (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). That reaches every CI job and all three
+# Dockerfiles. Raising this number is therefore not a quiet tightening: it can turn every
+# build red at once. Measure first, the way this value was.
+#
+# WHAT TO DO WHEN A PULL REQUEST GOES RED ON IT. The error names the package and its publish
+# date. Two answers, and the first is usually right:
+#
+#   1. WAIT. The check only ever gets easier with time — a red pull request goes green on its
+#      own within three days, with no code change. Re-run the job. A weekly Dependabot bump
+#      almost never needs to land the day it is published.
+#   2. TAKE IT ANYWAY, deliberately: add `name@version` to the list below IN THE SAME PULL
+#      REQUEST, with a one-line reason. That is what this list is for, and the case it exists
+#      for is a security fix — the advisory gate blocks a merge at high and critical
+#      (scripts/audit-advisories.mjs), so a fix version has to be installable the day it ships.
+#
+# HOW ENTRIES ARE WRITTEN, and why the guard is strict about it. Always `name@version`.
+# A BARE PACKAGE NAME EXCLUDES THAT PACKAGE FOR EVER, every version, in perpetuity — pnpm
+# returns `true` for it and stops checking. A versioned entry expires by itself the moment the
+# version is superseded, which is what keeps this list from becoming a set of holes nobody
+# remembers opening.
+#
+# Seven of the fourteen entries here were exactly that kind of fossil on 2026-09-09 — they
+# named versions the tree had long since moved past (fast-uri@3.1.6 against an installed
+# 3.1.7, body-parser@1.20.6 against 2.3.0, recharts@3.10.0 against 3.10.1, engine.io@6.6.7
+# against nothing at all) — and were removed with the gate being switched on.
+# `scripts/a-gate-that-was-never-switched-on.unit.test.ts` now holds all of this: that the
+# setting exists whenever this list does, that the value is in minutes, that every entry names
+# a version the lockfile actually has, and that no entry is a bare name.
+minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - brace-expansion@2.1.4
   - brace-expansion@5.0.9
-  - brace-expansion@1.1.16
-  - fast-uri@3.1.6
-  - ip-address@10.3.1
   - socket.io-parser@4.2.7
-  - tar@7.5.21
   - undici@8.9.0
-  - engine.io@6.6.7
   - qs@6.16.0
   - js-yaml@4.3.2
   - esbuild@0.25.12
-  - body-parser@1.20.6
-  # Dependabot-pinned major bump, newer than the release-age gate; reviewed via its PR.
-  - recharts@3.10.0

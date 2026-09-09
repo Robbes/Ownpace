@@ -2,6 +2,19 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-09, later: the gate is on at three days, and the list is half its old size.** The
+owner took item 8 the same day it was raised: `minimumReleaseAge: 4320`. Three facts decided
+the number, all measured rather than read: the unit is **minutes** (a bare `3` would be three
+minutes); at resolution the gate prefers an older version *silently*; and pnpm verifies the
+**whole lockfile** on every install including `--frozen-lockfile`, exiting 1 — so the floor
+reaches all twelve CI installs and the three Dockerfiles, and a value set too high turns
+everything red at once. Against the real lockfile, 3 days flags nothing, 7 flags ten, 14 flags
+forty-nine. No new cadence is needed: the check only ever gets easier with time, so a red pull
+request goes green on its own. Seven of the fourteen exclude entries were fossils naming
+superseded versions and were removed with the switch-on; a guard now refuses the list without
+the setting, a value under a day, a bare package name, and an entry the lockfile does not
+carry.
+
 **2026-09-09: a control that was never switched on, found while closing something else.**
 `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` has been maintained entry by entry
 since 2026-08-18 and every entry on it is inert: `minimumReleaseAge` is not set here or
@@ -65,7 +78,7 @@ a decision each, §3, for the owner.
 | T0 The audit | ✅ Done 2026-09-06 | §2. Registries queried directly (Docker Hub v2 API, GHCR token + paginated tag list, `git ls-remote` for the actions); `pnpm outdated -r` for npm. |
 | T1 Dependabot learns the images | ✅ Done 2026-09-06 | `docker` over the three Dockerfiles, `docker-compose` over `deploy/compose` and `deploy/selfhost`, weekly, minor+patch grouped, majors one PR each. The one-way images and the deliberate pins are ignored by name (§2.1). `@trigger.dev/*` ignored in npm: it moves through `trigger-version.sh` or not at all. The three digest-only pins (`node@sha256:…` ×3, `postgres@sha256:…`) carry their tag now — same digests, no version moved — because Dependabot compares tags, and a bare digest has nothing to compare. |
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
-| T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Still the owner's, §3: Redis (item 3, with the facts corrected), the object store (item 5, with a candidate named) and the release-age gate (item 8, added 2026-09-09 — the exclude list is maintained, the setting behind it has never existed). |
+| T3 The owner's decisions | 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Still the owner's, §3: Redis (item 3, with the facts corrected), the object store (item 5, with a candidate named) and the release-age gate — item 8, raised and **taken** on 2026-09-09 (`minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
 
 ## 1. Why this exists
@@ -220,39 +233,67 @@ is beside each; none is urgent tonight.
 7. **Node 26 in the images** — declined 2026-09-06. It is the Current line, not LTS until
    October; CI installs 24 and `engines` says `>=24`. The runtime's major moves by hand
    with both, when the next LTS line is current, and Dependabot is told (#820).
-8. **The release-age gate that was never switched on — measured 2026-09-09.**
-   `pnpm-workspace.yaml` carries a `minimumReleaseAgeExclude` list of fourteen entries,
-   maintained entry by entry since it arrived on 2026-08-18 (#443), one of them annotated
-   *"Dependabot-pinned major bump, newer than the release-age gate; reviewed via its PR."*
-   It reads exactly like the escape hatch of a live control.
+8. **The release-age gate that was never switched on — TAKEN 2026-09-09: three days.**
+   `pnpm-workspace.yaml` carried a `minimumReleaseAgeExclude` list of fourteen entries,
+   maintained entry by entry since 2026-08-18 (#443), one annotated *"Dependabot-pinned major
+   bump, newer than the release-age gate; reviewed via its PR."* It read exactly like the
+   escape hatch of a live control. **`minimumReleaseAge` was not set** — measured three ways
+   rather than recalled: `pnpm config get minimumReleaseAge` answered `undefined`, there was
+   no `.npmrc`, and `git log -S'minimumReleaseAge:'` over this file and `package.json`
+   returned nothing in the whole history. Every entry was inert.
 
-   **`minimumReleaseAge` is not set.** Measured three ways rather than recalled:
-   `pnpm config get minimumReleaseAge` answers `undefined`; `pnpm config list` on pnpm
-   11.22.0 shows the exclude list and no setting beside it; there is no `.npmrc`; and
-   `git log -S'minimumReleaseAge:'` over `pnpm-workspace.yaml` and `package.json` returns
-   **nothing in the whole history** — the setting has never existed here in any form. So
-   every entry on that list is inert, and has been since the day it was written. No ADR and
-   no workplan records an intent to gate on release age, which is why this is a decision
-   rather than a defect: nobody's stated intention was missed.
+   **What it does, measured from pnpm 11.22.0's own resolver and by experiment, because two
+   of the three facts are counter-intuitive.**
 
-   It matters more since 2026-09-09 than it did in August. The advisory gate now **blocks a
-   merge** at high and critical (#890), so the repository will be taking fix versions the
-   day they publish — which is the one moment a release-age gate would stand in the way, and
-   exactly what the exclude list is for. The last three entries added to that list
-   (`fast-uri@3.1.6`, `js-yaml@4.3.2`, `esbuild@0.25.12`) were added for that reason and
-   did nothing.
+   - **The unit is minutes.** pnpm computes the cutoff as
+     `Date.now() - minimumReleaseAge * 60 * 1000`. Set to `5256000` (ten years), `pnpm add
+     lodash` installed **4.15.0**, from August 2016. So `3` would mean three minutes: the
+     value is `4320`.
+   - **At resolution it prefers an older version SILENTLY.** It filters the registry metadata
+     to versions past the floor, remaps `latest` onto the newest of them, and picks that —
+     printing only a mild `(4.18.1 is available)`. It errors
+     (`ERR_PNPM_NO_MATURE_MATCHING_VERSION`) only when nothing in the requested range
+     qualifies.
+   - **It verifies the WHOLE LOCKFILE on every install, `--frozen-lockfile` included, and
+     exits 1** (`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`). This is the one that decides the
+     value: it reaches all twelve `pnpm install --frozen-lockfile` steps in CI and the three
+     Dockerfiles, so a floor set too high turns every build and every image red at once.
 
-   Two ways to close it, and only the owner can pick:
-   - **Set it** (recommended). The cooldown is the standard defence against a compromised
-     publish, the maintenance cost of the exclude list is already being paid, and the
-     escape hatch for an urgent fix is the list itself. The value is a trade-off with
-     Dependabot's weekly cadence — long enough to outlast a typical malicious-publish
-     takedown, short enough that a weekly group PR is not permanently blocked — and it is
-     the owner's number, not one to assume.
-   - **Delete the list.** Honest, and cheaper than maintaining a control that does not run.
-     It gives up nothing that is running today.
+   **Why three days and not seven.** Measured against the real lockfile on 2026-09-09, one
+   floor at a time:
 
-   Whichever way: the list and the setting should not be allowed to drift apart again.
+   | floor | lockfile entries that would fail |
+   |---|---|
+   | 2 days | 0 |
+   | **3 days** | **0** |
+   | 5 days | 0 |
+   | 7 days | 10 |
+   | 14 days | 49 |
+   | 30 days | 80 |
+
+   Three days costs nothing today and still covers the threat this exists for — a compromised
+   publish is installed and yanked within hours to a day or two. Seven would have flagged ten
+   packages on day one (this week's `vitest` 5, `nodemailer` 10, `@trigger.dev/*` 4.5.16,
+   `lucide-react`, `postcss`, `@types/react-dom`) and would put a speed bump on nearly every
+   Dependabot pull request — which is how a control decays into a box people tick.
+
+   **It needs no new cadence.** The gate is a floor on age at install time, not a schedule:
+   nothing expires, nothing needs checking every three days, and **the check only ever gets
+   easier with time** — a pull request red on it goes green on its own, so a commit that was
+   green can never turn red on this later. What changes is one narrow event: a Dependabot bump
+   published within three days of its CI run arrives red, naming the package and its publish
+   date. The rule, written where the reader lands (the `pnpm-workspace.yaml` comment):
+   **wait and re-run** unless it is a security fix the advisory gate is blocking a merge on,
+   in which case add `name@version` to the exclude list in that same pull request with a
+   one-line reason.
+
+   **Seven of the fourteen entries were fossils** and went with the switch-on: they named
+   versions the tree had moved past (`fast-uri@3.1.6` against an installed 3.1.7,
+   `body-parser@1.20.6` against 2.3.0, `recharts@3.10.0` against 3.10.1, `engine.io@6.6.7`
+   against nothing at all). Versioned entries are meant to expire that way;
+   `scripts/a-gate-that-was-never-switched-on.unit.test.ts` now fails when one does not, and
+   also when the list exists without the setting, when the value is under a day, and when an
+   entry is a bare package name — which pnpm treats as "exempt this package for ever".
 
 ## 4. Not done, honestly
 
