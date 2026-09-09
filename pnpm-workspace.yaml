@@ -48,15 +48,9 @@ overrides:
   #   engine.io  GHSA-r635-g3xr-vw7x (HIGH, prod via @trigger.dev → socket.io)
   #   brace-expansion GHSA-3jxr-9vmj-r5cp (HIGH, dev/CI: testcontainers, cyclonedx, eslint) — scoped per major
   #   body-parser GHSA-v422-hmwv-36x6 (LOW, prod via express)
-  # esbuild GHSA-67mh-4wv8-2f99 (MODERATE, dev-only) is intentionally NOT pinned here, and this is a
-  # decision rather than an oversight. `pnpm audit` reports the fix as ">=0.24.3"; NO SUCH RELEASE
-  # EXISTS — esbuild goes 0.24.2 -> 0.25.0 — so honouring that floor means taking a minor bump.
-  # Only one of the three esbuild copies in the tree is affected: 0.18.20, pinned by `~0.18.20` inside
-  # drizzle-kit's deprecated @esbuild-kit/core-utils loader (drizzle-kit 0.31.10 is itself the latest,
-  # so there is no upstream fix to take). Forcing that path six minors forward risks breaking the
-  # loader outright. The advisory is about esbuild's DEV SERVER answering cross-origin requests; that
-  # path uses esbuild to transform, never to serve. Left to Dependabot, and reported every run by the
-  # advisory step in security-scan.yml so the decision stays visible rather than silently inherited.
+  # esbuild GHSA-67mh-4wv8-2f99 IS pinned, below, with the 2026-09-09 entries. It was left unpinned
+  # for a while on the reasoning that it was dev-only and the bump looked risky; that reasoning was
+  # retired on 2026-09-09 — see the note down there for what was actually measured.
   body-parser@<1.20.6: ^1.20.6
   brace-expansion@<1.1.16: ^1.1.16
   brace-expansion@>=2.0.0 <2.1.4: ^2.1.4
@@ -139,6 +133,28 @@ overrides:
   # One version of each is in the tree (fast-uri 3.1.5, js-yaml 4.3.0), so
   # neither needs the per-major scoping the entries above use.
   js-yaml@<4.3.2: ^4.3.2
+  #
+  # esbuild GHSA-67mh-4wv8-2f99, and the reasoning that used to keep it out of this file.
+  #
+  # It was previously left unpinned as "MODERATE, and dev-only anyway". Two things retired that.
+  # The owner's rule is that a vulnerability is not more acceptable for living in dev tooling —
+  # this repository is public, so the dev tree is as readable as the shipped one. And the risk the
+  # old note asserted was never measured, only assumed.
+  #
+  # Measured on 2026-09-09. Only one of the three esbuild copies in the tree was affected: 0.18.20,
+  # held by `~0.18.20` inside drizzle-kit's deprecated @esbuild-kit/core-utils loader, with
+  # drizzle-kit 0.31.10 itself the latest, so no upstream fix existed to take. `pnpm audit` names
+  # the fix ">=0.24.3" and NO SUCH RELEASE EXISTS — esbuild goes 0.24.2 -> 0.25.0 — so the floor is
+  # 0.25.0 and the bump is a minor, not a patch.
+  #
+  # So the loader was forced six minors forward and then EXERCISED, rather than reasoned about:
+  # `drizzle-kit check` and `drizzle-kit generate` both read drizzle.config.ts and the whole schema
+  # through that loader, and both still pass on 0.25.12 (which the tree already carried for
+  # drizzle-kit's own use, so this dedupes rather than adding a version).
+  #
+  # If a future drizzle-kit does break on it, the failure is loud and immediate — `pnpm db:generate`
+  # stops working — which is a far better failure than a known advisory nobody is allowed to fix.
+  esbuild@<0.25.0: ^0.25.0
 minimumReleaseAgeExclude:
   - brace-expansion@2.1.4
   - brace-expansion@5.0.9
@@ -151,6 +167,7 @@ minimumReleaseAgeExclude:
   - engine.io@6.6.7
   - qs@6.16.0
   - js-yaml@4.3.2
+  - esbuild@0.25.12
   - body-parser@1.20.6
   # Dependabot-pinned major bump, newer than the release-age gate; reviewed via its PR.
   - recharts@3.10.0

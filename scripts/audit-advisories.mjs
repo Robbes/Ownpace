@@ -11,11 +11,12 @@
  * Two things follow from `--audit-level=high`, and only the first is obvious.
  *
  * The obvious one: MODERATE ADVISORIES ARE NEVER MENTIONED. Not suppressed
- * after review — never fetched. On 2026-09-09 the tree carried one (esbuild
- * GHSA-67mh-4wv8-2f99, dev-only) that had been deliberately left unpinned in
- * `pnpm-workspace.yaml`, with the reasoning written out there. That decision
- * was invisible to anyone reading CI: the run said nothing, which reads
- * exactly like "there is nothing".
+ * after review — never fetched. On 2026-09-09 the tree carried one, esbuild
+ * GHSA-67mh-4wv8-2f99, which had sat unpinned for weeks on the reasoning that
+ * it was dev-only. No CI run had ever named it, so nobody had cause to revisit
+ * that reasoning. The moment this reporter listed it, the bump was measured and
+ * turned out to be fine — the advisory is gone from the tree. A finding nobody
+ * states is a finding nobody re-examines.
  *
  * The less obvious one: WHAT IT DID FIND, IT PRINTED AS A SENTENCE. Six HIGH
  * advisories were live that same morning and the whole report was one warning
@@ -32,20 +33,28 @@
  * ## Reporting and failing are separate, on purpose
  *
  * `--fail-at` decides the exit code and NOTHING decides what is reported: every
- * advisory the audit returns is listed at every setting. That split is the
- * point. A moderate the owner has read and accepted must stay visible without
- * turning the build red for ever — the alternative is a step that is red on
- * every run, which is a step people stop reading. The repository already made
- * that argument in `pnpm-workspace.yaml`: "an audit whose noise is tolerated is
- * an audit nobody reads."
+ * advisory the audit returns is listed at every setting. The owner's rule is
+ * `high` — HIGH and CRITICAL block a merge, MODERATE and LOW are named and do
+ * not. The split exists so the second group stays visible without turning the
+ * build red for ever, which is how a step stops being read at all. The
+ * repository makes the same argument in `pnpm-workspace.yaml`: "an audit whose
+ * noise is tolerated is an audit nobody reads."
  *
- * ## Why `dev` is on every row
+ * ## `dev` is context for fixing it, NOT a discount
  *
- * `findings[].dev` is the fact that decides most of these. A HIGH advisory in
- * the SBOM generator and a MODERATE one in `express` are not the same problem,
- * and severity alone does not separate them. A row counts as production if ANY
- * path to it is non-dev — the safe direction, since one production path is
- * enough to make it reachable at runtime.
+ * `findings[].dev` says WHERE an advisory reaches, and the report shows it
+ * because that is what you need in order to fix it — which package pulls it in,
+ * and whether the fix is a lockfile pin or a shipped-code change.
+ *
+ * It is deliberately NOT an input to `shouldFail`. A dev-only HIGH blocks
+ * exactly like a production one. This repository is public: the dev tree is as
+ * readable as the shipped tree, so "it is only dev tooling" is not a reason to
+ * carry a known vulnerability. The esbuild entry in `pnpm-workspace.yaml`
+ * records what happened the one time that reasoning was used here — the bump
+ * that was called risky turned out to be fine the moment anyone measured it.
+ *
+ * A row counts as production if ANY path to it is non-dev — the safe direction,
+ * since one production path is enough to make it reachable at runtime.
  */
 
 import { readFileSync } from 'node:fs';
