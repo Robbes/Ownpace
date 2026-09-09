@@ -158,6 +158,73 @@ describe('Billing Route Isolation', () => {
       expect(response.body.usage.syncCount).toBe(0);
     });
 
+    it('derives the tier from the HIGHER axis and serves the evidence (0121 T4)', async () => {
+      // 900 decimal GB. Small's ceiling is 750 and Medium's is 2 TB, so DATA
+      // decides — while a recorded peak of 3 paths would only reach Small.
+      // The two axes must DISAGREE, or this passes against a route that reads
+      // whichever one it likes.
+      await superuserPool.query(
+        `INSERT INTO bytes_moved (tenant_id, bytes) VALUES ($1, $2)
+         ON CONFLICT (tenant_id) DO UPDATE SET bytes = EXCLUDED.bytes`,
+        [API_TENANT_A, '900000000000'],
+      );
+      const now = new Date();
+      const firstOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      await superuserPool.query(
+        `INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at) VALUES ($1, $2, 3, $3)
+         ON CONFLICT (tenant_id, month) DO UPDATE SET peak_paths = EXCLUDED.peak_paths`,
+        [API_TENANT_A, firstOfMonth.toISOString().slice(0, 10), firstOfMonth],
+      );
+
+      const response = await request
+        .get('/api/billing/usage')
+        .set('Authorization', `Bearer ${TOKEN_TENANT_A}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.tier.id).toBe('medium');
+      expect(response.body.decidedBy).toBe('data');
+      expect(response.body.evidence.gbMoved).toBe(900);
+      expect(response.body.evidence.peakPaths).toBe(3);
+      // ADR-0014's table is whole EUROS. The screen scales to cents itself;
+      // the wire must carry the published figure, not a pre-scaled one.
+      expect(response.body.tier.setup).toBe(15);
+      expect(response.body.tier.monthly).toBe(8);
+      // And the retired metered model is off the wire, not merely off screen.
+      expect(response.body.currentCost).toBeUndefined();
+    });
+
+    it('reading the screen writes NOTHING to the billing marks', async () => {
+      const snapshot = async () =>
+        (await superuserPool.query(
+          'SELECT tenant_id, month, peak_paths, peak_at, updated_at FROM occupancy_peak ORDER BY tenant_id, month',
+        )).rows;
+
+      const before = await snapshot();
+      await request.get('/api/billing/usage').set('Authorization', `Bearer ${TOKEN_TENANT_A}`);
+      expect(await snapshot()).toEqual(before);
+
+      // HONEST LIMIT: this does not, here, discriminate `observedTier` from
+      // `currentTier`. No tenant in this fixture holds a live slot, and the
+      // true-up records nothing when occupancy is zero — so both would leave
+      // the table untouched. The discriminating proof is the unit guard
+      // (`a-screen-that-quoted-a-retired-price.unit.test.ts`), which fails if
+      // the handler names `currentTier` at all. What this case catches is the
+      // next thing: any write introduced into this read path later.
+    });
+
+    it("tenant B's own screen carries none of tenant A's evidence", async () => {
+      const response = await request
+        .get('/api/billing/usage')
+        .set('Authorization', `Bearer ${TOKEN_TENANT_B}`);
+
+      expect(response.status).toBe(200);
+      // RLS on occupancy_peak and bytes_moved, read under B's tenant setting.
+      expect(response.body.evidence.gbMoved).toBe(0);
+      expect(response.body.evidence.peakPaths).toBe(0);
+      // Nothing measured still has an answer — the smallest band, not null.
+      expect(response.body.tier.id).toBe('tiny');
+    });
+
     it('should return 401 without token', async () => {
       const response = await request.get('/api/billing/usage');
       expect(response.status).toBe(401);

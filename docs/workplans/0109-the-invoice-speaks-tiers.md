@@ -69,9 +69,10 @@ per mapping, so nothing above it can be right until that moves.
 | T2 The peak, recorded rather than recomputed | ✅ **Built 2026-08-30** (managed migration 0015, `PgOccupancyPeakStore`, recorded inside the activation transaction) | "Six at the same time on 12 August" now comes from `occupancy_peak`: per-tenant per-month high-water, raise-only by trigger for every role, tie keeps its first date. Under-records only (concurrency, quiet months) — T4 trues up the live month before reading. |
 | T3 The first-copy byte meter, append-only | ✅ **Built 2026-08-30** (engine statistic + managed migration 0016 + worker flush) | `firstCopyBytes` computed in the one shared loop at the moment of each target CREATE; `bytes_moved` raised by the managed worker after each pass, raise-only by trigger. Never the same query as 0090's byte budget, and never a live-row SUM — proved byte-exact by sensitivity at the engine. |
 | T4 The tier calculator, and its drift guard | ✅ **Built 2026-08-30** (`tier-calculator.ts`, on T1–T3 the same evening); **surfaced 2026-08-31** on the support tenant screen | The third copy of the numbers, held to the first two: the same structurally-identical ADR-table parse the site guard runs, PLUS an agreement grid driving this derivation and `site/calculator.mjs`'s over every boundary (195 points — tier and axis must match). `currentTier` derives from the month's peak (with T2's true-up, closing the quiet-month gap) and the meter's total, and answers with the EVIDENCE T5 quotes. Proved by breaking: a one-euro price drift and a wrong-axis derivation each turn red. **Surfaced**: `support_tenant_usage` (managed 0017) + `observedTier` (the read-only twin — looking moves no billing mark) render tier, axis, peak+date, live per-state counts and GB on the operator's tenant screen, parity with `currentTier` pinned before and after its true-up — so a wrong derivation is seen by the operator months before a customer sees a bill. |
-| T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. |
+| T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. **Carries a dependency found in 0121 T4 (2026-09-09):** `rowFromIssuedInvoice` reads `metadata.costByDriver` off issued invoices to answer for months the run ledger no longer holds, and returns `null` without it — so dropping the breakdown makes newer months vanish from usage history SILENTLY while older ones keep rendering. T5 either keeps writing a breakdown or teaches that fallback the tier shape. Same reshape covers `/usage/history`, which still prices its ledger-derived rows with the retired `calculateCost` (nothing renders them today). |
 | T6 Top-ups, step-ups and the floor | 📋 Planned (needs T4) | The mechanics ADR-0014 published and nothing implements. |
 | T7 Extend the leakage guard before, not after | ✅ **Obsolete as written — resolved by the guard itself, verified 2026-08-30** | The premise ("a fixed list of five") is stale: the guard's table list now DERIVES from the managed chain's own SQL, so `occupancy_peak` was appliance-forbidden the moment migration 0015 existed, with no list to edit. Verified green with the new table; T3's meter inherits the same coverage for free. |
+| T8 The free band, if acquisition wants one | 📋 **Owner's call** — see the section below | Raised by the owner on 2026-09-08 and re-raised 2026-09-09. A pricing decision on the DATA axis, which costs no rows and needs no new machinery. Parked here rather than in 0121, whose subject is compute. |
 
 ## Why this exists
 
@@ -384,6 +385,48 @@ peak or byte-meter table declared in `packages/ledger/src/schema-pg.ts` — whic
 guard **green** while putting a billing table in the appliance's own type surface. The list must
 grow with the tables, and the test's own comment (`:209-223`) says that is where the reason gets
 written down.
+
+## T8 — the free band, if acquisition wants one
+
+**Not decided. Recorded here so it is not lost, with what is already known about its shape.**
+
+The owner's words, 2026-09-08:
+
+> *"i might for example look at a free tier up to x GB of traffic, just to get people onboard
+> and having the smaller / lighter migrations for free."*
+
+**It needs no new machinery.** `deriveTier` already answers with the smallest band that fits
+both axes, so a free band is one more row at the bottom of `MANAGED_TIERS` —
+`{ id: 'free', paths: 1, dataGb: N, setup: 0, monthly: 0 }` — and someone who exceeds N GB
+*or* wants a second path becomes Tiny automatically. The three-copy drift guard then forces
+ADR-0014, `site/prices.mjs` and `tier-calculator.ts` to agree about it, exactly as it does
+for the other five.
+
+**Four things to settle before it is a decision:**
+
+1. **The axis is CUMULATIVE, not monthly.** ADR-0014's data axis counts each item's first
+   successful copy, for ever. So "up to x GB of traffic" means *your first N GB, ever* — not
+   an allowance that refills. That is the honest reading and also the one that cannot be
+   farmed by starting again each month.
+2. **What N is.** Small enough that it does not swallow Tiny (whose ceiling is 250 GB), large
+   enough to cover the migration it is meant to make free. The indicative
+   mail + contacts + calendar individual is ~8 GB (`INDICATIVE_PROFILES` v1, unmeasured).
+3. **Free should mean NO INVOICE, not a €0 invoice.** A zero invoice still costs a payment
+   instrument, a VAT treatment (0111 T3's per-buyer decision) and a bookkeeping row. An
+   absent billing relationship costs none of them. This is the difference between a discount
+   and a free tier, and it is an implementation decision as much as a pricing one.
+4. **The setup fee is the only friction on the entry band.** Tiny's fee is not revenue at
+   this scale; it is the thing that makes an unattended credentialed byte-mover cost
+   something to start. Removing it removes that too.
+
+**The alternative already on the table** is a scoped ENTRY BAND rather than a free one —
+still a flat band, mail + contacts + calendar only — which buys a cheaper first yes without
+anchoring the published price at zero. Either way this waits on T5: neither can be offered
+while the invoice pipeline still prices per GB.
+
+**What is already free, and worth saying louder before adding anything:** the preflight. It
+reads the real accounts, counts what is there, and costs the customer nothing — it is the
+existing low-friction first yes, and the pricing page already leads with it.
 
 ## Where the cost is
 

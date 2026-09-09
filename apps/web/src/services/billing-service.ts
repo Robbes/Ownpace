@@ -19,17 +19,27 @@
 import { z } from 'zod';
 import apiClient from './api.ts';
 
-/** calculateCost's breakdown — baseFee and taxRate included (0039 T2), so
- *  the Base Fee line and the VAT label render served numbers, not guesses. */
-export const CurrentCostSchema = z.object({
-  baseFee: z.number(),
-  storage: z.number(),
-  egress: z.number(),
-  compute: z.number(),
-  subtotal: z.number(),
-  taxRate: z.number(),
-  tax: z.number(),
-  total: z.number(),
+/**
+ * ADR-0014's tier, as the usage route derives it — the answer to "what would
+ * this cost me", which is a BAND, not a sum of metered lines.
+ *
+ * `null` past the end of the table is not an error and must not render as
+ * one: it is the site's own published ending, "talk to us".
+ */
+export const TierSchema = z.object({
+  id: z.enum(['tiny', 'small', 'medium', 'large', 'xl']),
+  name: z.string(),
+  paths: z.number(),
+  dataGb: z.number(),
+  setup: z.number(),
+  monthly: z.number(),
+});
+
+/** Which axis forced the answer, and the observations behind it. */
+export const TierEvidenceSchema = z.object({
+  peakPaths: z.number(),
+  peakAt: z.string().nullable(),
+  gbMoved: z.number(),
 });
 
 export const UsageResponseSchema = z.object({
@@ -43,7 +53,13 @@ export const UsageResponseSchema = z.object({
     syncCount: z.number(),
     lastUpdated: z.string(),
   }),
-  currentCost: CurrentCostSchema,
+  // No `currentCost`: the route stopped serving a metered euro breakdown on
+  // 2026-09-09, because ADR-0014 retired that model in August and this API
+  // refuses to mint an invoice from it. Parsing a field the server no longer
+  // sends would fail the whole screen, so it is gone from the shape too.
+  tier: TierSchema.nullable(),
+  decidedBy: z.enum(['paths', 'data', 'both']),
+  evidence: TierEvidenceSchema,
   period: z.string(),
 });
 

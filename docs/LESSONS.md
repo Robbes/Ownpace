@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 115 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 116 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -92,6 +92,14 @@ reading a file drops off its entry by itself.
 
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 
+### `apps/api/src/routes/billing/index.ts`
+
+- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
+
+### `apps/api/src/routes/billing/no-bill-we-do-not-sell.ts`
+
+- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
+
 ### `apps/api/src/routes/connections.ts`
 
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
@@ -167,6 +175,11 @@ reading a file drops off its entry by itself.
 
 - [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 - [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
+- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
+
+### `apps/api/src/services/usage-history.ts`
+
+- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 
 ### `apps/selfhost/src/index.ts`
 
@@ -192,11 +205,12 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/i18n/strings.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 
 ### `apps/web/src/pages/Billing.tsx`
 
-- [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
+- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 
 ### `apps/web/src/pages/Connections.tsx`
 
@@ -218,6 +232,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/services/api.ts`
 
 - [a-sentence-two-files-must-agree-on](../scripts/a-sentence-two-files-must-agree-on.unit.test.ts) — A SENTENCE TWO FILES MUST AGREE ON, AND NOTHING MADE THEM.
+
+### `apps/web/src/services/billing-service.ts`
+
+- [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 
 ### `apps/web/src/services/build-identity.ts`
 
@@ -1495,7 +1513,6 @@ Reads:
 
 - `apps/api/src/services/billing-service.ts`
 - `apps/api/src/services/invoice-generation.ts`
-- `apps/web/src/pages/Billing.tsx`
 - `packages/managed/src/pricing.ts`
 - `packages/managed/src/pricing.unit.test.ts`
 
@@ -1565,6 +1582,20 @@ Reads:
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `packages/connectors/src/google-token-provider.ts`
+
+### [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts)
+
+The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
+
+Reads:
+
+- `apps/api/src/routes/billing/index.ts`
+- `apps/api/src/routes/billing/no-bill-we-do-not-sell.ts`
+- `apps/api/src/services/invoice-generation.ts`
+- `apps/api/src/services/usage-history.ts`
+- `apps/web/src/i18n/strings.ts`
+- `apps/web/src/pages/Billing.tsx`
+- `apps/web/src/services/billing-service.ts`
 
 ### [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts)
 

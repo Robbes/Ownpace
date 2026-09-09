@@ -2,6 +2,17 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-09, later: T4 decided and the customer's screen rebuilt on it.** The owner took
+**C — both places** (the tenant-month figure frozen onto the invoice, the trend in Grafana)
+and added the half that made it product work: *"i want to offer customers the insight."*
+Building that surface found `GET /api/billing/usage` still serving the metered cost model
+ADR-0014 retired on 2026-08-20 — itemised and totalled on screen, on a price list this same
+API refuses to invoice from — and, in the same file, `/usage` dividing bytes by 1024³ three
+hundred lines above the decimal `BYTES_PER_GB` that `/usage/history` uses, so one screen
+showed the current month ~7% smaller than the months beside it. The screen now shows the
+measured quantities in decimal GB plus **the tier and the evidence that decided it**, derived
+read-only through `observedTier`. See §5, including three follow-ups it opened for 0109 T5.
+
 **2026-09-09: T5 merged (#891), and the consequence it left is closed.** Run
 retention is live. The open question §4b recorded — that
 `GET /api/billing/usage/history` derives its months from the run ledger, so
@@ -39,7 +50,7 @@ Per-pass rows do.
 | T1 The key names the pass | ✅ Done | `perPassResource(kind, domain, runId)`; both meters and the managed dispatcher. Per-pass cost stored exact, not rounded to the cent. |
 | T2 The guard | ✅ Done | `scripts/a-month-billed-as-one-pass.unit.test.ts` (15) + four integration cases against a real Postgres, every one proved by breaking. |
 | T3 The rows this costs | ✅ **Done** — §4a | Owner chose the zero-row alternative. Compute and sync operations derive from the `run` ledger; `usage_metric` has no writer; the measured quantities are frozen onto the invoice, which is what keeps `run` prunable. |
-| T4 What compute is FOR | 📋 **Owner's call** — §5 | The invoice speaks tiers (0109). Partly answered by the scraper PR: trends belong in Grafana, which is already instrumented and not yet scraped. The free-tier idea lands here. |
+| T4 What compute is FOR | ✅ **Decided and built** — §5 | Owner 2026-09-09: **C, both** — the tenant-month figure frozen on the invoice, the trend in Grafana — **and the customer sees it**. Building that surface found the usage screen quoting the retired metered model, and two byte-to-GB divisors in one file. The free-tier idea moves to 0109, where the data axis lives. |
 | T5 Run retention | ✅ **Done** — §4b | Owner 2026-09-08: two months, `DELETE`, configurable — and the log window comes down to match, because `run_event.run_id` is `ON DELETE CASCADE`. Depends on T3's freeze, which is what makes deleting safe. |
 
 ## 1. The defect
@@ -224,25 +235,92 @@ means, which is the owner's decision and not a refactor.
 
 ## 5. T4 — what the compute line is for
 
-The invoice speaks tiers ([0109](./0109-the-invoice-speaks-tiers.md)). The compute line is
-already not the billing basis, and the owner's own framing was measurement rather than
-revenue:
+**Decided 2026-09-09 by the owner: option C, both — and the customer sees it.**
 
-> *"the actual measures of compute are for me to understand if the pricing is somewhat
-> balanced and fair"*
+> *"T4: C, both. and i want to offer customers the insight."*
 
-Two questions follow, neither of them answerable by code:
+### Question 1 was already answered, three weeks earlier
 
-1. **Does compute ever bill?** If the answer is no — tiers, permanently — then this is
-   instrumentation, and instrumentation does not need to live in a billing table under RLS
-   with an invoice reading it. Somewhere cheaper, with retention, would do.
-2. **The free tier.** The owner raised *"a free tier up to x GB of traffic, just to get
-   people onboard and having the smaller / lighter migrations for free."* That is a pricing
-   decision about the **egress/storage** figures, which are derived from `item` and cost no
-   rows at all — it is unblocked by this workplan and does not depend on it. It is recorded
-   here so it is not lost, but it belongs with 0109's tier work.
+The plan asked *"does compute ever bill?"* as though it were open. It was not, and going
+looking is what found the defect below:
 
-Until 1 is answered, the compute rows are kept: they are the measurement that answers it.
+- **ADR-0014 was amended on 2026-08-20** from metered resources to five tiers. Its two axes
+  are paths running at the same time and cumulative first-copy data. Compute hours are on
+  neither.
+- **`tier-calculator.ts`** — the live derivation, guarded against the ADR's own table —
+  carries no compute term.
+- **`POST /api/billing/invoices/generate` has refused since 2026-08-27** (0109 T0), 409, with
+  the old body deleted rather than left unreachable.
+
+So compute has not been a billing basis for weeks. It is **instrumentation**, and the only
+question left was where the instrument lives.
+
+### The answer: both places, because they answer different questions
+
+| | Where | Answers |
+|---|---|---|
+| **The tenant-month figure** | frozen onto the invoice (`metadata.measured`, T3) | *what did we bill this customer for this month, and on what evidence* — auditable years later, and the freeze is what makes `run` prunable (T5) |
+| **The trend** | Grafana, already instrumented and not yet scraped | *is the pricing balanced and fair* — the owner's actual question, which is a shape over time, not a row |
+
+Neither substitutes for the other, and keeping both costs almost nothing: the freeze is
+required by T5 regardless, and the Grafana half is a scrape config against instrumentation
+that already exists.
+
+### And the customer gets the insight — which is where a defect was found
+
+The owner's second sentence turned this from bookkeeping into product work, and looking at
+the surface that would carry it found **two things wrong on a screen about money**.
+
+**1. The screen quoted a price list nothing would ever bill.** `GET /api/billing/usage`
+served `calculateCost` — base fee, per-GB storage and egress, per-hour compute, VAT, a total
+— and `Billing.tsx` laid it out as itemised lines summing to a bold total. Every figure was
+arithmetically correct. None of them was a price: this is the model ADR-0014 retired in
+August and that this same API refuses to put on an invoice. The product would not bill that
+arithmetic and did show it to the customer, formatted exactly like a bill.
+
+**2. Two divisors in one file.** `apps/api/src/routes/billing/index.ts` defines
+`BYTES_PER_GB = 1_000_000_000` with the comment *"a price list is not binary"*, and
+`/usage/history` uses it. `/usage`, three hundred lines above, divided by 1024³. Same screen,
+same tenant, same bytes: **the current month rendered ~7% smaller than the months beside it**,
+and smaller than the figure that decides the tenant's tier. Neither number was wrong alone,
+which is why it survived.
+
+**What is there now:** the measured quantities stay — they are the insight — in decimal GB
+that agrees with the history, the invoice freeze and the tier's own data axis. Where the
+metered breakdown was, the screen shows **the tier, with the evidence that decided it**: the
+peak paths and its date, the cumulative GB, and which axis forced the answer. Past the end of
+the table it says *talk to us*, the site's own published ending, rather than rendering an
+error.
+
+Derived through **`observedTier`, never `currentTier`** — the latter performs T2's documented
+true-up, which *writes* the peak it is about to read, because it runs at a moment that prices
+something. A customer opening their own usage screen prices nothing. 0109 T4 made that rule
+for the operator's screen; this holds the tenant's own to it.
+
+### What this does NOT decide
+
+**The free tier.** The owner raised *"a free tier up to x GB of traffic, just to get people
+onboard and having the smaller / lighter migrations for free."* That is a pricing decision on
+the **data axis**, which costs no rows and is unblocked by this workplan. It belongs with
+0109's tier work and is recorded there, not here. Two things worth carrying into it: the tier
+table already accommodates a free band as one more row (`deriveTier` needs no change), and a
+free tier that issues **no invoice at all** avoids the payment fee, the VAT treatment and the
+bookkeeping row that a €0 invoice would each require.
+
+### Follow-ups this opened
+
+1. **`usage_metric` has no writer and, now, no reachable reader.** `getUsageMetricsForPeriod`
+   derives from the `run` ledger (T3); the only caller of the table's own read path was the
+   retired `invoice-generation.ts`. Once 0109 T5 replaces that service the table can be
+   dropped — with `offboarding.ts`'s list updated in the same change.
+2. **0109 T5 will change `costByDriver`'s shape.** A tier invoice's money is a tier name plus
+   setup and monthly, not four drivers. `rowFromIssuedInvoice` returns `null` when
+   `costByDriver` is absent, so nothing breaks loudly — older months keep rendering and newer
+   ones would silently stop appearing. T5 must either keep writing a driver breakdown or
+   teach the fallback the tier shape.
+3. **`/usage/history` still prices its ledger-derived rows with `calculateCost`.** Nothing
+   renders them today — the client method exists, no screen calls it — so this was left
+   alone rather than half-changed. It is 0109 T5's, with the same reshape.
 
 ## 6. What was built
 

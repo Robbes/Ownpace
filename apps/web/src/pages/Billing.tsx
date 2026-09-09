@@ -573,46 +573,59 @@ const Billing: React.FC = () => {
               </div>
             </div>
 
-            {/* Cost Breakdown — itemized lines that SUM to the subtotal:
-                baseFee is served now (0039 T2); before, this line rendered
-                the whole subtotal and the arithmetic on screen was wrong
-                by roughly 2x. Amounts via the locale currency formatter. */}
+            {/* WHAT THIS PUTS YOU ON — not a sum of metered lines.
+                Until 2026-09-09 this block itemised a base fee, per-GB
+                storage and egress, per-hour compute, VAT and a total. Every
+                figure was arithmetically correct and none of them was a
+                price: ADR-0014 replaced metered billing with five tiers on
+                2026-08-20, and the API has refused to mint an invoice from
+                the old model since 2026-08-27. A customer reading this saw a
+                euro total nothing would ever charge them.
+
+                The tier IS the answer to "what does this cost me", and the
+                evidence beside it is the whole point of measuring (workplan
+                0121 T4, owner 2026-09-09: the measurement is instrumentation,
+                and the customer gets to see it).
+
+                MONEY UNIT: `currency` takes CENTS; ADR-0014's table is in
+                whole EUR (`setup: 4` is €4). Hence *100 — passing the raw
+                figure would print €0.04 for a €4 setup fee. */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">{t('billing.costBreakdown')}</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">{t('billing.baseFee')}</span>
-                  <span className="font-medium">{currency(usage.currentCost.baseFee, 'EUR')}</span>
+              <h3 className="font-medium text-gray-900 mb-3">{t('billing.yourTier')}</h3>
+              {usage.tier ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-lg font-semibold text-gray-900">{usage.tier.name}</span>
+                    <span className="font-medium">
+                      {currency(usage.tier.setup * 100, 'EUR')} {t('billing.tierSetup')}
+                      {' · '}
+                      {currency(usage.tier.monthly * 100, 'EUR')} {t('billing.tierPerMonth')}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {usage.decidedBy === 'paths'
+                      ? t('billing.tierDecidedByPaths')
+                      : usage.decidedBy === 'data'
+                        ? t('billing.tierDecidedByData')
+                        : t('billing.tierDecidedByBoth')}
+                  </p>
+                  <div className="flex justify-between text-sm pt-2 border-t">
+                    <span className="text-gray-600">{t('billing.tierPeakPaths')}</span>
+                    <span className="font-medium">
+                      {usage.evidence.peakPaths}
+                      {usage.evidence.peakAt ? ` · ${dateTime(usage.evidence.peakAt)}` : ''}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">{t('billing.tierDataMoved')}</span>
+                    <span className="font-medium">{usage.evidence.gbMoved.toFixed(1)} GB</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">{t('billing.storageCost')}</span>
-                  <span className="font-medium">{currency(usage.currentCost.storage, 'EUR')}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">{t('billing.dataTransfer')}</span>
-                  <span className="font-medium">{currency(usage.currentCost.egress, 'EUR')}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">{t('billing.compute')}</span>
-                  <span className="font-medium">{currency(usage.currentCost.compute, 'EUR')}</span>
-                </div>
-                <div className="flex justify-between text-sm pt-2 border-t">
-                  <span className="font-medium">{t('billing.subtotal')}</span>
-                  <span className="font-medium">{currency(usage.currentCost.subtotal, 'EUR')}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  {/* The label derives from the served rate — one VAT
-                      constant, said once (VAT_RATE server-side). */}
-                  <span className="text-gray-600">
-                    {t('billing.vat')} ({Math.round(usage.currentCost.taxRate * 100)}%)
-                  </span>
-                  <span className="font-medium">{currency(usage.currentCost.tax, 'EUR')}</span>
-                </div>
-                <div className="flex justify-between text-lg font-semibold pt-2 border-t">
-                  <span>{t('billing.total')}</span>
-                  <span className="text-blue-600">{currency(usage.currentCost.total, 'EUR')}</span>
-                </div>
-              </div>
+              ) : (
+                /* Past the end of the published table. Not an error, and it
+                   must not render as one: it is the site's own ending. */
+                <p className="text-sm text-gray-600">{t('billing.tierBeyondTable')}</p>
+              )}
             </div>
           </div>
         ) : (
