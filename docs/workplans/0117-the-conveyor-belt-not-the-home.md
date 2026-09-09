@@ -567,16 +567,29 @@ per row which one it is — "verified" cannot mean both.
 > plausibly from a grep and are what a reader will conclude without following the injection
 > through `runDomainSync`, which is why they are written down here instead of deleted.
 
-**One loose end, stated as what it is.** Four connectors populate `FileItem.contentHash` from
-the provider's own algorithm — `google-drive-source.ts:802` (MD5), `box-file-source.ts:384`
-(SHA-1), `dropbox-file-source.ts:408` (its block hash), `graph-drive-source.ts:348`
-(quickXorHash, with the comment *"Use quickXorHash as content hash for change detection"*).
-**No consumer was found** for that field outside `archive-file-source.ts`, which uses its own
-SHA-256 as an item identity. Drive's comment states an intent — *"with no checksum there is
-nothing to compare and every pass would look like a change"* — that the sync path does not
-appear to implement, since it hashes the fetched bytes regardless. Recorded as a question,
-not a finding: it needs someone to trace `FileItem` consumers properly before anything is
-concluded, and it is not T2's business either way.
+**One loose end, traced rather than left open.** Four connectors populate
+`FileItem.contentHash` from the provider's own algorithm — `google-drive-source.ts:802`
+(MD5), `box-file-source.ts:384` (SHA-1), `dropbox-file-source.ts:408` (its block hash),
+`graph-drive-source.ts:348` (quickXorHash, under the comment *"Use quickXorHash as content
+hash for change detection"*). **Nothing reads it.** Change detection is
+`classifyKnownItem` (`domain-sync.ts:295`), and it decides on topology and then
+`sourceVersion` — `if (known.sourceVersion === sourceVersion) return 'skip'` — never on a
+hash. The only consumer of a source item's `contentHash` anywhere is
+`archive-file-source.ts`, which uses its own SHA-256 as an item identity.
+
+Two consequences, neither T2's business, both worth someone's attention:
+
+1. Those four connectors carry a field with no reader. Harmless, but `graph-drive-source.ts`
+   states a purpose for it that is not what happens.
+2. `google-drive-source.ts:799` justifies excluding Google-native files with *"with no
+   checksum there is nothing to compare and every pass would look like a change"* — a
+   mechanism this codebase does not use. **The exclusion is still right**, for the better
+   reason 0116 gives: a native file has no bytes to download at all, only an export in a
+   different format. The comment should say that, because the wrong reason is the kind that
+   survives for years and misleads whoever next changes the listing.
+
+Both are one-line comment fixes on a source connector, so they want their own change rather
+than riding a workplan — flagged here, not done here.
 
 ## Not in this plan
 
