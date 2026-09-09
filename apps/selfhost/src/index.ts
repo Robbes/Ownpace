@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, retentionDaysFromEnv } from '@openmig/ledger';
+import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, retentionDaysFromEnv, runRetentionDaysFromEnv } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -1006,12 +1006,32 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   {
     const pruneLogs = async (): Promise<void> => {
       try {
+        const now = new Date();
         const days = retentionDaysFromEnv(process.env.LEDGER_RETENTION_DAYS);
-        const result = await pruneRunEvents(db, new Date(), { olderThanDays: days });
+        const result = await pruneRunEvents(db, now, { olderThanDays: days });
         if (result.deleted > 0 || result.moreRemaining) {
           log.info(
             `[retention] deleted ${result.deleted} run events older than ` +
               `${result.cutoff.toISOString()}${result.moreRemaining ? '; more still eligible, the next pass continues' : ''}`,
+          );
+        }
+
+        // `nothing-is-billed`, stated rather than defaulted (0121 T5). The
+        // appliance issues no invoices and has no invoice table to ask, so no
+        // run row is holding up a bill and the window alone governs. The
+        // managed job passes a date instead, per tenant. Saying which world
+        // this is cannot be skipped: the argument is required precisely so the
+        // appliance — the machine that can least afford a table that only
+        // grows — cannot silently inherit "prune nothing".
+        const runDays = runRetentionDaysFromEnv(process.env.LEDGER_RUN_RETENTION_DAYS);
+        const runs = await pruneRuns(db, now, {
+          olderThanDays: runDays,
+          safeUpTo: 'nothing-is-billed',
+        });
+        if (runs.deleted > 0 || runs.moreRemaining) {
+          log.info(
+            `[retention] deleted ${runs.deleted} runs older than ` +
+              `${runs.cutoff.toISOString()}${runs.moreRemaining ? '; more still eligible, the next pass continues' : ''}`,
           );
         }
       } catch (err) {

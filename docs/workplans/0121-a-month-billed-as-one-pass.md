@@ -30,7 +30,7 @@ Per-pass rows do.
 | T2 The guard | ✅ Done | `scripts/a-month-billed-as-one-pass.unit.test.ts` (15) + four integration cases against a real Postgres, every one proved by breaking. |
 | T3 The rows this costs | ✅ **Done** — §4a | Owner chose the zero-row alternative. Compute and sync operations derive from the `run` ledger; `usage_metric` has no writer; the measured quantities are frozen onto the invoice, which is what keeps `run` prunable. |
 | T4 What compute is FOR | 📋 **Owner's call** — §5 | The invoice speaks tiers (0109). Partly answered by the scraper PR: trends belong in Grafana, which is already instrumented and not yet scraped. The free-tier idea lands here. |
-| T5 Run retention | 📋 Planned, own PR | Owner 2026-09-08: two months, `DELETE`, configurable — and the log window comes down to match, because `run_event.run_id` is `ON DELETE CASCADE`. Depends on T3's freeze, which is what makes deleting safe. |
+| T5 Run retention | ✅ **Done** — §4b | Owner 2026-09-08: two months, `DELETE`, configurable — and the log window comes down to match, because `run_event.run_id` is `ON DELETE CASCADE`. Depends on T3's freeze, which is what makes deleting safe. |
 
 ## 1. The defect
 
@@ -304,6 +304,49 @@ body of `run` its first consumer and make the table unprunable for ever — ever
 touches only the newest 21 rows of a mapping or the rows still `running`/`queued`. With it,
 those rows are audit trail and T5 is possible. The code says so, at length, so nobody deletes
 it as redundant.
+
+## 4b. T5 as built — the prune stops where the proof stops
+
+`pruneRuns` deletes finished `run` rows past a window, in the same batched,
+`ctid`-driven shape as `pruneRunEvents`. Three things make it more than a
+second copy of that function.
+
+**The freeze is checked by the CALLER, because this module cannot check it.**
+`invoice` is a managed table and `packages/` must not depend on managed — the
+appliance has no invoices at all. So `pruneRuns` takes
+`safeUpTo: Date | 'nothing-is-billed'` and the caller proves it. There is no
+default: optional, the appliance would silently inherit whichever behaviour
+managed needed, and both directions are wrong. Prune-nothing turns retention off
+on the machine that can least afford an ever-growing table; prune-everything
+deletes unbilled evidence the moment invoicing stalls.
+
+**The proof is PER TENANT, so the prune is too.** Tenant A billed through July
+and tenant B through May do not share a safe point. One global maximum deletes
+B's June evidence; one global minimum lets a tenant who signed up yesterday stop
+retention for everybody. The managed job loops tenants with an ISSUED invoice
+(`sent`/`paid`/`overdue` — a `draft` can still be regenerated from the ledger,
+which is the re-read the freeze exists to make unnecessary) and prunes each only
+as far as its own newest `period_end`, plus a day, since the period includes its
+last day.
+
+**The log window now follows the run window** rather than setting its own.
+`run_event.run_id` is `ON DELETE CASCADE`, so a 90-day log window beside a
+60-day run window would not keep logs for 90 days — it would keep them for 60
+and describe itself as keeping them for 90.
+
+`verification.run_id` is `ON DELETE SET NULL`: verification records survive and
+lose only the pointer to a run that no longer exists.
+
+### Known consequence, not yet decided
+
+`GET /api/billing/usage/history` takes its months from the run ledger by
+`GROUP BY`. Once runs are pruned, months older than the window stop appearing —
+not as a zero, but as absence, which that route's own comment calls *"silence"*.
+The invoice holds the frozen figures for those periods, so nothing is lost, but
+the route does not read invoices. **Left for the owner:** either say on the
+endpoint that history reaches back as far as retention, or have it fall back to
+issued invoices for older periods. Not done here because it moves a billed
+surface.
 
 ### Evidence
 
