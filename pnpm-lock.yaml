@@ -46,11 +46,11 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       '@trigger.dev/core':
-        specifier: 4.5.12
-        version: 4.5.12(supports-color@7.2.0)
+        specifier: 4.5.16
+        version: 4.5.16(supports-color@7.2.0)
       '@trigger.dev/sdk':
-        specifier: 4.5.12
-        version: 4.5.12(react@19.2.8)(supports-color@7.2.0)(zod@4.5.4)
+        specifier: 4.5.16
+        version: 4.5.16(react@19.2.8)(supports-color@7.2.0)(zod@4.5.4)
       croner:
         specifier: ^10.0.1
         version: 10.0.1
@@ -495,8 +495,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       '@trigger.dev/sdk':
-        specifier: 4.5.12
-        version: 4.5.12(react@19.2.8)(supports-color@7.2.0)(zod@4.5.4)
+        specifier: 4.5.16
+        version: 4.5.16(react@19.2.8)(supports-color@7.2.0)(zod@4.5.4)
 
   packages/shared: {}
 
@@ -1527,29 +1527,9 @@ packages:
     peerDependencies:
       '@testing-library/dom': '>=7.21.4'
 
-  '@trigger.dev/core@4.5.12':
-    resolution: {integrity: sha512-MvDJg01vELqtc2d+fzcqwWlLN8MhBHt4xKPQQqur/Xlz5dzuD2YHbZGdursAJg8PPXWgNnelipr5cUh0GYxaqQ==}
-    engines: {node: '>=18.20.0'}
-
   '@trigger.dev/core@4.5.16':
     resolution: {integrity: sha512-7Gcv8rl+DnPxvguiWSp+KUeA7HVM9Xp46YYEeBGgViahL/Ml3WIv2hXXEiHrP8L3aM9C9YtStmmRmz5yOzW4fw==}
     engines: {node: '>=18.20.0'}
-
-  '@trigger.dev/sdk@4.5.12':
-    resolution: {integrity: sha512-kSbLzD50v9VmczK+GD97Iwl8qYgd8d42UbGeH3cBbJMoQSR0rNtSZ8WhUpcj8qunbPJHU5VM3usLDA3Bk6qdkg==}
-    engines: {node: '>=18.20.0'}
-    peerDependencies:
-      '@ai-sdk/otel': '>=1.0.0-0 <2'
-      ai: ^5.0.0 || ^6.0.0 || >=7.0.0-canary <8
-      react: ^18.0 || ^19.0
-      zod: ^3.0.0 || ^4.0.0
-    peerDependenciesMeta:
-      '@ai-sdk/otel':
-        optional: true
-      ai:
-        optional: true
-      react:
-        optional: true
 
   '@trigger.dev/sdk@4.5.16':
     resolution: {integrity: sha512-YjHz3Zv/yyLAS6tqFZMTVD2yTP6FopbPaLgtECLUqYx/pV2LQftgs7XI5o6NvtJxaDDLEz2wHqegCte1Ww2lKg==}
@@ -5255,44 +5235,6 @@ snapshots:
     dependencies:
       '@testing-library/dom': 10.4.1
 
-  '@trigger.dev/core@4.5.12(supports-color@7.2.0)':
-    dependencies:
-      '@bugsnag/cuid': 3.2.2
-      '@electric-sql/client': 1.0.14
-      '@google-cloud/precise-date': 4.0.0
-      '@jsonhero/path': 1.0.21
-      '@opentelemetry/api': 1.9.1
-      '@opentelemetry/api-logs': 0.218.0
-      '@opentelemetry/core': 2.10.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/exporter-logs-otlp-http': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/exporter-metrics-otlp-http': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/exporter-trace-otlp-http': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/host-metrics': 0.38.3(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation': 0.218.0(@opentelemetry/api@1.9.1)(supports-color@7.2.0)
-      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-logs': 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-metrics': 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-node': 2.7.1(@opentelemetry/api@1.9.1)
-      '@s2-dev/streamstore': 0.25.0(supports-color@7.2.0)
-      dequal: 2.0.3
-      eventsource: 3.0.7
-      eventsource-parser: 3.1.1
-      humanize-duration: 3.34.1
-      jose: 5.10.0
-      nanoid: 3.3.18
-      prom-client: 15.1.3
-      socket.io-client: 4.8.3(supports-color@7.2.0)
-      std-env: 3.10.0
-      tinyexec: 0.3.2
-      uncrypto: 0.1.3
-      zod: 3.25.76
-      zod-validation-error: 1.5.0(zod@3.25.76)
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
   '@trigger.dev/core@4.5.16(supports-color@7.2.0)':
     dependencies:
       '@bugsnag/cuid': 3.2.2
@@ -5326,20 +5268,6 @@ snapshots:
       uncrypto: 0.1.3
       zod: 3.25.76
       zod-validation-error: 1.5.0(zod@3.25.76)
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
-  '@trigger.dev/sdk@4.5.12(react@19.2.8)(supports-color@7.2.0)(zod@4.5.4)':
-    dependencies:
-      '@opentelemetry/api': 1.9.1
-      '@opentelemetry/semantic-conventions': 1.41.1
-      '@trigger.dev/core': 4.5.12(supports-color@7.2.0)
-      uncrypto: 0.1.3
-      zod: 4.5.4
-    optionalDependencies:
-      react: 19.2.8
     transitivePeerDependencies:
       - bufferutil
       - supports-color
