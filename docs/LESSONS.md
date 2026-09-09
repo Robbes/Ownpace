@@ -258,6 +258,10 @@ reading a file drops off its entry by itself.
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
+### `apps/worker/src/jobs/run-verification.ts`
+
+- [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
+
 ### `apps/worker/trigger.config.ts`
 
 - [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
@@ -716,6 +720,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/orchestration/src/build-reindexers.ts`
 
+- [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 
 ### `packages/orchestration/src/deployment-application.ts`
@@ -845,6 +850,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/shared/src/verification-report.ts`
 
+- [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
 - [a-domain-the-readme-forgot](../scripts/a-domain-the-readme-forgot.unit.test.ts) — DOCUMENTATION IS A FAN-OUT SITE, AND PROSE HAS NO TYPE CHECKER.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 
@@ -1154,7 +1160,10 @@ Every place that asks "is this domain switched on?" asks it about EVERY domain (
 
 Reads:
 
+- `apps/worker/src/jobs/run-verification.ts`
+- `packages/orchestration/src/build-reindexers.ts`
 - `packages/orchestration/src/orchestration.ts`
+- `packages/shared/src/verification-report.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
 
 ### [a-domain-the-readme-forgot](../scripts/a-domain-the-readme-forgot.unit.test.ts)
