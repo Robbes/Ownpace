@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 117 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 118 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -132,6 +132,7 @@ reading a file drops off its entry by itself.
 - [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts) — The create-mapping validator ends in a catch-all that asks for AZURE credentials, and nothing pairs it against the source types that exist.
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
+- [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `apps/api/src/routes/migrations/microsoft-consent.ts`
@@ -183,6 +184,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/selfhost/src/index.ts`
 
+- [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [an-integration-test-is-handed-its-database](../scripts/an-integration-test-is-handed-its-database.unit.test.ts) — AN INTEGRATION TEST IS HANDED ITS DATABASE.
 
 ### `apps/web/src/AppRoutes.tsx`
@@ -636,6 +638,10 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `docs/workplans/0117-the-conveyor-belt-not-the-home.md`
+
+- [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
+
 ### `drizzle.config.ts`
 
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
@@ -709,6 +715,7 @@ reading a file drops off its entry by itself.
 ### `packages/ledger/migrations/0001_baseline.sql`
 
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
+- [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 
 ### `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
@@ -836,6 +843,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/index.ts`
 
 - [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
+### `packages/shared/src/lifecycle.ts`
+
+- [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 
 ### `packages/shared/src/microsoft-scopes.ts`
 
@@ -1753,6 +1764,18 @@ Reads:
 - `docs/adr/0000-template.md`
 - `docs/adr/OPERATIVE.md`
 - `scripts/adr-operative.mjs`
+
+### [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts)
+
+After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
+
+Reads:
+
+- `apps/api/src/routes/migrations/index.ts`
+- `apps/selfhost/src/index.ts`
+- `docs/workplans/0117-the-conveyor-belt-not-the-home.md`
+- `packages/ledger/migrations/0001_baseline.sql`
+- `packages/shared/src/lifecycle.ts`
 
 ### [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts)
 

@@ -75,6 +75,7 @@ import {
   describeCronScheduleProblem,
   credentialFieldsFor,
   measuredNoRefusal,
+  isAfterCutover,
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
 
@@ -2735,7 +2736,17 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     const mapping = await loadMapping(tenantId, mappingId);
     if (!mapping) return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
 
-    if (mapping.status === 'cutover' || mapping.status === 'done') {
+    // The same refusal `startTransition` makes for the appliance, through the
+    // same predicate rather than a second copy of the comparison — this line
+    // was a hand-copied duplicate of `lifecycle.ts`, message string included,
+    // which is the drift this repository normally polices (hard rule 5). The
+    // answer and the wording are unchanged; only the authority moved.
+    //
+    // What makes it worth moving now is 0117 D4: after cutover the source is
+    // no longer the authority on what exists, and the states this asks about
+    // are exactly the ones where that becomes true. `isAfterCutover` carries
+    // that reasoning; two inline comparisons carried none of it.
+    if (isAfterCutover(mapping.status)) {
       return void res.status(409).json({ error: 'Conflict', message: `Cannot start a mapping in '${mapping.status}' state` });
     }
 
