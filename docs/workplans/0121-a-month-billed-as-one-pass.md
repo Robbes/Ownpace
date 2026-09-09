@@ -1,6 +1,16 @@
 # Workplan 0121 — A month billed as one pass
 
-## Status — 2026-09-08 (update this block at the end of every session)
+## Status — 2026-09-09 (update this block at the end of every session)
+
+**2026-09-09: T5 merged (#891), and the consequence it left is closed.** Run
+retention is live. The open question §4b recorded — that
+`GET /api/billing/usage/history` derives its months from the run ledger, so
+pruning makes older months vanish as absence rather than as zero — was put to
+the owner with two options and answered *"fallback (read from issued
+invoices)"*. Built: the ledger answers for months it still holds, issued
+invoices fill only the rest, the money comes off the invoice rather than being
+re-priced at today's list, and an invoice too old to carry frozen quantities is
+dropped rather than shown as a month of zeros. See §4b.
 
 **2026-09-08, second session: T3 built. Compute is DERIVED and `usage_metric` has no
 writer left at all.** T1/T2 shipped as #865 (per-pass rows, correct and expensive). The owner
@@ -337,16 +347,44 @@ and describe itself as keeping them for 90.
 `verification.run_id` is `ON DELETE SET NULL`: verification records survive and
 lose only the pointer to a run that no longer exists.
 
-### Known consequence, not yet decided
+### The consequence T5 left, closed 2026-09-09
 
-`GET /api/billing/usage/history` takes its months from the run ledger by
-`GROUP BY`. Once runs are pruned, months older than the window stop appearing —
-not as a zero, but as absence, which that route's own comment calls *"silence"*.
-The invoice holds the frozen figures for those periods, so nothing is lost, but
-the route does not read invoices. **Left for the owner:** either say on the
-endpoint that history reaches back as far as retention, or have it fall back to
-issued invoices for older periods. Not done here because it moves a billed
-surface.
+`GET /api/billing/usage/history` took its months from the run ledger by
+`GROUP BY`. Once runs are pruned, months older than the window stopped
+appearing — not as a zero, but as absence, which that route's own comment calls
+*"silence"*. The invoice held the frozen figures for those periods and the
+route did not read them.
+
+Put to the owner as two options; **the owner chose the fallback** on
+2026-09-09 — *"1: fallback (read from issued invoices)"* — and it is built in
+`apps/api/src/services/usage-history.ts`.
+
+Three decisions inside it, each one a place it could have been dishonest:
+
+- **The ledger answers for months it still holds; invoices fill only the rest.**
+  Not because the ledger is more truthful — for a billed period the invoice is
+  what the customer was actually charged — but because changing what in-window
+  months report is a different change from the one this makes. Nothing that
+  worked before behaves differently.
+- **The money comes off the invoice, never recomputed.** A frozen quantity
+  re-priced at today's list would produce a number the customer's invoice never
+  showed, which is the exact fault `/billing/estimate` already guards against.
+  So an invoice-derived row reports that invoice's own subtotal, tax and total,
+  and its frozen `costByDriver` breakdown.
+- **An invoice that cannot answer is dropped, not zeroed.** One issued before T3
+  froze anything has no `measured` block; a row of zeros beside real months
+  reads as a month in which nothing happened — a different untruth from the
+  silence this fixes, not an improvement on it.
+
+Only `sent`/`paid`/`overdue` count, the same set `managed-retention` treats as
+proof a period is settled: a `draft` is regenerated *from* the ledger, so using
+one would answer with a re-derivation of the very rows the prune removed.
+
+Rows carry `source: 'ledger' | 'invoice'` so a screen can say which it is
+showing. `usage-history.unit.test.ts` — 8 tests, proved by breaking five ways:
+invoice rows winning an overlapping month, a missing `measured` block becoming
+zeros, the total taken off the wrong field, the merge losing its ordering, and
+`draft` joining the issued statuses.
 
 ### Evidence
 
