@@ -49,6 +49,7 @@ function issued(overrides: Partial<IssuedInvoiceRow> = {}): IssuedInvoiceRow {
   };
 }
 
+/** A month the run ledger still holds: quantities, and no money (2026-09-09). */
 function ledgerRow(period: string): UsageHistoryRow {
   return {
     period,
@@ -56,7 +57,6 @@ function ledgerRow(period: string): UsageHistoryRow {
     egressGB: 1,
     computeHours: 1,
     syncCount: 1,
-    cost: { baseFee: 1000, storage: 0, egress: 0, compute: 0, subtotal: 1000, taxRate: 0.21, tax: 210, total: 1210 },
     source: 'ledger',
   };
 }
