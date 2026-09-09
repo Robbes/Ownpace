@@ -42,6 +42,17 @@ style preferences: **a re-run must converge, never duplicate**, and **nothing is
 destructive** except the explicitly gated `apply` path (ADR-0024). A change that
 cannot show it preserves both will be sent back regardless of how clean it is.
 
+### If CI fails on `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`
+
+Dependencies must be **three days old** before this repository installs them — a cooldown
+over the window in which a compromised release is published, installed and then yanked. The
+error names the package and when it was published. Usually the right answer is to **wait and
+re-run**: the check only gets easier with time, so the pull request goes green on its own
+within three days, with no change. Take a younger release only when you need it now — a
+security fix, typically — by adding `name@version` to `minimumReleaseAgeExclude` in the same
+pull request, with a reason. The full rule, and why the number is what it is, is in
+[`pnpm-workspace.yaml`](./pnpm-workspace.yaml) beside the setting itself.
+
 ## Documentation lives in `docs/`
 All documentation goes under `docs/`. The **only** Markdown files allowed in the repo root are:
 

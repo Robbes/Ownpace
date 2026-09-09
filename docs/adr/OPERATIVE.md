@@ -209,7 +209,7 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0017: Migration tooling — Drizzle Kit (+ Atlas lint), not Liquibase](./0017-migration-tooling.md)
 
-- **Drizzle Kit** authors and applies migrations; **Atlas** lints them in CI (`migration-lint`, destructive-change detection); no Liquibase/Flyway.
+- Migrations are **hand-written numbered SQL** in `packages/ledger/migrations`, applied at startup by **`runMigrations`** (`packages/ledger/src/migrate.ts`) against `schema_migrations`; **Atlas** lints them in CI (`migration-lint`, destructive-change detection); no Liquibase/Flyway. **Drizzle Kit neither authors nor applies anything here** — `pnpm db:generate` and `pnpm db:migrate` refuse (`scripts/how-migrations-are-authored.mjs`), and the ORM half of Drizzle is untouched.
 - Data migrations are idempotent, batched, expand-contract; migrations run at startup behind an advisory lock; the app **refuses to start if the schema is newer than it supports**; roll-forward preferred.
 - Two chains since ADR-0036: shared + managed, each with its own bookkeeping and lock.
 
