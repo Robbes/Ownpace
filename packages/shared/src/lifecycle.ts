@@ -17,11 +17,47 @@
  * `active`.
  */
 
+/**
+ * After cutover, the source is no longer the authority on what exists.
+ *
+ * Workplan 0117 **D4**, owner 2026-09-09: *"indeed, after cutover the source is
+ * no longer the authority on what exists, so we will not delete in target based
+ * on changes in the source."*
+ *
+ * ## Why this is a named function and not two comparisons
+ *
+ * It was two comparisons, in three places, and one of them was a hand-copied
+ * duplicate of another including its message string. That is survivable while
+ * the only thing the distinction does is refuse a second "Start" — and it stops
+ * being survivable the moment anything RUNS in these states.
+ *
+ * Today nothing does: the appliance's tick schedules `active` and unschedules
+ * everything else, so after cutover the product simply stops looking. 0117 §3c
+ * calls that protection *"safe by accident"*, and §3a says what the accident is
+ * protecting against — a pass that reads the source's bin after cutover, reads
+ * a deletion the person made there deliberately, mirrors it onto the target,
+ * and leaves the item existing nowhere. Every step behaving as designed.
+ *
+ * 0117 T1 (the continuous lane) is a mapping that keeps copying *after*
+ * cutover, so it removes the accident. When it lands, **the deletion detector
+ * must be absent from that phase** — not gated per item, not filtered
+ * downstream (0117 §4D rejects that: a gate strong enough to tell our deletion
+ * from the person's needs T4's tombstones anyway, and a gate can be wrong once;
+ * absence cannot).
+ *
+ * This function exists so that rule has one place to live, and
+ * `after-cutover-the-source-is-not-the-authority.unit.test.ts` exists so it
+ * cannot quietly stop being true.
+ */
+export function isAfterCutover(status: string): boolean {
+  return status === 'cutover' || status === 'done';
+}
+
 export type StartTransition = { readonly activate: boolean } | { readonly conflict: string };
 
 /** Decide what "Start migration" does for a mapping currently in `status`. */
 export function startTransition(status: string): StartTransition {
-  if (status === 'cutover' || status === 'done') {
+  if (isAfterCutover(status)) {
     return { conflict: `Cannot start a mapping in '${status}' state` };
   }
   // Activate only if not already active (idempotent second click).
