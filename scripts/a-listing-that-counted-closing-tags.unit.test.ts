@@ -22,10 +22,13 @@
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
-import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { measure, propfindMembers, envValue } from './dav-target-probe.mjs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { measure, propfindMembers, envValue, refusal } from './dav-target-probe.mjs';
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const CALENDAR_WITH_DATA = `<?xml version="1.0"?>
 <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
@@ -170,5 +173,93 @@ describe('where the probe decides to look', () => {
   it('does not match a key that merely starts the same way', () => {
     const f = envFile('NEXTCLOUD_BIND_EXTRA=nope\n');
     expect(envValue('NEXTCLOUD_BIND', f)).toBeUndefined();
+  });
+});
+
+describe('a refusal names the state it is in, not the one it met last', () => {
+  // TWO CONFIDENT WRONG ANSWERS, both met on the real Spark on 2026-09-09.
+  // Every non-207 used to print "the filter body is rejected outright", so a
+  // `--user` passed without a `--pass` (401) and a task collection nobody had
+  // created (404) were each reported as a broken listing query. In both cases
+  // the tool named the one thing that was working and sent the reader off to
+  // rewrite it — which is precisely the failure this probe exists to prevent
+  // in the product, reproduced inside the probe.
+
+  it('401 and 403 say the query never ran, and name the pair', () => {
+    for (const status of [401, 403]) {
+      const r = refusal(status);
+      expect(r).toMatch(/CREDENTIALS REFUSED/);
+      // The trap is specific: passing one of --user/--pass leaves the other at
+      // its default, which reads as a wrong password rather than a half-given
+      // pair. Naming both is what turns the message into a remedy.
+      expect(r).toContain('--user');
+      expect(r).toContain('--pass');
+      // Naming the two flags is not enough. The trap that produced the 401 was
+      // giving ONE of them: `--user` alone leaves --pass at its built-in
+      // default, so the failure reads like a wrong password rather than a
+      // half-given pair. The explanation is the part that saves the reader.
+      expect(r).toMatch(/one of the pair alone/i);
+      expect(r).not.toMatch(/filter body/i);
+    }
+  });
+
+  it('404 says nothing was created there, and names both seeder vocabularies', () => {
+    const r = refusal(404);
+    expect(r).toMatch(/NO SUCH COLLECTION/);
+    // The 404 that started this was the managed seeder's collection name read
+    // from the self-hosted seeder's default. A reader who knows only one of
+    // the two spellings cannot tell which mistake they made.
+    expect(r).toContain('openmig-tasks');
+    expect(r).toContain('e2e-tasks');
+    expect(r).not.toMatch(/filter body/i);
+  });
+
+  it('400 and 415 keep the verdict that was always true of them', () => {
+    // Not a regression to guard against so much as the point: the original
+    // sentence was correct for exactly these, and narrowing it must not lose
+    // the one case it was written for.
+    for (const status of [400, 415]) {
+      expect(refusal(status)).toMatch(/FILTER BODY IS REJECTED/i);
+    }
+  });
+
+  it('a status it has no reading for says so, rather than guessing', () => {
+    // The default is where a confident wrong answer would come back in. It has
+    // to be a statement about this tool's knowledge, not about the server.
+    const r = refusal(507);
+    expect(r).toContain('507');
+    expect(r).toMatch(/no reading/i);
+    expect(r).not.toMatch(/filter body|CREDENTIALS|NO SUCH COLLECTION/i);
+  });
+
+  it('every reading is distinct, so two states never read alike', () => {
+    // The defect in one sentence: four different situations, one sentence.
+    const readings = [401, 403, 404, 405, 501, 400, 415, 507].map(refusal);
+    expect(new Set(readings).size).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe('the ground truth is read before it is believed', () => {
+  // A guard over the probe's TEXT, because this decision lives inside `main()`
+  // behind two network calls and there is nothing pure to import. The same
+  // rule the shell guards in this directory work under: assert the structure
+  // that carries the property, since a paraphrase would drift.
+  const probe = readFileSync(join(REPO_ROOT, 'scripts/dav-target-probe.mjs'), 'utf8');
+
+  it('a PROPFIND that was refused never becomes an empty collection', () => {
+    // `propfindMembers` parses a 401 body to 0 members exactly as it parses an
+    // empty collection, and `present === 0` is the FIRST test the verdict chain
+    // makes — so an unread PROPFIND status turns "I was not allowed to look"
+    // into "(1) NOTHING WAS WRITTEN — the collection really is empty. The sync
+    // is at fault." A confident wrong answer accusing the wrong component,
+    // which is the whole thing this tool exists to stop producing.
+    const guard = probe.indexOf('ground.status !== 207');
+    const use = probe.indexOf('propfindMembers(ground.text');
+    expect(guard, 'the PROPFIND status is never checked').toBeGreaterThan(-1);
+    expect(use, 'propfindMembers is no longer called on the ground truth').toBeGreaterThan(-1);
+    expect(guard, 'the status is checked AFTER the members are counted').toBeLessThan(use);
+    // And it reports through the same reading as the REPORT branch, so a 401
+    // on either call says the same thing.
+    expect(probe.slice(guard, use)).toContain('refusal(ground.status)');
   });
 });

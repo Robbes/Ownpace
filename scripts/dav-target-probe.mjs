@@ -116,6 +116,47 @@ const TASK_LIST =
 
 const auth = 'Basic ' + Buffer.from(`${USER}:${PASS}`).toString('base64');
 
+/**
+ * What a non-207 answer actually means, per status class.
+ *
+ * EVERY refusal used to read "the filter body is rejected outright", which is
+ * true of a 400 and a confident lie about everything else. Both halves of that
+ * lie were met on the real Spark on 2026-09-09: a `--user` passed without a
+ * `--pass` answered 401 and was reported as a rejected filter, and a task
+ * collection nobody had created answered 404 and was reported as a rejected
+ * filter. In each case the tool named the one thing that was working and sent
+ * the reader to rewrite it.
+ *
+ * So the status is read rather than assumed, and the default names the status
+ * instead of guessing — an unrecognised refusal is a refusal this tool has not
+ * learned yet, which is a different statement from any of the four below.
+ */
+export function refusal(status) {
+  if (status === 401 || status === 403) {
+    return (
+      'CREDENTIALS REFUSED — the query never ran, so it cannot be at fault. ' +
+      'Check --user/--pass (or SMOKE_TARGET_DAV_USER / SMOKE_TARGET_DAV_PASSWORD); ' +
+      'passing one of the pair alone leaves the other at its default.'
+    );
+  }
+  if (status === 404) {
+    return (
+      'NO SUCH COLLECTION — nothing was ever created at this path, so there is ' +
+      'nothing for a filter to match. For the task list this is the seeder ' +
+      'vocabulary: deploy/compose/seed-demo-dav-content.sh writes ' +
+      'DAV_TASK_COLLECTION (openmig-tasks) and test/e2e/seed-dav-source.mjs ' +
+      'writes SEED_DAV_TASK_LIST (e2e-tasks).'
+    );
+  }
+  if (status === 405 || status === 501) {
+    return 'METHOD NOT AVAILABLE HERE — the server does not serve this report at this path.';
+  }
+  if (status === 400 || status === 415) {
+    return 'THE FILTER BODY IS REJECTED outright, not merely unmatched.';
+  }
+  return `REFUSED WITH ${status} — this tool has no reading for that status; the body below is the whole of what is known.`;
+}
+
 /** The reindexer's calendar-query — see PROVENANCE above. */
 function calendarQuery(component) {
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -252,6 +293,19 @@ async function main() {
       continue;
     }
 
+    // THE GROUND TRUTH HAS TO BE TRUE. A PROPFIND that was refused parses to
+    // zero members exactly like an empty collection does, and `present === 0`
+    // is the first test the verdict chain makes — so an unread status here
+    // turns "I was not allowed to look" into "(1) NOTHING WAS WRITTEN". That is
+    // the confident wrong answer this whole tool exists to stop producing.
+    if (ground.status !== 207) {
+      console.log(`  PROPFIND  HTTP ${ground.status} — the collection could not be listed at all`);
+      console.log(`  VERDICT   ${refusal(ground.status)}`);
+      console.log(`            body: ${ground.text.slice(0, 300).replace(/\s+/g, ' ')}\n`);
+      anyVerdict = true;
+      continue;
+    }
+
     const present = propfindMembers(ground.text, new URL(url).pathname);
     console.log(
       `  PROPFIND  HTTP ${ground.status} — ${present} member(s) actually in the collection`,
@@ -259,7 +313,7 @@ async function main() {
 
     if (report.status !== 207) {
       console.log(`  REPORT    HTTP ${report.status} — the server REFUSED the listing query`);
-      console.log(`  VERDICT   the filter body is rejected outright, not merely unmatched.`);
+      console.log(`  VERDICT   ${refusal(report.status)}`);
       console.log(`            body: ${report.text.slice(0, 300).replace(/\s+/g, ' ')}\n`);
       anyVerdict = true;
       continue;

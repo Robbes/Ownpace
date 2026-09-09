@@ -24,3 +24,12 @@ export declare function propfindMembers(xml: string, collectionPath: string): nu
 
 /** The last assignment of `key` in a compose .env, unquoted. */
 export declare function envValue(key: string, file?: string): string | undefined;
+
+/**
+ * What a non-207 answer means, per status class.
+ *
+ * Every refusal used to read "the filter body is rejected outright" — true of a
+ * 400 and a confident lie about a 401 or a 404, both of which were met on the
+ * real thing. The unrecognised case names its status rather than guessing.
+ */
+export declare function refusal(status: number): string;
