@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 116 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 117 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -597,6 +597,10 @@ reading a file drops off its entry by itself.
 - [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts) — A REFUSAL THAT NAMED NO REMEDY.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
+
+### `docs/o365-application-access.md`
+
+- [a-fence-that-covers-half-the-grant](../scripts/a-fence-that-covers-half-the-grant.unit.test.ts) — The runbook fenced two of four permissions and read as though it fenced all four (workplan 0027; owner 2026-09-09).
 
 ### `docs/operator-runbook.md`
 
@@ -1294,6 +1298,14 @@ A `false` THE READER COULD NOT REPORT.
 Reads:
 
 - `deploy/compose/setup-zitadel.sh`
+
+### [a-fence-that-covers-half-the-grant](../scripts/a-fence-that-covers-half-the-grant.unit.test.ts)
+
+The runbook fenced two of four permissions and read as though it fenced all four (workplan 0027; owner 2026-09-09).
+
+Reads:
+
+- `docs/o365-application-access.md`
 
 ### [a-fifth-domain-the-database-would-refuse](../scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts)
 

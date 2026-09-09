@@ -39,6 +39,59 @@ enabled security group you name. **Do not stop after step 3.**
 Everything below is read-only. No permission here grants write access, and the
 product does not write to the source in any case (hard rule 2).
 
+### What it can and cannot reach — the answer for a colleague
+
+The sentence above is true of **mailboxes** and is not the whole picture, which
+matters the moment somebody who did not ask for any of this wants to know what
+it means for them. Two of the four permissions are fenced by step 4 and two are
+not, because **Application Access Policy is an Exchange mechanism** — the same
+reason `Files.Read.All` was never granted (*[Two scopes, one
+granted](#two-scopes-one-granted)*).
+
+| Permission | Family | Fenced by step 4? | Reach after step 4 |
+|---|---|---|---|
+| `Mail.Read` | Exchange | **Yes** | Only mailboxes in the scope group |
+| `Calendars.Read` | Exchange | **Yes** | Only those mailboxes' calendars |
+| `User.Read.All` | Entra directory | **No — and it cannot be** | Every user object in the tenant |
+| `Group.Read.All` | Entra directory | **No — and it cannot be** | Every group, and its membership |
+
+**What the two directory permissions actually see** is the shape of the
+organisation, not anything inside it: user objects (display name, address, and
+whatever else the tenant populates — job title, department) and groups with
+their members. Not one message, calendar entry, file or chat. In most tenants
+that is close to what the address book already shows every employee, but
+**check yours rather than repeating that**: address book policies can scope the
+GAL more narrowly than the directory itself.
+
+Put plainly, for someone who wants it in one breath:
+
+> Ownpace can read the **contents** of exactly the mailboxes on a named list,
+> and nothing else. It can also see the **directory** — who exists and which
+> groups they are in. It cannot read anyone else's mail, any calendar outside
+> that list, anyone's OneDrive or SharePoint, or anyone's Teams messages, and
+> it cannot change or delete anything anywhere. It is read-only, the refusal
+> can be demonstrated, and it can be switched off in a minute.
+
+**Deliberately not granted**, and worth naming because it is the reassuring
+half: `Mail.ReadWrite` (§2 — so nothing in the system being migrated away from
+can be altered) and `Files.Read.All` (which would be every file in every
+OneDrive, with nothing able to fence it).
+
+**Demonstrate the refusal rather than asserting it.** Step 5's second command,
+run with a sceptical colleague's own address, answers `Denied` in Microsoft's
+own words about their own mailbox — worth more than any explanation from you.
+Two honesty conditions on that demo: wait the full hour first (before the
+policy applies, the same command shows the *pre-policy* answer), and do not
+let it imply more than it proves — **it tests mailbox access only.** There is
+no equivalent denial to show for the two directory permissions, because there
+is nothing fencing them to test.
+
+**Switching it off** is immediate and yours alone: Entra → *Enterprise
+applications* → the app → revoke consent, or delete the registration outright.
+Short of that, removing a mailbox from the scope group removes it from reach.
+The registration lives in your tenant throughout; there is nothing to ask
+anyone else to undo.
+
 ---
 
 ## 0. Starting from zero: creating the registration
@@ -151,8 +204,12 @@ directly to step 4.
 
 ## 4. Scope it down — the Application Access Policy
 
-This is the step that makes the grant safe. It is PowerShell only; there is no
-portal equivalent.
+This is the step that makes the **mailbox** grant safe — `Mail.Read` and
+`Calendars.Read`, the two Exchange-family permissions. It does not touch
+`User.Read.All` or `Group.Read.All`, which stay tenant-wide because this is an
+Exchange mechanism; *[What it can and cannot
+reach](#what-it-can-and-cannot-reach--the-answer-for-a-colleague)* says what
+that leaves visible. PowerShell only; there is no portal equivalent.
 
 ```powershell
 # One-time: the Exchange Online module, and a connection as an admin.
