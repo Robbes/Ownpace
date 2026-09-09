@@ -36,6 +36,8 @@ import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
 const ORCHESTRATION = 'packages/orchestration/src/orchestration.ts';
+const REINDEXERS = 'packages/orchestration/src/build-reindexers.ts';
+const REPORT = 'packages/shared/src/verification-report.ts';
 
 /**
  * The `MappingConfig.domains` key for each sync domain.
@@ -88,5 +90,87 @@ describe('no domain is left out of a fan-out', () => {
       `${ORCHESTRATION} no longer tests domains this way, so the comparison above is vacuous. ` +
         'Fix `fanOutCount` to match however the fan-outs are written now',
     ).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('the OTHER reindexer factory fans out too', () => {
+  /**
+   * `orchestration.ts` is not the only place that builds reindexers, and the
+   * counting guard above covers only that one.
+   *
+   * `build-reindexers.ts` is what `run-verification.ts` uses — the managed
+   * plane's whole verification path — and it fans out as a list of `collect()`
+   * calls rather than as `domains?.X?.enabled` tests, so no count above sees
+   * it. It named mail, calendar, contacts and files, and not tasks, from the
+   * day workplan 0113 landed until 2026-09-09.
+   *
+   * NOTHING FAILED, which is why it survived seven months of green runs.
+   * `reindexerFor('tasks')` returned undefined, `canVerifyTarget` answered no,
+   * and the report carried the domain as NOT_VERIFIABLE with `targetCount: 0`
+   * — severity ERROR, and read by nobody, because until 2026-09-07 no gate
+   * compared a target count at all. E2E (managed) #168 is where it showed
+   * alone: `tasks 0/4` on a run whose own log said "the task lane landed — 2
+   * VTODO row(s) copied" four minutes earlier. The tasks were on the target.
+   * Nothing had been built to look at them.
+   *
+   * Derived from VERIFICATION_DOMAINS in the report's own source rather than
+   * retyped, so the eighth place a sixth domain has to reach is this one, and
+   * it fails here instead of reporting a migrated domain as unverifiable.
+   */
+  const reindexers = readFileSync(join(ROOT, REINDEXERS), 'utf8');
+  const report = readFileSync(join(ROOT, REPORT), 'utf8');
+
+  /** The report's own domain list, read out of its source. */
+  const domains =
+    report
+      .match(/export const VERIFICATION_DOMAINS = \[([^\]]*)\]/)?.[1]
+      ?.match(/'([a-z]+)'/g)
+      ?.map((q) => q.slice(1, -1)) ?? [];
+
+  it('the report still declares its domains where this guard reads them', () => {
+    // A rename in the report that this regex stops matching would empty the
+    // list and pass every assertion below over nothing.
+    expect(domains.length).toBeGreaterThanOrEqual(5);
+    expect(domains).toContain('tasks');
+  });
+
+  it.each(['mail', 'calendar', 'contacts', 'files', 'tasks'])(
+    "builds a target reindexer for '%s'",
+    (domain) => {
+      expect(reindexers).toContain(`collect('${domain}'`);
+    },
+  );
+
+  it('collects EVERY verification domain, whatever the list grows to', () => {
+    const missing = domains.filter((d) => !reindexers.includes(`collect('${d}'`));
+    expect(
+      missing,
+      `${REINDEXERS} builds no target reindexer for ${missing.join(', ')}. ` +
+        'Verification will report that domain NOT_VERIFIABLE with targetCount 0 — ' +
+        'an ERROR that looks exactly like a domain nothing copied, on a domain ' +
+        'that copied fine. This is the shape that hid the task domain for seven ' +
+        'months (E2E managed #168).',
+    ).toEqual([]);
+  });
+
+  it('and asks build-deps for the LEDGER spelling of each one', () => {
+    // Four vocabularies, flagged on #746 and still four: the report says
+    // `contacts`/`files`/`tasks` and the ledger says `contact`/`file`/`task`.
+    // `buildDomainDepsFromMapping` takes the ledger spelling, so a collect()
+    // call that passes the report's would build nothing — and `collect`
+    // swallows a build failure by design, so it would go quiet rather than red.
+    for (const [reportName, ledgerName] of [
+      ['mail', 'mail'],
+      ['calendar', 'calendar'],
+      ['contacts', 'contact'],
+      ['files', 'file'],
+      ['tasks', 'task'],
+    ]) {
+      const call = reindexers.match(
+        new RegExp(`collect\\('${reportName}',[^\\n]*`),
+      )?.[0];
+      expect(call, `no collect('${reportName}', …) call`).toBeDefined();
+      expect(call).toContain(`'${ledgerName}')`);
+    }
   });
 });

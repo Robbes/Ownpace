@@ -78,10 +78,30 @@ export async function buildTargetReindexers(
     closers.push(() => deps.close());
   };
 
+  // ONE LINE PER VERIFICATION DOMAIN, and `tasks` was missing from this list
+  // until 2026-09-09 — the SEVENTH place workplan 0113's fan-out had to reach,
+  // and the last one anybody found. The task domain got a source (T3b), a
+  // writer (T4), a ledger row and a tick (T5, T2), a place in the report's
+  // domain list (#750) and a named assertion in both gates — and never a
+  // target reindexer here. Nothing failed: `reindexerFor('tasks')` returned
+  // undefined, `canVerifyTarget` said no, and verification reported the domain
+  // NOT_VERIFIABLE with `targetCount: 0` — an ERROR nobody read, because the
+  // managed gate's own floor check only landed on 2026-09-07 and the race it
+  // then measured hid this behind a louder failure until 2026-09-09.
+  //
+  // E2E (managed) #168 is where it finally showed alone: calendar 2/85,
+  // contacts 2/8, files 68/71 all measured, and `tasks 0/4` on a run whose own
+  // log says "the task lane landed — 2 VTODO row(s) copied" four minutes
+  // earlier. The tasks WERE on the target. Nothing was ever asked to look.
+  //
+  // The ledger spelling is `task` and the report's is `tasks`, which is the
+  // trap the other three already carry (`contacts`/`contact`,
+  // `files`/`file`) — four vocabularies, flagged on #746 and still four.
   await collect('mail', () => buildDomainDepsFromMapping(pool, tenantId, mappingId, 'mail'));
   await collect('calendar', () => buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar'));
   await collect('contacts', () => buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact'));
   await collect('files', () => buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file'));
+  await collect('tasks', () => buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task'));
 
   return {
     reindexers,
