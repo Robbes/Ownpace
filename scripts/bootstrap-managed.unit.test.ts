@@ -37,6 +37,7 @@ import {
   cpSync,
   mkdirSync,
   symlinkSync,
+  globSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -848,6 +849,45 @@ describe('the Trigger.dev images and the SDK that builds the tasks agree', () =>
         'Reconcile deliberately: hold the SDK back, or move BOTH managed.yml defaults and ' +
         'managed.env.example forward and accept that the next bring-up recreates the Trigger.dev plane.',
     ).toBe(sdk);
+  });
+
+  it('EVERY package.json that declares a Trigger.dev dependency names that same version', () => {
+    /**
+     * The four places were never four. `apps/worker` was the only manifest
+     * this suite compared, so #827 moved it to 4.5.16 and left the ROOT
+     * `package.json` (`@trigger.dev/sdk` AND `@trigger.dev/core`) and
+     * `packages/scheduler` on 4.5.12 — and nothing said a word. Measured
+     * 2026-09-09: the lockfile carried BOTH versions side by side, so the
+     * package the API enqueues through (`@openmig/scheduler`, whose index
+     * re-exports the Trigger.dev client) would have talked to a v4.5.16
+     * platform as a 4.5.12 client, while the tasks deployed into it were
+     * 4.5.16. Probably benign inside one patch line; nobody had decided that,
+     * and the migration it would have been discovered during is one-way.
+     *
+     * So the comparison is over every manifest rather than one, and a new
+     * package that takes a Trigger.dev dependency joins it by existing.
+     */
+    const manifests = globSync('{,apps/*/,packages/*/}package.json', { cwd: REPO_ROOT })
+      .map((rel) => ({ rel, pkg: JSON.parse(readFileSync(join(REPO_ROOT, rel), 'utf8')) }))
+      .flatMap(({ rel, pkg }) =>
+        Object.entries({ ...pkg.dependencies, ...pkg.devDependencies })
+          .filter(([name]) => name.startsWith('@trigger.dev/'))
+          .map(([name, version]) => ({ rel, name, version: String(version) })),
+      );
+
+    // If this ever finds nothing, the check has stopped checking — the
+    // manifests moved, or the glob did.
+    expect(manifests.length, 'no Trigger.dev dependency found in any manifest').toBeGreaterThan(2);
+
+    const wanted = (composeDefaults[0] ?? '').replace(/^v/, '');
+    const wrong = manifests.filter((m) => m.version !== wanted);
+    expect(
+      wrong.map((m) => `${m.rel}: ${m.name}@${m.version}`),
+      `these declare a Trigger.dev version other than the image tag (${wanted}). The SDK and the ` +
+        'platform move together or not at all — `deploy/compose/trigger-version.sh pin` moves the ' +
+        'tag and the manifests, and a version left behind here is a client talking to a platform ' +
+        'it was not built against.',
+    ).toEqual([]);
   });
 
   it('the example env agrees too, or a fresh .env reintroduces the drift', () => {
