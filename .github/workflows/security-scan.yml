@@ -37,6 +37,17 @@ jobs:
   security-scan:
     name: security-scan
     runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'self-hosted' || 'ubuntu-24.04' }}
+    env:
+      # THE SAME CONDITION `runs-on` USES, one line above, written out again
+      # because `runs-on` is evaluated before `env` exists and cannot read it.
+      # The two must agree, so `a-scan-that-skipped-itself.unit.test.ts` reads
+      # both out of this file and fails if they ever drift apart.
+      #
+      # Which runner a run lands on decides how its Trivy database survives:
+      # the Spark keeps a directory between runs for free, a GitHub-hosted
+      # runner is destroyed and leans on trivy-action's own cache. It is read
+      # again further down, to switch that cache off where it is waste.
+      ON_SELF_HOSTED: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       # `contents: write` for the SBOM attach on a tag: creating or updating a
       # release is a write, and the read-only token this job used would have
@@ -65,6 +76,41 @@ jobs:
       - name: pnpm audit (advisory gate)
         run: pnpm audit --audit-level=high || echo "::warning::pnpm audit reported advisories"
 
+      # ---------- THE DATABASE THIS SCAN NEEDS, KEPT BETWEEN RUNS ----------
+      #
+      # trivy-action ALREADY CARRIES A CACHE OF ITS OWN, and it is a good one:
+      # `actions/cache` over whatever `cache-dir` points at, keyed by the day,
+      # with a `cache-trivy-` prefix to fall back on when the day rolls over.
+      # Do not add a second `actions/cache` beside it. An earlier draft of this
+      # file did exactly that, and run 34333627931 saved two ~83 MB copies of
+      # one database under two keys — `cache-trivy-2026-09-09` from the action
+      # and `trivy-db-Linux-X64-2026-09-09` from the duplicate — spending twice
+      # the repository's cache quota to store the same bytes twice.
+      #
+      # What the built-in cache cannot know is WHICH MACHINE it is on, and this
+      # job runs on two of them (see ON_SELF_HOSTED above):
+      #
+      #   a GitHub-hosted runner — destroyed after the run, so trivy-action's
+      #     own daily cache is exactly the right mechanism and stays ON.
+      #
+      #   the Spark — $HOME survives between runs, so the database is already
+      #     on disk when the job starts. Uploading and downloading 83 MB to
+      #     re-supply a file that never left the box is pure waste, so the
+      #     built-in cache is turned OFF there.
+      #
+      # Both want the database out of `$GITHUB_WORKSPACE`, which is where
+      # trivy-action would otherwise put it. On a self-hosted runner the
+      # workspace is REUSED between runs and `actions/checkout` cleans it at
+      # the top of each one, so a database kept there is the one thing that
+      # cannot survive on the very machine that could otherwise keep it.
+      #
+      # `$HOME` is resolved HERE, in a run step, rather than in the job's
+      # `env:` — GitHub's expression syntax cannot read the shell environment,
+      # so `${{ env.HOME }}` is empty. Doing it at runtime also keeps the
+      # runner's username out of this file.
+      - name: Decide where the Trivy database lives
+        run: echo "TRIVY_CACHE_DIR=$HOME/.cache/trivy" >> "$GITHUB_ENV"
+
       - name: Trivy filesystem/dependency scan (SARIF)
         id: trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -73,6 +119,12 @@ jobs:
           format: sarif
           output: trivy.sarif
           severity: HIGH,CRITICAL
+          # Out of the workspace, so the Spark can keep it — see "THE DATABASE
+          # THIS SCAN NEEDS" above.
+          cache-dir: ${{ env.TRIVY_CACHE_DIR }}
+          # The action's own daily cache, on everywhere it is needed and off on
+          # the one machine that does not need it.
+          cache: ${{ env.ON_SELF_HOSTED != 'true' }}
         # Kept, and now it costs nothing: the step below reads
         # `steps.trivy.outcome`, and "the scan reported something" is asserted
         # at the end of the job. Without that pair this flag alone turned every
