@@ -25,6 +25,7 @@ import {
   type ProviderClientEnv,
   microsoftTenant,
   log,
+  sourceAuthorityFor,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
 import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget } from '@openmig/ledger';
@@ -400,6 +401,11 @@ export async function buildDepsFromMapping(
     {
       tenantId: tenantId as ReconcileDeps['tenantId'],
       mappingId: mappingId as ReconcileDeps['mappingId'],
+      // The pass's phase, from the mapping row this function already read
+      // (0117 D4). The mail domain's stake in it is the largest: its ONLY
+      // deletion evidence is the owner's bin, so after cutover that scan is
+      // what must not happen.
+      ...sourceAuthorityFor(mappings[0]!.status),
       ...(mappings[0]!.targetFolderPrefix
         ? { targetFolderPrefix: mappings[0]!.targetFolderPrefix }
         : {}),
@@ -448,6 +454,8 @@ async function loadDomainConnections(
   targetFolderPrefix?: string;
   /** The mapping's stored throttle choice, for `tenantThrottleLimiter`. */
   throttleConfig?: Partial<import('@openmig/shared').ThrottleConfig> | null;
+  /** `mailbox_mapping.status`, for `sourceAuthorityFor` (0117 D4). */
+  status: string;
 }> {
   return withTenant(pool, tenantId, async (txDb) => {
     const mappingRows = await txDb
@@ -462,6 +470,10 @@ async function loadDomainConnections(
         // path has always had (2026-09-07) — the column existed, this query
         // just never asked for it.
         throttleConfig: mailboxMapping.throttleConfig,
+        // The pass's PHASE (0117 D4). Read from the mapping's own row, which
+        // is the only thing that knows whether cutover has happened — never
+        // from a config file, and never from a caller's opinion.
+        status: mailboxMapping.status,
       })
       .from(mailboxMapping)
       .where(and(eq(mailboxMapping.tenantId, tenantId), eq(mailboxMapping.id, mappingId)));
@@ -544,6 +556,7 @@ async function loadDomainConnections(
       throttleConfig: mapping.throttleConfig as
         | Partial<import('@openmig/shared').ThrottleConfig>
         | null,
+      status: mapping.status,
     };
   });
 }
@@ -650,6 +663,7 @@ export async function buildDomainDepsFromMapping(
       target: tgt,
       targetFolderPrefix,
       throttleConfig,
+      status,
     } = await loadDomainConnections(pool, tenantId, mappingId);
     // THE FOUR NON-MAIL FACES GET THE TENANT'S BUDGET TOO (2026-09-07).
     // Until today only `buildDepsFromMapping` built one, so every calendar,
@@ -672,7 +686,16 @@ export async function buildDomainDepsFromMapping(
     // repaired twice already: four branches asking the same question by hand
     // is three chances to forget it.
     refuseDomainTheTargetCannotCarry(domain, tgt.kind);
-    const common = { tenantId: tId, mappingId: mId, ledger, cursors };
+    // The pass's phase, on `common` so all four branches carry it and none
+    // can be the one that forgot (0117 D4). Derived from the mapping's own
+    // `status` — see `sourceAuthorityFor`.
+    const common = {
+      tenantId: tId,
+      mappingId: mId,
+      ledger,
+      cursors,
+      ...sourceAuthorityFor(status),
+    };
     const targetDeps = { ledger, tenantId: tId, mappingId: mId };
 
     // DAV endpoints are resolved INSIDE the branches that are DAV-shaped, not

@@ -325,6 +325,7 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
   it('should mirror shared mailbox messages idempotently (first run creates all, second run creates 0)', async () => {
     // First run
     const result1 = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: SHARED_TENANT_ID,
       mappingId: SHARED_MAPPING_ID,
       source,
@@ -349,6 +350,7 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
 
     // Second run should create 0 (idempotent)
     const result2 = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: SHARED_TENANT_ID,
       mappingId: SHARED_MAPPING_ID,
       source,
@@ -377,6 +379,7 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
     // Run shadow pass - INBOX and Sent Items are both already fully synced by
     // the previous test's two passes, so this is just an idempotency check.
     const result = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: SHARED_TENANT_ID,
       mappingId: SHARED_MAPPING_ID,
       source,
@@ -410,6 +413,7 @@ describe('Shared Mailbox Integration (Pattern-S, B-T5)', () => {
 
     // Run shadow pass again - should only create the new message
     const result = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: SHARED_TENANT_ID,
       mappingId: SHARED_MAPPING_ID,
       source,

@@ -49,6 +49,7 @@ describe('the sync loop, given a tombstoned row', () => {
 
     const run = (ledger: MemoryLedger) =>
       runDomainSync<unknown, unknown, { key: string; body: string }, { path: string }>({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT,
         mappingId: MAPPING,
         domain: 'calendar',

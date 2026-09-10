@@ -112,6 +112,7 @@ describe('Verification against a real sync (integration)', () => {
   /** Run the real sync path; returns the target it wrote to. */
   async function syncInto(target: MemoryTarget): Promise<void> {
     const result = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       source: seededSource(),
@@ -161,6 +162,7 @@ describe('Verification against a real sync (integration)', () => {
       firstTwo.add({ folderPath: 'INBOX', messageId: m.messageId, rfc822: m.rfc822 });
     }
     const pass1 = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       source: firstTwo,
@@ -175,6 +177,7 @@ describe('Verification against a real sync (integration)', () => {
     const third = new MemorySource();
     third.add({ folderPath: 'INBOX', messageId: MESSAGES[2]!.messageId, rfc822: MESSAGES[2]!.rfc822 });
     const pass2 = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       source: third,
@@ -230,6 +233,7 @@ describe('Verification against a real sync (integration)', () => {
     // A second pass creates nothing new (idempotency), so verification must
     // still agree rather than double-counting.
     const second = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       source: seededSource(),

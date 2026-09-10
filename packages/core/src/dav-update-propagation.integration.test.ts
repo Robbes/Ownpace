@@ -275,6 +275,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
     const uidB = 'update-test-b@dev.local';
 
     const first = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CAL_TENANT,
       mappingId: CAL_MAPPING,
       source: new StubCalendarSource(folder, [
@@ -290,6 +291,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
 
     // Event A is edited on the source; B is untouched, ETag and all.
     const second = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CAL_TENANT,
       mappingId: CAL_MAPPING,
       source: new StubCalendarSource(folder, [
@@ -325,6 +327,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
     // A third pass at the settled version writes nothing: the ledger took the
     // new ETag, so this does not rewrite on every pass forever.
     const third = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CAL_TENANT,
       mappingId: CAL_MAPPING,
       source: new StubCalendarSource(folder, [
@@ -357,6 +360,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
     const uid = 'edited-on-target@dev.local';
 
     const first = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CAL_TENANT,
       mappingId: CAL_MAPPING,
       source: new StubCalendarSource(folder, [calendarEvent(uid, 'As migrated', 'etag-1')]),
@@ -387,6 +391,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
     // Now the source changes too. Before this, that combination silently
     // replaced their correction and counted `updated: 1`.
     const second = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CAL_TENANT,
       mappingId: CAL_MAPPING,
       source: new StubCalendarSource(folder, [
@@ -417,6 +422,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
     expect(after?.status).toBe('adopted');
 
     const third2 = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CAL_TENANT,
       mappingId: CAL_MAPPING,
       source: new StubCalendarSource(folder, [calendarEvent(uid, 'Moved again', 'etag-3')]),
@@ -458,6 +464,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
     expect([201, 204]).toContain(put.status);
 
     const first = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CAL_TENANT,
       mappingId: CAL_MAPPING,
       source: new StubCalendarSource(folder, [calendarEvent(uid, 'Our version', 'etag-1')]),
@@ -470,6 +477,7 @@ describe('Calendar update propagation (real CalDAV target) Integration', () => {
 
     // The source now changes. This is the case that must NOT write.
     const second = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CAL_TENANT,
       mappingId: CAL_MAPPING,
       source: new StubCalendarSource(folder, [calendarEvent(uid, 'Our NEWER version', 'etag-2')]),
@@ -573,6 +581,7 @@ describe('Contact update propagation (real CardDAV target) Integration', () => {
     const uidB = 'update-contact-b@dev.local';
 
     const first = await runContactSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CON_TENANT,
       mappingId: CON_MAPPING,
       source: new StubContactSource(folder, [
@@ -586,6 +595,7 @@ describe('Contact update propagation (real CardDAV target) Integration', () => {
     expect(first.created).toBe(2);
 
     const second = await runContactSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CON_TENANT,
       mappingId: CON_MAPPING,
       source: new StubContactSource(folder, [
@@ -646,6 +656,7 @@ describe('Contact update propagation (real CardDAV target) Integration', () => {
     expect([201, 204]).toContain(put.status);
 
     const first = await runContactSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CON_TENANT,
       mappingId: CON_MAPPING,
       source: new StubContactSource(folder, [contact(uid, 'Our Person', 'etag-1')]),
@@ -657,6 +668,7 @@ describe('Contact update propagation (real CardDAV target) Integration', () => {
     expect(first.created).toBe(0);
 
     const second = await runContactSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: CON_TENANT,
       mappingId: CON_MAPPING,
       source: new StubContactSource(folder, [contact(uid, 'Our NEWER Person', 'etag-2')]),
@@ -767,6 +779,7 @@ describe('File update propagation (real WebDAV target) Integration', () => {
 
   it('rewrites a file edited on the source, and leaves the untouched one alone', async () => {
     const first = await runFileSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: FILE_TENANT,
       mappingId: FILE_MAPPING,
       source: new StubFileSource(folder, [
@@ -780,6 +793,7 @@ describe('File update propagation (real WebDAV target) Integration', () => {
     expect(first.created).toBe(2);
 
     const second = await runFileSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: FILE_TENANT,
       mappingId: FILE_MAPPING,
       source: new StubFileSource(folder, [
@@ -835,6 +849,7 @@ describe('File update propagation (real WebDAV target) Integration', () => {
     expect([201, 204]).toContain(put.status);
 
     const first = await runFileSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: FILE_TENANT,
       mappingId: FILE_MAPPING,
       source: new StubFileSource(folder, [fileItem('theirs.txt', 'our body', 'etag-1')]),
@@ -846,6 +861,7 @@ describe('File update propagation (real WebDAV target) Integration', () => {
     expect(first.created).toBe(0);
 
     const second = await runFileSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: FILE_TENANT,
       mappingId: FILE_MAPPING,
       source: new StubFileSource(folder, [fileItem('theirs.txt', 'our NEWER body', 'etag-2')]),
@@ -941,6 +957,7 @@ describe('An item moved between source collections (real CalDAV target) Integrat
     const event = calendarEvent(uid, 'Quarterly review', 'etag-1');
 
     const first = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: MOVE_TENANT,
       mappingId: MOVE_MAPPING,
       source: new StubTwoCalendarSource(new Map([[folderA.path, [event]], [folderB.path, []]])),
@@ -959,6 +976,7 @@ describe('An item moved between source collections (real CalDAV target) Integrat
     // The owner drags the event to the other calendar. Same UID, same bytes,
     // same ETag — only its home changed.
     const second = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: MOVE_TENANT,
       mappingId: MOVE_MAPPING,
       source: new StubTwoCalendarSource(new Map([[folderA.path, []], [folderB.path, [event]]])),

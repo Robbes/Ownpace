@@ -4,6 +4,7 @@ import type { TenantId, MappingId } from './ids.ts';
 import type { BudgetPause, DownloadMeter } from './rate-budget.ts';
 import type { PauseReason } from './pause-reason.ts';
 import type { DeadlinePause, PassClock } from './pass-deadline.ts';
+import type { SourceAuthority } from './lifecycle.ts';
 import type { DomainDiscovery, DiscoveryRecord, DiscoveryDomain } from './discovery.ts';
 import type { MailFolder, MailItem, RawMessage, MailKeyword, SpecialUse } from './mail.ts';
 import type { CalendarFolder, RawCalendarEvent } from './calendar.ts';
@@ -1797,7 +1798,7 @@ export interface Scheduler {
 }
 
 /** Dependency bundle for one mapping's shadow pass (DI for the T4 reconcile loop). */
-export interface ReconcileDeps extends PassClock {
+export interface ReconcileDeps extends PassClock, SourceAuthority {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly source: SourceConnector;

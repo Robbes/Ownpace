@@ -76,6 +76,7 @@ describe('the default: trash and junk are left behind', () => {
   it('copies the kept folders and skips the discarded ones', async () => {
     const target = new MemoryTarget();
     const result = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: fourFolders(),
@@ -91,6 +92,7 @@ describe('the default: trash and junk are left behind', () => {
   it('says which folders it left behind', async () => {
     // A default nobody is told about is just a different silent answer.
     const result = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: fourFolders(),
@@ -106,6 +108,7 @@ describe('the default: trash and junk are left behind', () => {
     source.add({ folderPath: 'INBOX', messageId: '<a@dev.local>', rfc822: 'Subject: a\r\n\r\nb' });
 
     const result = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,
@@ -123,6 +126,7 @@ describe('the owner overrides it', () => {
     // A legitimate answer for anyone who treats Deleted Items as an archive.
     const target = new MemoryTarget();
     const result = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: fourFolders(),
@@ -140,6 +144,7 @@ describe('the owner overrides it', () => {
     // Junk out, Deleted Items in — someone who wants their spam gone but keeps
     // deleted mail as an archive.
     const result = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: fourFolders(),
@@ -199,6 +204,7 @@ describe('the source href reaches the ledger row', () => {
     source.add({ folderPath: 'INBOX', messageId: '<a@dev.local>', rfc822: 'Subject: a\r\n\r\nb' });
 
     await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,

@@ -124,32 +124,43 @@ describe('after cutover the source is not the authority', () => {
     ).toEqual([]);
   });
 
-  it('the appliance still runs passes only where the source IS the authority', () => {
-    // THE ONE THAT MATTERS. Today the tick refuses anything that is not
-    // `active`, which happens to exclude both post-cutover states — §3c's
-    // protection by omission. When 0117 T1 makes a post-cutover phase keep
-    // running, this test is what forces the same commit to answer for the
-    // deletion detector rather than discovering it on a customer's library.
+  it("the appliance's pass gate is a predicate that answers for the detector", () => {
+    // THE ONE THAT MATTERS, and it has been through its own decision.
     //
-    // The CONDITION, whole — not a substring of it. Written first as
-    // `toMatch(/currentStatus !== 'active'/)`, this test stayed GREEN under the
-    // one mutation it exists for: widening the gate to
-    // `currentStatus !== 'active' && currentStatus !== 'done'` still contains
-    // that substring, so a guard about the destruction of customer data passed
-    // while the appliance ran `done` mappings. Substring assertions cannot
-    // catch a widened condition, because widening only ever ADDS text.
+    // Until 2026-09-10 this asserted the gate was EXACTLY
+    // `currentStatus !== 'active'` — a whole condition, not a substring of one,
+    // because widening only ever ADDS text and the first draft
+    // (`toMatch(/currentStatus !== 'active'/)`) stayed green under the single
+    // mutation it existed for. Its message said: *"If a phase that continues
+    // after cutover now runs passes, 0117 D4 requires the deletion detector to
+    // be ABSENT from it. Change this test in the same commit as that proof,
+    // never before it."*
+    //
+    // 0117 T1 slice 2 is that commit, and the proof is
+    // `packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`
+    // — five behavioural tests, one per deletion producer, each run twice so
+    // "nothing detected" cannot be an accident of the fixture. The gate is now
+    // `runsPasses(currentStatus)`, and `continuous` is in it.
+    //
+    // What this pins INSTEAD is the thing that made the old assertion
+    // valuable: the gate is a named predicate whose docblock carries D4's
+    // reasoning, not a comparison somebody can widen in passing. A literal
+    // `=== 'active'` reappearing here is a second opinion about which mappings
+    // copy, and the first one to disagree wins silently.
     const tick = read('apps/selfhost/src/index.ts');
-    const gate = /if \(([^)]*currentStatus[^)]*)\)\s*\{/.exec(tick);
+    // Greedy up to the LAST `)` before the brace, so a predicate call —
+    // which has a `)` of its own inside the condition — is captured whole
+    // rather than truncated at its first bracket.
+    const gate = /if \((.*currentStatus.*)\)\s*\{/.exec(tick);
     expect(gate, "the appliance's pass gate on `currentStatus` is gone entirely").not.toBeNull();
     expect(
       gate![1]!.trim(),
-      "the appliance's pass gate is no longer exactly `currentStatus !== 'active'`. If a " +
-        'phase that continues after cutover now runs passes, 0117 D4 requires the deletion ' +
-        'detector to be ABSENT from it — not gated per item and not filtered downstream ' +
-        '(§4D: a gate strong enough needs T4 tombstones anyway, and a gate can be wrong ' +
-        'once; absence cannot). Change this test in the same commit as that proof, never ' +
-        'before it, and never to make a red build green.',
-    ).toBe("currentStatus !== 'active'");
+      "the appliance's per-pass gate is no longer `!runsPasses(currentStatus)`. If it has " +
+        'become a comparison again, or a predicate that does not answer for the deletion ' +
+        'detector, then D4 has lost the one place it attaches: `sourceIsAuthorityOnExistence` ' +
+        'is `!isAfterCutover(status)`, and a phase that runs while that is false is the only ' +
+        'phase where §3a\'s loop can come back.',
+    ).toBe('!runsPasses(currentStatus)');
   });
 
   it('the rule cannot outlive the decision that made it', () => {

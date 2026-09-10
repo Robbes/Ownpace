@@ -586,6 +586,7 @@ describe('Sync Jobs with Encrypted Credentials (integration)', () => {
       const cursors = new PgCursorStore(db);
 
       const result = await runShadowPass({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_A_ID,
         mappingId: MAPPING_A_ID,
         source: mockSource as any,

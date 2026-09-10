@@ -63,6 +63,10 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     ledger,
     cursors,
     concurrency,
+    // The pass's phase, carried down verbatim from the mapping's lifecycle
+    // (0117 D4). `runDomainSync` reads it to decide whether the deletion
+    // detectors exist at all.
+    sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
     ...passClock(deps),
     // FOLDERS THE OWNER ASKED US TO LEAVE BEHIND never reach the loop.
     //

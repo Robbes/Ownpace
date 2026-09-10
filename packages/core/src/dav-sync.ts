@@ -10,6 +10,7 @@
 import { applyTargetFolderPrefix,
   passClock,
   type PassClock,
+  type SourceAuthority,
   type Ledger,
   type CursorStore,
   type CalendarSource,
@@ -39,7 +40,7 @@ import { runDomainSync, type DomainSyncResult } from './domain-sync.ts';
 /**
  * Dependencies for calendar (CalDAV) sync.
  */
-export interface CalendarSyncDeps extends PassClock {
+export interface CalendarSyncDeps extends PassClock, SourceAuthority {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly source: CalendarSource;
@@ -110,6 +111,10 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
     ensureCollection: (folder) => target.ensureCalendar(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
+    // The pass's phase, carried down verbatim from the mapping's lifecycle
+    // (0117 D4). `runDomainSync` reads it to decide whether the deletion
+    // detectors exist at all.
+    sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
     ...passClock(deps),
   });
 }
@@ -199,6 +204,10 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
     ensureCollection: (folder) => target.ensureCalendar(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
+    // The pass's phase, carried down verbatim from the mapping's lifecycle
+    // (0117 D4). `runDomainSync` reads it to decide whether the deletion
+    // detectors exist at all.
+    sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
     ...passClock(deps),
   });
 }
@@ -206,7 +215,7 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
 /**
  * Dependencies for contact (CardDAV) sync.
  */
-export interface ContactSyncDeps extends PassClock {
+export interface ContactSyncDeps extends PassClock, SourceAuthority {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly source: ContactSource;
@@ -256,6 +265,10 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     contentHash: (raw) => contactContentHash((raw as RawContact).vcard),
     ensureCollection: (folder) => target.ensureContactFolder(folder),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
+    // The pass's phase, carried down verbatim from the mapping's lifecycle
+    // (0117 D4). `runDomainSync` reads it to decide whether the deletion
+    // detectors exist at all.
+    sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
     ...passClock(deps),
   });
 }
@@ -263,7 +276,7 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
 /**
  * Dependencies for file (WebDAV) sync.
  */
-export interface FileSyncDeps extends PassClock {
+export interface FileSyncDeps extends PassClock, SourceAuthority {
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly source: FileSource;
@@ -397,6 +410,10 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
           : folder,
       ),
     ...(deps.onCollision ? { onCollision: deps.onCollision } : {}),
+    // The pass's phase, carried down verbatim from the mapping's lifecycle
+    // (0117 D4). `runDomainSync` reads it to decide whether the deletion
+    // detectors exist at all.
+    sourceIsAuthorityOnExistence: deps.sourceIsAuthorityOnExistence,
     ...passClock(deps),
     // A snapshot's absences are evidence of nothing (0116 §5) — the source
     // says so about itself, and the loop turns its absence-counting off.

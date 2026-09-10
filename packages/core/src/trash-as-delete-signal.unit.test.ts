@@ -62,6 +62,7 @@ const pass = (
   cursors?: MemoryCursorStore,
 ) =>
   runShadowPass({
+    sourceIsAuthorityOnExistence: true,
     tenantId: TENANT,
     mappingId: MAPPING,
     source,
@@ -205,6 +206,7 @@ describe('what the bin must NOT be read as', () => {
     const target = new MemoryTarget();
 
     const first = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,
@@ -216,6 +218,7 @@ describe('what the bin must NOT be read as', () => {
 
     source.move('<a@dev.local>', 'INBOX', 'Trash');
     const second = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,
@@ -297,6 +300,7 @@ describe('the bin scan and the cursors', () => {
     // So the owner changing their mind about scope still gets the bin listed and
     // copied, rather than skipped past by a cursor the scan had advanced.
     const adopted = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,

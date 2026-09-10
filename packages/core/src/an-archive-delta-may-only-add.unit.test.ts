@@ -104,7 +104,15 @@ function memoryTarget() {
 
 /** No cursor store, on purpose: every pass is the cursor-less kind. */
 function deps(source: FileSource, target: ReturnType<typeof memoryTarget>, ledger: MemoryLedger) {
-  return { tenantId: TENANT, mappingId: MAPPING, source, target, ledger, concurrency: 2 };
+  return {
+    tenantId: TENANT,
+    mappingId: MAPPING,
+    source,
+    target,
+    ledger,
+    concurrency: 2,
+    sourceIsAuthorityOnExistence: true,
+  };
 }
 
 const paths = (target: ReturnType<typeof memoryTarget>) =>

@@ -23,8 +23,14 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import { runAllDomains } from '@openmig/orchestration';
-import { PgLedger as _PgLedger, PgMigrationStatusStore, createPgDb } from '@openmig/ledger';
+import {
+  PgLedger as _PgLedger,
+  PgMigrationStatusStore,
+  createPgDb,
+  mailboxMapping,
+} from '@openmig/ledger';
 import { log } from '@openmig/shared';
+import { and, eq } from 'drizzle-orm';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -103,10 +109,45 @@ async function main() {
   const db = createPgDb(databaseUrl);
   const statusStore = new PgMigrationStatusStore(db);
 
+  /**
+   * The mapping's phase, for the pass (0117 D4).
+   *
+   * This CLI has never consulted `mailbox_mapping.status` — it runs the config
+   * it was handed, and that is deliberately unchanged here: no new refusal is
+   * introduced. The status is read only to answer the one question a pass now
+   * has to answer, whether the source is still the authority on what exists,
+   * so a `--once` run against a mapping past cutover does not detect deletions
+   * that must not be detected.
+   *
+   * A missing row falls back to `active`, which is exactly today's behaviour:
+   * the detectors run, as they always have for this tool.
+   */
+  const lifecycle = await (async () => {
+    try {
+      const rows = await db
+        .select({ status: mailboxMapping.status })
+        .from(mailboxMapping)
+        .where(
+          and(eq(mailboxMapping.tenantId, config.tenantId), eq(mailboxMapping.id, config.mappingId)),
+        );
+      return rows[0]?.status ?? 'active';
+    } catch (err) {
+      // Said out loud rather than swallowed (hard rule 9). Falling back keeps
+      // the CLI usable against a database this query cannot reach, at the cost
+      // of assuming the pre-cutover phase — which is the phase every mapping
+      // this tool has ever been pointed at was in.
+      log.warn(
+        `[Worker] could not read mailbox_mapping.status; assuming 'active': ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+      return 'active';
+    }
+  })();
+
   if (once) {
     // Run once mode
     log.info('[Worker] Running all enabled domains...');
-    const results = await runAllDomains(config, statusStore);
+    const results = await runAllDomains(config, statusStore, lifecycle);
     
     const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
     const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
@@ -127,7 +168,7 @@ async function main() {
     scheduler.schedule(config.mappingId, config.schedule.cron, async () => {
       log.info('[Worker] Running scheduled sync...');
       try {
-        const results = await runAllDomains(config, statusStore);
+        const results = await runAllDomains(config, statusStore, lifecycle);
         
         const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
         const totalCreated = results.reduce((sum, r) => sum + r.created, 0);

@@ -243,6 +243,7 @@ if (!JMAP_URL) {
       const contacts = buildStubContacts(CONTACT_COUNT);
 
       const result1 = await runContactSync({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubContactSource(folder, contacts),
@@ -264,6 +265,7 @@ if (!JMAP_URL) {
       // be what makes it idempotent. This is the LEDGER's decision, which is
       // the leg the connector's own tests cannot exercise.
       const result2 = await runContactSync({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubContactSource(folder, contacts),
@@ -289,6 +291,7 @@ if (!JMAP_URL) {
       // second pass" is exactly what it would report.
       const added = buildStubContacts(1, CONTACT_COUNT);
       const result3 = await runContactSync({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubContactSource(folder, [...contacts, ...added]),
@@ -313,6 +316,7 @@ if (!JMAP_URL) {
       const folder: ContactFolder = { path: BOOK, name: BOOK };
       const contacts = buildStubContacts(1);
       await runContactSync({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubContactSource(folder, contacts),
@@ -347,6 +351,7 @@ if (!JMAP_URL) {
       const folder: ContactFolder = { path: BOOK, name: BOOK };
       const contacts = buildStubContacts(1);
       await runContactSync({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubContactSource(folder, contacts),

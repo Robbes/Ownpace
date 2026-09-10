@@ -508,6 +508,51 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
   readonly onCollision?: 'skip' | 'fail';
   /** Ensure target collection exists */
   readonly ensureCollection: (folder: Folder) => Promise<string>;
+  /**
+   * Whether the SOURCE is still the authority on what exists (0117 D4).
+   *
+   * `!isAfterCutover(mailbox_mapping.status)`, decided once per pass by
+   * whoever assembled these deps, and the ONE thing that keeps a deletion
+   * detector away from the continuous lane.
+   *
+   * ## Why it is here rather than at the apply, and why it is required
+   *
+   * Owner decision D4, 2026-09-09: *"after cutover the source is no longer
+   * the authority on what exists, so we will not delete in target based on
+   * changes in the source."* 0117 §4D settled how: **the detector does not
+   * run.** Not run-and-filter, not gated per item, not suppressed downstream.
+   * `allowApplyDeletions` at the apply site is a gate, and a gate strong
+   * enough to tell OUR deletion from the person's own needs T4's tombstones
+   * anyway. A gate can be wrong once; absence cannot.
+   *
+   * When this is `false`, all three producers of `deletions` are unreachable
+   * within this pass:
+   *
+   *  1. **the reported stream** — a source announcing its own removals
+   *     (OneDrive's delta). The hrefs are not even collected, so
+   *     `resolveReportedRemovals` has nothing to resolve.
+   *  2. **the owner's bin** — `listDiscardedKeys`, positive evidence that a
+   *     person deleted something, and the mail domain's ONLY deletion
+   *     evidence. Stripped from the deps in `withSides`, so the closure is
+   *     not present to be called.
+   *  3. **absence-counting** — `detectPathKeyedMoves`, where a file's
+   *     deletions come from. Not called.
+   *
+   * `moves` and the path-keyed `drift` count go with the third, because they
+   * are the same correlation: a move is a disappearance matched to an
+   * arrival, and the disappearance half is the deletion signal. The visible
+   * consequence, said out loud rather than discovered: **after cutover, a
+   * file the person moves at the source is copied to its new place and the
+   * old copy stays**, so the target holds two. A duplicate is the safe side
+   * of this trade; the alternative is `applyRelocation` removing a target
+   * copy because the old system was reorganised.
+   *
+   * REQUIRED, with no default, so that adding a caller is a decision rather
+   * than an omission. Every `runDomainSync` in this repository is inside
+   * `packages/core`, and each one's wrapper carries the same field up to the
+   * dep builders, which read it from the mapping's own lifecycle row.
+   */
+  readonly sourceIsAuthorityOnExistence: boolean;
 }
 
 /** Summary of a domain sync pass. */
@@ -682,16 +727,34 @@ export interface DomainSyncResult {
 function withSides<Source, Target, Item, Folder extends FolderLike>(
   deps: DomainSyncDeps<Source, Target, Item, Folder>,
 ): DomainSyncDeps<Source, Target, Item, Folder> {
+  // DESTRUCTURED OUT, not conditionally spread over.
+  //
+  // This was `...deps` followed by a conditional
+  // `...(deps.listDiscardedKeys && authority ? {…} : {})`, and it did not
+  // work: a conditional spread can OVERRIDE a key, it cannot DELETE one the
+  // earlier spread already put there. The false branch contributed nothing,
+  // `deps.listDiscardedKeys` survived from `...deps`, and the bin scan ran
+  // after cutover exactly as before — the one detector whose absence the mail
+  // domain depends on entirely. Caught by
+  // `a-lane-that-runs-with-the-detector-present.unit.test.ts` on its first
+  // run, which is the whole reason that test asserts per producer rather than
+  // on a total.
+  const { listCollectionKeys, listDiscardedKeys, ...rest } = deps;
   return {
-    ...deps,
+    ...rest,
     listFolders: sided('source', deps.listFolders),
     listSince: sided('source', deps.listSince),
     fetchRaw: sided('source', deps.fetchRaw),
-    ...(deps.listCollectionKeys
-      ? { listCollectionKeys: sided('source', deps.listCollectionKeys) }
-      : {}),
-    ...(deps.listDiscardedKeys
-      ? { listDiscardedKeys: sided('source', deps.listDiscardedKeys) }
+    ...(listCollectionKeys ? { listCollectionKeys: sided('source', listCollectionKeys) } : {}),
+    // The owner's bin is a DELETION DETECTOR and nothing else — no item in it
+    // is ever copied. After cutover it is not carried at all (see
+    // `sourceIsAuthorityOnExistence`), dropped HERE at the one place every
+    // closure already passes through, so the destructure in `runDomainSync`
+    // binds `undefined` and the block that reads it is unreachable — rather
+    // than that block deciding for itself, each pass, whether to call a
+    // capability it is holding.
+    ...(listDiscardedKeys && deps.sourceIsAuthorityOnExistence
+      ? { listDiscardedKeys: sided('source', listDiscardedKeys) }
       : {}),
     upsert: sided('target', deps.upsert),
     ensureCollection: sided('target', deps.ensureCollection),
@@ -721,6 +784,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     sourceRef,
     listCollectionKeys,
     listDiscardedKeys,
+    sourceIsAuthorityOnExistence,
     downloadMeter,
     snapshot,
     deadline,
@@ -954,7 +1018,13 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // arrival in the second — and that is only knowable once every folder has
     // been listed. Acting per folder would report a move as a deletion whenever
     // the destination happened to be listed later.
-    for (const href of removed ?? []) reportedRemovals.push(href);
+    // Collected only while the source is still the authority on what exists.
+    // After cutover this is the first of the three deletion producers, and
+    // leaving the hrefs uncollected is what makes `resolveReportedRemovals`
+    // below unreachable rather than merely unhelpful.
+    if (sourceIsAuthorityOnExistence) {
+      for (const href of removed ?? []) reportedRemovals.push(href);
+    }
 
     // Seed the seen-set with everything the collection holds, so a
     // cursor-limited pass still knows what is THERE and not only what changed.
@@ -1603,7 +1673,13 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   }
 
   // The path-keyed half, which can only run once every folder has been listed.
-  if (domain === 'file' && fullyEnumerated) {
+  //
+  // The third deletion producer, and the one that also yields `moves` and the
+  // path-keyed `drift`. All three go together after cutover, because they are
+  // one correlation: a move is a disappearance matched to an arrival, and the
+  // disappearance is the deletion signal. See `sourceIsAuthorityOnExistence`
+  // for the consequence that leaves behind.
+  if (domain === 'file' && fullyEnumerated && sourceIsAuthorityOnExistence) {
     const found = await detectPathKeyedMoves({
       tenantId,
       mappingId,
