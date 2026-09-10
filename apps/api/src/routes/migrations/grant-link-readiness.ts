@@ -143,12 +143,15 @@ export function grantLinkRefusal(r: GrantLinkReadiness): GrantLinkRefusal | null
  * The plan left the question open: *"if it turns out to need a status value of
  * its own, that is a finding for the build."* It does not, and the finding is
  * that adding one would be the more expensive wrong answer.
- * `mailbox_mapping.status` has exactly four values and they are load-bearing
- * three times over — a database CHECK, `MAPPING_LIFECYCLES` in the shared
- * contract that both editions serve, and ADR-0014's billing states, where a
- * fifth value would need a rule about whether it holds a capacity slot. And a
- * stored state can go stale: it would have to be set when a link is issued and
- * cleared when a grant lands, so any path that stored a credential without
+ * `mailbox_mapping.status` has five values and they are load-bearing in six
+ * places — a database CHECK, `MAPPING_LIFECYCLES` in the shared contract that
+ * both editions serve, `STATE_TABLE.lifecycle` in the web app, the audit
+ * module's `MappingStatus`, `isAfterCutover` (where the deletion detector may
+ * not go), and ADR-0014's billing states, where a new value needs a rule about
+ * whether it holds a capacity slot. Adding the fifth (`continuous`, workplan
+ * 0117 T1) cost exactly that, which is the price this paragraph predicted. And
+ * a stored state can go stale: it would have to be set when a link is issued
+ * and cleared when a grant lands, so any path that stored a credential without
  * clearing it would leave a mapping permanently unable to start.
  *
  * Waiting-for-a-grant is not a state somebody puts a mapping into. It is the

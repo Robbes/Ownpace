@@ -790,6 +790,16 @@ export const CreateMappingBase = z.object({
   // refused by the SHARED parser in its words (hard rule 5).
   throttleConfig: z.record(z.string(), z.unknown()).optional(),
   // Mapping-specific fields (for mailbox_mapping table)
+  //
+  // FOUR of the CHECK constraint's five, and the omission is deliberate.
+  // `continuous` (workplan 0117 T1) is a state a mapping can BE in — every
+  // reader knows it — but not one this route may put it into. ADR-0014's
+  // 2026-09-10 amendment made entering the lane an act with a price attached:
+  // a continuous path holds a capacity slot for as long as it runs, so
+  // *before somebody enters the lane they must be told that their bill does
+  // not stop at cutover*. That sentence is T5's and is the owner's, and a
+  // PATCH that quietly admitted the value would be the door opening without
+  // it. Widen this when the door is built, not before.
   status: z.enum(['active', 'paused', 'cutover', 'done']).optional(),
   /**
    * The sync mode. **One value, because one is all the engine implements.**
@@ -2195,6 +2205,9 @@ router.put(
       // status, mode, pattern, created_at, updated_at
       // So we need to check for these specific fields
       if ('status' in body && body.status) {
+        // The four the schema above admits, NOT all five of `MappingLifecycle`
+        // — see the note on `status` in UpdateMappingSchema for why the fifth
+        // has no door here yet.
         updateData.status = body.status as 'active' | 'paused' | 'cutover' | 'done';
       }
       if ('mode' in body && body.mode) {

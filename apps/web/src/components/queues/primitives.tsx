@@ -283,10 +283,16 @@ export const ReceiptStatus: React.FC<{ receipt: ApplyReceipt }> = ({ receipt }) 
   }
 };
 
-/** Dictionary keys for the lifecycle note (only `paused` has one today). */
+/** Dictionary keys for the lifecycle note (only `paused` has one today).
+ *
+ *  `continuous` has none for the same reason `active` has none: its queues are
+ *  LIVE. The note exists to explain a queue that is empty because nothing has
+ *  been copied yet (`paused`); a lane that keeps copying after cutover has
+ *  ordinary queues and needs no apology for them. */
 export const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey | undefined> = {
   paused: 'lifecycle.paused',
   active: undefined,
   cutover: undefined,
   done: undefined,
+  continuous: undefined,
 };

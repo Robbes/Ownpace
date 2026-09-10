@@ -55,21 +55,35 @@ import type { FinishRefuseCode } from './lifecycle.ts';
  * around, because the UI branches on it: `paused` hides the queues (nothing has
  * been copied yet, so nothing can have diverged) and `done` shows them as a
  * closed record rather than a to-do list.
+ *
+ * **This is a THIRD lifecycle vocabulary, and it is the one that throws.**
+ * `mailbox_mapping.status` is the database's, `PATH_STATES` is billing's, and
+ * this is the operating surface's. Both readers of a status row — the
+ * appliance's `mappingStatus` and the managed API's `scope` — refuse a value
+ * that is not in `MAPPING_LIFECYCLES` rather than coerce it (hard rule 9). So
+ * a state admitted by the CHECK constraint and missing from here is not a
+ * cosmetic gap: it is a migration whose every page and every pass raises.
  */
-export type MappingLifecycle = 'paused' | 'active' | 'cutover' | 'done';
+export type MappingLifecycle = 'paused' | 'active' | 'cutover' | 'done' | 'continuous';
 
 /**
- * The same four, as a value, for narrowing a string that came from the database.
+ * The same five, as a value, for narrowing a string that came from the database.
  *
  * Kept beside the type so the two cannot drift, and matching
- * `mailbox_mapping_status_check` in the baseline migration — the constraint is
- * what actually enforces this, and a reader should be able to find both.
+ * `mailbox_mapping_status_check` — written with four states in the baseline
+ * migration and widened to five by `0044_a_lane_that_does_not_end.sql`. The
+ * constraint is what actually enforces this, and a reader should be able to
+ * find both.
  */
 export const MAPPING_LIFECYCLES: readonly MappingLifecycle[] = [
   'paused',
   'active',
   'cutover',
   'done',
+  // The lane that does not end (workplan 0117 T1). After cutover, and still
+  // copying — see `isAfterCutover` in `lifecycle.ts` for why that combination
+  // is the load-bearing one.
+  'continuous',
 ];
 
 /**

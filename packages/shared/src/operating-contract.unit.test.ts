@@ -97,8 +97,16 @@ describe('the shared prose', () => {
 });
 
 describe('MAPPING_LIFECYCLES', () => {
-  it('matches the baseline migration CHECK constraint', () => {
-    // mailbox_mapping_status_check in packages/ledger/migrations/0001_baseline.sql.
-    expect([...MAPPING_LIFECYCLES].sort()).toEqual(['active', 'cutover', 'done', 'paused']);
+  it('matches the migration chain CHECK constraint', () => {
+    // mailbox_mapping_status_check — four states in
+    // packages/ledger/migrations/0001_baseline.sql, widened to five by
+    // 0044_a_lane_that_does_not_end.sql (workplan 0117 T1).
+    expect([...MAPPING_LIFECYCLES].sort()).toEqual([
+      'active',
+      'continuous',
+      'cutover',
+      'done',
+      'paused',
+    ]);
   });
 });

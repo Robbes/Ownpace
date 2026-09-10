@@ -746,6 +746,7 @@ const en = {
   'state.lifecycle.paused': 'Paused',
   'state.lifecycle.cutover': 'In cutover',
   'state.lifecycle.done': 'Done',
+  'state.lifecycle.continuous': 'Continuous',
   'state.invoice.draft': 'Draft',
   'state.invoice.sent': 'Sent',
   'state.invoice.paid': 'Paid',
@@ -882,6 +883,7 @@ const en = {
   'confirm.note.active': 'Active. It syncs on its schedule and reports anything that needs you.',
   'confirm.note.cutover': 'In cutover.',
   'confirm.note.done': 'Finished. This migration no longer syncs.',
+  'confirm.note.continuous': 'Continuous. Cutover has happened; this keeps copying instead of ending.',
   'confirm.introStarted':
     'Migrations here have started. Live progress is per migration; the scan stays as a snapshot.',
   // The six failure categories (workplan 0110 T3). Each is a SENTENCE with a
@@ -1141,6 +1143,8 @@ const en = {
   'finish.note.cutover': 'In cutover. Still syncing until you finish it.',
   'finish.note.done':
     'Finished. This mapping no longer syncs and nothing is being reported for it.',
+  'finish.note.continuous':
+    'Continuous. It keeps copying after cutover. Finishing stops it; copies already made stay.',
   'finish.left.one': 'item left unmigrated.',
   'finish.left.many': 'items left unmigrated.',
   'finish.step1.title': 'Check the copy is complete',
@@ -2357,6 +2361,7 @@ const nl: Record<keyof typeof en, string> = {
   'state.lifecycle.paused': 'Gepauzeerd',
   'state.lifecycle.cutover': 'In cutover',
   'state.lifecycle.done': 'Afgerond',
+  'state.lifecycle.continuous': 'Doorlopend',
   'state.invoice.draft': 'Concept',
   'state.invoice.sent': 'Verzonden',
   'state.invoice.paid': 'Betaald',
@@ -2496,6 +2501,8 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.note.active': 'Actief. Het synchroniseert volgens schema en meldt alles wat uw aandacht nodig heeft.',
   'confirm.note.cutover': 'In cutover.',
   'confirm.note.done': 'Afgerond. Deze migratie synchroniseert niet meer.',
+  'confirm.note.continuous':
+    'Doorlopend. De cutover is geweest; dit blijft kopiëren in plaats van te eindigen.',
   'confirm.introStarted':
     'Migraties hier zijn gestart. Live voortgang staat per migratie; de scan blijft als momentopname.',
   'confirm.progress.heading': 'Live voortgang',
@@ -2581,6 +2588,8 @@ const nl: Record<keyof typeof en, string> = {
   'finish.note.cutover': 'In cutover. Synchroniseert nog totdat u afrondt.',
   'finish.note.done':
     'Afgerond. Deze migratie synchroniseert niet meer en er wordt niets meer voor gerapporteerd.',
+  'finish.note.continuous':
+    'Doorlopend. Blijft kopiëren na de cutover. Afronden stopt dat; kopieën blijven staan.',
   'finish.left.one': 'item niet gemigreerd achtergelaten.',
   'finish.left.many': 'items niet gemigreerd achtergelaten.',
   'finish.step1.title': 'Controleer of de kopie volledig is',

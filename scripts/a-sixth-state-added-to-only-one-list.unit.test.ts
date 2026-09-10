@@ -6,7 +6,7 @@
  *
  * `continuous` is a mapping that keeps copying after cutover and deletes
  * nothing. Adding it looks like adding a string to an enum. It is not: this
- * repository keeps the lifecycle in FOUR places that must agree, and each
+ * repository keeps the lifecycle in SIX places that must agree, and each
  * disagreement is silent and expensive in a different way.
  *
  *   `mailbox_mapping.status`      what the routes and the appliance read to
@@ -14,6 +14,19 @@
  *   `path_lifecycle.state`        what BILLING reads — `holdsASlot`
  *   `MappingStatus`               what the audit log records a change as
  *   `isAfterCutover`              where the deletion detector may not go
+ *   `MAPPING_LIFECYCLES`          what BOTH status readers narrow through —
+ *                                 and they THROW on a value outside it
+ *   `STATE_TABLE.lifecycle`       the word and the colour on every screen
+ *
+ * The fifth was missed by the survey that produced the first four, and found
+ * by reading rather than by the compiler: nothing assigns the literal, so
+ * `tsc` had nothing to complain about. What it costs is the loudest failure
+ * of the set — `mappingStatus` and the managed API's `scope` both refuse a
+ * status they cannot narrow, so a row the database happily holds makes every
+ * page and every pass of that migration raise. Widening the union then made
+ * the compiler name the sixth, and four exhaustive `Record<MappingLifecycle,
+ * …>` maps besides. That is the shape of this defect: one list moves, and the
+ * places that must move with it are only partly findable by machine.
  *
  * Miss the second and the lane runs while the billing ledger believes those
  * paths ended at cutover — capacity nobody meters, costing real bytes every
@@ -48,7 +61,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { PATH_STATES, holdsASlot, SLOT_HOLDING_STATES } from '@openmig/ledger';
-import { isAfterCutover } from '@openmig/shared';
+import { isAfterCutover, MAPPING_LIFECYCLES } from '@openmig/shared';
 
 const ROOT = join(import.meta.dirname, '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
@@ -146,5 +159,72 @@ describe('and the two rules that make it safe to run', () => {
     expect(amendment, 'the 2026-09-10 amendment is not in ADR-0014').not.toBeNull();
     expect(amendment![0]).toMatch(/holds a\s*\n?slot|\*\*holds a\s*\n?slot\*\*/);
     expect(amendment![0]).toMatch(/bill does\s*\n?not stop at cutover/);
+  });
+});
+
+describe('and the two surfaces that REFUSE a status they cannot narrow', () => {
+  it('the operating contract admits it, so neither status reader throws on the row', () => {
+    expect(MAPPING_LIFECYCLES).toContain(LANE);
+    // The four that were already there stay — an addition, not a swap.
+    for (const had of ['paused', 'active', 'cutover', 'done']) {
+      expect(MAPPING_LIFECYCLES).toContain(had);
+    }
+  });
+
+  it('both readers still narrow through that list rather than an inline literal', () => {
+    // This is what makes the assertion above load-bearing. Either reader could
+    // be "simplified" to its own array of four words and keep compiling; the
+    // list would then be right and the refusal would still fire.
+    for (const file of [
+      'apps/selfhost/src/index.ts',
+      'apps/api/src/routes/migrations/operating-routes.ts',
+    ]) {
+      const src = read(file);
+      expect(
+        src,
+        `${file} no longer narrows mailbox_mapping.status through MAPPING_LIFECYCLES`,
+      ).toMatch(/MAPPING_LIFECYCLES\.includes\(/);
+    }
+  });
+
+  it('the badge table has a word and a colour for it', () => {
+    // Read as text: this guard lives in scripts/ and the web app is not one of
+    // its dependencies. The shape is stable enough to match — every row of
+    // STATE_TABLE is `name: { key: '…', tone: '…' }`.
+    const chip = read('apps/web/src/components/StateChip.tsx');
+    const lifecycle = /lifecycle: \{([^]*?)\n {2}\},/.exec(chip);
+    expect(lifecycle, 'STATE_TABLE.lifecycle moved or was renamed').not.toBeNull();
+    expect(lifecycle![1]).toMatch(
+      new RegExp(`\\b${LANE}: \\{ key: '[^']+', tone: '[^']+' \\}`),
+    );
+  });
+});
+
+describe('but the DOOR into the lane is deliberately still shut', () => {
+  /**
+   * THIS TEST IS MEANT TO BE EDITED — once, by whoever builds the door.
+   *
+   * Every assertion above says the state EXISTS. This one says nothing may
+   * put a mapping into it yet, and the reason is not technical.
+   * ADR-0014's 2026-09-10 amendment attached a price to the lane: a
+   * continuous path holds a capacity slot for as long as it runs, and
+   * therefore *before somebody enters the lane they must be told that their
+   * bill does not stop at cutover*. That sentence is 0117 T5's and is the
+   * owner's to write.
+   *
+   * A `PATCH /api/migrations/:id` that quietly admitted `continuous` would be
+   * the door opening without it — one word in a `z.enum`, invisible in
+   * review. So the omission is pinned rather than left to be noticed.
+   *
+   * When the door is built: widen the enum, and replace this test with one
+   * that asserts the customer is told. Do not simply delete it.
+   */
+  it('the status a PATCH may set is four of the five, and continuous is the one left out', () => {
+    const routes = read('apps/api/src/routes/migrations/index.ts');
+    const enumLine = /status: z\.enum\(\[([^\]]*)\]\)/.exec(routes);
+    expect(enumLine, 'the mapping status z.enum moved or was renamed').not.toBeNull();
+    const admitted = [...enumLine![1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!);
+    expect(admitted.sort()).toEqual(['active', 'cutover', 'done', 'paused']);
+    expect(admitted).not.toContain(LANE);
   });
 });

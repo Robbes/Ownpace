@@ -70,6 +70,7 @@ const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey> = {
   active: 'finish.note.active',
   cutover: 'finish.note.cutover',
   done: 'finish.note.done',
+  continuous: 'finish.note.continuous',
 };
 
 /** One line of the checklist. `done` is what the tool can verify itself. */
