@@ -71,11 +71,23 @@ twenty-four hour lockout of their live account.
 `finishRun`'s stats, and the run still closes `succeeded`, because 0090 T4's
 rule is that a scheduled stop is not a failure.
 
+**And the shape was wrong once, which is the fourth time this plan has recorded
+it.** `TargetBudget` was `{ meter, rate? }` first — the meter carrying the
+`(tenant, provider)` key, the way `DownloadMeter` does. Starting slice 7 found
+what that costs: **a target with no published byte ceiling then gets no RATE
+limiting either**, because there is no meter to hang the key on. That is every
+target this product writes to — a ceiling is a number somebody published, and
+the only one we know is Gmail's IMAP download limit, which belongs to a SOURCE.
+So the shape switched off the half of D9 that actually bites, on every
+deployment, while looking wired. The key is now the carrier and both budgets
+hang off it. Same lesson as #915 and #916, one layer up: the consumer found it,
+nothing else could have.
+
 Guard: `a-budget-the-confirmation-shares.unit.test.ts`, against a real database
 — whether the un-asked rows keep their NULL answer is a fact about the `item`
-table. **Nine mutations, all caught.** The fifth was missed on the first run and
-is the one that added the test above: with the domain-loop's own break removed,
-a domain that spends nothing runs on past the pause, and nothing else noticed.
+table. **Ten mutations, all caught.** Two of them are only there because
+something was missed: B5 (a domain that spends nothing runs on past the pause,
+which nothing else noticed) and B10 (the key hanging off the meter, above).
 
 **Not the route yet.** D9 said the budget lands *with* the route that starts a
 pass, and the route is the next slice; the budget is here first because its

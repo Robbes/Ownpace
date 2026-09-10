@@ -234,7 +234,7 @@ describe('what a confirmation spends', () => {
     const reader = await readerOverTarget({
       domain: 'email',
       reindexer: targetOf(4, { sizeBytes: 2_048 }),
-      budget: { meter },
+      budget: { tenantId: TENANT, provider: PROVIDER, meter: meter.budget },
     });
 
     await runConfirmationPass({
@@ -262,7 +262,7 @@ describe('what a confirmation spends', () => {
     const reader = await readerOverTarget({
       domain: 'email',
       reindexer: targetOf(3),
-      budget: { meter },
+      budget: { tenantId: TENANT, provider: PROVIDER, meter: meter.budget },
     });
 
     await runConfirmationPass({
@@ -290,7 +290,7 @@ describe('what a confirmation spends', () => {
     const reader = await readerOverTarget({
       domain: 'email',
       reindexer: targetOf(2, { sizeBytes: 10 }),
-      budget: { meter, rate },
+      budget: { tenantId: TENANT, provider: PROVIDER, meter: meter.budget, rate },
     });
 
     await runConfirmationPass({
@@ -304,6 +304,40 @@ describe('what a confirmation spends', () => {
     });
 
     // One for the listing, one per body read.
+    expect(rate.keys).toEqual([
+      `${TENANT}:${PROVIDER}`,
+      `${TENANT}:${PROVIDER}`,
+      `${TENANT}:${PROVIDER}`,
+    ]);
+  });
+
+  it('still waits for a rate token when no byte ceiling is known', async () => {
+    // The regression this file's shape exists to prevent, found by building the
+    // caller. `TargetBudget` was `{ meter, rate? }` first, the meter carrying
+    // the `(tenant, provider)` key the way `DownloadMeter` does — so a target
+    // with no published ceiling got no RATE limiting either. That is EVERY
+    // target this product writes to: a ceiling is a number somebody published
+    // and the only one we know is Gmail's IMAP download limit, which belongs to
+    // a source. The half of D9 that actually bites — a confirmation queueing
+    // behind a migration instead of racing it — would have been off everywhere,
+    // silently, while looking wired.
+    await seedItems(2);
+    const rate = countingRate();
+    const reader = await readerOverTarget({
+      domain: 'email',
+      reindexer: targetOf(2, { sizeBytes: 10 }),
+      budget: { tenantId: TENANT, provider: PROVIDER, rate },
+    });
+
+    await runConfirmationPass({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domains: ['email'],
+      readerFor: () => reader,
+      ledger: store,
+      runs,
+    });
+
     expect(rate.keys).toEqual([
       `${TENANT}:${PROVIDER}`,
       `${TENANT}:${PROVIDER}`,
@@ -342,7 +376,7 @@ describe('what a confirmation spends', () => {
     const reader = await readerOverTarget({
       domain: 'calendar',
       reindexer: targetOf(4, { canHash: false, domain: 'calendar' }),
-      budget: { meter },
+      budget: { tenantId: TENANT, provider: PROVIDER, meter: meter.budget },
     });
 
     await runConfirmationPass({
@@ -367,7 +401,7 @@ describe('a confirmation that runs out of the day’s bytes', () => {
     const reader = await readerOverTarget({
       domain: 'email',
       reindexer: targetOf(7, { sizeBytes: 250 }),
-      budget: { meter },
+      budget: { tenantId: TENANT, provider: PROVIDER, meter: meter.budget },
     });
     return runConfirmationPass({
       tenantId: TENANT,
@@ -427,12 +461,12 @@ describe('a confirmation that runs out of the day’s bytes', () => {
       email: await readerOverTarget({
         domain: 'email',
         reindexer: targetOf(4, { sizeBytes: 250 }),
-        budget: { meter },
+        budget: { tenantId: TENANT, provider: PROVIDER, meter: meter.budget },
       }),
       file: await readerOverTarget({
         domain: 'file',
         reindexer: targetOf(4, { sizeBytes: 250, domain: 'file' }),
-        budget: { meter },
+        budget: { tenantId: TENANT, provider: PROVIDER, meter: meter.budget },
       }),
     };
 
@@ -470,12 +504,12 @@ describe('a confirmation that runs out of the day’s bytes', () => {
       email: await readerOverTarget({
         domain: 'email',
         reindexer: targetOf(2, { sizeBytes: 250 }),
-        budget: { meter },
+        budget: { tenantId: TENANT, provider: PROVIDER, meter: meter.budget },
       }),
       calendar: await readerOverTarget({
         domain: 'calendar',
         reindexer: targetOf(3, { canHash: false, domain: 'calendar' }),
-        budget: { meter },
+        budget: { tenantId: TENANT, provider: PROVIDER, meter: meter.budget },
       }),
     };
 

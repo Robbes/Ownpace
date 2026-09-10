@@ -58,8 +58,8 @@ import {
   fileNaturalKeyHash,
   naturalKeyHash,
   taskNaturalKeyHash,
+  type ByteBudget,
   type DiscoveryDomain,
-  type DownloadMeter,
   type RateBudget,
   type TargetEntry,
   type TargetReindexer,
@@ -84,25 +84,44 @@ const KEY_OF: Readonly<Record<DiscoveryDomain, (naturalKey: string) => string>> 
 };
 
 /**
- * THE TENANT'S BUDGET FOR THE TARGET'S PROVIDER — one carrier, both halves.
+ * THE TENANT'S BUDGET FOR THE TARGET'S PROVIDER — the key, then the two halves.
  *
- * `DownloadMeter` already pairs the byte budget with the `(tenantId, provider)`
- * it is keyed by, *"so no consumer invents its own"*. The rate budget is keyed
- * by exactly the same pair, so it travels beside it rather than being handed a
- * second, hand-copied tenant and provider — which is how one of these came to
- * be keyed by the connector's own label instead of the tenant (0082 T5).
+ * Both budgets are keyed by `(tenant, provider)`, so the key is the carrier and
+ * each budget is optional beside it. That ordering is not tidiness: it was
+ * `{ meter, rate? }` first — the meter carrying the key, the way `DownloadMeter`
+ * does — and building the caller found what that costs. **A target with no
+ * published byte ceiling then gets no RATE limiting either**, because there is
+ * no meter to hang the key on. That is every target this product writes to: a
+ * ceiling is a number somebody published, and the only one we know is Gmail's
+ * IMAP download limit, which belongs to a SOURCE. So the shape would have
+ * switched off the half of D9 that actually bites — the half that makes a
+ * confirmation queue behind a migration instead of racing it — on every
+ * deployment, silently, while looking wired.
  *
- * Both are the SAME instances a migration against that provider uses. That is
- * the whole of D9: not a second allowance, the one allowance, shared.
+ * The key is spelled out here rather than taken from a budget for the reason
+ * 0082 T5 records: `PgRateBudget.acquire` read its tenant from whatever the
+ * caller passed, and every caller passed a label of its own — `dav`, or Entra's
+ * `common` — so one tenant's budget was every tenant's.
+ *
+ * Whatever is supplied is the SAME instance a migration against that provider
+ * uses. That is the whole of D9: not a second allowance, the one allowance,
+ * shared.
  */
 export interface TargetBudget {
-  /** Bytes off the target. Spent here; read as a gate by `confirmation-run`. */
-  readonly meter: DownloadMeter;
+  /** The tenant whose allowance this is. */
+  readonly tenantId: string;
+  /** The target's provider — what a ceiling and a rate both belong to. */
+  readonly provider: string;
   /**
-   * Requests against the target. Optional because a deployment may have none
-   * wired, and an invented ceiling would be this file's own way of making a
-   * confirmation mysteriously slow (`imapDownloadPlan`'s rule, applied here).
+   * Bytes off the target, when a published ceiling exists for this provider.
+   *
+   * Absent is the ordinary case and means *no ceiling is known*, never *no
+   * counting needed* — the same answer `imapDownloadPlan` gives a self-hosted
+   * server, and for the same reason: a cap invented for a server that has none
+   * would be this file's own way of making a confirmation mysteriously slow.
    */
+  readonly meter?: ByteBudget;
+  /** Requests against the target. Absent when a deployment wires none. */
   readonly rate?: RateBudget;
 }
 
@@ -139,10 +158,9 @@ export async function readerOverTarget(args: {
   // uses. `acquire` WAITS rather than refusing (`RateBudget`'s contract): a
   // confirmation that is slow because a migration is running is D9's accepted
   // cost, and a confirmation that FAILS because one is would not be.
-  const meter = args.budget?.meter;
-  const rate = args.budget?.rate;
+  const budget = args.budget;
   const token = async (): Promise<void> => {
-    if (meter && rate) await rate.acquire(meter.tenantId, meter.provider);
+    if (budget?.rate) await budget.rate.acquire(budget.tenantId, budget.provider);
   };
 
   // Captured, not thrown here. Throwing from the build would fail the whole
@@ -197,7 +215,9 @@ export async function readerOverTarget(args: {
             // item counts zero: the meter under-reads, which errs toward
             // finishing the pass rather than toward stopping a migration that
             // had budget left.
-            if (meter) await meter.budget.spend(meter.tenantId, meter.provider, entry.sizeBytes ?? 0);
+            if (budget?.meter) {
+              await budget.meter.spend(budget.tenantId, budget.provider, entry.sizeBytes ?? 0);
+            }
             return hash;
           },
         }
