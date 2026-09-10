@@ -618,3 +618,21 @@ export async function finishMigration(
     throw err;
   }
 }
+
+/**
+ * Enter the continuous lane: keep copying after cutover, delete nothing.
+ *
+ * A PATCH rather than its own verb, because entering the lane IS a change of
+ * the mapping's lifecycle and nothing else — no new object, no job to enqueue,
+ * and the appliance's own `runsPasses` picks the mapping up on the next tick
+ * (0117 T1 slice 2).
+ *
+ * The price is the reason this has a screen rather than being a toggle: a
+ * continuous path holds its capacity slot (ADR-0014, amended 2026-09-10), so
+ * the tier does NOT fall the way finishing makes it fall. `lane.why` says so
+ * where the switch is, and `pricing.md` says it beside "finishing lowers your
+ * bill". This function is the last step of that telling, not the whole of it.
+ */
+export async function keepCopyingAfterCutover(mappingId: string): Promise<void> {
+  await client.patch(mappingPath(mappingId), { status: 'continuous' });
+}

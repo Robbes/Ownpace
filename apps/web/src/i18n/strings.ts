@@ -1214,6 +1214,27 @@ const en = {
   'finish.step3.failedFramed':
     'The request failed; a pass may still be running, so re-check the queues shortly.',
   'finish.retryButton': 'Try finishing again',
+  // THE DOOR INTO THE CONTINUOUS LANE (workplan 0117 T1 slice 3), and the
+  // sentence that had to exist before it (T5, owner's words 2026-09-10).
+  //
+  // `holdsASlot` returns true for `continuous` (D6): a path that keeps copying
+  // keeps its capacity slot, so the tier does NOT fall the way finishing makes
+  // it fall. The pricing page says the same thing in the same breath as
+  // "finishing lowers your bill", because somebody who believes the price ends
+  // when the migration ends and finds a tier still charging has a fair
+  // complaint. `.why` is unbudgeted (0118) and carries the whole of it.
+  'lane.title': 'Keep copying after cutover',
+  'lane.intro': 'The old account keeps feeding the new one, and nothing is deleted.',
+  'lane.why':
+    'Your tier will not fall while this runs: the path keeps its slot until you end it, ' +
+    'the same as a migration that has not finished. Deletions at the old provider stop ' +
+    'being mirrored — anything you remove there stays in your new home. We will not bill ' +
+    'past twelve months without asking you again.',
+  'lane.start': 'Keep copying',
+  'lane.confirm': 'Keep copying, and keep the tier',
+  'lane.cancel': 'Not now',
+  'lane.running': 'Still copying. End it whenever you like.',
+  'lane.failed': 'Could not switch it on.',
   'finish.aftermath.title': 'What remains available',
   'finish.aftermath.verify': 'Verification report',
   'finish.aftermath.runs': 'Run history (on the migration page)',
@@ -2702,6 +2723,18 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step3.failedFramed':
     'Het verzoek is mislukt; mogelijk loopt er nog een ronde, controleer de wachtrijen straks opnieuw.',
   'finish.retryButton': 'Probeer opnieuw af te ronden',
+  'lane.title': 'Blijven kopiëren na de overstap',
+  'lane.intro': 'Het oude account blijft het nieuwe voeden en er wordt niets verwijderd.',
+  'lane.why':
+    'Uw tarief daalt niet zolang dit loopt: het pad houdt zijn plek tot u het beëindigt, ' +
+    'net als een migratie die nog niet klaar is. Verwijderingen bij de oude aanbieder ' +
+    'worden niet meer gespiegeld — wat u daar weghaalt blijft in uw nieuwe huis staan. ' +
+    'We factureren niet langer dan twaalf maanden zonder het opnieuw te vragen.',
+  'lane.start': 'Blijven kopiëren',
+  'lane.confirm': 'Blijven kopiëren, tarief blijft',
+  'lane.cancel': 'Nu niet',
+  'lane.running': 'Kopieert nog. U kunt het altijd beëindigen.',
+  'lane.failed': 'Kon dit niet inschakelen.',
   'finish.aftermath.title': 'Wat beschikbaar blijft',
   'finish.aftermath.verify': 'Verificatierapport',
   'finish.aftermath.runs': 'Uitvoeringsgeschiedenis (op de migratiepagina)',

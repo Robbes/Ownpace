@@ -202,29 +202,69 @@ describe('and the two surfaces that REFUSE a status they cannot narrow', () => {
 
 describe('but the DOOR into the lane is deliberately still shut', () => {
   /**
-   * THIS TEST IS MEANT TO BE EDITED — once, by whoever builds the door.
+   * THE DOOR IS OPEN, AND THIS IS THE TEST THAT REPLACED THE ONE HOLDING IT
+   * SHUT (2026-09-10).
    *
-   * Every assertion above says the state EXISTS. This one says nothing may
-   * put a mapping into it yet, and the reason is not technical.
-   * ADR-0014's 2026-09-10 amendment attached a price to the lane: a
-   * continuous path holds a capacity slot for as long as it runs, and
-   * therefore *before somebody enters the lane they must be told that their
-   * bill does not stop at cutover*. That sentence is 0117 T5's and is the
-   * owner's to write.
+   * Its predecessor pinned `continuous` OUT of the PATCH enum and said, in as
+   * many words: *when the door is built, widen the enum, and replace this test
+   * with one that asserts the customer is told. Do not simply delete it.* This
+   * is that test.
    *
-   * A `PATCH /api/migrations/:id` that quietly admitted `continuous` would be
-   * the door opening without it — one word in a `z.enum`, invisible in
-   * review. So the omission is pinned rather than left to be noticed.
+   * The condition was never technical. ADR-0014's amendment gives entering the
+   * lane a price — a continuous path holds its capacity slot (D6), so the tier
+   * does NOT fall the way finishing makes it fall — and somebody who believes
+   * the price ends when the migration ends and finds a tier still charging has
+   * a fair complaint. So the telling has to exist in both places a person could
+   * meet the fact, and neither may quietly go missing:
    *
-   * When the door is built: widen the enum, and replace this test with one
-   * that asserts the customer is told. Do not simply delete it.
+   *   - **the pricing page**, in the same breath as "finishing lowers your
+   *     bill", because a correction three paragraphs later is not a correction;
+   *   - **the screen that offers the switch**, because that is where the act
+   *     happens and most people never read a pricing page twice.
+   *
+   * A widened enum with either of those gone is the door opening without the
+   * sentence, which is exactly what the old test existed to prevent.
    */
-  it('the status a PATCH may set is four of the five, and continuous is the one left out', () => {
+  it('admits continuous, now that the price is said where the switch is', () => {
     const routes = read('apps/api/src/routes/migrations/index.ts');
     const enumLine = /status: z\.enum\(\[([^\]]*)\]\)/.exec(routes);
     expect(enumLine, 'the mapping status z.enum moved or was renamed').not.toBeNull();
     const admitted = [...enumLine![1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!);
-    expect(admitted.sort()).toEqual(['active', 'cutover', 'done', 'paused']);
-    expect(admitted).not.toContain(LANE);
+    expect(admitted).toContain(LANE);
+    expect(admitted.sort()).toEqual(['active', 'continuous', 'cutover', 'done', 'paused']);
+  });
+
+  it('says on the screen that offers it that the tier does not fall', () => {
+    // The words themselves, not merely a key: a `lane.why` that had been
+    // emptied or reworded past the point of saying it would satisfy a
+    // key-exists check and tell nobody anything.
+    const strings = read('apps/web/src/i18n/strings.ts');
+    const why = /'lane\.why':\s*([\s\S]*?),\n\s*'lane\.start'/.exec(strings);
+    expect(why, 'lane.why is gone — the screen no longer says what entering costs').not.toBeNull();
+    expect(why![1]!).toMatch(/tier will not fall/);
+    expect(why![1]!).toMatch(/slot/);
+  });
+
+  it('says it on the pricing page too, beside the promise it qualifies', () => {
+    const pricing = read('site/pages/en/pricing.md');
+    const finishing = pricing.indexOf('Finishing lowers your bill');
+    expect(finishing, 'the paragraph this one qualifies is gone').toBeGreaterThan(-1);
+    const unless = pricing.indexOf('Unless you ask us to keep copying');
+    expect(unless, 'the pricing page no longer says the lane keeps counting').toBeGreaterThan(-1);
+    // BESIDE it, not in a footnote. Three paragraphs is the width of the
+    // "parts worth knowing" list; further than that and a reader has met the
+    // promise and moved on before meeting the exception.
+    const between = pricing.slice(finishing, unless).split('\n\n').length;
+    expect(between, 'the exception drifted away from the promise it qualifies').toBeLessThan(4);
+  });
+
+  it('offers the switch only where a migration has ended', () => {
+    // `cutover` and `done` are the two states the lane is entered from (§4A).
+    // Offering it on an `active` migration would be offering something that is
+    // already happening, which is how a person ends up in a priced state
+    // believing they changed nothing.
+    const finish = read('apps/web/src/pages/Finish.tsx');
+    expect(finish).toMatch(/m\.lifecycle === 'cutover' \|\| m\.lifecycle === 'done'/);
+    expect(finish).toMatch(/lane\.why/);
   });
 });

@@ -41,6 +41,7 @@ import {
   fetchStatus,
   fetchVerifyReport,
   finishMigration,
+  keepCopyingAfterCutover,
   requestFinalPass,
   FinishRefusedError,
 } from '../services/operating-service.ts';
@@ -147,6 +148,33 @@ const Finish: React.FC = () => {
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
+
+  // THE DOOR INTO THE CONTINUOUS LANE (workplan 0117 T1 slice 3).
+  //
+  // Two presses, not one. The first opens the sentence; the second acts. That
+  // is not friction for its own sake: ADR-0014's amendment gives this act a
+  // price — a continuous path keeps its capacity slot, so the tier does not
+  // fall the way finishing makes it fall — and the whole condition on building
+  // this door was that somebody is TOLD before they enter. A single button with
+  // the explanation beside it would let a fast reader enter without meeting it.
+  const [laneAsked, setLaneAsked] = React.useState<Record<string, boolean>>({});
+  const [laneState, setLaneState] = React.useState<Record<string, 'pending' | 'failed'>>({});
+
+  const keepCopying = (mappingId: string) => {
+    setLaneState((l) => ({ ...l, [mappingId]: 'pending' }));
+    void keepCopyingAfterCutover(mappingId)
+      .then(() => {
+        setLaneAsked((a) => ({ ...a, [mappingId]: false }));
+        setLaneState((l) => {
+          const { [mappingId]: _gone, ...rest } = l;
+          return rest;
+        });
+        void queryClient.invalidateQueries();
+      })
+      .catch(() => {
+        setLaneState((l) => ({ ...l, [mappingId]: 'failed' }));
+      });
+  };
 
   const finish = (mappingId: string, force: boolean) => {
     setOutcomes((o) => ({ ...o, [mappingId]: { state: 'pending' } }));
@@ -335,6 +363,53 @@ const Finish: React.FC = () => {
                   </ul>
                 </div>
               </div>
+            )}
+
+            {/* THE LANE, offered where a migration ends and only there.
+                `cutover` and `done` are the two states it is entered from
+                (0117 §4A); an `active` migration has not finished, so "keep
+                copying after cutover" would be offering something that is
+                already happening. */}
+            {(m.lifecycle === 'cutover' || m.lifecycle === 'done') && (
+              <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded">
+                <p className="text-sm font-medium text-gray-900">{t('lane.title')}</p>
+                <Hint text={t('lane.intro')} why={t('lane.why')} tone="body" open={laneAsked[id]} />
+                {laneState[id] === 'failed' && (
+                  <p className="mt-2 text-sm text-amber-800">{t('lane.failed')}</p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {laneAsked[id] ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={laneState[id] === 'pending'}
+                        onClick={() => keepCopying(id)}
+                        className="px-3 py-1.5 text-sm rounded bg-blue-700 text-white disabled:opacity-50"
+                      >
+                        {t('lane.confirm')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLaneAsked((a) => ({ ...a, [id]: false }))}
+                        className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700"
+                      >
+                        {t('lane.cancel')}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setLaneAsked((a) => ({ ...a, [id]: true }))}
+                      className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700"
+                    >
+                      {t('lane.start')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            {m.lifecycle === 'continuous' && (
+              <p className="mt-3 text-sm text-gray-600">{t('lane.running')}</p>
             )}
 
             {!finishable ? null : outcome?.state === 'done' ? (
