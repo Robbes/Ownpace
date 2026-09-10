@@ -76,6 +76,7 @@ import type {
 } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth.ts';
 import { getTriggerClient } from '@openmig/scheduler';
+import { resolveConfirmationJob } from './job-resolution.ts';
 import {
   NOT_CUT_OVER_REASON,
   applyAllOpenShareGrants,
@@ -1507,5 +1508,76 @@ router.patch(
     }
   },
 );
+
+/**
+ * Start a confirmation pass (workplan 0117 T2, slice 7 — D7(a)).
+ *
+ * > *"confirm every item by re-reading it from the target... offered as a job
+ * > the person starts and we report on rather than a wait before the list
+ * > appears."*
+ *
+ * The same start-and-poll pair as `verify/start`, and here the async shape is
+ * not a preference: a pass re-reads every item's BYTES off the target, so a
+ * synchronous version would hold connector credentials and minutes of network
+ * work in an HTTP thread — the exact gap this file's header says the managed
+ * edition keeps out of the API (ADR-0026).
+ *
+ * The run row is opened by the WORKER, not here, because `runConfirmationPass`
+ * owns the rule that a run row always closes (0120). Nothing in this route can
+ * leave a row claiming `running` that no job is behind, since it never writes
+ * one.
+ *
+ * **Its own concurrency key, sharing the tenant's budget.** A confirmation
+ * queued behind every sync would be serialised with them, which is stronger
+ * than D9 asks; D9 makes them contend for the PROVIDER's allowance, not for a
+ * queue slot. So the key is this mapping's confirmation lane, and the
+ * contention that D9 wants happens where it belongs — in the rate budget the
+ * worker shares with the migration.
+ */
+router.post('/:mappingId/confirm', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const s = await scope(req, res);
+    if (!s) return;
+
+    // Joined, not stacked — the same idempotent-action shape `verify/start`
+    // and `POST .../start` use. A second pass over the same account would pay
+    // for every byte twice to answer a question already being answered.
+    const running = await withTenantDb(s.tenantId, pool(), (db) =>
+      db
+        .select({ id: schema.run.id, startedAt: schema.run.startedAt })
+        .from(schema.run)
+        .where(
+          and(
+            eq(schema.run.tenantId, s.tenantId),
+            eq(schema.run.mappingId, s.mappingId),
+            eq(schema.run.kind, 'confirm'),
+            eq(schema.run.status, 'running'),
+          ),
+        )
+        .orderBy(desc(schema.run.startedAt))
+        .limit(1),
+    );
+    if (running[0]) {
+      return void res.status(200).json({ started: false, runId: running[0].id });
+    }
+
+    try {
+      const { taskId, payload } = resolveConfirmationJob(s.tenantId, s.mappingId);
+      const run = await getTriggerClient().tasks.trigger(taskId, payload, {
+        tags: [`tenant:${s.tenantId}`, `mapping:${s.mappingId}`],
+        concurrencyKey: `confirm:${s.mappingId}`,
+      });
+      res.status(202).json({ started: true, jobRunId: run.id });
+    } catch (err) {
+      // Nothing to unwind: this route wrote no row. Say the start did not
+      // happen rather than leaving the page to poll for a pass nobody queued.
+      const message = err instanceof Error ? err.message : String(err);
+      log.error(`[api] ${s.mappingId}: could not enqueue run-confirmation:`, err);
+      res.status(502).json({ error: 'Could not start the confirmation', message });
+    }
+  } catch (error) {
+    serverError(res, 'confirm_start_failed', 'starting the confirmation', error);
+  }
+});
 
 export default router;

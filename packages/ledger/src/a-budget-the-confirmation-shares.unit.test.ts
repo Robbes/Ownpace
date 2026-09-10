@@ -393,6 +393,45 @@ describe('what a confirmation spends', () => {
   });
 });
 
+describe('paging across scopes', () => {
+  it('resumes after a given id, so a caller can page outside one transaction', async () => {
+    // The worker cannot stream a whole account from ONE `withTenant`: that is a
+    // transaction, and a pass over a family-sized account runs for minutes. So
+    // it takes a page per scope and hands the last id back — which is only
+    // possible if the resume point is an argument.
+    //
+    // It was not one at first, and the worker passed `after` anyway: an extra
+    // property on a spread, which TypeScript does not flag. Every page then
+    // started from the beginning — the same rows, for ever, on a job with no
+    // natural end.
+    await seedItems(6);
+    const firstPage: string[] = [];
+    for await (const row of store.itemsToConfirm({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domain: 'email',
+      batch: 2,
+    })) {
+      firstPage.push(row.itemId);
+      if (firstPage.length === 2) break;
+    }
+
+    const rest: string[] = [];
+    for await (const row of store.itemsToConfirm({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domain: 'email',
+      after: firstPage[1]!,
+    })) {
+      rest.push(row.itemId);
+    }
+
+    expect(rest).toHaveLength(4);
+    expect(rest).not.toContain(firstPage[0]);
+    expect(rest).not.toContain(firstPage[1]);
+  });
+});
+
 describe('a confirmation that runs out of the day’s bytes', () => {
   /** Seven items, each a fifth of a ceiling that only fits four of them. */
   const runUntilEmpty = async (): ReturnType<typeof runConfirmationPass> => {

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { resolveSyncJob, resolveCutoverJob } from './job-resolution.ts';
+import { resolveSyncJob, resolveCutoverJob, resolveConfirmationJob } from './job-resolution.ts';
 
 const TENANT = '00000000-0000-4000-8000-000000000001';
 const MAPPING = '11111111-1111-4111-8111-111111111111';
@@ -83,5 +83,25 @@ describe('resolveCutoverJob', () => {
     // does not exist in this repo.
     const { payload } = resolveCutoverJob(TENANT, MAPPING, {});
     expect(payload.options).not.toHaveProperty('gracePeriodHours');
+  });
+});
+
+describe('resolveConfirmationJob', () => {
+  it('carries ids and nothing else', () => {
+    expect(resolveConfirmationJob(TENANT, MAPPING)).toEqual({
+      taskId: 'run-confirmation',
+      payload: { tenantId: TENANT, mappingId: MAPPING },
+    });
+  });
+
+  it('names NO domains — the job reads the mapping\'s own scope', () => {
+    // The same rule `resolveSyncJob` states: a payload that named domains
+    // would let a stale copy of the scope confirm one the owner had switched
+    // off. It matters more here, because a confirmed list is the document
+    // somebody deletes their originals on the strength of — a domain
+    // confirmed that nobody migrates is a row claiming to be about their
+    // account.
+    const { payload } = resolveConfirmationJob(TENANT, MAPPING);
+    expect(Object.keys(payload).sort()).toEqual(['mappingId', 'tenantId']);
   });
 });
