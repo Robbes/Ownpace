@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 120 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 121 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -651,10 +651,12 @@ reading a file drops off its entry by itself.
 
 ### `packages/connectors/src/archive-file-source.ts`
 
+- [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/connectors/src/box-file-source.ts`
 
+- [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/connectors/src/carddav-source.ts`
@@ -663,10 +665,12 @@ reading a file drops off its entry by itself.
 
 ### `packages/connectors/src/dropbox-file-source.ts`
 
+- [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/connectors/src/google-drive-source.ts`
 
+- [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/connectors/src/google-token-provider.ts`
@@ -683,6 +687,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/connectors/src/graph-drive-source.ts`
 
+- [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
 - [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
@@ -702,6 +707,10 @@ reading a file drops off its entry by itself.
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
+
+### `packages/core/src/domain-sync.ts`
+
+- [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
 
 ### `packages/core/src/verification.ts`
 
@@ -843,6 +852,10 @@ reading a file drops off its entry by itself.
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `packages/shared/src/file.ts`
+
+- [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
 
 ### `packages/shared/src/front-door.ts`
 
@@ -1382,6 +1395,20 @@ Reads:
 - `apps/api/src/routes/migrations/google-consent.unit.test.ts`
 - `apps/web/src/i18n/probe-text.unit.test.tsx`
 - `packages/shared/src/qualification-gate.ts`
+
+### [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts)
+
+`FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
+
+Reads:
+
+- `packages/connectors/src/archive-file-source.ts`
+- `packages/connectors/src/box-file-source.ts`
+- `packages/connectors/src/dropbox-file-source.ts`
+- `packages/connectors/src/google-drive-source.ts`
+- `packages/connectors/src/graph-drive-source.ts`
+- `packages/core/src/domain-sync.ts`
+- `packages/shared/src/file.ts`
 
 ### [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts)
 

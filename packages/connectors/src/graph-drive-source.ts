@@ -345,7 +345,13 @@ export class GraphDriveSource implements FileSource {
             path: naturalKey,
             isDirectory: false,
             size: item.size || 0,
-            contentHash: changeHash, // Use quickXorHash as content hash for change detection
+            // `quickXorHash` when Graph publishes one, and otherwise the
+            // item's `cTag` — which is a CHANGE TOKEN, not a hash of anything.
+            // Either way NOT for change detection, whatever this comment said
+            // until 2026-09-09: `classifyKnownItem` decides on `sourceVersion`
+            // and never on a hash, and neither value is comparable with the
+            // SHA-256 the ledger stores. See `FileItem.contentHash`.
+            contentHash: changeHash,
             modifiedAt: item.lastModifiedDateTime,
             mimeType: item.file?.mimeType,
             sourceRef: item.id,
