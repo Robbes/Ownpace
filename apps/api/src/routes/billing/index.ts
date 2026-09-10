@@ -19,6 +19,7 @@ import { getMollieService } from '../../services/mollie/index.ts';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import {
   getUsageMetricsForPeriod,
+  monthPeriod,
   resolveTenantPricing,
   parseVatForVies,
   checkVat,
@@ -195,8 +196,17 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
       return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
     }
     
-    const periodStart = new Date().toISOString().slice(0, 7) + '-01'; // First day of current month
-    const periodEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10); // Last day of current month
+    // `toISOString` so this is the UTC month — the one
+    // `PgOccupancyPeakStore.forMonth` looks the peak up under below, and the
+    // one `occupancy_peak.month` is documented to hold. Both period dates then
+    // come from `monthPeriod`, which `/usage/history` also uses.
+    //
+    // The last day of the month was built here from `getFullYear()`/
+    // `getMonth()` until 2026-09-09 — the server's LOCAL clock — which east of
+    // Greenwich named the second-to-last day of the month as its last. See
+    // `monthPeriod` for what that cost.
+    const period = new Date().toISOString().slice(0, 7); // YYYY-MM, UTC
+    const { periodStart, periodEnd } = monthPeriod(period);
 
     // What was MEASURED this month, and the tier that measurement puts this
     // tenant in. Every read here is READ-ONLY on purpose: `currentTier` trues
@@ -228,7 +238,7 @@ router.get('/usage', authenticate, requireBillingRead, async (req: Authenticated
     // its own, which is why it survived: the defect existed only between them.
     const usage = {
       tenantId,
-      period: periodStart.slice(0, 7), // YYYY-MM
+      period,
       storageUsedGB: metrics.storageBytes / BYTES_PER_GB,
       egressGB: metrics.egressBytes / BYTES_PER_GB,
       computeHours: metrics.computeHours,
@@ -304,14 +314,23 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
      * The months are taken from the run ledger, which is the record of when
      * this tenant actually ran. A month with passes in it is a month worth a
      * row; a month with none is not history, it is silence.
+     *
+     * `AT TIME ZONE 'UTC'` on all three expressions, because `created_at` is a
+     * `timestamptz` and `to_char` renders one in the SESSION's timezone, which
+     * nothing here sets. On a server in Amsterdam a run at 2026-09-30T23:30Z
+     * was named `2026-10`, while `monthPeriod('2026-10')` asks for
+     * `[Oct 1, Nov 1)` in UTC — which that run is not in. The month named it
+     * and the window excluded it, so a September with passes in it came back
+     * as a row of zeroes, or as no row at all. The grouping and the window
+     * have to mean the same month.
      */
     const { months, issued } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
       months: await db
-        .select({ month: sql<string>`to_char(${runTable.createdAt}, 'YYYY-MM')` })
+        .select({ month: sql<string>`to_char(${runTable.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM')` })
         .from(runTable)
         .where(eq(runTable.tenantId, tenantId))
-        .groupBy(sql`to_char(${runTable.createdAt}, 'YYYY-MM')`)
-        .orderBy(sql`to_char(${runTable.createdAt}, 'YYYY-MM') DESC`),
+        .groupBy(sql`to_char(${runTable.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM')`)
+        .orderBy(sql`to_char(${runTable.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM') DESC`),
       /**
        * The months the run ledger can no longer answer for (0121 §4b).
        *
@@ -341,12 +360,9 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
 
     const usageHistory: UsageHistoryRow[] = [];
     for (const { month } of months) {
-      const [year, mon] = month.split('-').map(Number);
-      if (!year || !mon) continue;
-      const periodStart = `${month}-01`;
-      // Day 0 of the NEXT month is the last day of this one, in UTC so the
-      // boundary does not move with the server's timezone.
-      const periodEnd = new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10);
+      // The same helper `/usage` above uses, so the two screens cannot name
+      // different days as one month's last.
+      const { periodStart, periodEnd } = monthPeriod(month);
 
       const usage = await withTenantDb(tenantId, getSharedPool(), (db) =>
         getUsageMetricsForPeriod(db, asTenantId(tenantId), periodStart, periodEnd),
