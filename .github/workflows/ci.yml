@@ -198,6 +198,36 @@ jobs:
             exit 1
           fi
           echo "No case collisions found."
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Generated docs match the tree that generates them
+        # HERE rather than only in `unit-tests`, and the distinction cost a red
+        # main on 2026-09-10.
+        #
+        # `docs/LESSONS.md` and `docs/adr/OPERATIVE.md` are GENERATED, and
+        # generated from the WHOLE TREE — the guards in `scripts/`, the ADRs in
+        # `docs/adr/`. `scripts/lessons.unit.test.ts` already runs the same
+        # check, but it lives in `unit-tests`, which `detect-changes` skips on
+        # a docs-only change. That leaves two holes and both are real:
+        #
+        #  1. A docs-only PR that edits a generated file by hand merges with
+        #     the check that would have caught it skipped.
+        #  2. A PR that FIXES one of these files is docs-only by nature, so
+        #     its fix cannot be verified before it lands — which is exactly
+        #     what this job was added for.
+        #
+        # This job has no `needs: detect-changes` and is documented as "quality
+        # gate for all changes (incl. docs-only)", so it is the right home.
+        # Cheap: both generators are plain node, no install, no containers.
+        #
+        # Neither is ever hand-merged or hand-edited. Regenerate:
+        #   node scripts/lessons.mjs --write
+        #   pnpm adr:operative
+        run: |
+          set -e
+          node scripts/lessons.mjs --check
+          node scripts/adr-operative.mjs --check
 
   fixture-uuid-check:
     name: fixture-uuid-check
