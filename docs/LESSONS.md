@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 119 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 121 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -94,7 +94,9 @@ reading a file drops off its entry by itself.
 
 ### `apps/api/src/routes/billing/index.ts`
 
+- [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
+- [half-the-array-was-a-recomputation](../scripts/half-the-array-was-a-recomputation.unit.test.ts) — `GET /api/billing/usage/history` returned one array whose two halves meant different things by `cost` (workplan 0121 T4 follow-up; 0109 T5's neighbour).
 
 ### `apps/api/src/routes/billing/no-bill-we-do-not-sell.ts`
 
@@ -185,6 +187,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/services/usage-history.ts`
 
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
+- [half-the-array-was-a-recomputation](../scripts/half-the-array-was-a-recomputation.unit.test.ts) — `GET /api/billing/usage/history` returned one array whose two halves meant different things by `cost` (workplan 0121 T4 follow-up; 0109 T5's neighbour).
 
 ### `apps/selfhost/src/index.ts`
 
@@ -743,6 +746,19 @@ reading a file drops off its entry by itself.
 
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 
+### `packages/managed/migrations/0015_the_month_remembers_its_peak.sql`
+
+- [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
+- [half-the-array-was-a-recomputation](../scripts/half-the-array-was-a-recomputation.unit.test.ts) — `GET /api/billing/usage/history` returned one array whose two halves meant different things by `cost` (workplan 0121 T4 follow-up; 0109 T5's neighbour).
+
+### `packages/managed/migrations/0016_the_meter_counts_the_first_copy.sql`
+
+- [half-the-array-was-a-recomputation](../scripts/half-the-array-was-a-recomputation.unit.test.ts) — `GET /api/billing/usage/history` returned one array whose two halves meant different things by `cost` (workplan 0121 T4 follow-up; 0109 T5's neighbour).
+
+### `packages/managed/src/occupancy-peak.ts`
+
+- [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
+
 ### `packages/managed/src/pricing.ts`
 
 - [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
@@ -762,6 +778,7 @@ reading a file drops off its entry by itself.
 ### `packages/managed/src/usage-metering.ts`
 
 - [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
+- [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
 
 ### `packages/orchestration/src/account-qualification.ts`
 
@@ -1000,6 +1017,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/lessons.mjs`
 
+- [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
 ### `scripts/local-pg.sh`
@@ -1434,6 +1452,18 @@ Reads:
 - `packages/ledger/src/retention.ts`
 - `packages/managed/src/usage-metering.integration.test.ts`
 - `packages/managed/src/usage-metering.ts`
+
+### [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts)
+
+FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
+
+Reads:
+
+- `apps/api/src/routes/billing/index.ts`
+- `packages/managed/migrations/0015_the_month_remembers_its_peak.sql`
+- `packages/managed/src/occupancy-peak.ts`
+- `packages/managed/src/usage-metering.ts`
+- `scripts/lessons.mjs`
 
 ### [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts)
 
@@ -1923,6 +1953,17 @@ Reads:
 
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/smoke-managed.sh`
+
+### [half-the-array-was-a-recomputation](../scripts/half-the-array-was-a-recomputation.unit.test.ts)
+
+`GET /api/billing/usage/history` returned one array whose two halves meant different things by `cost` (workplan 0121 T4 follow-up; 0109 T5's neighbour).
+
+Reads:
+
+- `apps/api/src/routes/billing/index.ts`
+- `apps/api/src/services/usage-history.ts`
+- `packages/managed/migrations/0015_the_month_remembers_its_peak.sql`
+- `packages/managed/migrations/0016_the_meter_counts_the_first_copy.sql`
 
 ### [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts)
 
