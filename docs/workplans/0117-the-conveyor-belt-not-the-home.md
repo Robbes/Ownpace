@@ -34,6 +34,55 @@ bug restored verbatim.
 each internally consistent and separately guarded. Neither guard could see them, because
 neither slice was wrong. What found them was trying to use the two together.
 
+**2026-09-10, later again: T2 SLICE 4 — the job runs, and a second seam did not
+fit either.** `runConfirmationPass` drives it: ledger rows in, `confirmEach` over
+them, findings recorded, run row closed. It performs no provider I/O itself — the
+`ConfirmationReader` is handed in, which is what lets it be tested against a real
+database with a fake target, and leaves the adapter over the real connectors to
+be built per domain.
+
+**Three rules, each a way the list could lie.** The run row ALWAYS closes (0120):
+a person who pressed a button is owed an answer, and "still going" three days
+later is not one. Only a CONSULTED finding is recorded, so a waived status keeps
+its NULL — #915's rule, and this is its first real caller. And what was confirmed
+before a failure STAYS confirmed: fifty thousand answers already written are
+fifty thousand real answers.
+
+**The seam again, and this one had no consumer at all.** `confirmEach` yielded
+`{ naturalKeyHash, …finding }`. The recorder writes against the LEDGER's id, and
+`naturalKeyHash` is not it — so the only consumer that was ever going to exist
+could not use it, and its only callers were its own tests. It is now generic:
+the caller's row travels through and comes back beside the finding. That is the
+second time in two slices a helper and its consumer did not fit, and both times
+the helper was built first and looked complete.
+
+**A property that was nearly asserted backwards.** The first draft of the guard
+tested "a pass that dies" by making the TARGET throw. It does not die:
+`answerFor` catches everything the reader throws and calls it `unreachable`
+(slice 2's first rule, and why `unchecked` exists). A flaky provider produces
+honest rows, not a failed job — and a later change that made a throwing target
+fail the run would turn one bad afternoon into a job somebody has to start again
+from nothing. What actually kills a pass is the LEDGER going away, and that is
+what the guard now makes fail.
+
+**The items stream in keyset pages**, ordered by `id` — not `LIMIT/OFFSET`,
+which re-walks what it skipped and gets slower the further it gets, and not one
+big `SELECT`, which exhausts memory on exactly the family file account D7(a)
+authorised. Ordered by `id` rather than anything recognisable because the order
+only has to be STABLE: `natural_key` is not unique across collections, and a page
+boundary on a non-unique column silently drops or repeats rows.
+
+Guard: `a-job-the-person-starts.unit.test.ts` on PGlite — real database, fake
+target, which is the right way round. **Eight mutations, all caught**: a waived
+item recorded anyway; the run row left running; a domain with no reader silently
+counted; the pass arriving on a schedule rather than a press; the tally never
+reaching the row; the stream stopping after one page; the stream repeating rows
+(caught as a hang — that mutation never terminates); the stream ignoring its
+domain.
+
+**Still missing: the route and the list.** Nothing calls this yet, and there is
+no adapter from a real target to `ConfirmationReader`. Both are the next slice.
+
 **2026-09-10, later still: T2 SLICE 3 — the findings land, and what lands is
 EVIDENCE.** Migration 0045 gives the pass somewhere to write: `item.confirmed_answer`
 (five values, the ones `TargetAnswer` can distinguish), `confirmed_at`, and
@@ -274,7 +323,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | 🔨 **Vocabulary built 2026-09-10** (ledger migration 0044, `holdsASlot`, `isAfterCutover`, ADR-0014 amended). Nothing can enter or run the lane yet — the tick and the door are the next two slices | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
-| T2 The confirmed list | 🔨 **Slices 1, 2 and 3 built 2026-09-10**: `confirmed-list.ts` — what a row may claim — then `confirmation-pass.ts`, the machinery that produces them, then migration 0045 and `ConfirmationStore`, where the findings land. Building the pass found an **eighth** row state the vocabulary lacked (`unchecked`) and one the pass must never reach for (`missing`) — see §7e. The store writes **evidence, never the derived word**, for exactly that reason. Next: the job the person starts, and the list itself | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
+| T2 The confirmed list | 🔨 **Slices 1–4 built 2026-09-10**: `confirmed-list.ts` (what a row may claim), `confirmation-pass.ts` (the machinery), migration 0045 + `ConfirmationStore` (where findings land), `confirmation-run.ts` (the job that runs it). Two seams did not fit when connected — the evidence was dropped between pass and store (#915), and `confirmEach` could not reach the recorder — and both helpers had been built first and looked complete. Next: an adapter from a real target to `ConfirmationReader`, the route, and the list itself | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The live item now** | The drain's consent (D5) defers with T3. What T1 and T2 need is smaller and real, and D4 added to it: a person must be told that a mapping keeps copying after cutover (continued access to a system they think they have left), that deletions at the source are **no longer mirrored** and why, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |

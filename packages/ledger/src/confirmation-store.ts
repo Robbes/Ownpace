@@ -35,7 +35,7 @@ import {
   type TargetAnswer,
   type TenantId,
 } from '@openmig/shared';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, gt } from 'drizzle-orm';
 import type { PgDatabase } from './db.ts';
 import * as schemaPg from './schema-pg.ts';
 
@@ -48,6 +48,21 @@ import * as schemaPg from './schema-pg.ts';
  * `record` is only called for items the pass actually consulted.
  */
 const NOT_CONSULTED: TargetAnswer = { onTarget: false };
+
+/**
+ * One item a pass has to decide about — what the pass needs, plus the id the
+ * recorder writes back to.
+ *
+ * Structurally a `ConfirmableItem` (`@openmig/core`) with `itemId` added. Not
+ * imported from there: the ledger is underneath core, and a package that owns
+ * the rows should not have to depend on the one that reasons about them.
+ */
+export interface ConfirmableRow {
+  readonly itemId: string;
+  readonly naturalKeyHash: string;
+  readonly status: LedgerRecord['status'];
+  readonly contentHash: string | null;
+}
 
 /** One item's finding, as the pass produces it. */
 export interface ConfirmationFinding {
@@ -104,6 +119,66 @@ export class ConfirmationStore {
           eq(schemaPg.item.id, args.finding.itemId),
         ),
       );
+  }
+
+  /**
+   * Every item of one domain, streamed in id order, for a pass to work through.
+   *
+   * KEYSET-PAGED, not `LIMIT/OFFSET` and not one big `SELECT`. D7(a) authorised
+   * confirming EVERY item of a family file account, and the two obvious shapes
+   * both fail on exactly that account: loading it whole exhausts memory, and
+   * `OFFSET` re-walks the rows it already skipped, so the pass gets slower the
+   * further it gets. Ordering by `id` and asking for the ones after the last
+   * one seen is flat.
+   *
+   * It also means a pass that dies halfway has still written what it confirmed:
+   * each page is its own query, and `record` commits per item.
+   *
+   * Ordered by `id` rather than by anything a person would recognise, because
+   * the order only has to be STABLE — `natural_key` is not unique across
+   * collections, and a page boundary on a non-unique column silently drops or
+   * repeats rows.
+   */
+  async *itemsToConfirm(args: {
+    tenantId: TenantId;
+    mappingId: MappingId;
+    domain: DiscoveryDomain;
+    /** Rows per query. Only a memory/round-trip trade — the result is identical. */
+    batch?: number;
+  }): AsyncIterable<ConfirmableRow> {
+    const size = args.batch ?? 500;
+    let after: string | undefined;
+    for (;;) {
+      const page = await this.db
+        .select({
+          id: schemaPg.item.id,
+          naturalKeyHash: schemaPg.item.naturalKeyHash,
+          status: schemaPg.item.status,
+          contentHash: schemaPg.item.contentHash,
+        })
+        .from(schemaPg.item)
+        .where(
+          and(
+            eq(schemaPg.item.tenantId, args.tenantId),
+            eq(schemaPg.item.mappingId, args.mappingId),
+            eq(schemaPg.item.domain, args.domain),
+            ...(after ? [gt(schemaPg.item.id, after)] : []),
+          ),
+        )
+        .orderBy(asc(schemaPg.item.id))
+        .limit(size);
+      if (page.length === 0) return;
+      for (const r of page) {
+        yield {
+          itemId: r.id,
+          naturalKeyHash: r.naturalKeyHash,
+          status: r.status as LedgerRecord['status'],
+          contentHash: r.contentHash ?? null,
+        };
+      }
+      after = page[page.length - 1]!.id;
+      if (page.length < size) return;
+    }
   }
 
   /**
