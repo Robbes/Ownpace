@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 118 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 119 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -134,6 +134,10 @@ reading a file drops off its entry by itself.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
+
+### `apps/api/src/routes/migrations/mapping-status-audit.ts`
+
+- [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
 ### `apps/api/src/routes/migrations/microsoft-consent.ts`
 
@@ -577,6 +581,10 @@ reading a file drops off its entry by itself.
 ### `docs/adr/0000-template.md`
 
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
+
+### `docs/adr/0014-cost-recovery-billing.md`
+
+- [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
 ### `docs/adr/OPERATIVE.md`
 
@@ -1653,6 +1661,15 @@ Reads:
 - `deploy/compose/dev.yml`
 - `deploy/compose/managed.yml`
 - `deploy/compose/www.yml`
+
+### [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts)
+
+A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+
+Reads:
+
+- `apps/api/src/routes/migrations/mapping-status-audit.ts`
+- `docs/adr/0014-cost-recovery-billing.md`
 
 ### [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts)
 

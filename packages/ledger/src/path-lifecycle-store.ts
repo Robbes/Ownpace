@@ -13,11 +13,24 @@
  *
  * ## What holds a slot, and why `paused` does
  *
- * A tier is a CAPACITY — how many paths run at the same time. `active` and
- * `paused` both hold a slot; `ready`, `cutover` and `done` do not. Pausing is
- * NOT a way to reduce a bill, deliberately: a paused path keeps its state and
- * resumes in a second, which is reserved capacity, and ADR-0014 requires that
- * to be said on the pricing page rather than discovered on an invoice.
+ * A tier is a CAPACITY — how many paths run at the same time. `active`,
+ * `paused` and `continuous` hold a slot; `ready`, `cutover` and `done` do not.
+ * Pausing is NOT a way to reduce a bill, deliberately: a paused path keeps its
+ * state and resumes in a second, which is reserved capacity, and ADR-0014
+ * requires that to be said on the pricing page rather than discovered on an
+ * invoice.
+ *
+ * `continuous` (0117 T1) is the entry that changes the SHAPE of the axis, and
+ * it was the owner's call rather than a programmer's — D6, taken 2026-09-10,
+ * *"a. yes it holds a slot"*. Every other state here belongs to a migration,
+ * which is a thing that ends; the continuous lane is a path that does not. The
+ * machine really is occupied on that customer's behalf month after month, and
+ * the alternative was capacity nobody meters.
+ *
+ * It carries an obligation the code cannot discharge: the customer has to be
+ * told, BEFORE entering the lane, that their bill does not stop at cutover.
+ * Somebody who believes the price ends when the migration ends and finds a
+ * tier still charging has a fair complaint. That sentence belongs to 0117 T5.
  *
  * `holdsASlot` is exported because it is the one rule the tier calculator, the
  * honesty surface and any future invoice all have to agree on, and three
@@ -38,8 +51,15 @@ import * as schemaPg from './schema-pg.ts';
 import type { MappingId, TenantId } from '@openmig/shared';
 import type { DiscoveryDomain } from '@openmig/shared';
 
-/** ADR-0014's five, in the order a path travels them. */
-export const PATH_STATES = ['ready', 'active', 'paused', 'cutover', 'done'] as const;
+/**
+ * ADR-0014's states, in the order a path travels them — SIX since 2026-09-10.
+ *
+ * `continuous` is 0117 T1's lane: a path that keeps copying after cutover and
+ * deletes nothing. It is last because it is entered FROM `cutover` or `done`,
+ * not passed through on the way to them, and because it is the only one that
+ * does not end.
+ */
+export const PATH_STATES = ['ready', 'active', 'paused', 'cutover', 'done', 'continuous'] as const;
 export type PathState = (typeof PATH_STATES)[number];
 
 
@@ -59,7 +79,7 @@ export interface PathLifecycle {
  * deliberate — see the module comment.
  */
 export function holdsASlot(state: PathState): boolean {
-  return state === 'active' || state === 'paused';
+  return state === 'active' || state === 'paused' || state === 'continuous';
 }
 
 /** The states a path can be in without holding a slot — the complement, kept

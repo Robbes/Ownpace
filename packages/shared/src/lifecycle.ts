@@ -39,18 +39,24 @@
  * and leaves the item existing nowhere. Every step behaving as designed.
  *
  * 0117 T1 (the continuous lane) is a mapping that keeps copying *after*
- * cutover, so it removes the accident. When it lands, **the deletion detector
- * must be absent from that phase** — not gated per item, not filtered
- * downstream (0117 §4D rejects that: a gate strong enough to tell our deletion
- * from the person's needs T4's tombstones anyway, and a gate can be wrong once;
- * absence cannot).
+ * cutover, so it removes the accident. **The deletion detector must be absent
+ * from that phase** — not gated per item, not filtered downstream (0117 §4D
+ * rejects that: a gate strong enough to tell our deletion from the person's
+ * needs T4's tombstones anyway, and a gate can be wrong once; absence cannot).
+ *
+ * **`continuous` is therefore IN this predicate, added with the state itself
+ * on 2026-09-10 and never separately.** It is after cutover by definition —
+ * entered from `cutover` or `done` — and this membership is the whole
+ * mechanism by which the detector stays away from it. A `continuous` that is
+ * not in here is a lane that runs with the detector present, which is §3a's
+ * loop restored with no drain existing anywhere.
  *
  * This function exists so that rule has one place to live, and
  * `after-cutover-the-source-is-not-the-authority.unit.test.ts` exists so it
  * cannot quietly stop being true.
  */
 export function isAfterCutover(status: string): boolean {
-  return status === 'cutover' || status === 'done';
+  return status === 'cutover' || status === 'done' || status === 'continuous';
 }
 
 export type StartTransition = { readonly activate: boolean } | { readonly conflict: string };

@@ -88,8 +88,8 @@ the owner says no to it, this document is a record of why and nothing more is wa
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
-| T1 The continuous lane | 📋 **Designed 2026-09-09 (§7a, §7b); logic unblocked, schema waits on D6** | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
-| T2 The confirmed list | 📋 **Surveyed 2026-09-09 (§7c) — blocked on D6's sibling, D7** | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
+| T1 The continuous lane | 🔨 **Vocabulary built 2026-09-10** (ledger migration 0044, `holdsASlot`, `isAfterCutover`, ADR-0014 amended). Nothing can enter or run the lane yet — the tick and the door are the next two slices | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
+| T2 The confirmed list | 📋 **Unblocked 2026-09-10 — D7 taken, branch (a)**: confirm every item by re-reading the target, as a job the person starts. §7d has what it may claim, and the calendar/contacts limit it must state | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The live item now** | The drain's consent (D5) defers with T3. What T1 and T2 need is smaller and real, and D4 added to it: a person must be told that a mapping keeps copying after cutover (continued access to a system they think they have left), that deletions at the source are **no longer mirrored** and why, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |
@@ -401,6 +401,20 @@ is not the code's: **the customer has to be told before they enter the lane that
 does not stop at cutover.** Somebody who believes the price ends when the migration ends and
 finds a tier still charging is a complaint, and a fair one. That sentence belongs to T5.*
 
+> ✅ **TAKEN 2026-09-10, as recommended.** *"a. yes it holds a slot"*.
+>
+> Built the same day: ledger migration 0044 widens BOTH vocabularies together —
+> `mailbox_mapping.status` and `path_lifecycle.state` — because widening one leaves a lane
+> that runs while billing believes those paths ended. `holdsASlot` returns true for
+> `continuous`, and ADR-0014 is amended, since `PATH_STATES` is documented there as "ADR-0014's
+> five" and this makes it six. The capacity sentence gains its third clause: a paused path is
+> reserved capacity, a finished path is released capacity, **a continuous path is occupied
+> capacity that is never released.**
+>
+> **The obligation travels with the decision and is not discharged yet.** T1 must not ship a
+> door into the lane until T5 has the sentence that says the bill does not stop at cutover.
+> The guard holds ADR-0014 to carrying that sentence, so it cannot quietly go missing.
+
 **D7 — how much does T2 re-read, and what does the list say for calendar and contacts?**
 🔨 **OPEN — blocks T2's first line.**
 
@@ -422,6 +436,15 @@ it is once per migration, at the moment somebody is deciding whether to delete t
 originals — the one moment in this product where paying for certainty is obviously right.
 (b) is the fallback if (a) turns out to be intolerable in practice, and it must then be
 labelled as a sample rather than a confirmation.
+
+> ✅ **TAKEN 2026-09-10, as recommended.** *"approved: (a) — confirm every item by re-reading
+> it from the target, for files and mail, offered as a job the person starts and we report on
+> rather than a wait before the list appears."*
+>
+> Note for whoever builds T2: the owner approved this recommendation **as corrected**. An
+> earlier draft of D7 recommended (b) and carried a research debt against Drive, Dropbox and
+> OneDrive; that draft asked the wrong side of the migration and is withdrawn — see the
+> provenance note in §7d. Nothing about (b) is authorised.
 
 **And the part that is not a cost question:** for **calendar and contacts** there is no
 byte-hash claim available at all (§7d), by design and permanently. Whatever (a)/(b)/(c)

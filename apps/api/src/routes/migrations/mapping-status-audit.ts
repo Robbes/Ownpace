@@ -33,8 +33,22 @@ import type { TenantId } from '@openmig/shared';
 /** The audit action every mapping status transition is recorded under. */
 export const MAPPING_STATUS_ACTION = 'mapping.status';
 
-/** The four states `mailbox_mapping.status` may hold (migration 0001's CHECK). */
-export type MappingStatus = 'active' | 'paused' | 'cutover' | 'done';
+/**
+ * The states `mailbox_mapping.status` may hold — five since 2026-09-10.
+ *
+ * `continuous` is 0117 T1's lane (ledger migration 0044, which widens this
+ * CHECK and `path_lifecycle.state`'s together). It is listed here because a
+ * transition INTO it is exactly the kind somebody will later need to explain:
+ * "who put this migration into a phase that keeps reading the old account, and
+ * when" is the question this file exists to answer.
+ *
+ * Kept as its own union rather than derived because it names the DATABASE's
+ * vocabulary — migration 0001's CHECK as amended — and the typechecker caught
+ * this file the moment the schema widened, which is the behaviour worth
+ * keeping. `PATH_STATES` is the separate, billing-side vocabulary and has one
+ * value this does not (`ready`).
+ */
+export type MappingStatus = 'active' | 'paused' | 'cutover' | 'done' | 'continuous';
 
 /**
  * Record that a mapping moved from one status to another.
