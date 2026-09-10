@@ -226,6 +226,7 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
+- [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 
 ### `apps/web/src/pages/Billing.tsx`
@@ -239,6 +240,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/CreateMapping.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+
+### `apps/web/src/pages/Finish.tsx`
+
+- [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
 ### `apps/web/src/pages/Login.tsx`
 
@@ -1113,6 +1118,10 @@ reading a file drops off its entry by itself.
 
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 
+### `site/pages/en/pricing.md`
+
+- [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+
 ### `site/prices.mjs`
 
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
@@ -1797,7 +1806,10 @@ Reads:
 - `apps/api/src/routes/migrations/operating-routes.ts`
 - `apps/selfhost/src/index.ts`
 - `apps/web/src/components/StateChip.tsx`
+- `apps/web/src/i18n/strings.ts`
+- `apps/web/src/pages/Finish.tsx`
 - `docs/adr/0014-cost-recovery-billing.md`
+- `site/pages/en/pricing.md`
 
 ### [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts)
 
