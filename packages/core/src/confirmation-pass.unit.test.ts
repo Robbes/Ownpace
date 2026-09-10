@@ -18,7 +18,40 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { confirmEach, confirmOne, tally, type ConfirmableItem, type ConfirmationReader } from './confirmation-pass.ts';
+import {
+  confirmEach,
+  confirmFinding,
+  confirmOne,
+  tally,
+  type ConfirmableItem,
+  type ConfirmationReader,
+} from './confirmation-pass.ts';
+import {
+  needsTargetRead,
+  storedAnswerFor,
+  STORED_ANSWERS,
+  type LedgerRecord,
+} from '@openmig/shared';
+
+/**
+ * Every status the ledger's CHECK constraint admits, plus the pre-column row.
+ *
+ * Written out rather than derived, so a status added to the ledger and not to
+ * this list is a gap a reader can see — the same reason the sibling guard in
+ * `a-list-somebody-deletes-on-the-strength-of.unit.test.ts` writes it out.
+ */
+const EVERY_STATUS: ReadonlyArray<LedgerRecord['status']> = [
+  undefined,
+  'pending',
+  'copied',
+  'updated',
+  'adopted',
+  'skipped',
+  'failed',
+  'left_behind',
+  'deleted_source',
+  'tombstoned',
+];
 
 const item = (over: Partial<ConfirmableItem> = {}): ConfirmableItem => ({
   naturalKeyHash: 'h1',
@@ -244,5 +277,76 @@ describe('the pass streams, and the tally speaks for the headline', () => {
       'verified',
       'yours',
     ]);
+  });
+});
+
+/**
+ * The evidence has to cross the seam, and it did not.
+ *
+ * `confirmEach` yielded the derived ROW. The store built for it (migration
+ * 0045) records the ANSWER, deliberately: evidence does not go stale, an
+ * interpretation does. So the answer was computed inside `confirmOne`, used to
+ * derive the row, and dropped — and there was no way to run the pass and record
+ * what it found. The two halves were built one slice apart and could not be
+ * connected.
+ *
+ * `consulted` is the second half of the same fix. For a status
+ * `needsTargetRead` waives, `answer` is a placeholder `rowFor` ignores, and a
+ * recorder that stored it would be writing *we looked and it is not there*
+ * about an item nobody asked about.
+ */
+describe('the pass hands on its evidence, not only its claim', () => {
+  const present: ConfirmationReader = { isPresent: async () => true };
+
+  it('yields an answer the store can actually write down', async () => {
+    const item = { naturalKeyHash: 'k', status: 'copied' as const, contentHash: null };
+    const finding = await confirmFinding('email', item, present);
+    // Round-trips through the codec the column's CHECK constraint mirrors.
+    expect(STORED_ANSWERS).toContain(storedAnswerFor(finding.answer));
+  });
+
+  it('says the target was consulted only when it was', async () => {
+    // Exactly `needsTargetRead`, over every status — so the two cannot drift
+    // apart and leave a recorder writing placeholders into the ledger.
+    for (const status of EVERY_STATUS) {
+      const finding = await confirmFinding(
+        'email',
+        { naturalKeyHash: 'k', status, contentHash: null },
+        present,
+      );
+      expect(finding.consulted, `consulted disagreed with needsTargetRead for ${status}`).toBe(
+        needsTargetRead(status),
+      );
+    }
+  });
+
+  it('never calls a waived status consulted, however the target behaves', async () => {
+    // The reader here would throw if asked. A waived status must not ask it,
+    // and must not come back claiming it did.
+    const refuses: ConfirmationReader = {
+      isPresent: async () => {
+        throw new Error('the target must not be asked for a waived status');
+      },
+    };
+    for (const status of EVERY_STATUS.filter((s) => !needsTargetRead(s))) {
+      const finding = await confirmFinding(
+        'email',
+        { naturalKeyHash: 'k', status, contentHash: null },
+        refuses,
+      );
+      expect(finding.consulted).toBe(false);
+    }
+  });
+
+  it('streams the evidence too, not just the rows', async () => {
+    const items = [
+      { naturalKeyHash: 'a', status: 'copied' as const, contentHash: null },
+      { naturalKeyHash: 'b', status: 'skipped' as const, contentHash: null },
+    ];
+    const seen = [];
+    for await (const found of confirmEach('email', items, present)) seen.push(found);
+    expect(seen.map((s) => s.naturalKeyHash)).toEqual(['a', 'b']);
+    expect(seen.map((s) => s.consulted)).toEqual([true, false]);
+    expect(seen.every((s) => s.row !== undefined && s.answer !== undefined)).toBe(true);
   });
 });

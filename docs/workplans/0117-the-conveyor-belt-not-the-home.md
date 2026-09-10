@@ -2,6 +2,38 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-10, later still again: THE TWO HALVES DID NOT FIT, and finding that out
+found a shipped bug.** Building slice 4 began by connecting the pass to the store, and
+they would not connect — which is how both of these surfaced.
+
+**1. The evidence never crossed the seam.** `confirmEach` yielded the derived
+`ConfirmedRow`. The store records the `TargetAnswer`, deliberately (evidence, never the
+word). So the answer was computed inside `confirmOne`, used to derive the row, and
+dropped: there was no way to run the pass and record what it found. Two slices, built a
+day apart, each correct on its own. `ConfirmedFinding` now carries `answer`, `row` and
+`consulted` together.
+
+`consulted` is the half that is easy to miss. Where `needsTargetRead` waives a status,
+the answer is `NOT_CONSULTED` — a placeholder `rowFor` ignores, not something the target
+said. A recorder that stored it would write *we looked and it is not there* about an item
+nobody asked about.
+
+**2. And the read side was already wrong, in a way nothing would have caught.**
+`rowsFor` read every NULL answer as `unreachable`, so after a pass that completed
+perfectly, all seven waived statuses still said **`unchecked`** — *we did not check*.
+False twice: nothing needed checking, and the ledger already knew they were never placed.
+On the one document somebody deletes their originals from, that turns a fact we hold into
+an admission we do not, and pads the "could not tell" pile with rows never in doubt.
+
+The fix is a condition rather than a different constant, because the other half stays
+true: a `copied` row with no stored answer genuinely has not been looked at yet, and
+`unchecked` is exactly right for it. Six mutations, all caught — including the shipped
+bug restored verbatim.
+
+**Worth keeping as a shape.** Both defects lived in the *gap between* two slices that were
+each internally consistent and separately guarded. Neither guard could see them, because
+neither slice was wrong. What found them was trying to use the two together.
+
 **2026-09-10, later still: T2 SLICE 3 — the findings land, and what lands is
 EVIDENCE.** Migration 0045 gives the pass somewhere to write: `item.confirmed_answer`
 (five values, the ones `TargetAnswer` can distinguish), `confirmed_at`, and
