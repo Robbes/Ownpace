@@ -17,6 +17,7 @@ export * from './ports.ts';
 export * from './operating-contract.ts';
 export * from './completion-report.ts';
 export * from './lifecycle.ts';
+export * from './confirmed-list.ts';
 export * from './verification-report.ts';
 export * from './discovery.ts';
 export * from './decisions.ts';
