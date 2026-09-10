@@ -24,6 +24,7 @@ import type { AuthenticatedRequest, JwtPayload } from './types/api.ts';
 import tenantRoutes from './routes/tenants/index.ts';
 import mappingRoutes from './routes/migrations/index.ts';
 import grantRoutes from './routes/grant.ts';
+import viewRoutes from './routes/view.ts';
 import decisionRoutes from './routes/decisions.ts';
 import sharedAddressRoutes from './routes/shared-addresses.ts';
 import permissionRoutes from './routes/permissions.ts';
@@ -222,6 +223,15 @@ app.use('/api/migrations', mappingRoutes);
  * reach, and that should be a decision rather than an inheritance.
  */
 app.use('/api/grant', grantRoutes);
+/**
+ * The link's OTHER lifetime (workplan 0122, ADR-0035): the progress page.
+ *
+ * Its own prefix beside `/api/grant` rather than a route under it, because
+ * `verifyMappingLink` refuses a token whose purpose does not match — so the two
+ * prefixes are what stop a short-lived credential link being opened at the
+ * long-lived page's address, and the reverse.
+ */
+app.use('/api/view', viewRoutes);
 // The §11.1 drift decision queue (workplan 0028 T1).
 app.use('/api/decisions', decisionRoutes);
 app.use('/api/shared-addresses', sharedAddressRoutes);

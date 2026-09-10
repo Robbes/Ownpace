@@ -54,6 +54,41 @@ export const MAPPING_LINK_EXPIRY_DAYS = [1, 7, 30] as const;
 export const DEFAULT_MAPPING_LINK_EXPIRY_DAYS = 7;
 
 /**
+ * The expiries a PROGRESS link may be given, in days (workplan 0122 T2).
+ *
+ * Its own list because ADR-0035 gives the two lifetimes different risks:
+ *
+ * > *"The credential step is short-lived and single-use; the progress page is
+ * > longer-lived but revocable, and carries counts and states rather than
+ * > content, which is what makes the longer window acceptable."*
+ *
+ * Ninety days pre-filled, because a first copy plus a settling period plus a
+ * cutover is measured in weeks, and asking for a re-issue in the middle of one
+ * would fail the case this exists for — the person holding it is the person
+ * least able to ask for a new one. A hundred and eighty is the ceiling, and not
+ * a rounder larger number, because a bearer credential nobody is thinking about
+ * any more is a bearer credential nobody revokes.
+ */
+export const MAPPING_VIEW_LINK_EXPIRY_DAYS = [30, 90, 180] as const;
+export const DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS = 90;
+
+/**
+ * Which lifetimes belong to which purpose — a TOTAL record, deliberately.
+ *
+ * `Record<MappingLinkPurpose, …>` means a third purpose added to
+ * `MAPPING_LINK_PURPOSES` stops this file compiling until somebody says how
+ * long it lives. The alternative shape — a lookup with a fallback — would give
+ * a new purpose the credential's seven days by silence, which is the wrong
+ * answer in whichever direction it lands.
+ */
+export const MAPPING_LINK_LIFETIMES: Readonly<
+  Record<MappingLinkPurpose, { readonly days: readonly number[]; readonly fallback: number }>
+> = {
+  grant: { days: MAPPING_LINK_EXPIRY_DAYS, fallback: DEFAULT_MAPPING_LINK_EXPIRY_DAYS },
+  view: { days: MAPPING_VIEW_LINK_EXPIRY_DAYS, fallback: DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS },
+};
+
+/**
  * The ONE sentence, for unknown, forged, expired, revoked and already-used
  * alike. It names the remedy that is true in every one of those cases, and it
  * never names the cause — see this file's header for why.

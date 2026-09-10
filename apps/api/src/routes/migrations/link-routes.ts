@@ -39,8 +39,9 @@ import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import * as schema from '@openmig/ledger';
 import {
-  DEFAULT_MAPPING_LINK_EXPIRY_DAYS,
-  MAPPING_LINK_EXPIRY_DAYS,
+  MAPPING_LINK_LIFETIMES,
+  MAPPING_LINK_PURPOSES,
+  type MappingLinkPurpose,
   expiryFromDays,
   issueMappingLink,
   listMappingLinks,
@@ -50,7 +51,11 @@ import { SecretStore } from '@openmig/core/secret-store';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { serverFault } from '../../server-fault.ts';
-import { grantLinkRefusal, type GrantLinkReadiness } from './grant-link-readiness.ts';
+import {
+  grantLinkRefusal,
+  viewLinkRefusal,
+  type GrantLinkReadiness,
+} from './grant-link-readiness.ts';
 
 const router = Router({ mergeParams: true });
 
@@ -67,18 +72,32 @@ function pool() {
  */
 const MAY_ISSUE = ['owner', 'admin'] as const;
 
-const IssueSchema = z.object({
-  // 'grant' is the only purpose this route mints. 'view' is reserved in the
-  // table (ADR-0035's second lifetime) and deliberately NOT offered here: a
-  // purpose the API accepts but no page honours is a link that opens nothing.
-  expiryDays: z
-    .number()
-    .int()
-    .refine((d): d is (typeof MAPPING_LINK_EXPIRY_DAYS)[number] =>
-      (MAPPING_LINK_EXPIRY_DAYS as readonly number[]).includes(d),
-    )
-    .optional(),
-});
+/**
+ * Both purposes, and the expiry checked AGAINST the purpose.
+ *
+ * `'view'` was reserved in the table from 0108 T1 and deliberately not offered
+ * here, on this route's own rule — *"a purpose the API accepts but no page
+ * honours is a link that opens nothing"*. Workplan 0122 built the page, so the
+ * door opens; the rule has not changed, it has been satisfied.
+ *
+ * `purpose` defaults to `'grant'`, which keeps every existing caller meaning
+ * exactly what it meant. The expiry is validated in `superRefine` rather than
+ * against one flat list, because the two lifetimes are different by design
+ * (ADR-0035) and `[1, 7, 30]` on a progress link would quietly re-impose the
+ * credential's window on the page that is supposed to outlive it.
+ */
+const IssueSchema = z
+  .object({
+    purpose: z.enum(MAPPING_LINK_PURPOSES).optional(),
+    expiryDays: z.number().int().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.expiryDays === undefined) return;
+    const allowed = MAPPING_LINK_LIFETIMES[value.purpose ?? 'grant'].days;
+    if (!allowed.includes(value.expiryDays)) {
+      ctx.addIssue({ code: 'custom', path: ['expiryDays'], message: 'not an offered expiry' });
+    }
+  });
 
 /** The browser-facing address, or null when this deployment cannot say. */
 function webUrl(): string | null {
@@ -190,18 +209,34 @@ router.post(
 
       const parsed = IssueSchema.safeParse(req.body ?? {});
       if (!parsed.success) {
+        const offered = MAPPING_LINK_PURPOSES.map(
+          (p) => `${p}: ${MAPPING_LINK_LIFETIMES[p].days.join(', ')}`,
+        ).join('; ');
         return void res.status(400).json({
           error: 'invalid_body',
+          // Both lists, because the offered expiries depend on the purpose and
+          // a caller that sent 7 for a progress link needs to see WHY 7 was
+          // refused rather than only that it was.
           reason:
-            `An expiry of ${MAPPING_LINK_EXPIRY_DAYS.join(', ')} days is offered; ` +
-            `send { expiryDays } as one of those, or nothing for ` +
-            `${DEFAULT_MAPPING_LINK_EXPIRY_DAYS}.`,
+            `Send { purpose, expiryDays }. The expiries offered, in days, are — ${offered}. ` +
+            'Omit either and you get a grant link with the default expiry.',
         });
       }
 
-      const readiness = await readReadiness(s.tenantId, s.mappingId);
+      const purpose: MappingLinkPurpose = parsed.data.purpose ?? 'grant';
       const base = webUrl();
-      const refusal = grantLinkRefusal({ ...readiness, hasWebUrl: base !== null });
+
+      // A progress link runs no consent, so it is refused only by the one
+      // condition that kills any link — see `viewLinkRefusal`. Reading the
+      // source's credentials for it would decrypt a secret to answer a question
+      // nobody asked.
+      const refusal =
+        purpose === 'view'
+          ? viewLinkRefusal({ hasWebUrl: base !== null })
+          : grantLinkRefusal({
+              ...(await readReadiness(s.tenantId, s.mappingId)),
+              hasWebUrl: base !== null,
+            });
       if (refusal) {
         // 409, not 400: the request is well-formed and the caller is allowed to
         // make it — the deployment is not in a state where it can be honoured.
@@ -209,12 +244,12 @@ router.post(
         return void res.status(409).json({ error: refusal.code, reason: refusal.reason });
       }
 
-      const days = parsed.data.expiryDays ?? DEFAULT_MAPPING_LINK_EXPIRY_DAYS;
+      const days = parsed.data.expiryDays ?? MAPPING_LINK_LIFETIMES[purpose].fallback;
       const issued = await withTenantDb(s.tenantId, pool(), (db) =>
         issueMappingLink(db, {
           tenantId: s.tenantId,
           mappingId: s.mappingId,
-          purpose: 'grant',
+          purpose,
           createdBy: req.userId ?? 'unknown',
           expiresAt: expiryFromDays(days),
         }),
@@ -222,9 +257,13 @@ router.post(
 
       res.status(201).json({
         id: issued.id,
+        purpose,
         // The one time this exists in a response. `base` is non-null here —
-        // `web_url_unset` refused above.
-        url: `${base}/grant/${issued.token}`,
+        // `web_url_unset` refused above. The path is the purpose's own word, so
+        // the two pages cannot be reached through each other's address and a
+        // token pasted into the wrong one is refused by the middleware rather
+        // than by a page that half-works.
+        url: `${base}/${purpose}/${issued.token}`,
         expiresAt: issued.expiresAt.toISOString(),
         expiryDays: days,
         // Said in the payload rather than only in the UI, so the fact survives

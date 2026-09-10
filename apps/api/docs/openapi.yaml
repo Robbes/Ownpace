@@ -2108,6 +2108,83 @@ paths:
             address is a raw IP, which Google will not accept as a redirect URI.
         '503': { description: The link could not be checked just now. }
 
+  /api/view/{link}:
+    parameters:
+      - name: link
+        in: path
+        required: true
+        description: The whole credential — `<id>.<secret>`, one path segment.
+        schema: { type: string }
+    get:
+      tags: [Grant links]
+      summary: The migration's progress, for the person being migrated
+      description: |
+        ADR-0035 gives the migrator's link two lifetimes. This is the second:
+        longer-lived than the credential step, revocable at any moment, and
+        carrying **counts and states rather than content** — which is precisely
+        what makes the longer window acceptable.
+
+        So it answers who is asking (the organisation's name), where the
+        migration is in its life, whether any pass has run at all, one row per
+        domain, and when the link stops working. It says nothing else: not the
+        mapping id, not the tenant id, not the migration's name, not any
+        address, folder, file or subject line, and **not the provider's own
+        error prose** — a rejection quoting a file name is content. The failure
+        CATEGORY crosses in its place, which is the half a person can act on.
+
+        `started: false` means no pass has ever touched this migration, and is
+        deliberately not the same answer as five domains of zero. Absence and
+        zero are different facts and only one of them is reassuring.
+
+        Repeatable by design — `view` links are exempt from single-use, unlike
+        the credential ones — so this is a GET that changes nothing.
+      security: []
+      responses:
+        '200':
+          description: Counts and states.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organisation: { type: string }
+                  state:
+                    type: string
+                    enum: [paused, active, cutover, done, continuous]
+                  started:
+                    type: boolean
+                    description: False when no pass has ever run — not the same as zero.
+                  expiresAt: { type: string, format: date-time }
+                  domains:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        domain: { type: string }
+                        state: { type: string }
+                        itemsSynced: { type: integer }
+                        itemsFailed: { type: integer }
+                        bytesTransferred: { type: integer }
+                        itemsRetrying: { type: integer }
+                        itemsNeedingDecision: { type: integer }
+                        lastSyncedAt: { type: string, format: date-time }
+                        lastActiveAt: { type: string, format: date-time }
+                        lastErrorCategory: { type: string }
+                        failedSide: { type: string, enum: [source, target] }
+                        pausedReason: { type: object }
+        '401':
+          description: |
+            One sentence for every way a link can fail — unknown, forged,
+            expired, revoked, wrong purpose, malformed. A credential link
+            presented here is refused on its purpose, which is what keeps the
+            two lifetimes apart.
+        '409':
+          description: |
+            The link is good but the migration no longer exists. The sentence is
+            written to be forwarded to whoever sent the link.
+        '503':
+          description: The link could not be checked just now. Ours, not the caller's.
+
   /api/migrations/{mappingId}/deletions:
     parameters:
       - $ref: '#/components/parameters/MappingId'
