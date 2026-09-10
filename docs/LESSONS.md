@@ -739,6 +739,7 @@ reading a file drops off its entry by itself.
 ### `packages/core/src/domain-sync.ts`
 
 - [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
+- [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts) — A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
 
 ### `packages/core/src/verification.ts`
 
@@ -871,6 +872,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/config.ts`
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
+
+### `packages/shared/src/confirmed-list.ts`
+
+- [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts) — A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
 
 ### `packages/shared/src/credential-fields.ts`
 
@@ -1488,6 +1493,15 @@ Reads:
 - `packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`
 - `packages/orchestration/src/build-deps-from-mapping.ts`
 - `packages/orchestration/src/orchestration.ts`
+
+### [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts)
+
+A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
+
+Reads:
+
+- `packages/core/src/domain-sync.ts`
+- `packages/shared/src/confirmed-list.ts`
 
 ### [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts)
 
