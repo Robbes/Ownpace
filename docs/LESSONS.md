@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 125 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 126 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -490,6 +490,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/setup-zitadel.sh`
 
+- [a-blip-that-failed-a-gate](../scripts/a-blip-that-failed-a-gate.unit.test.ts) — A read that never got an answer is asked again; a write never is.
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [a-check-that-was-never-valid](../scripts/a-check-that-was-never-valid.unit.test.ts) — A password check that was valid for zero seconds, and the general rule that would have stopped it.
 - [a-false-jq-could-not-report](../scripts/a-false-jq-could-not-report.unit.test.ts) — A `false` THE READER COULD NOT REPORT.
@@ -1169,6 +1170,14 @@ reading a file drops off its entry by itself.
 - [an-integration-test-is-handed-its-database](../scripts/an-integration-test-is-handed-its-database.unit.test.ts) — AN INTEGRATION TEST IS HANDED ITS DATABASE.
 
 ## 2. By guard — what each one is about
+
+### [a-blip-that-failed-a-gate](../scripts/a-blip-that-failed-a-gate.unit.test.ts)
+
+A read that never got an answer is asked again; a write never is.
+
+Reads:
+
+- `deploy/compose/setup-zitadel.sh`
 
 ### [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts)
 
