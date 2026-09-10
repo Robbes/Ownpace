@@ -220,6 +220,18 @@ describe('the list', () => {
     expect(view.queryByText(/by rob/)).not.toBeInTheDocument();
   });
 
+  it('does not invent a colleague for a link the grant ending minted', async () => {
+    // `created_by` is `granted-by-link` there, because nobody was signed in.
+    // Through the ordinary "by {who}" sentence that reads as a person.
+    listMock.mockResolvedValue([
+      link({ id: 'b', purpose: 'view', createdBy: 'granted-by-link' }),
+    ]);
+    renderPanel();
+    const view = await section('Progress links');
+    expect(await view.findByText(/when they gave access/)).toBeInTheDocument();
+    expect(view.queryByText(/granted-by-link/)).not.toBeInTheDocument();
+  });
+
   it('keeps a link that expired UNUSED loud, with the next move beside it', async () => {
     listMock.mockResolvedValue([link({ state: 'expired', expiresAt: LAST_WEEK })]);
     renderPanel();

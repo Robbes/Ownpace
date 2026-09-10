@@ -63,6 +63,14 @@ import { Hint } from './Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import StateChip from './StateChip.tsx';
 
+/**
+ * What `created_by` says when the grant ending minted the link itself
+ * (workplan 0122 T7). Not a user id, because there was no user: the person
+ * finishing a consent has no account and never will. Kept in step with
+ * `grant-ending.ts`'s `mintProgressLink`, which writes it.
+ */
+const MINTED_AT_GRANT = 'granted-by-link';
+
 /** One key per offered lifetime, so a translator can say "1 day" properly. */
 const EXPIRY_LABEL: Record<number, StringKey> = {
   1: 'grantLink.expiry.1',
@@ -263,10 +271,17 @@ const LinkSection: React.FC<{
                 <div className="flex items-center gap-2">
                   <StateChip entity="link" state={link.state} />
                   <span className="text-sm text-gray-600">
-                    {t('grantLink.issuedBy', {
-                      date: dateTime(link.createdAt),
-                      who: link.createdBy,
-                    })}
+                    {/* A link minted by the grant ending has no user behind it
+                        — nobody was signed in (workplan 0122 T7). Rendering
+                        `granted-by-link` through the ordinary "by {who}"
+                        sentence would show the owner a colleague who does not
+                        exist, so that one row says what actually happened. */}
+                    {link.createdBy === MINTED_AT_GRANT
+                      ? t('grantLink.issuedByGrant', { date: dateTime(link.createdAt) })
+                      : t('grantLink.issuedBy', {
+                          date: dateTime(link.createdAt),
+                          who: link.createdBy,
+                        })}
                   </span>
                 </div>
                 {link.state === 'live' && (

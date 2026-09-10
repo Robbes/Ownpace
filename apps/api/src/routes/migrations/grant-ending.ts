@@ -35,9 +35,17 @@
 import type { Pool } from 'pg';
 import { eq, and } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { spendMappingLink, type LedgerDriver } from '@openmig/ledger';
+import {
+  DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS,
+  expiryFromDays,
+  issueMappingLink,
+  spendMappingLink,
+  type LedgerDriver,
+} from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
+import { log } from '@openmig/shared';
 import { withTenantDb } from '../../middleware/auth.ts';
+import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
 
 /** The link the consent belonged to, as the pending state recorded it. */
 export interface GrantTarget {
@@ -100,4 +108,65 @@ export async function storeGrantedToken(
     }
     return { ok: true as const };
   });
+}
+
+/**
+ * Mint the progress link this person keeps, AFTER their grant has landed
+ * (workplan 0122 T7, ADR-0035's second lifetime).
+ *
+ * ## Why this is not inside `storeGrantedToken`'s transaction
+ *
+ * That transaction has one job and it is the valuable one: spend the link,
+ * store the credential, both or neither. Folding a third statement into it
+ * would mean a failure to mint a *progress page* rolls back somebody's
+ * *consent* — and the consent is the thing that took them ten minutes and a
+ * decision, while the page is a convenience the owner can hand over later with
+ * two clicks. So this runs after the commit, and a failure here is logged and
+ * swallowed: the caller renders the ending without a link rather than telling
+ * somebody their permission did not take.
+ *
+ * Returns null on any refusal, and the two of them are different:
+ *
+ * - **No `WEB_URL`.** The deployment cannot say what address to build, and
+ *   0095 T3's lesson is that a link built without one goes out looking exactly
+ *   like a working one. The same check `viewLinkRefusal` makes for the owner.
+ * - **The write failed.** Logged as ours, because it is.
+ *
+ * ## Why a fresh one every time, rather than reusing a live link
+ *
+ * There is no reusing to be had: `mapping_link` stores a sha256 and the token
+ * is returned exactly once, at issue. A second grant on a second link therefore
+ * mints a second progress link, both live, both revocable, both on the owner's
+ * panel. That is the honest consequence of the table holding no secret, not a
+ * leak — and the owner can see and revoke every one of them.
+ */
+export async function mintProgressLink(
+  source: Pool | LedgerDriver,
+  target: GrantTarget,
+): Promise<ProgressPageUrl | null> {
+  const base = process.env.WEB_URL?.replace(/\/+$/, '');
+  if (!base) return null;
+  try {
+    const issued = await withTenantDb(target.tenantId, source, (db) =>
+      issueMappingLink(db, {
+        tenantId: target.tenantId,
+        mappingId: target.mappingId,
+        purpose: 'view',
+        // Not a user id: nobody was signed in. The owner's list shows this
+        // beside the links they issued themselves, so it has to say plainly
+        // that this one arrived on its own.
+        createdBy: 'granted-by-link',
+        // The dialog's own pre-filled value, and deliberately not a second
+        // number invented here: ninety days is the product's opinion about how
+        // long a progress page should live, and a machine minting one knows
+        // nothing the dialog does not.
+        expiresAt: expiryFromDays(DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS),
+      }),
+    );
+    return progressPageUrl(base, issued.token);
+  } catch (error) {
+    // Ours, and not worth failing their grant over. The owner can issue one.
+    log.error('[api] minting a progress link after a grant failed:', error);
+    return null;
+  }
 }
