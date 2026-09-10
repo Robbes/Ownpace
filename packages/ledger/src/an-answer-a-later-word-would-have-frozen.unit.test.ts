@@ -34,6 +34,7 @@ import type { LedgerDriver, LedgerConnection } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
 import {
   answerFromStored,
+  needsTargetRead,
   storedAnswerFor,
   STORED_ANSWERS,
   type MappingId,
@@ -226,6 +227,65 @@ describe('the list derives its word every time', () => {
       collection: 'INBOX',
       naturalKey: 'msg-1',
     });
+  });
+});
+
+/**
+ * A row nobody needed to ask about is not a row nobody checked.
+ *
+ * `needsTargetRead` waives seven of the ten statuses: nothing was placed, or
+ * the bytes are the customer's, or we removed our own copy. A confirmation pass
+ * never asks the target about those, so it never records an answer and their
+ * `confirmed_answer` stays NULL for good.
+ *
+ * The first version of `rowsFor` read every NULL as `unreachable`, which made
+ * all of them say **`unchecked`** — *we did not check* — after a pass that had
+ * completed perfectly. That is false twice over: nothing needed checking, and
+ * the ledger already knows what happened to them. On the one document somebody
+ * deletes their originals from it turns a fact we hold into an admission we do
+ * not, and pads the "could not tell" pile with rows that were never in doubt.
+ */
+describe('an unconfirmed row says what the ledger already knows', () => {
+  const asStatus = async (status: string): Promise<string> => {
+    await conn.query(`UPDATE item SET status = $2, confirmed_answer = NULL WHERE id = $1`, [
+      ITEM,
+      status,
+    ]);
+    const rows = await store.rowsFor({ tenantId: TENANT, mappingId: MAPPING });
+    return rows[0]!.state;
+  };
+
+  it('reads a never-placed status as never-placed, not unchecked', async () => {
+    for (const status of ['skipped', 'left_behind', 'pending', 'failed']) {
+      expect(await asStatus(status), `${status} read as the wrong thing`).toBe('never-placed');
+    }
+  });
+
+  it('still reads a placed-but-unreached row as unchecked', async () => {
+    // The other half, and the reason the fix is a condition rather than a
+    // different constant: `copied` genuinely has not been looked at yet.
+    expect(await asStatus('copied')).toBe('unchecked');
+  });
+
+  it('agrees with needsTargetRead across every status', async () => {
+    // The rule, not a sample: wherever the read is waived the row must not be
+    // `unchecked`, and wherever it is needed an unconfirmed row must be.
+    for (const status of [
+      'pending',
+      'copied',
+      'updated',
+      'adopted',
+      'skipped',
+      'failed',
+      'left_behind',
+      'deleted_source',
+      'tombstoned',
+    ] as const) {
+      const state = await asStatus(status);
+      expect(state === 'unchecked', `${status} disagreed with needsTargetRead`).toBe(
+        needsTargetRead(status),
+      );
+    }
   });
 });
 

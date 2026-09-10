@@ -89,10 +89,16 @@ export interface ConfirmationReader {
   hashOnTarget?(item: ConfirmableItem): Promise<string | undefined>;
 }
 
-/** One finished row, with the key that identifies it. */
-export interface ConfirmedItem {
+/**
+ * One finished row, with the key that identifies it and the evidence behind it.
+ *
+ * Carries the whole `ConfirmedFinding` rather than the row alone. The row alone
+ * is what this yielded first, and it made the pass impossible to connect to the
+ * store built for it: the store records the ANSWER, and the answer had been
+ * computed, used and dropped inside `confirmOne`.
+ */
+export interface ConfirmedItem extends ConfirmedFinding {
   readonly naturalKeyHash: string;
-  readonly row: ConfirmedRow;
 }
 
 /**
@@ -149,13 +155,44 @@ async function answerFor(
  */
 const NOT_CONSULTED: TargetAnswer = { onTarget: false };
 
+/**
+ * The evidence AND the claim, together.
+ *
+ * Both, because they are for different places and only one of them may be
+ * stored. `answer` is what the target said and is what the ledger records
+ * (migration 0045: evidence, never the derived word). `row` is what `rowFor`
+ * makes of it and is what a person reads.
+ *
+ * `consulted` is the third thing, and it is not decoration: when
+ * `needsTargetRead` waives a status, `answer` is `NOT_CONSULTED`, which is a
+ * placeholder `rowFor` ignores — NOT something the target said. A recorder that
+ * wrote it down would be claiming *we looked and it is not there* about an item
+ * nobody asked about.
+ */
+export interface ConfirmedFinding {
+  readonly answer: TargetAnswer;
+  readonly row: ConfirmedRow;
+  /** True only when the target was actually asked. */
+  readonly consulted: boolean;
+}
+
+/** The row for one item, with the evidence that produced it. */
+export async function confirmFinding(
+  domain: DiscoveryDomain,
+  item: ConfirmableItem,
+  reader: ConfirmationReader,
+): Promise<ConfirmedFinding> {
+  const consulted = needsTargetRead(item.status);
+  const answer = consulted ? await answerFor(item, reader) : NOT_CONSULTED;
+  return { answer, row: rowFor({ domain, status: item.status, answer }), consulted };
+}
+
 export async function confirmOne(
   domain: DiscoveryDomain,
   item: ConfirmableItem,
   reader: ConfirmationReader,
 ): Promise<ConfirmedRow> {
-  const answer = needsTargetRead(item.status) ? await answerFor(item, reader) : NOT_CONSULTED;
-  return rowFor({ domain, status: item.status, answer });
+  return (await confirmFinding(domain, item, reader)).row;
 }
 
 /**
@@ -173,7 +210,7 @@ export async function* confirmEach(
   reader: ConfirmationReader,
 ): AsyncIterable<ConfirmedItem> {
   for await (const item of items) {
-    yield { naturalKeyHash: item.naturalKeyHash, row: await confirmOne(domain, item, reader) };
+    yield { naturalKeyHash: item.naturalKeyHash, ...(await confirmFinding(domain, item, reader)) };
   }
 }
 

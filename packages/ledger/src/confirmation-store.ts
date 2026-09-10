@@ -25,6 +25,7 @@
 
 import {
   answerFromStored,
+  needsTargetRead,
   rowFor,
   storedAnswerFor,
   type ConfirmedRow,
@@ -37,6 +38,16 @@ import {
 import { and, eq } from 'drizzle-orm';
 import type { PgDatabase } from './db.ts';
 import * as schemaPg from './schema-pg.ts';
+
+/**
+ * The placeholder for a status that needs no target read.
+ *
+ * The same value `confirmation-pass.ts` passes for those statuses, and named
+ * here for the same reason: `rowFor` does not look at the answer for any of
+ * them, so this is not a claim about the target. It must never be STORED —
+ * `record` is only called for items the pass actually consulted.
+ */
+const NOT_CONSULTED: TargetAnswer = { onTarget: false };
 
 /** One item's finding, as the pass produces it. */
 export interface ConfirmationFinding {
@@ -124,18 +135,33 @@ export class ConfirmationStore {
       );
 
     return rows.map((r) => {
-      // NEVER ASKED IS NOT AN ABSENCE. `{ unreachable: true }` is the answer
-      // that means "we could not tell", and not having asked is a case of
-      // that. Reading a NULL as `{ onTarget: false }` would put `missing` on
-      // the list for every item a pass has not reached yet.
+      // NO STORED ANSWER MEANS ONE OF TWO DIFFERENT THINGS, and the first
+      // version of this read collapsed them.
+      //
+      // For a status `needsTargetRead` WAIVES — `skipped`, `left_behind`,
+      // `pending`, `failed`, and the rest — a pass never asks the target and so
+      // never records anything. Those rows keep a NULL forever, and reading it
+      // as `unreachable` made them all say **`unchecked`**: *we did not check*.
+      // That is false. Nothing needed checking: the ledger already knows they
+      // were never placed, which is what `rowFor` says when the answer is the
+      // placeholder those statuses ignore.
+      //
+      // For a status that DOES need the read, a NULL means the pass has not
+      // reached this item yet, and `unreachable` — *we could not tell* — is
+      // exactly right. Never `{ onTarget: false }`, which would put `missing`
+      // on the list for every item still waiting its turn.
+      //
+      // Getting this wrong is not cosmetic on the one document somebody deletes
+      // their originals from: it turns a fact we hold into an admission we do
+      // not, and inflates the "could not tell" pile with rows that were never
+      // in question.
+      const status = r.status as LedgerRecord['status'];
       const answer: TargetAnswer = r.confirmedAnswer
         ? answerFromStored(r.confirmedAnswer)
-        : { unreachable: true };
-      const row = rowFor({
-        domain: r.domain as DiscoveryDomain,
-        status: r.status as LedgerRecord['status'],
-        answer,
-      });
+        : needsTargetRead(status)
+          ? { unreachable: true }
+          : NOT_CONSULTED;
+      const row = rowFor({ domain: r.domain as DiscoveryDomain, status, answer });
       return {
         ...row,
         itemId: r.id,
