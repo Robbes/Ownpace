@@ -529,6 +529,26 @@ export const item = pgTable(
     // again somewhere else: a decision about one layout is not consent to
     // every future one.
     moveAcknowledgedAt: timestamp('move_acknowledged_at', { withTimezone: true }),
+    // What the TARGET said when a confirmation pass last re-read this item
+    // (workplan 0117 T2, migration 0045). NULL = never asked.
+    //
+    // EVIDENCE, NOT THE CLAIM. The word a person reads — `verified`, `yours`,
+    // `missing`, `unchecked` — is derived from this plus `status` by `rowFor`
+    // in `confirmed-list.ts`, at read time, every time. Storing the derived
+    // word would freeze an interpretation that is still being corrected: slice
+    // 1 shipped seven row states and slice 2 found an eighth, and any row
+    // written under the old vocabulary would still be claiming the wrong thing.
+    confirmedAnswer: text('confirmed_answer', {
+      enum: ['match', 'differs', 'uncomparable', 'absent', 'unreachable'],
+    }),
+    // When the target was ASKED. Paired with the answer above — one without the
+    // other is a bug — because a person deciding whether to delete needs to
+    // know how old the evidence is.
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    // Which run asked. `ON DELETE SET NULL`, so sweeping run history away later
+    // cannot take the finding with it: what the target said outlives the
+    // bookkeeping of which execution asked.
+    confirmedByRun: uuid('confirmed_by_run').references(() => run.id, { onDelete: 'set null' }),
     attemptCount: integer('attempt_count').notNull().default(0),
     lastError: text('last_error'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
@@ -592,7 +612,7 @@ export const run = pgTable(
       onDelete: 'set null',
     }),
     kind: text('kind', {
-      enum: ['initial_copy', 'incremental', 'cutover', 'verify', 'discovery', 'backup'],
+      enum: ['initial_copy', 'incremental', 'cutover', 'verify', 'discovery', 'backup', 'confirm'],
     }).notNull(),
     trigger: text('trigger', { enum: ['schedule', 'manual', 'event'] })
       .notNull()

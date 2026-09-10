@@ -319,3 +319,82 @@ export function mustAppearDespiteNoClaim(row: ConfirmedRow): boolean {
     row.state === 'unchecked'
   );
 }
+
+/**
+ * How a `TargetAnswer` is written down (migration 0045).
+ *
+ * Five strings, one per distinguishable answer, and the `item.confirmed_answer`
+ * CHECK constraint holds exactly these. The codec lives here rather than in the
+ * ledger because it is vocabulary, not storage: what the target said is one of
+ * these five things whatever database is underneath, and both editions must
+ * write the same word for the same observation (ADR-0026).
+ *
+ * What is stored is the ANSWER, never the derived `ConfirmedRow`. The reason is
+ * in the migration's own comment and it is this plan's own history: slice 1
+ * shipped seven row states, slice 2 found an eighth, and a row that had frozen
+ * slice 1's word would still be claiming the wrong thing today.
+ */
+export type StoredAnswer = 'match' | 'differs' | 'uncomparable' | 'absent' | 'unreachable';
+
+/** All five, for a caller that must sweep them. */
+export const STORED_ANSWERS: readonly StoredAnswer[] = [
+  'match',
+  'differs',
+  'uncomparable',
+  'absent',
+  'unreachable',
+];
+
+/**
+ * Write an answer down.
+ *
+ * Exhaustive over `TargetAnswer` via the `never` arm, so a sixth kind of answer
+ * — the sort slice 2 added when it found `unreachable` missing — cannot be
+ * introduced without this function refusing to compile. That is the point: an
+ * answer with no way to be stored would otherwise be silently written as one of
+ * the others, and every one of the others is a claim about somebody's data.
+ */
+export function storedAnswerFor(answer: TargetAnswer): StoredAnswer {
+  if ('unreachable' in answer) return 'unreachable';
+  if (!answer.onTarget) return 'absent';
+  switch (answer.comparison) {
+    case 'match':
+      return 'match';
+    case 'differ':
+      return 'differs';
+    case 'unavailable':
+      return 'uncomparable';
+    default: {
+      const exhaustive: never = answer.comparison;
+      throw new Error(`unhandled comparison: ${String(exhaustive)}`);
+    }
+  }
+}
+
+/**
+ * Read an answer back.
+ *
+ * A total `Record`, so a value added to `StoredAnswer` is a compile error here
+ * rather than a runtime `undefined` that `rowFor` would then read as an absence.
+ */
+const ANSWER_FROM_STORED: Readonly<Record<StoredAnswer, TargetAnswer>> = {
+  match: { onTarget: true, comparison: 'match' },
+  differs: { onTarget: true, comparison: 'differ' },
+  uncomparable: { onTarget: true, comparison: 'unavailable' },
+  absent: { onTarget: false },
+  unreachable: { unreachable: true },
+};
+
+/**
+ * Turn a stored string back into an answer, or throw.
+ *
+ * Throws rather than coerces (hard rule 9). A value the database holds and this
+ * vocabulary does not know is a schema that has moved without the code: reading
+ * it as "absent" would put *we placed it and it is gone* on somebody's list on
+ * the strength of a string nobody recognised.
+ */
+export function answerFromStored(stored: string): TargetAnswer {
+  const answer = (ANSWER_FROM_STORED as Record<string, TargetAnswer | undefined>)[stored];
+  if (!answer) throw new Error(`unknown stored confirmation answer: ${stored}`);
+  return answer;
+}

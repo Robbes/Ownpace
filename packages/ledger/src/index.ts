@@ -24,6 +24,8 @@ export * from './group-def-store.ts';
 // The appliance imports this index, so anything re-exported here is on the
 // appliance whether it calls it or not.
 export * from './run-store.ts';
+// Where a confirmation pass's findings land (workplan 0117 T2).
+export * from './confirmation-store.ts';
 export * from './migrate.ts';
 export * from './retention.ts';
 export * from './direct-url.ts';

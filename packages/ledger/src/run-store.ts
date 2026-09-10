@@ -19,7 +19,17 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
 
 /** What kind of work a run represents (mirrors the `run.kind` CHECK). */
-export type RunKind = 'initial_copy' | 'incremental' | 'cutover' | 'verify' | 'discovery' | 'backup';
+export type RunKind =
+  | 'initial_copy'
+  | 'incremental'
+  | 'cutover'
+  | 'verify'
+  | 'discovery'
+  | 'backup'
+  // The confirmation pass (workplan 0117 T2, migration 0045) — a job the
+  // person starts that re-reads every item on the target. Not billable, and
+  // that is load-bearing rather than an oversight: see `BILLABLE_RUN_KINDS`.
+  | 'confirm';
 
 /** What caused the run to start (mirrors the `run.trigger` CHECK). */
 export type RunTrigger = 'schedule' | 'manual' | 'event';
