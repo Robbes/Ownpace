@@ -2,6 +2,33 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-10: T2 SLICE 1 — the vocabulary before the machinery.** T1 slice 2 is merged,
+so the lane runs and deletes nothing; T2 is the list somebody deletes on the strength of,
+and its first slice is `packages/shared/src/confirmed-list.ts`: **what a row is allowed to
+claim**, with no I/O in it at all.
+
+Built first, deliberately. The failure mode here is not a pass that crashes — it is a pass
+that **succeeds and says the wrong word**, which no integration test catches because the
+machinery worked perfectly. So the words exist, and are guarded, before anything can
+produce them.
+
+- **Two claim kinds, and the word must not travel.** `byte-hash` for files and mail (our
+  SHA-256 both sides, §7d); `fingerprint` for calendar, contacts and tasks (a DAV server
+  re-serialises, so the comparison is real and the word "hash" is not). The claim never
+  exceeds the domain's ceiling: two strings agreeing does not make them bytes.
+- **Seven row states**, and the split between `present`, `differs` and `never-placed` is
+  the point: "we did not check", "we checked and it is wrong" and "it was never put there"
+  are three different things, and a list that renders any two the same way is a list
+  somebody deletes the wrong folder on.
+- **§7c's `adopted` paragraph was wrong and is corrected below** — two different rows wear
+  that status, and one of them is *expected* to differ from the ledger. This is the finding
+  of the slice.
+
+Guard: `a-list-somebody-deletes-on-the-strength-of.unit.test.ts`, eleven mutations, all
+caught — including the naive adopted comparison, a never-placed row confirmed because the
+re-read happened to match, tasks inheriting the file answer, and an uncomparable re-read
+scored as a pass.
+
 **2026-09-10: T1 SLICE 2 BUILT — the lane runs, and the deletion detectors are absent from
 it.** D4's rule now has code under it rather than a predicate waiting for one.
 
@@ -166,7 +193,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | 🔨 **Vocabulary built 2026-09-10** (ledger migration 0044, `holdsASlot`, `isAfterCutover`, ADR-0014 amended). Nothing can enter or run the lane yet — the tick and the door are the next two slices | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
-| T2 The confirmed list | 📋 **Unblocked 2026-09-10 — D7 taken, branch (a)**: confirm every item by re-reading the target, as a job the person starts. §7d has what it may claim, and the calendar/contacts limit it must state | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
+| T2 The confirmed list | 🔨 **Slice 1 built 2026-09-10**: `confirmed-list.ts` — what a row may claim, before any machinery exists to produce one. Two claim kinds, seven row states, the never-placed and adopted rules. Next: the confirmation pass itself, somewhere to record it, and the job the person starts | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The live item now** | The drain's consent (D5) defers with T3. What T1 and T2 need is smaller and real, and D4 added to it: a person must be told that a mapping keeps copying after cutover (continued access to a system they think they have left), that deletions at the source are **no longer mirrored** and why, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |
@@ -618,8 +645,31 @@ target per item, plus somewhere to record what it found, plus the list.
 Two item states need naming before the list can be honest:
 
 - **`adopted`** — *"Already on the target under our natural key; nothing was written"*
-  (migration 0017). We never wrote these and never hashed them. They are the most likely to
-  be genuinely fine and the ones we have said least about.
+  (migration 0017).
+
+  > **Corrected 2026-09-10 (T2 slice 1), and the correction changes the design.** This
+  > paragraph used to end *"We never wrote these and never hashed them."* Read out of
+  > `domain-sync.ts`, that is wrong on both halves, and **two different rows wear the
+  > status**:
+  >
+  > - **adopted at first sight** (`:1426`, `status: result.adopted ? 'adopted' : …`) — the
+  >   target already held an item under our natural key, so nothing was written; but the
+  >   source item HAD been fetched and hashed, and `contentHash: ch` on that row is our
+  >   SHA-256 of the SOURCE's bytes.
+  > - **adopted by conflict** (`:1399`, `recordUpdate({ ...rewriteOf!, status: 'adopted' })`)
+  >   — we wrote this item once, the customer has since edited our copy, and hard rule 2
+  >   leaves it alone. The row keeps the `contentHash` of what **we** wrote, and the target
+  >   has deliberately moved away from it.
+  >
+  > The ledger cannot tell the two apart after the fact: same status, same columns. So the
+  > naive comparison — `item.contentHash` against a re-read — answers a different question
+  > for each, and for the second it is **expected to differ**. A list that ran it would
+  > report a customer's own edited file as changed, in the one document where alarm is most
+  > expensive.
+  >
+  > Hence the row state `yours`: on the target, and the bytes are the customer's. True of
+  > both shapes, it is what the person needs before deleting, and it claims nothing it
+  > cannot support. An adopted row is therefore **never `verified`**.
 - **`skipped`** and **`left_behind`** — never placed. They must not appear as confirmed, and
   a list that silently omits them tells somebody their library is smaller than it is.
 
