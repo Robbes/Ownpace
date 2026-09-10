@@ -206,7 +206,11 @@ export const mailboxMapping = pgTable(
       .notNull()
       .default('mirror'),
     status: text('status', {
-      enum: ['active', 'paused', 'cutover', 'done'],
+      // `continuous` is 0117 T1's lane — after cutover, still copying, deleting
+      // nothing. Sixth value in `path_lifecycle.state` too; ledger migration
+      // 0044 widens both CHECKs together, because adding it to only one leaves
+      // the lane running while billing thinks those paths ended.
+      enum: ['active', 'paused', 'cutover', 'done', 'continuous'],
     })
       .notNull()
       .default('active'),
@@ -367,7 +371,12 @@ export const pathLifecycle = pgTable(
      * `paused` STILL HOLDS A SLOT — it is reserved capacity, and the pricing
      * page says so; only `cutover`/`done` release one.
      */
-    state: text('state', { enum: ['ready', 'active', 'paused', 'cutover', 'done'] })
+    // Six since 2026-09-10 — `continuous` holds a slot (0117 D6). `PATH_STATES`
+    // in path-lifecycle-store.ts is the authority; ledger migration 0044 is the
+    // database refusing anything outside it.
+    state: text('state', {
+      enum: ['ready', 'active', 'paused', 'cutover', 'done', 'continuous'],
+    })
       .notNull()
       .default('ready'),
     /** When this path FIRST took a slot. Never overwritten by a later one:

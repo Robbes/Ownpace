@@ -1,6 +1,6 @@
 # ADR-0014: Cost-recovery billing (no profit) for the managed edition
 
-- **Status:** Accepted 2026-06-20; **amended 2026-08-20** — the model changed from metered
+- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers) and **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6). The 2026-08-20 amendment note follows: the model changed from metered
   resources to five tiers on paths running at the same time, and "no profit" no longer
   describes it. Owner decision in conversation; workplan 0088's blocking T1.
 - **Date:** 2026-06-20
@@ -545,6 +545,23 @@ bounds those. Path count is a proxy for how much of the system is occupied at on
 support surface that implies, which is inherently a simultaneity quantity. Under capacity,
 *"pausing does not reduce a bill"* stops being an assertion and acquires a reason: **a paused
 path is reserved capacity; a finished path is released capacity.**
+
+**Amended 2026-09-10 — a sixth state, and the first one that never releases.** 0117 T1 adds
+`continuous` to the path lifecycle: a path that keeps copying after cutover and deletes nothing,
+so that the source becomes a conveyor belt rather than a home. Every other state in
+`PATH_STATES` belongs to a migration, which is a thing that ends. This one does not.
+
+The owner's decision (0117 D6, 2026-09-10, *"a. yes it holds a slot"*) is that it **holds a
+slot**, and capacity is exactly why: the system is occupied on that customer's behalf for as long
+as the belt runs, which is the quantity a tier measures. A lane that held no slot would be
+capacity nobody meters, growing with every customer who leaves one running.
+
+It follows that the sentence above — *"a paused path is reserved capacity; a finished path is
+released capacity"* — gains a third clause: **a continuous path is occupied capacity that is
+never released, until the customer ends the lane.** That is a real ongoing charge and it is the
+one thing here a customer could be genuinely surprised by, so the obligation lands in the words
+rather than the schema: **before somebody enters the lane they must be told that their bill does
+not stop at cutover.** 0117 T5 owns that sentence, and T1 must not ship a door without it.
 
 Capacity also disposes of a worry a tally would have forced us to defend against, and disposes of
 it better than a tally would. Somebody running two paths at a time, forty over a month, stays on
