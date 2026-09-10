@@ -34,6 +34,26 @@ storage:
   # look at it, which is the whole failure this page exists to record.
   type: sqlite
   path: /data/status.db
+  # HOW FAR BACK THE PAGE CAN SEE, and it is a duration expressed as a count.
+  #
+  # gatus keeps the last N results PER ENDPOINT and the dashboard draws exactly
+  # those, so the window a reader gets is `N × interval` — nothing else controls
+  # it. At the default 100 the sixty-second rows reached back one hour and forty
+  # minutes, which is how the owner came to be looking at a page that could not
+  # say whether the identity provider had been down two hours earlier
+  # (2026-09-10): the answer had already scrolled off.
+  #
+  # 240 puts the sixty-second rows at four hours — twice the two the owner asked
+  # for, so an event is still on the page two hours after somebody notices it —
+  # and the five-minute rows at twenty. `status-page.unit.test.ts` asserts the
+  # DURATION rather than this number, so adding a faster endpoint fails there
+  # instead of silently shortening the window for everything.
+  maximum-number-of-results: 240
+  # Up/down transitions, which is the list that actually answers "was there an
+  # outage". Raised with the results for the same reason: a window that holds
+  # four hours of probes and fifty transitions would run out of transitions
+  # first on exactly the flappy afternoon somebody is trying to reconstruct.
+  maximum-number-of-events: 120
 
 ui:
   title: "Ownpace status"
