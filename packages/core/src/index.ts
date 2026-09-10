@@ -12,6 +12,8 @@ export * from './verification.ts';
 export * from './confirmation-pass.ts';
 // The job a person starts (workplan 0117 T2 slice 4).
 export * from './confirmation-run.ts';
+// A real target, asked one item at a time (0117 T2 slice 5).
+export * from './confirmation-reader.ts';
 export * from './verification-implementations.ts';
 // DNS is VERIFY-ONLY, and that is the whole of it. `dns-manager.ts` and
 // `dns-provider-desec.ts` — a ~950-line write path with a deSEC provider —
