@@ -82,6 +82,48 @@ export function billingWindow(periodStart: string, periodEnd: string): { from: D
 }
 
 /**
+ * The two DATES that name a calendar month's billing period, both in UTC.
+ *
+ * `billingWindow` below is scrupulous about UTC and about the last day of the
+ * month; it can only be as right as the pair handed to it. `/api/billing/usage`
+ * built that pair like this until 2026-09-09:
+ *
+ * ```ts
+ * new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10)
+ * ```
+ *
+ * `getFullYear`/`getMonth` read the server's LOCAL clock and the `Date(y, m, d)`
+ * constructor builds local midnight, which `toISOString` then converts back to
+ * UTC. East of Greenwich that midnight is the previous day: on a server in
+ * Amsterdam the last day of September came out `2026-09-29`, so the window was
+ * `[Sep 1, Sep 30)` and the whole of the 30th went uncounted — reintroducing,
+ * one layer up, precisely the missing last day `billingWindow` exists to fix.
+ * `/api/billing/usage/history` computed the same date correctly a hundred lines
+ * below, under a comment stating the rule. One month, two answers, same file.
+ *
+ * So both callers ask here instead, and there is one place left to be wrong.
+ *
+ * @param month - The period as `YYYY-MM`. It is a UTC month: derive it with
+ *   `toISOString().slice(0, 7)`, never `getMonth()`.
+ */
+export function monthPeriod(month: string): { periodStart: string; periodEnd: string } {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  const year = Number(match?.[1]);
+  const mon = Number(match?.[2]);
+  // A malformed month would otherwise become `NaN` dates and silently meter a
+  // window of nothing, which reads on screen as a quiet month.
+  if (!match || mon < 1 || mon > 12) {
+    throw new Error(`Not a calendar month: ${month} (expected YYYY-MM)`);
+  }
+  return {
+    periodStart: `${month}-01`,
+    // Day 0 of the NEXT month is the last day of this one, in UTC so the
+    // boundary does not move with the server's timezone.
+    periodEnd: new Date(Date.UTC(year, mon, 0)).toISOString().slice(0, 10),
+  };
+}
+
+/**
  * Derive storage and egress usage from item ledger for a billing period.
  * 
  * Uses derive-at-read approach: no writes, computed on-demand from immutable ledger.

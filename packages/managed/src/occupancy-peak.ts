@@ -58,11 +58,26 @@ export class PgOccupancyPeakStore {
   async recordCurrentOccupancy(tenantId: TenantId, at: Date = new Date()): Promise<void> {
     const slots = await new PgPathLifecycleStore(this.db).slotsHeld(tenantId);
     if (slots === 0) return;
+    // `AT TIME ZONE 'UTC'`, and not the bare `date_trunc('month', ts)` this
+    // line had until 2026-09-09: `date_trunc` on a `timestamptz` truncates in
+    // the SESSION's timezone, and nothing in this codebase sets one. On a
+    // server in Amsterdam an activation at 2026-09-30T23:30Z was filed under
+    // `2026-10-01`, so September's invoice missed the peak it was evidence
+    // for and October's quoted a date in September. `forMonth` below reads in
+    // UTC and the column is documented as UTC (migration 0015); the writer was
+    // the one of the three that moved.
+    //
+    // Nor the three-argument `date_trunc('month', ts, 'UTC')`: that returns a
+    // `timestamptz` at midnight UTC, and casting THAT to `date` re-applies the
+    // session zone — west of Greenwich it yields the last day of the previous
+    // month, which is not even the first of a month. `AT TIME ZONE 'UTC'`
+    // yields a plain `timestamp`, and a plain timestamp casts to a date with
+    // no zone in the way.
     await this.db.execute(
       sql`INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at, updated_at)
           VALUES (
             ${tenantId},
-            date_trunc('month', ${at.toISOString()}::timestamptz)::date,
+            date_trunc('month', ${at.toISOString()}::timestamptz AT TIME ZONE 'UTC')::date,
             ${slots}, ${at.toISOString()}::timestamptz, now()
           )
           ON CONFLICT (tenant_id, month) DO UPDATE SET
