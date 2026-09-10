@@ -34,6 +34,66 @@ bug restored verbatim.
 each internally consistent and separately guarded. Neither guard could see them, because
 neither slice was wrong. What found them was trying to use the two together.
 
+**2026-09-10, evening: T2 SLICE 6 — the bytes are the tenant's (D9).**
+`buildTargetWriterFromCredentials` takes neither a throttle limiter nor a meter,
+so nothing that reads a TARGET has ever been budgeted. That was fine while
+everything only wrote to one, an item at a time, behind a pass already gated on
+the source. D7(a) reads a whole account off the target, so this is the first
+thing that has to carry the target's side of the tenant's allowance — which is
+the gap D9 names rather than a tidy-up.
+
+**The split is 0090's, unchanged: the connector spends, the pass gates.**
+`confirmation-reader.ts` spends what a body read cost and waits for a rate
+token; `confirmation-run.ts` reads the meter and stops. One instance, two roles,
+because only the loop can stop taking new work.
+
+**Stopping matters more here than in a sync**, and that is the rule this slice
+exists for. A confirmation that kept going on an exhausted budget would not
+merely be slow: the reader's refusal becomes `unreachable`, so every remaining
+item would be RECORDED as `unchecked` — *we asked and could not tell* about
+items nobody asked about. A NULL answer is the honest state for an item nobody
+looked at, and it is what the next pass finds work in.
+
+**One decision that could have gone the other way, so it is pinned:** a domain
+that costs nothing — calendar, contacts, tasks, which have no `contentHashFor`
+at all (§7d) — stops too. Continuing it would be free, but a report that says
+PAUSED beside a domain that quietly finished is a report somebody has to reason
+about, on the document they delete their originals from.
+
+**An unmeasured item counts ZERO rather than a guess.** `TargetEntry.sizeBytes`
+is what lets a report say a measured number, and its own rule is to leave it
+undefined rather than estimate. The meter therefore under-reads, which errs
+toward finishing the pass rather than toward stopping a migration that had
+budget left — the right direction when the wrong one costs somebody a
+twenty-four hour lockout of their live account.
+
+**Visible, per D9**, means the run row: the pause and its numbers ride in
+`finishRun`'s stats, and the run still closes `succeeded`, because 0090 T4's
+rule is that a scheduled stop is not a failure.
+
+**And the shape was wrong once, which is the fourth time this plan has recorded
+it.** `TargetBudget` was `{ meter, rate? }` first — the meter carrying the
+`(tenant, provider)` key, the way `DownloadMeter` does. Starting slice 7 found
+what that costs: **a target with no published byte ceiling then gets no RATE
+limiting either**, because there is no meter to hang the key on. That is every
+target this product writes to — a ceiling is a number somebody published, and
+the only one we know is Gmail's IMAP download limit, which belongs to a SOURCE.
+So the shape switched off the half of D9 that actually bites, on every
+deployment, while looking wired. The key is now the carrier and both budgets
+hang off it. Same lesson as #915 and #916, one layer up: the consumer found it,
+nothing else could have.
+
+Guard: `a-budget-the-confirmation-shares.unit.test.ts`, against a real database
+— whether the un-asked rows keep their NULL answer is a fact about the `item`
+table. **Ten mutations, all caught.** Two of them are only there because
+something was missed: B5 (a domain that spends nothing runs on past the pause,
+which nothing else noticed) and B10 (the key hanging off the meter, above).
+
+**Not the route yet.** D9 said the budget lands *with* the route that starts a
+pass, and the route is the next slice; the budget is here first because its
+consumer — `runConfirmationPass` — already exists and is wired to it in this
+same commit, which is the thing the last three seams did not have.
+
 **2026-09-10, evening: T2 SLICE 5 — a real target, asked one item at a time.**
 `readerOverTarget` is the bridge slice 2 said would be needed and would not be
 `TargetReindexer` itself: that interface streams a whole account, this asks about
@@ -106,8 +166,10 @@ survives; the pricing exception dropped; the exception drifting away from the
 promise; the switch offered on an `active` migration, which would be offering
 something already happening.
 
-**D9 and D10 were taken the same day and are recorded in §6.** Neither is built:
-the budget lands with the route that starts a pass, the list's shape with the list.
+**D9 and D10 were taken the same day and are recorded in §6.** Neither was built
+when this was written; **D9's budget was built the same evening** (slice 6
+above), one slice ahead of the route rather than with it. D10's shape still
+belongs with the list.
 
 **2026-09-10, later again: T2 SLICE 4 — the job runs, and a second seam did not
 fit either.** `runConfirmationPass` drives it: ledger rows in, `confirmEach` over
@@ -398,7 +460,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | ✅ **Slices 1–3 built 2026-09-10.** The lane exists in every vocabulary, runs with the deletion detectors absent, and can now be ENTERED: `PATCH /api/migrations/:id` admits `continuous`, offered on the Finish page from `cutover` or `done`, behind two presses and the sentence D8 settled. | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy. |
-| T2 The confirmed list | 🔨 **Slices 1–5 built 2026-09-10**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, and `readerOverTarget` — a real target asked one item at a time. Three seams did not fit when connected and all three are recorded in §7e. **Left: the route that starts a pass (where D9 lands) and the list itself (where D10 lands).** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
+| T2 The confirmed list | 🔨 **Slices 1–6 built 2026-09-10**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — and D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`. Three seams did not fit when connected and all three are recorded in §7e. **Left: the route that starts a pass and the list itself (where D10 lands).** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The lane's half done 2026-09-10** (D8): the pricing page's "finishing lowers your bill" paragraph gained the exception beside it, and `lane.*` says it again where the switch is — including that deletions at the source stop being mirrored. The drain's consent (D5) defers with T3. **Left: T2's half** — the list must say what "verified" covers before anybody deletes on the strength of it (D10 settled its shape). | A person must be told that a mapping keeps copying after cutover, that deletions at the source are no longer mirrored and why, and what "verified" covers. |
