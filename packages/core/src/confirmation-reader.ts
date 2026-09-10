@@ -30,6 +30,27 @@
 //
 // So the failure is captured and re-thrown per item, which is exactly what
 // `answerFor` turns into `unreachable` (slice 2's first rule).
+//
+// ## The bytes are the tenant's, not this pass's (D9)
+//
+// D7(a) re-reads every item's BYTES off the target, and D9 settled who pays:
+// *"(a) it shares the tenant's budget. The limit belongs to the PROVIDER, not
+// to us, so splitting it into two budgets is pretending we have twice the
+// allowance we do."*
+//
+// Concretely, and this is the gap D9 names rather than a tidy-up:
+// `buildTargetWriterFromCredentials` takes neither a throttle limiter nor a
+// meter, so nothing that reads the TARGET has ever been budgeted — every
+// existing caller only writes to it, one item at a time, behind a pass that is
+// already gated on the source. A confirmation pass is the first thing to read a
+// target at the scale of the whole account, so it is the first thing that has
+// to carry the target's side of the tenant's budget.
+//
+// The split is 0090's, unchanged: the CONNECTOR spends and the PASS gates
+// (`imapflow-source.ts` spends, `domain-sync.ts` reads the meter and stops).
+// Here this file is the connector half — it spends what a body read cost and
+// waits for a rate token — and `confirmation-run.ts` is the pass half, because
+// only the loop can stop taking new work. One meter instance, two roles.
 
 import {
   calendarNaturalKeyHash,
@@ -38,6 +59,8 @@ import {
   naturalKeyHash,
   taskNaturalKeyHash,
   type DiscoveryDomain,
+  type DownloadMeter,
+  type RateBudget,
   type TargetEntry,
   type TargetReindexer,
 } from '@openmig/shared';
@@ -61,6 +84,29 @@ const KEY_OF: Readonly<Record<DiscoveryDomain, (naturalKey: string) => string>> 
 };
 
 /**
+ * THE TENANT'S BUDGET FOR THE TARGET'S PROVIDER — one carrier, both halves.
+ *
+ * `DownloadMeter` already pairs the byte budget with the `(tenantId, provider)`
+ * it is keyed by, *"so no consumer invents its own"*. The rate budget is keyed
+ * by exactly the same pair, so it travels beside it rather than being handed a
+ * second, hand-copied tenant and provider — which is how one of these came to
+ * be keyed by the connector's own label instead of the tenant (0082 T5).
+ *
+ * Both are the SAME instances a migration against that provider uses. That is
+ * the whole of D9: not a second allowance, the one allowance, shared.
+ */
+export interface TargetBudget {
+  /** Bytes off the target. Spent here; read as a gate by `confirmation-run`. */
+  readonly meter: DownloadMeter;
+  /**
+   * Requests against the target. Optional because a deployment may have none
+   * wired, and an invented ceiling would be this file's own way of making a
+   * confirmation mysteriously slow (`imapDownloadPlan`'s rule, applied here).
+   */
+  readonly rate?: RateBudget;
+}
+
+/**
  * Build a reader over one domain's target.
  *
  * Enumerates immediately: the cost is paid once, up front, and a caller that
@@ -78,15 +124,39 @@ export async function readerOverTarget(args: {
   reindexer: TargetReindexer;
   /** Scope the enumeration to one mailbox/collection, when the caller can. */
   mailboxId?: string;
+  /**
+   * The tenant's budget for THIS target's provider (D9). Absent means no
+   * ceiling is known for it — not "no counting needed" but "nothing to count
+   * against", which is the same answer `imapDownloadPlan` gives a self-hosted
+   * server and for the same reason.
+   */
+  budget?: TargetBudget;
 }): Promise<ConfirmationReader> {
   const keyOf = KEY_OF[args.domain];
   const byKey = new Map<string, TargetEntry>();
+
+  // One token per request against the target, from the budget the migration
+  // uses. `acquire` WAITS rather than refusing (`RateBudget`'s contract): a
+  // confirmation that is slow because a migration is running is D9's accepted
+  // cost, and a confirmation that FAILS because one is would not be.
+  const meter = args.budget?.meter;
+  const rate = args.budget?.rate;
+  const token = async (): Promise<void> => {
+    if (meter && rate) await rate.acquire(meter.tenantId, meter.provider);
+  };
 
   // Captured, not thrown here. Throwing from the build would fail the whole
   // pass on one unlistable domain; re-throwing per item makes every row of THAT
   // domain honestly `unchecked` and leaves the others alone.
   let enumerationFailed: unknown;
   try {
+    // One token before the listing, not one per entry: `listEntries` pages
+    // internally and this loop cannot see the page boundaries, so a token per
+    // yielded entry would charge a hundred thousand requests for the handful
+    // that were actually made. Under-counting the listing is the honest error
+    // here — the bytes it costs are metadata, and the reads worth budgeting
+    // are the bodies below.
+    await token();
     for await (const entry of args.reindexer.listEntries(args.mailboxId)) {
       byKey.set(keyOf(entry.naturalKey), entry);
     }
@@ -114,9 +184,21 @@ export async function readerOverTarget(args: {
             const entry = byKey.get(item.naturalKeyHash);
             // Not on the target: there is nothing to hash, and `answerFor`
             // never asks in that case. Answering `undefined` rather than
-            // throwing keeps a direct caller honest too.
+            // throwing keeps a direct caller honest too. Nothing is spent and
+            // no token taken — no request is made.
             if (!entry) return undefined;
-            return hashOnTarget(entry);
+            await token();
+            const hash = await hashOnTarget(entry);
+            // Spent AFTER the read, and only what the target itself reported.
+            // `sizeBytes` is *"what lets verification report totalBytesTarget
+            // as a real measurement"* and its own rule is to leave it undefined
+            // rather than guess; an estimate here would move a ceiling whose
+            // penalty is a lockout of somebody's live account. So an unmeasured
+            // item counts zero: the meter under-reads, which errs toward
+            // finishing the pass rather than toward stopping a migration that
+            // had budget left.
+            if (meter) await meter.budget.spend(meter.tenantId, meter.provider, entry.sizeBytes ?? 0);
+            return hash;
           },
         }
       : {}),

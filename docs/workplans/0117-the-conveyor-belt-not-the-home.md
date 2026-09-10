@@ -34,6 +34,54 @@ bug restored verbatim.
 each internally consistent and separately guarded. Neither guard could see them, because
 neither slice was wrong. What found them was trying to use the two together.
 
+**2026-09-10, evening: T2 SLICE 6 — the bytes are the tenant's (D9).**
+`buildTargetWriterFromCredentials` takes neither a throttle limiter nor a meter,
+so nothing that reads a TARGET has ever been budgeted. That was fine while
+everything only wrote to one, an item at a time, behind a pass already gated on
+the source. D7(a) reads a whole account off the target, so this is the first
+thing that has to carry the target's side of the tenant's allowance — which is
+the gap D9 names rather than a tidy-up.
+
+**The split is 0090's, unchanged: the connector spends, the pass gates.**
+`confirmation-reader.ts` spends what a body read cost and waits for a rate
+token; `confirmation-run.ts` reads the meter and stops. One instance, two roles,
+because only the loop can stop taking new work.
+
+**Stopping matters more here than in a sync**, and that is the rule this slice
+exists for. A confirmation that kept going on an exhausted budget would not
+merely be slow: the reader's refusal becomes `unreachable`, so every remaining
+item would be RECORDED as `unchecked` — *we asked and could not tell* about
+items nobody asked about. A NULL answer is the honest state for an item nobody
+looked at, and it is what the next pass finds work in.
+
+**One decision that could have gone the other way, so it is pinned:** a domain
+that costs nothing — calendar, contacts, tasks, which have no `contentHashFor`
+at all (§7d) — stops too. Continuing it would be free, but a report that says
+PAUSED beside a domain that quietly finished is a report somebody has to reason
+about, on the document they delete their originals from.
+
+**An unmeasured item counts ZERO rather than a guess.** `TargetEntry.sizeBytes`
+is what lets a report say a measured number, and its own rule is to leave it
+undefined rather than estimate. The meter therefore under-reads, which errs
+toward finishing the pass rather than toward stopping a migration that had
+budget left — the right direction when the wrong one costs somebody a
+twenty-four hour lockout of their live account.
+
+**Visible, per D9**, means the run row: the pause and its numbers ride in
+`finishRun`'s stats, and the run still closes `succeeded`, because 0090 T4's
+rule is that a scheduled stop is not a failure.
+
+Guard: `a-budget-the-confirmation-shares.unit.test.ts`, against a real database
+— whether the un-asked rows keep their NULL answer is a fact about the `item`
+table. **Nine mutations, all caught.** The fifth was missed on the first run and
+is the one that added the test above: with the domain-loop's own break removed,
+a domain that spends nothing runs on past the pause, and nothing else noticed.
+
+**Not the route yet.** D9 said the budget lands *with* the route that starts a
+pass, and the route is the next slice; the budget is here first because its
+consumer — `runConfirmationPass` — already exists and is wired to it in this
+same commit, which is the thing the last three seams did not have.
+
 **2026-09-10, evening: T2 SLICE 5 — a real target, asked one item at a time.**
 `readerOverTarget` is the bridge slice 2 said would be needed and would not be
 `TargetReindexer` itself: that interface streams a whole account, this asks about
@@ -368,7 +416,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | 🔨 **Vocabulary built 2026-09-10** (ledger migration 0044, `holdsASlot`, `isAfterCutover`, ADR-0014 amended). Nothing can enter or run the lane yet — the tick and the door are the next two slices | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
-| T2 The confirmed list | 🔨 **Slices 1–5 built 2026-09-10**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, and `readerOverTarget` — a real target asked one item at a time. Three seams did not fit when connected and all three are recorded in §7e. **Left: the route that starts a pass (where D9 lands) and the list itself (where D10 lands).** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
+| T2 The confirmed list | 🔨 **Slices 1–6 built 2026-09-10**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — and D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`. Three seams did not fit when connected and all three are recorded in §7e. **Left: the route that starts a pass and the list itself (where D10 lands).** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The live item now** | The drain's consent (D5) defers with T3. What T1 and T2 need is smaller and real, and D4 added to it: a person must be told that a mapping keeps copying after cutover (continued access to a system they think they have left), that deletions at the source are **no longer mirrored** and why, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |
