@@ -43,6 +43,7 @@ import {
   claimCeilingFor,
   countsAsVerified,
   mustAppearDespiteNoClaim,
+  needsTargetRead,
   rowFor,
   DISCOVERY_DOMAINS,
   type ClaimKind,
@@ -81,7 +82,21 @@ const ALL_ANSWERS = [
   { onTarget: true, comparison: 'match' },
   { onTarget: true, comparison: 'differ' },
   { onTarget: true, comparison: 'unavailable' },
+  // The answer slice 2 had to add: the target could not be asked at all.
+  { unreachable: true },
 ] as const;
+
+/**
+ * The answers where the target ACTUALLY ANSWERED.
+ *
+ * Three tests below make claims of the form *"whatever the target says"*, and
+ * those claims are about a target that said something. `{ unreachable: true }`
+ * is not the target saying something — it is us failing to ask — and it
+ * deliberately outranks every ledger status (see the last describe). Sweeping
+ * it into those three would turn each of them into an assertion that the
+ * unreachable rule does not exist.
+ */
+const ANSWERED = ALL_ANSWERS.filter((a) => !('unreachable' in a));
 
 const everyRow = (): Array<{
   domain: DiscoveryDomain;
@@ -110,7 +125,7 @@ describe('a row that was never placed cannot read as verified, and cannot be hid
     // would confirm an item this product never migrated.
     for (const status of NEVER_PLACED) {
       for (const domain of DISCOVERY_DOMAINS) {
-        for (const answer of ALL_ANSWERS) {
+        for (const answer of ANSWERED) {
           const row = rowFor({ domain, status, answer });
           expect(
             row,
@@ -148,7 +163,7 @@ describe("the customer's own bytes are never reported as ours, verified or wrong
     // SHOULD differ. Reporting that as `differs` would tell somebody their
     // own edit is a migration fault.
     for (const domain of DISCOVERY_DOMAINS) {
-      for (const answer of ALL_ANSWERS) {
+      for (const answer of ANSWERED) {
         expect(
           rowFor({ domain, status: 'adopted', answer }),
           `adopted/${domain} with ${JSON.stringify(answer)} did not read as 'yours'`,
@@ -264,7 +279,7 @@ describe('the states that need somebody to do something', () => {
     // The only status this product creates by destroying something. Reading it
     // as missing would turn a completed decision into an alarm, which is the
     // same mistake `isOnTarget` documents for §20 verification.
-    for (const answer of ALL_ANSWERS) {
+    for (const answer of ANSWERED) {
       expect(rowFor({ domain: 'file', status: 'tombstoned', answer })).toEqual({
         state: 'removed',
         claim: 'none',
@@ -302,6 +317,7 @@ describe('the headline is assembled in one place', () => {
       'never-placed',
       'present',
       'removed',
+      'unchecked',
       'verified',
       'yours',
     ]);
@@ -318,5 +334,103 @@ describe('the headline is assembled in one place', () => {
       './ports.ts',
     ]);
     expect(/\bawait\b|\basync\b/.test(src), 'confirmed-list.ts became asynchronous').toBe(false);
+  });
+});
+
+/**
+ * The state the MACHINERY needed, and the vocabulary did not have
+ * (workplan 0117 T2 slice 2).
+ *
+ * Slice 1 built the words before the pass on the grounds that a pass which
+ * succeeds and says the wrong word is the dangerous failure. Building the pass
+ * proved the point from the other side: `TargetAnswer` could say *there* and
+ * *not there* and had no way to say *we could not tell*, so a timeout had
+ * nowhere to go but `missing` — the loudest row on the list, on the document
+ * somebody deletes their originals from, produced by a network blip.
+ *
+ * `ports.ts` already states the rule for the write side — *"treating an outage
+ * as absence is how a removal gets authorised by a broken network"*. This is
+ * the same rule on the reading side.
+ */
+describe('the pass may only skip a read where the answer could not have mattered', () => {
+  it('every status `needsTargetRead` waives is decided identically by every ANSWER', () => {
+    // The property that makes skipping the read safe (workplan 0117 T2 slice
+    // 2, D7's cost half): *had we asked, the answer could not have changed the
+    // row.* If a waived status ever became answer-dependent, the pass would
+    // quietly stop checking something the list then claimed.
+    //
+    // `ANSWERED`, not `ALL_ANSWERS`, and the reason is the rule rather than
+    // convenience. `unreachable` is not an answer the pass can receive for
+    // these statuses, because it never asks — and the claim it does make about
+    // them is not a claim about the target at all. `never-placed` says *it was
+    // never put there*, which is a fact about our own history; `removed` says
+    // *we took it back*, likewise. A target that cannot be reached leaves both
+    // of those exactly as true as they were.
+    for (const domain of DISCOVERY_DOMAINS) {
+      for (const status of ALL_STATUSES) {
+        if (needsTargetRead(status)) continue;
+        const rows = ANSWERED.map((answer) => rowFor({ domain, status, answer }));
+        const first = rows[0]!;
+        for (const row of rows) {
+          expect(
+            row,
+            `status '${String(status)}' is waived from the target read but its row ` +
+              'depends on the answer — the pass would be skipping a read that matters',
+          ).toEqual(first);
+        }
+      }
+    }
+  });
+
+  it('and every status it does NOT waive is answer-dependent, or the read is wasted', () => {
+    for (const status of ALL_STATUSES) {
+      if (!needsTargetRead(status)) continue;
+      // ANSWERED again, and for the same reason as above — plus one this
+      // mutation harness found on 2026-09-10. With `unreachable` in the sweep
+      // every status looks answer-dependent, because `unreachable` alone
+      // produces `unchecked`; the assertion passed for a `needsTargetRead`
+      // that had started demanding a read for `skipped`, which is exactly the
+      // waste it exists to catch.
+      const seen = new Set(
+        ANSWERED.map((answer) => rowFor({ domain: 'file', status, answer }).state),
+      );
+      expect(seen.size, `status '${String(status)}' reads the target and never varies`).
+        toBeGreaterThan(1);
+    }
+  });
+});
+
+describe('a row we could not ask about is not a row we found missing', () => {
+  it('answers `unchecked` for every status, including the ones decided without the target', () => {
+    // The ordering rule: `unreachable` is honoured BEFORE the status switch.
+    // `skipped` and `left_behind` would answer `never-placed` from the ledger
+    // alone and be right — and the list would then quietly mix rows we checked
+    // with rows we did not.
+    for (const domain of DISCOVERY_DOMAINS) {
+      for (const status of ALL_STATUSES) {
+        const row = rowFor({ domain, status, answer: { unreachable: true } });
+        expect(row, `${domain}/${String(status)} on an unreachable target`).toEqual({
+          state: 'unchecked',
+          claim: 'none',
+        });
+      }
+    }
+  });
+
+  it('never counts toward the headline, and can never be filtered out', () => {
+    const row = rowFor({ domain: 'file', status: 'copied', answer: { unreachable: true } });
+    expect(countsAsVerified(row)).toBe(false);
+    // The one a template would drop hardest: it looks like an absence of
+    // information rather than a fact. It is a fact, and it is the one a person
+    // about to delete most needs.
+    expect(mustAppearDespiteNoClaim(row)).toBe(true);
+  });
+
+  it('is a different answer from "we looked and it is gone"', () => {
+    const gone = rowFor({ domain: 'file', status: 'copied', answer: { onTarget: false } });
+    const unknown = rowFor({ domain: 'file', status: 'copied', answer: { unreachable: true } });
+    expect(gone.state).toBe('missing');
+    expect(unknown.state).toBe('unchecked');
+    expect(gone).not.toEqual(unknown);
   });
 });

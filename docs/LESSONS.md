@@ -935,6 +935,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/shared/src/ports.ts`
 
+- [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts) — A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
 - [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
 
 ### `packages/shared/src/provider-accounts.ts`
@@ -1502,6 +1503,7 @@ Reads:
 
 - `packages/core/src/domain-sync.ts`
 - `packages/shared/src/confirmed-list.ts`
+- `packages/shared/src/ports.ts`
 
 ### [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts)
 

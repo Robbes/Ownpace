@@ -6,6 +6,10 @@ export * from './reconcile.ts';
 export * from './reindex.ts';
 export * from './cutover-state.ts';
 export * from './verification.ts';
+// Workplan 0117 T2 — the confirmation pass, beside the verification it is not.
+// §20 verification samples for the OPERATOR; this confirms every item for the
+// PERSON, and the two must not be reached for interchangeably.
+export * from './confirmation-pass.ts';
 export * from './verification-implementations.ts';
 // DNS is VERIFY-ONLY, and that is the whole of it. `dns-manager.ts` and
 // `dns-provider-desec.ts` — a ~950-line write path with a deSEC provider —

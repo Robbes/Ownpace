@@ -2,6 +2,15 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-10, later: T2 SLICE 2 — and the discipline paid twice.** `confirmation-pass.ts`
+turns ledger rows into `ConfirmedRow`s, every one through `rowFor`, and building it found
+what slice 1's vocabulary could not say. §7e records both findings; the short version is
+that `TargetAnswer` could say *there* and *not there* and had no way to say *we could not
+tell*, so a timeout had nowhere to go but `missing` — the loudest row on the page somebody
+deletes their originals from, produced by a network blip. D7(a)'s cost half is
+`needsTargetRead`: seven of the ten statuses are decided without a request, and the guard
+asserts *why that is safe* rather than assuming it.
+
 **2026-09-10: T2 SLICE 1 — the vocabulary before the machinery.** T1 slice 2 is merged,
 so the lane runs and deletes nothing; T2 is the list somebody deletes on the strength of,
 and its first slice is `packages/shared/src/confirmed-list.ts`: **what a row is allowed to
@@ -193,7 +202,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | 🔨 **Vocabulary built 2026-09-10** (ledger migration 0044, `holdsASlot`, `isAfterCutover`, ADR-0014 amended). Nothing can enter or run the lane yet — the tick and the door are the next two slices | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
-| T2 The confirmed list | 🔨 **Slice 1 built 2026-09-10**: `confirmed-list.ts` — what a row may claim, before any machinery exists to produce one. Two claim kinds, seven row states, the never-placed and adopted rules. Next: the confirmation pass itself, somewhere to record it, and the job the person starts | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
+| T2 The confirmed list | 🔨 **Slices 1 and 2 built 2026-09-10**: `confirmed-list.ts` — what a row may claim — then `confirmation-pass.ts`, the machinery that produces them. Building the pass found an **eighth** row state the vocabulary lacked (`unchecked`) and one the pass must never reach for (`missing`) — see §7e. Next: somewhere to record a pass, and the job the person starts | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The live item now** | The drain's consent (D5) defers with T3. What T1 and T2 need is smaller and real, and D4 added to it: a person must be told that a mapping keeps copying after cutover (continued access to a system they think they have left), that deletions at the source are **no longer mirrored** and why, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |
@@ -675,6 +684,47 @@ Two item states need naming before the list can be honest:
 
 **How much of the library that re-read touches is D7**, and it is a cost question, not a
 correctness one — which is exactly why it is not settled here.
+
+### 7e. What building the pass found that writing the words did not (2026-09-10)
+
+Slice 1 built the vocabulary first on the grounds that the dangerous failure is a pass which
+succeeds and says the wrong word. Slice 2 proved the point from the other side: the machinery
+found two things the words were missing, and both are about the same reader.
+
+**1. There was no way to say "we could not tell".** `TargetAnswer` had two arms — on the
+target, and not on it — so a timeout, a 500 or a dropped connection had nowhere to go but
+`{ onTarget: false }`, which `rowFor` reads as **`missing`**: *we placed it and it is gone.*
+That is the loudest row on the list, on the document somebody deletes their originals from,
+produced by a network blip. `ports.ts` already states the rule for the write side —
+*"treating an outage as absence is how a removal gets authorised by a broken network"* — and
+this is the same rule on the reading side, where the consequence is worse: on the write side
+the product acts, and here a person does.
+
+So `{ unreachable: true }` and the row state **`unchecked`**, honoured **before** the status
+switch. That ordering is deliberate and guarded: `skipped` would answer `never-placed` from
+the ledger alone and be right, and the list would then quietly mix rows we checked with rows
+we did not.
+
+**2. D7's cost half needed a boundary, and the boundary needed a reason.**
+`needsTargetRead(status)` waives seven of the ten statuses: nothing was placed, the bytes are
+the customer's, or we removed our own copy. Reading the target for those would spend a
+request per item to learn nothing, on the one pass whose cost was a decision.
+
+What makes that safe is not obvious and is therefore asserted: **wherever the waiver applies,
+`rowFor` produces the same row for every answer the target could have given.** The guard
+sweeps it. A mutation that made `needsTargetRead` demand a read for `skipped` slipped through
+the first version of that test — because `unreachable` alone made every status look
+answer-dependent — and a second mutation showed the pass's own `try/catch` swallowing a
+throwing test sentinel, so the "we did not read the target" assertion passed while the read
+happened. Both are fixed and both are recorded here, because the harness found them and
+review would not have.
+
+**One thing this does NOT change: the `fingerprint` ceiling is currently unreachable.**
+`claimCeilingFor` says calendar, contacts and tasks may claim `fingerprint`, and no target
+implements a canonical-fingerprint read-back — `contentHashFor` is deliberately absent for
+CalDAV and CardDAV (§7d). So those rows come out `present`, never `verified`, and the
+headline count is files and mail. That is correct rather than a gap: the ceiling is a ceiling,
+and nothing may claim up to it that cannot reach it.
 
 ### 7d. What `item.content_hash` actually holds, and the one domain pair T2 cannot serve
 
