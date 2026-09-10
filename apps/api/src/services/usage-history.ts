@@ -74,7 +74,39 @@ export interface UsageHistoryRow {
   egressGB: number;
   computeHours: number;
   syncCount: number;
-  cost: UsageCost;
+  /**
+   * What the month COST — present only when an invoice froze it.
+   *
+   * Absent on a ledger-derived row, and that absence is the honest answer
+   * rather than a gap somebody should fill in later.
+   *
+   * Until 2026-09-09 these rows carried `calculateCost(...)`, recomputed at
+   * the tenant's agreed rates every time the endpoint was called. Two things
+   * were wrong with that, and they compound:
+   *
+   *  1. **It re-priced.** The comment above this module's invoice branch
+   *     already states the rule — the money comes off the invoice rather than
+   *     being re-priced at today's list — and the ledger branch was the one
+   *     place breaking it, in the same array, so half the rows were frozen
+   *     history and half were a live recomputation wearing the same field.
+   *  2. **The model it re-priced at is retired.** Base fee, per-GB storage and
+   *     egress, per-hour compute: replaced by ADR-0014's tiers on 2026-08-20,
+   *     and refused at the invoice route since 2026-08-27.
+   *
+   * The obvious repair — derive the month's TIER instead — is not available,
+   * and it is worth writing down why so nobody spends an afternoon on it.
+   * ADR-0014's tier needs both axes as they stood in that month. The peak
+   * axis is stored per month (`occupancy_peak`), but the data axis is not:
+   * `bytes_moved` holds ONE lifetime total per tenant. Pricing March against
+   * today's cumulative bytes would put every old month in whatever band the
+   * tenant has since grown into — an overstatement that grows with the
+   * customer, on a screen about money.
+   *
+   * So: quantities for the months we still hold, money only where an invoice
+   * recorded it. A row with no `cost` says "we know what we moved and not
+   * what you were charged", which is exactly true.
+   */
+  cost?: UsageCost;
   /**
    * Where the figures came from. On screen this is the difference between
    * "derived from what we still hold" and "what your invoice said", and a

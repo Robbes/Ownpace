@@ -324,14 +324,13 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
      * as a row of zeroes, or as no row at all. The grouping and the window
      * have to mean the same month.
      */
-    const { months, pricing, issued } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
+    const { months, issued } = await withTenantDb(tenantId, getSharedPool(), async (db) => ({
       months: await db
         .select({ month: sql<string>`to_char(${runTable.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM')` })
         .from(runTable)
         .where(eq(runTable.tenantId, tenantId))
         .groupBy(sql`to_char(${runTable.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM')`)
         .orderBy(sql`to_char(${runTable.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM') DESC`),
-      pricing: await resolveTenantPricing(db, tenantId),
       /**
        * The months the run ledger can no longer answer for (0121 §4b).
        *
@@ -376,7 +375,25 @@ router.get('/usage/history', authenticate, requireBillingRead, async (req: Authe
         computeHours: usage.computeHours,
         syncCount: usage.apiCallCount,
       };
-      usageHistory.push({ ...shaped, cost: calculateCost(shaped, pricing), source: 'ledger' });
+      // NO `cost`. These months carry what was MEASURED and no money.
+      //
+      // This line read `cost: calculateCost(shaped, pricing)` until 2026-09-09
+      // — a live recomputation, in the same array as rows whose money is read
+      // off a frozen invoice, under the same field name. The comment four
+      // dozen lines above states the rule this broke in its own words: the
+      // money comes off the invoice rather than being re-priced at today's
+      // list. Half the array obeyed it.
+      //
+      // And the list it re-priced at is the retired one — base fee, per-GB,
+      // per-hour — which ADR-0014 replaced on 2026-08-20 and this same API
+      // has refused to invoice from since 2026-08-27.
+      //
+      // Deriving the month's TIER instead is not available: ADR-0014 needs
+      // both axes as they stood then, and while `occupancy_peak` is per month,
+      // `bytes_moved` is one lifetime total per tenant. Pricing an old month
+      // against today's cumulative bytes would file it under whatever band the
+      // customer has since grown into. See `usage-history.ts`.
+      usageHistory.push({ ...shaped, source: 'ledger' });
     }
 
     // Older periods, from the invoices that recorded them. `rowFromIssuedInvoice`
