@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 123 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 124 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -912,9 +912,17 @@ reading a file drops off its entry by itself.
 
 - [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
 
+### `packages/shared/src/migration-view.ts`
+
+- [a-stranger-sees-counts-and-states](../scripts/a-stranger-sees-counts-and-states.unit.test.ts) — A progress link opens counts and states, and nothing that names anything.
+
 ### `packages/shared/src/notifications.ts`
 
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
+
+### `packages/shared/src/operating-contract.ts`
+
+- [a-stranger-sees-counts-and-states](../scripts/a-stranger-sees-counts-and-states.unit.test.ts) — A progress link opens counts and states, and nothing that names anything.
 
 ### `packages/shared/src/pass-deadline.ts`
 
@@ -1773,6 +1781,15 @@ The create-mapping validator ends in a catch-all that asks for AZURE credentials
 Reads:
 
 - `apps/api/src/routes/migrations/index.ts`
+
+### [a-stranger-sees-counts-and-states](../scripts/a-stranger-sees-counts-and-states.unit.test.ts)
+
+A progress link opens counts and states, and nothing that names anything.
+
+Reads:
+
+- `packages/shared/src/migration-view.ts`
+- `packages/shared/src/operating-contract.ts`
 
 ### [a-subpath-the-alias-swallowed](../scripts/a-subpath-the-alias-swallowed.unit.test.ts)
 

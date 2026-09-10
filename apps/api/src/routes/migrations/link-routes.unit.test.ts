@@ -347,3 +347,109 @@ describe('revoking', () => {
     expect(res.status).toBe(403);
   });
 });
+
+/**
+ * The second lifetime (workplan 0122 T2), against the same real table.
+ *
+ * The property worth a real database here is that the two purposes are written
+ * as different rows with different lifetimes — a mocked store would happily
+ * agree with itself about that and prove nothing.
+ */
+describe('a progress link is the other lifetime, not the same one', () => {
+  it('is issued for an IMAP source, which a grant link refuses outright', async () => {
+    // The same mapping the first test in this file proved a grant link cannot
+    // be issued for. A progress link runs no consent, so the three
+    // consent-shaped refusals do not apply — and this is the first surface in
+    // the product that can hand a link to somebody being migrated off a
+    // non-Google source.
+    const res = await request(app)
+      .post(`/api/migrations/${IMAP_MAPPING}/links`)
+      .send({ purpose: 'view' });
+    expect(res.status).toBe(201);
+    expect(res.body.purpose).toBe('view');
+    expect(res.body.url).toMatch(/^https:\/\/app\.example\/view\/[0-9a-f-]{36}\.[\w-]+$/);
+
+    const rows = await rowsFor(IMAP_MAPPING);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.purpose).toBe('view');
+    // The table holds a hash of this one too — the property is the row's, not
+    // the purpose's.
+    const secret = String(res.body.url).split('.').slice(1).join('.');
+    expect(JSON.stringify(rows[0])).not.toContain(secret);
+  });
+
+  it('defaults to ninety days, not the credential link’s seven', async () => {
+    const res = await request(app)
+      .post(`/api/migrations/${UNCONFIGURED_MAPPING}/links`)
+      .send({ purpose: 'view' });
+    expect(res.status).toBe(201);
+    expect(res.body.expiryDays).toBe(90);
+
+    const rows = await rowsFor(UNCONFIGURED_MAPPING);
+    const expiresIn = new Date(String(rows[0]!.expires_at)).getTime() - Date.now();
+    expect(expiresIn).toBeGreaterThan(89 * 24 * 3_600_000);
+    expect(expiresIn).toBeLessThan(91 * 24 * 3_600_000);
+  });
+
+  it('refuses the credential lifetimes on a progress link, and writes nothing', async () => {
+    // Seven days is a perfectly good number and the wrong one here: it is the
+    // credential's window, and a progress page that expired with it would
+    // leave somebody watching a migration they can no longer see.
+    const before = (await rowsFor(READY_MAPPING)).length;
+    const res = await request(app)
+      .post(`/api/migrations/${READY_MAPPING}/links`)
+      .send({ purpose: 'view', expiryDays: 7 });
+    expect(res.status).toBe(400);
+    expect(res.body.reason).toContain('view: 30, 90, 180');
+    expect(await rowsFor(READY_MAPPING)).toHaveLength(before);
+  });
+
+  it('refuses the progress lifetimes on a credential link, and writes nothing', async () => {
+    // The other direction, which is the one that matters: ninety days of a
+    // single-use bearer credential sitting in somebody's chat history.
+    const before = (await rowsFor(READY_MAPPING)).length;
+    const res = await request(app)
+      .post(`/api/migrations/${READY_MAPPING}/links`)
+      .send({ purpose: 'grant', expiryDays: 90 });
+    expect(res.status).toBe(400);
+    expect(await rowsFor(READY_MAPPING)).toHaveLength(before);
+  });
+
+  it('still refuses when the deployment has no WEB_URL — a link is only a URL', async () => {
+    const had = process.env.WEB_URL;
+    delete process.env.WEB_URL;
+    try {
+      const before = (await rowsFor(IMAP_MAPPING)).length;
+      const res = await request(app)
+        .post(`/api/migrations/${IMAP_MAPPING}/links`)
+        .send({ purpose: 'view' });
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('web_url_unset');
+      expect(await rowsFor(IMAP_MAPPING)).toHaveLength(before);
+    } finally {
+      process.env.WEB_URL = had;
+    }
+  });
+
+  it('refuses a viewer, exactly as the credential link does', async () => {
+    // Deciding who may watch a migration is the same kind of decision as
+    // deciding who may connect one, so it is the same two roles.
+    caller = { tenantId: TENANT, userId: 'someone', userRole: 'viewer' };
+    const before = (await rowsFor(IMAP_MAPPING)).length;
+    const res = await request(app)
+      .post(`/api/migrations/${IMAP_MAPPING}/links`)
+      .send({ purpose: 'view' });
+    expect(res.status).toBe(403);
+    expect(await rowsFor(IMAP_MAPPING)).toHaveLength(before);
+  });
+
+  it('appears in the owner’s list wearing its own purpose', async () => {
+    // The list has never filtered by purpose, so before 0122 T5 the panel
+    // rendered a progress link with the credential list's words.
+    const res = await request(app).get(`/api/migrations/${IMAP_MAPPING}/links`);
+    expect(res.status).toBe(200);
+    expect(res.body.links).toHaveLength(1);
+    expect(res.body.links[0].purpose).toBe('view');
+    expect(res.body.links[0].state).toBe('live');
+  });
+});

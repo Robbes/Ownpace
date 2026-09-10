@@ -25,6 +25,7 @@ import Tenants from './pages/Tenants.tsx';
 import Login from './pages/Login.tsx';
 import RequestAccess from './pages/RequestAccess.tsx';
 import Grant from './pages/Grant.tsx';
+import View from './pages/View.tsx';
 import AuthCallback from './pages/AuthCallback.tsx';
 import AccessRequests from './pages/AccessRequests.tsx';
 import RedirectUris from './pages/RedirectUris.tsx';
@@ -170,6 +171,19 @@ const AppRoutes: React.FC = () => {
         element={
           <ManagedOnly>
             <Grant />
+          </ManagedOnly>
+        }
+      />
+      {/* The link's second lifetime (workplan 0122, ADR-0035): their own
+          progress. Public and outside the chrome for exactly the reasons above
+          — and `view` rather than `grant` in the path because the API refuses a
+          token whose purpose does not match, so the two addresses are what keep
+          a single-use credential out of a ninety-day page. */}
+      <Route
+        path="/view/:link"
+        element={
+          <ManagedOnly>
+            <View />
           </ManagedOnly>
         }
       />

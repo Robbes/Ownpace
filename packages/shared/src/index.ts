@@ -15,6 +15,9 @@ export * from './carddav-query.ts';
 export * from './generated-message-id.ts';
 export * from './ports.ts';
 export * from './operating-contract.ts';
+// Workplan 0122 T1 — what a progress-link holder may see. Beside the
+// operating contract it narrows, so the pair is found together.
+export * from './migration-view.ts';
 export * from './completion-report.ts';
 export * from './lifecycle.ts';
 export * from './verification-report.ts';

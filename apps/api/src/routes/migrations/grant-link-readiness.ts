@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * Whether a grant link could possibly succeed — decided BEFORE one is minted.
+ * Whether a link could possibly succeed — decided BEFORE one is minted.
  *
  * Workplan 0108 T3, and it is the same principle as 0089 T6's raw-IP refusal:
  * **refused HERE, not at Google's screen.** A grant link is handed to a person
@@ -69,6 +69,22 @@ export interface GrantLinkRefusal {
 }
 
 /**
+ * The one refusal BOTH purposes share, as a value rather than as two copies.
+ *
+ * A link is nothing but a URL, so neither kind can be minted by a deployment
+ * that cannot say where its own web app lives. Stated once because it is a
+ * remedy sentence, and two copies of a remedy are two places for it to go stale
+ * — the same reason ADR-0024 keeps server prose in one place per refusal.
+ */
+const WEB_URL_UNSET: GrantLinkRefusal = {
+  code: 'web_url_unset',
+  reason:
+    'This deployment has no WEB_URL set, so it cannot say which address the link should ' +
+    'point at. A link built without it would send somebody to a machine that is not ' +
+    'yours. Set WEB_URL and restart the API.',
+};
+
+/**
  * The four ways a grant link is dead on arrival, in the order the owner can act
  * on them. Returns null when the link would work.
  *
@@ -117,15 +133,34 @@ export function grantLinkRefusal(r: GrantLinkReadiness): GrantLinkRefusal | null
         'it to lands on a Google error page about a client they have never heard of.',
     };
   }
-  if (!r.hasWebUrl) {
-    return {
-      code: 'web_url_unset',
-      reason:
-        'This deployment has no WEB_URL set, so it cannot say which address the link should ' +
-        'point at. A link built without it would send somebody to a machine that is not ' +
-        'yours. Set WEB_URL and restart the API.',
-    };
-  }
+  if (!r.hasWebUrl) return WEB_URL_UNSET;
+  return null;
+}
+
+/**
+ * The same question for a PROGRESS link, and the answer is much shorter
+ * (workplan 0122 T2).
+ *
+ * Three of `grantLinkRefusal`'s four checks exist because a grant link has to
+ * be able to run a **Google consent**: there must be a source connection, it
+ * must be one of the four Google kinds, and the owner's client id and secret
+ * must be stored. A progress link runs no consent. It renders counts and
+ * states, and a Microsoft mapping, an Apple mapping, an IMAP mapping and an
+ * archive import all have those — including a mapping that has never run, whose
+ * honest answer is "nothing has happened yet" and is exactly what somebody
+ * waiting wants to be told.
+ *
+ * So this is the first surface in the product that can hand a link to somebody
+ * being migrated off a NON-Google source. Worth saying plainly: the credential
+ * for those still reaches the owner by hand (0114 and 0115 are where that
+ * changes). The insight does not have to wait for it.
+ *
+ * What survives is `web_url_unset`, because a link is nothing but a URL. 0095
+ * T3's lesson word for word: one built without a base address goes out looking
+ * exactly like a working one.
+ */
+export function viewLinkRefusal(r: { readonly hasWebUrl: boolean }): GrantLinkRefusal | null {
+  if (!r.hasWebUrl) return WEB_URL_UNSET;
   return null;
 }
 

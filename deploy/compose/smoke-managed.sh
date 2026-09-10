@@ -4842,6 +4842,109 @@ else
   fi
 fi
 
+# ---------- the page somebody with no account opens (0122) ----------
+#
+# ADR-0035's second lifetime, asked the way its reader asks it: **no
+# Authorization header at all**. That is why this cannot go through `http()`,
+# which refuses to send anything that is not a JWT — the whole property here is
+# that a bearer link in the PATH is the entire credential, and RLS, the
+# link-scoped context and the purpose check are what stand behind it. None of
+# those is observable without a live stack.
+#
+# The credential link is deliberately NOT exercised (see NOT_ASKED in
+# scripts/gate-coverage.unit.test.ts): it needs a real Google client written
+# from a script and it ends at Google's own consent screen. A progress link has
+# neither obstacle — it runs no consent, so it can be issued for the APPLY
+# mapping's ordinary DAV source, which is exactly the point of its shorter
+# refusal list.
+note "the progress link"
+
+read -r vlcode vlbody <<<"$(http POST "$API/api/migrations/$APPLY_MAPPING/links" "$APPLY_TOKEN" \
+  '{"purpose":"view","expiryDays":30}')"
+if [ "$vlcode" != "201" ]; then
+  echo "issuing a progress link answered $vlcode: $vlbody"
+  fail_at "the owner could not issue a progress link"
+else
+  VIEW_URL="$(grep -o '"url":"[^"]*"' <<<"$vlbody" | cut -d'"' -f4)"
+  VIEW_TOKEN="${VIEW_URL##*/}"
+  # The path carries the PURPOSE, so a token cannot be pasted into the other
+  # page's address and inherit its lifetime.
+  case "$VIEW_URL" in
+    */view/*) echo "issued: a /view/ link, expiring in 30 days" ;;
+    *) echo "the issued URL is not a /view/ address: $VIEW_URL"; fail_at "wrong path for a progress link" ;;
+  esac
+
+  # THE OPEN, with no session. `-w` for the code, because a 401 body and a 200
+  # body are both JSON and this has to tell them apart.
+  vpage="$(curl -sS -w '\n%{http_code}' "$API/api/view/$VIEW_TOKEN")"
+  vcode="${vpage##*$'\n'}"
+  vpage="${vpage%$'\n'*}"
+  if [ "$vcode" != "200" ]; then
+    echo "opening the progress link answered $vcode: $vpage"
+    fail_at "a live progress link did not open"
+  else
+    # Counts and states, and the organisation that is asking.
+    for want in '"organisation"' '"state"' '"started"' '"domains"' '"expiresAt"'; do
+      grep -q "$want" <<<"$vpage" || {
+        echo "the progress page answered without $want: $vpage"
+        fail_at "the progress payload is missing $want"
+      }
+    done
+    # AND NOT CONTENT. `lastError` is the provider's own prose and can quote a
+    # file name; the mapping id and the tenant id are addresses onto surfaces
+    # this holder must not reach. Asserted against the real payload of a
+    # migration that has actually run, which is the only place they could leak.
+    for banned in '"lastError"' "$APPLY_MAPPING" "$APPLY_TENANT"; do
+      if grep -q "$banned" <<<"$vpage"; then
+        echo "the progress page carried something it must not: $banned"
+        fail_at "the progress payload leaked $banned"
+      fi
+    done
+    echo "opened with no session, and carried counts and states only"
+  fi
+
+  # THE TWO LIFETIMES STAY APART. A credential token presented at the progress
+  # address is refused on its purpose — this is the check that stops a
+  # single-use link inheriting a ninety-day window.
+  read -r glcode glbody <<<"$(http POST "$API/api/migrations/$APPLY_MAPPING/links" "$APPLY_TOKEN" \
+    '{"purpose":"grant"}')"
+  if [ "$glcode" = "201" ]; then
+    GRANT_TOKEN="$(grep -o '"url":"[^"]*"' <<<"$glbody" | cut -d'"' -f4)"
+    GRANT_TOKEN="${GRANT_TOKEN##*/}"
+    xcode="$(curl -sS -o /dev/null -w '%{http_code}' "$API/api/view/$GRANT_TOKEN")"
+    if [ "$xcode" = "401" ]; then
+      echo "a credential link is refused at the progress address"
+    else
+      echo "a credential link opened the progress page: HTTP $xcode"
+      fail_at "the two link purposes are not being kept apart"
+    fi
+  else
+    # Not a failure of THIS section: the APPLY mapping's source is not Google,
+    # so `source_not_google` is the correct answer and is what proves the
+    # progress link's shorter refusal list is doing something. Said out loud
+    # rather than skipped, so the cross-check below is not silently absent.
+    echo "no credential link to cross-check with (issuing answered $glcode) — expected"
+    echo "  for a non-Google source, and the reason a progress link can exist here at all"
+  fi
+
+  # THE KILL SWITCH, re-checked at the OPEN rather than trusted from the issue.
+  # That is the whole reason a longer window is acceptable.
+  VIEW_ID="$(grep -o '"id":"[^"]*"' <<<"$vlbody" | cut -d'"' -f4)"
+  read -r rvcode _ <<<"$(http DELETE "$API/api/migrations/$APPLY_MAPPING/links/$VIEW_ID" "$APPLY_TOKEN")"
+  if [ "$rvcode" != "200" ]; then
+    echo "revoking the progress link answered $rvcode"
+    fail_at "a progress link could not be revoked"
+  else
+    acode="$(curl -sS -o /dev/null -w '%{http_code}' "$API/api/view/$VIEW_TOKEN")"
+    if [ "$acode" = "401" ]; then
+      echo "and it stops opening the moment it is revoked"
+    else
+      echo "a REVOKED progress link still opened: HTTP $acode"
+      fail_at "revocation did not reach the page"
+    fi
+  fi
+fi
+
 # ---------- the status page answers ----------
 #
 # gatus has NO container healthcheck, and cannot have one: its image is
