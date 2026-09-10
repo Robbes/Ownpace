@@ -235,7 +235,7 @@ describe('the pass streams, and the tally speaks for the headline', () => {
     }
     const out = [];
     for await (const row of confirmEach('file', items(), reader())) out.push(row);
-    expect(out.map((r) => r.naturalKeyHash)).toEqual(['a', 'b']);
+    expect(out.map((r) => r.item.naturalKeyHash)).toEqual(['a', 'b']);
     expect(out[0]!.row.state).toBe('verified');
     expect(out[1]!.row.state).toBe('never-placed');
   });
@@ -345,7 +345,7 @@ describe('the pass hands on its evidence, not only its claim', () => {
     ];
     const seen = [];
     for await (const found of confirmEach('email', items, present)) seen.push(found);
-    expect(seen.map((s) => s.naturalKeyHash)).toEqual(['a', 'b']);
+    expect(seen.map((s) => s.item.naturalKeyHash)).toEqual(['a', 'b']);
     expect(seen.map((s) => s.consulted)).toEqual([true, false]);
     expect(seen.every((s) => s.row !== undefined && s.answer !== undefined)).toBe(true);
   });

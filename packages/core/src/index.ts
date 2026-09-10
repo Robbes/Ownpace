@@ -10,6 +10,8 @@ export * from './verification.ts';
 // §20 verification samples for the OPERATOR; this confirms every item for the
 // PERSON, and the two must not be reached for interchangeably.
 export * from './confirmation-pass.ts';
+// The job a person starts (workplan 0117 T2 slice 4).
+export * from './confirmation-run.ts';
 export * from './verification-implementations.ts';
 // DNS is VERIFY-ONLY, and that is the whole of it. `dns-manager.ts` and
 // `dns-provider-desec.ts` — a ~950-line write path with a deSEC provider —

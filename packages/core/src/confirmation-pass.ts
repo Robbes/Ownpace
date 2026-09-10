@@ -90,15 +90,22 @@ export interface ConfirmationReader {
 }
 
 /**
- * One finished row, with the key that identifies it and the evidence behind it.
+ * One finished finding, WITH THE CALLER'S OWN ROW attached.
  *
- * Carries the whole `ConfirmedFinding` rather than the row alone. The row alone
- * is what this yielded first, and it made the pass impossible to connect to the
- * store built for it: the store records the ANSWER, and the answer had been
- * computed, used and dropped inside `confirmOne`.
+ * Generic over the item, and that is not tidiness. This first yielded a fixed
+ * `{ naturalKeyHash, row }`, which meant the only consumer that was ever going
+ * to exist — the job that records what a pass found — could not use it: the
+ * recorder writes against the LEDGER'S id, and `naturalKeyHash` is not it.
+ * A streaming helper whose shape cannot reach its own recorder is a helper with
+ * no callers, which is what this was.
+ *
+ * So the caller's row travels through untouched and comes back beside the
+ * finding. Whatever identifies an item to the caller — a ledger id, an href,
+ * a row number — is still there on the other side.
  */
-export interface ConfirmedItem extends ConfirmedFinding {
-  readonly naturalKeyHash: string;
+export interface ConfirmedItem<T extends ConfirmableItem = ConfirmableItem>
+  extends ConfirmedFinding {
+  readonly item: T;
 }
 
 /**
@@ -204,13 +211,13 @@ export async function confirmOne(
  * Returning `ConfirmedItem[]` would work on a test fixture and fall over on the
  * account this exists to serve.
  */
-export async function* confirmEach(
+export async function* confirmEach<T extends ConfirmableItem>(
   domain: DiscoveryDomain,
-  items: AsyncIterable<ConfirmableItem> | Iterable<ConfirmableItem>,
+  items: AsyncIterable<T> | Iterable<T>,
   reader: ConfirmationReader,
-): AsyncIterable<ConfirmedItem> {
+): AsyncIterable<ConfirmedItem<T>> {
   for await (const item of items) {
-    yield { naturalKeyHash: item.naturalKeyHash, ...(await confirmFinding(domain, item, reader)) };
+    yield { item, ...(await confirmFinding(domain, item, reader)) };
   }
 }
 
