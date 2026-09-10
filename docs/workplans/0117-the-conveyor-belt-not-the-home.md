@@ -2,6 +2,30 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-10: T1 SLICE 1 MERGED, and it was short by two vocabularies.** The lane exists
+in the database, in billing and in `isAfterCutover` (#904). Re-reading before building slice 2
+found two more lists that decide something about a lifecycle, and the first of them is the
+one that shouts:
+
+- **`MAPPING_LIFECYCLES`** (`packages/shared/src/operating-contract.ts`) — what BOTH status
+  readers narrow through, and they **throw** rather than coerce (hard rule 9). A `continuous`
+  row admitted by the widened CHECK constraint made `mappingStatus` in the appliance and
+  `scope` in the managed API raise, so every page and every pass of that migration failed.
+- **`STATE_TABLE.lifecycle`** (`apps/web/src/components/StateChip.tsx`) — the word and the
+  colour on every screen. Blue, not the green `active` wears: both run, only one ends.
+
+**Neither was findable by the compiler.** Nothing assigns the literal, so `tsc` had nothing
+to say; the fifth was found by reading. Widening the union then made the compiler name the
+sixth and four exhaustive `Record<MappingLifecycle, …>` maps besides — which is the shape of
+this defect worth remembering: *one list moves, and the places that must move with it are
+only partly findable by machine.*
+
+Slice 1's guard now pins all six, plus one more thing it did not before: **the door is
+deliberately still shut.** `PATCH /api/migrations/:id` admits four of the five states, and
+the guard fails if `continuous` is quietly added to that `z.enum` — because entering the
+lane is the act ADR-0014's amendment attached a price to, and T5's sentence has to exist
+first. That test is meant to be edited once, by whoever builds the door.
+
 **2026-09-09, later still: T1 and T2 SURVEYED — and each turned out to contain a question
 that is not a programmer's to answer.** §7 is the survey: every attachment point read out of
 the tree, with file and line, so building these is execution rather than invention. Two

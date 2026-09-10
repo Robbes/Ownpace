@@ -49,6 +49,7 @@ const LIFECYCLE_NOTE_KEY: Record<MappingLifecycle, StringKey | null> = {
   active: 'confirm.note.active',
   cutover: 'confirm.note.cutover',
   done: 'confirm.note.done',
+  continuous: 'confirm.note.continuous',
 };
 
 const Confirm: React.FC = () => {

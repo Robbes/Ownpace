@@ -52,12 +52,21 @@ const TONE_CLASS: Record<Tone, string> = {
 /** The canonical state table — EN and NL columns live in the dictionary
  *  under the keys named here. Exported for the vocabulary tests. */
 export const STATE_TABLE = {
-  /** mailbox_mapping lifecycle (the DB CHECK's four words). */
+  /** mailbox_mapping lifecycle (the DB CHECK's five words).
+   *
+   *  `continuous` is BLUE rather than the green `active` wears, and the
+   *  choice is about what the reader has to tell apart. Both run; only one
+   *  ends. Blue is already this table's colour for "past the copying phase"
+   *  (`cutover`), which is exactly where a continuous lane sits — it is
+   *  entered after cutover and never leaves on its own. Painting it green
+   *  would make the migration that stops and the one that does not look
+   *  identical on a list of twenty. */
   lifecycle: {
     active: { key: 'state.lifecycle.active', tone: 'green' },
     paused: { key: 'state.lifecycle.paused', tone: 'yellow' },
     cutover: { key: 'state.lifecycle.cutover', tone: 'blue' },
     done: { key: 'state.lifecycle.done', tone: 'emerald' },
+    continuous: { key: 'state.lifecycle.continuous', tone: 'blue' },
   },
   /** Per-domain pass state (migration_status.state). */
   domain: {
