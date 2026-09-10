@@ -36,7 +36,7 @@ import {
 // and `grant-routes.ts` holds the migrator's beginning. All three must see the
 // same in-flight states — see `consent-flows.ts`.
 import { consentFlows as flows } from './consent-flows.ts';
-import { storeGrantedToken } from './grant-ending.ts';
+import { mintProgressLink, storeGrantedToken } from './grant-ending.ts';
 // The account-kind ask (workplan 0106 T3b): several faces from ONE Google
 // account, and the scope string built from the ticks and nothing else.
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
@@ -270,7 +270,18 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     );
   }
   if (!stored.ok) return refuse(409, stored.reason);
-  page(200, grantResultPage({ ok: true }));
+
+  // ADR-0035's second lifetime, handed over at the one moment this person is
+  // reachable (0122 T7). AFTER the credential transaction, and never inside
+  // it: a progress page that could not be minted must not undo a consent that
+  // landed. `mintProgressLink` answers null rather than throwing, and the page
+  // then reads exactly as it did before this existed.
+  //
+  // Nothing is emailed and no address is stored — ADR-0035's *"the admin
+  // distributes the link, we never do"* is untouched. The link is put in front
+  // of the person who is already here, in their own browser.
+  const progressUrl = await mintProgressLink(getDbPool(), link);
+  page(200, grantResultPage(progressUrl ? { ok: true, progressUrl } : { ok: true }));
 });
 
 export default router;

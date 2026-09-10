@@ -36,6 +36,7 @@ import {
   domainsToScopes,
   type GoogleGrantDomain,
 } from '@openmig/orchestration/account-qualification';
+import type { ProgressPageUrl } from './progress-page-url.ts';
 
 export const GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 export const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -498,22 +499,45 @@ export function consentResultPage(p: {
 }
 
 /**
- * The page a LINK holder's consent ends on (workplan 0108 T4).
+ * The page a LINK holder's consent ends on (workplan 0108 T4; 0122 T7).
  *
  * A separate function from `consentResultPage`, and the difference is the
- * entire point of the task: **this one has no parameter that could hold a
- * token.** The owner's ending hands the refresh token to the wizard window,
- * because in that flow the owner is the person whose credential it is. In the
- * link flow the credential belongs to the person in front of this page and the
- * token is stored server-side — so the page cannot show it, cannot postMessage
- * it, and cannot be edited later to do either without someone first widening
- * this signature and explaining why.
+ * entire point of the task: **the refresh token has no parameter it could
+ * arrive in.** The owner's ending hands it to the wizard window, because in
+ * that flow the owner is the person whose credential it is. In the link flow
+ * the credential belongs to the person in front of this page and is stored
+ * server-side — so the page cannot show it and cannot postMessage it.
  *
- * There is nothing to close and nothing to paste. Somebody has done a favour
- * for a colleague; the page says it landed and lets them go.
+ * ## The widening 0108 T4 asked to be explained
+ *
+ * That header said this signature could not gain a token-shaped parameter
+ * "without someone first widening this signature and explaining why". 0122 T7
+ * widens it, and the explanation is this: ADR-0035 gives the link a **second
+ * lifetime** — *"be their page afterwards"* — and the moment to hand that over
+ * is this one, while the person is still here and has just done their part.
+ *
+ * `progressUrl` is therefore NOT a `string`. `ProgressPageUrl` is branded and
+ * `progressPageUrl()` is its only constructor, so `outcome.refreshToken` does
+ * not fit this parameter and never will: it is a compile error in all four
+ * `tsc` passes rather than a rule somebody has to remember. See
+ * `progress-page-url.ts`.
+ *
+ * ## What the person is told, and why it is two things
+ *
+ * The grant link they arrived on is **spent** — that is the credential
+ * lifetime ending, and it has always been said here. The progress link is
+ * theirs to **keep**, and saying both in one breath is the point: without the
+ * contrast, "here is a link" reads as the same link still working, and the
+ * next person to try the old one is confused rather than reassured.
+ *
+ * Absent when the deployment could not mint one (no `WEB_URL`, or the write
+ * failed). The page then reads exactly as it did before 0122 — nothing is
+ * claimed that is not there.
  */
 export function grantResultPage(
-  outcome: { readonly ok: true } | { readonly ok: false; readonly reason: string },
+  outcome:
+    | { readonly ok: true; readonly progressUrl?: ProgressPageUrl }
+    | { readonly ok: false; readonly reason: string },
 ): string {
   if (!outcome.ok) {
     return (
@@ -523,10 +547,21 @@ export function grantResultPage(
       'fresh one — issuing another takes them a moment.</p></main>'
     );
   }
+  // `esc` on a URL this function itself was handed: it goes into an href and
+  // into visible text, and a value that cannot be forged is still a value that
+  // must not be able to close an attribute.
+  const keepThis = outcome.progressUrl
+    ? '<p>Here is your own page for this migration — <strong>keep this one</strong>. It ' +
+      'shows how far along your move is, and nothing from inside your account:</p>' +
+      `<p><a href="${esc(outcome.progressUrl)}">${esc(outcome.progressUrl)}</a></p>` +
+      '<p>Bookmark it. It works for the next 90 days, and the person running the migration ' +
+      'can turn it off at any time.</p>'
+    : '';
   return (
     `<main style="${PAGE_STYLE}"><h1>Thank you — that is done</h1>` +
     '<p>Your account is now connected, and the migration can read from it. You do not have ' +
     'to do anything else, and this link will not work again.</p>' +
+    keepThis +
     '<p>Access is <strong>read-only</strong>: nothing is ever deleted or changed at your ' +
     'end. You can withdraw it at any time from your Google account’s security settings, ' +
     'under the third-party apps that have access.</p></main>'

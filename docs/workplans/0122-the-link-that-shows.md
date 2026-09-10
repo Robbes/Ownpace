@@ -2,6 +2,14 @@
 
 ## Status — 2026-09-10 (update this block at the end of every session)
 
+**2026-09-10, later: slice 2 built.** The owner: *"you do both, and continue autonomously."*
+The two questions §9 left open are answered in the build — the page's signature is widened
+with a **branded** type, so a refresh token is a compile error rather than a rule somebody
+has to remember, and a machine-minted link gets the dialog's own ninety days rather than a
+second number invented for it. The mint runs **after** the credential transaction commits and
+swallows its own failure: a progress page that could not be built must not undo a consent that
+landed. See §9.
+
 **2026-09-10: opened, and slice 1 built.** The owner asked whether the shareable link exists
 and described what he wants it to become:
 
@@ -32,7 +40,7 @@ This plan is that page, and the two answers the owner gave on 2026-09-10 shape i
 | T4 The page | ✅ Done — §6 | `/view/:link`, outside the chrome, for a reader with no account. Absence is not zero. |
 | T5 The owner's panel tells the two apart | ✅ Done — §7 | It could not: `listMappingLinks` returns both purposes and the panel rendered neither. |
 | T6 The gate opens one on a real stack | ✅ Done — §8 | `scripts/gate-coverage.unit.test.ts` made this a decision rather than an omission, and the honest answer was to ask for it. |
-| T7 Minted at grant | ⬜ Slice 2 | The success page says "keep this one" and hands over the longer link. §9. |
+| T7 Minted at grant | ✅ **Done** — §9 | The ending mints one and the page says "keep this one". Both open questions answered below. |
 | T8 Their own start and pause | ⬜ Slice 3 | ADR-0035's *"their own start and pause"*. Owner: later slice. §9. |
 
 ## 1. What already exists, and the one line that stops it being enough
@@ -256,20 +264,58 @@ What it asks, and none of it is observable without a live stack:
 5. Revoking it stops the page answering **at the next open**, which is the property that makes
    a ninety-day window acceptable at all.
 
-## 9. The slices after this one
+## 9. Slice 2, and the slice after it
 
-**Slice 2 — minted at grant (T7).** `storeGrantedToken` runs one transaction that spends the
-grant link and stores the credential. A view link minted in that same transaction is the
-honest place for it: the person is in their browser, on the success page, having just done
-their part, and the sentence to write is *"keep this one — it is where you can watch your
-migration."* Two open questions for the build, both real:
-  - The success page is server-rendered (`grantResultPage`), which was deliberate — 0108 T4:
-    it "cannot render a token because its signature has nowhere to put one". A view token is
-    not a credential for reading data, but it *is* a bearer secret, and widening that
-    signature is a decision to take with the reason in view rather than in passing.
-  - Which expiry a machine-minted link gets, when the owner did not choose one.
+### T7 — minted at grant (built 2026-09-10)
 
-**Slice 3 — their own start and pause (T8).** ADR-0035 asks for it and the owner has deferred
+The person is in their browser, on the success page, having just done their part. That is the
+one moment they are reachable, and ADR-0035's *"the admin distributes the link, we never do"*
+is untouched by handing it over there: nothing is emailed and no address is stored.
+
+**The two open questions, answered.**
+
+*Where does it go in the flow?* **After** `storeGrantedToken`'s transaction commits, never
+inside it. That transaction has one job and it is the valuable one — spend the link, store the
+credential, both or neither. A third statement in it would mean a failure to mint a *page*
+rolls back a *consent*, and the consent took somebody ten minutes and a decision while the
+page is a convenience the owner can hand over later with two clicks. `mintProgressLink`
+therefore answers `null` on any failure and logs it as ours; the ending then reads exactly as
+it did before this existed.
+
+*How is the page widened without losing what it was built for?* 0108 T4 gave
+`grantResultPage` a signature with **nowhere to put a token**, and said so: it could not gain
+one *"without someone first widening this signature and explaining why"*. The widening adds a
+parameter whose type is **not `string`**. `ProgressPageUrl` is branded and
+`progressPageUrl()` is its only constructor, so `outcome.refreshToken` does not fit and
+cannot be made to — a compile error in all four `tsc` passes rather than a rule to remember.
+Verified by trying it: `Type 'string' is not assignable to type 'ProgressPageUrl'`.
+
+*Which expiry?* `DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS` — ninety days, the value the owner's
+dialog pre-fills. That number is already the product's opinion about how long a progress page
+should live, and a machine minting one knows nothing the dialog does not. Inventing a second
+number would give the same object two different lifetimes depending on who created it.
+
+**One consequence worth stating.** A second grant on a second link mints a second progress
+link. There is no reusing to be had — `mapping_link` holds a sha256 and the token is returned
+exactly once — so this is the honest cost of the table keeping no secret, not a leak. Both are
+live, both revocable, both on the owner's panel.
+
+**And one thing the owner would otherwise have seen.** `created_by` on these rows is
+`granted-by-link`, because nobody was signed in. Rendered through the panel's ordinary
+*"Issued {date} by {who}"* that reads as a colleague who does not exist, so that row says what
+actually happened instead.
+
+**Considered and declined: `Referrer-Policy: no-referrer` on the callback.** The page now
+renders a bearer URL as a clickable link, which looks like it wants one. It does not: the
+browser default is `strict-origin-when-cross-origin`, so a cross-origin click sends the origin
+and not the path, and a same-origin deployment sends the full URL only to our own page. The
+CSP is already `default-src 'none'`, so no subresource can carry a referrer anywhere. Recorded
+here rather than added, because a header with no leak behind it is a change nobody can later
+tell was load-bearing.
+
+### T8 — their own start and pause (slice 3)
+
+ ADR-0035 asks for it and the owner has deferred
 it once, deliberately. When it comes, it is not a new API: `operating-routes.ts` already has
 the actions, and the question is entirely about **authority** — whether a link holder may pause
 a migration the organisation is paying for, and what the owner sees when they do.

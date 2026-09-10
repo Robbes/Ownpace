@@ -413,3 +413,118 @@ describe('the ending', () => {
     expect(replay.text).not.toContain(REFRESH);
   });
 });
+
+/**
+ * ADR-0035's SECOND lifetime, handed over at the end of the first
+ * (workplan 0122 T7).
+ *
+ * The whole flow again, so the claims are about what the real ending really
+ * does: a `view` row that really exists in `mapping_link`, on a link the
+ * person really receives, minted with a lifetime the owner never chose.
+ *
+ * The load-bearing negative is the last one. Minting runs AFTER the credential
+ * transaction commits, so a mint that fails must leave the grant standing —
+ * the consent cost somebody ten minutes and a decision, the page is a
+ * convenience the owner can hand over later.
+ */
+describe('the progress link handed over at the ending', () => {
+  async function grantThrough(token: string) {
+    const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
+    const state = new URL(started.body.url).searchParams.get('state')!;
+    return request(app).get('/api/migrations/google/callback').query({ state, code: 'auth-code' });
+  }
+
+  /** Every `view` link on a mapping, straight from the table. */
+  async function viewLinks(mappingId: string) {
+    const all = await withTenant(driver, TENANT, (db) =>
+      listMappingLinks(db, { tenantId: TENANT, mappingId }),
+    );
+    return all.filter((l) => l.purpose === 'view');
+  }
+
+  it('mints one, shows it once, and says to keep THIS one', async () => {
+    const before = (await viewLinks(MAPPING)).length;
+    const { token } = await mintLink(MAPPING);
+    const res = await grantThrough(token);
+
+    expect(res.status).toBe(200);
+    // The address, in the page, as a real link somebody can click.
+    const found = /https:\/\/app\.example\/view\/[0-9a-f-]{36}\.[\w-]+/.exec(res.text);
+    expect(found).not.toBeNull();
+    expect(res.text).toContain(`href="${found![0]}"`);
+    // Both halves of the contrast: the credential link is spent, this one is
+    // theirs. Without the second sentence "here is a link" reads as the same
+    // link still working.
+    expect(res.text).toMatch(/keep this one/i);
+    expect(res.text).toMatch(/will not work again/i);
+
+    const after = await viewLinks(MAPPING);
+    expect(after).toHaveLength(before + 1);
+    expect(after[0]!.state).toBe('live');
+    // Not a user id — nobody was signed in — and the owner's panel shows this
+    // beside links they issued themselves, so it has to say so.
+    expect(after[0]!.createdBy).toBe('granted-by-link');
+  });
+
+  it('gives it ninety days: the dialog’s own default, not a second number', async () => {
+    const { token } = await mintLink(MAPPING);
+    await grantThrough(token);
+    const live = (await viewLinks(MAPPING)).find((l) => l.state === 'live')!;
+    const days = (live.expiresAt.getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(89);
+    expect(days).toBeLessThan(91);
+  });
+
+  it('still shows nothing that could be the refresh token', async () => {
+    // The property 0108 T4 built the signature for, re-asserted now that the
+    // signature HAS a string parameter. `ProgressPageUrl` is branded so the
+    // token cannot compile into it; this is the runtime half of the same claim.
+    const { token } = await mintLink(MAPPING);
+    const res = await grantThrough(token);
+    expect(res.text).not.toContain(REFRESH);
+    expect(res.text).not.toContain('postMessage');
+  });
+
+  it('mints nothing, and says nothing, when the deployment has no WEB_URL', async () => {
+    const had = process.env.WEB_URL;
+    delete process.env.WEB_URL;
+    try {
+      const before = (await viewLinks(MAPPING)).length;
+      const { token } = await mintLink(MAPPING);
+      const res = await grantThrough(token);
+
+      // The grant still landed — this is a page, not a credential.
+      expect(res.status).toBe(200);
+      expect(res.text).toMatch(/that is done/i);
+      // And the page reads exactly as it did before 0122: no half-built link,
+      // no promise of one. 0095 T3's lesson is that a link built without a
+      // base address goes out looking exactly like a working one.
+      expect(res.text).not.toMatch(/keep this one/i);
+      expect(res.text).not.toMatch(/\/view\//);
+      expect(await viewLinks(MAPPING)).toHaveLength(before);
+    } finally {
+      process.env.WEB_URL = had;
+    }
+  });
+
+  it('a mint that FAILS leaves the grant standing', async () => {
+    // The reason this is not inside `storeGrantedToken`'s transaction. A
+    // mapping id that is not this tenant's violates the foreign key, so the
+    // insert really throws — and `mintProgressLink` answers null rather than
+    // letting it reach the caller.
+    const { mintProgressLink } = await import('../routes/migrations/grant-ending.ts');
+    const url = await mintProgressLink(driver, {
+      linkId: MAPPING,
+      mappingId: '5f500000-e29b-41d4-a716-4466554417ff',
+      tenantId: TENANT,
+    });
+    expect(url).toBeNull();
+
+    // And the ordinary path still works afterwards — the failure left no
+    // half-open transaction behind.
+    const { token } = await mintLink(MAPPING);
+    const res = await grantThrough(token);
+    expect(res.status).toBe(200);
+    expect((await mappingRow(MAPPING))?.source_secret_ref).toBeTruthy();
+  });
+});
