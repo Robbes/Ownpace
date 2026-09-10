@@ -204,6 +204,26 @@ if ! curl -sS --max-time 3 -o /dev/null "${ISSUER}/debug/healthz" 2>/dev/null; t
   CURL_ORIGIN=(--resolve "${IDP_DOMAIN}:${IDP_PORT}:127.0.0.1")
 fi
 
+# HOW MANY TIMES A READ THAT NEVER GOT AN ANSWER IS RE-ASKED.
+#
+# E2E (managed) #174 died here twice in a row — both attempts — with
+# `curl: (35) OpenSSL … tlsv1 alert internal error` against the fronted issuer.
+# Run #175, same runner and same box half an hour later, brought the same stack
+# up cleanly. Nothing in either diff touched TLS, the provider or the ingress:
+# the front was briefly unable to complete a handshake, and a script that asks
+# once turned that into a failed gate and an afternoon of diagnosis.
+#
+# Four attempts, 2s + 4s + 8s ≈ 14 seconds of patience. Long enough to ride out
+# a front reloading a certificate or a container finishing its start; short
+# enough that a provider which is really gone still fails well inside the gate's
+# own timeout, with exactly the diagnosis it has always printed.
+#
+# NOT applied to the CURL_ORIGIN probe further up, and that is deliberate: that
+# one asks "can this machine reach the issuer directly?", where a fast NO is the
+# right answer and the fallback is safe. Retrying it would add fourteen seconds
+# to every run that needs `--resolve`, which is every managed gate run.
+IDP_READ_ATTEMPTS="${IDP_READ_ATTEMPTS:-4}"
+
 # THE CREDENTIAL'S LIFETIME, in one place. The seed below is read by the
 # provider exactly once — at FIRST INIT — and the rotation section further down
 # ("the credential's clock") owns the token from then on, minting a successor
@@ -382,6 +402,43 @@ ${#PAT} characters long, which is too short to be one:
 # reads its setting back precisely because the call could not be trusted — and
 # the note above it says why. Fixing the caller and not the callee is how the
 # other nineteen instances of #519 survived. So it is fixed here, once.
+# A READ THAT NEVER GOT AN ANSWER IS RE-ASKED. Sets CURL_OUT, CURL_RC and
+# CURL_ATTEMPTS; the caller decides what a failure means.
+#
+# Three rules, and each is why this is not simply `curl --retry`:
+#
+#   1. ONLY A TRANSPORT FAILURE — a curl EXIT CODE, never an HTTP status. A 401,
+#      403 or 404 is the provider ANSWERING, and every one of those has a
+#      diagnosis written out in `api` below. Retrying them would delay a correct
+#      message by fourteen seconds and change nothing about it.
+#
+#   2. ONLY READS. A `recv failure` can land after the server has already acted,
+#      so a re-sent WRITE can apply twice. This script MINTS PERSONAL ACCESS
+#      TOKENS: a duplicated mint leaves a second live credential that nothing
+#      tracks and nothing revokes. A read cannot do that — and the call that
+#      actually failed in #174 was a read.
+#
+#   3. THE LAST FAILURE IS STILL FATAL, in the caller, with the message it
+#      always had. This makes the script survive a blip; it must not make it
+#      quieter about a provider that is really gone.
+curl_read_retrying() { # curl_read_retrying <label> <curl args…>
+  local label="$1"; shift
+  CURL_ATTEMPTS=1
+  while : ; do
+    # `A && B || C`, NOT `A; rc=$?`. `set -euo pipefail` is on (line 39), and a
+    # bare assignment whose command substitution fails takes the whole shell
+    # with it — the next line never runs. That is not a detail: it is why E2E
+    # (managed) #174 ended with curl's own stderr and NO `[setup-zitadel]
+    # FATAL:` line at all. The careful diagnosis below has been unreachable
+    # since it was written, and a retry written the same way would never loop.
+    CURL_OUT="$(curl "$@")" && CURL_RC=0 || CURL_RC=$?
+    if [ "$CURL_RC" -eq 0 ] || [ "$CURL_ATTEMPTS" -ge "$IDP_READ_ATTEMPTS" ]; then return 0; fi
+    say "${label}: no answer at all (curl exited ${CURL_RC}) — attempt ${CURL_ATTEMPTS} of ${IDP_READ_ATTEMPTS}, retrying in $(( 2 ** CURL_ATTEMPTS ))s"
+    sleep "$(( 2 ** CURL_ATTEMPTS ))"
+    CURL_ATTEMPTS=$(( CURL_ATTEMPTS + 1 ))
+  done
+}
+
 api() { # api <method> <path> [json-body] — dies on any non-2xx, prints the body
   local method="$1" path="$2" body="${3:-}"
   # DECLARED, THEN ASSIGNED. `local out="$(curl …)"` makes the exit status
@@ -393,8 +450,18 @@ api() { # api <method> <path> [json-body] — dies on any non-2xx, prints the bo
     -w '\n%{http_code}')
   [ -n "$body" ] && args+=(-d "$body")
 
-  out="$(curl "${args[@]}")"; rc=$?
-  [ "$rc" -eq 0 ] || die "could not reach ${ISSUER}${path} at all (curl exited ${rc}).
+  # Reads are re-asked, writes are asked once — rule 2 on `curl_read_retrying`.
+  local tries=1
+  if [ "$method" = GET ]; then
+    curl_read_retrying "${method} ${path}" "${args[@]}"
+    out="$CURL_OUT"; rc="$CURL_RC"; tries="$CURL_ATTEMPTS"
+  else
+    # Same `&& ||` shape and for the same reason as the helper above: under
+    # `set -e` a plain `out="$(curl …)"; rc=$?` exits before anything can
+    # read `rc`.
+    out="$(curl "${args[@]}")" && rc=0 || rc=$?
+  fi
+  [ "$rc" -eq 0 ] || die "could not reach ${ISSUER}${path} at all (curl exited ${rc}), asked ${tries} time(s).
 Is the identity provider still up?  docker compose -f ${SCRIPT_DIR}/managed.yml ps zitadel"
 
   status="${out##*$'\n'}"
@@ -585,8 +652,19 @@ if [ "$LEFT_SECONDS" -lt $(( PAT_ROTATE_BELOW_DAYS * 86400 )) ] ||
 
   # PROVE THE SUCCESSOR before the predecessor is touched: the same question
   # the old token just answered.
-  new_code="$(curl -sS "${CURL_ORIGIN[@]}" -o /dev/null -w '%{http_code}' \
-    -H "Authorization: Bearer ${NEW_TOKEN}" "${ISSUER}/auth/v1/users/me" || echo 000)"
+  # Through the same retry as every other read, and it cannot use `api` because
+  # it deliberately presents a DIFFERENT credential from $PAT.
+  curl_read_retrying "GET /auth/v1/users/me (proving the new token)" \
+    -sS "${CURL_ORIGIN[@]}" -o /dev/null -w '%{http_code}' \
+    -H "Authorization: Bearer ${NEW_TOKEN}" "${ISSUER}/auth/v1/users/me"
+  # REFUSED AND NEVER ANSWERED ARE DIFFERENT FAULTS. The old form collapsed both
+  # into `|| echo 000` and then said "refused", which sends whoever reads it
+  # looking at grants and expiry for what was a network that never carried the
+  # question. Both still rotate nothing — the outcome was never in doubt; the
+  # sentence was wrong.
+  [ "$CURL_RC" -eq 0 ] ||
+    die "could not reach the provider to prove the freshly minted token (curl exited ${CURL_RC}, asked ${CURL_ATTEMPTS} time(s)) — keeping the old one, rotating nothing"
+  new_code="$CURL_OUT"
   case "$new_code" in
     2*) : ;;
     *) die "the freshly minted token was refused (HTTP ${new_code}) — keeping the old one, rotating nothing" ;;
