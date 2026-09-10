@@ -53,6 +53,7 @@ import { buildDeps, buildDomainDeps, type LedgerOptions } from './build-deps.ts'
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery.ts';
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
 import { DISCOVERY_DOMAINS, DOMAIN_CONFIG_KEY } from '@openmig/shared';
+import { sourceAuthorityFor } from '@openmig/shared';
 
 /**
  * Feed one completed pass into the Prometheus registry (§19 dashboards).
@@ -307,14 +308,29 @@ export function domainsFromConfig(
   return domains;
 }
 
-/** Run all enabled domains for one mapping config, with status tracking. */
+/**
+ * Run all enabled domains for one mapping config, with status tracking.
+ *
+ * `lifecycle` is the mapping's own `mailbox_mapping.status`, read by the
+ * caller immediately before the pass. It is REQUIRED and comes before the
+ * optional `ledger` on purpose: this is the appliance's half of 0117 D4, and
+ * a pass that does not know which phase it is running in must not compile.
+ * From it, `sourceAuthorityFor` decides whether this pass carries deletion
+ * detectors at all — see `runDomainSync`'s `sourceIsAuthorityOnExistence`.
+ */
 export async function runAllDomains(
   config: MappingConfig,
   statusStore: MigrationStatusStore,
+  lifecycle: string,
   ledger?: LedgerOptions,
 ): Promise<DomainSyncResult[]> {
   const results: DomainSyncResult[] = [];
   const domains = domainsFromConfig(config);
+
+  // Once per pass, from the mapping's own row — never per domain and never
+  // from the config. Spread onto every domain's deps below, so all five
+  // domains of one pass agree about the phase they are in.
+  const authority = sourceAuthorityFor(lifecycle);
 
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;
@@ -377,7 +393,7 @@ export async function runAllDomains(
       // Each builder opens a Postgres pool; always release it after the pass
       // (finally) so a long-running scheduler never leaks a pool per domain.
       if (domain === 'email') {
-        const deps = await buildDeps(config, ledger);
+        const deps = { ...(await buildDeps(config, ledger)), ...authority };
         try {
           const result = await runShadowPass(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -397,7 +413,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'calendar') {
-        const deps = buildDomainDeps(config, 'calendar', ledger);
+        const deps = { ...buildDomainDeps(config, 'calendar', ledger), ...authority };
         try {
           const result = await runCalendarSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -421,7 +437,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'contact') {
-        const deps = buildDomainDeps(config, 'contact', ledger);
+        const deps = { ...buildDomainDeps(config, 'contact', ledger), ...authority };
         try {
           const result = await runContactSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -461,7 +477,7 @@ export async function runAllDomains(
         // `else` is never a compile error either. It is the meaner of the two,
         // because an absent branch omits work while a catch-all does the wrong
         // work and says it went fine.
-        const deps = buildDomainDeps(config, 'task', ledger);
+        const deps = { ...buildDomainDeps(config, 'task', ledger), ...authority };
         try {
           const result = await runTaskSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -484,7 +500,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'file') {
-        const deps = buildDomainDeps(config, 'file', ledger);
+        const deps = { ...buildDomainDeps(config, 'file', ledger), ...authority };
         // Captured BEFORE the pass: ADR-0031's survived-a-pass gate compares
         // each relocation's recording date against this, so a move this very
         // pass records is never auto-applied by the same pass that made it.

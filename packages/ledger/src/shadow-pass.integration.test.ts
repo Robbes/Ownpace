@@ -293,6 +293,7 @@ describe('Shadow Pass Integration (T4)', () => {
   it('should mirror messages idempotently (first run creates all, second run creates 0)', async () => {
     // First run
     const result1 = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TEST_TENANT_ID,
       mappingId: TEST_MAPPING_ID,
       source,
@@ -313,6 +314,7 @@ describe('Shadow Pass Integration (T4)', () => {
 
     // Second run should create 0 (idempotent)
     const result2 = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TEST_TENANT_ID,
       mappingId: TEST_MAPPING_ID,
       source,
@@ -369,6 +371,7 @@ describe('Shadow Pass Integration (T4)', () => {
 
     // Run shadow pass again - should only create the new message
     const result = await runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TEST_TENANT_ID,
       mappingId: TEST_MAPPING_ID,
       source,

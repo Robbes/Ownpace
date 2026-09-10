@@ -36,6 +36,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { pgliteDriver, runMigrations, type LedgerDriver, type LedgerConnection } from '@openmig/ledger';
 import { BILLABLE_RUN_KINDS } from '@openmig/managed';
+import { PASS_RUNNING_STATES } from '@openmig/shared';
 import {
   FAILURE_WINDOW_MINUTES,
   SELF_HEALING_CATEGORIES,
@@ -65,6 +66,10 @@ async function ask(): Promise<Row> {
     [...SELF_HEALING_CATEGORIES],
     FAILURE_WINDOW_MINUTES,
     [...BILLABLE_RUN_KINDS],
+    // The lifecycles whose passes run — `$5` since 0117 T1 gave the product a
+    // second one. Read from the shared list rather than written out here, for
+    // the same reason as the four above it.
+    [...PASS_RUNNING_STATES],
   ]);
   expect(rows).toHaveLength(1);
   return rows[0]!;

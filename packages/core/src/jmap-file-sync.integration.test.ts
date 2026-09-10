@@ -244,6 +244,7 @@ if (!JMAP_URL) {
       const files = buildStubFiles(FILE_COUNT);
 
       const result1 = await runFileSync({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubFileSource(folder, files),
@@ -265,6 +266,7 @@ if (!JMAP_URL) {
       // cannot be what makes it idempotent. This is the LEDGER's decision,
       // which is the leg the connector's own tests cannot exercise.
       const result2 = await runFileSync({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubFileSource(folder, files),
@@ -286,6 +288,7 @@ if (!JMAP_URL) {
       // second pass" is exactly what it would report.
       const added = buildStubFiles(1, FILE_COUNT);
       const result3 = await runFileSync({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubFileSource(folder, [...files, ...added]),
@@ -306,6 +309,7 @@ if (!JMAP_URL) {
       const folder: FileFolder = { path: FOLDER, name: 'Sync files' };
       const files = buildStubFiles(1);
       await runFileSync({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubFileSource(folder, files),
@@ -338,6 +342,7 @@ if (!JMAP_URL) {
       const folder: FileFolder = { path: FOLDER, name: 'Sync files' };
       const files = buildStubFiles(1);
       await runFileSync({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT_ID,
         mappingId: MAPPING_ID,
         source: new StubFileSource(folder, files),

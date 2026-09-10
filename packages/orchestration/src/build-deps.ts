@@ -28,6 +28,7 @@ import {
   type TargetConfig,
   InProcessByteBudget,
   imapDownloadPlan,
+  type SourceAuthority,
 } from '@openmig/shared';
 import {
   createTokenProvider,
@@ -184,10 +185,26 @@ function openLedger(options: LedgerOptions | undefined): {
  * Build the complete dependency bundle for a shadow pass.
  * This wires together all the components needed for the worker to run.
  */
+/**
+ * Everything a mail pass needs EXCEPT the phase it runs in.
+ *
+ * `sourceIsAuthorityOnExistence` is deliberately not built here (0117 D4).
+ * This builder reads a config FILE; the phase is `mailbox_mapping.status`,
+ * which lives in the database, and `runAllDomains` has just read it — so it
+ * spreads `sourceAuthorityFor(lifecycle)` over what comes back. Reading the
+ * row a second time here would buy a chance for the two to disagree within
+ * one pass, which is the one thing that must not happen: all five domains of
+ * a pass have to agree about whether cutover is behind them.
+ *
+ * The `Omit` is what makes that explicit rather than accidental — a caller
+ * that forgets the spread does not compile.
+ */
+export type MailPassDepsWithoutPhase = Omit<ReconcileDeps, keyof SourceAuthority>;
+
 export async function buildDeps(
   config: MappingConfig,
   options?: LedgerOptions,
-): Promise<WithClose<ReconcileDeps>> {
+): Promise<WithClose<MailPassDepsWithoutPhase>> {
   const { ledger, cursors, closable } = openLedger(options);
 
   // Build throttle limiter from domain configuration

@@ -103,7 +103,8 @@ function drive() {
   };
 
   const run = (ledger: MemoryLedger) =>
-    runFileSync({ tenantId: TENANT, mappingId: MAPPING, source, target: writer, ledger });
+    runFileSync({
+      sourceIsAuthorityOnExistence: true, tenantId: TENANT, mappingId: MAPPING, source, target: writer, ledger });
 
   return { files, bin, target, remove, run, unnameable };
 }
@@ -232,7 +233,8 @@ describe('a source with no bin to read', () => {
       },
     };
     const run = () =>
-      runFileSync({ tenantId: TENANT, mappingId: MAPPING, source, target: writer, ledger });
+      runFileSync({
+        sourceIsAuthorityOnExistence: true, tenantId: TENANT, mappingId: MAPPING, source, target: writer, ledger });
 
     await run();
     files.delete('a.txt');

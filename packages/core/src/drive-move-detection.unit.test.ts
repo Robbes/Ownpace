@@ -133,6 +133,11 @@ function deps(source: GoogleDriveSource, target: ReturnType<typeof memoryTarget>
     // cursor marks a listing incomplete unless the source can answer for its
     // whole key set.
     cursors: new MemoryCursorStore(),
+    // Before cutover, which is the only phase in which move detection runs at
+    // all — see `sourceIsAuthorityOnExistence`. These tests are about the
+    // detector working; the one about it being ABSENT lives in
+    // `a-lane-that-runs-with-the-detector-present.unit.test.ts`.
+    sourceIsAuthorityOnExistence: true,
   };
 }
 

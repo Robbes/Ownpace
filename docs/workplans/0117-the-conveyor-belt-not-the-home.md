@@ -2,6 +2,59 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-10: T1 SLICE 2 BUILT — the lane runs, and the deletion detectors are absent from
+it.** D4's rule now has code under it rather than a predicate waiting for one.
+
+**Four run gates, one predicate.** `status === 'active'` appeared four times in code that
+cannot see itself: the appliance's startup scan, the status re-read before every firing, the
+`POST /mappings/{id}/run` route, and the managed tick's `WHERE m.status = 'active'` in SQL.
+All four now ask `runsPasses`, and the SQL reads `PASS_RUNNING_STATES` as a parameter. Widen
+three of four and you get a migration that copies on a tick and refuses the button — or one
+that copies for self-host customers and stands still for managed ones, which is the edition
+split hard rule 5 forbids in the half where nobody is watching.
+
+**The pass carries its phase, and the detectors are not built for it.**
+`sourceIsAuthorityOnExistence` is a REQUIRED field on every domain's deps
+(`!isAfterCutover(status)`, read from the mapping's own row — never from a config file and
+never from a caller's opinion). When it is false, all three deletion producers are
+unreachable: the reported hrefs are not collected, the bin closure is stripped from the deps
+before the loop ever sees it, and `detectPathKeyedMoves` is not called.
+
+**§7b's survey said "three sites" and named two detectors. There are three**, and the one it
+missed is the one the mail domain depends on entirely:
+
+| producer | what it is | domain |
+|---|---|---|
+| `removed` from `listSince` | the source announcing its own removals | calendar, contacts, OneDrive files |
+| **`listDiscardedKeys`** | the owner's BIN — positive evidence a person deleted something | **mail's only evidence**, and files |
+| `detectPathKeyedMoves` | absence-counting, and move correlation with it | files |
+
+§7d is amended below. The guard tests each producer separately, and each scenario runs twice
+— once before cutover, where the signal MUST be seen — so "nothing was detected" can never be
+an accident of the fixture.
+
+**One consequence, said out loud rather than discovered.** Moves go with the third producer,
+because they are the same correlation: a move is a disappearance matched to an arrival, and
+the disappearance is the deletion signal. So **after cutover, a file the person moves at the
+source is copied to its new place and the old copy stays** — the target holds two. A
+duplicate is the safe side of this trade; the alternative is `applyRelocation` removing a
+copy from somebody's new home because they reorganised the old one, which is the operation D4
+forbids wearing a different name. This belongs in T5's words beside the deletion sentence.
+
+**A bug this found in its own first run, worth keeping.** `withSides` originally dropped the
+bin closure with a conditional spread — `...deps` followed by
+`...(deps.listDiscardedKeys && authority ? {…} : {})`. That does not work: a conditional
+spread can OVERRIDE a key, it cannot DELETE one the earlier spread already put there. The
+false branch contributed nothing, the closure survived, and the bin scan ran after cutover
+exactly as before. The guard caught it on its first run, which is precisely why it asserts
+per producer rather than on a total.
+
+**Slice 3 (the door) stays parked**, and its shape is unchanged: nothing can enter the lane
+until the customer is told their bill does not stop at cutover (ADR-0014, amended
+2026-09-10), and that sentence is T5's and is the owner's. The `PATCH` route still admits
+four of the five states, pinned by a test that says it is meant to be edited once, by
+whoever builds that door.
+
 **2026-09-10: T1 SLICE 1 MERGED, and it was short by two vocabularies.** The lane exists
 in the database, in billing and in `isAfterCutover` (#904). Re-reading before building slice 2
 found two more lists that decide something about a lifecycle, and the first of them is the
@@ -578,6 +631,12 @@ correctness one — which is exactly why it is not settled here.
 Worth reading out of the tree rather than assumed, because T2's whole claim rests on it.
 Traced 2026-09-09, and it took two wrong answers to get right — both recorded below, since
 the wrong ones are the ones a reader would arrive at independently.
+
+> **Amended 2026-09-10 (T1 slice 2).** The paragraph below is about the CONTENT HASH and
+> stands. What §7b said about DETECTION does not: it named two detectors and there are
+> three. The owner's bin (`listDiscardedKeys`) is the third, and it is the mail domain's
+> only deletion evidence — so "the first two are not called" was one short of the rule.
+> All three are now absent after cutover, each with its own test.
 
 **The ledger column is written from ONE place per domain**, the `contentHash` function each
 sync path injects into `runDomainSync` (`packages/core/src/domain-sync.ts:499`, applied at

@@ -114,10 +114,21 @@ describe('the clauses that decide whether a mapping is enqueued', () => {
     expect(params).toEqual(['1', '1']);
   });
 
-  it('still asks only about ACTIVE mappings', () => {
+  it('still asks only about mappings that RUN, and asks the one list that says which', () => {
     // The vacuity floor. Every assertion above is about which rows are
     // believed; none of them would notice if the tick started enumerating
     // paused and finished mappings too.
-    expect(ACTIVE_MAPPINGS_SQL).toMatch(/WHERE m\.status = 'active'/);
+    //
+    // It was `WHERE m.status = 'active'` until 2026-09-10, when 0117 T1 gave
+    // the product a SECOND running state. A literal here would have been the
+    // managed edition quietly not running a lane the appliance runs — one
+    // migration, two behaviours, decided by which edition a customer bought
+    // (hard rule 5). So the states are a parameter, from `PASS_RUNNING_STATES`,
+    // which is `runsPasses` as a value.
+    expect(ACTIVE_MAPPINGS_SQL).toMatch(/WHERE m\.status = ANY\(\$\d+::text\[\]\)/);
+    expect(
+      ACTIVE_MAPPINGS_SQL,
+      "a literal status is back in the tick's WHERE clause",
+    ).not.toMatch(/WHERE m\.status = '/);
   });
 });

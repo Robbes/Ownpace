@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 122 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 123 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -196,6 +196,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/selfhost/src/index.ts`
 
+- [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [an-integration-test-is-handed-its-database](../scripts/an-integration-test-is-handed-its-database.unit.test.ts) — AN INTEGRATION TEST IS HANDED ITS DATABASE.
@@ -287,6 +288,10 @@ reading a file drops off its entry by itself.
 ### `apps/worker/package.json`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+
+### `apps/worker/src/jobs/managed-sync-tick.ts`
+
+- [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 
 ### `apps/worker/src/jobs/run-delta-sync.ts`
 
@@ -717,6 +722,11 @@ reading a file drops off its entry by itself.
 
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
+### `packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`
+
+- [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
+- [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
+
 ### `packages/core/src/apply-deletion.ts`
 
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
@@ -806,6 +816,7 @@ reading a file drops off its entry by itself.
 ### `packages/orchestration/src/build-deps-from-mapping.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 
 ### `packages/orchestration/src/build-reindexers.ts`
 
@@ -833,6 +844,7 @@ reading a file drops off its entry by itself.
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
+- [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 
 ### `packages/orchestration/src/probe-connection.ts`
@@ -1457,6 +1469,18 @@ Reads:
 - `deploy/compose/set-task-env.sh`
 - `packages/ledger/src/retention.ts`
 
+### [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts)
+
+A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
+
+Reads:
+
+- `apps/selfhost/src/index.ts`
+- `apps/worker/src/jobs/managed-sync-tick.ts`
+- `packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`
+- `packages/orchestration/src/build-deps-from-mapping.ts`
+- `packages/orchestration/src/orchestration.ts`
+
 ### [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts)
 
 A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
@@ -1862,6 +1886,7 @@ Reads:
 - `apps/api/src/routes/migrations/index.ts`
 - `apps/selfhost/src/index.ts`
 - `docs/workplans/0117-the-conveyor-belt-not-the-home.md`
+- `packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`
 - `packages/ledger/migrations/0001_baseline.sql`
 - `packages/shared/src/lifecycle.ts`
 

@@ -100,6 +100,7 @@ describe('mail with no Message-ID (integration)', () => {
 
   function pass(source: MemorySource, target: MemoryTarget) {
     return runShadowPass({
+      sourceIsAuthorityOnExistence: true,
       tenantId: asTenantId(TENANT as never),
       mappingId: asMappingId(MAPPING as never),
       source,

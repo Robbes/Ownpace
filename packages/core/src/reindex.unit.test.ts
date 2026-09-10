@@ -14,7 +14,8 @@ describe('reindexFromTarget (lost-ledger recovery)', () => {
     const target = new MemoryTarget();
     const ledger = new MemoryLedger();
     const id = { tenantId: asTenantId('t1'), mappingId: asMappingId('m1') };
-    await runShadowPass({ ...id, source, target, ledger });
+    await runShadowPass({
+      sourceIsAuthorityOnExistence: true, ...id, source, target, ledger });
     expect(target.size()).toBe(2);
 
     // Simulate a lost ledger, then reindex from the target.
@@ -25,7 +26,8 @@ describe('reindexFromTarget (lost-ledger recovery)', () => {
     expect(ledger.size()).toBe(2);
 
     // A subsequent pass creates nothing (everything already adopted).
-    const pass = await runShadowPass({ ...id, source, target, ledger });
+    const pass = await runShadowPass({
+      sourceIsAuthorityOnExistence: true, ...id, source, target, ledger });
     expect(pass.created).toBe(0);
 
     // Reindexing again is a no-op.
@@ -42,7 +44,8 @@ describe('reindexFromTarget (lost-ledger recovery)', () => {
     const target = new MemoryTarget();
     const ledger = new MemoryLedger();
     const id = { tenantId: asTenantId('t1'), mappingId: asMappingId('m1') };
-    await runShadowPass({ ...id, source, target, ledger });
+    await runShadowPass({
+      sourceIsAuthorityOnExistence: true, ...id, source, target, ledger });
     ledger.clear();
 
     const r = await reindexFromTarget({ ...id, reindexer: target, ledger, domain: 'calendar' });
@@ -51,7 +54,8 @@ describe('reindexFromTarget (lost-ledger recovery)', () => {
     // The row landed under 'calendar': an email-domain pass does NOT see it
     // and creates its copy afresh — which is exactly why the CLI must pair
     // each reindexer with its own domain.
-    const pass = await runShadowPass({ ...id, source, target, ledger });
+    const pass = await runShadowPass({
+      sourceIsAuthorityOnExistence: true, ...id, source, target, ledger });
     expect(pass.created + (pass.adopted ?? 0)).toBe(1);
   });
 });

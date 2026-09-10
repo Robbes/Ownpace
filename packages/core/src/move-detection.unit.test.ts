@@ -149,6 +149,7 @@ function world(domain: 'calendar' | 'file', opts?: { listKeys?: boolean }) {
 
   const run = (ledger: MemoryLedger, cursors?: MemoryCursorStore) =>
     runDomainSync<unknown, unknown, Item, { path: string }>({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain,
@@ -711,6 +712,7 @@ describe('a file moved between source folders', () => {
     const broken = world('file', { listKeys: true });
     broken.folders.set('a', []);
     const result = await runDomainSync<unknown, unknown, Item, { path: string }>({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'file',

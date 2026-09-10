@@ -36,6 +36,7 @@ const pass = (
   cursors?: MemoryCursorStore,
 ) =>
   runShadowPass({
+    sourceIsAuthorityOnExistence: true,
     tenantId: TENANT,
     mappingId: MAPPING,
     source,

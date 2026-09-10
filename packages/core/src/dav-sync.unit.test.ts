@@ -36,6 +36,7 @@ describe('runCalendarSync and the scheduling record (0105 T0)', () => {
     } as unknown as CalendarSource;
 
     await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,
@@ -56,6 +57,7 @@ describe('runCalendarSync and the scheduling record (0105 T0)', () => {
       listFolders: async () => [],
     } as unknown as CalendarSource;
     const result = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,
@@ -117,6 +119,7 @@ describe('runTaskSync files to-dos as tasks, not as calendar events', () => {
     const ledger = new MemoryLedger();
     const { target } = targetSpy();
     const result = await runTaskSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: sourceWith(todo('abc-123')),
@@ -144,6 +147,7 @@ describe('runTaskSync files to-dos as tasks, not as calendar events', () => {
     const ledger = new MemoryLedger();
 
     await runTaskSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: sourceWith(todo(SHARED)),
@@ -151,6 +155,7 @@ describe('runTaskSync files to-dos as tasks, not as calendar events', () => {
       ledger,
     });
     const calendarResult = await runCalendarSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source: sourceWith(todo(SHARED)),
@@ -169,10 +174,12 @@ describe('runTaskSync files to-dos as tasks, not as calendar events', () => {
   it('is idempotent — a second pass creates nothing', async () => {
     const ledger = new MemoryLedger();
     const first = await runTaskSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT, mappingId: MAPPING,
       source: sourceWith(todo('idem-1')), target: targetSpy().target, ledger,
     });
     const second = await runTaskSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT, mappingId: MAPPING,
       source: sourceWith(todo('idem-1')), target: targetSpy().target, ledger,
     });
@@ -189,6 +196,7 @@ describe('runTaskSync files to-dos as tasks, not as calendar events', () => {
       },
     } as unknown as CalendarSource;
     await runTaskSync({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       source,

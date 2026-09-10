@@ -108,6 +108,7 @@ function harness(opts: {
     upserts,
     run: (ledger: MemoryLedger) =>
       runDomainSync<unknown, unknown, typeof item, { path: string }>({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT,
         mappingId: MAPPING,
         domain: 'calendar',
@@ -318,6 +319,7 @@ describe('runDomainSync update propagation', () => {
     await (await harness({ version: 'etag-1', body: 'v1' })).run(ledger);
 
     const boom = runDomainSync<unknown, unknown, { key: string; version: string; body: string }, { path: string }>({
+      sourceIsAuthorityOnExistence: true,
       tenantId: TENANT,
       mappingId: MAPPING,
       domain: 'calendar',

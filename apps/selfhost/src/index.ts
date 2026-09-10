@@ -48,6 +48,8 @@ import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATION
 import {
   DECISION_EFFECTS,
   MAPPING_LIFECYCLES,
+  PASS_RUNNING_STATES,
+  runsPasses,
   REPORTING_CLOSED,
   FAILURE_GUIDANCE,
   MOVES_MEANING,
@@ -675,10 +677,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // mapping marked done went on syncing until the next restart, which makes
       // "finished" mean nothing until someone reboots the appliance.
       const currentStatus = await mappingStatus(m);
-      if (currentStatus !== 'active') {
+      if (!runsPasses(currentStatus)) {
         log.info(
-          `[selfhost] ${m.config.mappingId} is '${currentStatus}', not 'active' — skipping this ` +
-            'pass and unscheduling.',
+          `[selfhost] ${m.config.mappingId} is '${currentStatus}', which does not run passes ` +
+            `(${PASS_RUNNING_STATES.join(' and ')} do) — skipping this pass and unscheduling.`,
         );
         unscheduleMapping(m);
         return;
@@ -710,7 +712,16 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         log.error(`[selfhost] ${m.config.mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
       }
 
-      const results = await runAllDomains(configWithCorrectMappingId, statusStore, ledgerOptions);
+      // The phase this pass runs in, from the status re-read at the top of
+      // this function rather than the one taken at startup — a mapping can
+      // reach cutover between two firings, and every domain of ONE pass has
+      // to agree about which side of it they are on (0117 D4).
+      const results = await runAllDomains(
+        configWithCorrectMappingId,
+        statusStore,
+        currentStatus,
+        ledgerOptions,
+      );
       const created = results.reduce((n, r) => n + r.created, 0);
       // Disabled domains report placeholder zeros so status pollers see every
       // domain -- but they did not RUN, and every did-this-pass-fail decision
@@ -839,7 +850,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     });
 
     const status = await mappingStatus(m);
-    if (status === 'active') {
+    if (runsPasses(status)) {
       scheduleMapping(m);
       // ADR-0020's on-startup half (0026 T1 item 5): an ACTIVE mapping whose
       // ledger holds zero rows is the lost-ledger shape — active means the
@@ -2679,17 +2690,27 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const m = mappings.find((x) => x.config.mappingId === id);
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
 
-        // Only an ACTIVE mapping syncs. Refusing here rather than running anyway
-        // keeps one rule about when data moves: a paused mapping is awaiting the
-        // operator's green light, and a finished one is finished.
+        // Only a mapping in a RUNNING state syncs, and `runsPasses` is the one
+        // authority on which those are — the same predicate the startup scan
+        // and the per-pass re-read use, so "Sync now" can never disagree with
+        // the schedule about whether this mapping copies.
+        //
+        // Refusing here rather than running anyway keeps one rule about when
+        // data moves: a paused mapping is awaiting the operator's green light,
+        // and a finished one is finished.
         const status = await mappingStatus(m);
-        if (status !== 'active') {
+        if (!runsPasses(status)) {
           return sendJson(res, 409, {
-            error: `mapping is '${status}', not 'active'`,
+            error: `mapping is '${status}', which does not run passes`,
             hint:
               status === 'paused'
                 ? 'Confirm the migration first (POST /mappings/{id}/start).'
-                : 'A mapping in cutover or done no longer syncs.',
+                : // NOT "cutover or done" any more, and the change is the
+                  // point of 0117 T1: `continuous` is also after cutover and
+                  // it DOES sync. Naming the states that stop, rather than
+                  // the phase, keeps this sentence true as states are added.
+                  'A mapping in cutover or done has stopped syncing; a continuous one keeps ' +
+                  'going, and this one is neither.',
           });
         }
 

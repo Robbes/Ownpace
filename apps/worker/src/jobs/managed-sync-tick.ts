@@ -37,6 +37,7 @@ import {
   log,
   mapWithConcurrency,
   PASS_HARD_LIMIT_MS,
+  PASS_RUNNING_STATES,
   type DiscoveryDomain,
 } from '@openmig/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -122,11 +123,18 @@ const STALE_RUN_AFTER_MS = 2 * PASS_HARD_LIMIT_MS;
  * one used `<` and the other `<`, a row on the boundary would be both — or,
  * worse, neither, which is a mapping that is neither skipped nor reported.
  *
- * `$2` is `SELF_HEALING_CATEGORIES`, `$3` is `FAILURE_WINDOW_MINUTES` and `$4`
- * is `BILLABLE_RUN_KINDS` — all passed in rather than written into the SQL so
- * each has ONE definition. A category moved from one side of the self-healing
- * split to the other, a ladder rung that needs a longer window, or a new run
- * kind, cannot then leave a stale literal behind here.
+ * `$2` is `SELF_HEALING_CATEGORIES`, `$3` is `FAILURE_WINDOW_MINUTES`, `$4`
+ * is `BILLABLE_RUN_KINDS` and `$5` is `PASS_RUNNING_STATES` — all passed in
+ * rather than written into the SQL so each has ONE definition. A category
+ * moved from one side of the self-healing split to the other, a ladder rung
+ * that needs a longer window, a new run kind, or a new lifecycle that copies,
+ * cannot then leave a stale literal behind here.
+ *
+ * `$5` is the newest and the one that had been a literal `'active'` since the
+ * beginning. It is the managed twin of the appliance's `runsPasses`, and the
+ * two must not drift: a state missing from one edition's gate is a migration
+ * that copies for self-host customers and stands still for managed ones,
+ * which is exactly the edition split hard rule 5 forbids.
  */
 export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
               (SELECT max(r.started_at) FROM run r
@@ -180,7 +188,7 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
                 WHERE ms.tenant_id = m.tenant_id AND ms.mapping_id = m.id
                   AND ms.last_error_category = ANY($2::text[])) AS any_self_healing
          FROM mailbox_mapping m
-        WHERE m.status = 'active'`;
+        WHERE m.status = ANY($5::text[])`;
 
 export { STALE_RUN_AFTER_MS };
 
@@ -263,6 +271,7 @@ export const managedSyncTick = schedules.task({
       [...SELF_HEALING_CATEGORIES],
       FAILURE_WINDOW_MINUTES,
       [...BILLABLE_RUN_KINDS],
+      [...PASS_RUNNING_STATES],
     ]);
 
     let notDue = 0;

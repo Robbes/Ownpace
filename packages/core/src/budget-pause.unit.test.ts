@@ -90,6 +90,7 @@ function pass(
     cursorsSet,
     run: () =>
       runDomainSync<unknown, unknown, Item, { path: string }>({
+        sourceIsAuthorityOnExistence: true,
         tenantId: TENANT,
         mappingId: MAPPING,
         domain: 'email',
