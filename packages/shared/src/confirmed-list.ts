@@ -99,7 +99,22 @@ export type RowState =
   /** It was never placed on the target, and the list must still show it. */
   | 'never-placed'
   /** We removed our copy, on a decision recorded at the time. */
-  | 'removed';
+  | 'removed'
+  /**
+   * We could not ask the target about this one (workplan 0117 T2 slice 2).
+   *
+   * **The state the machinery needed and slice 1 did not have.** Building the
+   * pass found that `TargetAnswer` could say "not there" and "there" and had no
+   * way to say "we could not tell" — so a timeout, a 500 or a dropped
+   * connection had nowhere to go but `missing`, which reads as *we placed it
+   * and it is gone*. That is the loudest row on the list, on the page somebody
+   * deletes their originals from, produced by a network blip.
+   *
+   * `ports.ts` already states the rule for the other direction — *"treating an
+   * outage as absence is how a removal gets authorised by a broken network"* —
+   * and this is the same rule on the list's side of the product.
+   */
+  | 'unchecked';
 
 /** One row, with its evidence named rather than implied. */
 export interface ConfirmedRow {
@@ -118,7 +133,22 @@ export interface ConfirmedRow {
  */
 export type TargetAnswer =
   | { readonly onTarget: false }
-  | { readonly onTarget: true; readonly comparison: 'match' | 'differ' | 'unavailable' };
+  | { readonly onTarget: true; readonly comparison: 'match' | 'differ' | 'unavailable' }
+  /**
+   * The target could not be asked — it threw, timed out, or refused.
+   *
+   * Deliberately NOT `{ onTarget: false }`. The two are opposites in the only
+   * way that matters here: one says *we looked and it is gone*, the other says
+   * *we did not manage to look*. Collapsing them puts a network blip on the
+   * list as a lost item, and a person acting on that list would keep an
+   * original they could have deleted — or, on the next pass when it reads
+   * clean, distrust the whole document.
+   *
+   * `unavailable` above is a different thing again and the distinction is
+   * worth keeping straight: there, the item IS on the target and only the
+   * comparison could not be made. Here, nothing is known.
+   */
+  | { readonly unreachable: true };
 
 /**
  * Decide what one row may say. Exhaustive over the ledger's nine statuses.
@@ -170,6 +200,14 @@ export function rowFor(args: {
 }): ConfirmedRow {
   const { domain, status, answer } = args;
 
+  // BEFORE the status switch, and that order is the rule. A row we could not
+  // ask about is unchecked whatever the ledger says it should be — including
+  // the statuses below that answer without consulting the target at all.
+  // Deciding "never-placed" from the ledger alone would be right, and would
+  // also mean the list quietly mixed rows we checked with rows we did not, on
+  // the one document where that distinction is the whole product.
+  if ('unreachable' in answer) return { state: 'unchecked', claim: 'none' };
+
   switch (status) {
     // Rule 1 — rows that are not copies. `undefined` joins them: a row with no
     // status predates the column, and the generous reading `isOnTarget` gives
@@ -215,6 +253,42 @@ export function rowFor(args: {
 }
 
 /**
+ * Does this status need the target to be READ before its row can be decided?
+ *
+ * D7 chose (a) — confirm every item by re-reading it — and this is the boundary
+ * of "every". Four groups of status are decided by the ledger alone: nothing
+ * was placed (`pending`, `skipped`, `failed`, `left_behind`, and a row with no
+ * status), the bytes are the customer's (`adopted`), or we removed our own copy
+ * on a recorded decision (`tombstoned`). Reading the target for those would
+ * spend a request per item to learn nothing — on a pass whose cost is the whole
+ * reason D7 was a decision.
+ *
+ * **The rule this has to keep, and the guard that keeps it:** wherever this
+ * answers false, `rowFor` must produce the same row for every possible answer.
+ * Otherwise the pass would be skipping a read that mattered, and the list would
+ * say something it had not checked. That property is asserted rather than
+ * trusted — see `a-list-somebody-deletes-on-the-strength-of.unit.test.ts` —
+ * because the two switches live in one file today and a future edit to either
+ * would break it silently.
+ */
+export function needsTargetRead(status: LedgerRecord['status']): boolean {
+  switch (status) {
+    case undefined:
+    case 'pending':
+    case 'skipped':
+    case 'failed':
+    case 'left_behind':
+    case 'adopted':
+    case 'tombstoned':
+      return false;
+    case 'copied':
+    case 'updated':
+    case 'deleted_source':
+      return true;
+  }
+}
+
+/**
  * May this row be counted in the headline "N items are in your new home,
  * verified"?
  *
@@ -235,5 +309,13 @@ export function countsAsVerified(row: ConfirmedRow): boolean {
  * filter out, so that temptation has a test against it.
  */
 export function mustAppearDespiteNoClaim(row: ConfirmedRow): boolean {
-  return row.state === 'never-placed' || row.state === 'missing' || row.state === 'removed';
+  return (
+    row.state === 'never-placed' ||
+    row.state === 'missing' ||
+    row.state === 'removed' ||
+    // The one a template would filter out hardest, because it looks like an
+    // absence of information rather than a fact. It is a fact: this item was
+    // not checked, and somebody about to delete is owed it.
+    row.state === 'unchecked'
+  );
 }
