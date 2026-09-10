@@ -30,10 +30,16 @@ interface Endpoint {
   name: string;
   group?: string;
   url: string;
+  interval?: string;
   conditions: string[];
 }
 interface GatusConfig {
-  storage?: { type?: string; path?: string };
+  storage?: {
+    type?: string;
+    path?: string;
+    'maximum-number-of-results'?: number;
+    'maximum-number-of-events'?: number;
+  };
   ui?: { buttons?: Array<{ name: string; link: string }> };
   endpoints: Endpoint[];
 }
@@ -175,6 +181,55 @@ describe('the page keeps its own record', () => {
     expect(config.storage?.path).toMatch(/^\/data\//);
     expect(gatus().volumes ?? []).toContain('gatus_data:/data');
     expect(compose.volumes ?? {}, 'the named volume is not declared').toHaveProperty('gatus_data');
+  });
+
+  /**
+   * How far back the page can SEE, asserted as a duration (2026-09-10).
+   *
+   * The owner went looking for whether the identity provider had been down two
+   * hours earlier and found a page that could not say: gatus keeps the last N
+   * results per endpoint and draws exactly those, so at the default 100 the
+   * sixty-second rows reached back one hour and forty minutes and the answer
+   * had already scrolled off.
+   *
+   * The number in the config is a count. What matters is `N × interval`, and
+   * asserting the count would let somebody add a fifteen-second endpoint and
+   * quietly cut that endpoint's window to an hour while this stayed green. So
+   * this computes the window per endpoint, from the same two values gatus uses.
+   */
+  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+
+  const intervalMs = (raw: string | undefined): number => {
+    // gatus's own duration strings. Only the units this file uses are
+    // accepted: an unparsed one must fail loudly rather than default to
+    // something that makes the window look fine.
+    const m = /^(\d+)(s|m|h)$/.exec(raw ?? '');
+    if (!m) throw new Error(`endpoint interval '${String(raw)}' is not a duration this guard reads`);
+    const n = Number(m[1]);
+    return m[2] === 's' ? n * 1000 : m[2] === 'm' ? n * 60_000 : n * 3_600_000;
+  };
+
+  it('holds at least two hours of history for EVERY endpoint', () => {
+    const kept = config.storage?.['maximum-number-of-results'];
+    expect(kept, 'gatus keeps 100 results by default — say the number, do not inherit it').
+      toBeTypeOf('number');
+    for (const endpoint of config.endpoints) {
+      const window = kept! * intervalMs(endpoint.interval);
+      expect(
+        window,
+        `'${endpoint.name}' keeps ${kept} results at ${endpoint.interval} — ` +
+          `${(window / 3_600_000).toFixed(1)}h of history, and the page has to answer ` +
+          '"was it down two hours ago"',
+      ).toBeGreaterThanOrEqual(TWO_HOURS_MS);
+    }
+  });
+
+  it('keeps enough up/down transitions to describe a flappy afternoon', () => {
+    // The results are the timeline; the EVENTS are the list that actually
+    // answers "was there an outage". A window holding four hours of probes and
+    // fifty transitions runs out of transitions first, on exactly the afternoon
+    // somebody is trying to reconstruct.
+    expect(config.storage?.['maximum-number-of-events'] ?? 50).toBeGreaterThanOrEqual(100);
   });
 });
 
