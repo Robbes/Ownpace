@@ -1,0 +1,149 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+//
+// Where a confirmation pass's findings land (workplan 0117 T2, slice 3).
+//
+// Slice 2 built the pass — it re-reads an item on the target and turns what the
+// target did into a `TargetAnswer`. This is the place that answer goes, and the
+// read that turns a stored answer back into a row somebody can look at.
+//
+// ## Evidence in, claim out
+//
+// What is WRITTEN is the target's answer (`item.confirmed_answer`, five
+// values). What is READ is a `ConfirmedRow`, derived every time by `rowFor`
+// from that answer plus the ledger's own status. The word is never stored.
+//
+// That asymmetry is the whole design and migration 0045 argues it at length:
+// evidence does not go stale, an interpretation does, and this plan has already
+// corrected its own interpretation once — slice 1 shipped seven row states and
+// slice 2 found an eighth. Rows carrying slice 1's frozen word would still be
+// telling somebody an item is `missing` where the truth was `unchecked`.
+//
+// ## Nothing here starts a run
+//
+// The run row is `RunStore`'s (kind `confirm`, trigger `manual` for one a
+// person pressed). This module only records what was found and reads it back.
+
+import {
+  answerFromStored,
+  rowFor,
+  storedAnswerFor,
+  type ConfirmedRow,
+  type DiscoveryDomain,
+  type LedgerRecord,
+  type MappingId,
+  type TargetAnswer,
+  type TenantId,
+} from '@openmig/shared';
+import { and, eq } from 'drizzle-orm';
+import type { PgDatabase } from './db.ts';
+import * as schemaPg from './schema-pg.ts';
+
+/** One item's finding, as the pass produces it. */
+export interface ConfirmationFinding {
+  readonly itemId: string;
+  readonly answer: TargetAnswer;
+}
+
+/** A row of the list, with enough to identify the item it speaks for. */
+export interface ConfirmedListRow extends ConfirmedRow {
+  readonly itemId: string;
+  readonly domain: DiscoveryDomain;
+  readonly collection: string;
+  readonly naturalKey: string;
+  /** When the target was asked. `null` = never — the row is `unchecked`. */
+  readonly confirmedAt: Date | null;
+}
+
+/**
+ * Records what a confirmation pass found.
+ *
+ * Assumes the caller has established the tenant context (`withTenant`), like
+ * every other store in this package.
+ */
+export class ConfirmationStore {
+  private readonly db: PgDatabase;
+
+  constructor(db: PgDatabase) {
+    this.db = db;
+  }
+
+  /**
+   * Write down what the target said about one item.
+   *
+   * `confirmedAt` and `confirmedByRun` are set in the same statement as the
+   * answer, so the three cannot drift apart: an answer whose age nobody knows
+   * is not evidence a person can weigh.
+   */
+  async record(args: {
+    tenantId: TenantId;
+    runId: string;
+    finding: ConfirmationFinding;
+    at?: Date;
+  }): Promise<void> {
+    await this.db
+      .update(schemaPg.item)
+      .set({
+        confirmedAnswer: storedAnswerFor(args.finding.answer),
+        confirmedAt: args.at ?? new Date(),
+        confirmedByRun: args.runId,
+      })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, args.tenantId),
+          eq(schemaPg.item.id, args.finding.itemId),
+        ),
+      );
+  }
+
+  /**
+   * The list, as rows a person may read.
+   *
+   * Every row goes through `rowFor` — slice 1's rule, and the reason the
+   * derived word is not in the database. An item nobody has confirmed has a
+   * NULL answer and is read as `unreachable`, which `rowFor` turns into
+   * `unchecked`: *we did not look*, which is exactly true and is not the same
+   * sentence as *it is gone*.
+   */
+  async rowsFor(args: { tenantId: TenantId; mappingId: MappingId }): Promise<ConfirmedListRow[]> {
+    const rows = await this.db
+      .select({
+        id: schemaPg.item.id,
+        domain: schemaPg.item.domain,
+        collection: schemaPg.item.collection,
+        naturalKey: schemaPg.item.naturalKey,
+        status: schemaPg.item.status,
+        confirmedAnswer: schemaPg.item.confirmedAnswer,
+        confirmedAt: schemaPg.item.confirmedAt,
+      })
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, args.tenantId),
+          eq(schemaPg.item.mappingId, args.mappingId),
+        ),
+      );
+
+    return rows.map((r) => {
+      // NEVER ASKED IS NOT AN ABSENCE. `{ unreachable: true }` is the answer
+      // that means "we could not tell", and not having asked is a case of
+      // that. Reading a NULL as `{ onTarget: false }` would put `missing` on
+      // the list for every item a pass has not reached yet.
+      const answer: TargetAnswer = r.confirmedAnswer
+        ? answerFromStored(r.confirmedAnswer)
+        : { unreachable: true };
+      const row = rowFor({
+        domain: r.domain as DiscoveryDomain,
+        status: r.status as LedgerRecord['status'],
+        answer,
+      });
+      return {
+        ...row,
+        itemId: r.id,
+        domain: r.domain as DiscoveryDomain,
+        collection: r.collection,
+        naturalKey: r.naturalKey,
+        confirmedAt: r.confirmedAt ?? null,
+      };
+    });
+  }
+}

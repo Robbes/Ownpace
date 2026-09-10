@@ -2,6 +2,46 @@
 
 ## Status — 2026-09-09 (update this block at the end of every session)
 
+**2026-09-10, later still: T2 SLICE 3 — the findings land, and what lands is
+EVIDENCE.** Migration 0045 gives the pass somewhere to write: `item.confirmed_answer`
+(five values, the ones `TargetAnswer` can distinguish), `confirmed_at`, and
+`confirmed_by_run`. `ConfirmationStore` writes them and reads them back as rows.
+
+**The column holds what the target SAID, never the word a person reads.** That is
+the slice's one contestable decision and this plan argued it against itself: slice 1
+shipped seven row states and slice 2 found an eighth (`unchecked`). Had slice 1's
+derived words been persisted, every row written before that fix would still say
+`missing` — *we placed it and it is gone* — about items that were merely unreachable,
+on the one document somebody deletes their originals from. Evidence does not go stale;
+an interpretation does, and this one has already been corrected once. So `rowFor`
+derives the claim on every read, and a NULL answer reads as `{ unreachable: true }`
+— *we did not look* — rather than as an absence.
+
+**`confirm` is a seventh run kind, not a seventh table.** D7(a) made this *"a job the
+person starts and we report on"*, which `run`/`run_event` already is: a row per
+execution, `trigger: 'manual'` for one a person pressed, a status that always closes
+(0120), an event log. Widening the vocabulary meant checking what moves with it —
+this plan's own lesson — and there were three places: the CHECK constraint, the
+drizzle enum, and `toRunReport`, which maps every kind but `incremental` to
+`type: 'full'`. That inheritance is right here (D7(a) IS a full scan) and is now
+asserted rather than left to luck.
+
+**And one place that deliberately does NOT move: `BILLABLE_RUN_KINDS`.** The pass
+re-reads the whole target, so the reflex is to meter it. `verify` is unmetered for the
+same reason, and a meter running while somebody decides whether their data is safe to
+delete would change the answer they give. The guard fails if `confirm` is ever added
+to it.
+
+Guard: `an-answer-a-later-word-would-have-frozen.unit.test.ts` on PGlite, **eight
+mutations, all caught** — `unreachable` collapsing into absence; a NULL answer read as
+"not on the target"; the store writing the derived word; the CHECK accepting any
+string; an unknown stored value coercing rather than throwing; `confirm` becoming
+billable; the answer written without its timestamp; the run table refusing the kind.
+
+**Still missing after this: nothing starts a confirmation run.** No route, no job. That
+is deliberate — the place and the vocabulary are reviewable before anything can offer
+somebody a button whose output they will delete on the strength of.
+
 **2026-09-10, later: T2 SLICE 2 — and the discipline paid twice.** `confirmation-pass.ts`
 turns ledger rows into `ConfirmedRow`s, every one through `rowFor`, and building it found
 what slice 1's vocabulary could not say. §7e records both findings; the short version is
@@ -202,7 +242,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | 🔨 **Vocabulary built 2026-09-10** (ledger migration 0044, `holdsASlot`, `isAfterCutover`, ADR-0014 amended). Nothing can enter or run the lane yet — the tick and the door are the next two slices | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
-| T2 The confirmed list | 🔨 **Slices 1 and 2 built 2026-09-10**: `confirmed-list.ts` — what a row may claim — then `confirmation-pass.ts`, the machinery that produces them. Building the pass found an **eighth** row state the vocabulary lacked (`unchecked`) and one the pass must never reach for (`missing`) — see §7e. Next: somewhere to record a pass, and the job the person starts | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
+| T2 The confirmed list | 🔨 **Slices 1, 2 and 3 built 2026-09-10**: `confirmed-list.ts` — what a row may claim — then `confirmation-pass.ts`, the machinery that produces them, then migration 0045 and `ConfirmationStore`, where the findings land. Building the pass found an **eighth** row state the vocabulary lacked (`unchecked`) and one the pass must never reach for (`missing`) — see §7e. The store writes **evidence, never the derived word**, for exactly that reason. Next: the job the person starts, and the list itself | "These N items are in your new home, verified by hash." No deletion by us — and §3b's trap is now closed by D4: the person deletes in the source's own app on the strength of our list, and nothing propagates that onto the target. The list is only safe to hand over because of D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The live item now** | The drain's consent (D5) defers with T3. What T1 and T2 need is smaller and real, and D4 added to it: a person must be told that a mapping keeps copying after cutover (continued access to a system they think they have left), that deletions at the source are **no longer mirrored** and why, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |
