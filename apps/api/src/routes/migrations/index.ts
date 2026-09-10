@@ -792,15 +792,23 @@ export const CreateMappingBase = z.object({
   // Mapping-specific fields (for mailbox_mapping table)
   //
   // FOUR of the CHECK constraint's five, and the omission is deliberate.
-  // `continuous` (workplan 0117 T1) is a state a mapping can BE in — every
-  // reader knows it — but not one this route may put it into. ADR-0014's
-  // 2026-09-10 amendment made entering the lane an act with a price attached:
-  // a continuous path holds a capacity slot for as long as it runs, so
-  // *before somebody enters the lane they must be told that their bill does
-  // not stop at cutover*. That sentence is T5's and is the owner's, and a
-  // PATCH that quietly admitted the value would be the door opening without
-  // it. Widen this when the door is built, not before.
-  status: z.enum(['active', 'paused', 'cutover', 'done']).optional(),
+  // `continuous` (workplan 0117 T1) IS admitted here, since 2026-09-10, and it
+  // was the last of the five to be.
+  //
+  // ADR-0014's amendment made entering the lane an act with a price attached: a
+  // continuous path holds a capacity slot for as long as it runs (D6), so the
+  // tier does NOT fall the way finishing makes it fall. The condition on
+  // opening this door was never a technical one — it was that *somebody
+  // entering the lane is told their bill does not stop at cutover*, which is
+  // T5's sentence and was the owner's to write. It now exists in two places
+  // and both are guarded: `pricing.md`, in the same breath as "finishing lowers
+  // your bill", and `lane.why` on the screen that offers the switch.
+  //
+  // The route does not enforce that telling — a screen does, and a guard
+  // asserts the screen still says it. What the route enforces is that the value
+  // is reachable at all, which is what makes the lane usable rather than a
+  // state nothing can enter.
+  status: z.enum(['active', 'paused', 'cutover', 'done', 'continuous']).optional(),
   /**
    * The sync mode. **One value, because one is all the engine implements.**
    *

@@ -79,6 +79,36 @@ refuses), so no test driven through the pass could ever prove it. An unreachable
 safety net is the kind that rots, so that one branch is asserted directly — the
 only place in this guard where the reader is poked without a reason given.
 
+**2026-09-10, evening: THE DOOR IS OPEN — T5's sentence exists, and T1 slice 3
+is built.** The lane has been a state nothing could enter since slice 1. The
+condition on opening it was never technical: ADR-0014's amendment gave entering
+a price, so somebody entering had to be TOLD their bill does not stop at
+cutover, and that sentence was the owner's (D8, taken today, option (a)).
+
+**The pricing page was publishing something the lane makes false**, which is the
+part worth noticing: *"Finishing lowers your bill, automatically… the tier falls
+on its own"* is true of every other ending and not of this one. So the fix was to
+amend that paragraph in the same breath rather than add a note further down — a
+correction three paragraphs later is not a correction — and the guard asserts the
+two stay within three paragraphs of each other.
+
+**Said twice, on purpose.** On the pricing page beside the promise it qualifies,
+and in `lane.why` on the screen that offers the switch, because most people never
+read a pricing page twice and the act happens on the screen. The door itself is
+two presses: the first opens the sentence, the second acts. A single button with
+the explanation beside it lets a fast reader enter without meeting it.
+
+**The old guard was replaced, not deleted** — it said so itself: *"when the door
+is built, widen the enum, and replace this test with one that asserts the customer
+is told."* Six mutations, all caught: the enum narrowing again; the screen's
+sentence reworded past saying it; the English `lane.why` deleted while the Dutch
+survives; the pricing exception dropped; the exception drifting away from the
+promise; the switch offered on an `active` migration, which would be offering
+something already happening.
+
+**D9 and D10 were taken the same day and are recorded in §6.** Neither is built:
+the budget lands with the route that starts a pass, the list's shape with the list.
+
 **2026-09-10, later again: T2 SLICE 4 — the job runs, and a second seam did not
 fit either.** `runConfirmationPass` drives it: ledger rows in, `confirmEach` over
 them, findings recorded, run row closed. It performs no provider I/O itself — the
@@ -367,11 +397,11 @@ the owner says no to it, this document is a record of why and nothing more is wa
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
-| T1 The continuous lane | 🔨 **Vocabulary built 2026-09-10** (ledger migration 0044, `holdsASlot`, `isAfterCutover`, ADR-0014 amended). Nothing can enter or run the lane yet — the tick and the door are the next two slices | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy — a post-cutover deletion at the source must leave the target untouched, and the test must fail if detection is merely gated rather than absent. |
+| T1 The continuous lane | ✅ **Slices 1–3 built 2026-09-10.** The lane exists in every vocabulary, runs with the deletion detectors absent, and can now be ENTERED: `PATCH /api/migrations/:id` admits `continuous`, offered on the Finish page from `cutover` or `done`, behind two presses and the sentence D8 settled. | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy. |
 | T2 The confirmed list | 🔨 **Slices 1–5 built 2026-09-10**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, and `readerOverTarget` — a real target asked one item at a time. Three seams did not fit when connected and all three are recorded in §7e. **Left: the route that starts a pass (where D9 lands) and the list itself (where D10 lands).** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
-| T5 The words | 🔨 **The live item now** | The drain's consent (D5) defers with T3. What T1 and T2 need is smaller and real, and D4 added to it: a person must be told that a mapping keeps copying after cutover (continued access to a system they think they have left), that deletions at the source are **no longer mirrored** and why, and T2's list must say what "verified" covers before anybody deletes on the strength of it. |
+| T5 The words | 🔨 **The lane's half done 2026-09-10** (D8): the pricing page's "finishing lowers your bill" paragraph gained the exception beside it, and `lane.*` says it again where the switch is — including that deletions at the source stop being mirrored. The drain's consent (D5) defers with T3. **Left: T2's half** — the list must say what "verified" covers before anybody deletes on the strength of it (D10 settled its shape). | A person must be told that a mapping keeps copying after cutover, that deletions at the source are no longer mirrored and why, and what "verified" covers. |
 
 ## Why this exists
 
@@ -735,6 +765,68 @@ sentence in the product.
 list says so on its face.** A person deleting their originals on the strength of a list is
 owed the definition next to the number, not in a footnote. That is the T2 half of T5's
 words, and it is not optional in any branch.*
+
+### D8 — T5's sentence, and what the lane costs (TAKEN 2026-09-10)
+
+The question put to the owner: the lane holds a slot (D6), but `pricing.md`
+publishes *"Finishing lowers your bill, automatically… the tier falls on its own"*
+— which the lane makes **false as published**. So this was never "add a
+sentence"; it was "decide what the lane costs, then correct a live promise".
+
+Three shapes were offered: **(a)** the full slot D6 already decided; (b) a
+reduced belt rate; (c) free while a real migration also runs.
+
+> ✅ **(a), as recommended.** *"1: a"*
+
+The recommendation's reasoning, kept because it is the reason the other two were
+not taken: the machine really is working every month, (a) was already coded, and
+(b)/(c) buy a kinder sentence by spending the page's two-numbers-decide-your-tier
+simplicity, which is its main asset.
+
+**Built the same day**, and the shape of the telling matters as much as the
+words: the exception sits BESIDE the promise it qualifies, not in a footnote,
+and it is repeated on the screen that offers the switch — because most people
+never read a pricing page twice, and the act happens on the screen.
+
+### D9 — does a confirmation pass share the migration's budget? (TAKEN 2026-09-10)
+
+D7(a) re-reads every item's BYTES off the target. 0090 already built byte-aware
+daily budgets and refuse-before-the-lockout. So: one budget or two?
+
+> ✅ **(a) it shares the tenant's budget.** *"2: a"*
+
+The limit belongs to the PROVIDER, not to us, so splitting it into two budgets
+is pretending we have twice the allowance we do. The cost is real and is
+accepted: a large confirmation will slow a migration running at the same time.
+That slowdown must be **visible** rather than avoided — a person who pressed
+"confirm everything" and finds their copying crawling deserves to see why.
+
+**Not yet built.** This lands with the route that starts a pass (T2's next
+slice); until something can start one, there is nothing to budget.
+
+### D10 — what the confirmed list shows, and who may see it (TAKEN 2026-09-10)
+
+Two halves, both put to the owner because both are about what a person is owed
+rather than what is cheap.
+
+**How much.** A list of a hundred thousand verified files is unusable; §7c warns
+that silently omitting rows "tells somebody their library is smaller than it is".
+
+> ✅ **(a): a headline count, every row that is NOT verified, the total stated,
+> and a full export.** *"3: a, the recommended"*
+
+Nothing is omitted from the account — the total says how many there are — and
+what is on screen is the part somebody can act on.
+
+**Who.** Does 0122's view-link holder — somebody with no account — see it?
+
+> ✅ **(a): no.** *"view-link holder: a"*
+
+The view link carries counts and states; a per-item list is CONTENT, and that is
+the rule the link was built on (0122 §2). Same shape as 0122 T8, which is
+deferred for the same reason: it is a question about authority, not about API.
+
+**Not yet built**, and it belongs with the list itself.
 
 ## 7. T1 and T2, as they have to be built HERE (added 2026-09-09)
 

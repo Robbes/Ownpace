@@ -21,6 +21,12 @@ what you start — begin everything, and let the bill come down as each thing fi
 **Pausing does not lower it.** A paused migration is holding its place and can resume in a
 second, which is the point of it. Finishing is what frees the space.
 
+**Unless you ask us to keep copying.** Some people want the old account to keep feeding the
+new one after they have moved — a shared calendar somebody else still writes to, a folder a
+colleague still drops things into. That is a migration that never finishes, so it never stops
+counting: the tier stays where it is until you end it. We will not switch it on for you, and
+we will not bill past twelve months without asking you again.
+
 **Setup is charged once, on the largest tier you ever reach.** Move up later and you pay
 only the difference. Move down and it is never charged again. Whether you started small and
 grew or started at full size, the total is the same — so there is nothing to gain by
