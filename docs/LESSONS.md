@@ -820,6 +820,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
+### `packages/orchestration/src/build-confirmation-readers.ts`
+
+- [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
+
 ### `packages/orchestration/src/build-deps-from-mapping.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
@@ -862,6 +866,10 @@ reading a file drops off its entry by itself.
 
 - [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts) — A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
+
+### `packages/orchestration/src/target-fan-out.ts`
+
+- [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
 
 ### `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`
 
@@ -1333,8 +1341,10 @@ Every place that asks "is this domain switched on?" asks it about EVERY domain (
 Reads:
 
 - `apps/worker/src/jobs/run-verification.ts`
+- `packages/orchestration/src/build-confirmation-readers.ts`
 - `packages/orchestration/src/build-reindexers.ts`
 - `packages/orchestration/src/orchestration.ts`
+- `packages/orchestration/src/target-fan-out.ts`
 - `packages/shared/src/verification-report.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
 

@@ -65,6 +65,7 @@ import {
   buildConfirmationReaders,
   targetProviderKey,
 } from '@openmig/orchestration/build-confirmation-readers';
+import { managedOpener } from '@openmig/orchestration/build-reindexers';
 
 const ConfirmationJobSchema = z.object({
   tenantId: z.string().uuid(),
@@ -216,10 +217,12 @@ export const runConfirmationTask = schemaTask({
       requestsPerSecond: DEFAULT_THROTTLE_CONFIG.requestsPerSecond,
     });
 
+    // The MANAGED opener: this edition's answer to "how do I open one
+    // domain's target", built from connection rows. The builder itself is
+    // edition-agnostic (owner decision 2026-09-11, option (b)) — the appliance
+    // hands it a config-built opener and gets the same readers.
     const readers = await buildConfirmationReaders({
-      pool,
-      tenantId,
-      mappingId,
+      open: managedOpener(pool, tenantId, mappingId),
       wanted,
       budget: { tenantId, provider, rate },
     });

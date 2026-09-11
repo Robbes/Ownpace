@@ -50,6 +50,13 @@ import {
 } from '@openmig/shared';
 import type { TargetReindexer } from '@openmig/shared';
 import { buildDeps, buildDomainDeps, type LedgerOptions } from './build-deps.ts';
+import {
+  GATE_NAME,
+  asReindexer,
+  fanOutTargets,
+  type OpenTarget,
+  type VerificationDomain,
+} from './target-fan-out.ts';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery.ts';
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
 import { DISCOVERY_DOMAINS, DOMAIN_CONFIG_KEY } from '@openmig/shared';
@@ -728,7 +735,10 @@ export async function discoverAllDomains(
         // Only retain source keys when there is a target that can actually be
         // enumerated — the set costs one hash per source item, and paying that
         // for a target we cannot read would buy nothing.
-        const reindexer = asCountableTarget(opened.target);
+        // The SAME predicate the fan-out uses (`asReindexer`), not a fourth
+        // copy of it: "can this target enumerate itself" is one question, and
+        // this file answered it twice until 2026-09-11.
+        const reindexer = asReindexer<CountableTarget>(opened.target);
         const sourceKeys = reindexer ? new Set<string>() : undefined;
 
         const discovery = await discoverSource(
@@ -773,12 +783,6 @@ export async function discoverAllDomains(
   }));
 
   return discoverDomains(tasks, store, tenantId, mappingId);
-}
-
-/** A target that can enumerate itself, or undefined when it cannot. */
-function asCountableTarget(target: unknown): CountableTarget | undefined {
-  const candidate = target as { listEntries?: unknown };
-  return typeof candidate?.listEntries === 'function' ? (target as CountableTarget) : undefined;
 }
 
 /** Hash a SOURCE listing item's natural key the way the ledger will store it. */
@@ -878,62 +882,40 @@ export async function verifyMapping(
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;
 
-  const reindexers: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files' | 'tasks', TargetReindexer>> = {};
-  const closers: Array<() => Promise<void>> = [];
+  // ONE FAN-OUT, SHARED WITH THE MANAGED EDITION (owner decision 2026-09-11,
+  // option (b)). The loop that used to live here — open, keep only what can
+  // enumerate, release the rest, release them all at the end — was a second
+  // copy of `buildTargetReindexers`', and neither copy knew about the other.
+  // That is the shape `build-reindexers.ts` records the price of: the task
+  // domain was added to one of these lists and not the other, and E2E #168
+  // reported `tasks 0/4` about a target the tasks were sitting on.
+  //
+  // What is left here is the appliance's own half: which domains this mapping
+  // runs, and how to open one from the CONFIG FILE rather than from connection
+  // rows.
+  //
+  // The mail gate is `verifyMapping`'s own and is NOT `enabledSyncDomains`'.
+  // This one falls back to the top-level source type whenever `domains.mail`
+  // is absent; that one only does so when there is no domains block at all.
+  // They have differed since before this extraction and unifying them would
+  // change which mappings verify mail, so it is preserved verbatim and called
+  // out rather than quietly folded in.
+  const wanted: DiscoveryDomain[] = [];
+  if (config.domains?.mail?.enabled ?? isTopLevelMailSource(config.source.type)) wanted.push('email');
+  if (config.domains?.calendar?.enabled) wanted.push('calendar');
+  if (config.domains?.contacts?.enabled) wanted.push('contact');
+  if (config.domains?.files?.enabled) wanted.push('file');
+  if (config.domains?.tasks?.enabled) wanted.push('task');
 
-  const collect = async (
-    key: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
-    open: () => Promise<{ target: unknown; close: () => Promise<void> }>,
-  ): Promise<void> => {
-    let opened: { target: unknown; close: () => Promise<void> };
-    try {
-      opened = await open();
-    } catch (err) {
-      log.warn(
-        `[verify] no ${key} target for ${config.mappingId}: ` +
-          `${err instanceof Error ? err.message : String(err)}`,
-      );
-      return;
-    }
-    const candidate = opened.target as { listEntries?: unknown };
-    if (typeof candidate?.listEntries !== 'function') {
-      await opened.close();
-      return;
-    }
-    reindexers[key] = candidate as TargetReindexer;
-    closers.push(() => opened.close());
-  };
-
-  if (config.domains?.mail?.enabled ?? isTopLevelMailSource(config.source.type)) {
-    await collect('mail', async () => {
-      const d = await buildDeps(config, ledger);
-      return { target: d.target, close: d.close };
-    });
-  }
-  if (config.domains?.calendar?.enabled) {
-    await collect('calendar', async () => {
-      const d = buildDomainDeps(config, 'calendar', ledger);
-      return { target: d.target, close: d.close };
-    });
-  }
-  if (config.domains?.contacts?.enabled) {
-    await collect('contacts', async () => {
-      const d = buildDomainDeps(config, 'contact', ledger);
-      return { target: d.target, close: d.close };
-    });
-  }
-  if (config.domains?.files?.enabled) {
-    await collect('files', async () => {
-      const d = buildDomainDeps(config, 'file', ledger);
-      return { target: d.target, close: d.close };
-    });
-  }
-  if (config.domains?.tasks?.enabled) {
-    await collect('tasks', async () => {
-      const d = buildDomainDeps(config, 'task', ledger);
-      return { target: d.target, close: d.close };
-    });
-  }
+  const fanned = await fanOutTargets<TargetReindexer>({
+    wanted,
+    open: applianceOpener(config, ledger),
+    keep: (target) => asReindexer<TargetReindexer>(target),
+    label: `[verify] ${config.mappingId}:`,
+  });
+  const reindexers: Partial<Record<VerificationDomain, TargetReindexer>> = {};
+  for (const domain of fanned.domains) reindexers[GATE_NAME[domain]] = fanned.byDomain[domain];
+  const closers: Array<() => Promise<void>> = [() => fanned.close()];
 
   // Owns its own pool (see createLedgerVerificationReader) — closed below.
   const verificationReader = createLedgerVerificationReader(
@@ -1005,6 +987,24 @@ function enabledSyncDomains(config: MappingConfig): DiscoveryDomain[] {
   if (config.domains?.files?.enabled) domains.push('file');
   if (config.domains?.tasks?.enabled) domains.push('task');
   return domains;
+}
+
+/**
+ * THE APPLIANCE'S OPENER: one domain's target, built from the config file.
+ *
+ * The mirror of `managedOpener` (`build-reindexers.ts`), and the only thing
+ * that differs between the editions now that the fan-out is shared. Both hand
+ * `fanOutTargets` the same shape; one reads connection rows through a pg
+ * `Pool`, this one reads the `MappingConfig` the appliance was started with and
+ * the ledger handle it was given — which is why it works on PGlite, where
+ * there is no pool to open (`ledger-injection.unit.test.ts` exists because it
+ * once did not).
+ */
+export function applianceOpener(config: MappingConfig, ledger?: LedgerOptions): OpenTarget {
+  return async (domain) => {
+    const deps = await openSyncDomainDeps(config, domain, ledger);
+    return { target: deps.target, close: () => deps.close() };
+  };
 }
 
 /** One domain's `{ target, ledger, close }`, mail included, via a single call shape. */

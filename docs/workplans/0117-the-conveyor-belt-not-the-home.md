@@ -34,6 +34,71 @@ bug restored verbatim.
 each internally consistent and separately guarded. Neither guard could see them, because
 neither slice was wrong. What found them was trying to use the two together.
 
+**2026-09-11: ONE FAN-OUT, BOTH EDITIONS — the owner took option (b).**
+
+> ✅ *"(b) Extract one fan-out both editions feed, build the readers on it
+> once."*
+
+`fanOutTargets` (`target-fan-out.ts`) is now the only collect-and-release loop
+over the five domains' targets. The editions differ in ONE function — an
+`OpenTarget` — and everything else is shared:
+
+| | was | is |
+|---|---|---|
+| managed | `buildTargetReindexers`'s own loop | `managedOpener` → `fanOutTargets` |
+| appliance | `verifyMapping`'s own inline `collect` | `applianceOpener` → `fanOutTargets` |
+| confirmation | would have been a third loop | `buildConfirmationReaders`, which now takes an opener and serves either edition |
+
+**What the loop is, and why it was worth one home.** Open a domain; keep it only
+if its target can enumerate itself; release the ones not kept, immediately;
+release everything on the way out of a throw; release the rest even when one
+release fails. Five rules, written twice, each copy updated by hand — and
+`build-reindexers.ts` records what happens when one of them is not: the task
+domain reached a source, a writer, a ledger row, a tick, the report and both
+gates, and never one of these loops. `tasks 0/4` on a target the tasks were
+sitting on.
+
+**The list is gone, which is the actual fix.** The old defect needed a
+hand-written list of domains to go stale against. The fan-out is driven by
+`DISCOVERY_DOMAINS`, and the two spellings meet in exactly one total `Record`,
+so a sixth domain is a compile error rather than a domain nothing looks at.
+`a-domain-the-fan-outs-forgot.unit.test.ts` was rewritten around that: it used
+to count `collect('…')` calls per list, and now asserts that there is one list
+and it is the enum — plus that neither edition carries its own copy of the loop.
+
+**Three things changed behaviour, and all three are improvements rather than
+side effects:**
+
+ - `buildConfirmationReaders` opens only the domains it was ASKED for. It used
+   to build all five and discard the rest — a connection and a full account walk
+   per domain nobody wanted.
+ - `asCountableTarget` is gone. "Can this target enumerate itself" was answered
+   twice inside `orchestration.ts` — once for reindexers and once for the
+   discovery pass's counting — and is now `asReindexer`, once.
+ - The confirmation readers are edition-agnostic. The appliance's remaining work
+   is an opener it already has (`applianceOpener`) plus its routes; it is no
+   longer blocked on anything structural.
+
+**One divergence found and deliberately NOT unified.** `verifyMapping`'s mail
+gate is `config.domains?.mail?.enabled ?? isTopLevelMailSource(...)`;
+`enabledSyncDomains`' is `?? (!hasDomainConfig && isTopLevelMailSource(...))`.
+They have differed since before this extraction, and folding them together would
+change which mappings verify mail — a behaviour change wearing a refactor's
+clothes. Preserved verbatim, called out in the code, and left for somebody who
+means to change it.
+
+10 mutations on the extracted loop, all caught: a target that cannot be used
+left open, a throwing `keep` stranding what was already open, the same stranding
+the one it was working on, a domain with no connection aborting the whole
+fan-out, `close()` stopping at the first failure, `close()` swallowing it,
+`wanted` ignored, the domain order taken from insertion rather than the enum,
+the managed builder keying by the ledger name instead of the gate's, and the
+managed opener asking the deps layer for the wrong name on one domain.
+
+**Left: the appliance's routes and the pass wiring** (`POST /confirm` and the
+two `confirmed-list` reads on `apps/selfhost`), and then the screen. No screen
+offers Confirm or the list on either edition until the first of those lands.
+
 **2026-09-11, after #921 merged: THE APPLIANCE BLOCKER WAS DIAGNOSED WRONG,
 and the wrong version is in a merged guard, this plan and three PR bodies.**
 
@@ -639,7 +704,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | ✅ **Slices 1–3 built 2026-09-10.** The lane exists in every vocabulary, runs with the deletion detectors absent, and can now be ENTERED: `PATCH /api/migrations/:id` admits `continuous`, offered on the Finish page from `cutover` or `done`, behind two presses and the sentence D8 settled. | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy. |
-| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Left: the appliance's half — which has no confirmation-reader assembler, the `Pool` having been the wrong diagnosis (2026-09-11) — and the screen, which must not ship before it.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
+| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Left: the appliance's ROUTES — its confirmation-reader assembler now exists, since both editions feed one fan-out (2026-09-11, owner option (b)) — and the screen, which must not ship before them.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The lane's half done 2026-09-10** (D8): the pricing page's "finishing lowers your bill" paragraph gained the exception beside it, and `lane.*` says it again where the switch is — including that deletions at the source stop being mirrored. The drain's consent (D5) defers with T3. **Left: T2's half** — the list must say what "verified" covers before anybody deletes on the strength of it (D10 settled its shape). | A person must be told that a mapping keeps copying after cutover, that deletions at the source are no longer mirrored and why, and what "verified" covers. |
