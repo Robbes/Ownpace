@@ -89,6 +89,17 @@ describe('route registration', () => {
         // where that surface lands, and it must not ship ahead of the
         // appliance's half.
         'POST /:mappingId/confirm',
+        // D10's list and its export (0117 T2 slice 8) join the same exception,
+        // and for a reason that is about the SCREEN rather than the driver.
+        // Nothing in these two reads needs the reindexer — they read the
+        // ledger — so the appliance could serve them. But the list is the
+        // Confirm button's other half: a page that shows a headline of
+        // `0 verified` and a Confirm that does nothing is worse on the
+        // appliance than no page at all, because it reads as an account where
+        // nothing arrived. So they land together with the appliance's half,
+        // and until then no screen offers either.
+        'GET /:mappingId/confirmed-list',
+        'GET /:mappingId/confirmed-list/export',
       ].sort(),
     );
   });

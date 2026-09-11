@@ -36,6 +36,7 @@
 
 import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { PauseReason } from './pause-reason.ts';
+import type { ConfirmedRowView } from './confirmed-list.ts';
 import {
   DELETION_CONFIRMATIONS,
   MAX_ITEM_ATTEMPTS,
@@ -812,4 +813,77 @@ export interface RunsResponse {
    *  from "20 of 21" on its own, and labelling whenever length === cap would
    *  be the almost-honest this field exists to end. */
   readonly truncated?: boolean;
+}
+
+/**
+ * Where a confirmation pass is, for the list that polls it (workplan 0117 T2).
+ *
+ * The same four states `VerificationRunReport` uses, and deliberately so: both
+ * are "press a button, watch a job", and a second vocabulary for the same
+ * lifecycle is two switch statements that drift.
+ *
+ * **`never-run` is not cosmetic here.** Before any pass, every row's answer is
+ * NULL and reads `unchecked` — and after a pass that could not reach the target
+ * at all, every row reads `unchecked` too. The rows alone cannot tell those
+ * apart, so a screen with no pass state would show an identical page for "we
+ * have not looked yet" and "we looked and could not see", on the document
+ * somebody deletes their originals from.
+ */
+export type ConfirmationPassState =
+  | { readonly state: 'never-run' }
+  | { readonly state: 'running'; readonly startedAt: string }
+  | { readonly state: 'done'; readonly startedAt: string; readonly finishedAt: string }
+  | {
+      readonly state: 'failed';
+      readonly startedAt: string;
+      readonly finishedAt: string;
+      readonly error?: string;
+    };
+
+/**
+ * `GET {mappingPath}/confirmed-list` — D10's list, per mapping.
+ *
+ * > ✅ D10 *"(a): a headline count, every row that is NOT verified, the total
+ * > stated, and a full export."*
+ *
+ * `verified`, `total` and `rows` come from `confirmedList` in
+ * `confirmed-list.ts` — the shared shaper, so both editions count the headline
+ * the same way and neither assembles it in a template.
+ *
+ * **This read WALKS the mapping's items**, because the headline is derived
+ * rather than stored — that is slice 1's rule and the reason a stale word is
+ * not in the database. Counting it in SQL would be a third place that decides
+ * what "verified" means, which is precisely what `countsAsVerified` exists to
+ * prevent. So this is a page somebody opens, not something to poll every
+ * second: a screen watching a pass should poll `GET {mappingPath}/runs`, which
+ * reads one row, and re-read this when the run lands.
+ *
+ * `pausedAt` is the reason the account is only PART checked, when there is one.
+ * Without it the honest numbers read as a bad result: `verified 12 of 50 000`
+ * with forty-nine thousand `unchecked` rows is alarming, and the fact that
+ * explains it — the provider's day is spent, it lifts at 06:00 — would be
+ * sitting in a run row nobody reads. §7c's own warning is about a list that
+ * misleads by omission, and this is that omission.
+ */
+export interface ConfirmedListResponse {
+  readonly migrationStatus: MappingLifecycle;
+  /** The headline. Only `verified` counts — `yours` and `present` do not. */
+  readonly verified: number;
+  /** Every item in the account, including the ones `rows` does not carry. */
+  readonly total: number;
+  /** Every row that is NOT verified, up to the server's bound. The working list. */
+  readonly rows: ReadonlyArray<ConfirmedRowView>;
+  /**
+   * True when `rows` is the first N of more (0036 T3's rule, stated there:
+   * *"silent truncation reads as 'covered everything'"*).
+   *
+   * It is not a rare case. Before any pass has run, NO row is verified, so an
+   * account of any size arrives here entirely unverified — the un-run state is
+   * the worst case rather than an edge one. The complete account is the export,
+   * which is bounded by nothing.
+   */
+  readonly truncated?: boolean;
+  readonly lastPass: ConfirmationPassState;
+  /** Why the last pass stopped early, when it did (0090 T4). */
+  readonly pausedAt?: PauseReason;
 }

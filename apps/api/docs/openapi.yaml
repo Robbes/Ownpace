@@ -2719,6 +2719,141 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /api/migrations/{mappingId}/confirmed-list:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Operating]
+      summary: The confirmed list — headline, the rows that are not verified, the total
+      description: |
+        What a confirmation pass found, as the list somebody reads before they
+        delete their originals (workplan 0117 T2, decision D10).
+
+        Three numbers and a set of rows, and the shape is the decision rather
+        than a rendering choice: `verified` is the headline, `total` is the
+        whole account, and `rows` carries every row that is NOT verified —
+        questions and warnings, the part somebody can act on. A list of a
+        hundred thousand verified files is unusable, and a list quietly trimmed
+        to look shorter tells somebody their library is smaller than it is;
+        stating the total is how both are avoided.
+
+        `rows` is bounded by the server. `truncated: true` says so when it
+        happened — the complete account is the export, which is bounded by
+        nothing. It is not a rare case: before any pass has run, NO row is
+        verified.
+
+        `state` is derived at read time, never stored. What the database holds
+        is what the target SAID; the word is worked out from that plus the
+        ledger's own status every time the list is read, so a row cannot go on
+        claiming something a later, better reading would have corrected.
+
+        `unchecked` means *we did not manage to look* and is deliberately not
+        the same answer as `missing` (*we placed it and it is gone*). A network
+        outage must never read as a lost item on the page somebody empties a
+        folder from.
+
+        **This walks the mapping's items**, because the headline is derived
+        rather than stored. It is a page somebody opens, not something to poll:
+        a screen watching a pass should poll the mapping's runs, which reads one
+        row, and re-read this when the run lands.
+      responses:
+        '200':
+          description: The list.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [migrationStatus, verified, total, rows, lastPass]
+                properties:
+                  migrationStatus: { type: string }
+                  verified:
+                    type: integer
+                    description: Rows re-read from the destination that matched. Nothing else counts.
+                  total:
+                    type: integer
+                    description: Every item in the account, including the ones `rows` does not carry.
+                  truncated:
+                    type: boolean
+                    description: '`rows` is the first N of more. The export carries the rest.'
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                      required: [state, claim, domain, collection, naturalKey, confirmedAt]
+                      properties:
+                        state:
+                          type: string
+                          enum: [verified, differs, present, yours, missing, never-placed, removed, unchecked]
+                        claim:
+                          type: string
+                          enum: [byte-hash, fingerprint, none]
+                          description: |
+                            What "matched" means for this row. A calendar server
+                            re-serialises what it stores, so a calendar row can
+                            only ever be compared by fingerprint — saying
+                            "verified by hash" over one would be a lie of a word.
+                        domain: { type: string }
+                        collection: { type: string, description: Where it sits on the destination. }
+                        naturalKey: { type: string, description: 'The item''s own identifier: a Message-ID, a file path, a UID.' }
+                        confirmedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                          description: When the destination was asked. `null` = never.
+                  lastPass:
+                    type: object
+                    required: [state]
+                    description: |
+                      Where the last pass got to. Needed rather than decorative:
+                      before any pass every row reads `unchecked`, and after a
+                      pass that could not reach the destination every row reads
+                      `unchecked` too — the rows alone cannot tell those apart.
+                    properties:
+                      state:
+                        type: string
+                        enum: [never-run, running, done, failed]
+                      startedAt: { type: string, format: date-time }
+                      finishedAt: { type: string, format: date-time }
+                  pausedAt:
+                    type: object
+                    description: |
+                      Why the account is only part checked, when it is. A pass
+                      that stops at the provider's daily ceiling is a scheduled
+                      stop, not a failure — and without this the honest numbers
+                      read as a bad result.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/confirmed-list/export:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    get:
+      tags: [Operating]
+      summary: The confirmed list as CSV — every row, verified ones included
+      description: |
+        The full export half of decision D10, and the difference from the list
+        above is the point: the screen shows what is actionable, while somebody
+        reconciling against the account they are about to empty needs to search
+        for one file and see the word `verified` beside it.
+
+        Bounded by nothing, and streamed rather than assembled, so a
+        family-sized account does not have to fit in memory to be downloaded.
+
+        Written for a spreadsheet: a UTF-8 BOM (without one Excel reads the file
+        in the local codepage and every accented name arrives as mojibake), CRLF
+        line endings and RFC 4180 quoting. A field that would otherwise begin
+        with `=`, `+`, `-` or `@` is prefixed with an apostrophe — mail subjects
+        and file names are written by whoever sent them, and a spreadsheet
+        evaluates a cell that starts with one of those.
+      responses:
+        '200':
+          description: The whole list.
+          content:
+            text/csv:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /api/migrations/{mappingId}/verify/start:
     parameters:
       - $ref: '#/components/parameters/MappingId'

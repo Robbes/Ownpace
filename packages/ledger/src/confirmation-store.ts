@@ -204,9 +204,31 @@ export class ConfirmationStore {
    * NULL answer and is read as `unreachable`, which `rowFor` turns into
    * `unchecked`: *we did not look*, which is exactly true and is not the same
    * sentence as *it is gone*.
+   *
+   * ## Ordered and pageable, for the same reason `itemsToConfirm` is
+   *
+   * D7(a) authorised confirming EVERY item of a family file account, so this
+   * read is over the same rows that pass walks and a single unbounded `SELECT`
+   * would load all of them into the process serving the request. The keyset is
+   * `id`, identical to `itemsToConfirm`'s and for the identical reason:
+   * `natural_key` is not unique across collections, so a page boundary on it
+   * silently drops or repeats rows.
+   *
+   * **The ordering is not only about paging.** This read has TWO consumers —
+   * the list on screen and the full export — and D10 asks for both. Unordered,
+   * PostgreSQL is free to return the same rows in a different sequence to each,
+   * and a person reconciling the downloaded file against the page would watch
+   * rows move between two documents that are supposed to be the same account.
    */
-  async rowsFor(args: { tenantId: TenantId; mappingId: MappingId }): Promise<ConfirmedListRow[]> {
-    const rows = await this.db
+  async rowsFor(args: {
+    tenantId: TenantId;
+    mappingId: MappingId;
+    /** Rows per query. Absent means every row — fine for a test, not for a read. */
+    batch?: number;
+    /** Resume after this item id, the same sayable keyset `itemsToConfirm` takes. */
+    after?: string;
+  }): Promise<ConfirmedListRow[]> {
+    const base = this.db
       .select({
         id: schemaPg.item.id,
         domain: schemaPg.item.domain,
@@ -221,8 +243,11 @@ export class ConfirmationStore {
         and(
           eq(schemaPg.item.tenantId, args.tenantId),
           eq(schemaPg.item.mappingId, args.mappingId),
+          ...(args.after ? [gt(schemaPg.item.id, args.after)] : []),
         ),
-      );
+      )
+      .orderBy(asc(schemaPg.item.id));
+    const rows = args.batch === undefined ? await base : await base.limit(args.batch);
 
     return rows.map((r) => {
       // NO STORED ANSWER MEANS ONE OF TWO DIFFERENT THINGS, and the first

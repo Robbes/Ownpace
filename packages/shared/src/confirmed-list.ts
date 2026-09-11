@@ -321,6 +321,207 @@ export function mustAppearDespiteNoClaim(row: ConfirmedRow): boolean {
 }
 
 /**
+ * THE LIST, AS A PERSON READS IT (workplan 0117 T2, decision D10).
+ *
+ * > ✅ *"(a): a headline count, every row that is NOT verified, the total
+ * > stated, and a full export."*
+ *
+ * Three numbers and a set of rows, and the shape is the decision rather than a
+ * rendering choice. §7c names what it is protecting against: *"a list of a
+ * hundred thousand verified files is unusable"*, and silently trimming it
+ * "tells somebody their library is smaller than it is".
+ *
+ * So **nothing is omitted from the ACCOUNT** — `total` says how many items
+ * there are, whatever the screen shows — and what is on screen is the part
+ * somebody can act on. A verified row needs no action; every other row is
+ * either a question or a warning, and those are the ones that must be read
+ * before anybody deletes an original.
+ *
+ * `verified` is derived through `countsAsVerified`, never by reading states
+ * here: the headline is the sentence somebody acts on, and it must not be
+ * assembled twice.
+ */
+export interface ConfirmedList<Row extends ConfirmedRow = ConfirmedRow> {
+  /** The headline. Only `verified` counts — `yours` and `present` do not. */
+  readonly verified: number;
+  /**
+   * Every item in the account, including the ones not shown.
+   *
+   * Stated so the screen can say *"N of M"*: a person reading forty rows out of
+   * a hundred thousand has to be able to tell that the other 99,960 were
+   * verified and not merely dropped.
+   */
+  readonly total: number;
+  /**
+   * Every row that is NOT verified — questions and warnings, nothing else.
+   *
+   * `mustAppearDespiteNoClaim` names the four a template would be tempted to
+   * filter out; this is wider than that on purpose, because `differs` and
+   * `present` are also things a person may want to look at before deleting.
+   * The rule is simple enough to hold in one head: if it is not verified, it is
+   * on the screen.
+   */
+  readonly rows: readonly Row[];
+  /**
+   * True when `rows` is the first N of more, because a `limit` was set.
+   *
+   * Stated rather than implied: 0036 T3 already learned this on the runs list —
+   * *"silent truncation reads as 'covered everything'"* — and here the quiet
+   * version would be §7c's own failure, a list that tells somebody their
+   * library is smaller than it is.
+   */
+  readonly truncated?: boolean;
+}
+
+/**
+ * Shape rows into D10's list — ONE ROW AT A TIME.
+ *
+ * The accumulator rather than the array is the product shape, because the read
+ * that feeds it is keyset-paged: D7(a) authorised confirming every item of a
+ * family file account, so the rows arrive five hundred at a time and no caller
+ * holds them all. Handing each page to a whole-array shaper and adding up the
+ * answers would put the arithmetic back in the caller — three counters and a
+ * cap, re-derived per edition, which is exactly the "assembled by whoever
+ * writes the template" this module exists to prevent.
+ *
+ * `limit` bounds the rows KEPT, never the rows COUNTED. `verified` and `total`
+ * are the whole account whatever the screen shows; that is the difference
+ * between a bounded list and a misleading one.
+ *
+ * Generic over the row so a caller's identifying fields travel through
+ * untouched — the same reason `ConfirmedItem` is generic, and the same defect
+ * avoided: a shaper that flattened to `ConfirmedRow` would hand a screen rows
+ * it cannot link to anything.
+ */
+export function confirmedListOf<Row extends ConfirmedRow>(options?: {
+  /** Keep at most this many non-verified rows. Absent means keep every one. */
+  readonly limit?: number;
+}): {
+  add(row: Row): void;
+  result(): ConfirmedList<Row>;
+} {
+  const limit = options?.limit;
+  const rows: Row[] = [];
+  let verified = 0;
+  let total = 0;
+  let dropped = 0;
+  return {
+    add(row) {
+      total += 1;
+      if (countsAsVerified(row)) {
+        verified += 1;
+        return;
+      }
+      if (limit === undefined || rows.length < limit) rows.push(row);
+      else dropped += 1;
+    },
+    result: () => ({ verified, total, rows, ...(dropped > 0 ? { truncated: true } : {}) }),
+  };
+}
+
+/**
+ * The same shaping for a caller that already holds every row.
+ *
+ * The appliance's list is small enough to read whole, and so is every test; this
+ * is that case, expressed through the accumulator rather than beside it so there
+ * is one definition of what the list is.
+ */
+export function confirmedList<Row extends ConfirmedRow>(
+  rows: readonly Row[],
+  options?: { readonly limit?: number },
+): ConfirmedList<Row> {
+  const list = confirmedListOf<Row>(options);
+  for (const row of rows) list.add(row);
+  return list.result();
+}
+
+/**
+ * One row as it goes over the wire, and into the export.
+ *
+ * The identifying fields are the LIST's, not the ledger's: a `Date` becomes an
+ * ISO-8601 string once, at the edge, and the JSON body and the CSV are then
+ * rendered from the SAME objects. Two shapes — one for the screen, one for the
+ * file — is how an export quietly stops agreeing with the page it was
+ * downloaded from, and this is a document somebody reconciles against their old
+ * account.
+ *
+ * **`naturalKey` is here on purpose, and it is §17's documented exception.**
+ * The operating contract's rule is that `naturalKeyHash` is the handle for
+ * every ACTION, so a body that may be pasted into a support ticket carries no
+ * Message-ID and no file path. `ItemMove.from`/`to` and
+ * `ItemDeletion.collection` are already named as exceptions there, for the
+ * reason that applies twice over here: a list that cannot say WHICH item is
+ * missing is not a list anybody can act on, and this is the one somebody
+ * deletes their originals on the strength of. The privacy answer is that the
+ * list is served to the owner's own session only — never to a 0122 view link,
+ * which sees counts and states and no keys at all.
+ */
+export interface ConfirmedRowView extends ConfirmedRow {
+  readonly domain: DiscoveryDomain;
+  /** Where it sits on the target — a folder path, a calendar name. */
+  readonly collection: string;
+  /** The item's own identifier: a Message-ID, a file path, a UID. */
+  readonly naturalKey: string;
+  /** When the target was asked, ISO-8601. `null` = never — the row is `unchecked`. */
+  readonly confirmedAt: string | null;
+}
+
+/**
+ * THE FULL EXPORT (D10) — every row, verified ones included.
+ *
+ * The screen shows what is actionable; this is the complete account, and the
+ * difference is the whole reason D10 asked for both. A person reconciling
+ * against the account they are about to empty needs to be able to search it for
+ * one file and see the word `verified` next to it — which the screen, by
+ * design, does not show them.
+ *
+ * ## Three details that are not formatting
+ *
+ * **A leading `=`, `+`, `-` or `@` is quoted out of being a formula.** Mail
+ * subjects, file names and calendar summaries are written by whoever sent them,
+ * and a spreadsheet evaluates a cell that starts with one of those — including
+ * `=cmd|…` and `=HYPERLINK(…)`. So those fields get a leading apostrophe. It is
+ * visible in the cell, and that is the trade, taken deliberately: an apostrophe
+ * in front of a handful of `-----Original Message-----` subjects is cheaper
+ * than shipping somebody a document that runs code when they open it. Do not
+ * "clean this up".
+ *
+ * **A BOM.** Excel reads a CSV without one as the local codepage, so every
+ * `ë`, `ï` and `é` arrives as mojibake — which, for a Dutch product, is most
+ * names rather than an edge case.
+ *
+ * **CRLF, and RFC 4180 quoting.** A subject containing a comma, a quote or a
+ * newline is ordinary mail; a file that splits a row on one is a file that
+ * silently changes the count somebody is reconciling.
+ */
+export function confirmedListCsv(rows: readonly ConfirmedRowView[]): string {
+  const header = ['domain', 'collection', 'item', 'state', 'claim', 'checked_at'];
+  const lines = [header.map(csvField).join(',')];
+  for (const r of rows) {
+    lines.push(
+      [r.domain, r.collection, r.naturalKey, r.state, r.claim, r.confirmedAt ?? '']
+        .map(csvField)
+        .join(','),
+    );
+  }
+  // Written as an escape, never as a literal: an invisible U+FEFF in source is
+  // one a formatter, a linter's no-irregular-whitespace rule or a careless
+  // paste removes without anybody seeing it go.
+  return `\uFEFF${lines.join('\r\n')}\r\n`;
+}
+
+/** The characters a spreadsheet reads as "this cell is code, run it". */
+const FORMULA_LEAD = /^[=+\-@\t\r]/;
+
+/** One field: de-fanged first, then quoted per RFC 4180. */
+function csvField(value: string): string {
+  const safe = FORMULA_LEAD.test(value) ? `'${value}` : value;
+  // `replace(/…/g)` rather than `replaceAll`: this module is consumed by the
+  // web app, whose lib target predates it.
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+/**
  * How a `TargetAnswer` is written down (migration 0045).
  *
  * Five strings, one per distinguishable answer, and the `item.confirmed_answer`
