@@ -2668,6 +2668,57 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/migrations/{mappingId}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Operating]
+      summary: Start a confirmation pass
+      description: |
+        Re-reads every item from the destination and records what the target
+        said about each one (workplan 0117 T2, decision D7(a)). Enqueues and
+        answers immediately: a pass reads whole accounts and takes minutes, so
+        it is a job somebody starts and we report on, never a wait.
+
+        Idempotent: while a confirmation is already running for this mapping the
+        call JOINS it and answers `200` with `started: false` — a second pass
+        would pay for every byte twice to answer a question already being
+        answered.
+
+        It shares the tenant's rate budget with any migration running against
+        the same destination (decision D9), so a large confirmation makes that
+        copying slower rather than racing it for the provider's allowance.
+
+        Answers `202` with no ledger run id: the run row is opened by the worker,
+        which owns the rule that a run row always closes. Poll the mapping's
+        runs for the latest `confirm` run.
+      responses:
+        '200':
+          description: A confirmation was already running; this call joined it.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  started: { type: boolean }
+                  runId: { type: string, format: uuid }
+        '202':
+          description: Enqueued.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  started: { type: boolean }
+                  jobRunId: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '502':
+          description: The pass could not be enqueued; nothing was written, so nothing is left claiming to run.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /api/migrations/{mappingId}/verify/start:
     parameters:
       - $ref: '#/components/parameters/MappingId'

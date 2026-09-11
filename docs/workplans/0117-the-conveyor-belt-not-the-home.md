@@ -34,6 +34,56 @@ bug restored verbatim.
 each internally consistent and separately guarded. Neither guard could see them, because
 neither slice was wrong. What found them was trying to use the two together.
 
+**2026-09-10, night: T2 SLICE 7 — a pass somebody can start.**
+`POST /api/migrations/:id/confirm` enqueues `run-confirmation`, which builds a
+reader per domain over the mapping's real target and runs the pass. Same
+start-and-poll pair as `verify/start`, and here the async shape is not taste:
+D7(a) re-reads every item's bytes, so a synchronous version would hold connector
+credentials and minutes of network work in an HTTP thread (ADR-0026's gap).
+
+**Whose limit it spends, finally answered.** D9 needs a key that names the
+PROVIDER. It comes off the target CONNECTION's stored config — the same
+`host` / `url` the Connections door wrote and `mailTargetConfigFromConnection`
+reads — so two mappings pointing at one server share one bucket. Where no host
+can be read the key falls back to the target connection's id: still shared
+across every pass against that account, never a bucket shared with an unrelated
+server. It **narrows, it never switches off** — falling back to nothing is the
+failure slice 6's shape was corrected to avoid, one layer up.
+
+**The two spellings get a guard.** `email|calendar|contact|file|task` here,
+`mail|calendar|contacts|files|tasks` in the verification gate, and
+`build-reindexers.ts` already records what that gap cost once: `tasks 0/4` on a
+target the tasks were sitting on, because a lookup answered `undefined` and
+every layer above read it as an honest no. The map is a total `Record` (a sixth
+domain is a compile error) and its five values are checked against the slots
+`buildTargetReindexers` actually fills, read from that function's own source
+rather than re-listed.
+
+**The tenant scope, which a long pass cannot hold.** `withTenant` is a
+transaction. A pass over a family-sized account runs for many minutes, and one
+transaction held that long blocks vacuum and is what an idle-in-transaction
+timeout kills. So reads take a scope per page and writes batch into one per five
+hundred — with the flush in a `finally`, because rule 3 says what was confirmed
+before a failure stays confirmed.
+
+**Two bugs the build found before CI did.** `itemsToConfirm` had no `after`
+argument, and the worker passed one anyway — an extra property on a spread,
+which TypeScript does not flag — so every page would have restarted from the
+beginning, for ever, on a job with no natural end. And the first draft handed
+`PgRateBudget` a handle taken out of a `withTenant` callback, which has
+committed by the time anything uses it.
+
+**Not on the appliance, and the reason is concrete rather than scope.**
+`buildTargetReindexers` takes a pg `Pool`; the appliance may run on PGlite,
+where there is none. Until that builder is driver-agnostic the appliance cannot
+serve this path, so the route-parity guard carries the exception in full — and
+**no screen may offer the button** until it can, because a Confirm that works
+for managed customers and silently does nothing on the appliance is the exact
+hazard that guard exists to prevent. That lands with the list (D10).
+
+Guards: `a-vocabulary-with-two-spellings.unit.test.ts` and the store's own
+resume-point test. **Eight mutations, all caught.**
+
 **2026-09-10, evening: T2 SLICE 6 — the bytes are the tenant's (D9).**
 `buildTargetWriterFromCredentials` takes neither a throttle limiter nor a meter,
 so nothing that reads a TARGET has ever been budgeted. That was fine while
@@ -460,7 +510,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | ✅ **Slices 1–3 built 2026-09-10.** The lane exists in every vocabulary, runs with the deletion detectors absent, and can now be ENTERED: `PATCH /api/migrations/:id` admits `continuous`, offered on the Finish page from `cutover` or `done`, behind two presses and the sentence D8 settled. | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy. |
-| T2 The confirmed list | 🔨 **Slices 1–6 built 2026-09-10**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — and D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`. Three seams did not fit when connected and all three are recorded in §7e. **Left: the route that starts a pass and the list itself (where D10 lands).** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
+| T2 The confirmed list | 🔨 **Slices 1–7 built 2026-09-10**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — and D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`. Three seams did not fit when connected and all three are recorded in §7e. **Left: the list itself (where D10 lands), which is also where the appliance's half of the route belongs.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The lane's half done 2026-09-10** (D8): the pricing page's "finishing lowers your bill" paragraph gained the exception beside it, and `lane.*` says it again where the switch is — including that deletions at the source stop being mirrored. The drain's consent (D5) defers with T3. **Left: T2's half** — the list must say what "verified" covers before anybody deletes on the strength of it (D10 settled its shape). | A person must be told that a mapping keeps copying after cutover, that deletions at the source are no longer mirrored and why, and what "verified" covers. |

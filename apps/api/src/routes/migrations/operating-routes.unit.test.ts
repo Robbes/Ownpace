@@ -78,6 +78,17 @@ describe('route registration', () => {
         'POST /:mappingId/sharing/apply-all',
         'POST /:mappingId/sharing/rescan',
         'POST /:mappingId/verify/start',
+        // MANAGED-ONLY, and the exception is recorded rather than hidden
+        // (workplan 0117 T2 slice 7). Starting a confirmation pass needs
+        // `buildTargetReindexers`, which takes a pg `Pool`; the appliance may
+        // run on PGlite, where there is none. Until that builder is
+        // driver-agnostic the appliance cannot serve this path, so **no screen
+        // may offer the button** — a Confirm that works for managed customers
+        // and silently does nothing on the appliance is precisely the hazard
+        // the test above this list exists to prevent. The list slice (D10) is
+        // where that surface lands, and it must not ship ahead of the
+        // appliance's half.
+        'POST /:mappingId/confirm',
       ].sort(),
     );
   });

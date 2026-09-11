@@ -145,9 +145,24 @@ export class ConfirmationStore {
     domain: DiscoveryDomain;
     /** Rows per query. Only a memory/round-trip trade — the result is identical. */
     batch?: number;
+    /**
+     * Resume after this item id — the keyset cursor, made an argument.
+     *
+     * The loop below already keeps one; this exposes it so a caller can page
+     * ACROSS scopes rather than inside one. `withTenant` is a transaction, and
+     * a pass over a family-sized account runs for many minutes: streaming it
+     * from a single scope would hold one connection open for all of them. The
+     * worker therefore asks for one page per scope and hands the last id back,
+     * which is only possible if the resume point is sayable.
+     *
+     * It was NOT sayable at first, and the caller passed one anyway — an extra
+     * property on a spread, which TypeScript does not flag. Every page then
+     * started from the beginning: the same five hundred rows, for ever.
+     */
+    after?: string;
   }): AsyncIterable<ConfirmableRow> {
     const size = args.batch ?? 500;
-    let after: string | undefined;
+    let after: string | undefined = args.after;
     for (;;) {
       const page = await this.db
         .select({

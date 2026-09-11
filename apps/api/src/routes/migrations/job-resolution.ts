@@ -121,3 +121,22 @@ export function resolveDiscoveryJob(
     },
   };
 }
+
+/**
+ * Resolve the confirmation task + payload (workplan 0117 T2, D7(a)).
+ *
+ * NO `domains` in the payload, and that is the same rule `resolveSyncJob`
+ * states one function above: the job resolves the mapping's own
+ * `scope_selection`, because naming them here would let a stale copy of the
+ * scope confirm a domain the owner had switched off — and a confirmed list is
+ * the document somebody deletes their originals on the strength of.
+ *
+ * Ids only, like every payload here: the worker loads connections and
+ * credentials under RLS (§12/§17).
+ */
+export function resolveConfirmationJob(
+  tenantId: string,
+  mappingId: string,
+): { taskId: 'run-confirmation'; payload: Record<string, unknown> } {
+  return { taskId: 'run-confirmation', payload: { tenantId, mappingId } };
+}
