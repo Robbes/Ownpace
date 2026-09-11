@@ -34,6 +34,62 @@ bug restored verbatim.
 each internally consistent and separately guarded. Neither guard could see them, because
 neither slice was wrong. What found them was trying to use the two together.
 
+**2026-09-11, after #921 merged: THE APPLIANCE BLOCKER WAS DIAGNOSED WRONG,
+and the wrong version is in a merged guard, this plan and three PR bodies.**
+
+What slices 7 and 8 said: *"`buildTargetReindexers` takes a pg `Pool`; the
+appliance may run on PGlite, where there is none. Until that builder is
+driver-agnostic the appliance cannot serve this path."* The type claim is true.
+The conclusion does not follow, because **the appliance never calls that
+builder.**
+
+Read out of the tree on 2026-09-11. There are TWO fan-outs over the same five
+domains, one per edition, and they were never the same code:
+
+| | managed | appliance |
+|---|---|---|
+| deps from | `build-deps-from-mapping.ts` — connection ROWS, `Pool` | `build-deps.ts` — the `MappingConfig` file, injected `ledgerDb` |
+| five reindexers assembled by | `buildTargetReindexers` (`build-reindexers.ts`) | `verifyMapping`'s own `collect` (`orchestration.ts:881`) |
+| callers | `apps/worker` only | `apps/selfhost` only |
+
+`buildDeps`/`buildDomainDeps` already take an injected ledger handle and
+already run on PGlite — `ledger-injection.unit.test.ts` exists precisely
+because they once did not, and that is the bug this plan mistook for the
+current one. So the `Pool` was never in the appliance's way.
+
+**What IS in the way:** `buildConfirmationReaders` was written over the managed
+fan-out only, so the appliance has no confirmation-reader assembler at all.
+
+Two consequences, and the second is the awkward one:
+
+ - The appliance's half is **smaller and lower-risk** than stated. Not a
+   refactor of a builder every migration path uses — an assembler over the
+   config-built deps, the same shape as `verifyMapping`'s `collect`, reusing
+   `readerOverTarget` unchanged.
+ - Doing it the obvious way adds a **THIRD copy of the five-domain fan-out**.
+   That is the duplication `build-confirmation-readers.ts`'s own header refuses
+   in writing — *"Building a second assembler beside it is how this repository
+   ends up with two copies of a fan-out and one of them silently stops being
+   the product"* — and the one `build-reindexers.ts` records the price of:
+   `tasks 0/4` on a target the tasks were sitting on, because one copy of the
+   list was never updated. There are already two. A third is how that happens
+   again, and this time on the document somebody deletes their originals from.
+
+So the appliance's half is now a fork rather than a task, and it is the owner's:
+**(a)** assemble beside `verifyMapping`'s, and accept a third copy; **(b)**
+extract ONE fan-out both editions feed — managed handing it row-built deps, the
+appliance config-built deps — and build the confirmation readers on that once.
+(b) is more work and removes the duplication that has already cost this project
+a domain. Raised, not taken.
+
+**How this got written three times without being checked.** The `Pool` is in
+`buildTargetReindexers`' signature, it is visibly managed-shaped, and the
+appliance visibly runs PGlite — so the inference LOOKED like reading. What it
+never did was ask what the appliance actually calls, which is one grep. The
+slices around it were each proved by breaking; this sentence was proved by
+nothing, because it was prose rather than code, and prose in this repository is
+where the unchecked claims live.
+
 **2026-09-11: T2 SLICE 8 — D10's list, server side.**
 `GET /api/migrations/:id/confirmed-list` and `.../confirmed-list/export`, both
 behind `authenticate`. D10 asked for four things and the shape is all four:
@@ -143,13 +199,16 @@ beginning, for ever, on a job with no natural end. And the first draft handed
 `PgRateBudget` a handle taken out of a `withTenant` callback, which has
 committed by the time anything uses it.
 
-**Not on the appliance, and the reason is concrete rather than scope.**
-`buildTargetReindexers` takes a pg `Pool`; the appliance may run on PGlite,
-where there is none. Until that builder is driver-agnostic the appliance cannot
-serve this path, so the route-parity guard carries the exception in full — and
-**no screen may offer the button** until it can, because a Confirm that works
-for managed customers and silently does nothing on the appliance is the exact
-hazard that guard exists to prevent. That lands with the list (D10).
+**Not on the appliance, so the route-parity guard carries the exception in
+full — and no screen may offer the button until it can, because a Confirm that
+works for managed customers and silently does nothing on the appliance is the
+exact hazard that guard exists to prevent. That lands with the list (D10).**
+
+> **The reason given here was WRONG, and was corrected on 2026-09-11 — see the
+> entry for that date.** What this paragraph said, and what three PR bodies and
+> the parity guard repeated, was that `buildTargetReindexers` takes a pg `Pool`
+> and the appliance may run on PGlite. True of the type, and not the obstacle:
+> the appliance never calls that builder.
 
 Guards: `a-vocabulary-with-two-spellings.unit.test.ts` and the store's own
 resume-point test. **Eight mutations, all caught.**
@@ -580,7 +639,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | ✅ **Slices 1–3 built 2026-09-10.** The lane exists in every vocabulary, runs with the deletion detectors absent, and can now be ENTERED: `PATCH /api/migrations/:id` admits `continuous`, offered on the Finish page from `cutover` or `done`, behind two presses and the sentence D8 settled. | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy. |
-| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Left: the appliance's half — `buildTargetReindexers` takes a pg `Pool` and the appliance may run on PGlite — and the screen, which must not ship before it.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
+| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Left: the appliance's half — which has no confirmation-reader assembler, the `Pool` having been the wrong diagnosis (2026-09-11) — and the screen, which must not ship before it.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The lane's half done 2026-09-10** (D8): the pricing page's "finishing lowers your bill" paragraph gained the exception beside it, and `lane.*` says it again where the switch is — including that deletions at the source stop being mirrored. The drain's consent (D5) defers with T3. **Left: T2's half** — the list must say what "verified" covers before anybody deletes on the strength of it (D10 settled its shape). | A person must be told that a mapping keeps copying after cutover, that deletions at the source are no longer mirrored and why, and what "verified" covers. |

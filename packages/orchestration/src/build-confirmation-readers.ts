@@ -30,6 +30,23 @@
  * The translation is therefore a TOTAL `Record` over `DiscoveryDomain`, so a
  * sixth domain is a compile error here rather than a domain that quietly
  * confirms nothing and reports it as an account with nothing in it.
+ *
+ * ## THERE IS A SECOND FAN-OUT, AND THIS FILE ONLY KNOWS ONE (2026-09-11)
+ *
+ * Read this before adding the appliance's half. `buildTargetReindexers` is the
+ * MANAGED assembler, over deps built from connection ROWS
+ * (`build-deps-from-mapping.ts`, `Pool`). The appliance never calls it: it
+ * assembles the same five reindexers inside `verifyMapping`
+ * (`orchestration.ts`), over deps built from its `MappingConfig`
+ * (`build-deps.ts`, injected `ledgerDb` — PGlite-safe today). Two copies of one
+ * fan-out already, which is precisely what the paragraph above says this repo
+ * must not end up with, and precisely what cost it `tasks 0/4`.
+ *
+ * So this builder cannot simply be pointed at the appliance, and cloning it
+ * there would make THREE copies. 0117's Status block (2026-09-11) states the
+ * fork that has to be settled first: assemble beside `verifyMapping`'s, or
+ * extract one fan-out both editions feed. Until then no screen offers Confirm
+ * or the list on either edition.
  */
 
 import type { Pool } from 'pg';

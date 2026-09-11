@@ -79,15 +79,30 @@ describe('route registration', () => {
         'POST /:mappingId/sharing/rescan',
         'POST /:mappingId/verify/start',
         // MANAGED-ONLY, and the exception is recorded rather than hidden
-        // (workplan 0117 T2 slice 7). Starting a confirmation pass needs
-        // `buildTargetReindexers`, which takes a pg `Pool`; the appliance may
-        // run on PGlite, where there is none. Until that builder is
-        // driver-agnostic the appliance cannot serve this path, so **no screen
-        // may offer the button** — a Confirm that works for managed customers
-        // and silently does nothing on the appliance is precisely the hazard
-        // the test above this list exists to prevent. The list slice (D10) is
-        // where that surface lands, and it must not ship ahead of the
-        // appliance's half.
+        // (workplan 0117 T2 slice 7). **No screen may offer the button** until
+        // the appliance serves it too — a Confirm that works for managed
+        // customers and silently does nothing on the appliance is precisely
+        // the hazard the test above this list exists to prevent.
+        //
+        // THE REASON GIVEN HERE WAS WRONG UNTIL 2026-09-11, and it is kept as
+        // a correction because the wrong version is the one a reader would
+        // arrive at independently. It said: `buildConfirmationReaders` borrows
+        // `buildTargetReindexers`, which takes a pg `Pool`, and the appliance
+        // may run on PGlite — so the builder must go driver-agnostic first.
+        // True of the type; not the obstacle. **The appliance never calls that
+        // builder.** It assembles the same five reindexers inside
+        // `verifyMapping` from its own `MappingConfig`, through
+        // `buildDeps`/`buildDomainDeps`, which already take an injected ledger
+        // handle and already run on PGlite (`ledger-injection.unit.test.ts`
+        // exists because they once did not).
+        //
+        // What actually blocks it: `buildConfirmationReaders` was written over
+        // the MANAGED fan-out only, so the appliance has no confirmation-reader
+        // assembler at all. Smaller than the refactor this comment used to
+        // describe — and awkward, because the obvious fix adds a THIRD copy of
+        // the five-domain fan-out, which is the duplication
+        // `build-confirmation-readers.ts` refuses in writing and the one
+        // `build-reindexers.ts` records the price of (`tasks 0/4`).
         'POST /:mappingId/confirm',
         // D10's list and its export (0117 T2 slice 8) join the same exception,
         // and for a reason that is about the SCREEN rather than the driver.
