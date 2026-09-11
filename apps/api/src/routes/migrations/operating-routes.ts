@@ -40,8 +40,15 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
-import { DISCOVERY_DOMAINS, assembleShareAnnouncements, renderShareAnnouncement } from '@openmig/shared';
+import { ConfirmationStore, PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
+import {
+  DISCOVERY_DOMAINS,
+  assembleShareAnnouncements,
+  budgetPauseToReason,
+  confirmedListCsv,
+  confirmedListOf,
+  renderShareAnnouncement,
+} from '@openmig/shared';
 import { channelIsOn, tellMessage } from '../../access-notify.ts';
 import {
   DELETIONS_MEANING,
@@ -59,6 +66,11 @@ import {
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
+  BudgetPause,
+  ConfirmationPassState,
+  ConfirmedListResponse,
+  ConfirmedRowView,
+  PauseReason,
   ApplyQueuedResponse,
   ApplyReceipt,
   VerificationRunReport,
@@ -1579,5 +1591,289 @@ router.post('/:mappingId/confirm', authenticate, async (req: AuthenticatedReques
     serverError(res, 'confirm_start_failed', 'starting the confirmation', error);
   }
 });
+
+/**
+ * D10's list, and the export beside it (workplan 0117 T2, slice 8).
+ *
+ * > ✅ D10 *"(a): a headline count, every row that is NOT verified, the total
+ * > stated, and a full export."*
+ *
+ * ## Two reads, one walk, one shaper
+ *
+ * The screen's list and the export are the same rows shaped two ways by
+ * `@openmig/shared` — `confirmedListOf` and `confirmedListCsv`. Neither route
+ * decides what "verified" means, and that is the rule rather than tidiness: the
+ * headline is the sentence somebody empties a folder on, and a second place
+ * that assembles it is a second place that can be wrong.
+ *
+ * ## Why the rows are paged out of the tenant scope
+ *
+ * D7(a) authorised confirming EVERY item of a family file account, so this
+ * reads the same rows a pass walks. One `SELECT` would load all of them into
+ * the API process; one `withTenantDb` around the whole walk would hold a
+ * transaction open for it. So it pages on the store's own keyset, a scope per
+ * page — the shape `run-confirmation.ts` states at length and for the same
+ * reason.
+ *
+ * ## The 0122 view link cannot reach either of these
+ *
+ * Structurally, not by a check written here: a view link is served by
+ * `routes/view.ts`, a different router behind a different middleware that
+ * grants nothing but counts and states. These sit under `migrations/` behind
+ * `authenticate`, so the owner's own session is the only thing that reaches
+ * them — which matters because these rows carry `naturalKey`, and that is the
+ * §17 exception the contract documents. A person holding a progress link is
+ * shown how far along a migration is; they are not shown a list of the
+ * customer's message subjects and file paths.
+ */
+
+/** One database page. The store's own keyset batch. */
+const LIST_PAGE = 500;
+
+/**
+ * How many non-verified rows the JSON body carries before it says so.
+ *
+ * Bounded because the WORST case is the ordinary one: before any pass has run,
+ * not a single row is verified, so an un-confirmed account of any size would
+ * otherwise be serialised whole into one response. `truncated` says it happened
+ * and the export carries the rest — never a quietly short list, which on this
+ * document would read as an account with less in it than there is (§7c).
+ */
+const LIST_ROWS_SHOWN = 1000;
+
+/**
+ * Walk every row of the mapping, one keyset page at a time.
+ *
+ * `visit` is called once per row in `id` order — the SAME order both consumers
+ * see, which is why `rowsFor` sorts. A list and an export that ordered rows
+ * differently would look like two different accounts to somebody reconciling
+ * one against the other.
+ *
+ * **The cursor is checked to have advanced**, and that is not defensive
+ * padding. A `rowsFor` that ignored `after` would hand back the same full page
+ * for ever, and this loop's only exit is a short page: an API thread spinning
+ * on a database, holding a connection per page, until something else falls
+ * over. The store's own guard covers that today; this is the second line,
+ * because the failure here is a live outage rather than a wrong number, and its
+ * check is exact rather than an arbitrary cap — ids strictly increase or the
+ * read is not what it says it is.
+ */
+async function walkConfirmedRows(
+  s: Scoped,
+  visit: (row: ConfirmedRowView) => void | Promise<void>,
+): Promise<void> {
+  let after: string | undefined;
+  for (;;) {
+    const page = await withTenantDb(s.tenantId, pool(), (db) =>
+      new ConfirmationStore(db).rowsFor({
+        tenantId: s.tenantId as TenantId,
+        mappingId: s.mappingId as MappingId,
+        batch: LIST_PAGE,
+        ...(after ? { after } : {}),
+      }),
+    );
+    if (page.length === 0) return;
+    const last = page[page.length - 1]!.itemId;
+    if (after !== undefined && last <= after) {
+      throw new Error(
+        `confirmed list paging did not advance past ${after} — the keyset cursor is being ignored`,
+      );
+    }
+    for (const row of page) {
+      await visit({
+        state: row.state,
+        claim: row.claim,
+        domain: row.domain,
+        collection: row.collection,
+        naturalKey: row.naturalKey,
+        confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
+      });
+    }
+    after = last;
+    if (page.length < LIST_PAGE) return;
+  }
+}
+
+/**
+ * Where the last confirmation pass got to, and why it stopped if it stopped
+ * early.
+ *
+ * The run row is the worker's (`kind: 'confirm'`), so this only reads. A
+ * `succeeded` run carrying a `budgetPause` in its stats is NOT a failure — 0090
+ * T4's rule, that a scheduled stop is a stop and not an error — and it becomes
+ * the sentence `budgetPauseToReason` already writes for the customer, rather
+ * than a pile of bytes only an engineer can read.
+ */
+async function latestConfirmationPass(
+  s: Scoped,
+): Promise<{ lastPass: ConfirmationPassState; pausedAt?: PauseReason }> {
+  const rows = await withTenantDb(s.tenantId, pool(), (db) =>
+    db
+      .select({
+        status: schema.run.status,
+        startedAt: schema.run.startedAt,
+        finishedAt: schema.run.finishedAt,
+        stats: schema.run.stats,
+      })
+      .from(schema.run)
+      .where(
+        and(
+          eq(schema.run.tenantId, s.tenantId),
+          eq(schema.run.mappingId, s.mappingId),
+          eq(schema.run.kind, 'confirm'),
+        ),
+      )
+      .orderBy(desc(schema.run.startedAt))
+      .limit(1),
+  );
+  const row = rows[0];
+  if (!row) return { lastPass: { state: 'never-run' } };
+
+  // `startedAt` is nullable in the schema (a queued row has none yet). A run
+  // with no start time has not started, which is what `never-run` says — and is
+  // a truer answer than inventing `new Date()` for it (hard rule 9).
+  if (!row.startedAt) return { lastPass: { state: 'never-run' } };
+  const startedAt = row.startedAt.toISOString();
+  if (row.status === 'queued' || row.status === 'running') {
+    return { lastPass: { state: 'running', startedAt } };
+  }
+  const finishedAt = (row.finishedAt ?? row.startedAt).toISOString();
+  if (row.status !== 'succeeded') {
+    return { lastPass: { state: 'failed', startedAt, finishedAt } };
+  }
+
+  const stats = (row.stats ?? {}) as { budgetPause?: unknown };
+  const pause = stats.budgetPause;
+  const reason = isBudgetPause(pause) ? budgetPauseToReason(pause) : undefined;
+  return { lastPass: { state: 'done', startedAt, finishedAt }, ...(reason ? { pausedAt: reason } : {}) };
+}
+
+/**
+ * Is this jsonb value a `BudgetPause`?
+ *
+ * CHECKED, never cast — the same rule `isPauseReason` states for its own side
+ * of the boundary. This is a column an older or newer build wrote, and a cast
+ * would put `undefined` into a sentence a customer reads as the reason their
+ * account is only part checked.
+ */
+function isBudgetPause(value: unknown): value is BudgetPause {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.provider === 'string' &&
+    typeof v.ceilingBytes === 'number' &&
+    typeof v.spentBytes === 'number' &&
+    (v.windowResetsAt === null || typeof v.windowResetsAt === 'string')
+  );
+}
+
+router.get(
+  '/:mappingId/confirmed-list',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+
+      // Counted over EVERY row, kept up to the bound, and neither number is
+      // computed here: `confirmedListOf` is the shared shaper, so this body
+      // carries the same arithmetic the appliance and the export do. A count
+      // assembled in a route handler is a second opinion about somebody's data.
+      const list = confirmedListOf<ConfirmedRowView>({ limit: LIST_ROWS_SHOWN });
+      await walkConfirmedRows(s, (row) => list.add(row));
+      const shaped = list.result();
+
+      const pass = await latestConfirmationPass(s);
+      const body: ConfirmedListResponse = {
+        migrationStatus: s.lifecycle,
+        verified: shaped.verified,
+        total: shaped.total,
+        rows: shaped.rows,
+        ...(shaped.truncated ? { truncated: true } : {}),
+        ...pass,
+      };
+      res.json(body);
+    } catch (error) {
+      serverError(res, 'confirmed_list_failed', 'reading the confirmed list', error);
+    }
+  },
+);
+
+/**
+ * The full export — EVERY row, verified ones included.
+ *
+ * The difference from the list above is the point rather than a convenience.
+ * The screen shows what is actionable; a person reconciling against the account
+ * they are about to empty needs to search for one file and see the word
+ * `verified` beside it, which the screen by design never shows them.
+ *
+ * Streamed a page at a time rather than assembled and sent: this is bounded by
+ * nothing, which is what "full" means, and buffering a family-sized account
+ * into one string in the API is the memory failure the paging above exists to
+ * avoid.
+ */
+router.get(
+  '/:mappingId/confirmed-list/export',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="confirmed-${s.mappingId}.csv"`,
+      );
+      // The header row comes out of the same renderer as the rows, from an
+      // empty list — so the columns and their order cannot drift from what
+      // fills them.
+      await send(res, confirmedListCsv([]));
+      let batch: ConfirmedRowView[] = [];
+      const flush = async (): Promise<void> => {
+        if (batch.length === 0) return;
+        const chunk = stripCsvHeader(confirmedListCsv(batch));
+        batch = [];
+        await send(res, chunk);
+      };
+      await walkConfirmedRows(s, async (row) => {
+        batch.push(row);
+        if (batch.length >= LIST_PAGE) await flush();
+      });
+      await flush();
+      res.end();
+    } catch (error) {
+      // Once bytes are on the wire the status is already sent, and a JSON error
+      // body appended to a CSV would be a corrupt file that looks complete.
+      // Destroy the response instead: a truncated download fails visibly, and
+      // this is a document somebody reconciles against.
+      if (res.headersSent) {
+        log.error(`[api] ${req.params.mappingId}: confirmed-list export died mid-stream:`, error);
+        return void res.destroy(error instanceof Error ? error : new Error(String(error)));
+      }
+      serverError(res, 'confirmed_export_failed', 'exporting the confirmed list', error);
+    }
+  },
+);
+
+/**
+ * Write one chunk, WAITING when the socket is full.
+ *
+ * `res.write` answering false means the kernel buffer is full and Node is now
+ * holding the rest in memory. Ignoring that on a family-sized account undoes
+ * the paging above exactly: the rows would be read a page at a time and then
+ * pile up unsent, which is the memory failure with an extra step. So this waits
+ * for `drain`, and the export goes out at the speed the client reads it.
+ */
+function send(res: Response, chunk: string): Promise<void> {
+  if (res.write(chunk)) return Promise.resolve();
+  return new Promise((resolve) => res.once('drain', resolve));
+}
+
+/** Drop the BOM and header line a fresh render carries, for a continuation. */
+function stripCsvHeader(csv: string): string {
+  const firstBreak = csv.indexOf('\r\n');
+  return firstBreak === -1 ? '' : csv.slice(firstBreak + 2);
+}
 
 export default router;

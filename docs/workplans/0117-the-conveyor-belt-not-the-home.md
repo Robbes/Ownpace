@@ -34,6 +34,76 @@ bug restored verbatim.
 each internally consistent and separately guarded. Neither guard could see them, because
 neither slice was wrong. What found them was trying to use the two together.
 
+**2026-09-11: T2 SLICE 8 — D10's list, server side.**
+`GET /api/migrations/:id/confirmed-list` and `.../confirmed-list/export`, both
+behind `authenticate`. D10 asked for four things and the shape is all four:
+a headline count, every row that is NOT verified, the total stated, and a full
+export.
+
+**The total is the account, the rows are the screen.** §7c names both failures
+at once — *"a list of a hundred thousand verified files is unusable"*, and a
+list quietly trimmed *"tells somebody their library is smaller than it is"*. So
+`verified` and `total` count every row while `rows` carries only what a person
+can act on, bounded, with `truncated` saying so when the bound bit. That is not
+the rare case: **before any pass has run, not one row is verified**, so the
+un-confirmed account is the worst case rather than an edge one.
+
+**The shaper is an accumulator, because the read is paged.** `confirmedListOf`
+takes one row at a time and `confirmedList` is the whole-array convenience over
+it. Handing each page to an array shaper and adding up the answers would put
+three counters and a cap back in the caller — re-derived per edition, which is
+exactly the "assembled by whoever writes the template" `countsAsVerified`
+exists to prevent.
+
+**The export is a different document on purpose**, and its formatting is
+product rather than plumbing. Every row, verified ones included, because
+somebody reconciling against the account they are about to empty has to find
+one file and see the word beside it. A UTF-8 BOM, because without one Excel
+reads the file in the local codepage and every `ë` and `é` arrives as mojibake
+— most Dutch names, not an edge case. And a field that would begin `=`, `+`,
+`-` or `@` is prefixed with an apostrophe: subjects and file names are written
+by whoever sent them, and a spreadsheet executes a cell starting with one of
+those. The apostrophe is visible, and that is the trade, taken deliberately.
+
+**`rowsFor` gained an order it did not have.** It had no `ORDER BY` at all,
+which was survivable with one consumer and is not with two: unordered,
+PostgreSQL may hand the same rows back in a different sequence to the page and
+to the export, and a person reconciling one against the other would watch rows
+move between two documents that are supposed to be the same account. It also
+gained the keyset `itemsToConfirm` already carries, for the same reason — this
+reads the rows a pass walks, and D7(a) authorised every item of a family file
+account.
+
+**One test defect worth recording, because it is a shape.** The paging guard
+looped `for(;;)` until a short page. Mutating the cursor away — the exact bug
+slice 7 found in `itemsToConfirm` — made it return the same full page for ever,
+so the test HUNG instead of failing. A guard that never finishes tells CI
+nothing and costs a runner; the loop is now bounded and the bound is itself an
+assertion.
+
+**§17's exception, stated rather than assumed.** These rows carry `naturalKey`
+— a Message-ID, a file path — where the operating contract's rule is that
+`naturalKeyHash` is the handle for every action. It is the same exception
+`ItemMove.from`/`to` and `ItemDeletion.collection` already hold, for a reason
+that applies twice over here: a list that cannot say WHICH item is missing is
+not one anybody can act on. The privacy answer is structural — these live under
+`migrations/` behind `authenticate`, so a 0122 view-link holder never reaches
+them; that surface is a different router that grants counts and states and no
+keys at all.
+
+**Still not on the appliance, and now the LIST carries that exception too.**
+Nothing in these two reads needs the reindexer, so the appliance could serve
+them — but the list is the Confirm button's other half, and a page showing
+`0 verified` beside a button that does nothing reads as an account where
+nothing arrived. They land with the appliance's half of the route, and until
+then **no screen offers either**.
+
+13 mutations, all caught: 10 on the list and the export (counting only what is
+shown, silent truncation, an ignored limit, a second definition of "verified",
+an export that drops verified rows, the formula guard, RFC 4180 quoting, the
+BOM, CRLF, and `null` written into a cell) and 3 on the store (lost ordering,
+an ignored cursor, an ignored batch).
+
 **2026-09-10, night: T2 SLICE 7 — a pass somebody can start.**
 `POST /api/migrations/:id/confirm` enqueues `run-confirmation`, which builds a
 reader per domain over the mapping's real target and runs the pass. Same
@@ -510,7 +580,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | ✅ **Slices 1–3 built 2026-09-10.** The lane exists in every vocabulary, runs with the deletion detectors absent, and can now be ENTERED: `PATCH /api/migrations/:id` admits `continuous`, offered on the Finish page from `cutover` or `done`, behind two presses and the sentence D8 settled. | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy. |
-| T2 The confirmed list | 🔨 **Slices 1–7 built 2026-09-10**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — and D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`. Three seams did not fit when connected and all three are recorded in §7e. **Left: the list itself (where D10 lands), which is also where the appliance's half of the route belongs.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
+| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Left: the appliance's half — `buildTargetReindexers` takes a pg `Pool` and the appliance may run on PGlite — and the screen, which must not ship before it.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The lane's half done 2026-09-10** (D8): the pricing page's "finishing lowers your bill" paragraph gained the exception beside it, and `lane.*` says it again where the switch is — including that deletions at the source stop being mirrored. The drain's consent (D5) defers with T3. **Left: T2's half** — the list must say what "verified" covers before anybody deletes on the strength of it (D10 settled its shape). | A person must be told that a mapping keeps copying after cutover, that deletions at the source are no longer mirrored and why, and what "verified" covers. |
@@ -938,7 +1008,14 @@ The view link carries counts and states; a per-item list is CONTENT, and that is
 the rule the link was built on (0122 §2). Same shape as 0122 T8, which is
 deferred for the same reason: it is a question about authority, not about API.
 
-**Not yet built**, and it belongs with the list itself.
+**Built 2026-09-11 (T2 slice 8), server side.** `GET .../confirmed-list` answers
+the headline, the non-verified rows (bounded, and saying so) and the total;
+`GET .../confirmed-list/export` answers the whole account as CSV. The second
+half of the decision is kept STRUCTURALLY rather than by a check: both live
+under `migrations/` behind `authenticate`, and the view link is a different
+router that grants counts and states and never a natural key. **Left: the
+appliance's half and the screen** — and the screen must not ship first, for the
+reason the route-parity guard already carries.
 
 ## 7. T1 and T2, as they have to be built HERE (added 2026-09-09)
 
@@ -1088,6 +1165,26 @@ answer-dependent — and a second mutation showed the pass's own `try/catch` swa
 throwing test sentinel, so the "we did not read the target" assertion passed while the read
 happened. Both are fixed and both are recorded here, because the harness found them and
 review would not have.
+
+**3. Slice 8's seam, and it is the same shape a fourth time.** `rowsFor` was built in
+slice 3 with one consumer in mind and no `ORDER BY` at all. That was survivable then and
+stopped being so the moment D10's list and D10's export both read it: unordered, PostgreSQL
+may return the same rows in a different sequence to each, and the person this document is
+FOR is reconciling one against the other. It also had no keyset, so the only way to serve a
+family file account was to load it whole into the process answering the request — the exact
+cost `itemsToConfirm` was keyset-paged to avoid, on the same rows.
+
+**A shape now recorded four times: a helper built before its consumer looks complete and
+does not fit.** Each time the helper was internally consistent and separately guarded, and
+each time what found the gap was trying to use it. It is worth saying plainly because the
+remedy is cheap — build one real caller before calling a helper done — and the failures are
+not: none of these four would have been found by review of either side alone.
+
+**One test defect from the same slice, kept because it is also a shape.** The paging guard
+looped until a short page. The mutation that removes the cursor — slice 7's shipped bug,
+restored — makes every page full, so the guard HUNG rather than failing. A test that cannot
+finish reports nothing and holds a runner, which is worse than the bug it was watching for;
+the loop is bounded now and the bound is the assertion.
 
 **One thing this does NOT change: the `fingerprint` ceiling is currently unreachable.**
 `claimCeilingFor` says calendar, contacts and tasks may claim `fingerprint`, and no target

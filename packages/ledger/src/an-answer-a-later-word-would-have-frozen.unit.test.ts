@@ -362,3 +362,93 @@ describe('a confirmation is a run, and it is not billable', () => {
     expect(kinds).not.toContain('confirm' satisfies RunKind);
   });
 });
+
+/**
+ * THE READ THAT TWO DOCUMENTS SHARE (workplan 0117 T2, slice 8).
+ *
+ * D10 asks for a list on screen and a full export, and slice 8 serves both from
+ * this one read. That makes two properties load-bearing that were not before:
+ *
+ *  - **A stable order.** Unordered, PostgreSQL may hand the same rows back in a
+ *    different sequence to each caller, and a person reconciling the downloaded
+ *    file against the page would watch rows move between two documents that are
+ *    supposed to be the same account.
+ *  - **A sayable resume point.** D7(a) authorised confirming EVERY item of a
+ *    family file account, so both consumers page rather than loading it whole —
+ *    and `itemsToConfirm` already recorded what happens when the cursor is not
+ *    an argument: the caller passed one anyway, on a spread TypeScript does not
+ *    flag, and every page restarted from the beginning. For ever.
+ */
+describe('the list pages, in an order both its readers see', () => {
+  const seed = async (n: number): Promise<void> => {
+    await conn.query('DELETE FROM item');
+    for (let i = 0; i < n; i += 1) {
+      await conn.query(
+        `INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash, content_hash, status)
+         VALUES ($1,$2,'email','INBOX',$3,$3,'h','copied')`,
+        [TENANT, MAPPING, `k-${String(i).padStart(3, '0')}`],
+      );
+    }
+  };
+
+  it('returns rows in id order, the same order every time', async () => {
+    await seed(20);
+    const once = await store.rowsFor({ tenantId: TENANT, mappingId: MAPPING });
+    const again = await store.rowsFor({ tenantId: TENANT, mappingId: MAPPING });
+    expect(once.map((r) => r.itemId)).toEqual(again.map((r) => r.itemId));
+    expect(once.map((r) => r.itemId)).toEqual([...once.map((r) => r.itemId)].sort());
+  });
+
+  it('pages through the whole account exactly once, with no row dropped or repeated', async () => {
+    await seed(25);
+    const whole = await store.rowsFor({ tenantId: TENANT, mappingId: MAPPING });
+    const paged: string[] = [];
+    let after: string | undefined;
+    // BOUNDED, and the bound is the assertion rather than a safety net. A
+    // cursor the store ignores hands back the same full page for ever, and an
+    // unbounded loop over it would HANG instead of failing — a test that never
+    // finishes tells CI nothing and costs a runner, which is a worse outcome
+    // than the bug.
+    let pages = 0;
+    for (; pages < 10; pages += 1) {
+      const page = await store.rowsFor({
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        batch: 7,
+        ...(after ? { after } : {}),
+      });
+      if (page.length === 0) break;
+      for (const r of page) paged.push(r.itemId);
+      after = page[page.length - 1]!.itemId;
+      if (page.length < 7) break;
+    }
+    expect(pages, 'paging did not terminate — the cursor is not advancing').toBeLessThan(9);
+    expect(paged).toEqual(whole.map((r) => r.itemId));
+    expect(new Set(paged).size).toBe(25);
+  });
+
+  it('resumes AFTER the cursor, never from the beginning again', async () => {
+    // The exact failure `itemsToConfirm` carries in its own comment: a cursor
+    // the store ignores gives the same first page for ever, and a pass or an
+    // export over it never ends.
+    await seed(10);
+    const first = await store.rowsFor({ tenantId: TENANT, mappingId: MAPPING, batch: 4 });
+    const next = await store.rowsFor({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      batch: 4,
+      after: first[3]!.itemId,
+    });
+    expect(next.map((r) => r.itemId)).not.toContain(first[0]!.itemId);
+    expect(next[0]!.itemId > first[3]!.itemId).toBe(true);
+  });
+
+  it('still derives every row through rowFor when paged', async () => {
+    // The bound is about memory. It must not become a second, simpler read
+    // that skips the derivation and hands back a stored word.
+    await seed(3);
+    const page = await store.rowsFor({ tenantId: TENANT, mappingId: MAPPING, batch: 2 });
+    expect(page).toHaveLength(2);
+    expect(page.every((r) => r.state === 'unchecked' && r.claim === 'none')).toBe(true);
+  });
+});
