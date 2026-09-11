@@ -31,49 +31,31 @@
  * sixth domain is a compile error here rather than a domain that quietly
  * confirms nothing and reports it as an account with nothing in it.
  *
- * ## THERE IS A SECOND FAN-OUT, AND THIS FILE ONLY KNOWS ONE (2026-09-11)
+ * ## BOTH EDITIONS FEED ONE FAN-OUT (2026-09-11, owner option (b))
  *
- * Read this before adding the appliance's half. `buildTargetReindexers` is the
- * MANAGED assembler, over deps built from connection ROWS
- * (`build-deps-from-mapping.ts`, `Pool`). The appliance never calls it: it
- * assembles the same five reindexers inside `verifyMapping`
- * (`orchestration.ts`), over deps built from its `MappingConfig`
- * (`build-deps.ts`, injected `ledgerDb` — PGlite-safe today). Two copies of one
- * fan-out already, which is precisely what the paragraph above says this repo
- * must not end up with, and precisely what cost it `tasks 0/4`.
+ * There used to be two loops over these five domains — `buildTargetReindexers`
+ * over connection ROWS, and `verifyMapping`'s own inline one over the
+ * appliance's `MappingConfig` — and this builder was written over the managed
+ * one only. A third copy for the confirmation pass was the obvious next step
+ * and the wrong one: two copies already cost this repository `tasks 0/4`.
  *
- * So this builder cannot simply be pointed at the appliance, and cloning it
- * there would make THREE copies. 0117's Status block (2026-09-11) states the
- * fork that has to be settled first: assemble beside `verifyMapping`'s, or
- * extract one fan-out both editions feed. Until then no screen offers Confirm
- * or the list on either edition.
+ * So this takes an `OpenTarget` rather than a `Pool`. The managed worker hands
+ * over `managedOpener`, the appliance `applianceOpener`, and the builder below
+ * does not know or care which it got.
  */
 
 import type { Pool } from 'pg';
 import { readerOverTarget, type ConfirmationReader, type TargetBudget } from '@openmig/core';
 import {
   DISCOVERY_DOMAINS,
-  log,
   type DiscoveryDomain,
   type DownloadMeter,
+  type TargetReindexer,
 } from '@openmig/shared';
 
-import { buildTargetReindexers, type VerificationDomain } from './build-reindexers.ts';
+import { asReindexer, fanOutTargets, type OpenTarget } from './target-fan-out.ts';
 
-/**
- * One name per domain, in the verification gate's spelling.
- *
- * TOTAL over `DiscoveryDomain`: adding a sixth domain fails to compile here.
- * The alternative — a lookup that answers `undefined` — is precisely how the
- * task domain went unconfirmed for a month while every surface said no.
- */
-export const GATE_NAME: Readonly<Record<DiscoveryDomain, VerificationDomain>> = {
-  email: 'mail',
-  calendar: 'calendar',
-  contact: 'contacts',
-  file: 'files',
-  task: 'tasks',
-};
+export { GATE_NAME } from './target-fan-out.ts';
 
 export interface ConfirmationReaders {
   /** A reader per domain whose target could be built AND could enumerate itself. */
@@ -95,74 +77,71 @@ export interface ConfirmationReaders {
    * with no ceiling and would be dangerous for one that has it.
    */
   readonly meter?: DownloadMeter;
-  /** Release every connection the reindexers opened. */
+  /** Release every connection the targets opened. */
   close(): Promise<void>;
 }
 
 /**
- * Build the readers for one mapping's confirmation pass.
+ * Build the readers for one mapping's confirmation pass, on EITHER edition.
+ *
+ * `open` is the only edition-specific thing, and that is the point of taking
+ * it: the managed worker hands over `managedOpener` (connection rows, a pg
+ * `Pool`), the appliance hands over its config-built one, and everything below
+ * is the same code answering both.
  *
  * `wanted` narrows to the domains the caller asked about; omitting it means
- * every domain that can be read. A domain with no enumerable target is left
- * OUT rather than given a reader that answers nothing — its rows then keep
- * their NULL answer and read `unchecked`, which is the honest outcome and the
- * one `runConfirmationPass` already documents for a missing reader.
+ * every domain that can be read. A domain with no enumerable target is left OUT
+ * rather than given a reader that answers nothing — its rows then keep their
+ * NULL answer and read `unchecked`, which is the honest outcome and the one
+ * `runConfirmationPass` already documents for a missing reader.
  *
  * ENUMERATES EAGERLY: `readerOverTarget` walks the whole account when it is
  * built, so this is the expensive call and the caller has already decided to
- * pay for it by starting a pass.
+ * pay for it by starting a pass. Only the WANTED domains are opened — the first
+ * version built all five and discarded the rest, which is a walk per domain
+ * nobody asked about.
  */
 export async function buildConfirmationReaders(args: {
-  pool: Pool;
-  tenantId: string;
-  mappingId: string;
+  open: OpenTarget;
   wanted?: readonly DiscoveryDomain[];
   /** The tenant's budget for the target's provider, when one is known (D9). */
   budget?: TargetBudget;
 }): Promise<ConfirmationReaders> {
-  const built = await buildTargetReindexers(args.pool, args.tenantId, args.mappingId);
-  const asked = args.wanted ?? DISCOVERY_DOMAINS;
-
-  const readers = new Map<DiscoveryDomain, ConfirmationReader>();
-  try {
-    for (const domain of asked) {
-      const reindexer = built.reindexers[GATE_NAME[domain]];
-      if (!reindexer) {
-        log.info(
-          `[confirm] mapping ${args.mappingId}: no enumerable ${domain} target — ` +
-            `its rows stay unchecked rather than being reported as missing`,
-        );
-        continue;
-      }
-      readers.set(
-        domain,
-        await readerOverTarget({
-          domain,
-          reindexer,
-          ...(args.budget ? { budget: args.budget } : {}),
-        }),
-      );
-    }
-  } catch (err) {
-    // Release what was opened before rethrowing: a pass that never starts must
-    // not leave a pool per domain held open behind it.
-    await built.close().catch(() => {});
-    throw err;
-  }
-
   const budget = args.budget;
+  const fanned = await fanOutTargets<ConfirmationReader>({
+    wanted: args.wanted ?? DISCOVERY_DOMAINS,
+    open: args.open,
+    keep: async (target, domain) => {
+      const reindexer = asReindexer<TargetReindexer>(target);
+      if (!reindexer) return undefined;
+      return readerOverTarget({
+        domain,
+        reindexer,
+        ...(budget ? { budget } : {}),
+      });
+    },
+    label: '[confirm]',
+  });
+
   return {
-    readerFor: (domain) => readers.get(domain),
-    domains: [...readers.keys()],
+    readerFor: (domain) => fanned.byDomain[domain],
+    domains: fanned.domains,
     ...(budget?.meter
       ? { meter: { budget: budget.meter, tenantId: budget.tenantId, provider: budget.provider } }
       : {}),
-    close: () => built.close(),
+    close: () => fanned.close(),
   };
 }
 
 /**
  * THE TARGET'S OWN IDENTITY, for keying the tenant's budget by (D9).
+ *
+ * MANAGED-shaped, and deliberately left beside the builder rather than moved:
+ * it reads connection ROWS, so it is the managed worker's answer to "whose
+ * limit is this", and the D9 reasoning below is what makes the builder's
+ * `budget` argument mean anything. The appliance resolves the same question
+ * from its own config. (`pg` is a type-only import here, so nothing about this
+ * reaches an appliance bundle.)
  *
  * D9 is about a limit that *"belongs to the PROVIDER, not to us"*, so the key
  * has to name the provider. A per-mapping label would hand the confirmation a

@@ -37,6 +37,7 @@ import { join } from 'node:path';
 const ROOT = join(import.meta.dirname, '..');
 const ORCHESTRATION = 'packages/orchestration/src/orchestration.ts';
 const REINDEXERS = 'packages/orchestration/src/build-reindexers.ts';
+const FAN_OUT = 'packages/orchestration/src/target-fan-out.ts';
 const REPORT = 'packages/shared/src/verification-report.ts';
 
 /**
@@ -93,31 +94,37 @@ describe('no domain is left out of a fan-out', () => {
   });
 });
 
-describe('the OTHER reindexer factory fans out too', () => {
+describe('ONE fan-out, and no edition carries its own copy', () => {
   /**
-   * `orchestration.ts` is not the only place that builds reindexers, and the
-   * counting guard above covers only that one.
-   *
-   * `build-reindexers.ts` is what `run-verification.ts` uses — the managed
-   * plane's whole verification path — and it fans out as a list of `collect()`
-   * calls rather than as `domains?.X?.enabled` tests, so no count above sees
-   * it. It named mail, calendar, contacts and files, and not tasks, from the
-   * day workplan 0113 landed until 2026-09-09.
+   * `build-reindexers.ts` used to be the OTHER place that built reindexers —
+   * a hand-written list of `collect()` calls that `run-verification.ts` used
+   * for the managed plane's whole verification path. It named mail, calendar,
+   * contacts and files, and not tasks, from the day workplan 0113 landed until
+   * 2026-09-09.
    *
    * NOTHING FAILED, which is why it survived seven months of green runs.
    * `reindexerFor('tasks')` returned undefined, `canVerifyTarget` answered no,
    * and the report carried the domain as NOT_VERIFIABLE with `targetCount: 0`
-   * — severity ERROR, and read by nobody, because until 2026-09-07 no gate
-   * compared a target count at all. E2E (managed) #168 is where it showed
+   * — severity ERROR, and read by nobody. E2E (managed) #168 is where it showed
    * alone: `tasks 0/4` on a run whose own log said "the task lane landed — 2
    * VTODO row(s) copied" four minutes earlier. The tasks were on the target.
    * Nothing had been built to look at them.
    *
-   * Derived from VERIFICATION_DOMAINS in the report's own source rather than
-   * retyped, so the eighth place a sixth domain has to reach is this one, and
-   * it fails here instead of reporting a migrated domain as unverifiable.
+   * **The lists are gone (owner decision 2026-09-11, option (b)).** There was a
+   * SECOND copy of that loop inside `verifyMapping` for the appliance, and a
+   * third was about to be written for the confirmation pass. Both editions now
+   * feed one `fanOutTargets`, driven by `DISCOVERY_DOMAINS` rather than by
+   * anything hand-written — so the defect this guard was built for cannot be
+   * spelled any more.
+   *
+   * What it therefore checks has changed with it: not "does each list mention
+   * every domain" but **"is there still exactly one list, and is it the
+   * enum"**. A fourth copy of the loop is the way back to `tasks 0/4`, and it
+   * is what these assertions refuse.
    */
   const reindexers = readFileSync(join(ROOT, REINDEXERS), 'utf8');
+  const fanOut = readFileSync(join(ROOT, FAN_OUT), 'utf8');
+  const orchestration = readFileSync(join(ROOT, ORCHESTRATION), 'utf8');
   const report = readFileSync(join(ROOT, REPORT), 'utf8');
 
   /** The report's own domain list, read out of its source. */
@@ -127,6 +134,24 @@ describe('the OTHER reindexer factory fans out too', () => {
       ?.match(/'([a-z]+)'/g)
       ?.map((q) => q.slice(1, -1)) ?? [];
 
+  /**
+   * The source with its comments removed.
+   *
+   * Because the assertions below are about what the CODE does, and this file's
+   * own prose names the very shapes it refuses. A guard that fires on a
+   * sentence is one somebody weakens rather than answers.
+   */
+  const codeOf = (source: string): string =>
+    source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  /** One `key: 'value',` map, read out of a source file by name. */
+  function mapEntries(source: string, name: string): Record<string, string> {
+    const body = source.match(new RegExp(`${name}[^=]*=\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+    const out: Record<string, string> = {};
+    for (const m of body.matchAll(/([a-z]+)\s*:\s*'([a-z]+)'/g)) out[m[1]!] = m[2]!;
+    return out;
+  }
+
   it('the report still declares its domains where this guard reads them', () => {
     // A rename in the report that this regex stops matching would empty the
     // list and pass every assertion below over nothing.
@@ -134,18 +159,17 @@ describe('the OTHER reindexer factory fans out too', () => {
     expect(domains).toContain('tasks');
   });
 
-  it.each(['mail', 'calendar', 'contacts', 'files', 'tasks'])(
-    "builds a target reindexer for '%s'",
-    (domain) => {
-      expect(reindexers).toContain(`collect('${domain}'`);
-    },
-  );
-
-  it('collects EVERY verification domain, whatever the list grows to', () => {
-    const missing = domains.filter((d) => !reindexers.includes(`collect('${d}'`));
+  it('translates every verification domain, out of ONE map', () => {
+    // `GATE_NAME` is a total `Record<DiscoveryDomain, VerificationDomain>`, so
+    // a sixth ledger domain fails to compile. This is the other direction: a
+    // domain the REPORT knows about that nothing translates to would be
+    // reported NOT_VERIFIABLE for ever, which is the `tasks 0/4` sentence.
+    const gate = mapEntries(fanOut, 'GATE_NAME');
+    expect(Object.keys(gate).length, 'GATE_NAME not found where this guard reads it').toBe(5);
+    const missing = domains.filter((d) => !Object.values(gate).includes(d));
     expect(
       missing,
-      `${REINDEXERS} builds no target reindexer for ${missing.join(', ')}. ` +
+      `${FAN_OUT}'s GATE_NAME translates nothing to ${missing.join(', ')}. ` +
         'Verification will report that domain NOT_VERIFIABLE with targetCount 0 — ' +
         'an ERROR that looks exactly like a domain nothing copied, on a domain ' +
         'that copied fine. This is the shape that hid the task domain for seven ' +
@@ -153,24 +177,60 @@ describe('the OTHER reindexer factory fans out too', () => {
     ).toEqual([]);
   });
 
-  it('and asks build-deps for the LEDGER spelling of each one', () => {
-    // Four vocabularies, flagged on #746 and still four: the report says
-    // `contacts`/`files`/`tasks` and the ledger says `contact`/`file`/`task`.
-    // `buildDomainDepsFromMapping` takes the ledger spelling, so a collect()
-    // call that passes the report's would build nothing — and `collect`
+  it('drives the fan-out off the ENUM, never a list somebody typed', () => {
+    // THE FIX, asserted. The old defect needed a hand-written list to go stale
+    // against; a fan-out over `DISCOVERY_DOMAINS` has nothing to go stale.
+    expect(
+      reindexers,
+      `${REINDEXERS} no longer fans out over DISCOVERY_DOMAINS. If the domains it ` +
+        'tries are written out by hand again, a sixth one can be added to the enum ' +
+        'and silently never reach a target — which is exactly E2E #168.',
+    ).toContain('wanted: DISCOVERY_DOMAINS');
+  });
+
+  it('asks the deps layer for ITS spelling of each domain, from a total map', () => {
+    // A FIFTH vocabulary, and not one this test invented: the report says
+    // `contacts`/`files`/`tasks`, the ledger says `contact`/`file`/`task`, and
+    // `buildDomainDepsFromMapping` says `mail` where the ledger says `email`.
+    // A wrong entry here builds nothing for that domain — and the fan-out
     // swallows a build failure by design, so it would go quiet rather than red.
-    for (const [reportName, ledgerName] of [
-      ['mail', 'mail'],
-      ['calendar', 'calendar'],
-      ['contacts', 'contact'],
-      ['files', 'file'],
-      ['tasks', 'task'],
-    ]) {
-      const call = reindexers.match(
-        new RegExp(`collect\\('${reportName}',[^\\n]*`),
-      )?.[0];
-      expect(call, `no collect('${reportName}', …) call`).toBeDefined();
-      expect(call).toContain(`'${ledgerName}')`);
+    expect(mapEntries(reindexers, 'DEPS_NAME')).toEqual({
+      email: 'mail',
+      calendar: 'calendar',
+      contact: 'contact',
+      file: 'file',
+      task: 'task',
+    });
+  });
+
+  it('has exactly ONE collect-and-release loop, fed by both editions', () => {
+    // The duplication itself, refused. `build-confirmation-readers.ts` states
+    // the rule in prose — "Building a second assembler beside it is how this
+    // repository ends up with two copies of a fan-out and one of them silently
+    // stops being the product" — and this is that rule with a test behind it.
+    //
+    // Both editions must CALL the shared fan-out, and neither may carry the
+    // loop itself: the appliance had its own inside `verifyMapping` until
+    // 2026-09-11, which is how there came to be two lists to keep in step.
+    for (const [file, source] of [
+      [REINDEXERS, reindexers],
+      [ORCHESTRATION, orchestration],
+    ] as const) {
+      expect(source, `${file} no longer feeds the shared fan-out`).toContain('fanOutTargets');
+      // The predicate too: "can this target enumerate itself" is one question,
+      // and `orchestration.ts` answered it twice — once for reindexers and
+      // once for the discovery pass's counting — until 2026-09-11.
+      //
+      // NOT covered here, and deliberately: the discovery pass has its own
+      // per-domain chain building SOURCE and target together, which is a
+      // different fan-out with a different shape. The counting guard in the
+      // first describe is what watches that one.
+      expect(
+        codeOf(source).includes('listEntries'),
+        `${file} tests for listEntries itself. That check belongs to the one fan-out ` +
+          '(`asReindexer` in target-fan-out.ts); a copy here is a second loop, and a ' +
+          'second loop is what let the task domain go unbuilt for seven months.',
+      ).toBe(false);
     }
   });
 });
