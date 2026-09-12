@@ -72,6 +72,7 @@ import type {
   FailuresQueue,
   MovesQueue,
   DeletionsQueue,
+  ConfirmedListQueue,
   FinishAccepted,
   VerificationResult,
 } from '@openmig/shared';
@@ -80,6 +81,13 @@ import { buildStatusReport, type MappingStatusInput } from './status.ts';
 import { startTransition, finishTransition } from './lifecycle.ts';
 import { serveUi, UI_MOUNT } from './static-ui.ts';
 import { createVerifyRunner } from './verify-run.ts';
+import { applianceOpener } from '@openmig/orchestration';
+import {
+  readConfirmedList,
+  runningConfirmation,
+  streamConfirmedListCsv,
+} from '@openmig/orchestration/confirmed-list-read';
+import { runConfirmationOver } from '@openmig/orchestration/run-confirmation-pass';
 import {
   log,
   permissionsNotDiscoverable,
@@ -1310,6 +1318,130 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       }
       if (req.method === 'GET' && req.url === '/verify/report') {
         return sendJson(res, 200, verifyRunner.current() satisfies VerificationRunReport);
+      }
+      /**
+       * THE CONFIRMED LIST, AND THE BUTTON THAT FILLS IT (workplan 0117 T2,
+       * D7(a) and D10) — the appliance's half, landed 2026-09-11.
+       *
+       * Managed has served these since slices 7 and 8; this edition could not,
+       * and the reason recorded for a month was wrong (`buildTargetReindexers`
+       * takes a `Pool`). What actually blocked it was that the confirmation
+       * readers were built over the managed fan-out only. With one fan-out
+       * both editions feed (owner option (b)), the appliance's half is its own
+       * opener — which it already had — and these three handlers.
+       *
+       * Every one of them answers `ByMapping`, like `/failures`, `/moves` and
+       * `/deletions`: the appliance serves every mapping in its config
+       * directory from one flat URL, managed answers for the one its path
+       * names, and the single React app reads both with the same code.
+       */
+      if (req.method === 'POST' && req.url === '/confirm') {
+        await drain(req);
+        const out: Record<string, { started: boolean; runId?: string }> = {};
+        for (const m of mappings) {
+          const scope = {
+            source: persistenceBackend.driver,
+            tenantId: m.config.tenantId as TenantId,
+            mappingId: m.mailboxMappingId as MappingId,
+          };
+          const running = await runningConfirmation(scope);
+          if (running) {
+            // Joined, not stacked — a second pass over the same account would
+            // pay for every byte twice to answer a question already being
+            // answered.
+            out[m.config.mappingId] = { started: false, runId: running.runId };
+            continue;
+          }
+          out[m.config.mappingId] = { started: true };
+          // NOT AWAITED, and that is the shape D7(a) asked for: *"a job the
+          // person starts and we report on rather than a wait before the list
+          // appears."* A pass re-reads every item's bytes off the target, so
+          // holding this request open for it is the thing the start-and-poll
+          // pair exists to end. The run row it opens is what the page reads.
+          void runConfirmationOver({
+            ...scope,
+            open: applianceOpener(
+              { ...m.config, mappingId: m.mailboxMappingId } as typeof m.config,
+              ledgerOptions,
+            ),
+            trigger: 'manual',
+          }).catch((err: unknown) => {
+            // The pass closes its own run row on the way out (0120), so the
+            // page will show `failed` with the reason. This line is for the
+            // operator reading the appliance's log.
+            log.error(
+              `[selfhost] ${m.config.mappingId}: confirmation pass failed:`,
+              err instanceof Error ? err.message : err,
+            );
+          });
+        }
+        return sendJson(res, 202, out);
+      }
+      /**
+       * D10's list: a headline count, every row that is NOT verified, the total
+       * stated. The full export is the route below.
+       *
+       * **This walks the mapping's items**, because the headline is derived
+       * rather than stored — slice 1's rule, and the reason a stale word is not
+       * in the database. So it is a page somebody opens, not something to poll:
+       * a screen watching a pass should poll `/status`, which reads rows, and
+       * re-read this when the run lands.
+       */
+      if (req.method === 'GET' && req.url === '/confirmed-list') {
+        const out: Record<string, ConfirmedListQueue> = {};
+        for (const m of mappings) {
+          out[m.config.mappingId] = await readConfirmedList(
+            {
+              source: persistenceBackend.driver,
+              tenantId: m.config.tenantId as TenantId,
+              mappingId: m.mailboxMappingId as MappingId,
+            },
+            await mappingStatus(m),
+          );
+        }
+        return sendJson(res, 200, out);
+      }
+      /**
+       * The full export — EVERY row, verified ones included, for every mapping.
+       *
+       * The difference from the list is the point rather than a convenience: a
+       * person reconciling against the account they are about to empty needs to
+       * search for one file and see the word `verified` beside it, which the
+       * screen by design never shows them.
+       *
+       * Streamed, and the writes are AWAITED for backpressure: this is bounded
+       * by nothing, which is what "full" means, and buffering a family-sized
+       * account into one string would be the memory failure the paging exists
+       * to avoid with an extra step.
+       */
+      if (req.method === 'GET' && req.url === '/confirmed-list/export') {
+        res.writeHead(200, {
+          'content-type': 'text/csv; charset=utf-8',
+          'content-disposition': 'attachment; filename="confirmed.csv"',
+        });
+        const write = (chunk: string): Promise<void> =>
+          res.write(chunk) ? Promise.resolve() : new Promise((r) => res.once('drain', () => r()));
+        try {
+          for (const m of mappings) {
+            await streamConfirmedListCsv(
+              {
+                source: persistenceBackend.driver,
+                tenantId: m.config.tenantId as TenantId,
+                mappingId: m.mailboxMappingId as MappingId,
+              },
+              write,
+            );
+          }
+          res.end();
+        } catch (err) {
+          // Bytes are already on the wire, so a JSON error appended to a CSV
+          // would be a corrupt file that looks complete. Destroy it instead: a
+          // truncated download fails visibly, and this is a document somebody
+          // reconciles against.
+          log.error('[selfhost] confirmed-list export died mid-stream:', err);
+          res.destroy(err instanceof Error ? err : new Error(String(err)));
+        }
+        return;
       }
       // There is deliberately no synchronous `GET /verify` any more (0019 T6).
       // It survived exactly the one release 0017 T2 promised: PR #200 moved

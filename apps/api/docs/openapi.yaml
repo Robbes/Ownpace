@@ -2697,20 +2697,15 @@ paths:
           description: A confirmation was already running; this call joined it.
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  started: { type: boolean }
-                  runId: { type: string, format: uuid }
+              schema: { $ref: '#/components/schemas/ConfirmStartResponse' }
         '202':
-          description: Enqueued.
+          description: |
+            Enqueued. No `runId`: the run row is the worker's, opened when the
+            job runs, because the pass owns the rule that a run row always
+            closes. Poll the list's `lastPass` instead.
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  started: { type: boolean }
-                  jobRunId: { type: string }
+              schema: { $ref: '#/components/schemas/ConfirmStartResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '502':
@@ -2763,64 +2758,71 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [migrationStatus, verified, total, rows, lastPass]
-                properties:
-                  migrationStatus: { type: string }
-                  verified:
-                    type: integer
-                    description: Rows re-read from the destination that matched. Nothing else counts.
-                  total:
-                    type: integer
-                    description: Every item in the account, including the ones `rows` does not carry.
-                  truncated:
-                    type: boolean
-                    description: '`rows` is the first N of more. The export carries the rest.'
-                  rows:
-                    type: array
-                    items:
+                description: |
+                  Keyed by mapping id — the shape every operating queue takes,
+                  so the one React app reads this and the appliance's answer
+                  (which carries every mapping in its config directory) with the
+                  same code. This path names one mapping, so there is one key.
+                additionalProperties:
+                  type: object
+                  required: [migrationStatus, verified, total, rows, lastPass]
+                  properties:
+                    migrationStatus: { type: string }
+                    verified:
+                      type: integer
+                      description: Rows re-read from the destination that matched. Nothing else counts.
+                    total:
+                      type: integer
+                      description: Every item in the account, including the ones `rows` does not carry.
+                    truncated:
+                      type: boolean
+                      description: '`rows` is the first N of more. The export carries the rest.'
+                    rows:
+                      type: array
+                      items:
+                        type: object
+                        required: [state, claim, domain, collection, naturalKey, confirmedAt]
+                        properties:
+                          state:
+                            type: string
+                            enum: [verified, differs, present, yours, missing, never-placed, removed, unchecked]
+                          claim:
+                            type: string
+                            enum: [byte-hash, fingerprint, none]
+                            description: |
+                              What "matched" means for this row. A calendar server
+                              re-serialises what it stores, so a calendar row can
+                              only ever be compared by fingerprint — saying
+                              "verified by hash" over one would be a lie of a word.
+                          domain: { type: string }
+                          collection: { type: string, description: Where it sits on the destination. }
+                          naturalKey: { type: string, description: 'The item''s own identifier: a Message-ID, a file path, a UID.' }
+                          confirmedAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                            description: When the destination was asked. `null` = never.
+                    lastPass:
                       type: object
-                      required: [state, claim, domain, collection, naturalKey, confirmedAt]
+                      required: [state]
+                      description: |
+                        Where the last pass got to. Needed rather than decorative:
+                        before any pass every row reads `unchecked`, and after a
+                        pass that could not reach the destination every row reads
+                        `unchecked` too — the rows alone cannot tell those apart.
                       properties:
                         state:
                           type: string
-                          enum: [verified, differs, present, yours, missing, never-placed, removed, unchecked]
-                        claim:
-                          type: string
-                          enum: [byte-hash, fingerprint, none]
-                          description: |
-                            What "matched" means for this row. A calendar server
-                            re-serialises what it stores, so a calendar row can
-                            only ever be compared by fingerprint — saying
-                            "verified by hash" over one would be a lie of a word.
-                        domain: { type: string }
-                        collection: { type: string, description: Where it sits on the destination. }
-                        naturalKey: { type: string, description: 'The item''s own identifier: a Message-ID, a file path, a UID.' }
-                        confirmedAt:
-                          type: string
-                          format: date-time
-                          nullable: true
-                          description: When the destination was asked. `null` = never.
-                  lastPass:
-                    type: object
-                    required: [state]
-                    description: |
-                      Where the last pass got to. Needed rather than decorative:
-                      before any pass every row reads `unchecked`, and after a
-                      pass that could not reach the destination every row reads
-                      `unchecked` too — the rows alone cannot tell those apart.
-                    properties:
-                      state:
-                        type: string
-                        enum: [never-run, running, done, failed]
-                      startedAt: { type: string, format: date-time }
-                      finishedAt: { type: string, format: date-time }
-                  pausedAt:
-                    type: object
-                    description: |
-                      Why the account is only part checked, when it is. A pass
-                      that stops at the provider's daily ceiling is a scheduled
-                      stop, not a failure — and without this the honest numbers
-                      read as a bad result.
+                          enum: [never-run, running, done, failed]
+                        startedAt: { type: string, format: date-time }
+                        finishedAt: { type: string, format: date-time }
+                    pausedAt:
+                      type: object
+                      description: |
+                        Why the account is only part checked, when it is. A pass
+                        that stops at the provider's daily ceiling is a scheduled
+                        stop, not a failure — and without this the honest numbers
+                        read as a bad result.
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -4104,6 +4106,22 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
+    ConfirmStartResponse:
+      type: object
+      description: |
+        Keyed by mapping id, like every operating queue. `started: false` is not
+        an error — a pass was already under way and this call joined it, so a
+        second pass does not pay for every byte twice to answer a question
+        already being answered.
+      additionalProperties:
+        type: object
+        required: [started]
+        properties:
+          started: { type: boolean }
+          runId:
+            type: string
+            format: uuid
+            description: The ledger run, when one is known — which is when a pass was already running.
     SupportTenant:
       type: object
       description: |
