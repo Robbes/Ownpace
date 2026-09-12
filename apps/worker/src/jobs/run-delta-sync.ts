@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { schemaTask, queue, AbortTaskRunError } from '@trigger.dev/sdk';
+import { schemaTask, queue } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { eq } from 'drizzle-orm';
 import {
@@ -21,9 +21,9 @@ import {
   runTaskSync,
   type FileSyncDeps,
   failureSideOf,
-  PassAbortError,
 } from '@openmig/core';
-import { budgetPauseToReason, PASS_RUNNING_STATES } from '@openmig/shared';
+import { budgetPauseToReason } from '@openmig/shared';
+import { mappingStillRuns, taskErrorFor } from './stopping-a-pass.ts';
 import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
@@ -350,14 +350,7 @@ export const runDeltaSync = schemaTask({
         // later when this run's deadline arrives. Between domains and not
         // per item: each domain pass already stops itself at its own
         // deadline, and the tick will not start another.
-        const stillRunning = await withTenant(pool, tenantId, async (db) => {
-          const [row] = await db
-            .select({ status: schemaPg.mailboxMapping.status })
-            .from(schemaPg.mailboxMapping)
-            .where(eq(schemaPg.mailboxMapping.id, mappingId));
-          return row !== undefined && PASS_RUNNING_STATES.includes(row.status);
-        });
-        if (!stillRunning) {
+        if (!(await mappingStillRuns(pool, tenantId, mappingId))) {
           const line = `pass stopped before ${domain}: this migration is no longer active (paused or finished) — nothing failed, the next pass continues from the cursors when it is resumed`;
           log.info(`[delta-sync] ${line}`);
           await withTenant(pool, tenantId, async (db) => {
@@ -668,19 +661,9 @@ export const runDeltaSync = schemaTask({
       // Close the run row as failed so history shows the failure instead of a
       // row stuck in `running` forever.
       await closeRun('failed', 1);
-      // A DELIBERATE STOP IS NOT RETRIED. `PassAbortError` is the pass saying
-      // "25 items failed in a row, the world is broken, stop": rethrown as an
-      // ordinary error it went through trigger.config's default retry — three
-      // attempts, 5s/10s/20s apart — so ONE tick produced three failed runs
-      // inside a minute against a target that had already said no (live,
-      // 2026-09-11: four failed passes inside 13:01). Retrying was also
-      // pointless by construction: the pass had just proven the same thing
-      // 25 times. `AbortTaskRunError` fails the run once; the sync tick's
-      // failing-backoff ladder then spaces the NEXT attempts out, which is the
-      // layer that was designed to. A genuine crash (a thrown pool error, an
-      // OOM) is still an ordinary throw and still retries.
-      if (error instanceof PassAbortError) throw new AbortTaskRunError(error.message);
-      throw error;
+      // A deliberate stop fails ONCE; everything else still retries. The rule
+      // and the reason are on `taskErrorFor`.
+      throw taskErrorFor(error);
     } finally {
       // The net. A no-op on both paths above, and the only thing standing
       // between an unexpected exit and a mapping that never syncs again.

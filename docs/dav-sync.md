@@ -154,6 +154,22 @@ Documents\Reports\2024   →  Documents/Reports/2024
 Collection paths are resolved per target account — see
 `packages/engines/src/dav-collection-path.ts`.
 
+### Files — collections exist before the PUT that needs them
+
+**Rule**: MKCOL is not recursive (RFC 4918 §9.3.1 — a missing ancestor answers 409, it does not
+create one), so every collection along a path MUST be created in order, ancestors first, and every
+MKCOL status MUST be read. `201` is the create and `405` is "already there"; anything else is a
+refusal and must be thrown with the server's own words. A PUT into a collection that was never
+made returns Sabre's `404 File with name /<parent> could not be located` — naming the PARENT — so
+an unread MKCOL surfaces as every file under it failing to exist. Found live 2026-09-11: 87 files
+under one nested folder, until the consecutive-failure tripwire stopped the pass.
+
+**Rule**: Paths inside `WebDAVTargetWriter` are DECODED strings (`hrefRelativeTo` decodes what the
+server lists), so a request URL MUST be built by percent-encoding each segment exactly once —
+never by appending the path raw and letting the URL parser mend it. Node escapes a space, which is
+why folders with spaces mostly worked, but it reads `#` as a fragment and `?` as a query and
+leaves `%` alone: `Q&A #2 (50%).pdf` was PUT to an address the server could not resolve.
+
 ### Files — large files
 
 `WebDAVTargetWriter` (`packages/engines/src/webdav-target-writer.ts`) switches to a chunked upload
@@ -236,6 +252,8 @@ End-to-end, all four domains including a restart-resume idempotency gate:
 | Home-set discovery finds nothing | `current-user-principal` → home-set chain broken; check the account's principal URL |
 | Items sync but land in the wrong collection | Collection path not namespaced under the target account — see `dav-collection-path.ts` |
 | Second pass re-creates everything | Natural key unstable (e.g. UID case, or an unnormalized path) |
+| `PUT` returns 404 naming a FOLDER, not the file | The parent collection was never created — an MKCOL whose status went unread, or a non-recursive one on a nested path |
+| A folder of Google Docs stops a whole pass | A policy refusal counted as a broken world; a decision-class failure must be parked, not counted toward the tripwire (`isDecisionError`) |
 
 ## References
 

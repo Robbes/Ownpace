@@ -22,7 +22,21 @@
  * packages, and neither may import the other.
  */
 
-/** The property a decision-class error carries. A symbol-free string so it survives structured clone. */
+/**
+ * The property a decision-class error carries.
+ *
+ * READ IN THE PROCESS THAT THREW, and only there. It is a non-enumerable own
+ * property on an Error, so it survives neither `structuredClone` nor
+ * `JSON.stringify` — both drop an Error's custom properties anyway — and
+ * nothing asks it to: the connector throws and the sync loop's own catch
+ * reads, inside one pass. What has to outlive the pass is already durable in
+ * the ledger, as the recorded `last_error` and an `attempt_count` parked at
+ * the ceiling; this bit is how the loop decides to write that, not a second
+ * copy of it.
+ *
+ * Non-enumerable so it stays out of anything that walks the error's own keys
+ * on its way to a log line or a response body.
+ */
 export const NEEDS_DECISION_MARKER = 'needsDecision' as const;
 
 export interface NeedsDecision {

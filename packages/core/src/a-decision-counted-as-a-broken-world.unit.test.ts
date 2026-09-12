@@ -28,6 +28,7 @@ import {
   setLogLevel,
   resetLogLevel,
   type UpsertResult,
+  type LedgerRecord,
 } from '@openmig/shared';
 
 const TENANT = asTenantId('7d2c0000-e29b-41d4-a716-4466554403aa');
@@ -79,6 +80,27 @@ function pass(ledger: MemoryLedger, items: Item[]) {
         ensureCollection: async () => 'Docs',
       }),
   };
+}
+
+/**
+ * A ledger that IGNORES `recordFailure`'s `park` option.
+ *
+ * `park` is the THIRD, OPTIONAL argument of a port method (`Ledger` in
+ * `ports.ts`), so an implementation is free not to honour it — and then
+ * `attempt_count` comes back at 1 and "attempts exhausted" is false. Whether
+ * an item needs a person is the LOOP's judgement about the error it just
+ * caught, not a favour the ledger does it, so the loop says so on its own
+ * account as well as asking the ledger to remember it.
+ *
+ * Without that, this branch is invisible: both in-repo ledgers honour `park`,
+ * so a mutation removing the loop's own check passes every other test in this
+ * file. That is how it was found — the guard was written before this fixture
+ * and did not catch it.
+ */
+class LedgerThatIgnoresPark extends MemoryLedger {
+  override recordFailure(record: LedgerRecord, error: string): Promise<LedgerRecord> {
+    return super.recordFailure(record, error);
+  }
 }
 
 const doc = (n: number): Item => ({ key: `doc-${n}`, body: '', native: true });
@@ -146,5 +168,22 @@ describe('a refused native file is a decision, not a failure of the world', () =
     const result = await run();
     expect(result.failed).toBe(34);
     expect(result.needsDecision).toBe(10);
+  });
+
+  it('is parked on the loop’s own judgement, not on the ledger honouring `park`', async () => {
+    // The ledger here returns `attemptCount: 1`, as an implementation that
+    // ignores the optional option would. The refusal must STILL be surfaced
+    // as awaiting a decision: it is the same policy, and it will answer the
+    // same way on the next pass whatever the ledger counted.
+    const ledger = new LedgerThatIgnoresPark();
+    const { run } = pass(ledger, [doc(1)]);
+
+    const result = await run();
+
+    expect(result.needsDecision).toBe(1);
+    expect(result.failures[0]?.needsDecision).toBe(true);
+    // Reported honestly as what the ledger actually holds — the loop does not
+    // invent a count to justify its own decision.
+    expect(result.failures[0]?.attempts).toBe(1);
   });
 });
