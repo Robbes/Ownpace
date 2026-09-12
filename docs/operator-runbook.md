@@ -539,7 +539,11 @@ parking is a stored attempt count, and deploying a fix does not lower it. Live
 on 2026-09-11 a non-recursive `MKCOL` left 82 files parked for a defect that no
 longer existed, and the migration reported itself complete over the hole.
 
-So the same two answers apply to a selection, in one press:
+So the same two answers apply to a selection, in one press. **On the Failures
+screen** there is a "Decide a whole group at once" panel above the two lists:
+pick a kind, or type part of the error the items share, and it says how many of
+the rows on the page the selection reaches *before* anything is pressed. The
+same thing by hand:
 
 ```bash
 # Managed (authenticated, tenant-scoped)
