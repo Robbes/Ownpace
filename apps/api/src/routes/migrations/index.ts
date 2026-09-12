@@ -2067,15 +2067,27 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           return { mapping: null, sourceConn: null, targetConn: null, scopeRows: [], domainStatus: [], failures: [] };
         }
 
-        const [sourceRows, targetRows, scopeRows, domainStatus, failures] = await Promise.all([
-          db
-            .select()
-            .from(schema.connection)
-            .where(and(eq(schema.connection.tenantId, tenantId), eq(schema.connection.role, 'source'))),
-          db
-            .select()
-            .from(schema.connection)
-            .where(and(eq(schema.connection.tenantId, tenantId), eq(schema.connection.role, 'target'))),
+        // THE MAPPING'S OWN CONNECTIONS, through its mailboxes — not the
+        // tenant's first source and first target. That is what this used to
+        // read (`sourceRows[0]`/`targetRows[0]`), which was correct for a
+        // tenant with exactly one of each and wrong for every other: the
+        // detail page for "G to Sov" reported the kind and account of
+        // whichever target connection happened to sort first, while the
+        // passes wrote to the one the mapping actually holds. Found live
+        // 2026-09-11, on a tenant with two targets, when the page and the
+        // Connections page disagreed about where the files had gone.
+        const connectionOf = async (mailboxId: string | null) => {
+          if (!mailboxId) return null;
+          const rows = await db
+            .select({ connection: schema.connection })
+            .from(schema.mailbox)
+            .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+            .where(and(eq(schema.mailbox.id, mailboxId), eq(schema.mailbox.tenantId, tenantId)));
+          return rows[0]?.connection ?? null;
+        };
+        const [sourceConn, targetConn, scopeRows, domainStatus, failures] = await Promise.all([
+          connectionOf(mapping.sourceMailboxId),
+          connectionOf(mapping.targetMailboxId),
           db
             .select()
             .from(schema.scopeSelection)
@@ -2095,8 +2107,8 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
 
         return {
           mapping,
-          sourceConn: sourceRows[0] ?? null,
-          targetConn: targetRows[0] ?? null,
+          sourceConn,
+          targetConn,
           scopeRows,
           domainStatus,
           failures,
@@ -2141,6 +2153,17 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       name: mapping.name ?? mapping.mode,
       sourceType: sourceConn?.kind ?? 'unknown',
       targetType: targetConn?.kind ?? 'unknown',
+      // Named, so the page can say WHICH account this migration signs in
+      // with on each side. A migration called "G to Sov" whose target is in
+      // fact the Nextcloud connection is a fact the operator has to be able
+      // to read off the migration itself, not reconstruct from a failure
+      // line on the Connections page.
+      sourceConnection: sourceConn
+        ? { id: sourceConn.id, name: sourceConn.displayName, kind: sourceConn.kind }
+        : null,
+      targetConnection: targetConn
+        ? { id: targetConn.id, name: targetConn.displayName, kind: targetConn.kind }
+        : null,
       sourceConfig: {
         ...(sourceConn?.config as Record<string, unknown> ?? {}),
         username: usernameFor(sourceConn),
