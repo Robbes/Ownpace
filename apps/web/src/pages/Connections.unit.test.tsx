@@ -90,7 +90,7 @@ const conn = (over: Partial<ConnectionSummary> = {}): ConnectionSummary => ({
   displayName: 'Acme migration (source)',
   status: 'connected',
   createdAt: '2026-08-01T10:00:00Z',
-  usedByMailboxes: 3,
+  usedByMigrations: 3,
   ...over,
 });
 
@@ -122,7 +122,7 @@ describe('the connections screen', () => {
     // Migrations, not mailboxes (owner remark 2026-09-02): a Dropbox
     // connection carries files and a Google account four faces. And none
     // yet is a sentence, never "0 … use this".
-    list.mockResolvedValue([conn(), conn({ id: 'c2', displayName: 'Spare', usedByMailboxes: 0 })]);
+    list.mockResolvedValue([conn(), conn({ id: 'c2', displayName: 'Spare', usedByMigrations: 0 })]);
     renderPage();
 
     expect(await screen.findByText('Acme migration (source)')).toBeTruthy();
@@ -483,7 +483,7 @@ describe('deleting a connection', () => {
     // and where. It shipped as one English paragraph on the route, which is
     // how a Dutch operator got five clauses of English (workplan 0071). The
     // migrations are the finding and render verbatim; the sentence is ours.
-    list.mockResolvedValue([conn({ usedByMailboxes: 3 })]);
+    list.mockResolvedValue([conn({ usedByMigrations: 3 })]);
     remove.mockRejectedValue(
       axios409({
         error: 'in_use',
@@ -509,7 +509,7 @@ describe('deleting a connection', () => {
     // one — so `migrations` can be shorter than `used`. Falling back to the
     // server's English sentence for that case put the reader back in English
     // for the case they were most likely to meet.
-    list.mockResolvedValue([conn({ usedByMailboxes: 1 })]);
+    list.mockResolvedValue([conn({ usedByMigrations: 1 })]);
     remove.mockRejectedValue(
       axios409({
         error: 'in_use',
@@ -532,7 +532,7 @@ describe('deleting a connection', () => {
     // The cascade is the reason: mailbox.connection_id cascades and item hangs
     // off the mailboxes, so deleting one in use would take the migration
     // ledger with it silently (workplan 0066).
-    list.mockResolvedValue([conn({ usedByMailboxes: 3 })]);
+    list.mockResolvedValue([conn({ usedByMigrations: 3 })]);
     remove.mockRejectedValue(
       new Error('3 mailbox(es) still use this connection (Acme mail). Deleting it would take their migration history with it, so remove those migrations first.'),
     );
@@ -545,7 +545,7 @@ describe('deleting a connection', () => {
   });
 
   it('deletes one nothing depends on, and refreshes', async () => {
-    list.mockResolvedValue([conn({ usedByMailboxes: 0 })]);
+    list.mockResolvedValue([conn({ usedByMigrations: 0 })]);
     remove.mockResolvedValue(undefined);
     renderPage();
 
