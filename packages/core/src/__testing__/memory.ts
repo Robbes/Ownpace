@@ -814,6 +814,36 @@ export class MemoryLedger implements Ledger {
     return Promise.resolve(false);
   }
 
+  /**
+   * The group form, and it MIRRORS PgLedger's narrowing exactly — including
+   * that `errorContains` is a literal substring and not a pattern.
+   *
+   * `String.includes` is literal by construction, which is the point: the
+   * Postgres side has to escape `%` and `_` to get the same behaviour, so a
+   * fake that quietly accepted them as wildcards would agree with a bug rather
+   * than with the product.
+   */
+  resolveFailureGroup(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    action: FailureAction,
+    match: { readonly domain?: LedgerRecord['itemType']; readonly errorContains?: string },
+  ): Promise<number> {
+    let changed = 0;
+    for (const [k, r] of this.rows) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (r.status !== 'failed') continue;
+      if (match.domain && r.itemType !== match.domain) continue;
+      if (match.errorContains && !(r.lastError ?? '').includes(match.errorContains)) continue;
+      this.rows.set(
+        k,
+        action === 'accept' ? { ...r, status: 'left_behind' } : { ...r, attemptCount: 0 },
+      );
+      changed += 1;
+    }
+    return Promise.resolve(changed);
+  }
+
   recordAbsent(
     tenantId: LedgerRecord['tenantId'],
     mappingId: LedgerRecord['mappingId'],

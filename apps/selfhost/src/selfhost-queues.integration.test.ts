@@ -478,3 +478,145 @@ describe('the decision queue', () => {
     expect(rows[0].pattern).toBeNull();
   });
 });
+
+/**
+ * ONE PRESS OVER A GROUP, ON THE EDITION WITH NOBODY TO PHONE.
+ *
+ * The managed API grew `POST /migrations/:id/failures` after a non-recursive
+ * MKCOL left 82 items parked for a defect that no longer existed (the fix
+ * lands, the parking does not lift). One React bundle serves both editions, so
+ * the appliance answers the same press — and its owner is the person who
+ * CANNOT ask somebody to run SQL against the ledger for them, which makes this
+ * the edition that needs it most.
+ *
+ * Asserted here rather than by reading the file, because the two halves that
+ * can silently go missing are the narrowing refusal and the CURSOR CLEAR, and
+ * neither is visible in a route's existence.
+ *
+ * Seeded in the `file` domain with its own wording, so the email rows the
+ * earlier describes count are provably untouched.
+ */
+describe('the appliance answers one decision over a group', () => {
+  const KEYS = ['grp-a', 'grp-b', 'grp-c'];
+  const WORDING = 'MKCOL 404 on the parent collection';
+
+  async function seedFileFailures(): Promise<void> {
+    for (const key of KEYS) {
+      await pool.query(
+        `INSERT INTO item (
+           tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash,
+           status, attempt_count, last_error
+         ) VALUES ($1, $2, 'file', '/Documents/Sub', $3, $3, 'failed', $4, $5)
+         ON CONFLICT DO NOTHING`,
+        [TENANT_ID, LEDGER_MAPPING_ID, key, MAX_ITEM_ATTEMPTS, WORDING],
+      );
+    }
+    await pool.query(
+      `INSERT INTO cursor (tenant_id, mapping_id, folder_path, cursor_value)
+       VALUES ($1, $2, '/remote.php/dav/files/admin/', 'full-listing:/')
+       ON CONFLICT (tenant_id, mapping_id, folder_path) DO UPDATE SET cursor_value = 'full-listing:/'`,
+      [TENANT_ID, LEDGER_MAPPING_ID],
+    );
+  }
+
+  const press = (body: unknown) =>
+    fetch(`${base}/mappings/${MAPPING_ID}/failures`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  const attemptsFor = async (key: string): Promise<number> => {
+    const { rows } = await pool.query<{ attempt_count: number }>(
+      `SELECT attempt_count FROM item WHERE tenant_id = $1 AND natural_key = $2`,
+      [TENANT_ID, key],
+    );
+    return rows[0]?.attempt_count ?? -1;
+  };
+
+  const cursors = async (): Promise<number> => {
+    const { rows } = await pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM cursor WHERE tenant_id = $1`,
+      [TENANT_ID],
+    );
+    return Number(rows[0]?.n ?? '0');
+  };
+
+  it('refuses a press that narrows on nothing, and keeps the cursors', async () => {
+    await seedFileFailures();
+
+    const res = await press({ action: 'retry' });
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain('WHICH failures');
+    expect(await attemptsFor('grp-a')).toBe(MAX_ITEM_ATTEMPTS);
+    expect(await cursors()).toBe(1);
+  });
+
+  it('retries the group, zeroes the attempts, and clears the cursors', async () => {
+    await seedFileFailures();
+
+    const res = await press({ action: 'retry', domain: 'file', errorContains: 'MKCOL' });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { matched: number; effect: string };
+    expect(body.matched).toBe(KEYS.length);
+    for (const key of KEYS) expect(await attemptsFor(key)).toBe(0);
+    // Retry is TWO things. This is the half hand-written SQL always missed.
+    expect(await cursors()).toBe(0);
+  });
+
+  it('narrows on the domain ALONE — a press for files never reaches mail', async () => {
+    // Pressed with a domain and NO substring, which is the only shape in which
+    // a dropped domain clause shows: with a substring as well, a widened match
+    // still happens to exclude the mail rows because their wording differs,
+    // and the guard passes over a bug. The two mail failures below carry
+    // '552 message too large' and 'temporary failure'; both would be retried
+    // if this press matched on nothing.
+    await pool.query(
+      `UPDATE item SET attempt_count = $2
+        WHERE tenant_id = $1 AND domain = 'file' AND status = 'failed'`,
+      [TENANT_ID, MAX_ITEM_ATTEMPTS],
+    );
+
+    const res = await press({ action: 'retry', domain: 'file' });
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { matched: number }).matched).toBe(KEYS.length);
+    for (const key of KEYS) expect(await attemptsFor(key)).toBe(0);
+    const { rows } = await pool.query<{ attempt_count: number }>(
+      `SELECT attempt_count FROM item
+        WHERE tenant_id = $1 AND domain = 'email' AND status = 'failed'
+        ORDER BY natural_key`,
+      [TENANT_ID],
+    );
+    expect(rows.map((r) => r.attempt_count)).toEqual([MAX_ITEM_ATTEMPTS, 1]);
+  });
+
+  it('left the mail failures exactly where they were', async () => {
+    // The narrowing is not decoration: a press that widened to the whole queue
+    // would have retried the two mail failures the earlier describes assert
+    // on, and the only sign would be those tests failing in some other file
+    // order. Read as attempt counts rather than queue lengths, because the
+    // retried file rows legitimately join `retrying` and would mask it.
+    const { rows } = await pool.query<{ natural_key: string; attempt_count: number }>(
+      `SELECT natural_key, attempt_count FROM item
+        WHERE tenant_id = $1 AND domain = 'email' AND status = 'failed'
+        ORDER BY natural_key`,
+      [TENANT_ID],
+    );
+    expect(rows).toEqual([
+      { natural_key: '<failure-needing-a-person@test>', attempt_count: MAX_ITEM_ATTEMPTS },
+      { natural_key: '<failure-still-retrying@test>', attempt_count: 1 },
+    ]);
+  });
+
+  it('answers 404 for a mapping the config directory does not carry', async () => {
+    const res = await fetch(`${base}/mappings/5e1f0000-e29b-41d4-a716-4466554409ff/failures`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'retry', domain: 'file' }),
+    });
+    expect(res.status).toBe(404);
+  });
+});

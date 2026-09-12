@@ -40,7 +40,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
+import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -67,7 +67,9 @@ import type {
   MappingId,
   ScheduleHandle,
   DiscoveryRecord,
+  DiscoveryDomain,
   FailureAction,
+  GroupDecisionAccepted,
   MappingLifecycle,
   FailuresQueue,
   MovesQueue,
@@ -2581,6 +2583,96 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             'Acknowledged. Nothing changed on the source or the target; this move stops being ' +
             'reported unless the item moves somewhere else again.',
         });
+      }
+      /**
+       * THE SAME GROUP DECISION, IN THE EDITION WITH NOBODY TO PHONE.
+       *
+       * The managed API grew `POST /migrations/:id/failures` after the live
+       * MKCOL fix left 82 items parked for a defect that no longer existed.
+       * Leaving the appliance with only the per-item press would be the same
+       * button meaning two different things — hard rule 5 — in the edition
+       * whose owner cannot ask somebody to run SQL for them.
+       *
+       * Matched before the per-item route below only for readability: the two
+       * patterns differ in segment count and cannot both match one URL.
+       */
+      const failureGroupMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/failures$/.exec(req.url)
+          : null;
+      if (failureGroupMatch) {
+        const id = decodeURIComponent(failureGroupMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+
+        const body = ((await readJson(req).catch(() => ({}))) ?? {}) as {
+          action?: unknown;
+          domain?: unknown;
+          errorContains?: unknown;
+        };
+        const raw = String(body.action ?? '');
+        if (raw !== 'retry' && raw !== 'accept') {
+          return sendJson(res, 400, {
+            error: `unknown action '${raw}'`,
+            hint: 'A group of failed items can be retried or accepted.',
+          });
+        }
+        const action: FailureAction = raw;
+        const domain = body.domain === undefined ? undefined : String(body.domain);
+        if (domain !== undefined && !(DISCOVERY_DOMAINS as readonly string[]).includes(domain)) {
+          return sendJson(res, 400, {
+            error: `unknown domain '${domain}'`,
+            hint: `One of ${DISCOVERY_DOMAINS.join(', ')}.`,
+          });
+        }
+        const errorContains =
+          body.errorContains === undefined ? undefined : String(body.errorContains);
+        // Narrowing required, for the managed route's reason verbatim: this
+        // queue holds refusals that re-park on sight, so "all of them" costs a
+        // refetch each and changes nothing about them.
+        if (domain === undefined && (errorContains === undefined || errorContains === '')) {
+          return sendJson(res, 400, {
+            error: 'a group decision has to say WHICH failures it is for',
+            hint:
+              'Send a domain, an errorContains substring, or both. The queue holds refusals ' +
+              'that will not change on a retry, so "all of them" is almost never the intent.',
+          });
+        }
+
+        const match = {
+          ...(domain !== undefined ? { domain: domain as DiscoveryDomain } : {}),
+          ...(errorContains !== undefined ? { errorContains } : {}),
+        };
+        const matched = await ledger.resolveFailureGroup(
+          m.config.tenantId as TenantId,
+          m.mailboxMappingId as MappingId,
+          action,
+          match,
+        );
+        if (action === 'retry' && matched > 0) {
+          await cursorStore.clear(m.config.tenantId as TenantId, m.mailboxMappingId as MappingId);
+        }
+
+        log.info(
+          `[selfhost] ${m.config.mappingId}: operator chose '${action}' for a group ` +
+            `(${JSON.stringify(match)}) — ${matched} item(s) changed`,
+        );
+        const answer: GroupDecisionAccepted = {
+          status: 'ok',
+          action,
+          matched,
+          match,
+          effect:
+            matched === 0
+              ? 'Nothing matched, so nothing changed. Check the domain and the wording — the ' +
+                'substring is matched literally, not as a pattern.'
+              : action === 'retry'
+                ? `Attempts reset on ${matched} item(s) and cursors cleared; the next ` +
+                  'scheduled pass will try them again.'
+                : `Left behind for good: ${matched} item(s) will not be retried, and are ` +
+                  'excluded from the verification gate.',
+        };
+        return sendJson(res, 200, answer);
       }
       const failureMatch =
         req.method === 'POST' && req.url

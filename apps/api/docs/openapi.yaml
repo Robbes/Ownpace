@@ -2640,6 +2640,53 @@ paths:
               schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Operating]
+      summary: Retry or accept every failure matching a selection
+      description: |
+        One decision over a group, for the case the per-item route cannot
+        serve: a connector bug parks items by the dozen, and its fix parks
+        nothing — but parking does not clear itself, so every item the old
+        code exhausted stays parked for a defect that no longer exists.
+
+        `retry` zeroes the attempt count on each matching item AND clears the
+        mapping's cursors once for the whole group, because retry has always
+        been those two things together (ADR-0020: cursors are not
+        authoritative, so a full re-scan is the cost and the pass stays
+        idempotent). Hand-written SQL against the ledger is only ever the
+        first half, which is why this route exists rather than a runbook.
+
+        `accept` is terminal: each matching item becomes `left_behind`, keeps
+        its error for the audit trail, and stops counting against the
+        verification gate.
+
+        Only items still `failed` are touched — one that has since succeeded,
+        or that somebody already accepted, is not reopened by a bulk press.
+
+        **It must narrow.** A request setting neither `domain` nor a non-empty
+        `errorContains` is refused with `400`. Not because a retry is
+        dangerous (it writes nothing to anybody's account) but because this
+        queue also holds policy refusals, which re-park the moment they are
+        seen again: "retry everything" costs a refetch per undecidable item
+        and changes nothing about them, which is not what the person pressing
+        it meant.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FailureGroupDecision' }
+      responses:
+        '200':
+          description: |
+            Recorded, with the number of items it actually changed. `matched: 0`
+            is a successful call that changed nothing — usually a substring
+            that does not occur, since it is matched literally.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GroupDecisionAccepted' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /api/migrations/{mappingId}/failures/{hash}/{action}:
     parameters:
@@ -4706,6 +4753,28 @@ components:
           description: Present on `refused`/`failed`, verbatim.
       required: [state, requestedAt]
 
+    FailureGroupDecision:
+      type: object
+      description: |
+        WHICH failures the decision is for. Both fields are optional and both
+        being absent is refused (see the route) — an unnarrowed press is
+        almost never what was meant.
+      properties:
+        action:
+          type: string
+          enum: [retry, accept]
+        domain: { $ref: '#/components/schemas/Domain' }
+        errorContains:
+          type: string
+          description: |
+            A LITERAL substring of the stored error, never a pattern: `%` and
+            `_` match themselves. `(50%).pdf` came out of a real filename, and
+            unescaped that needle would match "50" followed by anything —
+            on a bulk retry, the difference between the group somebody chose
+            and most of the queue.
+          examples: ['MKCOL', '404']
+      required: [action]
+
     VerificationRunReport:
       type: object
       properties:
@@ -4749,6 +4818,23 @@ components:
               id: { type: string }
               severity: { type: string, enum: [INFO, WARNING, ERROR] }
               message: { type: string }
+
+    GroupDecisionAccepted:
+      type: object
+      properties:
+        status: { type: string, enum: [ok] }
+        action: { type: string, enum: [retry, accept] }
+        matched:
+          type: integer
+          description: How many items the decision changed. Zero is not an error.
+        match: { $ref: '#/components/schemas/FailureGroupDecision' }
+        effect:
+          type: string
+          description: |
+            What just happened, in a sentence meant for a person — including
+            when nothing matched, where it says so rather than reporting
+            success over an empty set.
+      required: [status, action, matched, match, effect]
 
     Usage:
       type: object

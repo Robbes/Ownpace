@@ -18,6 +18,16 @@ import {
 import type { PgDatabase } from './db.ts';
 import { eq, and, ne, gt, gte, isNull, isNotNull, or, desc, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
+
+/**
+ * A user-supplied needle as a LITERAL for `LIKE … ESCAPE '\\'`.
+ *
+ * The backslash goes first: escaping it after `%` and `_` would double-escape
+ * the escapes this function just inserted.
+ */
+function likeLiteral(needle: string): string {
+  return needle.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
 import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
@@ -456,6 +466,53 @@ export class PgLedger implements Ledger {
       .returning();
 
     return rows.length > 0;
+  }
+
+  /**
+   * The same decision over a GROUP, and the count it actually changed.
+   *
+   * Scoped to `status = 'failed'` exactly as `resolveFailure` is, and for the
+   * same reason: an item that has since succeeded, or that somebody already
+   * accepted, must not be reopened by a bulk press either.
+   */
+  async resolveFailureGroup(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    action: FailureAction,
+    match: { readonly domain?: DiscoveryDomain; readonly errorContains?: string },
+  ): Promise<number> {
+    const rows = await this.db
+      .update(schemaPg.item)
+      .set(
+        action === 'accept'
+          ? { status: 'left_behind' as const, updatedAt: sql`now()` }
+          : { attemptCount: 0, updatedAt: sql`now()` },
+      )
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.status, 'failed'),
+          ...(match.domain ? [eq(schemaPg.item.domain, match.domain)] : []),
+          ...(match.errorContains
+            ? [
+                // LITERAL, NOT A PATTERN. `%` and `_` are LIKE's own wildcards,
+                // and an error substring is ordinary text that may contain
+                // them — `(50%).pdf` came out of a real filename. Unescaped,
+                // `50%` matches "50" followed by anything, which on a bulk
+                // retry is the difference between the group somebody chose and
+                // most of the queue. The escape character is declared rather
+                // than assumed: Postgres defaults to backslash, but saying so
+                // costs nothing and survives a `standard_conforming_strings`
+                // argument nobody wants to have.
+                sql`${schemaPg.item.lastError} LIKE ${'%' + likeLiteral(match.errorContains) + '%'} ESCAPE '\\'`,
+              ]
+            : []),
+        ),
+      )
+      .returning();
+
+    return rows.length;
   }
 
   async recordAuditEvent(

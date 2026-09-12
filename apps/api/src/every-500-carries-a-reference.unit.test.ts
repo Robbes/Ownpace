@@ -105,7 +105,7 @@ describe('every 500 carries a reference', () => {
   });
 
   it('gives each operating queue its own code, not one shared operating_failed', () => {
-    // Owner decision, workplan 0081 T6. These twenty-four routes serve seven
+    // Owner decision, workplan 0081 T6. These twenty-five routes serve seven
     // different queues; one shared code puts a caller back where this workplan
     // started — a fault it cannot tell apart from a different fault. Pinned
     // because the way this regresses is a copy-pasted catch block, which no
@@ -117,12 +117,15 @@ describe('every 500 carries a reference', () => {
     // Twenty-third and twenty-fourth: reading D10's confirmed list and
     // exporting it, 0117 T2 slice 8 — separate for the same reason, since a
     // list that cannot be read and a download that died halfway send somebody
-    // to two different places.)
+    // to two different places. Twenty-fifth: one decision over a GROUP of
+    // failures, 2026-09-12 — its own code because that press does two writes,
+    // the ledger's and the cursor clear, and "which half failed" is the first
+    // question anybody will ask about it.)
     const source = readFileSync(join(SRC, 'routes/migrations/operating-routes.ts'), 'utf8');
     const codes = [...source.matchAll(/serverError\(res, '([a-z_]+)',/g)].flatMap((m) =>
       m[1] ? [m[1]] : [],
     );
-    expect(codes.length).toBe(24);
+    expect(codes.length).toBe(25);
     // Named, not counted: a Set-size comparison would report "18 !== 19" and
     // leave the next person to find WHICH two collided.
     const seen = new Set<string>();
