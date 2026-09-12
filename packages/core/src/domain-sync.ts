@@ -12,6 +12,7 @@ import { sided } from './failure-side.ts';
 import {
   mapWithConcurrency,
   MAX_ITEM_ATTEMPTS,
+  isDecisionError,
   type Ledger,
   type LedgerRecord,
   type ItemFailure,
@@ -1497,8 +1498,16 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // policy into a counter nobody set.
         if (err instanceof PassAbortError) throw err;
 
+        // A DECISION IS NOT A FAILURE OF THE WORLD (see `isDecisionError`).
+        // A refused Google Form fails the same way on every pass; counting it
+        // toward the tripwire stopped a whole pass over a folder of Docs
+        // ("this is not an item-level problem" — it was), and retrying it
+        // five times put "5 tries" on a policy. It is still counted, recorded
+        // verbatim and surfaced — parked, so a person decides it — but it
+        // resets nothing and trips nothing.
+        const decision = isDecisionError(err);
         failed += 1;
-        consecutiveFailures += 1;
+        if (!decision) consecutiveFailures += 1;
         const error = err as Error;
         const reason = error?.message ?? String(err);
 
@@ -1543,11 +1552,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               status: 'failed',
             },
             reason,
+            // Straight to the ceiling: the loop's next pass then parks it by
+            // its own rule and never fetches it again.
+            decision ? { park: true } : {},
           ),
         );
 
         const attempts = row.attemptCount ?? 1;
-        const parked = attempts >= MAX_ITEM_ATTEMPTS;
+        const parked = decision || attempts >= MAX_ITEM_ATTEMPTS;
         if (parked) needsDecision += 1;
         failures.push({
           domain,
@@ -1560,9 +1572,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // Logged as well as recorded: the ledger is where it persists, the log
         // is where an operator watching a run finds out at the time.
         log.warn(
-          `[sync] ${domain}: item ${failedKey.slice(0, 12)} failed ` +
-            `(attempt ${attempts}/${MAX_ITEM_ATTEMPTS}): ${reason}` +
-            (parked ? ' — no further automatic retries; awaiting a decision' : ''),
+          decision
+            ? `[sync] ${domain}: item ${failedKey.slice(0, 12)} needs a decision, not a retry: ${reason}`
+            : `[sync] ${domain}: item ${failedKey.slice(0, 12)} failed ` +
+                `(attempt ${attempts}/${MAX_ITEM_ATTEMPTS}): ${reason}` +
+                (parked ? ' — no further automatic retries; awaiting a decision' : ''),
         );
 
         // The bad-WORLD tripwire. Beyond this, "keep going" stops being

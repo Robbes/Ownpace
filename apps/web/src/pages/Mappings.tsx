@@ -7,7 +7,7 @@ import {
   Plus,
   MoreVertical as _MoreVertical,
   Play,
-  Pause as _Pause,
+  Pause,
   Trash2,
   Edit,
   AlertCircle
@@ -75,6 +75,31 @@ const Mappings: React.FC = () => {
       setDeleteFailed(serverMessage(error));
     } finally {
       setDeletePending(false);
+    }
+  };
+
+  /**
+   * Pause (0121, live 2026-09-11). The row for an ACTIVE mapping showed one
+   * control, a Play that triggers a pass now — and nothing to stop the
+   * passes. The migration that was looping on a broken target could only be
+   * halted by stopping the worker containers. `paused` is a lifecycle the
+   * product has had all along: the tick skips it and the confirm screen
+   * resumes it — it just had no button.
+   */
+  const handlePause = async (mappingId: string) => {
+    setSyncOutcomes((o) => ({ ...o, [mappingId]: { state: 'pending' } }));
+    try {
+      await mappingApi.pause(mappingId);
+      setSyncOutcomes((o) => {
+        const { [mappingId]: _done, ...rest } = o;
+        return rest;
+      });
+      await refetch();
+    } catch (error) {
+      setSyncOutcomes((o) => ({
+        ...o,
+        [mappingId]: { state: 'failed', text: serverMessage(error) },
+      }));
     }
   };
 
@@ -248,14 +273,25 @@ const Mappings: React.FC = () => {
                   >
                     <div className="flex items-center justify-end space-x-2">
                       {mapping.status === 'active' ? (
-                        <button
-                          onClick={() => handleSync(mapping.id, 'delta')}
-                          disabled={syncOutcomes[mapping.id]?.state === 'pending'}
-                          className="text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title={t('mappings.action.triggerSync')}
-                        >
-                          <Play className="w-5 h-5" />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleSync(mapping.id, 'delta')}
+                            disabled={syncOutcomes[mapping.id]?.state === 'pending'}
+                            className="text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={t('mappings.action.triggerSync')}
+                          >
+                            <Play className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handlePause(mapping.id)}
+                            disabled={syncOutcomes[mapping.id]?.state === 'pending'}
+                            className="text-amber-600 hover:text-amber-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={t('mappings.action.pause')}
+                            aria-label={t('mappings.action.pause')}
+                          >
+                            <Pause className="w-5 h-5" />
+                          </button>
+                        </>
                       ) : mapping.status === 'paused' ? (
                         /* A paused mapping's green light lives on the confirm
                            screen (0037 T2). The Play button this row used to

@@ -46,6 +46,7 @@ export * from './pause-reason.ts';
 export * from './file-body.ts';
 export * from './credential-refusals.ts';
 export * from './failure-category.ts';
+export * from './needs-decision.ts';
 export * from './provider-accounts.ts';
 export * from './archive-providers.ts';
 export * from './provider-directory.ts';

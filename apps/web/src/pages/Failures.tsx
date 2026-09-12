@@ -99,6 +99,28 @@ const Failures: React.FC = () => {
           {queue.needsDecision.length > 0 && (
             <Hint className="mb-2" text={t('failures.retryCost')} why={t('failures.retryCost.why')} />
           )}
+          {/* One press for the whole group. A folder of Google Forms and Maps
+              parks a dozen items at once, each with the same answer, and
+              pressing "Migrate without it" twelve times on a phone is how a
+              decision that was already made gets postponed. Same action as
+              the per-item button, applied to every item still undecided —
+              the server still answers per item, so a refusal on one leaves
+              the others' outcomes intact. */}
+          {queue.needsDecision.length > 1 && (
+            <div className="mb-3">
+              <ActionButton
+                pending={queue.needsDecision.some((f) => outcomes[f.naturalKeyHash]?.state === 'pending')}
+                onClick={() => {
+                  for (const f of queue.needsDecision) {
+                    if (outcomes[f.naturalKeyHash]?.state === 'done') continue;
+                    act(f.naturalKeyHash, () => acceptFailure(mappingId, f.naturalKeyHash));
+                  }
+                }}
+              >
+                {t('failures.acceptAll', { count: String(queue.needsDecision.length) })}
+              </ActionButton>
+            </div>
+          )}
           {queue.needsDecision.map((f) => {
             const pending = outcomes[f.naturalKeyHash]?.state === 'pending';
             return (

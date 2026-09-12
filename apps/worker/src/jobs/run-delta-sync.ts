@@ -23,6 +23,7 @@ import {
   failureSideOf,
 } from '@openmig/core';
 import { budgetPauseToReason } from '@openmig/shared';
+import { mappingStillRuns, taskErrorFor } from './stopping-a-pass.ts';
 import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
@@ -340,6 +341,24 @@ export const runDeltaSync = schemaTask({
         });
       }
       for (const domain of domains) {
+        // THE MAPPING MAY HAVE BEEN PAUSED SINCE THIS RUN WAS ENQUEUED.
+        //
+        // The tick never enqueues a paused mapping, but a run already in the
+        // queue — or already copying — knows nothing of the PATCH that paused
+        // it. Re-read between domains, so a pause pressed during the contact
+        // pass is honoured before the file pass starts rather than an hour
+        // later when this run's deadline arrives. Between domains and not
+        // per item: each domain pass already stops itself at its own
+        // deadline, and the tick will not start another.
+        if (!(await mappingStillRuns(pool, tenantId, mappingId))) {
+          const line = `pass stopped before ${domain}: this migration is no longer active (paused or finished) — nothing failed, the next pass continues from the cursors when it is resumed`;
+          log.info(`[delta-sync] ${line}`);
+          await withTenant(pool, tenantId, async (db) => {
+            await new RunStore(db).logEvent(tenantId, runId, 'info', line, { domain });
+          });
+          break;
+        }
+
         log.info(`Running delta sync for domain: ${domain}`);
 
         try {
@@ -642,7 +661,9 @@ export const runDeltaSync = schemaTask({
       // Close the run row as failed so history shows the failure instead of a
       // row stuck in `running` forever.
       await closeRun('failed', 1);
-      throw error;
+      // A deliberate stop fails ONCE; everything else still retries. The rule
+      // and the reason are on `taskErrorFor`.
+      throw taskErrorFor(error);
     } finally {
       // The net. A no-op on both paths above, and the only thing standing
       // between an unexpected exit and a mapping that never syncs again.

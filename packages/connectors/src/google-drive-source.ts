@@ -43,6 +43,7 @@
 
 import {
   permissionsNotDiscoverable,
+  markNeedsDecision,
   type FileSource,
   type FileFolder,
   type FileItem,
@@ -73,17 +74,68 @@ import { STREAM_FILES_LARGER_THAN_BYTES } from './webdav-source.ts';
 
 const DEFAULT_BASE = 'https://www.googleapis.com/drive/v3';
 
-/** Thrown per item, so one un-migratable file never fails a whole folder. */
+/**
+ * Native types Drive CAN export a rendering of. Every other
+ * `application/vnd.google-apps.*` — form, map, site, jam, script, shortcut —
+ * has NO export in any format (`files.export` answers 403 for them), so an
+ * export policy is not a way out for those and the message must not offer it.
+ * Mirrors the keys of `NATIVE_EXPORT_TYPES`, plus drawing, which Drive exports
+ * as PNG/SVG/PDF and this product does not yet map.
+ */
+export const EXPORTABLE_NATIVE_TYPES: ReadonlySet<string> = new Set([
+  'application/vnd.google-apps.document',
+  'application/vnd.google-apps.spreadsheet',
+  'application/vnd.google-apps.presentation',
+  'application/vnd.google-apps.drawing',
+]);
+
+export const DRIVE_SHORTCUT_MIME = 'application/vnd.google-apps.shortcut';
+
+/**
+ * Thrown per item, so one un-migratable file never fails a whole folder.
+ *
+ * A DECISION, not an error (`markNeedsDecision`): the sync loop parks it on
+ * first sight rather than retrying a policy five times or counting it toward
+ * the "the world is broken" tripwire — which a folder of 25 Google Docs
+ * tripped live on 2026-09-11, stopping the pass for the files that COULD
+ * have been copied.
+ *
+ * The sentence depends on what the thing is, because the way out does:
+ *   - a Doc/Sheet/Slides/Drawing can be EXPORTED, so the policy is named;
+ *   - a Form, My Map, Site or Apps Script cannot be exported at all, so
+ *     offering a policy would send the operator to a setting that changes
+ *     nothing;
+ *   - a shortcut is a pointer to something else, not content.
+ */
 export class NativeFileRefused extends Error {
-  constructor(name: string, mimeType: string) {
-    super(
-      `"${name}" is a Google ${mimeType.slice(GOOGLE_NATIVE_PREFIX.length)} and has no file to ` +
-        'copy. Migrating it means asking Drive to EXPORT a rendering (.docx, .pdf, …), which is ' +
-        'lossy — the original is not recoverable from the result — and is not copied here because ' +
-        'this migration is configured with nativeFilePolicy="refuse". Set an export policy on the ' +
-        'mapping to migrate these, or move them out of scope.',
-    );
+  constructor(name: string, mimeType: string, policy: NativeFilePolicy = 'refuse') {
+    const kind = mimeType.slice(GOOGLE_NATIVE_PREFIX.length);
+    let message: string;
+    if (mimeType === DRIVE_SHORTCUT_MIME) {
+      message =
+        `"${name}" is a Google Drive shortcut: a pointer to an item that lives elsewhere, not ` +
+        'a file of its own, so there is nothing to copy. If the item it points to is in scope ' +
+        'it is copied under its own path; otherwise accept leaving the shortcut behind.';
+    } else if (!EXPORTABLE_NATIVE_TYPES.has(mimeType)) {
+      message =
+        `"${name}" is a Google ${kind} and has no file to copy. Drive cannot export a ${kind} in ` +
+        'any format, so no export policy would change this — the only way to keep it is to open ' +
+        'it in Drive and share or download it there. Accept leaving it behind here.';
+    } else if (policy === 'refuse') {
+      message =
+        `"${name}" is a Google ${kind} and has no file to copy. Migrating it means asking Drive ` +
+        'to EXPORT a rendering (.docx, .pdf, …), which is lossy — the original is not ' +
+        'recoverable from the result — and is not copied here because this migration is ' +
+        'configured with nativeFilePolicy="refuse". Set an export policy on the mapping to ' +
+        'migrate these, or move them out of scope.';
+    } else {
+      message =
+        `"${name}" is a Google ${kind}, and the mapping's export policy (${policy}) has no ` +
+        `rendering for a ${kind}. Choose a policy that covers it, or accept leaving it behind.`;
+    }
+    super(message);
     this.name = 'NativeFileRefused';
+    markNeedsDecision(this);
   }
 }
 
@@ -840,7 +892,9 @@ export class GoogleDriveSource implements FileSource {
     if (!isNativeEditorFile(file.mimeType)) return undefined;
     if (this.policy === 'refuse') return new NativeFileRefused(file.name, file.mimeType);
     const map = NATIVE_EXPORT_TYPES[this.policy];
-    return map[file.mimeType] ? undefined : new NativeFileRefused(file.name, file.mimeType);
+    return map[file.mimeType]
+      ? undefined
+      : new NativeFileRefused(file.name, file.mimeType, this.policy);
   }
 }
 

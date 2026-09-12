@@ -606,6 +606,10 @@ const en = {
   'mappings.th.lastSync': 'Last Sync',
   'mappings.th.actions': 'Actions',
   'mappings.action.triggerSync': 'Trigger sync',
+  'mappings.action.pause': 'Pause',
+  'hub.connections': 'From {source} to {target}',
+  'mappings.action.pause.why':
+    'No new passes are started. A pass already running finishes the data type it is on and then stops. Nothing is lost: Review and start continues from where it stopped.',
   'mappings.action.startSync': 'Start sync',
   // 0037 T2: a paused mapping's row leads to the confirm screen — the Play
   // button it used to render could only earn a 409.
@@ -839,6 +843,7 @@ const en = {
   'failures.retryCost.why':
     'It clears this migration’s sync cursors, so the whole source is listed again; nothing already copied is copied twice.',
   'failures.accept': 'Migrate without it',
+  'failures.acceptAll': 'Migrate without all of these ({count})',
   'failures.try.one': 'try',
   'failures.try.many': 'tries',
   'deletions.title': 'Deleted on the old system',
@@ -2300,6 +2305,10 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.th.lastSync': 'Laatste synchronisatie',
   'mappings.th.actions': 'Acties',
   'mappings.action.triggerSync': 'Synchroniseer nu',
+  'mappings.action.pause': 'Pauzeren',
+  'hub.connections': 'Van {source} naar {target}',
+  'mappings.action.pause.why':
+    'Er worden geen nieuwe rondes gestart. Een ronde die al loopt maakt het huidige gegevenstype af en stopt dan. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
   'mappings.action.startSync': 'Start synchronisatie',
   'mappings.action.reviewAndStart': 'Controleren en starten',
   'mappings.action.delete': 'Verwijderen',
@@ -2519,6 +2528,7 @@ const nl: Record<keyof typeof en, string> = {
   'failures.retryCost.why':
     'Het wist de synchronisatiecursors van deze migratie, zodat de hele bron opnieuw wordt doorlopen; er wordt niets dubbel gekopieerd.',
   'failures.accept': 'Migreer zonder dit item',
+  'failures.acceptAll': 'Migreer zonder al deze items ({count})',
   'failures.try.one': 'poging',
   'failures.try.many': 'pogingen',
   'deletions.title': 'Verwijderd op het oude systeem',
