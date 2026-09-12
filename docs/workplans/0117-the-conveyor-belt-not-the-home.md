@@ -34,6 +34,62 @@ bug restored verbatim.
 each internally consistent and separately guarded. Neither guard could see them, because
 neither slice was wrong. What found them was trying to use the two together.
 
+**2026-09-11: BOTH EDITIONS SERVE THE CONFIRMATION SURFACE — and the screen is
+unblocked.**
+
+The appliance now answers all three, at its own flat URLs, from the SAME reads
+managed uses:
+
+| | managed | appliance |
+|---|---|---|
+| start a pass | `POST /api/migrations/:id/confirm` | `POST /confirm` |
+| D10's list | `GET .../confirmed-list` | `GET /confirmed-list` |
+| the full export | `GET .../confirmed-list/export` | `GET /confirmed-list/export` |
+
+**The route-parity guard's managed-only exception is GONE**, and with it the
+rule that hung on it: *no screen may offer the button*. A screen may now, because
+pressing it does the same thing on either edition.
+
+**Two more things moved into one place, and neither was optional.** Building the
+appliance's half is what showed that the managed API had the whole read inline —
+the keyset walk, the pass state, the CSV streaming — and the worker had the
+whole pass wiring inline: the recorder, the run log, the flush in a `finally`.
+Copying either into `apps/selfhost` would have been the third and fourth copies
+of things this plan has just spent a day consolidating. So
+`confirmed-list-read.ts` and `run-confirmation-pass.ts` are shared, both editions
+call them, and what is left at each edge is HTTP and an opener.
+
+**TWO CONTRACT CORRECTIONS, both to routes THIS PLAN shipped days ago.**
+
+ - `ConfirmedListResponse` was a bare body. Every other per-mapping operating
+   queue — `/failures`, `/moves`, `/deletions`, `/verify` — is `ByMapping<T>`,
+   and the managed router's own header says why: *"with a single key, so the
+   UI's `Object.entries()` works unchanged"*. It is now `ByMapping`.
+ - `POST /confirm` answered `{started, jobRunId}`. Now `ConfirmStartResponse`,
+   also `ByMapping`, and without the job id: the run row is the worker's, opened
+   when the job runs, so nothing at the route can hand one back without
+   inventing it. The screen reads `lastPass` on the list, which is what that
+   field is for.
+
+Both were invisible while only managed served them, because managed's URL
+already names the mapping. The appliance serves every mapping in its config
+directory from one flat URL, so building its half is what asked the question.
+**That is the shape recorded for the fifth time in this plan**, and it is worth
+naming plainly now that it has happened five times: *a thing built before its
+second caller looks finished and is not*. The remedy is cheap — build one real
+caller before calling it done — and every one of these five cost more than that
+would have.
+
+**A guard the appliance never had.** `operating-routes.unit.test.ts` pins what
+MANAGED answers, which is how the exception could sit there for a month saying
+something untrue about the appliance: nothing read the appliance.
+`a-button-only-one-edition-answers.unit.test.ts` is the other half — the three
+URLs asserted where they are actually served, plus that this edition calls the
+shared reads and never assembles the headline itself.
+
+**Left: the screen** (T5's half of the words), and the managed E2E, which has
+not been dispatched for any of this week's work.
+
 **2026-09-11: ONE FAN-OUT, BOTH EDITIONS — the owner took option (b).**
 
 > ✅ *"(b) Extract one fan-out both editions feed, build the readers on it
@@ -704,7 +760,7 @@ the owner says no to it, this document is a record of why and nothing more is wa
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | ✅ **Slices 1–3 built 2026-09-10.** The lane exists in every vocabulary, runs with the deletion detectors absent, and can now be ENTERED: `PATCH /api/migrations/:id` admits `continuous`, offered on the Finish page from `cutover` or `done`, behind two presses and the sentence D8 settled. | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy. |
-| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Left: the appliance's ROUTES — its confirmation-reader assembler now exists, since both editions feed one fan-out (2026-09-11, owner option (b)) — and the screen, which must not ship before them.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
+| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Left: the SCREEN** (T5's half of the words) — both editions now serve the button, the list and the export, so the route-parity exception that forbade a screen is gone. | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The lane's half done 2026-09-10** (D8): the pricing page's "finishing lowers your bill" paragraph gained the exception beside it, and `lane.*` says it again where the switch is — including that deletions at the source stop being mirrored. The drain's consent (D5) defers with T3. **Left: T2's half** — the list must say what "verified" covers before anybody deletes on the strength of it (D10 settled its shape). | A person must be told that a mapping keeps copying after cutover, that deletions at the source are no longer mirrored and why, and what "verified" covers. |

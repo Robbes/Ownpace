@@ -37,35 +37,17 @@
 import { z } from 'zod';
 import { schemaTask, logger } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
-import {
-  ConfirmationStore,
-  PgRateBudget,
-  RunStore,
-  createPgDb,
-  withTenant,
-} from '@openmig/ledger';
-import {
-  runConfirmationPass,
-  type ConfirmationRecorder,
-  type ConfirmationRunLog,
-  type ConfirmableRowRef,
-  type ConfirmedFinding,
-} from '@openmig/core';
+import { PgRateBudget, createPgDb } from '@openmig/ledger';
 import {
   DEFAULT_THROTTLE_CONFIG,
   DISCOVERY_DOMAINS,
   asMappingId,
   asTenantId,
-  type DiscoveryDomain,
-  type MappingId,
-  type TenantId,
 } from '@openmig/shared';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
-import {
-  buildConfirmationReaders,
-  targetProviderKey,
-} from '@openmig/orchestration/build-confirmation-readers';
+import { targetProviderKey } from '@openmig/orchestration/build-confirmation-readers';
 import { managedOpener } from '@openmig/orchestration/build-reindexers';
+import { runConfirmationOver } from '@openmig/orchestration/run-confirmation-pass';
 
 const ConfirmationJobSchema = z.object({
   tenantId: z.string().uuid(),
@@ -90,80 +72,6 @@ if (!DATABASE_URL) {
 }
 
 const pool = new Pool({ connectionString: DATABASE_URL });
-
-/** One page of rows, and one page of writes. The store's own keyset batch. */
-const BATCH = 500;
-
-/**
- * The ledger side of the pass, with a tenant scope per unit of work.
- *
- * `flush()` is exposed rather than left to a destructor: the job calls it in a
- * `finally`, so a pass that dies keeps what it had already found (rule 3).
- */
-function recorderOver(tenantId: TenantId): ConfirmationRecorder & { flush(): Promise<void> } {
-  let pending: Array<{ runId: string; finding: { itemId: string; answer: ConfirmedFinding['answer'] } }> = [];
-
-  const flush = async (): Promise<void> => {
-    if (pending.length === 0) return;
-    // Taken before the await so a concurrent `record` cannot land in the batch
-    // being written and then be dropped by the reset below.
-    const batch = pending;
-    pending = [];
-    await withTenant(pool, tenantId, async (db) => {
-      const store = new ConfirmationStore(db);
-      for (const { runId, finding } of batch) {
-        await store.record({ tenantId, runId, finding });
-      }
-    });
-  };
-
-  return {
-    async *itemsToConfirm(args: {
-      tenantId: TenantId;
-      mappingId: MappingId;
-      domain: DiscoveryDomain;
-    }): AsyncIterable<ConfirmableRowRef> {
-      // The store pages internally; this re-pages OUTSIDE the scope so the
-      // connection is released between pages. `after` is the same keyset
-      // cursor, kept here because the scope does not survive the page.
-      let after: string | undefined;
-      for (;;) {
-        const page: ConfirmableRowRef[] = await withTenant(pool, tenantId, async (db) => {
-          const rows: ConfirmableRowRef[] = [];
-          for await (const row of new ConfirmationStore(db).itemsToConfirm({
-            ...args,
-            batch: BATCH,
-            ...(after ? { after } : {}),
-          })) {
-            rows.push(row);
-            if (rows.length >= BATCH) break;
-          }
-          return rows;
-        });
-        if (page.length === 0) return;
-        for (const row of page) yield row;
-        after = page[page.length - 1]!.itemId;
-        if (page.length < BATCH) return;
-      }
-    },
-
-    async record(args) {
-      pending.push({ runId: args.runId, finding: args.finding });
-      if (pending.length >= BATCH) await flush();
-    },
-
-    flush,
-  };
-}
-
-/** The run row, opened and closed in its own short scopes. */
-function runLogOver(tenantId: TenantId): ConfirmationRunLog {
-  return {
-    startRun: (input) => withTenant(pool, tenantId, (db) => new RunStore(db).startRun(input)),
-    finishRun: (runId, outcome, stats) =>
-      withTenant(pool, tenantId, (db) => new RunStore(db).finishRun(runId, outcome, stats)),
-  };
-}
 
 export const runConfirmationTask = schemaTask({
   id: 'run-confirmation',
@@ -221,42 +129,25 @@ export const runConfirmationTask = schemaTask({
     // domain's target", built from connection rows. The builder itself is
     // edition-agnostic (owner decision 2026-09-11, option (b)) — the appliance
     // hands it a config-built opener and gets the same readers.
-    const readers = await buildConfirmationReaders({
+    // The whole pass — readers, recorder, run row, release — is
+    // `runConfirmationOver`, shared with the appliance (owner decision
+    // 2026-09-11, option (b)). What this job supplies is the two things an
+    // EDITION owns: where the ledger lives (a pg `Pool`) and how a target is
+    // opened (from connection rows).
+    const result = await runConfirmationOver({
+      source: pool,
+      tenantId,
+      mappingId,
       open: managedOpener(pool, tenantId, mappingId),
       wanted,
       budget: { tenantId, provider, rate },
+      trigger: 'manual',
     });
-
-    const ledger = recorderOver(tenantId);
-    try {
-      const result = await runConfirmationPass({
-        tenantId,
-        mappingId,
-        domains: readers.domains,
-        readerFor: readers.readerFor,
-        ledger,
-        runs: runLogOver(tenantId),
-        trigger: 'manual',
-        ...(readers.meter ? { meter: readers.meter } : {}),
-      });
-      logger.info(
-        `[run-confirmation] ${mappingId}: ${result.tally.verified} of ${result.tally.total} ` +
-          `verified, ${result.recorded} recorded` +
-          (result.budgetPause ? ` — paused at the day's ceiling` : ''),
-      );
-      return { started: true as const, runId: result.runId, tally: result.tally };
-    } finally {
-      // Rule 3: whatever was confirmed before a failure stays confirmed. The
-      // flush is here rather than after the pass so a throw keeps the last
-      // partial batch, and `close()` is here so a throw does not strand one
-      // pool per domain.
-      await ledger.flush().catch((err: unknown) => {
-        logger.error(
-          `[run-confirmation] ${mappingId}: could not write the last batch of findings: ` +
-            `${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
-      await readers.close().catch(() => {});
-    }
+    logger.info(
+      `[run-confirmation] ${mappingId}: ${result.tally.verified} of ${result.tally.total} ` +
+        `verified, ${result.recorded} recorded` +
+        (result.paused ? ` — paused at the day's ceiling` : ''),
+    );
+    return { started: true as const, runId: result.runId, tally: result.tally };
   },
 });

@@ -40,15 +40,18 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { ConfirmationStore, PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
+import { PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
 import {
   DISCOVERY_DOMAINS,
   assembleShareAnnouncements,
-  budgetPauseToReason,
-  confirmedListCsv,
-  confirmedListOf,
   renderShareAnnouncement,
 } from '@openmig/shared';
+import {
+  readConfirmedList,
+  streamConfirmedListCsv,
+  runningConfirmation,
+  type ConfirmedListScope,
+} from '@openmig/orchestration/confirmed-list-read';
 import { channelIsOn, tellMessage } from '../../access-notify.ts';
 import {
   DELETIONS_MEANING,
@@ -66,11 +69,8 @@ import {
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
-  BudgetPause,
-  ConfirmationPassState,
+  ConfirmStartResponse,
   ConfirmedListResponse,
-  ConfirmedRowView,
-  PauseReason,
   ApplyQueuedResponse,
   ApplyReceipt,
   VerificationRunReport,
@@ -1554,23 +1554,14 @@ router.post('/:mappingId/confirm', authenticate, async (req: AuthenticatedReques
     // Joined, not stacked — the same idempotent-action shape `verify/start`
     // and `POST .../start` use. A second pass over the same account would pay
     // for every byte twice to answer a question already being answered.
-    const running = await withTenantDb(s.tenantId, pool(), (db) =>
-      db
-        .select({ id: schema.run.id, startedAt: schema.run.startedAt })
-        .from(schema.run)
-        .where(
-          and(
-            eq(schema.run.tenantId, s.tenantId),
-            eq(schema.run.mappingId, s.mappingId),
-            eq(schema.run.kind, 'confirm'),
-            eq(schema.run.status, 'running'),
-          ),
-        )
-        .orderBy(desc(schema.run.startedAt))
-        .limit(1),
-    );
-    if (running[0]) {
-      return void res.status(200).json({ started: false, runId: running[0].id });
+    // `ByMapping` with this path's one key, like the list it feeds — so the
+    // one React app presses the button the same way on either edition.
+    const running = await runningConfirmation(scopeOf(s));
+    if (running) {
+      const joined: ConfirmStartResponse = {
+        [s.mappingId]: { started: false, runId: running.runId },
+      };
+      return void res.status(200).json(joined);
     }
 
     try {
@@ -1579,7 +1570,13 @@ router.post('/:mappingId/confirm', authenticate, async (req: AuthenticatedReques
         tags: [`tenant:${s.tenantId}`, `mapping:${s.mappingId}`],
         concurrencyKey: `confirm:${s.mappingId}`,
       });
-      res.status(202).json({ started: true, jobRunId: run.id });
+      // 202 and no `runId`: the run row is the WORKER's, opened when the job
+      // runs, because `runConfirmationPass` owns the rule that a run row always
+      // closes. Nothing here can hand one back without inventing it — the
+      // screen reads `lastPass` on the list instead.
+      void run;
+      const started: ConfirmStartResponse = { [s.mappingId]: { started: true } };
+      res.status(202).json(started);
     } catch (err) {
       // Nothing to unwind: this route wrote no row. Say the start did not
       // happen rather than leaving the page to poll for a pass nobody queued.
@@ -1627,145 +1624,14 @@ router.post('/:mappingId/confirm', authenticate, async (req: AuthenticatedReques
  * customer's message subjects and file paths.
  */
 
-/** One database page. The store's own keyset batch. */
-const LIST_PAGE = 500;
-
 /**
- * How many non-verified rows the JSON body carries before it says so.
- *
- * Bounded because the WORST case is the ordinary one: before any pass has run,
- * not a single row is verified, so an un-confirmed account of any size would
- * otherwise be serialised whole into one response. `truncated` says it happened
- * and the export carries the rest — never a quietly short list, which on this
- * document would read as an account with less in it than there is (§7c).
+ * THE READ IS SHARED (2026-09-11). `walkConfirmedRows`, the keyset paging, the
+ * pass state and the CSV streaming all live in
+ * `@openmig/orchestration/confirmed-list-read` now, because the appliance
+ * answers the same question and a second copy of a walk over these rows is how
+ * this repository reported `tasks 0/4`. What is left here is the HTTP: the
+ * tenant scope, the status codes, and the streaming response's backpressure.
  */
-const LIST_ROWS_SHOWN = 1000;
-
-/**
- * Walk every row of the mapping, one keyset page at a time.
- *
- * `visit` is called once per row in `id` order — the SAME order both consumers
- * see, which is why `rowsFor` sorts. A list and an export that ordered rows
- * differently would look like two different accounts to somebody reconciling
- * one against the other.
- *
- * **The cursor is checked to have advanced**, and that is not defensive
- * padding. A `rowsFor` that ignored `after` would hand back the same full page
- * for ever, and this loop's only exit is a short page: an API thread spinning
- * on a database, holding a connection per page, until something else falls
- * over. The store's own guard covers that today; this is the second line,
- * because the failure here is a live outage rather than a wrong number, and its
- * check is exact rather than an arbitrary cap — ids strictly increase or the
- * read is not what it says it is.
- */
-async function walkConfirmedRows(
-  s: Scoped,
-  visit: (row: ConfirmedRowView) => void | Promise<void>,
-): Promise<void> {
-  let after: string | undefined;
-  for (;;) {
-    const page = await withTenantDb(s.tenantId, pool(), (db) =>
-      new ConfirmationStore(db).rowsFor({
-        tenantId: s.tenantId as TenantId,
-        mappingId: s.mappingId as MappingId,
-        batch: LIST_PAGE,
-        ...(after ? { after } : {}),
-      }),
-    );
-    if (page.length === 0) return;
-    const last = page[page.length - 1]!.itemId;
-    if (after !== undefined && last <= after) {
-      throw new Error(
-        `confirmed list paging did not advance past ${after} — the keyset cursor is being ignored`,
-      );
-    }
-    for (const row of page) {
-      await visit({
-        state: row.state,
-        claim: row.claim,
-        domain: row.domain,
-        collection: row.collection,
-        naturalKey: row.naturalKey,
-        confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
-      });
-    }
-    after = last;
-    if (page.length < LIST_PAGE) return;
-  }
-}
-
-/**
- * Where the last confirmation pass got to, and why it stopped if it stopped
- * early.
- *
- * The run row is the worker's (`kind: 'confirm'`), so this only reads. A
- * `succeeded` run carrying a `budgetPause` in its stats is NOT a failure — 0090
- * T4's rule, that a scheduled stop is a stop and not an error — and it becomes
- * the sentence `budgetPauseToReason` already writes for the customer, rather
- * than a pile of bytes only an engineer can read.
- */
-async function latestConfirmationPass(
-  s: Scoped,
-): Promise<{ lastPass: ConfirmationPassState; pausedAt?: PauseReason }> {
-  const rows = await withTenantDb(s.tenantId, pool(), (db) =>
-    db
-      .select({
-        status: schema.run.status,
-        startedAt: schema.run.startedAt,
-        finishedAt: schema.run.finishedAt,
-        stats: schema.run.stats,
-      })
-      .from(schema.run)
-      .where(
-        and(
-          eq(schema.run.tenantId, s.tenantId),
-          eq(schema.run.mappingId, s.mappingId),
-          eq(schema.run.kind, 'confirm'),
-        ),
-      )
-      .orderBy(desc(schema.run.startedAt))
-      .limit(1),
-  );
-  const row = rows[0];
-  if (!row) return { lastPass: { state: 'never-run' } };
-
-  // `startedAt` is nullable in the schema (a queued row has none yet). A run
-  // with no start time has not started, which is what `never-run` says — and is
-  // a truer answer than inventing `new Date()` for it (hard rule 9).
-  if (!row.startedAt) return { lastPass: { state: 'never-run' } };
-  const startedAt = row.startedAt.toISOString();
-  if (row.status === 'queued' || row.status === 'running') {
-    return { lastPass: { state: 'running', startedAt } };
-  }
-  const finishedAt = (row.finishedAt ?? row.startedAt).toISOString();
-  if (row.status !== 'succeeded') {
-    return { lastPass: { state: 'failed', startedAt, finishedAt } };
-  }
-
-  const stats = (row.stats ?? {}) as { budgetPause?: unknown };
-  const pause = stats.budgetPause;
-  const reason = isBudgetPause(pause) ? budgetPauseToReason(pause) : undefined;
-  return { lastPass: { state: 'done', startedAt, finishedAt }, ...(reason ? { pausedAt: reason } : {}) };
-}
-
-/**
- * Is this jsonb value a `BudgetPause`?
- *
- * CHECKED, never cast — the same rule `isPauseReason` states for its own side
- * of the boundary. This is a column an older or newer build wrote, and a cast
- * would put `undefined` into a sentence a customer reads as the reason their
- * account is only part checked.
- */
-function isBudgetPause(value: unknown): value is BudgetPause {
-  if (typeof value !== 'object' || value === null) return false;
-  const v = value as Record<string, unknown>;
-  return (
-    typeof v.provider === 'string' &&
-    typeof v.ceilingBytes === 'number' &&
-    typeof v.spentBytes === 'number' &&
-    (v.windowResetsAt === null || typeof v.windowResetsAt === 'string')
-  );
-}
 
 router.get(
   '/:mappingId/confirmed-list',
@@ -1775,22 +1641,12 @@ router.get(
       const s = await scope(req, res);
       if (!s) return;
 
-      // Counted over EVERY row, kept up to the bound, and neither number is
-      // computed here: `confirmedListOf` is the shared shaper, so this body
-      // carries the same arithmetic the appliance and the export do. A count
-      // assembled in a route handler is a second opinion about somebody's data.
-      const list = confirmedListOf<ConfirmedRowView>({ limit: LIST_ROWS_SHOWN });
-      await walkConfirmedRows(s, (row) => list.add(row));
-      const shaped = list.result();
-
-      const pass = await latestConfirmationPass(s);
+      // `ByMapping`, with the one key this path names — the shape every
+      // operating queue takes, so the one React app can read the appliance's
+      // answer (which carries every mapping in its config directory) and this
+      // one with the same code.
       const body: ConfirmedListResponse = {
-        migrationStatus: s.lifecycle,
-        verified: shaped.verified,
-        total: shaped.total,
-        rows: shaped.rows,
-        ...(shaped.truncated ? { truncated: true } : {}),
-        ...pass,
+        [s.mappingId]: await readConfirmedList(scopeOf(s), s.lifecycle),
       };
       res.json(body);
     } catch (error) {
@@ -1825,22 +1681,7 @@ router.get(
         'Content-Disposition',
         `attachment; filename="confirmed-${s.mappingId}.csv"`,
       );
-      // The header row comes out of the same renderer as the rows, from an
-      // empty list — so the columns and their order cannot drift from what
-      // fills them.
-      await send(res, confirmedListCsv([]));
-      let batch: ConfirmedRowView[] = [];
-      const flush = async (): Promise<void> => {
-        if (batch.length === 0) return;
-        const chunk = stripCsvHeader(confirmedListCsv(batch));
-        batch = [];
-        await send(res, chunk);
-      };
-      await walkConfirmedRows(s, async (row) => {
-        batch.push(row);
-        if (batch.length >= LIST_PAGE) await flush();
-      });
-      await flush();
+      await streamConfirmedListCsv(scopeOf(s), (chunk) => send(res, chunk));
       res.end();
     } catch (error) {
       // Once bytes are on the wire the status is already sent, and a JSON error
@@ -1865,15 +1706,13 @@ router.get(
  * pile up unsent, which is the memory failure with an extra step. So this waits
  * for `drain`, and the export goes out at the speed the client reads it.
  */
+function scopeOf(s: Scoped): ConfirmedListScope {
+  return { source: pool(), tenantId: s.tenantId as TenantId, mappingId: s.mappingId as MappingId };
+}
+
 function send(res: Response, chunk: string): Promise<void> {
   if (res.write(chunk)) return Promise.resolve();
   return new Promise((resolve) => res.once('drain', resolve));
-}
-
-/** Drop the BOM and header line a fresh render carries, for a continuation. */
-function stripCsvHeader(csv: string): string {
-  const firstBreak = csv.indexOf('\r\n');
-  return firstBreak === -1 ? '' : csv.slice(firstBreak + 2);
 }
 
 export default router;

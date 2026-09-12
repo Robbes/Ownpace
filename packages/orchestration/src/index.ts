@@ -25,6 +25,7 @@ export {
   runAllDomains,
   discoverAllDomains,
   verifyMapping,
+  applianceOpener,
   applyMappingDeletion,
   applyMappingRelocation,
   planDomainLanes,

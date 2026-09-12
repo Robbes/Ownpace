@@ -865,7 +865,7 @@ export type ConfirmationPassState =
  * sitting in a run row nobody reads. §7c's own warning is about a list that
  * misleads by omission, and this is that omission.
  */
-export interface ConfirmedListResponse {
+export interface ConfirmedListQueue {
   readonly migrationStatus: MappingLifecycle;
   /** The headline. Only `verified` counts — `yours` and `present` do not. */
   readonly verified: number;
@@ -887,3 +887,43 @@ export interface ConfirmedListResponse {
   /** Why the last pass stopped early, when it did (0090 T4). */
   readonly pausedAt?: PauseReason;
 }
+
+/**
+ * What `POST {mappingPath}/confirm` answers — `ByMapping`, like the list it
+ * feeds (workplan 0117 T2, D7(a)).
+ *
+ * `started: false` is not an error. It means a pass was already under way for
+ * that mapping and this request JOINED it — the same idempotent-action shape as
+ * `VerifyStartResponse` and `POST .../start`'s `activated: false`. A second
+ * pass over the same account would pay for every byte twice to answer a
+ * question already being answered.
+ *
+ * `runId` is the LEDGER run when one is known, which is when a pass was already
+ * running. A pass this call starts has no run row yet — the worker (or the
+ * appliance's own task) opens it, because `runConfirmationPass` owns the rule
+ * that a run row always closes — so nothing here can hand one back without
+ * inventing it. The screen does not need it either: `lastPass` on the list is
+ * where a poller reads how far the pass got.
+ */
+export type ConfirmStartResponse = ByMapping<{
+  readonly started: boolean;
+  readonly runId?: string;
+}>;
+
+/**
+ * `GET {mappingPath}/confirmed-list`, in the shape every operating queue takes.
+ *
+ * `ByMapping<T>` like `/failures`, `/moves`, `/deletions` and `/verify`, and
+ * for the reason this file's header gives: the UI is one React app served by
+ * both editions, the appliance answers for every mapping in its config
+ * directory at one flat URL, and managed answers for the one its path names —
+ * *"with a single key, so the UI's `Object.entries()` works unchanged"*.
+ *
+ * **It was a bare body when it shipped (slice 8), and that was wrong.** The
+ * mistake was invisible while only managed served it, because managed's URL
+ * already names the mapping; building the appliance's half is what found it,
+ * which is this workplan's recurring shape for the fifth time. A bare body
+ * would have forced the screen to hold two code paths — exactly the asymmetry
+ * ADR-0026 exists to close.
+ */
+export type ConfirmedListResponse = ByMapping<ConfirmedListQueue>;
