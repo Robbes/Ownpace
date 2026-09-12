@@ -25,6 +25,8 @@ import type {
 import {
   naturalKeyForCalendar,
   naturalKeyForTask,
+  naturalKeyTextForCalendar,
+  naturalKeyTextForTask,
   calendarContentHash,
   isOnTarget,
   neutraliseScheduling,
@@ -185,12 +187,32 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
    * and both would pick up together on the day one does.
    */
   private ledgerKeyFor(raw: RawCalendarEvent, uid: string): string {
-    // `uid` from the iCalendar bytes rather than `raw.item.uid`: those bytes
-    // are what lands on the target, and a caller may hand this writer a raw
-    // object with no `item` at all. Everything else about the key comes from
-    // the item when there is one.
-    const keyed = { ...(raw.item ?? {}), uid } as CalendarEvent;
-    return this.domain === 'task' ? naturalKeyForTask(keyed) : naturalKeyForCalendar(keyed);
+    return this.domain === 'task'
+      ? naturalKeyForTask(this.keyedFrom(raw, uid))
+      : naturalKeyForCalendar(this.keyedFrom(raw, uid));
+  }
+
+  /**
+   * THE SAME OBJECT'S IDENTIFIER IN PLAIN TEXT, for the confirmed list.
+   *
+   * Off `keyedFrom` too, so it carries RECURRENCE-ID exactly when the key does.
+   * Split out rather than recomputed because the drift the block above exists
+   * to prevent would come straight back if the two read different fields.
+   */
+  private ledgerKeyTextFor(raw: RawCalendarEvent, uid: string): string {
+    return this.domain === 'task'
+      ? naturalKeyTextForTask(this.keyedFrom(raw, uid))
+      : naturalKeyTextForCalendar(this.keyedFrom(raw, uid));
+  }
+
+  /**
+   * `uid` from the iCalendar bytes rather than `raw.item.uid`: those bytes
+   * are what lands on the target, and a caller may hand this writer a raw
+   * object with no `item` at all. Everything else about the key comes from
+   * the item when there is one.
+   */
+  private keyedFrom(raw: RawCalendarEvent, uid: string): CalendarEvent {
+    return { ...(raw.item ?? {}), uid } as CalendarEvent;
   }
 
   /**
@@ -209,6 +231,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // a ledger key — that is the hash below.
     const naturalKey = uid;
     const naturalKeyHash = this.ledgerKeyFor(raw, uid);
+    // What the confirmed list will call this object. Recorded HERE as well as
+    // by the loop for the same reason `collection` and `sourceRef` are: this
+    // writer can win the `recordIfAbsent` race, and a field only the loser
+    // passes is a field that never lands.
+    const naturalKeyText = this.ledgerKeyTextFor(raw, uid);
 
     // UPDATE PATH: the source event changed after we copied it, so rewrite it.
     //
@@ -307,6 +334,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         // `recordIfAbsent`, so the source's own handle is recorded here or
         // not at all. Without it a removal report has no way back to the item.
         ...(options?.sourceRef !== undefined ? { sourceRef: options.sourceRef } : {}),
+        naturalKey: naturalKeyText,
       });
       return { targetId: existingId, created: false, adopted: true };
     }
@@ -343,6 +371,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // `recordIfAbsent`, so the source's own handle is recorded here or
       // not at all. Without it a removal report has no way back to the item.
       ...(options?.sourceRef !== undefined ? { sourceRef: options.sourceRef } : {}),
+      naturalKey: naturalKeyText,
       // NOT from the loop: only this writer saw the server's answer to the
       // PUT. Same race, opposite direction — recorded here or not at all.
       ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),

@@ -29,6 +29,10 @@ export const reindexFromTarget: RunReindex = async (deps) => {
       itemType: domain,
       mappingId,
       naturalKeyHash: nkh,
+      // Already in hand — this loop hashes it one line up. An adopted row is
+      // one the owner will see on the confirmed list like any other, so it
+      // carries the same identifier.
+      naturalKey: entry.naturalKey,
       contentHash: entry.contentHash ?? '',
       targetId: entry.targetId,
       createdAt: new Date().toISOString(),

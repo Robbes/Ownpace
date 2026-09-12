@@ -205,6 +205,9 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         // `recordIfAbsent`, so the source's own handle is recorded here or
         // not at all. Without it a removal report has no way back to the item.
         ...(options?.sourceRef !== undefined ? { sourceRef: options.sourceRef } : {}),
+        // The vCard UID, unhashed, so the confirmed list can name this card.
+        // Recorded here as well as by the loop for the same race as above.
+        naturalKey,
       });
       return { targetId: existingId, created: false, adopted: true };
     }
@@ -239,6 +242,9 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       // `recordIfAbsent`, so the source's own handle is recorded here or
       // not at all. Without it a removal report has no way back to the item.
       ...(options?.sourceRef !== undefined ? { sourceRef: options.sourceRef } : {}),
+      // The vCard UID, unhashed, so the confirmed list can name this card.
+      // Recorded here as well as by the loop for the same race as above.
+      naturalKey,
       // NOT from the loop: only this writer saw the server's answer to the PUT.
       ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
     });

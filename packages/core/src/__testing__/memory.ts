@@ -342,6 +342,13 @@ export class MemoryLedger implements Ledger {
       ...(record.targetVersion !== undefined ? { targetVersion: record.targetVersion } : {}),
       ...(record.collection !== undefined ? { collection: record.collection } : {}),
       ...(record.sourceRef !== undefined ? { sourceRef: record.sourceRef } : {}),
+      // Conditional AND non-empty, exactly as the SQL is: `''` is what every
+      // row written before 2026-09-12 holds, so PgLedger treats it as nothing
+      // to say and lets a later pass repair the row. A fake that accepted a
+      // blank would let a caller that stopped supplying one look correct.
+      ...(record.naturalKey !== undefined && record.naturalKey !== ''
+        ? { naturalKey: record.naturalKey }
+        : {}),
       // A fact about the ORIGINAL copy. Postgres keeps it because first_seen_at
       // is not in the SET clause either.
       createdAt: existing.createdAt,
