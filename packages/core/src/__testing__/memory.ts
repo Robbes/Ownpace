@@ -357,9 +357,17 @@ export class MemoryLedger implements Ledger {
    * would let the loop's "park after N attempts" logic look correct while
    * never parking anything.
    */
-  recordFailure(record: LedgerRecord, error: string): Promise<LedgerRecord> {
+  recordFailure(
+    record: LedgerRecord,
+    error: string,
+    options: { readonly park?: boolean } = {},
+  ): Promise<LedgerRecord> {
     const k = this.key(record);
     const existing = this.rows.get(k);
+    // Mirrors PgLedger: parked lands at the ceiling at once, never below
+    // what the row already holds.
+    const bumped = (existing?.attemptCount ?? 0) + 1;
+    const attempts = options.park ? Math.max(bumped, MAX_ITEM_ATTEMPTS) : bumped;
     // Mirrors PgLedger's ON CONFLICT set EXACTLY: on an existing row only the
     // status, the attempt count and the error change.
     //
@@ -372,10 +380,10 @@ export class MemoryLedger implements Ledger {
       ? {
           ...existing,
           status: 'failed',
-          attemptCount: (existing.attemptCount ?? 0) + 1,
+          attemptCount: attempts,
           lastError: error,
         }
-      : { ...record, status: 'failed', attemptCount: 1, lastError: error };
+      : { ...record, status: 'failed', attemptCount: attempts, lastError: error };
     this.rows.set(k, merged);
     return Promise.resolve(merged);
   }

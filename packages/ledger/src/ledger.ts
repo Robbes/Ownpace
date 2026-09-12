@@ -235,13 +235,24 @@ export class PgLedger implements Ledger {
    * The insert still carries `onConflictDoNothing`, so two workers failing the
    * same item at once cannot produce two rows; the loser re-runs the update.
    */
-  async recordFailure(record: LedgerRecord, error: string): Promise<LedgerRecord> {
+  async recordFailure(
+    record: LedgerRecord,
+    error: string,
+    options: { readonly park?: boolean } = {},
+  ): Promise<LedgerRecord> {
+    // Parked: straight to the ceiling, so the loop's own rule ("attempts
+    // exhausted, hand it to a person") applies from the first sighting. Never
+    // BELOW what the row already holds — a decision arriving on an item that
+    // was already failing keeps that history.
+    const attempts = options.park
+      ? sql`GREATEST(${schemaPg.item.attemptCount} + 1, ${MAX_ITEM_ATTEMPTS})`
+      : sql`${schemaPg.item.attemptCount} + 1`;
     const bump = () =>
       this.db
         .update(schemaPg.item)
         .set({
           status: 'failed',
-          attemptCount: sql`${schemaPg.item.attemptCount} + 1`,
+          attemptCount: attempts,
           lastError: error,
           updatedAt: sql`now()`,
           // Deliberately NOT content_hash or source_version: a failed attempt
@@ -281,7 +292,7 @@ export class PgLedger implements Ledger {
         // No `target_version`, deliberately, and for the same reason this path
         // leaves content_hash alone on an existing row: a failed attempt wrote
         // nothing, so there is no version of ours on the target to remember.
-        attemptCount: 1,
+        attemptCount: options.park ? MAX_ITEM_ATTEMPTS : 1,
         lastError: error,
         firstSeenAt: sql`now()`,
         updatedAt: sql`now()`,

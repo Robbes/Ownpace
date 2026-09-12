@@ -1084,8 +1084,18 @@ export interface Ledger {
    * silent no-op (which is what `recordIfAbsent` would have done — leaving
    * `attempt_count` at 1 forever and making a permanently broken item
    * indistinguishable from one that failed once).
+   *
+   * `options.park` records the failure as one that is NOT going to be retried
+   * automatically: `attempt_count` lands at `MAX_ITEM_ATTEMPTS` at once, so
+   * the next pass hands the item to a person instead of fetching it again.
+   * For decision-class failures (see `isDecisionError`) — a policy that
+   * answers the same way every time is not something to try five times.
    */
-  recordFailure(record: LedgerRecord, error: string): Promise<LedgerRecord>;
+  recordFailure(
+    record: LedgerRecord,
+    error: string,
+    options?: { readonly park?: boolean },
+  ): Promise<LedgerRecord>;
   /**
    * Everything the ledger says is ON THE TARGET for one domain, with the source
    * collection each item came from.

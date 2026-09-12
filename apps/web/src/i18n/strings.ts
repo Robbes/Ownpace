@@ -839,6 +839,7 @@ const en = {
   'failures.retryCost.why':
     'It clears this migration’s sync cursors, so the whole source is listed again; nothing already copied is copied twice.',
   'failures.accept': 'Migrate without it',
+  'failures.acceptAll': 'Migrate without all of these ({count})',
   'failures.try.one': 'try',
   'failures.try.many': 'tries',
   'deletions.title': 'Deleted on the old system',
@@ -2519,6 +2520,7 @@ const nl: Record<keyof typeof en, string> = {
   'failures.retryCost.why':
     'Het wist de synchronisatiecursors van deze migratie, zodat de hele bron opnieuw wordt doorlopen; er wordt niets dubbel gekopieerd.',
   'failures.accept': 'Migreer zonder dit item',
+  'failures.acceptAll': 'Migreer zonder al deze items ({count})',
   'failures.try.one': 'poging',
   'failures.try.many': 'pogingen',
   'deletions.title': 'Verwijderd op het oude systeem',
