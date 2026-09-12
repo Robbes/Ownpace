@@ -43,6 +43,8 @@ import * as schema from '@openmig/ledger';
 import { PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
 import {
   DISCOVERY_DOMAINS,
+  type DiscoveryDomain,
+  type GroupDecisionAccepted,
   assembleShareAnnouncements,
   renderShareAnnouncement,
 } from '@openmig/shared';
@@ -794,6 +796,109 @@ router.post(
     }
   },
 );
+
+/**
+ * ONE DECISION OVER A WHOLE GROUP (2026-09-12, after the live MKCOL fix).
+ *
+ * `POST` beside the `GET` that lists the queue, deliberately: this acts on a
+ * selection of the same thing the GET returns, and a three-segment path cannot
+ * be confused with `/failures/:hash/:action` whatever order routes register
+ * in — a four-segment `/failures/group/retry` would match the per-item route
+ * with `hash='group'`, silently, depending on which was declared first.
+ *
+ * WHY IT EXISTS. A connector bug parks items by the dozen; its fix parks
+ * nothing, but parking does not clear itself. After the WebDAV collection fix
+ * landed, 82 files were still parked for a defect that no longer existed, and
+ * the only ways to clear them were 82 presses or SQL against the ledger. The
+ * owner ran the SQL — which also skipped the cursor clear this route does,
+ * because the product's retry has always been two things and hand-written SQL
+ * is only ever the first.
+ */
+router.post('/:mappingId/failures', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const body = (req.body ?? {}) as {
+      action?: unknown;
+      domain?: unknown;
+      errorContains?: unknown;
+    };
+    const raw = String(body.action ?? '');
+    if (raw !== 'retry' && raw !== 'accept') {
+      return void res.status(400).json({
+        error: `unknown action '${raw}'`,
+        hint: 'A group of failed items can be retried or accepted.',
+      });
+    }
+    const action: 'retry' | 'accept' = raw;
+
+    const domain = body.domain === undefined ? undefined : String(body.domain);
+    if (domain !== undefined && !(DISCOVERY_DOMAINS as readonly string[]).includes(domain)) {
+      return void res.status(400).json({
+        error: `unknown domain '${domain}'`,
+        hint: `One of ${DISCOVERY_DOMAINS.join(', ')}.`,
+      });
+    }
+    const errorContains =
+      body.errorContains === undefined ? undefined : String(body.errorContains);
+
+    // IT MUST NARROW. Not because a retry is dangerous — it writes nothing to
+    // anybody's account — but because this queue also holds policy refusals,
+    // which re-park the moment they are seen again. An unnarrowed press costs
+    // a refetch per undecidable item and changes nothing about them, which is
+    // not what the person meant by it.
+    if (domain === undefined && (errorContains === undefined || errorContains === '')) {
+      return void res.status(400).json({
+        error: 'a group decision has to say WHICH failures it is for',
+        hint:
+          'Send a domain, an errorContains substring, or both. The queue holds refusals that ' +
+          'will not change on a retry, so "all of them" is almost never the intent.',
+      });
+    }
+
+    const s = await scope(req, res);
+    if (!s) return;
+
+    const match = {
+      ...(domain !== undefined ? { domain: domain as DiscoveryDomain } : {}),
+      ...(errorContains !== undefined ? { errorContains } : {}),
+    };
+    const matched = await withLedger(s.tenantId, (l) =>
+      l.resolveFailureGroup(s.tenantId as TenantId, s.mappingId as MappingId, action, match),
+    );
+
+    // Cleared ONCE for the whole group rather than per item — same reasoning as
+    // the single-item route (ADR-0020: cursors are non-authoritative, so a full
+    // re-scan is the cost and it stays idempotent), and clearing it 82 times
+    // would do the same thing 81 times over.
+    //
+    // Skipped when nothing matched: a press that changed no row has no items to
+    // put back in front of the loop, and re-scanning the account to discover
+    // that is a bill for nothing.
+    if (action === 'retry' && matched > 0) {
+      await withTenantDb(s.tenantId, pool(), (db) =>
+        new PgCursorStore(db).clear(s.tenantId as TenantId, s.mappingId as MappingId),
+      );
+    }
+
+    const body_: GroupDecisionAccepted = {
+      status: 'ok',
+      action,
+      matched,
+      match,
+      effect:
+        matched === 0
+          ? 'Nothing matched, so nothing changed. Check the domain and the wording — the ' +
+            'substring is matched literally, not as a pattern.'
+          : action === 'retry'
+            ? `Attempts reset on ${matched} item(s) and cursors cleared; the next scheduled ` +
+              'pass will try them again.'
+            : `Left behind for good: ${matched} item(s) will not be retried, and are excluded ` +
+              'from the verification gate.',
+    };
+    res.json(body_);
+  } catch (error) {
+    serverError(res, 'failure_group_decision_failed', 'recording the decision on this group', error);
+  }
+});
 
 // `:action` is validated in the handler rather than in the path. Express 5
 // removed regex path parameters — `:action(retry|accept)` throws at route

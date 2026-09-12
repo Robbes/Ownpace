@@ -1172,6 +1172,37 @@ export interface Ledger {
    * row under that key — an already-resolved item must not silently look like
    * a successful decision.
    */
+  /**
+   * Apply one decision to a GROUP of failed items, and say how many it changed.
+   *
+   * WHY A GROUP AND NOT A LOOP OVER ONE. A connector bug parks items by the
+   * dozen, and its fix parks nothing — but parking does not clear itself, so
+   * every item the old code exhausted stays parked for a defect that no longer
+   * exists. Live 2026-09-11 that was 82 files behind one non-recursive MKCOL,
+   * and the only ways to clear them were 82 button presses or hand-written
+   * SQL against the ledger. The owner ran the SQL.
+   *
+   * `match` NARROWS, and at least one narrowing is required of the caller (the
+   * route enforces it): a bare "retry everything failed" would also reset the
+   * policy refusals sitting beside them, which re-park on first sight and buy
+   * nothing but a refetch each. The two that matter in practice are the domain
+   * and a substring of the error, because "everything that failed the same way"
+   * is how a person actually thinks about a connector bug.
+   *
+   * `errorContains` is matched LITERALLY. A needle carrying `%` or `_` must not
+   * widen the match — `50%` is an ordinary thing to find in a filename, and a
+   * bare LIKE would turn it into "anything".
+   *
+   * Returns the number of rows changed, never a boolean: a caller that cannot
+   * say how many items it just put back in front of the loop is reporting an
+   * intention rather than an effect.
+   */
+  resolveFailureGroup(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    action: FailureAction,
+    match: { readonly domain?: DiscoveryDomain; readonly errorContains?: string },
+  ): Promise<number>;
   resolveFailure(
     tenantId: TenantId,
     mappingId: MappingId,

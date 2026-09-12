@@ -61,6 +61,12 @@ describe('route registration', () => {
         'PATCH /:mappingId/apply-deletions',
         'POST /:mappingId/deletions/:hash/apply',
         'POST /:mappingId/deletions/:hash/keep',
+        // A DECISION OVER A GROUP (2026-09-12), three segments beside the
+        // GET that lists the same queue. It is deliberately NOT
+        // `/failures/group/:action`: four segments would match the per-item
+        // route below with `hash='group'`, and which of the two won would
+        // depend on declaration order — silently, since both are valid.
+        'POST /:mappingId/failures',
         'POST /:mappingId/failures/:hash/:action',
         'GET /:mappingId/moves/:hash/receipt',
         'POST /:mappingId/finish',
@@ -133,6 +139,21 @@ describe('route registration', () => {
     // work in the worker, GET reads a row.
     const got = routes().filter((r) => r.path.includes('verify')).map((r) => `${r.method} ${r.path}`);
     expect(got.sort()).toEqual(['GET /:mappingId/verify/report', 'POST /:mappingId/verify/start']);
+  });
+
+  it('keeps the group decision at a DIFFERENT segment count from the per-item one', () => {
+    // The collision this shape avoids. Express matches on segment count first,
+    // so a three-segment POST and a four-segment POST cannot shadow each other
+    // whatever order they register in. `/failures/group/retry` would have been
+    // four segments — indistinguishable from a per-item decision on an item
+    // whose hash happens to be the word `group`, which is a legal hash.
+    const posts = routes().filter((r) => r.method === 'POST' && r.path.includes('/failures'));
+    const segments = posts.map((r) => r.path.split('/').filter(Boolean).length).sort();
+    expect(segments).toEqual([2, 4]);
+    expect(posts.map((r) => r.path).sort()).toEqual([
+      '/:mappingId/failures',
+      '/:mappingId/failures/:hash/:action',
+    ]);
   });
 
   it('takes the failure action as a plain parameter, not a regex', () => {

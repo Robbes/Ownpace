@@ -532,6 +532,47 @@ Three answers, per item:
 A pass that hits **25 consecutive** failures stops instead: that pattern means
 the credential or the target is the problem, not the items.
 
+### One decision over a whole group
+
+A connector bug parks items by the dozen, and **fixing it unparks nothing** —
+parking is a stored attempt count, and deploying a fix does not lower it. Live
+on 2026-09-11 a non-recursive `MKCOL` left 82 files parked for a defect that no
+longer existed, and the migration reported itself complete over the hole.
+
+So the same two answers apply to a selection, in one press:
+
+```bash
+# Managed (authenticated, tenant-scoped)
+curl -sX POST "$API/api/migrations/$MAPPING/failures" \
+  -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"action":"retry","domain":"file","errorContains":"MKCOL"}'
+
+# Appliance (localhost)
+curl -sX POST "http://127.0.0.1:8081/mappings/$MAPPING/failures" \
+  -H 'content-type: application/json' \
+  -d '{"action":"retry","domain":"file","errorContains":"MKCOL"}'
+```
+
+It answers `matched`: how many rows it actually changed. Zero is a successful
+call that changed nothing — usually a substring that does not occur.
+
+> **Rule.** A group decision must NARROW: send `domain`, `errorContains`, or
+> both. A request with neither is refused with `400`. Not because a retry is
+> dangerous — it writes nothing to anybody's account — but because this queue
+> also holds policy refusals, which re-park the moment they are seen again.
+> "Retry everything" costs a refetch per undecidable item and changes nothing
+> about them.
+
+> **Rule.** `errorContains` is a LITERAL substring, never a pattern: `%` and
+> `_` match themselves. `(50%).pdf` came out of a real filename, and as a LIKE
+> pattern that needle would match "50" followed by anything.
+
+> **Rule.** Clear a parked group through this route, not with SQL. Retry has
+> always been two things — zero the attempt counts AND drop the mapping's
+> cursors (ADR-0020) — and a hand-written `UPDATE item SET attempt_count = 0`
+> is only the first. Without the second the source no longer lists those items
+> as changed, so the next pass copies nothing and the queue looks answered.
+
 See `docs/selfhost-quickstart.md` §7 for the full walkthrough.
 
 ## What the end user may do while a migration is running

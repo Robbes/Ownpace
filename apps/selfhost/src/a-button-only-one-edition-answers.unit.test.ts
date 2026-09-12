@@ -54,6 +54,45 @@ describe('the appliance answers the confirmation surface too', () => {
   });
 });
 
+/**
+ * The group press (2026-09-12). Its URL carries a mapping id, so it is matched
+ * with a regex rather than an equality — which is exactly why it needs its own
+ * assertion: the substring checks above would not see it, and "the appliance
+ * answers the same paths" is only true of the paths somebody listed.
+ */
+describe('the appliance answers one decision over a group of failures', () => {
+  it('handles POST /mappings/:id/failures', () => {
+    expect(
+      SOURCE,
+      'apps/selfhost does not match POST /mappings/:id/failures. The managed API does, and ' +
+        'the appliance is the edition whose owner cannot ask somebody to run SQL against ' +
+        'the ledger for them.',
+    ).toContain(String.raw`/^\/mappings\/([^/]+)\/failures$/`);
+  });
+
+  it('keeps it distinguishable from the per-item press', () => {
+    // Anchored `$` after `failures`, so a four-segment per-item URL cannot
+    // match it — and the per-item pattern still carries its own two segments.
+    expect(SOURCE).toContain(String.raw`/^\/mappings\/([^/]+)\/failures\/([^/]+)\/(retry|accept)$/`);
+  });
+
+  it('does the BOTH halves of a retry, not just the ledger half', () => {
+    // The live bug this feature answers was half-fixed by hand: an UPDATE that
+    // zeroed attempt counts and left the cursors, so the source no longer
+    // listed the items as changed and the retry copied nothing. Sliced to the
+    // group handler alone — the per-item handler below it clears cursors too,
+    // and a region-wide substring would be satisfied by the wrong code.
+    const groupHandler = SOURCE.slice(
+      SOURCE.indexOf('const failureGroupMatch ='),
+      SOURCE.indexOf('const failureMatch ='),
+    );
+    expect(groupHandler).toContain('resolveFailureGroup');
+    expect(groupHandler).toContain('cursorStore.clear');
+    // And it must narrow: a press naming neither is refused, not widened.
+    expect(groupHandler).toContain('a group decision has to say WHICH failures it is for');
+  });
+});
+
 describe('both editions answer through the SAME read', () => {
   it('reads the list through the shared reader, not its own query', () => {
     // The appliance had its own copy of the five-domain fan-out until

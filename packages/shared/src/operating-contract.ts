@@ -34,6 +34,7 @@
  * queue that cannot say where something went is not one anybody can act on.
  */
 
+import type { DiscoveryDomain } from './discovery.ts';
 import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { PauseReason } from './pause-reason.ts';
 import type { ConfirmedRowView } from './confirmed-list.ts';
@@ -366,6 +367,45 @@ export const DECISION_EFFECTS = {
 
 /** The decisions an owner can make, across all three queues. */
 export type OperatingAction = 'keep' | 'apply' | 'retry' | 'accept';
+
+/**
+ * WHICH FAILURES a group decision is for, and it must NARROW.
+ *
+ * A connector bug parks items by the dozen and its fix parks nothing, but
+ * parking does not clear itself — so after the fix every item the old code
+ * exhausted is still parked for a defect that no longer exists. Live
+ * 2026-09-11: 82 files behind one non-recursive MKCOL, and the only routes out
+ * were 82 button presses or SQL against the ledger.
+ *
+ * Both fields are optional and the route refuses a request that sets NEITHER.
+ * The reason is not safety in the destructive sense — a retry writes nothing to
+ * anybody's account — it is that the same queue holds policy refusals, which
+ * re-park the moment they are seen again. "Retry everything" therefore costs a
+ * refetch per undecidable item and changes nothing about them, which is not
+ * what the person pressing it meant.
+ *
+ * `errorContains` is a LITERAL substring, never a pattern: `%` and `_` in the
+ * needle match themselves. `(50%).pdf` came out of a real filename.
+ */
+export interface FailureGroupMatch {
+  readonly domain?: DiscoveryDomain;
+  readonly errorContains?: string;
+}
+
+/**
+ * A group decision that was carried out, and the COUNT it changed.
+ *
+ * A count rather than a boolean, and the count of rows actually updated rather
+ * than of rows asked for: a surface that cannot say how many items it just put
+ * back in front of the loop is reporting an intention.
+ */
+export interface GroupDecisionAccepted {
+  readonly status: 'ok';
+  readonly action: Extract<OperatingAction, 'retry' | 'accept'>;
+  readonly matched: number;
+  readonly match: FailureGroupMatch;
+  readonly effect: string;
+}
 
 /**
  * A decision that was carried out.
