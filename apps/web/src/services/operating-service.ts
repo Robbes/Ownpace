@@ -18,6 +18,8 @@ import type {
   VerifyStartResponse,
   DecisionAccepted,
   DecisionRefused,
+  FailureGroupMatch,
+  GroupDecisionAccepted,
   DeletionsResponse,
   FailuresResponse,
   FinishAccepted,
@@ -492,6 +494,46 @@ export function retryFailure(mappingId: string, hash: string): Promise<DecisionA
 /** Migrate without a failed item, permanently. */
 export function acceptFailure(mappingId: string, hash: string): Promise<DecisionAccepted> {
   return decide(`${mappingPath(mappingId)}/failures/${encodeURIComponent(hash)}/accept`);
+}
+
+/**
+ * The same decision over a GROUP of failures, in one request.
+ *
+ * Not a convenience for the loop above it: a connector bug parks items by the
+ * dozen and its fix parks nothing, so after a fix every item the old code
+ * exhausted is still parked for a defect that no longer exists (live
+ * 2026-09-11: 82 files behind one non-recursive MKCOL). The server clears the
+ * mapping's cursors ONCE for the whole group, which is the half of "retry"
+ * that a loop of per-item presses pays for N times over.
+ *
+ * `mappingPath` is edition-aware, so this one call reaches the appliance's
+ * `/mappings/:id/failures` and managed's `/migrations/:id/failures` — the
+ * routes are the same shape by design (ADR-0026).
+ *
+ * The server REFUSES a match that narrows on nothing, with a 400 carrying the
+ * reason. That refusal arrives here as `DecisionRefusedError`, same as every
+ * other refusal on this surface, so the screen shows the server's sentence
+ * rather than a client-side guess at it.
+ */
+export async function decideFailureGroup(
+  mappingId: string,
+  action: 'retry' | 'accept',
+  match: FailureGroupMatch,
+): Promise<GroupDecisionAccepted> {
+  const body = {
+    action,
+    ...(match.domain ? { domain: match.domain } : {}),
+    ...(match.errorContains ? { errorContains: match.errorContains } : {}),
+  };
+  try {
+    return (
+      await client.post<GroupDecisionAccepted>(`${mappingPath(mappingId)}/failures`, body)
+    ).data;
+  } catch (err) {
+    const res = (err as { response?: { status: number; data?: DecisionRefused } }).response;
+    if (res?.data?.error) throw new DecisionRefusedError(res.data, res.status);
+    throw err;
+  }
 }
 
 export async function fetchStatus(): Promise<StatusReport> {

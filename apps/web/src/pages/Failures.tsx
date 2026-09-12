@@ -28,6 +28,7 @@ import {
   Resolved,
 } from '../components/queues/primitives.tsx';
 import { acceptFailure, fetchFailures, retryFailure } from '../services/operating-service.ts';
+import { FailureGroupPanel } from '../components/queues/FailureGroupPanel.tsx';
 import { useT } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
 
@@ -89,6 +90,20 @@ const Failures: React.FC = () => {
             {t('failures.seeRuns')}
           </Link>
         </p>
+        {/* One decision over a GROUP, above both sections because it reaches
+            both: `needsDecision` and `retrying` are the same `status='failed'`
+            rows to the server, so a panel sitting inside the parked section
+            would be showing a count over half the rows it changes.
+
+            Offered only when there is something to group. With one failure on
+            screen the per-row buttons say it better, and a form that matches a
+            single item is a form somebody has to read to dismiss. */}
+        {queue.needsDecision.length + queue.retrying.length > 1 && (
+          <FailureGroupPanel
+            mappingId={mappingId}
+            failures={[...queue.needsDecision, ...queue.retrying]}
+          />
+        )}
         <QueueSection
           title={t('queue.waitingOnYou')}
           count={queue.needsDecision.length}

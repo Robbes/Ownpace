@@ -13,17 +13,26 @@
  * be read (RunsPanel).
  */
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { FailuresResponse } from '@openmig/shared';
 
-const { fetchFailuresMock } = vi.hoisted(() => ({ fetchFailuresMock: vi.fn() }));
+const { fetchFailuresMock, decideFailureGroupMock } = vi.hoisted(() => ({
+  fetchFailuresMock: vi.fn(),
+  decideFailureGroupMock: vi.fn(),
+}));
 
 vi.mock('../services/operating-service', () => ({
   fetchFailures: fetchFailuresMock,
   retryFailure: vi.fn(),
   acceptFailure: vi.fn(),
+  // The group press (2026-09-12). Listed here because the panel imports from
+  // this same module, and a mock factory that omits an export hands the
+  // component `undefined` — which reads as a render crash rather than as a
+  // missing mock.
+  decideFailureGroup: decideFailureGroupMock,
   DecisionRefusedError: class extends Error {},
 }));
 
@@ -105,3 +114,51 @@ describe('the aftermath asymmetry is stated (0036 T2)', () => {
   });
 });
 
+
+/**
+ * The group press's ONE page-level property (2026-09-12).
+ *
+ * The panel itself is covered in `FailureGroupPanel.unit.test.tsx`. What only
+ * the page can get wrong is WHICH rows it hands over: `needsDecision` and
+ * `retrying` are the same `status = 'failed'` rows to the server, so a panel
+ * fed the parked half alone would preview three and change four. That is the
+ * shape of mistake this repo has paid for before — a digest that said four
+ * pointing at a queue that showed three.
+ */
+describe('the group panel is given every failed row, not just the parked ones', () => {
+  const RETRYING = {
+    naturalKeyHash: 'h-2',
+    domain: 'file' as const,
+    collection: '/Documents',
+    lastError: 'MKCOL 404 on the parent collection',
+    attempts: 1,
+    needsDecision: false,
+  };
+
+  it('counts the parked and the still-trying together', async () => {
+    fetchFailuresMock.mockResolvedValue(queue({ retrying: [RETRYING, RETRYING] }));
+    renderScreen();
+
+    await screen.findByText('Decide a whole group at once');
+    // 'MKCOL' is the wording of the two STILL-TRYING rows; the parked one says
+    // '507 over quota'. So both halves of the number are load-bearing: the
+    // total is three only if `retrying` was handed over, and the match is two
+    // only if those rows are the ones being matched.
+    await userEvent.type(screen.getByLabelText('Error contains'), 'MKCOL');
+    expect(screen.getByText('Matches 2 of the 3 here.')).toBeInTheDocument();
+    const kinds = [...screen.getByLabelText('Kind').querySelectorAll('option')].map(
+      (o) => o.textContent,
+    );
+    // And the kinds offered come from both sections: email is parked, file is
+    // still trying.
+    expect(kinds).toEqual(['Any kind', 'Email', 'Files']);
+  });
+
+  it('is not offered for a single failure, where the row’s own buttons say it better', async () => {
+    fetchFailuresMock.mockResolvedValue(queue());
+    renderScreen();
+
+    await screen.findByText('acme-mail');
+    expect(screen.queryByText('Decide a whole group at once')).not.toBeInTheDocument();
+  });
+});
