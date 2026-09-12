@@ -16,12 +16,13 @@
 
 import React from 'react';
 import { Link, useParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Flag,
   ListChecks,
   MoveRight,
+  Pause,
   Share2,
   Trash2,
 } from 'lucide-react';
@@ -63,6 +64,27 @@ const MappingDetail: React.FC = () => {
     retry: false,
   });
 
+  // Pause, from the page the operator is actually looking at when a
+  // migration misbehaves (live 2026-09-11: a looping migration, and the
+  // only stop was `docker stop` on the worker). Same call as the list row.
+  const queryClient = useQueryClient();
+  const [pauseFailed, setPauseFailed] = React.useState<string | null>(null);
+  const [pausing, setPausing] = React.useState(false);
+  const pause = async () => {
+    if (!id) return;
+    setPausing(true);
+    setPauseFailed(null);
+    try {
+      await mappingApi.pause(id);
+      await queryClient.invalidateQueries({ queryKey: ['mapping', id] });
+      await queryClient.invalidateQueries({ queryKey: ['mappings'] });
+    } catch (err) {
+      setPauseFailed(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPausing(false);
+    }
+  };
+
   // The live per-domain strip (0033 T5): one component, two data sources.
   // Selfhost reads the appliance-wide /status and filters to this mapping;
   // managed reads it off the detail payload above. Both are
@@ -89,9 +111,43 @@ const MappingDetail: React.FC = () => {
         <h2 className="text-lg font-semibold text-gray-900">
           {detail.data?.name ?? t('hub.fallbackTitle')}
         </h2>
-        {detail.data?.status && <StateChip entity="lifecycle" state={detail.data.status} />}
+        <div className="flex items-center gap-3">
+          {(detail.data?.status === 'active' || detail.data?.status === 'continuous') && (
+            <button
+              onClick={() => void pause()}
+              disabled={pausing}
+              className="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded border border-amber-300 text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+              title={t('mappings.action.pause.why')}
+            >
+              <Pause className="w-4 h-4" />
+              {t('mappings.action.pause')}
+            </button>
+          )}
+          {detail.data?.status === 'paused' && id && (
+            <Link
+              to={`/mappings/${encodeURIComponent(id)}/confirm`}
+              className="text-sm font-medium text-green-700 hover:underline"
+            >
+              {t('mappings.action.reviewAndStart')}
+            </Link>
+          )}
+          {detail.data?.status && <StateChip entity="lifecycle" state={detail.data.status} />}
+        </div>
       </div>
+      {pauseFailed && <p className="mt-1 text-sm text-red-700">{pauseFailed}</p>}
       <p className="mt-1 text-sm text-gray-500 font-mono">{id}</p>
+      {/* WHICH accounts, by name — the mapping's own, not the tenant's first
+          (the API read the wrong ones until 2026-09-11). A migration named
+          "G to Sov" that is in fact wired to the Nextcloud target is a fact
+          this line makes readable without a database. */}
+      {detail.data && (detail.data.sourceConnection || detail.data.targetConnection) && (
+        <p className="mt-1 text-sm text-gray-600">
+          {t('hub.connections', {
+            source: detail.data.sourceConnection?.name ?? detail.data.sourceType,
+            target: detail.data.targetConnection?.name ?? detail.data.targetType,
+          })}
+        </p>
+      )}
       {/* The completion report (workplan 0047): every number on it already
           lives on some screen below — this is the ONE document version, for
           handing over. */}

@@ -187,12 +187,22 @@ const MaskedConfigSchema = z.object({
   useSsl: z.boolean().optional(),
 });
 
+const ConnectionRefSchema = z.object({
+  id: z.string(),
+  name: z.string().nullish(),
+  kind: z.string(),
+});
+
 export const MappingSchema = z.object({
   id: z.string(),
   tenantId: z.string(),
   name: z.string(),
   sourceType: z.string(),
   targetType: z.string(),
+  /** The account each side signs in with — the mapping's OWN, by id. Optional
+   *  so a detail payload from an older API still parses. */
+  sourceConnection: ConnectionRefSchema.nullish(),
+  targetConnection: ConnectionRefSchema.nullish(),
   sourceConfig: MaskedConfigSchema,
   targetConfig: MaskedConfigSchema,
   syncConfig: z.object({
@@ -816,6 +826,19 @@ export const mappingApi = {
   // fields the detail schema requires. The 0026 T2 dead-surface precedent
   // applies; when a screen needs to PUT a status, add it back with a schema
   // that mirrors the real response.
+
+  /**
+   * Pause a running migration: `status: 'paused'`, the lifecycle word the
+   * sync tick skips and the confirm screen resumes from (POST /start). The
+   * schema mirrors what PUT actually answers — `{ id, ...body, updatedAt }` —
+   * which is why this is not the retired `update` (see the note above).
+   */
+  pause: async (mappingId: string) => {
+    const response = await apiClient.put(`/migrations/${mappingId}`, { status: 'paused' });
+    return z
+      .object({ id: z.string(), status: z.string(), updatedAt: z.string() })
+      .parse(response.data);
+  },
 
   delete: async (mappingId: string) => {
     await apiClient.delete(`/migrations/${mappingId}`);
