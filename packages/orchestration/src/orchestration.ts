@@ -103,6 +103,17 @@ function recordPassMetrics(
 
 export interface DomainSyncResult {
   domain: DiscoveryDomain;
+  /**
+   * How many collections the SOURCE listed, when this row came from a pass
+   * that ran.
+   *
+   * Optional because the placeholder rows below — a domain the mapping never
+   * enabled — listed nothing and were never asked to. A row that DID run and
+   * reports `collectionsListed: 5, scanned: 0` found the account's five
+   * collections and got no item out of any of them, which the summary line
+   * calls out rather than printing the same zeros an empty source produces.
+   */
+  collectionsListed?: number;
   scanned: number;
   created: number;
   skipped: number;
@@ -405,7 +416,7 @@ export async function runAllDomains(
           const result = await runShadowPass(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
-          outcome = { domain, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, moved: result.moved ?? 0, failed: 0 };
+          outcome = { domain, collectionsListed: result.collectionsListed, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, moved: result.moved ?? 0, failed: 0 };
           // Said out loud, every pass. Quietly not copying someone's Deleted
           // Items is the same class of failure as quietly copying it, and this
           // is the only place the choice becomes visible during a run.
@@ -427,6 +438,7 @@ export async function runAllDomains(
           budgetPause = result.budgetPause;
           outcome = {
             domain,
+            collectionsListed: result.collectionsListed,
             scanned: result.scanned,
             created: result.created,
             skipped: result.skipped,
@@ -451,6 +463,7 @@ export async function runAllDomains(
           budgetPause = result.budgetPause;
           outcome = {
             domain,
+            collectionsListed: result.collectionsListed,
             scanned: result.scanned,
             created: result.created,
             skipped: result.skipped,
@@ -491,6 +504,7 @@ export async function runAllDomains(
           budgetPause = result.budgetPause;
           outcome = {
             domain,
+            collectionsListed: result.collectionsListed,
             scanned: result.scanned,
             created: result.created,
             skipped: result.skipped,
@@ -523,6 +537,7 @@ export async function runAllDomains(
           budgetPause = result.budgetPause;
           outcome = {
             domain,
+            collectionsListed: result.collectionsListed,
             scanned: result.scanned,
             created: result.created,
             skipped: result.skipped,
@@ -600,7 +615,15 @@ export async function runAllDomains(
       // from one that created nothing because we had already migrated it.
       log.info(
         `[Worker] ${domain} sync complete: scanned=${outcome.scanned}, created=${outcome.created}, ` +
-          `updated=${outcome.updated ?? 0}, adopted=${outcome.adopted}, skipped=${outcome.skipped}`,
+          `updated=${outcome.updated ?? 0}, adopted=${outcome.adopted}, skipped=${outcome.skipped}` +
+          // A DOMAIN THAT LISTED COLLECTIONS AND SCANNED NOTHING SAYS SO, here
+          // too. `scanned=0` alone reads the same for an empty source and for
+          // five calendars none of whose items could be listed — which is the
+          // silence a wedged calendar domain lived in for days (2026-09-11).
+          ((outcome.collectionsListed ?? 0) > 0 && outcome.scanned === 0
+            ? ` — ${outcome.collectionsListed} collection(s) listed and NOT ONE ITEM scanned in ` +
+              `any of them; an empty source lists no collections, so this is not that`
+            : ''),
       );
       // Only when there is something to say. These are items the source
       // changed and we deliberately did NOT change on the target, which is a
