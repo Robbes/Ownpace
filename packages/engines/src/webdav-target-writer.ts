@@ -122,16 +122,51 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     if (directoryPath === '') {
       return '';
     }
-
-    // Check if directory already exists via PROPFIND
-    const exists = await this.directoryExists(directoryPath);
-    if (exists) {
-      return directoryPath;
-    }
-
-    // Create new directory using MKCOL
-    await this.createDirectory(directoryPath, folder);
+    await this.ensureCollectionPath(directoryPath);
     return directoryPath;
+  }
+
+  /**
+   * Make sure every collection along `path` exists, creating the missing ones
+   * in order, and remember each one in `rootDirs`.
+   *
+   * This used to be one PROPFIND on the full path followed by one MKCOL whose
+   * status was never read. Two things were wrong with that, and a live run
+   * against Nextcloud showed both at once: MKCOL is not recursive (RFC 4918
+   * §9.3.1 — a missing ancestor is a 409, not a create), and a refused MKCOL
+   * was indistinguishable from a successful one, so the next thing the server
+   * heard was a PUT into a collection that did not exist. Sabre answers that
+   * with 404 `File with name /<parent> could not be located` — the PARENT's
+   * name, not the file's — 87 times in a row, until the consecutive-failure
+   * tripwire stopped the pass.
+   *
+   * Walked from the root because the cheapest evidence that `a/b/c` exists is
+   * that this writer created it, and the cheapest way to create it is to have
+   * already created `a/b`. The cache is the same set `listEntries` fills as it
+   * walks, so a directory the target already had costs nothing here.
+   *
+   * 405 on MKCOL is "already there" (RFC 4918 §9.3.1) and is treated as such:
+   * a PROPFIND that answered "absent" a moment ago was simply overtaken, and
+   * the collection is what was wanted either way. Every other non-2xx is
+   * thrown verbatim — a refusal to create the folder is the reason the files
+   * under it will fail, and it must be the sentence the operator reads.
+   */
+  private async ensureCollectionPath(path: string): Promise<void> {
+    const collection = this.normalizeRelativePath(path);
+    if (collection === '') return;
+    // The up-front walk fills `rootDirs`; a memoised no-op after the first call.
+    await this.keysUnderRoot();
+    const segments = collection.split('/');
+    for (let depth = 1; depth <= segments.length; depth++) {
+      const prefix = segments.slice(0, depth).join('/');
+      if (this.rootDirs.has(prefix)) continue;
+      if (await this.directoryExists(prefix)) {
+        this.rootDirs.add(prefix);
+        continue;
+      }
+      await this.createDirectory(prefix);
+      this.rootDirs.add(prefix);
+    }
   }
 
   /**
@@ -573,14 +608,33 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     }
   }
 
-  private async createDirectory(path: string, _folder: FileFolder): Promise<void> {
-    await this.requestWithRetry({
+  private async createDirectory(path: string): Promise<void> {
+    const response = await this.requestWithRetry({
       method: 'MKCOL',
       url: this.buildUrl(path),
       headers: {
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
+    // 201 is the create; 405 is "a resource is already here" (RFC 4918
+    // §9.3.1), which for a collection-creating call is the state wanted.
+    // Anything else was never a create, and until this check existed the
+    // caller could not tell — a 409 from a missing ancestor, a 403 from a
+    // read-only share, a 401 — so the failure surfaced only later, on the
+    // PUT of every file underneath, as a 404 naming this path.
+    if (response.status === 201 || response.status === 405) return;
+    if (response.status >= 200 && response.status < 300) return;
+    throw new Error(
+      `MKCOL failed for ${path} with status ${response.status}: ${davRefusalBody(response.body)}`,
+    );
+  }
+
+  /**
+   * The collection a root-relative file path sits in: `''` for the root.
+   */
+  private parentOf(filePath: string): string {
+    const slash = filePath.lastIndexOf('/');
+    return slash < 0 ? '' : filePath.slice(0, slash);
   }
 
   /**
@@ -631,6 +685,26 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       if (verdict === 'changed') {
         return { path: filePath, conflicted: true };
       }
+    }
+
+    // THE PARENT COLLECTION EXISTS BEFORE THE FIRST BYTE IS SENT.
+    //
+    // The sync loop calls `ensureDirectory` for a folder before the files in
+    // it, so in the ordinary case this is a set lookup and nothing else. It is
+    // here as well because the loop's promise is per FOLDER and a PUT's need
+    // is per FILE: a folder whose MKCOL was refused, a source that lists a
+    // file under a path it never listed as a folder, or a target whose
+    // ancestor was removed between passes all reach this line with no
+    // collection to write into, and the server's answer to that — 404 naming
+    // the parent — reads as a missing file to everyone who has not seen it
+    // before. Making the collection is cheap; diagnosing its absence from 87
+    // identical PUT failures was not.
+    //
+    // Not on the overwrite path: a file being rewritten exists, so its
+    // collection does too.
+    if (!overwrite) {
+      const parent = this.parentOf(filePath);
+      if (parent !== '') await this.ensureCollectionPath(parent);
     }
 
     /**
@@ -864,10 +938,24 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     );
   }
 
+  /**
+   * The URL for a root-relative path, each segment percent-encoded ONCE.
+   *
+   * Paths here are decoded strings — `hrefRelativeTo` decodes what the server
+   * lists and the natural keys come from the source the same way — so this
+   * is the one place the encoding happens, and it happens per segment so the
+   * slashes between them survive. It used to append the path raw and let
+   * `fetch` mend it: Node's URL parser does escape a space, which is why
+   * folders with spaces mostly worked, but it reads `#` as a fragment and `?`
+   * as a query and leaves `%` alone, so a file called `Q&A #2 (50%).pdf` was
+   * PUT to an address the server could not resolve.
+   */
   private buildUrl(path: string): string {
     const baseUrl = this.config.url.replace(/\/$/, '');
     const normalizedPath = path.replace(/^\/+/, '');
-    return `${baseUrl}/${normalizedPath}`;
+    if (normalizedPath === '') return `${baseUrl}/`;
+    const encoded = normalizedPath.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+    return `${baseUrl}/${encoded}`;
   }
 }
 
