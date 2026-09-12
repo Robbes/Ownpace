@@ -205,6 +205,7 @@ export const runShadowPass: RunShadowPass = async (deps) => {
 
   // Return compatible ReconcileResult (map failed to 0 for backward compatibility)
   return {
+    collectionsListed: result.collectionsListed,
     scanned: result.scanned,
     created: result.created,
     firstCopyBytes: result.firstCopyBytes,

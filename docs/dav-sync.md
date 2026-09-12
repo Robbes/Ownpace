@@ -116,6 +116,23 @@ Helpers live in `packages/shared/src/hash.ts`.
 Tokens are persisted per collection in `sync_checkpoint` via the `CursorStore`. Omit `cursors` to
 force a full rescan.
 
+**Rule**: a cursor is a CLAIM that everything up to it has been handled, so a FIRST read of a
+collection — none held yet — that returns no items and no reported removals MUST NOT have its token
+persisted. On a first read an empty answer is ambiguous (an empty collection, or a read that failed
+to see what is in it) and the loop cannot tell them apart; storing the token turns the second case
+into a permanent one, because every later pass asks "what changed since this token" and is
+correctly told "nothing". A reported removal counts as having seen something (RFC 6578) and may
+keep its place. Once a cursor EXISTS an empty answer is the ordinary incremental case and must go
+on advancing, or every pass after the first re-lists the whole account. Found live 2026-09-11: five
+Google calendars listed, five `sync-token` rows written, zero calendar items in the ledger, and
+`calendar: 0 created, 0 skipped` reported on a fifteen-minute schedule for days.
+
+**Rule**: a pass reports `collectionsListed` beside `scanned`, and a domain that listed collections
+while scanning nothing MUST say so rather than reporting the same zeros an empty source produces.
+"Copied nothing" and "had nothing to copy from" are different facts and the second is not a defect.
+Three defects have now hidden in that ambiguity — the task domain that built file deps, E2E #168's
+`tasks 0/4`, and the calendar wedge above.
+
 ## Domain-specific behaviour
 
 ### Calendar — recurring events
@@ -254,6 +271,7 @@ End-to-end, all four domains including a restart-resume idempotency gate:
 | Second pass re-creates everything | Natural key unstable (e.g. UID case, or an unnormalized path) |
 | `PUT` returns 404 naming a FOLDER, not the file | The parent collection was never created — an MKCOL whose status went unread, or a non-recursive one on a nested path |
 | A folder of Google Docs stops a whole pass | A policy refusal counted as a broken world; a decision-class failure must be parked, not counted toward the tripwire (`isDecisionError`) |
+| A domain reports `completed` with 0 created and 0 skipped, for ever | A cursor was stored past a first read that saw nothing — check `SELECT folder_path, cursor_value FROM cursor WHERE mapping_id = …`; deleting those rows makes the next pass re-read from the beginning |
 
 ## References
 

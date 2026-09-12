@@ -574,6 +574,17 @@ export interface DomainSyncResult {
    * reconcile — see `TrashListing`. Absent when the pass had none.
    */
   readonly unplaceableDiscards?: { readonly count: number; readonly reason?: string };
+  /**
+   * How many collections the SOURCE listed for this domain.
+   *
+   * Beside `scanned` so that "copied nothing" and "had nothing to copy from"
+   * stop reading alike. `collectionsListed: 5, scanned: 0` is a domain that
+   * found the account's five calendars and got no items out of any of them —
+   * which is a defect — while `collectionsListed: 0` is a domain whose source
+   * has nothing, which is not. Before this the report carried only the second
+   * number and every layer above read both as an honest nothing.
+   */
+  readonly collectionsListed: number;
   readonly scanned: number;
   readonly created: number;
   /** Not created because OUR LEDGER already had the item. */
@@ -1608,13 +1619,59 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // operator RETRY therefore also clears the mapping's cursors, forcing the
     // full re-list that puts the item back in front of the loop.
     const retryablePending = failures.some((f) => !f.needsDecision);
+
+    /**
+     * A CURSOR IS A CLAIM, AND A FIRST READ THAT SAW NOTHING SUPPORTS NONE
+     * (found live 2026-09-11, diagnosed 2026-09-12).
+     *
+     * `nextCursor` means "do not show me these items again". On a FIRST read —
+     * no cursor held for this collection yet — an empty answer is one of two
+     * things, and this loop cannot tell them apart: a collection that really is
+     * empty, or a read that failed to see what is in it. Persisting the cursor
+     * treats the second as the first, and the mistake is PERMANENT: every later
+     * pass asks "what changed since this token", is correctly told "nothing",
+     * and reports a completed domain that has never copied an item.
+     *
+     * That is not hypothetical. A Google → Nextcloud migration listed five
+     * calendars, wrote a `sync-token` for each, recorded ZERO calendar items,
+     * and then reported `calendar: 0 created, 0 skipped` on a fifteen-minute
+     * schedule for days. The grant carried the scope, the connection Test
+     * counted the five calendars live, and the ledger held nothing — because
+     * the first read's token had already retired events nobody had copied.
+     *
+     * So: no previous cursor, and nothing seen, means nothing to claim. The
+     * next pass reads from the beginning again. On a genuinely empty
+     * collection that costs one cheap re-list per pass and loses nothing; on a
+     * collection that was misread it is the difference between a migration
+     * that recovers by itself and one wedged until somebody runs SQL.
+     *
+     * A REPORTED REMOVAL COUNTS AS HAVING SEEN SOMETHING. It is positive
+     * evidence the server answered about this collection's contents (RFC 6578),
+     * so a first poll that reports only deletions has read something real and
+     * may keep its place.
+     *
+     * Deliberately narrow. Once a cursor EXISTS, an empty answer is the normal
+     * incremental case — nothing changed — and must go on advancing, or every
+     * pass after the first would re-list the whole account for ever.
+     */
+    const firstReadSawNothing =
+      prev === undefined && items.length === 0 && (removed?.length ?? 0) === 0;
     // A PAUSED folder keeps its cursor too, for the same reason a retrying
     // one does: advancing it would retire the items the pause left
     // unprocessed, and the next pass — the one the pause promises — would
     // never see them. `paused()` rather than a named reason, so a pause added
     // later cannot advance a cursor by being forgotten in this one condition.
-    if (cursors && !retryablePending && !paused()) {
+    if (cursors && !retryablePending && !paused() && !firstReadSawNothing) {
       await cursors.set(tenantId, mappingId, collectionPath, nextCursor);
+    } else if (firstReadSawNothing) {
+      // Said out loud, because the alternative is the silence this bug lived
+      // in. Either the collection is empty or we could not read it, and the
+      // next pass asking again is how the second one recovers.
+      log.warn(
+        `[sync] ${domain}: '${collectionPath}' answered a first read with no items and no ` +
+          `removals, so its cursor is NOT being recorded — a token stored here would retire ` +
+          `items nobody has copied. The next pass reads this collection from the beginning.`,
+      );
     }
   }
 
@@ -1772,6 +1829,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   }
 
   return {
+    collectionsListed: folders.length,
     scanned,
     created,
     skipped,

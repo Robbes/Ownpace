@@ -392,6 +392,8 @@ export const runDeltaSync = schemaTask({
           // Build + run + release the deps' pool per domain. Literal domain
           // args pick the right overload; the finally never leaks the pool.
           let result: {
+            collectionsListed: number;
+            scanned: number;
             created: number;
             skipped: number;
             firstCopyBytes?: number;
@@ -408,6 +410,11 @@ export const runDeltaSync = schemaTask({
                 ...(fullScan ? { cursors: undefined } : {}),
               });
               result = {
+                // Carried, not dropped: the mail branch reshapes the pass's
+                // result by hand, and every field left out of this literal is
+                // a fact the summary below cannot state.
+                collectionsListed: pass.collectionsListed,
+                scanned: pass.scanned,
                 created: pass.created,
                 skipped: pass.skipped,
                 ...(pass.budgetPause ? { budgetPause: pass.budgetPause } : {}),
@@ -570,14 +577,43 @@ export const runDeltaSync = schemaTask({
           // completed is the same untruth as the status row would have been,
           // just somewhere a customer cannot see it, which makes it worse to
           // debug rather than better.
+          // A DOMAIN THAT FOUND COLLECTIONS AND GOT NOTHING OUT OF THEM SAYS SO
+          // (live 2026-09-11, diagnosed 2026-09-12).
+          //
+          // `calendar: 0 created, 0 skipped` was the whole of what this pass
+          // ever said about a wedged domain, and it reads identically to a
+          // source with nothing in it. It was five calendars, found and
+          // enumerated, yielding no item at all — a defect — and nothing in
+          // the run log, the status row or the stats could tell the two apart.
+          //
+          // So the sentence names the collections when the pass listed some
+          // and scanned nothing, and it is a WARN: this is the shape of three
+          // separate defects now (the task domain that built file deps, E2E
+          // #168's `tasks 0/4`, and this), and each time the silence is what
+          // let it stand.
+          const foundNothingIn =
+            result.collectionsListed > 0 && result.scanned === 0 ? result.collectionsListed : 0;
+          const line = foundNothingIn
+            ? `${domain}: ${result.created} created, ${result.skipped} skipped — ` +
+              `${foundNothingIn} collection(s) listed and NOT ONE ITEM scanned in any of them. ` +
+              `A source with nothing in it lists no collections, so this is not that: either ` +
+              `the listing inside them is failing or they are genuinely empty.`
+            : `${domain}: ${result.created} created, ${result.skipped} skipped`;
           log.info(
             `${domain} sync ${pause ? 'paused' : 'completed'}: ` +
               `${result.created} created, ${result.skipped} skipped`,
           );
+          if (foundNothingIn) log.warn(`[delta-sync] ${line}`);
           await withTenant(pool, tenantId, async (db) => {
-            await new RunStore(db).logEvent(tenantId, runId, 'info',
-              `${domain}: ${result.created} created, ${result.skipped} skipped`,
-              { domain, created: result.created, skipped: result.skipped });
+            await new RunStore(db).logEvent(tenantId, runId, foundNothingIn ? 'warn' : 'info',
+              line,
+              {
+                domain,
+                created: result.created,
+                skipped: result.skipped,
+                collectionsListed: result.collectionsListed,
+                scanned: result.scanned,
+              });
           });
 
           /**

@@ -1854,6 +1854,14 @@ export interface ReconcileDeps extends PassClock, SourceAuthority {
 
 /** Summary of a single shadow pass. */
 export interface ReconcileResult {
+  /**
+   * How many collections the SOURCE listed for this pass.
+   *
+   * Here as well as on `DomainSyncResult` so that MAIL is not the one domain
+   * whose "nothing happened" cannot be read. Covering four of five is how the
+   * task domain slipped past twice.
+   */
+  readonly collectionsListed: number;
   readonly scanned: number;
   readonly created: number;
   /**
