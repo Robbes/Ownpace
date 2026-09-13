@@ -1197,6 +1197,27 @@ router that grants counts and states and never a natural key. **Left: the
 appliance's half and the screen** — and the screen must not ship first, for the
 reason the route-parity guard already carries.
 
+**Corrected 2026-09-12 — the list could not say WHICH item, and had never been
+able to.** D10's whole argument for carrying `naturalKey` at all is that *"a
+list that cannot say which item is missing is not a list anybody can act on"*.
+The column it reads, `item.natural_key`, was written in exactly two places in
+the repository — `PgLedger.recordIfAbsent` and `PgLedger.recordFailure` — and
+both hardcoded `''`, under the comment *"Will be set by caller if needed"*. No
+caller ever could: `LedgerRecord` had no such field. So every row in every
+domain, since migration 0001, carried a blank there, and the list and its CSV
+export rendered it faithfully.
+
+Found from the other end — two contact failures on the owner's live Google →
+Nextcloud migration could not be identified on the Failures page — which is the
+same column and the same cause.
+
+`naturalKey` is now carried on `LedgerRecord`, supplied by all five domains and
+by the three DAV writers that can win the `recordIfAbsent` race, and written at
+both ledger sites. **Existing rows cannot be backfilled by a migration** — the
+plain text is not recoverable from its own sha256 — so `recordUpdate` treats a
+stored `''` as "nothing recorded" and takes what a later pass hands it: an
+existing migration repairs itself row by row as its source is re-walked.
+
 ## 7. T1 and T2, as they have to be built HERE (added 2026-09-09)
 
 D1 and D4 authorised these two and settled what they must not do. Neither says where they

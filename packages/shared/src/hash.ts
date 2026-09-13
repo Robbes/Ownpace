@@ -127,6 +127,61 @@ export function naturalKeyForFile(file: FileItem): string {
   return fileNaturalKeyHash(file.path);
 }
 
+// ===================== The same key, in plain text =====================
+//
+// Every hash above is `sha256Hex('<prefix>:<something>')`, and that
+// `<something>` is the item's own identifier: a Message-ID, a UID, a file
+// path. The hash is the ledger's key and is all any ACTION needs (§17). The
+// plain text is what a PERSON needs, and it has exactly one consumer: the
+// confirmed list and its CSV export — the document somebody reconciles
+// against the account they are about to empty. `confirmed-list.ts` argues
+// that exception at length; this is the other end of it.
+//
+// Two things about these that look like mistakes and are not:
+//
+// **A calendar event and a task produce the same text.** Their hashes differ
+// (`cal:` against `todo:`, so a VTODO and a VEVENT sharing a UID cannot
+// collide), but their identifier is the same UID, and the row's `domain`
+// column is what tells a reader which one they are looking at. Inventing a
+// `todo:` prefix for the screen would show somebody a string their calendar
+// server has never heard of.
+//
+// **The text is NOT always the exact string that was hashed.** A calendar UID
+// is case-insensitive (RFC 5545) so the hash lowercases it; the text keeps the
+// case the server gave, because that is what the person will search their old
+// account for. `hash.unit.test.ts` pins the relationship rather than the
+// equality: normalising the text the way its own hash function does reproduces
+// the hash, for every domain.
+
+/** The Message-ID, angle brackets and surrounding space removed. */
+export function naturalKeyTextForItem(item: MailItem): string {
+  return normalizeMessageId(item.messageId);
+}
+
+/**
+ * The UID — with RECURRENCE-ID appended for a modified occurrence, exactly as
+ * `naturalKeyForCalendar` keys it, because otherwise every exception in a
+ * series would show the same identifier and the list could not tell them apart.
+ */
+export function naturalKeyTextForCalendar(event: CalendarEvent): string {
+  return event.recurrenceId ? `${event.uid}|${event.recurrenceId}` : event.uid;
+}
+
+/** The UID, by the same rule a calendar event follows. See the note above. */
+export function naturalKeyTextForTask(task: CalendarEvent): string {
+  return task.recurrenceId ? `${task.uid}|${task.recurrenceId}` : task.uid;
+}
+
+/** The vCard UID, case preserved — `contactNaturalKeyHash` preserves it too. */
+export function naturalKeyTextForContact(contact: Contact): string {
+  return contact.uid;
+}
+
+/** The root-relative path, in the one agreed shape `fileNaturalKeyHash` demands. */
+export function naturalKeyTextForFile(file: FileItem): string {
+  return file.path;
+}
+
 /**
  * Content hash over the raw RFC822 bytes, carried in the ledger to detect that an
  * already-migrated message changed. Bytes are hashed verbatim (no header

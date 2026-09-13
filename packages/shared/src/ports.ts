@@ -814,6 +814,22 @@ export interface LedgerRecord {
   readonly mappingId: MappingId;
   readonly itemType: DiscoveryDomain;
   readonly naturalKeyHash: string;
+  /**
+   * The item's own identifier in plain text — a Message-ID, a UID, a file path.
+   *
+   * NOT a key: `naturalKeyHash` above is what every lookup and every action
+   * uses, and nothing reads this to find a row. It exists so the confirmed list
+   * can say WHICH item a row is, which is the whole point of a document
+   * somebody empties their old account on the strength of (see
+   * `confirmed-list.ts`, where §17's exception for it is argued).
+   *
+   * Optional, and `''` means "not recorded" — which is every row written before
+   * 2026-09-12, because the ledger hardcoded `''` here with a comment saying a
+   * caller would set it while this field did not exist for one to set. A caller
+   * with nothing to say leaves the column alone rather than blanking it, the
+   * same rule `collection` and `sourceRef` follow.
+   */
+  readonly naturalKey?: string;
   readonly contentHash: string;
   readonly targetId: string;
   /** ISO 8601 timestamp the row was first recorded. */

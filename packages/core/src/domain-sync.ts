@@ -457,6 +457,22 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    */
   readonly naturalKey: (item: Item) => string | undefined;
   /**
+   * The same item's identifier IN PLAIN TEXT — a Message-ID, a UID, a path.
+   *
+   * Recorded on the row and read by exactly one thing: the confirmed list and
+   * its CSV export, so a person reconciling against the account they are about
+   * to empty can see WHICH item each line is. Never used as a key; every lookup
+   * and every action still goes through `naturalKey` above.
+   *
+   * Called twice, like `naturalKey` and `naturalKeyFromRaw`: once from the
+   * listing, and again with `raw` in hand for a domain whose key is its own
+   * content (mail with no Message-ID). Absent, or returning undefined, leaves
+   * the column as it was — the ledger treats `''` as "not recorded" rather than
+   * as a value, so an older row keeps its blank instead of being overwritten
+   * with one.
+   */
+  readonly naturalKeyText?: (item: Item, raw?: unknown) => string | undefined;
+  /**
    * Every natural-key hash currently in a collection, ignoring any cursor.
    *
    * Supplied only by domains whose source can answer it cheaply (files, from
@@ -788,6 +804,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     fetchRaw,
     upsert,
     naturalKey,
+    naturalKeyText,
     naturalKeyFromRaw,
     contentHash,
     onCollision,
@@ -1074,6 +1091,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       if (paused() || stopIfPastDeadline()) return;
       scanned += 1;
       let naturalKeyHash = naturalKey(item);
+      // Beside the hash, never derived from it: a sha256 cannot be turned back
+      // into the UID it was made of, which is why an existing migration's blank
+      // `natural_key` column can only be repaired by a pass that reads the item
+      // again rather than by a database migration.
+      let naturalKeyPlain = naturalKeyText?.(item);
       const version = sourceVersion?.(item);
       if (naturalKeyHash !== undefined) seenHere.add(naturalKeyHash);
 
@@ -1287,6 +1309,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             );
           }
           naturalKeyHash = naturalKeyFromRaw(item, raw);
+          // The text follows the key: for these items the identifier itself is
+          // only knowable once the body has been read.
+          naturalKeyPlain = naturalKeyText?.(item, raw) ?? naturalKeyPlain;
 
           // Second fast-path check, now that we have a key. This is what keeps
           // these items idempotent: a re-run pays the fetch again (unavoidable
@@ -1443,6 +1468,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           ...(result.targetVersion !== undefined ? { targetVersion: result.targetVersion } : {}),
           // The source's own handle, so a removal report can find this row.
           ...(sourceRef?.(item) !== undefined ? { sourceRef: sourceRef(item) } : {}),
+          // WHICH item this is, in the words the owner's old account uses. The
+          // one field on this row that exists for a person to read rather than
+          // for the loop to key on.
+          ...(naturalKeyPlain !== undefined ? { naturalKey: naturalKeyPlain } : {}),
           // WHERE it came from, not just what it was. Until this was recorded
           // the ledger could not tell an item that had never moved from one
           // that had, so a move was indistinguishable from a steady state.
@@ -1556,6 +1585,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               itemType: domain,
               mappingId,
               naturalKeyHash: failedKey,
+              // A failure nobody can identify is one nobody can act on. Absent
+              // only for an item whose key came from its own body and whose
+              // fetch then failed — there is no identifier to give, and the row
+              // keeps whatever it already had.
+              ...(naturalKeyPlain !== undefined ? { naturalKey: naturalKeyPlain } : {}),
               contentHash: ch,
               targetId: '',
               createdAt: new Date().toISOString(),

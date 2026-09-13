@@ -29,6 +29,8 @@ import { applyTargetFolderPrefix,
   type MappingId,
   naturalKeyForCalendar,
   naturalKeyForTask,
+  naturalKeyTextForCalendar,
+  naturalKeyTextForTask,
   calendarContentHash,
   contactNaturalKeyHash,
   contactContentHash,
@@ -101,6 +103,8 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     // exception look like an item the target already has (see
     // `naturalKeyForCalendar`).
     naturalKey: (item) => naturalKeyForCalendar(item.item),
+    // The same UID, unhashed, so the confirmed list can name the event.
+    naturalKeyText: (item) => naturalKeyTextForCalendar(item.item),
     // The CalDAV ETag, when the server sent one. Undefined keeps the old
     // skip-anything-seen behaviour rather than guessing at change.
     sourceVersion: (item) => item.item.etag,
@@ -199,6 +203,9 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     // the `todo:` prefix and the same RECURRENCE-ID rule a calendar event has,
     // because RFC 5545 lets a VTODO recur too.
     naturalKey: (item) => naturalKeyForTask(item.item),
+    // The UID again — a task's TEXT is not prefixed, only its hash is. The
+    // row's `domain` column is what says this is a task. See `hash.ts`.
+    naturalKeyText: (item) => naturalKeyTextForTask(item.item),
     sourceVersion: (item) => item.item.etag,
     sourceRef: (item) => item.item.sourcePath,
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
@@ -259,6 +266,7 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     upsert: async (folderId, raw, _item, options) =>
       target.upsertContact(folderId, raw as RawContact, options),
     naturalKey: (item) => contactNaturalKeyHash(item.item.uid),
+    naturalKeyText: (item) => item.item.uid,
     sourceVersion: (item) => item.item.etag,
     // The DAV href, for the same reason as calendar above.
     sourceRef: (item) => item.item.sourcePath,
@@ -358,6 +366,8 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     upsert: async (parentId, raw, _item, options) =>
       target.upsertFile(parentId, raw as RawFileItem, options),
     naturalKey: (item) => fileNaturalKeyHash(item.item.path),
+    // The path, which is what a person searches their old account for.
+    naturalKeyText: (item) => item.item.path,
     // Only when the source can answer it cheaply. Without it the loop can spot
     // a moved file only on a cursor-less pass, which in production is the first
     // one and none after — a detector that cannot fire when it matters. Hashed

@@ -120,7 +120,17 @@ export class PgLedger implements Ledger {
         mappingId: record.mappingId,
         domain: record.itemType,
         collection: record.collection ?? '',
-        naturalKey: '', // Will be set by caller if needed
+        // The item's own identifier, for the confirmed list to name it by.
+        //
+        // This line read `naturalKey: ''` with the comment "Will be set by
+        // caller if needed" from migration 0001 until 2026-09-12 — and no
+        // caller ever could, because `LedgerRecord` had no such field. So
+        // EVERY row in every domain carried `''`, and the confirmed list and
+        // its CSV export — the document whose contract argues at length that
+        // this column is §17's documented exception, because "a list that
+        // cannot say WHICH item is missing is not a list anybody can act on" —
+        // had a blank identifier on every line.
+        naturalKey: record.naturalKey ?? '',
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
@@ -199,6 +209,17 @@ export class PgLedger implements Ledger {
         // to say must not blank what we already knew, which would retire the
         // item's removal-report link.
         ...(record.sourceRef !== undefined ? { sourceRefHref: record.sourceRef } : {}),
+        // Same rule again, with `''` counted as nothing to say rather than as a
+        // value — which is what makes this the REPAIR path. Every row written
+        // before 2026-09-12 holds `''` here (see `recordIfAbsent`), and those
+        // rows cannot be backfilled by a migration: the plain text is not
+        // recoverable from its own sha256. What CAN recover it is a pass that
+        // reads the item again, and this is where such a pass hands it back. So
+        // an existing migration heals row by row as the source is re-walked,
+        // instead of carrying a blank column for the life of the mapping.
+        ...(record.naturalKey !== undefined && record.naturalKey !== ''
+          ? { naturalKey: record.naturalKey }
+          : {}),
         lastSyncedAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -292,7 +313,11 @@ export class PgLedger implements Ledger {
         mappingId: record.mappingId,
         domain: record.itemType,
         collection: record.collection ?? '',
-        naturalKey: '',
+        // Same as `recordIfAbsent` above, and it matters MORE here: this row is
+        // a failure, and a failure somebody cannot identify is one they cannot
+        // act on. Two contact 500s on the live deployment were unidentifiable
+        // on screen for exactly this reason.
+        naturalKey: record.naturalKey ?? '',
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
@@ -1431,6 +1456,12 @@ export class PgLedger implements Ledger {
         ? { targetVersion: row.targetVersion }
         : {}),
       ...(row.collection ? { collection: row.collection } : {}),
+      // Same treatment for the same reason, and here `''` really does mean "not
+      // recorded": the column is NOT NULL, so every row written before
+      // 2026-09-12 holds one. Mapping it to an empty string on the record would
+      // make a caller's `record.naturalKey !== ''` heal check read a blank as a
+      // value it had been given.
+      ...(row.naturalKey ? { naturalKey: row.naturalKey } : {}),
       // Left off entirely when there is none, so "not recorded" stays
       // distinguishable from "recorded as empty".
       ...(row.sourceRefHref ? { sourceRef: row.sourceRefHref } : {}),

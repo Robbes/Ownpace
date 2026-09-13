@@ -3,6 +3,7 @@ import { applyTargetFolderPrefix,
   contentHash,
   ensureMessageId,
   naturalKeyHash,
+  normalizeMessageId,
   mapWithConcurrency as _mapWithConcurrency,
   naturalKeyForItem,
   type RunShadowPass,
@@ -185,6 +186,15 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     naturalKey: (item) => ((item as MailItem).messageId ? naturalKeyForItem(item) : undefined),
     naturalKeyFromRaw: (_item, raw) =>
       naturalKeyHash(ensureMessageId((raw as RawMessage).rfc822).messageId),
+    // The Message-ID a person would search their old mailbox for. Through the
+    // SAME `ensureMessageId` the key uses when the listing had none, so the two
+    // describe one message rather than two.
+    naturalKeyText: (item, raw) =>
+      raw !== undefined
+        ? normalizeMessageId(ensureMessageId((raw as RawMessage).rfc822).messageId)
+        : (item as MailItem).messageId
+          ? normalizeMessageId((item as MailItem).messageId)
+          : undefined,
     contentHash: (raw) => contentHash((raw as RawMessage).rfc822),
     ensureCollection: (folder) =>
       target.ensureMailbox(
