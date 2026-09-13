@@ -261,6 +261,45 @@ Integration suites (Testcontainers Nextcloud, `pnpm test:integration`):
 End-to-end, all four domains including a restart-resume idempotency gate:
 `test/e2e/selfhost-restart-resume.e2e.test.ts` (see `docs/testing.md`).
 
+## Reading a collection: the optimisation and the guarantee
+
+RFC 6578 `sync-collection` answers *"what changed since this token"*. It is an
+OPTIMISATION and a server may decline it, answer it emptily, or not implement
+it at all. RFC 4791 §7.8 `calendar-query` and RFC 6352 §8.6 `addressbook-query`
+answer *"everything that matches"*, and every server must support them.
+
+> **Rule.** A source must never depend on `sync-collection` for correctness. If
+> it does not answer, ask the query that has to be answered. `CardDAVSource`
+> has fallen back since a Nextcloud address book rejected the report outright;
+> `CalDAVSource` promised the same in its file header — "CTag fallback when
+> sync-token not supported" — and had no code behind it until 2026-09-12.
+
+> **Rule.** Two ways in, and the second is easy to miss: a **non-207**, and a
+> **207 that carries nothing on a read with no cursor**. With a cursor,
+> "nothing" is correct and common — it means nothing changed. Without one it is
+> a claim that an entire account is empty, and a claim is not evidence.
+
+> **Rule.** The fallback reports no cursor and no removals, and says so by
+> returning `undefined` and `[]`. A `…-query` answers what matches, so there is
+> no token to resume from and a deleted item is simply absent — calling that a
+> removal report would turn "I cannot see it" into "the server told me it is
+> gone".
+
+> **Rule.** One component per `calendar-query`. RFC 4791 §9.7.1 makes sibling
+> `comp-filter`s a conjunction, so naming VEVENT and VTODO together describes a
+> VCALENDAR containing both — no object anybody has. And `<C:filter>` itself is
+> not optional (§9.5): the CardDAV sibling shipped without one and Google
+> answered `400 … Request contains an invalid argument`.
+
+Live 2026-09-12, mapping `0cc9a844`: five Google calendars, all five created on
+the target by that same pass, `listFolders` naming them correctly — and
+`calendar: 0 created, 0 skipped` with nothing thrown and no failure row. On the
+same pass, over the same Google account and the same token, contacts read 1,227
+cards, because CardDAV had the fallback and CalDAV did not. **That asymmetry
+was the bug.** Contacts had the other half of it: its first pass read 0 cards
+and its second read 1,227, and it only recovered because the cursor invariant
+refused to store a token over an empty first read.
+
 ## Retrying a write whose body is a stream
 
 Nextcloud's default SQLite is a single-writer database: several uploads into
@@ -294,6 +333,7 @@ way out.
 | Home-set discovery finds nothing | `current-user-principal` → home-set chain broken; check the account's principal URL |
 | Items sync but land in the wrong collection | Collection path not namespaced under the target account — see `dav-collection-path.ts` |
 | Second pass re-creates everything | Natural key unstable (e.g. UID case, or an unnormalized path) |
+| A domain reports 0 items from collections that exist | The `sync-collection` REPORT answered 207 with nothing. Since 2026-09-12 both DAV sources check that with a `calendar-query` / `addressbook-query` and log which path answered — look for `[caldav]` / `[carddav]` lines in the run's events |
 | `PUT` returns 404 naming a FOLDER, not the file | The parent collection was never created — an MKCOL whose status went unread, or a non-recursive one on a nested path |
 | `Response body object should not be disturbed or locked` on an upload | A retry re-sent a body that had already been consumed. The failure is OURS, not the target's — and it has replaced whatever the server actually said. See the Rule below |
 | A folder of Google Docs stops a whole pass | A policy refusal counted as a broken world; a decision-class failure must be parked, not counted toward the tripwire (`isDecisionError`) |

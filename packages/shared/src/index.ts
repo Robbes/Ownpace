@@ -12,6 +12,7 @@ export * from './hash.ts';
 export * from './jmap-file-path.ts';
 export * from './dav-canonical.ts';
 export * from './carddav-query.ts';
+export * from './caldav-query.ts';
 export * from './generated-message-id.ts';
 export * from './ports.ts';
 export * from './operating-contract.ts';

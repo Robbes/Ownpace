@@ -17,7 +17,7 @@
 
 import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@openmig/shared';
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types.ts';
-import { carddavMatchAllFilter, davRefusalBody } from '@openmig/shared';
+import { carddavMatchAllFilter, davRefusalBody, log } from '@openmig/shared';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
   wellKnownUrl as buildWellKnownUrl,
@@ -324,7 +324,35 @@ export class CarddavSource implements ContactSource {
     });
 
     if (response.status === 207) {
-      return this.parseSyncCollectionResponse(response.body);
+      const parsed = this.parseSyncCollectionResponse(response.body);
+      /**
+       * A 207 CARRYING NOTHING, ON A FIRST READ, IS NOT PROOF OF AN EMPTY
+       * ADDRESS BOOK — the same rule the CalDAV sibling now applies, and for
+       * the same reason.
+       *
+       * This source already falls back when the report is REFUSED. It did not
+       * when the report was accepted and answered with no cards, which is a
+       * different failure with the same effect: the domain reports an empty
+       * account and the pass agrees with it.
+       *
+       * Live 2026-09-12, mapping 0cc9a844: the FIRST pass read `contact: 0
+       * created, 0 skipped`, and the second, fifteen seconds later, read
+       * 1,227 cards from the same account over the same token. Nothing was
+       * repaired in between — the first answer was simply wrong, and the only
+       * reason it did not become a permanent empty domain is that #926's
+       * cursor invariant refused to record a token over it, so the next pass
+       * started again from the beginning.
+       *
+       * With a cursor, "nothing" is the right answer and the point of asking:
+       * it means nothing changed.
+       */
+      const answeredNothing = parsed.objects.length === 0 && parsed.removed.length === 0;
+      if (!(answeredNothing && cursor === undefined)) return parsed;
+      log.warn(
+        `[carddav] '${collectionPath}': a FIRST sync-collection read (no cursor) came back with ` +
+          `no cards and no removals. That is a claim the whole address book is empty, which ` +
+          `this does not take on trust — falling back to an addressbook-query listing.`,
+      );
     }
 
     // Some CardDAV address books — observed on a freshly-provisioned Nextcloud account

@@ -27,7 +27,7 @@ import {
   componentOfIcalendar,
 } from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
-import { davRefusalBody } from '@openmig/shared';
+import { caldavComponentFilter, davRefusalBody, log } from '@openmig/shared';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
   wellKnownUrl as buildWellKnownUrl,
@@ -347,11 +347,117 @@ export class CalDAVSource implements CalendarSource {
       },
     });
 
-    if (response.status !== 207) {
-      throw new Error(`REPORT failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+    /**
+     * WHEN `sync-collection` DOES NOT ANSWER, ASK THE QUESTION EVERY CALDAV
+     * SERVER HAS TO ANSWER.
+     *
+     * RFC 6578 is an optimisation — "what changed since this token" — and this
+     * source treated it as the only way to read a calendar. The sibling
+     * CardDAV source has had a fallback since a Nextcloud address book
+     * rejected the report outright; this one had the same promise in its file
+     * header ("CTag fallback when sync-token not supported") and no code.
+     *
+     * Live 2026-09-12, mapping 0cc9a844: five Google calendars, all five
+     * created on the target by this same pass, `listFolders` naming them
+     * correctly — and `0 created, 0 skipped` with nothing thrown and no
+     * failure row, because every REPORT came back 207 carrying no calendar
+     * objects. On that same pass, over the same Google account and the same
+     * token, contacts read 1,227 cards: the CardDAV fallback caught what the
+     * CalDAV one could not, and that asymmetry WAS the bug.
+     *
+     * Two ways in, and the second is the one that had no exit:
+     *
+     *  - a non-207, which is a server refusing the report (Sabre answers
+     *    `ReportNotSupported`); and
+     *  - a 207 that carries nothing, on a read with NO CURSOR. With a cursor,
+     *    "nothing" is the correct and common answer — it means nothing
+     *    changed. Without one it is a claim that an entire calendar is empty,
+     *    and this is where #926's invariant already refuses to store a token
+     *    over it. Refusing to record the claim was the right half; this is the
+     *    other half, which is to go and find out.
+     */
+    const parsed =
+      response.status === 207 ? this.parseSyncCollectionResponse(response.body) : undefined;
+    const answeredNothing =
+      parsed !== undefined && parsed.objects.length === 0 && parsed.removed.length === 0;
+
+    if (parsed !== undefined && !(answeredNothing && cursor === undefined)) {
+      return parsed;
     }
 
-    return this.parseSyncCollectionResponse(response.body);
+    if (parsed === undefined) {
+      log.warn(
+        `[caldav] '${collectionPath}': sync-collection answered ${response.status}, not 207 — ` +
+          `falling back to a calendar-query listing (RFC 4791 §7.8). ` +
+          davRefusalBody(response.body),
+      );
+    } else {
+      log.warn(
+        `[caldav] '${collectionPath}': a FIRST sync-collection read (no cursor) came back with ` +
+          `no objects and no removals, from a ${response.body.length}-byte 207. That is a claim ` +
+          `the whole calendar is empty, which this does not take on trust — falling back to a ` +
+          `calendar-query listing (RFC 4791 §7.8).`,
+      );
+    }
+
+    const { objects } = await this.calendarQueryAll(collectionPath);
+    if (objects.length === 0) {
+      log.warn(
+        `[caldav] '${collectionPath}': the calendar-query listing found nothing either, so this ` +
+          `collection really is empty for ${this.component}.`,
+      );
+    }
+    // No incremental cursor from this path: `calendar-query` answers
+    // "everything that matches", so every pass re-lists. Correctness holds —
+    // ADR-0020 makes cursors non-authoritative and the ledger's natural-key
+    // fast-path keeps the re-scan idempotent. And no removal reports either:
+    // a deleted event is simply absent from the answer, which is the
+    // absence-counting path's business, not this one. `[]` says exactly that.
+    return { objects, syncToken: undefined, ctag: undefined, removed: [] };
+  }
+
+  /**
+   * Every object of this source's component in one collection.
+   *
+   * RFC 4791 §7.8 `calendar-query`, with the filter §9.5 requires and exactly
+   * ONE component — see `caldavComponentFilter` for why both of those are
+   * load-bearing and what each cost when it was got wrong.
+   *
+   * The whole body is asked for, not a partial retrieval: this is the read the
+   * sync loop copies FROM, so it needs the events themselves, where the target
+   * writer's sibling query is only enumerating and asks for UIDs alone.
+   */
+  private async calendarQueryAll(
+    collectionPath: string,
+  ): Promise<{ objects: CalDAVCalendarObject[] }> {
+    const query = `<?xml version="1.0" encoding="utf-8"?>
+      <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+        <D:prop>
+          <D:getetag/>
+          <C:calendar-data/>
+        </D:prop>
+        ${caldavComponentFilter(this.component, 'C')}
+      </C:calendar-query>`;
+
+    const response = await this.send({
+      method: 'REPORT',
+      url: this.resolveHref(collectionPath),
+      body: query,
+      headers: {
+        'Content-Type': 'application/xml',
+        Depth: '1',
+        Authorization: await this.authorizationHeader(),
+      },
+    });
+
+    if (response.status !== 207) {
+      throw new Error(
+        `calendar-query REPORT failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+      );
+    }
+
+    const { objects } = this.parseSyncCollectionResponse(response.body);
+    return { objects };
   }
 
   /**
