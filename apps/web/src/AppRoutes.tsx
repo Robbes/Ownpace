@@ -45,6 +45,7 @@ import Setup from './pages/Setup.tsx';
 import Sharing from './pages/Sharing.tsx';
 import Failures from './pages/Failures.tsx';
 import Verify from './pages/Verify.tsx';
+import Confirmed from './pages/Confirmed.tsx';
 import Finish from './pages/Finish.tsx';
 import Confirm from './pages/Confirm.tsx';
 import { isSelfHost } from './services/edition.ts';
@@ -336,6 +337,19 @@ const AppRoutes: React.FC = () => {
           }
         />
         <Route path="mappings/:mappingId/verify" element={<Verify />} />
+        {/* D10's confirmed list (workplan 0117 T2). Two mount points, same
+            split as the queues and Verify: the appliance answers for every
+            configured mapping at its flat URL, managed for the one its path
+            names. */}
+        <Route
+          path="confirmed"
+          element={
+            <SelfhostOnly>
+              <Confirmed />
+            </SelfhostOnly>
+          }
+        />
+        <Route path="mappings/:mappingId/confirmed" element={<Confirmed />} />
         <Route
           path="finish"
           element={

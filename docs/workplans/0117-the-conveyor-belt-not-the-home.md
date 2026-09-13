@@ -87,8 +87,9 @@ something untrue about the appliance: nothing read the appliance.
 URLs asserted where they are actually served, plus that this edition calls the
 shared reads and never assembles the headline itself.
 
-**Left: the screen** (T5's half of the words), and the managed E2E, which has
-not been dispatched for any of this week's work.
+**Left: the managed E2E**, which has not been dispatched for any of this
+week's work. The screen was built on 2026-09-13 — see the entry at the end of
+this section.
 
 **2026-09-11: ONE FAN-OUT, BOTH EDITIONS — the owner took option (b).**
 
@@ -756,14 +757,57 @@ That second remark is the whole plan. It is right, it goes deeper than it first 
 §3 is the answer. **No task here is authorised.** D1 is the only decision that matters; if
 the owner says no to it, this document is a record of why and nothing more is wasted.
 
+**2026-09-13: THE SCREEN — T2's last slice, and what building it found.**
+
+`apps/web/src/pages/Confirmed.tsx`, at `confirmed` and
+`mappings/:mappingId/confirmed` — the two mount points Verify and the queues
+use, for the same reason. `queuePathFor` grew `confirmed-list` and `confirm`
+rather than a fourth path helper: both servers already take exactly this
+split, and the union is about URL shape, which is what that function decides.
+
+Four things on it are decisions rather than layout, and all four come out of
+this workplan's own rules:
+
+1. **Nothing polls the list.** `GET .../confirmed-list` walks every item,
+   because the headline is derived at read time and not stored. So the button
+   starts a pass, a watch polls the cheap `/runs` route, and the expensive
+   read happens exactly once when no run is open. The watch is **bounded at
+   sixty polls**, because a mapping in T1's continuous lane keeps opening sync
+   runs and "no run is open" may never arrive — a watch that waited for quiet
+   would spin for ever with a spinner on screen.
+2. **The states are words, not a scale.** `unchecked`, `missing` and
+   `never-placed` each carry their own word and their own sentence, and
+   `byte-hash` / `fingerprint` are named rather than ranked. §7e's whole
+   argument is that these are different questions; rendering any two alike is
+   how somebody empties the wrong folder.
+3. **A blank identifier says it was never RECORDED.** This is the correction
+   of 2026-09-12 reaching the screen. Rows written before that date carry
+   `natural_key = ''` and cannot be backfilled, so the cell says *name not
+   recorded* with the reason in a hover, and fills itself in when a later pass
+   re-walks that item. On the owner's live migration that is 1,229 contact
+   rows and 160 file rows today; a blank cell there would read as *this item
+   has no name* on the one page where that is a frightening thing to read.
+4. **A failed pass does not date the page.** `lastPass.state === 'failed'`
+   renders "the check stopped at …" with the reason, never "checked at …" —
+   dating the document by the moment it stopped being trustworthy is the worst
+   kind of almost-honest.
+
+Thirteen tests, four of them proved by mutation: a blank identifier rendered
+blank, an unbounded watch, a failed pass dated as checked, and a headline
+stating `verified` where the total belongs. Each was caught by exactly one
+test. The paging guard's lesson from slice 8 is honoured in the cap test
+itself: it ADVANCES a bounded number of timers and asserts, rather than
+looping until the watch stops — a guard of the second shape would hang on the
+bug it exists to catch.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | ✅ **Slices 1–3 built 2026-09-10.** The lane exists in every vocabulary, runs with the deletion detectors absent, and can now be ENTERED: `PATCH /api/migrations/:id` admits `continuous`, offered on the Finish page from `cutover` or `done`, behind two presses and the sentence D8 settled. | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy. |
-| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Left: the SCREEN** (T5's half of the words) — both editions now serve the button, the list and the export, so the route-parity exception that forbade a screen is gone. | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
+| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Slice 9, the SCREEN, built 2026-09-13**: `apps/web/src/pages/Confirmed.tsx` at the two mount points the queues use, a tile on the mapping hub, and the words in both languages. Nothing polls the walk — the button starts a pass, a bounded watch reads the cheap `/runs` route, and the expensive read happens once when it lands. **T2 is done.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
-| T5 The words | 🔨 **The lane's half done 2026-09-10** (D8): the pricing page's "finishing lowers your bill" paragraph gained the exception beside it, and `lane.*` says it again where the switch is — including that deletions at the source stop being mirrored. The drain's consent (D5) defers with T3. **Left: T2's half** — the list must say what "verified" covers before anybody deletes on the strength of it (D10 settled its shape). | A person must be told that a mapping keeps copying after cutover, that deletions at the source are no longer mirrored and why, and what "verified" covers. |
+| T5 The words | 🔨 **The lane's half done 2026-09-10** (D8): the pricing page's "finishing lowers your bill" paragraph gained the exception beside it, and `lane.*` says it again where the switch is — including that deletions at the source stop being mirrored. The drain's consent (D5) defers with T3. **T2's half landed 2026-09-13 with the screen**: each row state carries its own word and its own sentence, `byte-hash` and `fingerprint` are named rather than scored, and the headline says what "verified" covers. **Left: nothing but D5, which defers with T3.** | A person must be told that a mapping keeps copying after cutover, that deletions at the source are no longer mirrored and why, and what "verified" covers. |
 
 ## Why this exists
 

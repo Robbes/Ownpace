@@ -687,6 +687,9 @@ const en = {
   'hub.check.name': 'Check',
   'hub.check.blurb':
     'Compare the two systems and sample the contents, behind one button.',
+  'hub.confirmed.name': 'Confirmed',
+  'hub.confirmed.blurb':
+    'What is in the new home, item by item, and what was compared.',
   'hub.finish.name': 'Finish',
   'hub.finish.blurb':
     'The cutover checklist. Ends the migration — in order, with the one attested step.',
@@ -1198,6 +1201,66 @@ const en = {
     'Turned off in the config; it does not block cutover, but nobody checked it.',
   'verify.help.NOT_VERIFIABLE':
     'Enabled, but the target cannot be read for it; unchecked, so it blocks cutover.',
+  // The confirmed list (workplan 0117 T2, D10) — the page somebody deletes
+  // their originals on the strength of. The state words are deliberately not
+  // a scale: see `confirmed-list.ts`, which argues they are different
+  // questions, and a list that renders any two of them alike is a list
+  // somebody empties the wrong folder on.
+  'confirmed.title': 'What is confirmed in your new home',
+  'confirmed.intro':
+    'Re-reads each item on the destination and says what the check actually compared.',
+  'confirmed.check': 'Check the destination',
+  'confirmed.export': 'Download the full list',
+  'confirmed.durationHint':
+    'Reads the destination item by item — on a large account this takes minutes.',
+  'confirmed.applianceScope': 'On this appliance a check covers every configured migration.',
+  'confirmed.joined': 'A check was already running; this joined it.',
+  'confirmed.loading': 'Reading the list…',
+  'confirmed.couldNotRead': 'The list could not be read.',
+  'confirmed.neverRun': 'No check has run yet, so nothing is confirmed.',
+  'confirmed.running': 'Checking since',
+  'confirmed.checkedAt': 'Checked',
+  'confirmed.passFailed': 'The check stopped at',
+  'confirmed.paused': 'Only part of the account was checked:',
+  'confirmed.nothingYet': 'This migration has no items yet.',
+  'confirmed.allVerified': 'Every item was re-read and matched. Nothing needs your attention.',
+  'confirmed.headline.of': 'of',
+  'confirmed.headline.rest': 'items are in your new home, verified by hash.',
+  'confirmed.truncated.a': 'Showing the first',
+  'confirmed.truncated.b': 'rows. The download has every one of them.',
+  'confirmed.noKey': 'name not recorded',
+  'confirmed.noKey.hover': 'Recorded only since 12 September 2026; a later pass fills this in.',
+  'confirmed.col.domain': 'Type',
+  'confirmed.col.collection': 'Where',
+  'confirmed.col.item': 'Item',
+  'confirmed.col.state': 'Result',
+  'confirmed.col.claim': 'Compared',
+  'confirmed.col.when': 'Checked',
+  'confirmed.state.verified': 'Verified',
+  'confirmed.state.differs': 'Differs',
+  'confirmed.state.present': 'Present',
+  'confirmed.state.yours': 'Yours already',
+  'confirmed.state.missing': 'Missing',
+  'confirmed.state.neverPlaced': 'Never placed',
+  'confirmed.state.removed': 'Removed',
+  'confirmed.state.unchecked': 'Not checked',
+  'confirmed.help.verified': 'Re-read from the destination and it matched what we wrote.',
+  'confirmed.help.differs':
+    'Re-read from the destination and it did not match. Worth looking at.',
+  'confirmed.help.present':
+    'It is there, but nothing comparable could be computed. Not a failure.',
+  'confirmed.help.yours': 'Your own copy was already there, so we never wrote these bytes.',
+  'confirmed.help.missing':
+    'We placed it and the re-read cannot find it. Keep your original.',
+  'confirmed.help.neverPlaced':
+    'It was never copied — skipped, failed, or left behind by choice.',
+  'confirmed.help.removed':
+    'We removed our own copy, on a decision recorded at the time.',
+  'confirmed.help.unchecked':
+    'The destination could not be asked. Nothing is known either way.',
+  'confirmed.claim.byteHash': 'by hash',
+  'confirmed.claim.fingerprint': 'by fingerprint',
+  'confirmed.claim.none': 'not compared',
   'finish.title': 'Finish a migration',
   'finish.intro': 'Finishing stops the copying and the reporting; work the steps in order.',
   'finish.unknown.pre': 'No migration with id',
@@ -2394,6 +2457,9 @@ const nl: Record<keyof typeof en, string> = {
   'hub.check.name': 'Verificatie',
   'hub.check.blurb':
     'Vergelijk de twee systemen en controleer steekproeven van de inhoud, achter één knop.',
+  'hub.confirmed.name': 'Bevestigd',
+  'hub.confirmed.blurb':
+    'Wat er in het nieuwe huis staat, item voor item, en wat is vergeleken.',
   'hub.finish.name': 'Afronden',
   'hub.finish.blurb':
     'De cutover-checklist; beëindigt de migratie in volgorde, met de ene stap die u zelf bevestigt.',
@@ -2723,6 +2789,65 @@ const nl: Record<keyof typeof en, string> = {
     'Uitgeschakeld in de configuratie; blokkeert de cutover niet, maar niemand controleerde het.',
   'verify.help.NOT_VERIFIABLE':
     'Ingeschakeld, maar het doel is er niet voor te lezen; ongecontroleerd blokkeert de cutover.',
+  // Zie de Engelse blok-opmerking: de toestandswoorden zijn geen schaal.
+  'confirmed.title': 'Wat er bevestigd is in uw nieuwe huis',
+  'confirmed.intro':
+    'Leest elk item terug op de bestemming en zegt wat er precies is vergeleken.',
+  'confirmed.check': 'Controleer de bestemming',
+  'confirmed.export': 'Download de volledige lijst',
+  'confirmed.durationHint':
+    'Leest de bestemming item voor item — bij een groot account duurt dit minuten.',
+  'confirmed.applianceScope':
+    'Op deze appliance omvat een controle elke geconfigureerde migratie.',
+  'confirmed.joined': 'Er liep al een controle; deze is daarbij aangesloten.',
+  'confirmed.loading': 'Bezig met lezen…',
+  'confirmed.couldNotRead': 'De lijst kon niet worden gelezen.',
+  'confirmed.neverRun': 'Er is nog geen controle uitgevoerd, dus niets is bevestigd.',
+  'confirmed.running': 'Bezig sinds',
+  'confirmed.checkedAt': 'Gecontroleerd',
+  'confirmed.passFailed': 'De controle stopte om',
+  'confirmed.paused': 'Slechts een deel van het account is gecontroleerd:',
+  'confirmed.nothingYet': 'Deze migratie heeft nog geen items.',
+  'confirmed.allVerified': 'Elk item is teruggelezen en kwam overeen. Niets vraagt uw aandacht.',
+  'confirmed.headline.of': 'van de',
+  'confirmed.headline.rest': 'items staan in uw nieuwe huis, geverifieerd met een hash.',
+  'confirmed.truncated.a': 'De eerste',
+  'confirmed.truncated.b': 'rijen worden getoond. De download bevat ze allemaal.',
+  'confirmed.noKey': 'naam niet vastgelegd',
+  'confirmed.noKey.hover':
+    'Pas sinds 12 september 2026 vastgelegd; een volgende passage vult dit aan.',
+  'confirmed.col.domain': 'Type',
+  'confirmed.col.collection': 'Waar',
+  'confirmed.col.item': 'Item',
+  'confirmed.col.state': 'Resultaat',
+  'confirmed.col.claim': 'Vergeleken',
+  'confirmed.col.when': 'Gecontroleerd',
+  'confirmed.state.verified': 'Geverifieerd',
+  'confirmed.state.differs': 'Wijkt af',
+  'confirmed.state.present': 'Aanwezig',
+  'confirmed.state.yours': 'Al van u',
+  'confirmed.state.missing': 'Ontbreekt',
+  'confirmed.state.neverPlaced': 'Nooit geplaatst',
+  'confirmed.state.removed': 'Verwijderd',
+  'confirmed.state.unchecked': 'Niet gecontroleerd',
+  'confirmed.help.verified':
+    'Teruggelezen van de bestemming en het kwam overeen met wat wij schreven.',
+  'confirmed.help.differs':
+    'Teruggelezen van de bestemming en het kwam niet overeen. Bekijk dit.',
+  'confirmed.help.present':
+    'Het staat er, maar er viel niets vergelijkbaars te berekenen. Geen fout.',
+  'confirmed.help.yours': 'Uw eigen kopie stond er al, dus wij schreven deze bytes nooit.',
+  'confirmed.help.missing':
+    'Wij plaatsten het en bij teruglezen is het weg. Bewaar uw origineel.',
+  'confirmed.help.neverPlaced':
+    'Het is nooit gekopieerd — overgeslagen, mislukt, of bewust achtergelaten.',
+  'confirmed.help.removed':
+    'Wij verwijderden onze eigen kopie, op een destijds vastgelegd besluit.',
+  'confirmed.help.unchecked':
+    'De bestemming kon niet worden bevraagd. Er is niets over bekend.',
+  'confirmed.claim.byteHash': 'via hash',
+  'confirmed.claim.fingerprint': 'via vingerafdruk',
+  'confirmed.claim.none': 'niet vergeleken',
   'finish.title': 'Rond een migratie af',
   'finish.intro':
     'Afronden stopt het kopiëren en het rapporteren; doorloop de stappen in volgorde.',

@@ -14,6 +14,8 @@ import type {
   ApplyDeletionsFlag,
   ApplyQueuedResponse,
   ApplyReceipt,
+  ConfirmedListResponse,
+  ConfirmStartResponse,
   VerificationRunReport,
   VerifyStartResponse,
   DecisionAccepted,
@@ -603,6 +605,66 @@ export async function startVerification(mappingId?: string): Promise<VerifyStart
 /** The current run's state. A status read — safe to poll, starts nothing. */
 export async function fetchVerifyReport(mappingId?: string): Promise<VerificationRunReport> {
   return (await client.get<VerificationRunReport>(verifyPath('report', mappingId))).data;
+}
+
+/**
+ * D10's confirmed list (workplan 0117 T2) — the headline, the rows that are
+ * NOT verified, and the total.
+ *
+ * **This WALKS the mapping's items.** The headline is derived at read time, on
+ * purpose: `countsAsVerified` is the one place that decides what the word
+ * means, and counting it in SQL would be a second. So this is a page somebody
+ * opens, never something to poll — a screen watching a pass polls
+ * `fetchRuns`, which reads one row, and re-reads this when the run lands.
+ */
+export async function fetchConfirmedList(mappingId?: string): Promise<ConfirmedListResponse> {
+  return (await client.get<ConfirmedListResponse>(queuePath('confirmed-list', mappingId))).data;
+}
+
+/**
+ * Start a confirmation pass, or join the one already running.
+ *
+ * `started: false` is not an error — it means a pass was under way and this
+ * request joined it, the same idempotent shape `startVerification` and
+ * `POST .../start` take. A second pass over the same account would pay for
+ * every byte twice to answer a question already being answered.
+ */
+export async function startConfirmation(mappingId?: string): Promise<ConfirmStartResponse> {
+  return (await client.post<ConfirmStartResponse>(queuePath('confirm', mappingId))).data;
+}
+
+/**
+ * The full export (D10), fetched as BYTES and handed to the browser.
+ *
+ * `responseType: 'blob'` rather than the default, and that is not a detail.
+ * The server writes a **BOM** so Excel reads the file as UTF-8 instead of the
+ * local codepage, and it quotes leading `=`/`+`/`-`/`@` out of being formulas;
+ * both are byte-level decisions taken on the server, and letting axios parse
+ * the body to a string and re-encode it here would be a second opinion about
+ * bytes somebody opens in a spreadsheet.
+ *
+ * Fetched through this client rather than linked with an `<a href>`, because a
+ * plain link carries no `Authorization` header and this route is behind
+ * `authenticate` on managed — a link would download a 401 page named `.csv`.
+ * The whole account lands in memory to become a Blob, which is what a browser
+ * download is; the server still streams it a page at a time so the API does
+ * not.
+ */
+export async function fetchConfirmedListExport(
+  mappingId?: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await client.get<Blob>(`${queuePath('confirmed-list', mappingId)}/export`, {
+    responseType: 'blob',
+  });
+  // The server names the file; both editions set it. Honour that name rather
+  // than inventing one, so the appliance's whole-account export is not saved
+  // under a mapping id it does not describe.
+  const disposition = String(response.headers['content-disposition'] ?? '');
+  const named = /filename="([^"]+)"/.exec(disposition)?.[1];
+  return {
+    blob: response.data,
+    filename: named ?? `confirmed-${mappingId ?? 'all'}.csv`,
+  };
 }
 
 /**
