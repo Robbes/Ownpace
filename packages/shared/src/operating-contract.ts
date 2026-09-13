@@ -833,6 +833,22 @@ export interface RunReport {
   readonly id: string;
   readonly mappingId: string | null;
   readonly type: 'full' | 'delta';
+  /**
+   * The ledger's own word for what this run is — `confirm`, `initial_copy`,
+   * `incremental`, and the rest.
+   *
+   * `type` above collapses every kind into `full` or `delta`, so it cannot
+   * answer "which of these runs is the job I started". A screen watching ONE
+   * job had to ask "is ANY run open" instead, which is true of a mapping in
+   * the continuous lane for ever — and so the watch had to be bounded by a
+   * timer that expires while the job is still working.
+   *
+   * Typed as a string rather than a union because the vocabulary is the
+   * LEDGER's (`RunKind`), a layer this package sits under: a second copy here
+   * would be a list that drifts. `openapi.yaml` has published it as a string
+   * since the endpoint shipped; this is the field finally being served.
+   */
+  readonly kind: string;
   readonly status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
   readonly startedAt: string | null;
   readonly finishedAt: string | null;

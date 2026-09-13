@@ -26,6 +26,13 @@
  * lands — a `setInterval` on the list itself would walk a family file account
  * every few seconds. The pass's own progress is a run row, which is cheap.
  *
+ * That last sentence was true of the design and false of the product until
+ * 2026-09-13. The run row said `itemsProcessed: 0` for the whole of a pass,
+ * because only `finishRun` ever wrote it — so the cheap thing this screen was
+ * sent to poll had nothing in it, and a twenty-seven-minute pass over 7,468
+ * real items looked exactly like a hung one. The pass notes its progress now,
+ * and `PassLine` shows it moving beside a spinner.
+ *
  * ## The states are not a scale
  *
  * `confirmed-list.ts` is explicit: the claims are different QUESTIONS, not
@@ -47,7 +54,13 @@
 import React from 'react';
 import { useParams } from 'react-router';
 import { AlertCircle, Download, Loader2 } from 'lucide-react';
-import type { ClaimKind, ConfirmedListQueue, ConfirmedRowView, RowState } from '@openmig/shared';
+import type {
+  ClaimKind,
+  ConfirmedListQueue,
+  ConfirmedRowView,
+  RowState,
+  RunReport,
+} from '@openmig/shared';
 import {
   fetchConfirmedList,
   fetchConfirmedListExport,
@@ -192,17 +205,49 @@ function ExportButton({ mappingId }: { mappingId?: string }): React.ReactElement
   );
 }
 
-function PassLine({ q }: { q: ConfirmedListQueue }): React.ReactElement {
+function PassLine({
+  q,
+  checked,
+}: {
+  q: ConfirmedListQueue;
+  /** Items this pass has walked so far, when a watch is reading its run row. */
+  checked: number | null;
+}): React.ReactElement {
   const t = useT();
-  const { dateTime } = useFormatters();
+  const { dateTime, number } = useFormatters();
   const p = q.lastPass;
   if (p.state === 'never-run') {
     return <p className="text-xs text-gray-500">{t('confirmed.neverRun')}</p>;
   }
   if (p.state === 'running') {
     return (
-      <p className="text-xs text-gray-500">
-        {t('confirmed.running')} {dateTime(p.startedAt)}
+      <p className="flex items-center gap-1.5 text-xs text-gray-500">
+        {/*
+          A pass over a real account runs for half an hour, and until now the
+          only sign it was alive was a start time that never changed. The
+          spinner says WORKING and the count says HOW FAR — together they are
+          what tells a long pass apart from a hung one, which is the whole of
+          what somebody watching this page wants to know.
+        */}
+        <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
+        <span>
+          {t('confirmed.running')} {dateTime(p.startedAt)}
+          {/*
+            CHECKED, not verified, and the two words are not interchangeable:
+            this counts every item the pass has walked, while the headline
+            above counts only the ones the target confirmed by hash. The
+            smaller number is the claim; this one is the progress. Labelling
+            both "verified" would inflate the claim by everything the pass
+            looked at and did not confirm.
+          */}
+          {checked !== null && (
+            <>
+              {' — '}
+              {number(checked)} {t('confirmed.checked.of')} {number(q.total)}{' '}
+              {t('confirmed.checked.rest')}
+            </>
+          )}
+        </span>
       </p>
     );
   }
@@ -223,7 +268,15 @@ function PassLine({ q }: { q: ConfirmedListQueue }): React.ReactElement {
   );
 }
 
-function Mapping({ mappingId, q }: { mappingId: string; q: ConfirmedListQueue }): React.ReactElement {
+function Mapping({
+  mappingId,
+  q,
+  checked,
+}: {
+  mappingId: string;
+  q: ConfirmedListQueue;
+  checked: number | null;
+}): React.ReactElement {
   const t = useT();
   const { number } = useFormatters();
   return (
@@ -244,7 +297,7 @@ function Mapping({ mappingId, q }: { mappingId: string; q: ConfirmedListQueue })
           {t('confirmed.headline.of')} {number(q.total)} {t('confirmed.headline.rest')}
         </span>
       </p>
-      <PassLine q={q} />
+      <PassLine q={q} checked={checked} />
 
       {/*
         Why the account is only PART checked, when there is a reason. Without
@@ -298,9 +351,29 @@ function Mapping({ mappingId, q }: { mappingId: string; q: ConfirmedListQueue })
   );
 }
 
-/** How long the run watch may wait, and how often it asks. See `start`. */
+/**
+ * How often the watch asks, and the most it will ask. See `watch`.
+ *
+ * The poll reads `GET .../runs`, which is ONE ROW — the contract sends a
+ * screen watching a pass here for exactly that reason. So the cadence is cheap
+ * and the cap is a safety net.
+ *
+ * It used to be the mechanism, and that was the bug. The watch asked *"is any
+ * run open"*, which on a mapping in the continuous lane is true for ever, so
+ * nothing but a timer could end it — and the timer was five minutes. A pass
+ * over 7,468 real items took twenty-seven on 2026-09-13, so the watch expired
+ * with the pass a fifth done and the screen went quiet while the work carried
+ * on. Now the CONFIRM run's own status ends the watch, and this cap catches
+ * only a run row that never closes at all.
+ */
 const POLL_MS = 5000;
-const MAX_POLLS = 60;
+const MAX_POLLS = 720;
+
+/** The ledger's word for a confirmation pass — the one run this screen owns. */
+const CONFIRM_KIND = 'confirm';
+
+const isConfirm = (r: RunReport): boolean => r.kind === CONFIRM_KIND;
+const isOpen = (r: RunReport): boolean => r.status === 'running' || r.status === 'pending';
 
 const Confirmed: React.FC = () => {
   const { mappingId } = useParams<{ mappingId: string }>();
@@ -311,6 +384,9 @@ const Confirmed: React.FC = () => {
   const [loading, setLoading] = React.useState(true);
   const [checking, setChecking] = React.useState(false);
   const [joined, setJoined] = React.useState(false);
+  /** How far the watched pass has got, and which mapping it belongs to. */
+  const [checked, setChecked] = React.useState<number | null>(null);
+  const [watchedId, setWatchedId] = React.useState<string | null>(null);
 
   const read = React.useCallback(() => {
     setLoading(true);
@@ -338,57 +414,108 @@ const Confirmed: React.FC = () => {
   React.useEffect(() => stopPolling, [stopPolling]);
 
   /**
-   * Start a pass, watch the RUN, then re-read the list once.
+   * Watch ONE pass's run row until it closes, reporting how far it has got.
    *
    * The run row is cheap; the list walks every item in the account. So the
-   * poll goes to `/runs` and the expensive read happens exactly once, when no
-   * run is open any more — which is the rule the contract states and the
-   * reason this screen does not simply poll itself.
+   * poll goes to `/runs` and the expensive read happens exactly once, when
+   * this pass's run is no longer open — which is the rule the contract states
+   * and the reason this screen does not simply poll itself.
    *
-   * **Bounded, because "no run is open" is not guaranteed to arrive.** A
-   * mapping in the continuous lane (T1) keeps opening sync runs, so a watch
-   * that waited for quiet would wait for ever with a spinner on screen. After
-   * the cap the watch stops and re-reads anyway: a list a few minutes stale,
-   * with its own `lastPass` line saying so, beats a spinner that never ends.
+   * `priorRunId` is the confirm run that was newest BEFORE the press, when
+   * that one had already finished. The worker opens its own row a moment
+   * after the press, and a poll landing in that gap would otherwise find the
+   * PREVIOUS pass, read its `success`, and call this one done before it had
+   * started. An id rather than a timestamp, so the browser's clock and the
+   * server's never have to agree.
    */
+  const watch = React.useCallback(
+    (id: string, priorRunId: string | undefined) => {
+      stopPolling();
+      pollsRef.current = 0;
+      setChecking(true);
+      setWatchedId(id);
+      const done = (): void => {
+        stopPolling();
+        setChecking(false);
+        setChecked(null);
+        setWatchedId(null);
+        void read();
+      };
+      pollRef.current = setInterval(() => {
+        pollsRef.current += 1;
+        // The cap, which is now only reached by a run row that never closes:
+        // re-read anyway, because a list a few minutes stale with its own
+        // `lastPass` line saying so beats a spinner that never ends.
+        if (pollsRef.current > MAX_POLLS) {
+          done();
+          return;
+        }
+        void fetchRuns(id)
+          .then(({ runs }) => {
+            const pass = runs.find(isConfirm);
+            if (pass === undefined || pass.id === priorRunId) return;
+            if (isOpen(pass)) {
+              setChecked(pass.itemsProcessed);
+              return;
+            }
+            done();
+          })
+          .catch(() => {
+            // A missed poll is not a failed pass — the worker may be busy or
+            // the laptop asleep. Keep polling; the run row is authoritative.
+          });
+      }, POLL_MS);
+    },
+    [read, stopPolling],
+  );
+
+  /**
+   * Pick the watch back up on a page that loads while a pass is running.
+   *
+   * A pass belongs to the SERVER, not to this tab. Somebody who presses the
+   * button, closes the laptop and comes back is still owed the sight of it
+   * working — and before this, `checking` was client state alone, so a reload
+   * mid-pass showed a still page with an enabled button whose only effect was
+   * to join the pass already under way.
+   *
+   * No `priorRunId`: `lastPass` is the confirm run's OWN state, read
+   * server-side, so a list that says `running` is saying this pass exists and
+   * is open. There is no gap to guard against.
+   */
+  React.useEffect(() => {
+    if (list === null || pollRef.current !== null) return;
+    const open = Object.entries(list).find(([, q]) => q.lastPass.state === 'running');
+    if (open === undefined) return;
+    watch(open[0], undefined);
+  }, [list, watch]);
+
+  /** Start a pass — or join the one already running — and watch it. */
   const start = () => {
+    const id = mappingId ?? Object.keys(list ?? {})[0];
+    if (id === undefined) return;
     setChecking(true);
     setError(null);
     setJoined(false);
-    void startConfirmation(mappingId)
-      .then((r) => {
-        // `started: false` means a pass was already under way and this request
-        // joined it — an outcome, not an error, and the screen says which.
-        setJoined(Object.values(r).some((v) => v.started === false));
-        stopPolling();
-        pollsRef.current = 0;
-        pollRef.current = setInterval(() => {
-          const id = mappingId ?? Object.keys(list ?? {})[0];
-          if (id === undefined) return;
-          pollsRef.current += 1;
-          if (pollsRef.current > MAX_POLLS) {
-            stopPolling();
-            setChecking(false);
-            void read();
-            return;
-          }
-          void fetchRuns(id)
-            .then(({ runs }) => {
-              const open = runs.some((run) => run.status === 'running' || run.status === 'pending');
-              if (!open) {
-                stopPolling();
-                setChecking(false);
-                void read();
-              }
-            })
-            .catch(() => {
-              // A missed poll is not a failed pass — the worker may be busy or
-              // the laptop asleep. Keep polling; the run row is authoritative.
-            });
-        }, POLL_MS);
-      })
+    setChecked(null);
+    // Read the runs BEFORE pressing, so `watch` can tell this pass's row from
+    // the one that was already there. A prior run still OPEN is deliberately
+    // NOT excluded: that is the pass this press will join rather than replace,
+    // and it is the one to watch.
+    void fetchRuns(id)
+      .then(({ runs }) => runs.find(isConfirm))
+      .catch(() => undefined)
+      .then((prior) =>
+        startConfirmation(mappingId).then((r) => {
+          // `started: false` means a pass was already under way and this
+          // request joined it — an outcome, not an error, and the screen says
+          // which.
+          setJoined(Object.values(r).some((v) => v.started === false));
+          watch(id, prior !== undefined && !isOpen(prior) ? prior.id : undefined);
+        }),
+      )
       .catch((err: unknown) => {
         setChecking(false);
+        setWatchedId(null);
         setError(serverMessage(err));
       });
   };
@@ -433,7 +560,14 @@ const Confirmed: React.FC = () => {
       {loading && list === null && <p className="text-sm text-gray-500">{t('confirmed.loading')}</p>}
 
       {list !== null &&
-        Object.entries(list).map(([id, q]) => <Mapping key={id} mappingId={id} q={q} />)}
+        Object.entries(list).map(([id, q]) => (
+          <Mapping
+            key={id}
+            mappingId={id}
+            q={q}
+            checked={watchedId === id ? checked : null}
+          />
+        ))}
     </div>
   );
 };

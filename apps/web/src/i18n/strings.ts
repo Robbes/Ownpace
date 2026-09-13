@@ -1226,6 +1226,11 @@ const en = {
   'confirmed.allVerified': 'Every item was re-read and matched. Nothing needs your attention.',
   'confirmed.headline.of': 'of',
   'confirmed.headline.rest': 'items are in your new home, verified by hash.',
+  // CHECKED, not verified: the pass has walked this many items, of which the
+  // headline above claims only the ones the target confirmed. Two numbers
+  // that differ on purpose, and a reader who is told which is which.
+  'confirmed.checked.of': 'of',
+  'confirmed.checked.rest': 'checked so far',
   'confirmed.truncated.a': 'Showing the first',
   'confirmed.truncated.b': 'rows. The download has every one of them.',
   'confirmed.noKey': 'name not recorded',
@@ -2811,6 +2816,8 @@ const nl: Record<keyof typeof en, string> = {
   'confirmed.allVerified': 'Elk item is teruggelezen en kwam overeen. Niets vraagt uw aandacht.',
   'confirmed.headline.of': 'van de',
   'confirmed.headline.rest': 'items staan in uw nieuwe huis, geverifieerd met een hash.',
+  'confirmed.checked.of': 'van de',
+  'confirmed.checked.rest': 'tot nu toe gecontroleerd',
   'confirmed.truncated.a': 'De eerste',
   'confirmed.truncated.b': 'rijen worden getoond. De download bevat ze allemaal.',
   'confirmed.noKey': 'naam niet vastgelegd',
