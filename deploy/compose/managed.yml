@@ -1260,6 +1260,18 @@ services:
     # exception nobody chose.
     volumes:
       - nextcloud_data:/var/www/html
+      # THE JIT OFF, BECAUSE IT COMPILED A CRASH (2026-09-13). The owner's
+      # target segfaulted on every request for two hours — see
+      # `nextcloud-php.ini`, which carries the full bisection. Mounted rather
+      # than written into the container because a file in the image layer is
+      # erased by the next `--force-recreate`, and this outage must not be
+      # rediscoverable by recreating a service.
+      #
+      # `zz-` IS NOT DECORATION. PHP reads `conf.d` alphabetically and the last
+      # value wins; the image's `opcache-recommended.ini` is what sets
+      # `opcache.jit=1255`, so anything sorting before it is read and then
+      # overwritten, silently doing nothing.
+      - ./nextcloud-php.ini:/usr/local/etc/php/conf.d/zz-ownpace-no-jit.ini:ro
     # The one probe here that is not an inference: `setup-nextcloud-users.sh`
     # has been running `docker exec <nextcloud> curl … http://localhost/status.php`
     # against this image on the Spark since the demo existed, so both the binary
