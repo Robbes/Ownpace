@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 126 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 127 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -1091,6 +1091,10 @@ reading a file drops off its entry by itself.
 
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 
+### `scripts/runs-without-a-transpiler.unit.test.ts`
+
+- [a-fixture-with-ten-seconds](../scripts/a-fixture-with-ten-seconds.unit.test.ts) — A hook that builds a database gets more than ten seconds to do it.
+
 ### `scripts/smoke-managed-verdict.unit.test.ts`
 
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
@@ -1438,6 +1442,14 @@ Reads:
 
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/smoke-managed.sh`
+
+### [a-fixture-with-ten-seconds](../scripts/a-fixture-with-ten-seconds.unit.test.ts)
+
+A hook that builds a database gets more than ten seconds to do it.
+
+Reads:
+
+- `scripts/runs-without-a-transpiler.unit.test.ts`
 
 ### [a-full-sync-that-only-did-the-mail](../scripts/a-full-sync-that-only-did-the-mail.unit.test.ts)
 
