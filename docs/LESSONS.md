@@ -897,6 +897,10 @@ reading a file drops off its entry by itself.
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
+### `packages/shared/src/dav-refusal.unit.test.ts`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
 ### `packages/shared/src/discovery.ts`
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
@@ -910,10 +914,6 @@ reading a file drops off its entry by itself.
 
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
-
-### `packages/shared/src/gdata-refusal.unit.test.ts`
-
-- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 
 ### `packages/shared/src/google-deployment-client.unit.test.ts`
 
@@ -1732,7 +1732,7 @@ A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 Reads:
 
 - `packages/engines/package.json`
-- `packages/shared/src/gdata-refusal.unit.test.ts`
+- `packages/shared/src/dav-refusal.unit.test.ts`
 - `packages/shared/src/index.ts`
 
 ### [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts)

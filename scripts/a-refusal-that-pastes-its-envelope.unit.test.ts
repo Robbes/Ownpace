@@ -37,7 +37,7 @@
  *
  * ROOT-LEVEL, SO VITEST AND NODE BUILTINS ONLY (AGENTS.md). The helper's own
  * behaviour — which envelopes it unwraps, what passes through untouched — is
- * tested beside it in `packages/shared/src/gdata-refusal.unit.test.ts`.
+ * tested beside it in `packages/shared/src/dav-refusal.unit.test.ts`.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -103,6 +103,6 @@ describe("a provider's refusal reaches a person without its envelope", () => {
         'about why the helper lives in shared needs revisiting',
     ).not.toContain('@openmig/connectors');
     const shared = readFileSync(join(ROOT, 'packages/shared/src/index.ts'), 'utf8');
-    expect(shared, 'shared no longer exports the trimmer').toContain('gdata-refusal');
+    expect(shared, 'shared no longer exports the trimmer').toContain('dav-refusal');
   });
 });

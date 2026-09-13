@@ -335,8 +335,9 @@ way out.
 | Second pass re-creates everything | Natural key unstable (e.g. UID case, or an unnormalized path) |
 | A domain reports 0 items from collections that exist | The `sync-collection` REPORT answered 207 with nothing. Since 2026-09-12 both DAV sources check that with a `calendar-query` / `addressbook-query` and log which path answered — look for `[caldav]` / `[carddav]` lines in the run's events |
 | `PUT` returns 404 naming a FOLDER, not the file | The parent collection was never created — an MKCOL whose status went unread, or a non-recursive one on a nested path |
-| `Response body object should not be disturbed or locked` on an upload | A retry re-sent a body that had already been consumed. The failure is OURS, not the target's — and it has replaced whatever the server actually said. See the Rule below |
+| `Response body object should not be disturbed or locked` on an upload | A retry re-sent a body that had already been consumed. The failure is OURS, not the target's — and it has replaced whatever the server actually said. See *Retrying a write whose body is a stream* above |
 | A folder of Google Docs stops a whole pass | A policy refusal counted as a broken world; a decision-class failure must be parked, not counted toward the tripwire (`isDecisionError`) |
+| A failed `PUT` in the ledger reads `status 500: <?xml version="1.0"` and nothing more | Nothing truncated it. Sabre's error document opens with over a hundred characters of XML declaration and namespace declarations, so any view with a width spends its budget before the first word of the reason. Since 2026-09-13 `davRefusalBody` unwraps it to `exception — message`; rows written before that date still carry the envelope, so read those with `SELECT last_error FROM item WHERE …` rather than through a table cell |
 | A domain reports `completed` with 0 created and 0 skipped, for ever | A cursor was stored past a first read that saw nothing — check `SELECT folder_path, cursor_value FROM cursor WHERE mapping_id = …`; deleting those rows makes the next pass re-read from the beginning |
 
 ## References
