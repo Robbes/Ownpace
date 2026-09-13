@@ -171,6 +171,45 @@ Documents\Reports\2024   →  Documents/Reports/2024
 Collection paths are resolved per target account — see
 `packages/engines/src/dav-collection-path.ts`.
 
+### Every domain — a refusal names what WE sent, not only what the server said
+
+**Rule**: When a DAV write is refused, the error MUST carry the server's own words
+(`davRefusalBody`, #934) AND any structural defect visible in the payload we handed it
+(`payloadDefects` in `packages/engines/src/dav-payload-defects.ts`). Appended, never substituted:
+a well-formed payload adds nothing and the refusal reads exactly as it did.
+
+Found live 2026-09-13. Two contacts out of 1,400 were refused five times each, and the whole of
+what Nextcloud would say — legible, thanks to #934, and still useless — was *"TypeError — A type
+error occurred. For more details, please refer to the logs."* The real message was in Apache's
+log: `strtoupper(): Argument #1 ($string) must be of type string, array given`, from
+
+```php
+public function getClassNameForPropertyValue($valueParam)
+{ $valueParam = strtoupper($valueParam);
+```
+
+which Sabre reaches as `getClassNameForPropertyValue($parameters['VALUE'])`. **An array lands
+there when one property line carries the same parameter twice**, because that is what the MimeDir
+parser produces for a repeated parameter. A vCard property carries exactly one VALUE type by
+spec, so the second is not data — and a spec-compliant parser is entitled to refuse it.
+
+Two things follow, and the second is the reason this is a READER rather than a repair.
+
+- **Names may be reported; values may never be.** Property and parameter names come from a fixed
+  vocabulary (`FN`, `TEL`, `VALUE`, `TYPE`, plus `X-` extensions); the value is somebody's phone
+  number or address. That is the line between a diagnosis that can be pasted into an issue and a
+  contact's details in a server log, and it is pinned by its own test.
+- **The repair waits for a real refusal to name the shape.** Stripping the duplicate before the
+  PUT would change the CUSTOMER'S content on a hypothesis — and the hypothesis was untestable,
+  because the bytes live at the source, the refusal does not carry them, and nothing on the
+  deployment could produce them. `caldav-target-writer.ts` already states the principle for its
+  own diagnosis: *"a guess dressed as a diagnosis is worse than the raw refusal."*
+
+**Rule**: the reader MUST unfold (RFC 6350 §3.2 / RFC 5545 §3.1) and MUST be quote-aware. A
+parameter pushed onto a continuation line is the case most worth catching and is invisible to a
+physical-line scan; and `TEL;TYPE="work;TYPE=home"` is ONE value, which a naive split reports as
+a duplicate that is not there.
+
 ### Files — collections exist before the PUT that needs them
 
 **Rule**: MKCOL is not recursive (RFC 4918 §9.3.1 — a missing ancestor answers 409, it does not

@@ -22,6 +22,7 @@ import type {
 } from '@openmig/shared';
 import { contactNaturalKeyHash, contactContentHash, isOnTarget } from '@openmig/shared';
 import { carddavMatchAllFilter, carddavUidFilter, davRefusalBody } from '@openmig/shared';
+import { payloadDefectNote } from './dav-payload-defects.ts';
 import { collectionSlug } from './dav-collection-path.ts';
 import {
   parseMultiStatus,
@@ -663,7 +664,15 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     }
 
     if (response.status !== 201 && response.status !== 204) {
-      throw new Error(`PUT failed for ${contactPath} with status ${response.status}: ${davRefusalBody(response.body)}`);
+      // What the SERVER said, then what is wrong with what WE sent — appended
+      // only when there is something to append. A Sabre `TypeError` names no
+      // property and no line, so on a refused card this note is the whole
+      // diagnosis; on a well-formed one it is empty and the refusal reads
+      // exactly as it did before.
+      throw new Error(
+        `PUT failed for ${contactPath} with status ${response.status}: ` +
+          `${davRefusalBody(response.body)}${payloadDefectNote(raw.vcard)}`,
+      );
     }
 
     return {

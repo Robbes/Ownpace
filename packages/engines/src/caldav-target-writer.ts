@@ -33,6 +33,7 @@ import {
 } from '@openmig/shared';
 import { CALENDAR_COMPONENTS, componentOfIcalendar } from '@openmig/shared';
 import { davRefusalBody } from '@openmig/shared';
+import { payloadDefectNote } from './dav-payload-defects.ts';
 import type { CalendarComponent } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
 import {
@@ -957,7 +958,13 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     icalendar: string,
     response: { status: number; body: string },
   ): Promise<string> {
-    const plain = `PUT failed for ${eventPath} with status ${response.status}: ${davRefusalBody(response.body)}`;
+    // The server's own words, plus anything structurally wrong with the object
+    // we sent. Empty for a well-formed one, so this cannot dress a clean
+    // refusal in a diagnosis it has not earned — the rule this method already
+    // follows for the component check below.
+    const plain =
+      `PUT failed for ${eventPath} with status ${response.status}: ` +
+      `${davRefusalBody(response.body)}${payloadDefectNote(icalendar)}`;
     const component = componentOfIcalendar(icalendar);
     if (!component) return plain;
     let accepted: ReadonlyArray<CalendarComponent> | undefined;
