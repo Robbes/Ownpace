@@ -87,9 +87,16 @@ something untrue about the appliance: nothing read the appliance.
 URLs asserted where they are actually served, plus that this edition calls the
 shared reads and never assembles the headline itself.
 
-**Left: the managed E2E**, which has not been dispatched for any of this
-week's work. The screen was built on 2026-09-13 — see the entry at the end of
-this section.
+**Corrected 2026-09-13: the managed E2E HAS covered this week's work.** This
+paragraph said it had not been dispatched for any of it, and that sentence was
+carried forward twice without anybody reading the workflow. `E2E (managed)`
+has run GREEN on `main` three times since: run #179 at `909e775` (12
+September, the one fan-out), #180 at `065224e` (12 September, both editions
+serving the confirmation surface) and #181 at `1f022aa` (13 September,
+08:27Z), the last of which carries every 0117 slice merged to date. Slice 9's
+screen is not in any of them and will not be until it merges.
+
+The screen was built on 2026-09-13 — see the entry at the end of this section.
 
 **2026-09-11: ONE FAN-OUT, BOTH EDITIONS — the owner took option (b).**
 
