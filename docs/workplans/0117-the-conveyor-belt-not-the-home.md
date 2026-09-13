@@ -764,6 +764,76 @@ That second remark is the whole plan. It is right, it goes deeper than it first 
 §3 is the answer. **No task here is authorised.** D1 is the only decision that matters; if
 the owner says no to it, this document is a record of why and nothing more is wasted.
 
+**2026-09-13, evening: A COUNTER THAT NEVER MOVED — the first real pass met its
+own screen.**
+
+Rob ran the screen built this morning against the live Google→Nextcloud
+mapping: 7,468 items, a pass that took about twenty-seven minutes. Twice he
+reloaded and sent a screenshot — 2,000, then 3,000, then 3,500, then 5,000 —
+and then said the thing that named the defect:
+
+> *"I just don't see some indicator that it's still running/in progress."*
+
+He was right, and the roundness was the clue. `BATCH = 500` governs both halves
+of `run-confirmation-pass.ts` — one read page, one flush of findings — so the
+derived headline can only ever land on a multiple of 500 while a pass runs.
+Every figure he saw was a real, current count. **Nothing was stuck; nothing on
+the page said so.**
+
+Two causes, and the second is the one that mattered:
+
+1. **The run row never learned anything.** `runConfirmationPass` wrote
+   `itemsProcessed` at `finishRun` and nowhere else, so for twenty-seven
+   minutes the row read `0`. That row is precisely where
+   `operating-contract.ts` sends a screen watching a pass — *"which reads one
+   row"* — and `Confirmed.tsx`'s own docblock already said *"the pass's own
+   progress is a run row, which is cheap"*. The design was right and the
+   number was never written.
+
+2. **The watch could not find its own pass.** `toRunReport` collapsed seven
+   run kinds into `type: 'full' | 'delta'` and dropped `kind`, which
+   `openapi.yaml` has published since the endpoint shipped. So the screen
+   asked *"is ANY run open"* — true for ever on a mapping in the continuous
+   lane — and the only thing that could end the watch was a timer. That timer
+   was five minutes. **Against a twenty-seven-minute pass it expired with the
+   account a fifth checked**, which is why Rob was reloading by hand: the
+   watch had been dead for twenty minutes.
+
+So: `RunStore.noteProgress` merges counters onto an OPEN run (`||` on jsonb,
+scoped to `status = 'running'`, so a flush racing a finish cannot contradict
+the outcome already served); `PROGRESS_EVERY = 100` notes on a cadence chosen
+against the measurement — a write every twenty seconds or so at the observed
+rate, one UPDATE per hundred target round trips; `toRunReport` serves `kind`;
+and the watch ends on the CONFIRM run's own status, with the cap demoted to a
+safety net at one hour.
+
+Three things are worth keeping beyond the fix.
+
+**A progress note can never end the pass it reports on.** The call is wrapped
+in `.catch` inside the loop, because everything in that loop is inside the try
+that closes the run as `failed` and rethrows. Rule 3 says what was confirmed
+before a failure stays confirmed; a pass dying of its own progress report would
+discard every answer bought and not yet flushed, over a number on a screen.
+
+**CHECKED and VERIFIED are different numbers, and the screen now shows both.**
+`itemsProcessed` counts items the pass has WALKED; the headline counts only
+what the target confirmed by hash. They differ on purpose, and labelling the
+progress figure "verified" would have inflated the claim on the one page
+somebody deletes their originals from.
+
+**The watch needed the id of the run that came before it.** The press and the
+worker opening its row are not simultaneous, so a poll landing in that gap
+finds the pass that finished last week and would read its `success` as this
+one's. `start` reads `/runs` BEFORE pressing and excludes that id — and only
+when it is already CLOSED, since an open one is the pass this press will join.
+An id rather than a timestamp: the browser's clock and the server's never have
+to agree.
+
+The reload case fell out of the same change. A pass belongs to the server, not
+to the tab, so the watch now starts from `lastPass.state === 'running'` on
+mount as well as from the button — somebody who presses it, shuts the laptop
+and comes back is owed the sight of it working.
+
 **2026-09-13: THE SCREEN — T2's last slice, and what building it found.**
 
 `apps/web/src/pages/Confirmed.tsx`, at `confirmed` and
@@ -811,7 +881,7 @@ bug it exists to catch.
 |---|---|---|
 | T0 The owner's decision | ✅ **D1 and D4 taken 2026-09-09** | D1: the continuous lane yes, the drain not yet. D4: after cutover we do not delete in the target on the strength of a source change — and the detector does not run, per §4D. D2/D3/D5 park with T3. What is left of T0 is **the words** (T5), not a decision. |
 | T1 The continuous lane | ✅ **Slices 1–3 built 2026-09-10.** The lane exists in every vocabulary, runs with the deletion detectors absent, and can now be ENTERED: `PATCH /api/migrations/:id` admits `continuous`, offered on the Finish page from `cutover` or `done`, behind two presses and the sentence D8 settled. | A mapping that keeps copying after cutover, **deleting nothing**. Its first design constraint is D4's rule: the deletion detector does not run in this phase at all. Proof obligation is the refusal, not the copy. |
-| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Slice 9, the SCREEN, built 2026-09-13**: `apps/web/src/pages/Confirmed.tsx` at the two mount points the queues use, a tile on the mapping hub, and the words in both languages. Nothing polls the walk — the button starts a pass, a bounded watch reads the cheap `/runs` route, and the expensive read happens once when it lands. **T2 is done.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
+| T2 The confirmed list | 🔨 **Slices 1–8 built 2026-09-10/11**: what a row may claim, the machinery, migration 0045 + the store, the job that runs it, `readerOverTarget` — a real target asked one item at a time — D9's budget, shared with the migration and stopping the pass rather than painting the rest `unchecked`, and D10's list itself: headline, every non-verified row, the total stated, and a full CSV export, both served behind `authenticate` and never to a 0122 view link. Four seams did not fit when connected and all four are recorded in §7e. **Slice 9, the SCREEN, built 2026-09-13**: `apps/web/src/pages/Confirmed.tsx` at the two mount points the queues use, a tile on the mapping hub, and the words in both languages. Nothing polls the walk — the button starts a pass, a bounded watch reads the cheap `/runs` route, and the expensive read happens once when it lands. **Slice 10, 2026-09-13 evening**: the first live pass (7,468 items, 27 minutes) found the run row it was sent to poll had never been written mid-pass and the watch could not tell its own run from a sync run — `noteProgress`, `RunReport.kind`, and a watch that ends on the confirm run rather than a five-minute timer. **T2 is done.** | "These N items are in your new home, verified by hash." No deletion by us — §3b's trap is closed by D4. |
 | T3 The drain | ⏸️ **Deferred by D1 (2026-09-09)** | Removal at the source. Revisit once T1 has run against real accounts for a while — the owner's own condition, and the plan's recommendation. D2 (which platform) and D3 (the window) are parked with it. |
 | T4 The attributed tombstone | ⏸️ **Deferred with T3** | A deletion we caused is not a deletion we observed. §3's second wall — needed only once something of ours deletes. |
 | T5 The words | 🔨 **The lane's half done 2026-09-10** (D8): the pricing page's "finishing lowers your bill" paragraph gained the exception beside it, and `lane.*` says it again where the switch is — including that deletions at the source stop being mirrored. The drain's consent (D5) defers with T3. **T2's half landed 2026-09-13 with the screen**: each row state carries its own word and its own sentence, `byte-hash` and `fingerprint` are named rather than scored, and the headline says what "verified" covers. **Left: nothing but D5, which defers with T3.** | A person must be told that a mapping keeps copying after cutover, that deletions at the source are no longer mirrored and why, and what "verified" covers. |

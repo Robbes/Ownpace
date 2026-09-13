@@ -4726,7 +4726,12 @@ components:
       properties:
         id: { type: string, format: uuid }
         status: { type: string, enum: [pending, running, succeeded, failed, cancelled] }
-        kind: { type: string, examples: ['incremental'] }
+        # The ledger's own word for the run — 'confirm', 'initial_copy',
+        # 'incremental', and the rest. Published since this endpoint shipped
+        # and finally served from 2026-09-13: `type` collapses every kind into
+        # full/delta, so a client watching ONE job could not find its own run
+        # and had to settle for "is any run open".
+        kind: { type: string, examples: ['incremental', 'confirm'] }
         trigger: { type: string, enum: [manual, schedule] }
         startedAt: { type: string, format: date-time }
         finishedAt: { type: [string, 'null'], format: date-time }
@@ -4736,7 +4741,7 @@ components:
           type: array
           description: The per-domain lines of this pass, including the domains that did not run and why.
           items: { type: object }
-      required: [id, status, startedAt]
+      required: [id, kind, status, startedAt]
 
     DeletionReceipt:
       type: object

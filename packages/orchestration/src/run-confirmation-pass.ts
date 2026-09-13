@@ -145,6 +145,13 @@ export function confirmationRunLog(
       withTenant(source, tenantId, (db: PgDatabase) =>
         new RunStore(db).finishRun(runId, outcome, stats),
       ),
+    // Its own scope, like the other two, and for the same reason this whole
+    // module exists: a pass runs for half an hour, and a connection held open
+    // across it to report on it is a connection the pass itself cannot use.
+    noteProgress: (runId, stats) =>
+      withTenant(source, tenantId, (db: PgDatabase) =>
+        new RunStore(db).noteProgress(runId, stats),
+      ),
   };
 }
 

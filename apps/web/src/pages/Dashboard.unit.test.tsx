@@ -125,6 +125,7 @@ describe('Dashboard', () => {
           id: 'run-1',
           mappingId: 'a',
           type: 'delta',
+          kind: 'incremental',
           status: 'failed',
           startedAt: '2026-08-09T10:00:00Z',
           finishedAt: '2026-08-09T10:05:00Z',

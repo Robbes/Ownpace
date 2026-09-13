@@ -43,6 +43,7 @@ function run(overrides: Partial<RunReport> = {}): RunReport {
     id: 'run-1',
     mappingId: 'acme-mail',
     type: 'delta',
+    kind: 'incremental',
     status: 'success',
     startedAt: '2026-08-09T00:05:00.000Z',
     finishedAt: '2026-08-09T00:05:03.000Z',

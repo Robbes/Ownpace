@@ -99,6 +99,24 @@ export interface ConfirmationRecorder {
   }): Promise<void>;
 }
 
+/**
+ * How many items go by between progress notes on the run row.
+ *
+ * A pass over a real account is not quick: 7,468 items took twenty-seven
+ * minutes against a live Nextcloud on 2026-09-13. The contract sends a screen
+ * watching a pass to `GET {mappingPath}/runs` precisely because that read is
+ * one row — but the row only learned anything at `finishRun`, so the number on
+ * it was `0` for all twenty-seven minutes and the pass was indistinguishable
+ * from a hung one.
+ *
+ * 100 is chosen against that measurement rather than by feel: at the rate
+ * observed it is a write every twenty seconds or so, which moves a number
+ * three times a minute, and it costs one UPDATE per hundred target round
+ * trips — noise beside the reads it reports on. A pass small enough never to
+ * reach it finishes before anybody could wonder.
+ */
+export const PROGRESS_EVERY = 100;
+
 /** What this needs from the run ledger. */
 export interface ConfirmationRunLog {
   startRun(input: {
@@ -112,6 +130,15 @@ export interface ConfirmationRunLog {
     outcome: 'succeeded' | 'failed' | 'cancelled',
     stats?: Record<string, unknown>,
   ): Promise<void>;
+  /**
+   * Move the open run's counters, so a watcher can see the pass advance.
+   *
+   * Required rather than optional: an implementation that cannot say how far
+   * it has got is exactly the one that produced a screen nobody could read,
+   * and a `?` here would let a test fake keep passing while the product
+   * regressed to it.
+   */
+  noteProgress(runId: string, stats: Record<string, unknown>): Promise<void>;
 }
 
 /** What one finished pass reports. */
@@ -234,6 +261,22 @@ export async function runConfirmationPass(args: {
         // recorded like any other — dropping it here would throw away an answer
         // that was paid for — and the gate below stops the NEXT one.
         rows.push(found.row);
+        // Say how far this has got, on the row the contract sends a watching
+        // screen to. NEVER allowed to end the pass: a progress note is
+        // bookkeeping ABOUT the work, not the work, and letting one failed
+        // UPDATE throw here would take rule 3 with it — every answer bought
+        // and not yet flushed, discarded over a number on a screen.
+        if (rows.length % PROGRESS_EVERY === 0) {
+          await args.runs
+            .noteProgress(runId, { itemsProcessed: rows.length })
+            .catch((err: unknown) => {
+              log.warn(
+                `[confirm] could not note progress at ${rows.length} items: ` +
+                  `${err instanceof Error ? err.message : String(err)}. The pass carries on; ` +
+                  `the screen watching it will not move until the next note lands.`,
+              );
+            });
+        }
         // Rule 2. `consulted` is the pass's own word for "the target was asked",
         // and it is the only thing that may put a value in that column.
         if (found.consulted) {

@@ -30,7 +30,7 @@ vi.mock('../services/edition', () => ({
 
 import Confirmed from './Confirmed.tsx';
 import * as service from '../services/operating-service.ts';
-import type { ConfirmedListQueue, ConfirmedRowView } from '@openmig/shared';
+import type { ConfirmedListQueue, ConfirmedRowView, RunReport } from '@openmig/shared';
 
 vi.mock('../services/operating-service', () => ({
   fetchConfirmedList: vi.fn(),
@@ -59,6 +59,25 @@ const queue = (over: Partial<ConfirmedListQueue> = {}): ConfirmedListQueue => ({
   total: 0,
   rows: [],
   lastPass: { state: 'never-run' },
+  ...over,
+});
+
+/**
+ * One run as the wire carries it — `kind` included, which is the field that
+ * lets this screen find its OWN pass among a mapping's other runs.
+ */
+const run = (over: Partial<RunReport> = {}): RunReport => ({
+  id: 'run-1',
+  mappingId: 'mapping-1',
+  type: 'full',
+  kind: 'confirm',
+  status: 'running',
+  startedAt: '2026-09-13T19:00:00.000Z',
+  finishedAt: null,
+  itemsProcessed: 0,
+  errors: 0,
+  createdAt: '2026-09-13T19:00:00.000Z',
+  events: [],
   ...over,
 });
 
@@ -185,7 +204,9 @@ describe('the confirmed list screen', () => {
     vi.useFakeTimers();
     listed.mockResolvedValue({ 'mapping-1': queue() } as never);
     started.mockResolvedValue({ 'mapping-1': { started: true } } as never);
-    runs.mockResolvedValue({ runs: [{ status: 'running' }] } as never);
+    // Before the press there is no pass at all — the worker opens its row a
+    // moment after.
+    runs.mockResolvedValue({ runs: [] } as never);
 
     render(
       <MemoryRouter>
@@ -203,6 +224,8 @@ describe('the confirmed list screen', () => {
     });
     expect(started).toHaveBeenCalledTimes(1);
 
+    runs.mockResolvedValue({ runs: [run()] } as never);
+
     // While the run is open the expensive walk is NOT re-read.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000);
@@ -211,20 +234,83 @@ describe('the confirmed list screen', () => {
     expect(listed).toHaveBeenCalledTimes(1);
 
     // When it closes, exactly one more read.
-    runs.mockResolvedValue({ runs: [{ status: 'success' }] } as never);
+    runs.mockResolvedValue({ runs: [run({ status: 'success' })] } as never);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
     expect(listed).toHaveBeenCalledTimes(2);
   });
 
-  it('stops watching after the cap, so a continuous lane cannot spin for ever', async () => {
-    // A mapping in the continuous lane keeps opening sync runs, so "no run is
-    // open" may never arrive. The watch is bounded and re-reads anyway.
+  it('shows how far the pass has got, so a long one is not mistaken for a hung one', async () => {
+    // Rob, watching a live pass over 7,468 items on 2026-09-13: *"I just don't
+    // see some indicator that it's still running/in progress."* The start time
+    // was on screen and never moved, and nothing else did either.
+    vi.useFakeTimers();
+    listed.mockResolvedValue({
+      'mapping-1': queue({ total: 7468, lastPass: { state: 'running', startedAt: '2026-09-13T19:00:00.000Z' } }),
+    } as never);
+    started.mockResolvedValue({ 'mapping-1': { started: true } } as never);
+    runs.mockResolvedValue({ runs: [run({ itemsProcessed: 3500 })] } as never);
+
+    render(
+      <MemoryRouter>
+        <Confirmed />
+      </MemoryRouter>,
+    );
+    // TWO STAGES, deliberately. The list read has to land before the watch
+    // exists, so a single advance spends the five seconds BEFORE there is an
+    // interval to fire — and the test would report a missing number that the
+    // screen shows perfectly well.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+
+    expect(screen.getByText(/3,500/)).toBeInTheDocument();
+    expect(screen.getByText(/checked so far/)).toBeInTheDocument();
+  });
+
+  it('picks the watch back up on a page loaded MID-pass, with nothing pressed', async () => {
+    // A pass belongs to the server, not to this tab. Somebody who starts one,
+    // shuts the laptop and comes back is still owed the sight of it working —
+    // and `checking` was client state alone, so a reload showed a still page
+    // with an enabled button whose only effect was to join the pass already
+    // under way.
+    vi.useFakeTimers();
+    listed.mockResolvedValue({
+      'mapping-1': queue({ total: 7468, lastPass: { state: 'running', startedAt: '2026-09-13T19:00:00.000Z' } }),
+    } as never);
+    runs.mockResolvedValue({ runs: [run({ itemsProcessed: 500 })] } as never);
+
+    render(
+      <MemoryRouter>
+        <Confirmed />
+      </MemoryRouter>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+
+    expect(started).not.toHaveBeenCalled();
+    expect(runs).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /Check the destination/i })).toBeDisabled();
+  });
+
+  it('is not ended by somebody ELSE\'s run — only the confirm pass decides', async () => {
+    // THE REVERSAL. Until 2026-09-13 this watch asked "is ANY run open", which
+    // is why it needed a five-minute timer to escape a continuous lane's
+    // endless sync runs — and why it gave up with a 7,468-item pass a fifth
+    // done. Now the CONFIRM run's own status ends it, so a sync run beside it
+    // is neither a reason to stop nor a reason to carry on.
     vi.useFakeTimers();
     listed.mockResolvedValue({ 'mapping-1': queue() } as never);
     started.mockResolvedValue({ 'mapping-1': { started: true } } as never);
-    runs.mockResolvedValue({ runs: [{ status: 'running' }] } as never);
+    runs.mockResolvedValue({ runs: [] } as never);
 
     render(
       <MemoryRouter>
@@ -239,9 +325,91 @@ describe('the confirmed list screen', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    // 60 polls at 5s, plus one more tick to cross the cap.
+    // A continuous-lane sync is RUNNING beside the pass, and keeps running.
+    const sync = run({ id: 'sync-1', kind: 'incremental', type: 'delta', status: 'running' });
+    runs.mockResolvedValue({ runs: [sync, run({ itemsProcessed: 1000 })] } as never);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(61 * 5_000);
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(listed).toHaveBeenCalledTimes(1);
+
+    // The pass closes. The sync run is STILL OPEN — and under the old rule
+    // that alone kept the watch alive, until a timer cut it off five minutes
+    // in with the account a fifth checked. The confirm run decides now.
+    runs.mockResolvedValue({
+      runs: [sync, run({ status: 'success', itemsProcessed: 7468 })],
+    } as never);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(listed).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not read the PREVIOUS pass as this one, in the gap before the worker opens its row', async () => {
+    // The press and the run row are not simultaneous: the worker opens it a
+    // moment later. A poll landing in that gap finds the pass that finished
+    // last week, and reading its `success` as this one's would declare the new
+    // pass done before it had started. The guard is the prior run's ID, read
+    // before the press — not a timestamp, so the two clocks never have to
+    // agree.
+    vi.useFakeTimers();
+    listed.mockResolvedValue({ 'mapping-1': queue() } as never);
+    started.mockResolvedValue({ 'mapping-1': { started: true } } as never);
+    const lastWeek = run({ id: 'run-old', status: 'success', itemsProcessed: 7000 });
+    runs.mockResolvedValue({ runs: [lastWeek] } as never);
+
+    render(
+      <MemoryRouter>
+        <Confirmed />
+      </MemoryRouter>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Check the destination/i }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+
+    // Three polls have all seen `run-old` finished. No re-read: this pass has
+    // not started, let alone ended.
+    expect(listed).toHaveBeenCalledTimes(1);
+
+    // Now the worker opens its own row, and the watch is on it.
+    runs.mockResolvedValue({ runs: [run({ id: 'run-new', status: 'success' }), lastWeek] } as never);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(listed).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops watching at the cap, so a run row that never closes cannot spin for ever', async () => {
+    // THE CAP IS NOW A SAFETY NET, not the mechanism. It used to be the only
+    // thing that could end this watch, and at five minutes it expired with a
+    // real pass a fifth done. The confirm run's status ends it now; this
+    // catches only a row that never closes at all.
+    vi.useFakeTimers();
+    listed.mockResolvedValue({ 'mapping-1': queue() } as never);
+    started.mockResolvedValue({ 'mapping-1': { started: true } } as never);
+    runs.mockResolvedValue({ runs: [] } as never);
+
+    render(
+      <MemoryRouter>
+        <Confirmed />
+      </MemoryRouter>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Check the destination/i }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    runs.mockResolvedValue({ runs: [run()] } as never);
+
+    // 720 polls at 5s is an hour, plus one more tick to cross the cap.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(721 * 5_000);
     });
     expect(listed).toHaveBeenCalledTimes(2);
 

@@ -15,7 +15,7 @@
 
 import type { TenantId, MappingId, RunReport, RunEventReport } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
 
 /** What kind of work a run represents (mirrors the `run.kind` CHECK). */
@@ -94,6 +94,33 @@ export class RunStore {
       throw new Error('failed to create run row');
     }
     return row.id;
+  }
+
+  /**
+   * Move an OPEN run's counters without closing it.
+   *
+   * `finishRun` is the only writer of `stats` this store shipped with, which
+   * means a long job's counters read ZERO for the whole of it. On 2026-09-13 a
+   * confirmation pass over 7,468 real items ran for twenty-seven minutes with
+   * `itemsProcessed: 0` on the row the screen was polling every five seconds,
+   * and the person watching could not tell it from a job that had hung.
+   *
+   * MERGES rather than replaces, which is the asymmetry with `finishRun` and a
+   * deliberate one: finishing writes the final word and may drop a key that is
+   * no longer true, whereas noting is an interim report that must not clobber
+   * what another writer put beside it.
+   *
+   * Scoped to `status = 'running'`, so a note that arrives after the run closed
+   * — a flush racing a finish — cannot reopen a finished row's counters and
+   * contradict the outcome already served from it.
+   */
+  async noteProgress(runId: string, stats: RunStats): Promise<void> {
+    await this.db
+      .update(schemaPg.run)
+      .set({
+        stats: sql`coalesce(${schemaPg.run.stats}, '{}'::jsonb) || ${JSON.stringify(stats)}::jsonb`,
+      })
+      .where(and(eq(schemaPg.run.id, runId), eq(schemaPg.run.status, 'running')));
   }
 
   /** Close a run, recording its outcome and final counters. */
@@ -246,6 +273,12 @@ export function toRunReport(r: RunRowLike, events: RunEventReport[]): RunReport 
     // (The first draft of this mapper inverted that for cutover/verify/backup
     // kinds -- caught against the original before it could serve anything.)
     type: r.kind === 'incremental' ? 'delta' : 'full',
+    // The ledger's own word, served unchanged. `type` collapses seven kinds
+    // into two, which is why a client watching ONE job could not find its run
+    // among the others and had to settle for "is any run open" -- the reason
+    // the confirmed screen's watch was bounded by a timer instead of by its
+    // own run. The spec has promised this field since the endpoint shipped.
+    kind: r.kind,
     status: statusMap[r.status] ?? 'pending',
     startedAt: r.startedAt ? r.startedAt.toISOString() : null,
     finishedAt: r.finishedAt ? r.finishedAt.toISOString() : null,

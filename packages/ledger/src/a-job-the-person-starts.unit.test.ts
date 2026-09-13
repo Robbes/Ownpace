@@ -19,8 +19,8 @@ import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { createPgliteDb } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import { ConfirmationStore } from './confirmation-store.ts';
-import { RunStore } from './run-store.ts';
-import { runConfirmationPass } from '@openmig/core';
+import { RunStore, toRunReport } from './run-store.ts';
+import { runConfirmationPass, PROGRESS_EVERY } from '@openmig/core';
 import type { ConfirmationReader } from '@openmig/core';
 import type { LedgerDriver, LedgerConnection } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
@@ -288,5 +288,117 @@ describe('the items stream rather than arrive all at once', () => {
     await seedItems(4, 'copied', 'file');
     const result = await pass({ domains: ['file'] });
     expect(result.tally.total).toBe(4);
+  });
+});
+
+/**
+ * A counter that never moved (Rob, 2026-09-13).
+ *
+ * Watching a live pass over 7,468 items he said *"I just don't see some
+ * indicator that it's still running/in progress"* — and he could not, because
+ * `itemsProcessed` was written by `finishRun` and by nothing else. The run row
+ * is exactly where `operating-contract.ts` sends a screen watching a pass,
+ * *"which reads one row"*, and for twenty-seven minutes that row said `0`.
+ *
+ * Against a real database rather than a spy, because the two properties that
+ * make the note safe are properties of the STATEMENT: it merges into `stats`
+ * instead of replacing it, and it refuses to touch a run that has closed.
+ */
+describe('a counter that never moved', () => {
+  it('moves the open run\'s counter while the pass is still running', async () => {
+    await seedItems(PROGRESS_EVERY + 5);
+
+    // Watch the row from OUTSIDE the pass, the way the screen does: the reader
+    // is the thing that peeks, because it is the only hook that runs mid-pass.
+    const seen: number[] = [];
+    let openRunId: string | undefined;
+    const peeking: ConfirmationReader = {
+      isPresent: async () => {
+        const r = await conn.query<{ id: string; stats: Record<string, unknown> }>(
+          `SELECT id, stats FROM run WHERE status = 'running' ORDER BY started_at DESC LIMIT 1`,
+        );
+        const row = r.rows[0];
+        if (row) {
+          openRunId = row.id;
+          const n = (row.stats as { itemsProcessed?: number }).itemsProcessed;
+          if (n !== undefined) seen.push(n);
+        }
+        return true;
+      },
+    };
+    await pass({ readerFor: () => peeking });
+
+    // THE ASSERTION: the number was visible BEFORE the pass ended. Reading it
+    // only from the finished row would pass with the bug still in place.
+    expect(openRunId).toBeDefined();
+    expect(seen).toContain(PROGRESS_EVERY);
+  });
+
+  it('merges into stats rather than replacing what is already there', async () => {
+    // `finishRun` replaces, and that asymmetry is deliberate. A note is an
+    // interim report: if it overwrote the object it would drop whatever
+    // another writer had put beside it — a budget pause, say — and the run
+    // would finish having quietly lost the reason it stopped.
+    const runId = await runs.startRun({ tenantId: TENANT, mappingId: MAPPING, kind: 'confirm' });
+    await conn.query(`UPDATE run SET stats = '{"budgetPause":{"provider":"google"}}'::jsonb WHERE id = $1`, [runId]);
+
+    await runs.noteProgress(runId, { itemsProcessed: 42 });
+
+    expect((await runRow(runId)).stats).toEqual({
+      budgetPause: { provider: 'google' },
+      itemsProcessed: 42,
+    });
+  });
+
+  it('will not reopen a run that has already closed', async () => {
+    // A flush racing a finish must not contradict the outcome already served
+    // from that row: the last word on a finished run is `finishRun`'s.
+    const runId = await runs.startRun({ tenantId: TENANT, mappingId: MAPPING, kind: 'confirm' });
+    await runs.finishRun(runId, 'succeeded', { itemsProcessed: 7468 });
+
+    await runs.noteProgress(runId, { itemsProcessed: 100 });
+
+    const row = await runRow(runId);
+    expect(row.status).toBe('succeeded');
+    expect(row.stats).toEqual({ itemsProcessed: 7468 });
+  });
+
+  it('serves the run KIND, so a watcher can find its own pass among the others', async () => {
+    // `type` collapses seven kinds into `full` and `delta`, so a screen
+    // watching one job could only ask "is ANY run open" — true for ever on a
+    // mapping in the continuous lane, which is why that watch had to be
+    // bounded by a timer that expired mid-pass. `openapi.yaml` has published
+    // this field since the endpoint shipped; it was never actually served.
+    const runId = await runs.startRun({ tenantId: TENANT, mappingId: MAPPING, kind: 'confirm' });
+    const raw = await conn.query<{
+      id: string;
+      mapping_id: string;
+      kind: string;
+      status: string;
+      stats: Record<string, unknown>;
+      created_at: Date;
+      started_at: Date | null;
+      finished_at: Date | null;
+    }>(`SELECT * FROM run WHERE id = $1`, [runId]);
+    const r = raw.rows[0]!;
+
+    const report = toRunReport(
+      {
+        id: r.id,
+        mappingId: r.mapping_id,
+        kind: r.kind,
+        status: r.status,
+        stats: r.stats,
+        createdAt: r.created_at,
+        startedAt: r.started_at,
+        finishedAt: r.finished_at,
+      } as never,
+      [],
+    );
+
+    expect(report.kind).toBe('confirm');
+    // And the old collapse still means what it meant: a confirm pass is a
+    // full-scan shape, which is true and is simply not enough to identify it.
+    expect(report.type).toBe('full');
   });
 });
