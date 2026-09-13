@@ -370,7 +370,7 @@ describe('the domain step reads the account’s record (0106 T3a)', () => {
     displayName: 'One Soverin account',
     status: 'connected' as const,
     createdAt: '2026-08-26T00:00:00.000Z',
-    usedByMailboxes: 0,
+    usedByMigrations: 0,
     qualification: {
       domains: {
         mail: { answer: 'unknown' as const, detail: 'Unmeasured — no mail server stored.' },
@@ -431,7 +431,7 @@ describe('reusing a stored connection', () => {
     displayName: 'Acme Box',
     status: 'connected' as const,
     createdAt: '2026-08-01T00:00:00.000Z',
-    usedByMailboxes: 1,
+    usedByMigrations: 1,
   };
 
   const pickBoxConnection = async () => {
@@ -724,7 +724,7 @@ describe('naming the connection that testing saves', () => {
         displayName: 'Acme old mail server',
         status: 'connected' as const,
         createdAt: '2026-08-01T00:00:00.000Z',
-        usedByMailboxes: 1,
+        usedByMigrations: 1,
       },
     ]);
     filledImapSource();
@@ -747,7 +747,7 @@ describe('naming the connection that testing saves', () => {
         displayName: 'Acme old mail server',
         status: 'connected' as const,
         createdAt: '2026-08-01T00:00:00.000Z',
-        usedByMailboxes: 1,
+        usedByMigrations: 1,
       },
     ]);
     renderWizard();
@@ -893,7 +893,7 @@ describe('a credential that fails is still kept, and says so', () => {
       displayName: 'Acme Box',
       status: 'connected' as const,
       createdAt: '2026-08-01T00:00:00.000Z',
-      usedByMailboxes: 1,
+      usedByMigrations: 1,
     };
     listMock.mockResolvedValue([stored]);
     renderWizard();

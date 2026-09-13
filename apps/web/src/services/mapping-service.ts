@@ -952,7 +952,13 @@ export interface ConnectionSummary {
   status: 'connected' | 'error' | 'revoked';
   createdAt: string;
   /** How many mailboxes depend on it — whether re-testing this matters. */
-  usedByMailboxes: number;
+  /**
+   * How many MIGRATIONS use this connection — not how many mailbox rows it
+   * has. It counted the latter until 2026-09-12, under the old name
+   * `usedByMailboxes`, which is how a connection no mapping referenced came
+   * to say "1 migration(s) use this".
+   */
+  usedByMigrations: number;
   /**
    * The NON-SECRET values this connection already holds, keyed the way the
    * form keys them (workplan 0078). Built server-side from `connection.config`
