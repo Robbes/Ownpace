@@ -217,6 +217,107 @@ describe('an existing migration heals as its source is re-walked', () => {
 });
 
 /**
+ * THE ROW THAT COULD NEVER HEAL.
+ *
+ * `recordUpdate` repairs a blank identifier, above — but only a row that
+ * SUCCEEDS reaches it. A row that keeps failing takes `recordFailure`'s update
+ * branch every time, and until 2026-09-13 that branch wrote `status`,
+ * `attempt_count` and `last_error` and nothing else. So the asymmetry was:
+ * every healing row heals, and the rows that most need a name are the only
+ * ones that never can.
+ *
+ * Live on 2026-09-13, on the mapping this fix came from: two contacts refused
+ * by Nextcloud's CardDAV with a `TypeError` out of sabre/vobject. A TypeError
+ * is DETERMINISTIC, so all five attempts failed identically, the healing path
+ * was never once taken, and `natural_key` was still `''` when a person went
+ * looking. Naming those two meant reading Apache's log for the `.vcf`
+ * filename — for rows whose entire purpose is to be acted on from a screen.
+ */
+describe('a failure heals its own name, not just a successful pass', () => {
+  it('fills a blank identifier left by an older pass, on the failure path', async () => {
+    // A row as an older worker wrote it: present, counted, and anonymous.
+    await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).recordIfAbsent(record()),
+    );
+    expect(await storedNaturalKey()).toBe('');
+
+    await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).recordFailure(
+        record({ naturalKey: CARD_UID, status: 'failed', targetId: '' }),
+        'TypeError — a type error occurred',
+      ),
+    );
+
+    expect(await storedNaturalKey()).toBe(CARD_UID);
+  });
+
+  it('heals on a LATER attempt too, not only the first', async () => {
+    // The case that actually bit: the row was already failing before the
+    // worker carrying the identifier was deployed. Every attempt after that
+    // takes the update branch, so if only the insert repaired, the row would
+    // stay anonymous through all five.
+    await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).recordFailure(record({ status: 'failed', targetId: '' }), 'attempt 1'),
+    );
+    expect(await storedNaturalKey()).toBe('');
+
+    await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).recordFailure(
+        record({ naturalKey: CARD_UID, status: 'failed', targetId: '' }),
+        'attempt 2',
+      ),
+    );
+    expect(await storedNaturalKey()).toBe(CARD_UID);
+  });
+
+  it('never blanks a name it already holds', async () => {
+    // Same rule as the repair path: `''` is "nothing to say", not a value. A
+    // caller round-tripping an unrepaired row must not undo the repair.
+    await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).recordIfAbsent(record({ naturalKey: CARD_UID })),
+    );
+
+    await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).recordFailure(record({ status: 'failed', targetId: '' }), 'nothing to say'),
+    );
+    expect(await storedNaturalKey()).toBe(CARD_UID);
+
+    await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).recordFailure(
+        record({ naturalKey: '', status: 'failed', targetId: '' }),
+        'an explicit blank',
+      ),
+    );
+    expect(await storedNaturalKey()).toBe(CARD_UID);
+  });
+
+  it('still counts the attempt while it repairs', async () => {
+    // The repair rides along; it does not replace what this path is FOR. A fix
+    // that healed the name but lost the attempt count would trade one blind
+    // spot for another — the loop's "attempts exhausted, hand it to a person"
+    // rule reads that column.
+    await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).recordIfAbsent(record()),
+    );
+    for (const attempt of ['first', 'second', 'third']) {
+      await withTenant(driver, TENANT, async (db) =>
+        new PgLedger(db).recordFailure(
+          record({ naturalKey: CARD_UID, status: 'failed', targetId: '' }),
+          `the target refused: ${attempt}`,
+        ),
+      );
+    }
+
+    const row = await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).find(TENANT, MAPPING, 'contact', CARD_HASH),
+    );
+    expect(row?.naturalKey).toBe(CARD_UID);
+    expect(row?.attemptCount).toBe(3);
+    expect(row?.lastError).toBe('the target refused: third');
+  });
+});
+
+/**
  * The payoff: the document somebody empties their old account on the strength
  * of, read through the store that serves it.
  */
