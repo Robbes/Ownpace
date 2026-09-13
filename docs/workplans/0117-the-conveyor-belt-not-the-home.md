@@ -764,6 +764,43 @@ That second remark is the whole plan. It is right, it goes deeper than it first 
 §3 is the answer. **No task here is authorised.** D1 is the only decision that matters; if
 the owner says no to it, this document is a record of why and nothing more is wasted.
 
+**2026-09-13, night: A FAILURE THAT COULD NOT SAY ITS NAME — the repair path
+had a hole exactly where it was needed most.**
+
+Chasing the two contact failures on the live mapping, the ledger was asked to
+name them and could not: `natural_key` was `''` on both rows after five
+attempts. The 2026-09-12 correction was supposed to have healed that — *"an
+existing migration heals row by row as the source is re-walked"*.
+
+It heals on `recordUpdate`. **A row only reaches `recordUpdate` by
+succeeding.** `recordFailure`'s update branch wrote `status`, `attempt_count`,
+`last_error` and `updated_at`, and nothing else — so the asymmetry was:
+
+> every healing row heals, and the rows that most need a name are the only
+> ones that never can.
+
+The two contacts made that concrete rather than theoretical. Nextcloud's
+CardDAV refuses them with a `TypeError` out of sabre/vobject — and a TypeError
+is DETERMINISTIC, so all five attempts failed identically and the healing path
+was never once taken. Naming them meant reading Apache's access log for the
+`.vcf` filename, for rows whose entire purpose is to be acted on from the
+Failures screen.
+
+So `recordFailure` now repairs `natural_key` and `collection` under exactly
+the rules `recordUpdate` uses: a caller with nothing to say leaves the row
+alone, and `''` counts as nothing to say rather than as a value, so a
+round-tripped unrepaired row cannot undo the repair. Still deliberately NOT
+`content_hash`, `source_version` or `target_version` — a failed attempt wrote
+nothing, and the existing comment explains why claiming otherwise would make
+§20's checksum sampling compare against content the target does not hold.
+
+What is worth keeping: **the repair has to reach every path a row can take, or
+it reaches only the rows that did not need it.** The 2026-09-12 fix was
+correct and incomplete in a way no test caught, because the test that covers
+the failure path seeded the row WITH an identifier first — so the update
+branch never had anything to repair and passed without proving it. The new
+tests seed a blank row the way an older worker actually wrote one.
+
 **2026-09-13, evening: A COUNTER THAT NEVER MOVED — the first real pass met its
 own screen.**
 
@@ -848,10 +885,13 @@ this workplan's own rules:
 1. **Nothing polls the list.** `GET .../confirmed-list` walks every item,
    because the headline is derived at read time and not stored. So the button
    starts a pass, a watch polls the cheap `/runs` route, and the expensive
-   read happens exactly once when no run is open. The watch is **bounded at
-   sixty polls**, because a mapping in T1's continuous lane keeps opening sync
-   runs and "no run is open" may never arrive — a watch that waited for quiet
-   would spin for ever with a spinner on screen.
+   read happens exactly once when no run is open. The watch was **bounded at
+   sixty polls**, because it asked "is any run open" and a mapping in T1's
+   continuous lane keeps opening sync runs, so quiet may never arrive.
+   *(Superseded the same evening: `RunReport` now carries `kind`, so the watch
+   ends on the CONFIRM run's own status and the cap is a safety net at an
+   hour. Five minutes had expired mid-pass on a real account — see the
+   slice-10 entry.)*
 2. **The states are words, not a scale.** `unchecked`, `missing` and
    `never-placed` each carry their own word and their own sentence, and
    `byte-hash` / `fingerprint` are named rather than ranked. §7e's whole
@@ -861,7 +901,9 @@ this workplan's own rules:
    of 2026-09-12 reaching the screen. Rows written before that date carry
    `natural_key = ''` and cannot be backfilled, so the cell says *name not
    recorded* with the reason in a hover, and fills itself in when a later pass
-   re-walks that item. On the owner's live migration that is 1,229 contact
+   re-walks that item — *on the SUCCESS path only, until 2026-09-13; a row
+   that kept failing took `recordFailure`'s update branch, which repaired
+   nothing. See the entry below.* On the owner's live migration that is 1,229 contact
    rows and 160 file rows today; a blank cell there would read as *this item
    has no name* on the one page where that is a frightening thing to read.
 4. **A failed pass does not date the page.** `lastPass.state === 'failed'`

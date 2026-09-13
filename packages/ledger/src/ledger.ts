@@ -291,6 +291,27 @@ export class PgLedger implements Ledger {
           // target. Overwriting them would make §20's checksum sampling
           // compare against content the target does not hold, and would tell
           // the next pass a failed update had landed.
+          //
+          // The IDENTIFIERS are different, and they repair here under exactly
+          // the rules `recordUpdate` uses. Until 2026-09-13 this branch set
+          // neither, which left one asymmetry with real consequences: a row
+          // that SUCCEEDS on a re-walk heals, and a row that keeps FAILING
+          // stays anonymous for ever — so the rows that most need a name were
+          // the only ones that could never get one.
+          //
+          // Live on 2026-09-13: two contacts refused by Nextcloud's CardDAV
+          // with a deterministic `TypeError`. Deterministic means every retry
+          // failed identically, so they never once took the healing path, and
+          // their `natural_key` was still `''` after five attempts. Naming
+          // them meant reading Apache's log for the filename — for rows whose
+          // whole purpose is to be acted on from the Failures screen.
+          ...(record.collection !== undefined ? { collection: record.collection } : {}),
+          // `''` counts as nothing to say rather than as a value, so a caller
+          // round-tripping an unrepaired row cannot blank a key we already
+          // hold. Same rule, same reason, as the repair path above.
+          ...(record.naturalKey !== undefined && record.naturalKey !== ''
+            ? { naturalKey: record.naturalKey }
+            : {}),
         })
         .where(
           and(
