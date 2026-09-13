@@ -8,7 +8,7 @@
  * complete the operation.","innerError":{"date":"…","request-id":"…",
  * "client-request-id":"…"}}}` — Graph's words wrapped in an envelope a phone
  * screen turns into a wall, the same shape #722 met in Google's GData XML
- * (`gdata-refusal.ts`). The rule is the same: the provider's words are
+ * (`dav-refusal.ts`). The rule is the same: the provider's words are
  * rendered verbatim, code and message in Graph's order, and only the
  * envelope goes. `innerError` is request ids and dates — Microsoft support's
  * material, not the person's — and stays out of the sentence.
