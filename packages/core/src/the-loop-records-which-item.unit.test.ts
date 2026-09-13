@@ -84,6 +84,10 @@ function onePass(
 const stored = async (ledger: MemoryLedger) =>
   (await ledger.find(TENANT, MAPPING, 'contact', keyOf(CARD.id)))?.naturalKey;
 
+/** WHERE the row says it is — the other half of identifying a failure. */
+const where = async (ledger: MemoryLedger) =>
+  (await ledger.find(TENANT, MAPPING, 'contact', keyOf(CARD.id)))?.collection;
+
 describe('a copied item carries its identifier', () => {
   it('records what naturalKeyText returns, beside the hash', async () => {
     const ledger = new MemoryLedger();
@@ -129,6 +133,98 @@ describe('a FAILED item carries it too', () => {
       });
     await fail();
     await fail();
+    expect(await stored(ledger)).toBe(CARD.id);
+  });
+});
+
+/**
+ * WHERE it is, beside what it is called.
+ *
+ * `recordFailure` learned on 2026-09-13 to repair both identifier columns, and
+ * the identifier half worked at once because this call site passes one. The
+ * COLLECTION half did nothing — the failure record carried no collection, so
+ * the repair was a conditional that never fired, and the Failures screen kept
+ * a blank WHERE on exactly the rows somebody was trying to act on.
+ *
+ * Safe on this path specifically, and it is worth being precise about why: a
+ * MOVED item never reaches the write. `classifyKnownItem` returns 'moved' when
+ * the stored collection differs from the one being walked, and that branch
+ * does nothing to the target and returns — deliberately leaving the row
+ * pointing at the OLD collection, because that is still where the target copy
+ * is. So by the time a failure can happen, the stored value is either already
+ * this collection or blank.
+ */
+describe('a failed row says WHERE, not only what', () => {
+  it('records the collection it was walking when the write failed', async () => {
+    const ledger = new MemoryLedger();
+    await onePass(ledger, {
+      naturalKeyText: (i) => i.id,
+      upsert: async () => {
+        throw new Error('the target answered 500');
+      },
+    });
+
+    expect(await where(ledger)).toBe('Contacts');
+  });
+
+  it('still says it after a second failing pass, which takes the UPDATE branch', async () => {
+    // The half that mattered live: an item fails repeatedly before anybody
+    // goes looking, so the insert's copy of this is never the one they read.
+    const ledger = new MemoryLedger();
+    const fail = () =>
+      onePass(ledger, {
+        naturalKeyText: (i) => i.id,
+        upsert: async () => {
+          throw new Error('the target answered 500');
+        },
+      });
+    await fail();
+    await fail();
+
+    expect(await where(ledger)).toBe('Contacts');
+    // And the name is still there beside it — one repair must not cost the
+    // other.
+    expect(await stored(ledger)).toBe(CARD.id);
+  });
+
+  it('fills a blank left by an older pass, on a row that only ever failed', async () => {
+    // The live shape, seeded the way it actually arises: a row written by an
+    // older worker that recorded no collection, which then kept failing and so
+    // never reached the success path that would have repaired it.
+    //
+    // Seeded through `recordFailure` rather than `recordIfAbsent`, because a
+    // `copied` row whose version has not moved is SKIPPED before any write —
+    // the first draft of this test did that and proved nothing, reporting
+    // `skipped: 1` and a blank column the pass had never been asked to fill.
+    const ledger = new MemoryLedger();
+    await ledger.recordFailure(
+      {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        itemType: 'contact',
+        naturalKeyHash: keyOf(CARD.id),
+        collection: '',
+        contentHash: 'h:old',
+        targetId: '',
+        createdAt: new Date().toISOString(),
+        sizeBytes: 0,
+        status: 'failed',
+      },
+      'an older worker, before either column was recorded',
+    );
+    expect(await where(ledger)).toBe('');
+    expect(await stored(ledger)).toBeUndefined();
+
+    await onePass(ledger, {
+      naturalKeyText: (i) => i.id,
+      upsert: async () => {
+        throw new Error('the target answered 500');
+      },
+    });
+
+    // Both columns repaired by the failure itself — which is the only path
+    // this row will ever take.
+    expect(await where(ledger)).toBe('Contacts');
     expect(await stored(ledger)).toBe(CARD.id);
   });
 });

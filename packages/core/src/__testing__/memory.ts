@@ -375,20 +375,33 @@ export class MemoryLedger implements Ledger {
     // what the row already holds.
     const bumped = (existing?.attemptCount ?? 0) + 1;
     const attempts = options.park ? Math.max(bumped, MAX_ITEM_ATTEMPTS) : bumped;
-    // Mirrors PgLedger's ON CONFLICT set EXACTLY: on an existing row only the
-    // status, the attempt count and the error change.
+    // Mirrors PgLedger's ON CONFLICT set EXACTLY: on an existing row the
+    // status, the attempt count and the error change — and, since 2026-09-13,
+    // the two IDENTIFIER columns repair under the same rule `recordUpdate`
+    // uses.
     //
     // Everything else still describes what is actually on the target, and a
     // failed attempt put nothing there. Overwriting `contentHash` with the
     // hash of bytes we failed to write would make §20's checksum sampling
     // compare the target against content it does not hold; overwriting
     // `sourceVersion` would tell the next pass the update had landed.
+    //
+    // The repair is mirrored rather than skipped BECAUSE a fake that lagged
+    // the real store here would let a test assert a name the product does not
+    // write — the exact shape of mistake this fake's other comments exist to
+    // prevent, one column over.
     const merged: LedgerRecord = existing
       ? {
           ...existing,
           status: 'failed',
           attemptCount: attempts,
           lastError: error,
+          ...(record.collection !== undefined ? { collection: record.collection } : {}),
+          // `''` is nothing to say, not a value — so a caller round-tripping an
+          // unrepaired row cannot blank a name the ledger already holds.
+          ...(record.naturalKey !== undefined && record.naturalKey !== ''
+            ? { naturalKey: record.naturalKey }
+            : {}),
         }
       : { ...record, status: 'failed', attemptCount: attempts, lastError: error };
     this.rows.set(k, merged);
