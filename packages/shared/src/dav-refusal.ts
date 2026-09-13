@@ -73,8 +73,7 @@
  * rendering what the provider wrote, and the provider wrote the quote.
  */
 
-const GDATA_ERRORS =
-  /<errors\b[^>]*xmlns="http:\/\/schemas\.google\.com\/g\/2005"/;
+const GDATA_ERRORS = /<errors\b[^>]*xmlns="http:\/\/schemas\.google\.com\/g\/2005"/;
 
 /**
  * Sabre's namespace, and the prefix this document happens to bind it to.
@@ -92,18 +91,18 @@ const SABRE_NS = /xmlns:([A-Za-z_][A-Za-z0-9_-]*)="http:\/\/sabredav\.org\/ns"/;
 function decodeEntities(s: string): string {
   return (
     s
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
       .replace(/&apos;/g, "'")
       // Ampersand last, so a `&amp;lt;` in the provider's text stays `&lt;`.
-      .replace(/&amp;/g, "&")
+      .replace(/&amp;/g, '&')
   );
 }
 
 function text(body: string, tag: string): string {
   const m = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(body);
-  return decodeEntities(m?.[1] ?? "").trim();
+  return decodeEntities(m?.[1] ?? '').trim();
 }
 
 /** `a — b`, or whichever of the two the document actually carried. */
@@ -116,16 +115,11 @@ export function davRefusalBody(body: string): string {
   if (GDATA_ERRORS.test(body)) {
     // Better a wall than nothing: a document with neither field readable is
     // returned as it came, rather than reduced to an empty string.
-    return joined(text(body, "code"), text(body, "internalReason")) || body;
+    return joined(text(body, 'code'), text(body, 'internalReason')) || body;
   }
   const prefix = SABRE_NS.exec(body)?.[1];
   if (prefix !== undefined) {
-    return (
-      joined(
-        text(body, `${prefix}:exception`),
-        text(body, `${prefix}:message`),
-      ) || body
-    );
+    return joined(text(body, `${prefix}:exception`), text(body, `${prefix}:message`)) || body;
   }
   return body;
 }
