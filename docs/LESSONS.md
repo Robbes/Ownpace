@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 127 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 128 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -193,6 +193,10 @@ reading a file drops off its entry by itself.
 
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 - [half-the-array-was-a-recomputation](../scripts/half-the-array-was-a-recomputation.unit.test.ts) — `GET /api/billing/usage/history` returned one array whose two halves meant different things by `cost` (workplan 0121 T4 follow-up; 0109 T5's neighbour).
+
+### `apps/selfhost/src/a-button-only-one-edition-answers.unit.test.ts`
+
+- [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
 
 ### `apps/selfhost/src/index.ts`
 
@@ -421,6 +425,7 @@ reading a file drops off its entry by itself.
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
+- [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
@@ -1502,6 +1507,15 @@ Reads:
 
 - `deploy/compose/managed.yml`
 - `deploy/compose/www.yml`
+
+### [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts)
+
+A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
+
+Reads:
+
+- `apps/selfhost/src/a-button-only-one-edition-answers.unit.test.ts`
+- `deploy/compose/managed.yml`
 
 ### [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts)
 
