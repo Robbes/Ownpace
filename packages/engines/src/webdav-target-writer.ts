@@ -651,7 +651,39 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     // Shared with the other DAV writers and with the seed script's proven
     // parameters — see dav-retry.ts for why 5 attempts with jitter, and why
     // 423/429 count as transient alongside 5xx.
+    //
+    // Safe for every body shape this overload takes — a string, a Buffer, a
+    // Uint8Array — because all of them can be sent twice. A STREAM cannot, and
+    // must go through `requestRebuilding` below instead.
     return requestWithDavRetry(() => this.httpClient.request(options));
+  }
+
+  /**
+   * Retry a request whose body CANNOT BE SENT TWICE.
+   *
+   * A `ReadableStream` is consumed by the first send. Handing the same options
+   * object to a retry therefore does not retry the request — it fails it, with
+   *
+   *   TypeError: Response body object should not be disturbed or locked
+   *
+   * which is not a sentence about the customer's file, the target, or anything
+   * an operator can act on. Live 2026-09-12: five photo uploads to Nextcloud
+   * failed with exactly that, each after ONE attempt, and what actually
+   * happened to them — the transient status that triggered the retry — was
+   * destroyed on the way out. The retry that exists to survive Nextcloud's
+   * single-writer lock was the thing turning a lock into a failure.
+   *
+   * So the caller hands over a FACTORY, and each attempt gets its own body.
+   * That is what `FileBody.open()` is for: "a body must be re-openable: a retry
+   * after a half-written upload starts from the beginning, and a stream that
+   * has been consumed cannot" (webdav-source.ts). Every streaming source in
+   * this product already honours it; only this call site was spending the
+   * first open on all five attempts.
+   */
+  private async requestRebuilding(
+    build: () => Promise<HttpRequestOptions>,
+  ): Promise<HttpResponse> {
+    return requestWithDavRetry(async () => this.httpClient.request(await build()));
   }
 
   /** See the same method in caldav-target-writer.ts. */
@@ -814,20 +846,28 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       // leaves a partial file at the href and an error that names neither.
       throw tooLargeToBuffer('written to', 'this WebDAV server in one request', raw.item.path, body.sizeBytes);
     }
-    const hasher = streamingFileContentHash();
-    const response = await this.requestWithRetry({
-      method: 'PUT',
-      url: this.buildUrl(filePath),
-      body: (await body.open()).pipeThrough(hasher.through),
-      headers: {
-        'Content-Type': raw.item.mimeType || 'application/octet-stream',
-        // The length the source promised. Without it the request is chunked
-        // transfer-encoded, which some DAV servers refuse outright and others
-        // accept while reporting a size of zero afterwards.
-        'Content-Length': String(body.sizeBytes),
-        ...(overwrite ? {} : { 'If-None-Match': '*' }),
-        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
-      },
+    // ONE HASHER PER ATTEMPT, for the same reason as one stream per attempt:
+    // a digest is a fact about the bytes that went out on the request the
+    // server accepted. Hashing across a failed attempt and a successful one
+    // produces a value that describes neither, and that value is what the
+    // ledger stores and §20 compares.
+    let hasher = streamingFileContentHash();
+    const response = await this.requestRebuilding(async () => {
+      hasher = streamingFileContentHash();
+      return {
+        method: 'PUT',
+        url: this.buildUrl(filePath),
+        body: (await body.open()).pipeThrough(hasher.through),
+        headers: {
+          'Content-Type': raw.item.mimeType || 'application/octet-stream',
+          // The length the source promised. Without it the request is chunked
+          // transfer-encoded, which some DAV servers refuse outright and others
+          // accept while reporting a size of zero afterwards.
+          'Content-Length': String(body.sizeBytes),
+          ...(overwrite ? {} : { 'If-None-Match': '*' }),
+          Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+        },
+      };
     });
     if (response.status === 412) {
       if (overwrite) {
