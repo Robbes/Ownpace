@@ -81,8 +81,18 @@ export function operatingBaseUrl(): string {
  * Both return the contract's `ByMapping<T>`, so a screen iterating the response
  * works unchanged against either — managed simply always has one key. The
  * difference is confined to this function on purpose.
+ *
+ * **The confirmation surface joined in 2026-09-13**, when its screen was
+ * built. `POST /confirm` and `GET /confirmed-list` take exactly this split on
+ * both servers — flat on the appliance, under the mapping on managed
+ * (`apps/selfhost/src/index.ts`, `operating-routes.ts`) — so they belong
+ * here rather than in a fourth path helper free to drift from this one.
+ * `confirm` is a POST and not a queue; the union is about URL SHAPE, which is
+ * what this function decides, and nothing else about them differs.
  */
-export function queuePath(queue: 'deletions' | 'moves' | 'failures', mappingId?: string): string {
+export type OperatingPath = 'deletions' | 'moves' | 'failures' | 'confirmed-list' | 'confirm';
+
+export function queuePath(queue: OperatingPath, mappingId?: string): string {
   return queuePathFor(edition(), queue, mappingId);
 }
 
@@ -97,14 +107,16 @@ export function queuePath(queue: 'deletions' | 'moves' | 'failures', mappingId?:
  */
 export function queuePathFor(
   ed: Edition,
-  queue: 'deletions' | 'moves' | 'failures',
+  queue: OperatingPath,
   mappingId?: string,
 ): string {
   if (ed === 'selfhost') return `/${queue}`;
   if (!mappingId) {
     // Not a defaulting decision to make: without a mapping there is nothing to
     // ask about, and guessing one would show somebody another migration's queue.
-    throw new Error(`The managed edition needs a mappingId to read the ${queue} queue.`);
+    // On `confirmed-list` that guess would be worse than a wrong screen: it is
+    // the document somebody deletes their originals on the strength of.
+    throw new Error(`The managed edition needs a mappingId to reach ${queue}.`);
   }
   return `/migrations/${encodeURIComponent(mappingId)}/${queue}`;
 }

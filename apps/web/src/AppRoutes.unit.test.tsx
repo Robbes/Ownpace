@@ -76,6 +76,7 @@ vi.mock('./pages/Setup', () => ({ default: () => <div>screen:setup</div> }));
 vi.mock('./pages/Connections', () => ({ default: () => <div>screen:connections</div> }));
 vi.mock('./pages/Docs', () => ({ default: () => <div>screen:docs</div> }));
 vi.mock('./pages/Verify', () => ({ default: () => <div>screen:verify</div> }));
+vi.mock('./pages/Confirmed', () => ({ default: () => <div>screen:confirmed</div> }));
 vi.mock('./pages/Finish', () => ({ default: () => <div>screen:finish</div> }));
 vi.mock('./pages/Confirm', () => ({ default: () => <div>screen:confirm</div> }));
 vi.mock('./pages/NotFound', () => ({ default: () => <div>screen:not-found</div> }));
@@ -160,6 +161,7 @@ describe('managed builds redirect appliance-only URLs to /dashboard', () => {
     '/moves': 'screen:moves',
     '/failures': 'screen:failures',
     '/verify': 'screen:verify',
+    '/confirmed': 'screen:confirmed',
     '/finish': 'screen:finish',
   };
 
@@ -188,6 +190,16 @@ describe('per-mapping routes stay shared — real in both editions', () => {
       renderAt('/mappings/acme');
 
       expect(await screen.findByText('screen:mapping-detail')).toBeInTheDocument();
+    });
+
+    // The confirmed list (workplan 0117 T2). Shared for the reason the queues
+    // are: both editions serve `confirmed-list` now, and a screen that worked
+    // on one and not the other is the hazard ADR-0026 exists to close.
+    it(`/mappings/acme/confirmed mounts the confirmed list on ${name}`, async () => {
+      editionFlag.selfhost = selfhost;
+      renderAt('/mappings/acme/confirmed');
+
+      expect(await screen.findByText('screen:confirmed')).toBeInTheDocument();
     });
   }
 });
