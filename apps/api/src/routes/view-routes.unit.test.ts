@@ -146,7 +146,11 @@ beforeAll(async () => {
       [TENANT, RUNNING, PROSE],
     );
   });
-});
+  // 120s, not vitest's default 10s, for the reason every other PGlite fixture
+  // in this repository already carries it: this hook starts a cluster and runs
+  // the FULL migration chain, which under a loaded runner exceeds 10s while
+  // passing in isolation. That is the load-class flake #652 documented.
+}, 120_000);
 
 afterAll(async () => {
   await driver.end?.();
