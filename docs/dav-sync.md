@@ -300,6 +300,31 @@ was the bug.** Contacts had the other half of it: its first pass read 0 cards
 and its second read 1,227, and it only recovered because the cursor invariant
 refused to store a token over an empty first read.
 
+## Retrying a write whose body is a stream
+
+Nextcloud's default SQLite is a single-writer database: several uploads into
+one collection genuinely get `500 … database is locked`, and `dav-retry.ts`
+exists to ride that out. A retry re-sends the request — which works for a
+string or a Buffer and **cannot** work for a `ReadableStream`, because the
+first send consumed it.
+
+> **Rule.** A retried request must build its body per attempt, never capture
+> one. `FileBody.open()` is the seam: it returns a fresh stream each call
+> precisely so "start again" means something. Use `requestRebuilding(build)`
+> for any body that is a stream; `requestWithRetry(options)` is for bodies that
+> can be sent twice.
+
+> **Rule.** The content hasher belongs to the attempt, not to the upload. A
+> digest computed across a failed attempt and a successful one describes
+> neither, and it is the value the ledger stores and §20 compares.
+
+Live 2026-09-12: five photo uploads failed with
+`TypeError: Response body object should not be disturbed or locked`, each after
+one attempt. The mechanism written to survive the lock was the one turning the
+lock into a permanent failure, and the server's real answer — which would have
+said whether the 403s beside them were the same cause — was destroyed on the
+way out.
+
 ## Troubleshooting
 
 | Symptom | Likely cause |
@@ -310,6 +335,7 @@ refused to store a token over an empty first read.
 | Second pass re-creates everything | Natural key unstable (e.g. UID case, or an unnormalized path) |
 | A domain reports 0 items from collections that exist | The `sync-collection` REPORT answered 207 with nothing. Since 2026-09-12 both DAV sources check that with a `calendar-query` / `addressbook-query` and log which path answered — look for `[caldav]` / `[carddav]` lines in the run's events |
 | `PUT` returns 404 naming a FOLDER, not the file | The parent collection was never created — an MKCOL whose status went unread, or a non-recursive one on a nested path |
+| `Response body object should not be disturbed or locked` on an upload | A retry re-sent a body that had already been consumed. The failure is OURS, not the target's — and it has replaced whatever the server actually said. See the Rule below |
 | A folder of Google Docs stops a whole pass | A policy refusal counted as a broken world; a decision-class failure must be parked, not counted toward the tripwire (`isDecisionError`) |
 | A domain reports `completed` with 0 created and 0 skipped, for ever | A cursor was stored past a first read that saw nothing — check `SELECT folder_path, cursor_value FROM cursor WHERE mapping_id = …`; deleting those rows makes the next pass re-read from the beginning |
 

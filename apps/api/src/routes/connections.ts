@@ -359,6 +359,23 @@ export function standingFailuresByConnection(
   return out;
 }
 
+/**
+ * A MIGRATION USES THIS MAILBOX — on either side.
+ *
+ * One definition, because the two places that ask were answering differently.
+ * The delete guard below has always joined `mailbox_mapping` and says why
+ * ("an INNER JOIN asks the question the refusal claims to be answering"); the
+ * usage counter in the listing route did not, and counted `mailbox` rows while
+ * its comment described this join. A mailbox row outlives every migration that
+ * used it, so the card read "1 migration(s) use this" over connections nothing
+ * referenced — while the delete guard, asked about the same connection, said
+ * it was safe to remove. Two answers to one question, in one file.
+ */
+const MAPPING_USES_THIS_MAILBOX = or(
+  eq(schema.mailboxMapping.sourceMailboxId, schema.mailbox.id),
+  eq(schema.mailboxMapping.targetMailboxId, schema.mailbox.id),
+);
+
 router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.tenantId) {
@@ -387,15 +404,28 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
 
       if (connections.length === 0) return [];
 
-      // How many mappings depend on each connection. The link is
-      // mailbox_mapping → mailbox → connection, so this counts through the
-      // mailboxes — the number that says whether re-testing this matters.
+      // HOW MANY MIGRATIONS DEPEND ON EACH CONNECTION, and it has to reach the
+      // mappings to know.
+      //
+      // This counted `mailbox` rows and stopped there, while its own comment
+      // described a join to `mailbox_mapping` that was not in the query. A
+      // mailbox row is created when an account is set up and outlives every
+      // migration that ever used it, so the card said "1 migration(s) use
+      // this" about connections no mapping references. Live 2026-09-12:
+      // Soverin Full and a Microsoft account each claimed one with zero, while
+      // a demo connection with two mailbox rows and one mapping claimed two.
+      // The field was even called `usedByMailboxes` while the label said
+      // migrations — the name admitted what the number was.
+      //
+      // DISTINCT, because a mapping that uses the same connection on both
+      // sides (a reorganisation inside one account) is one migration, not two.
       const usage = await db
         .select({
           connectionId: schema.mailbox.connectionId,
-          used: sql<number>`count(*)::int`,
+          used: sql<number>`count(DISTINCT ${schema.mailboxMapping.id})::int`,
         })
         .from(schema.mailbox)
+        .innerJoin(schema.mailboxMapping, MAPPING_USES_THIS_MAILBOX)
         .where(
           inArray(
             schema.mailbox.connectionId,
@@ -403,7 +433,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
           ),
         )
         .groupBy(schema.mailbox.connectionId);
-      const usedBy = new Map(usage.map((u) => [u.connectionId, u.used]));
+      const usedByMigrations = new Map(usage.map((u) => [u.connectionId, u.used]));
 
       // What is STANDING against each connection (workplan 0094 T5): the
       // categorised failure on every domain row of every migration that
@@ -447,7 +477,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
         ...c,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
-        usedByMailboxes: usedBy.get(c.id) ?? 0,
+        usedByMigrations: usedByMigrations.get(c.id) ?? 0,
         // Always an array, so a client cannot mistake "nothing stands" for
         // "a server that does not say".
         standingFailures: standing.get(c.id) ?? [],
@@ -980,13 +1010,7 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
       const users = await db
         .select({ mapping: schema.mailboxMapping.name })
         .from(schema.mailbox)
-        .innerJoin(
-          schema.mailboxMapping,
-          or(
-            eq(schema.mailboxMapping.sourceMailboxId, schema.mailbox.id),
-            eq(schema.mailboxMapping.targetMailboxId, schema.mailbox.id),
-          ),
-        )
+        .innerJoin(schema.mailboxMapping, MAPPING_USES_THIS_MAILBOX)
         .where(eq(schema.mailbox.connectionId, id));
 
       if (users.length > 0) {

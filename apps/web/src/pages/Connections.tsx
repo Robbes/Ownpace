@@ -270,9 +270,9 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
           {connection.kind}
         </span>
         <span className="text-sm text-gray-500">
-          {connection.usedByMailboxes === 0
+          {connection.usedByMigrations === 0
             ? t('connections.usedBy.none')
-            : `${connection.usedByMailboxes} ${t('connections.usedBy')}`}
+            : `${connection.usedByMigrations} ${t('connections.usedBy')}`}
         </span>
         <span className="text-xs text-gray-400">{relativeToNow(connection.createdAt)}</span>
         {connection.qualification && (
