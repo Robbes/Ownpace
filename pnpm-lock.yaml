@@ -98,8 +98,8 @@ importers:
         specifier: 10.10.0
         version: 10.10.0(jiti@2.7.0)(supports-color@7.2.0)
       imapflow:
-        specifier: ^1.7.8
-        version: 1.7.8
+        specifier: ^2.0.2
+        version: 2.0.2
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1(@noble/hashes@1.8.0)
@@ -375,8 +375,8 @@ importers:
         specifier: 'catalog:'
         version: 0.45.2(@electric-sql/pglite@0.5.8)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.0)(postgres@3.4.9)
       imapflow:
-        specifier: ^1.7.8
-        version: 1.7.8
+        specifier: ^2.0.2
+        version: 2.0.2
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@26.5.1)(@vitest/coverage-v8@5.0.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))
@@ -393,8 +393,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       imapflow:
-        specifier: ^1.7.8
-        version: 1.7.8
+        specifier: ^2.0.2
+        version: 2.0.2
       jmap-jam:
         specifier: ^0.13.6
         version: 0.13.6
@@ -452,8 +452,8 @@ importers:
         specifier: workspace:*
         version: link:../managed
       imapflow:
-        specifier: ^1.7.8
-        version: 1.7.8
+        specifier: ^2.0.2
+        version: 2.0.2
 
   packages/managed:
     dependencies:
@@ -503,8 +503,8 @@ importers:
   packages/testing:
     dependencies:
       imapflow:
-        specifier: ^1.7.8
-        version: 1.7.8
+        specifier: ^2.0.2
+        version: 2.0.2
 
 packages:
 
@@ -2936,8 +2936,9 @@ packages:
     resolution: {integrity: sha512-brTTsvFRt5C1gGHtPst/281UjPD5t9fBqbgoMPlVWy11ZLTPfu7HxK4ZYqO9H7o/yC9rSTCI85EaQ4OoY12qYw==}
     engines: {node: '>= 4'}
 
-  imapflow@1.7.8:
-    resolution: {integrity: sha512-dJoCIdZOJh26Rn2PdwEzwj0bRDgGBxxX38pio534FagIHVuR2l0SAfLr6sJo32YfuJHiSs/U2ntNDHnMg3/Hlg==}
+  imapflow@2.0.2:
+    resolution: {integrity: sha512-jrWWecWFifN3Feum2MqaTUupNeYSAdPEltKuwGdr8IPdxW72NZXf7ObVUfTWoUH2MPrli0q7SZm9pRt8ob/9XQ==}
+    engines: {node: '>=20.0.0'}
 
   immer@11.1.15:
     resolution: {integrity: sha512-VrNANlmnWQnh5COXIIOQXM9oOJw7naGKlBT74ZOOR6lpVXc3gFEu9FJLDFcpCJ2j+NWr8TIwtWD//T6ZX6TKiQ==}
@@ -3940,6 +3941,10 @@ packages:
   socks-proxy-agent@8.0.5:
     resolution: {integrity: sha512-HehCEsotFqbPW9sJ8WVYB6UbmIMv7kUUORIF2Nncq4VQvBfNBLibW9YZR5dlYCSUhwcD628pRllm7n+E+YTzJw==}
     engines: {node: '>= 14'}
+
+  socks@2.8.10:
+    resolution: {integrity: sha512-e0VyvkVTwVYViNovRkZ9aodhxVlyoMn7eJhVUPxZ+eK9P/7CBkxvvsBOHqFPEH416726W8tLXXXjKwqgTErrCQ==}
+    engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
 
   socks@2.8.9:
     resolution: {integrity: sha512-LJhUYUvItdQ0LkJTmPeaEObWXAqFyfmP85x0tch/ez9cahmhlBBLbIqDFnvBnUJGagb0JbIQrkBs1wJ+yRYpEw==}
@@ -6724,7 +6729,7 @@ snapshots:
 
   ignore@7.0.9: {}
 
-  imapflow@1.7.8:
+  imapflow@2.0.2:
     dependencies:
       '@zone-eu/mailsplit': 5.4.16
       encoding-japanese: 2.3.0
@@ -6733,7 +6738,7 @@ snapshots:
       libmime: 5.4.3
       libqp: 2.1.1
       pino: 10.3.1
-      socks: 2.8.9
+      socks: 2.8.10
 
   immer@11.1.15: {}
 
@@ -7775,10 +7780,16 @@ snapshots:
       - supports-color
     optional: true
 
+  socks@2.8.10:
+    dependencies:
+      ip-address: 10.7.0
+      smart-buffer: 4.2.0
+
   socks@2.8.9:
     dependencies:
       ip-address: 10.7.0
       smart-buffer: 4.2.0
+    optional: true
 
   sonic-boom@4.2.1:
     dependencies:
