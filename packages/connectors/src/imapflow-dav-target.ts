@@ -537,10 +537,16 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
     const lock = await client.getMailboxLock(mailbox);
     try {
       const found = await client.search({ uid: String(uid) }, { uid: true });
-      // `search` answers `false` when the mailbox is not selected — which is
-      // NOT "the message is gone". Treating it as such would let a removal
-      // report success having checked nothing.
-      if (found === false) {
+      // `search` answers `undefined` when no mailbox is selected and `false`
+      // when the SEARCH came back empty-handed. NEITHER is "the message is
+      // gone": reading either that way would let a removal report success
+      // having checked nothing. Only an array of UIDs is an answer.
+      //
+      // imapflow 1.x declared this `number[] | false` while already returning
+      // `undefined` for the unselected case, so the older `=== false` guard
+      // let that one through to `undefined.includes` — a TypeError instead of
+      // the sentence below. 2.x types it honestly; `Array.isArray` covers both.
+      if (!Array.isArray(found)) {
         throw new Error(`UID search in ${mailbox} was refused, so presence could not be checked.`);
       }
       return found.includes(uid);
