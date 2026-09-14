@@ -151,7 +151,7 @@ export interface WebDAVSource {
  * `@openmig/connectors` re-exports it as `NativeFilePolicy` so there is exactly
  * one definition of the three values.
  */
-export type GoogleNativeFilePolicy = 'refuse' | 'export-office' | 'export-pdf';
+export type GoogleNativeFilePolicy = 'refuse' | 'export-odf' | 'export-office' | 'export-pdf';
 
 /**
  * Google Drive as a file source (workplan 0042).
@@ -1070,12 +1070,20 @@ export function parseArchiveSource(obj: Record<string, unknown>): ArchiveSource 
  * and what choosing an export still leaves unproven.
  */
 function parseNativeFilePolicy(value: unknown): GoogleNativeFilePolicy {
-  if (value === 'refuse' || value === 'export-office' || value === 'export-pdf') return value;
+  if (
+    value === 'refuse' ||
+    value === 'export-odf' ||
+    value === 'export-office' ||
+    value === 'export-pdf'
+  ) {
+    return value;
+  }
   throw new ConfigError(
     `source.nativeFilePolicy: unsupported ${JSON.stringify(value)} (expected "refuse", ` +
-      '"export-office", or "export-pdf"). "refuse" is the default and reports each Google Doc, ' +
-      'Sheet and Slide as un-migratable with a reason; the export policies ask Drive to render ' +
-      'one, which is lossy and whose byte-stability across passes is NOT yet measured ' +
+      '"export-odf", "export-office", or "export-pdf"). "refuse" is the default and reports ' +
+      'each Google Doc, Sheet and Slide as un-migratable with a reason; the export policies ' +
+      'ask Drive to render one — ODF (.odt/.ods/.odp), Office (.docx/.xlsx/.pptx) or PDF — ' +
+      'which is lossy and whose byte-stability across passes is NOT yet measured ' +
       '(workplan 0042 T6).',
   );
 }

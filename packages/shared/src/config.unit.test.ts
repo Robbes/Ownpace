@@ -205,8 +205,8 @@ describe('the google-drive file source', () => {
     expect(source.nativeFilePolicy).toBeUndefined();
   });
 
-  it('carries each of the three policies through', () => {
-    for (const policy of ['refuse', 'export-office', 'export-pdf']) {
+  it('carries each of the four policies through', () => {
+    for (const policy of ['refuse', 'export-odf', 'export-office', 'export-pdf']) {
       const source = parseMappingConfig(driveMapping({ nativeFilePolicy: policy })).domains?.files
         ?.source as { nativeFilePolicy?: string };
       expect(source.nativeFilePolicy).toBe(policy);
@@ -219,10 +219,14 @@ describe('the google-drive file source', () => {
     expect(() => parseMappingConfig(driveMapping({ nativeFilePolicy: 'export_office' }))).toThrow(
       /nativeFilePolicy/,
     );
-    // And the refusal names all three, plus the caveat that export is unmeasured.
-    expect(() => parseMappingConfig(driveMapping({ nativeFilePolicy: 'export_office' }))).toThrow(
-      /export-office/,
-    );
+    // And the refusal names all of them, plus the caveat that export is
+    // unmeasured — an owner reading it should not have to go looking for the
+    // option they actually wanted.
+    for (const named of [/export-odf/, /export-office/, /export-pdf/]) {
+      expect(() => parseMappingConfig(driveMapping({ nativeFilePolicy: 'export_office' }))).toThrow(
+        named,
+      );
+    }
   });
 
   it('refuses an EMPTY rootFolderId rather than treating it as My Drive', () => {

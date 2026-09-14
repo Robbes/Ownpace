@@ -15,7 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import { isDecisionError } from '@openmig/shared';
 import { NativeFileRefused, EXPORTABLE_NATIVE_TYPES, DRIVE_SHORTCUT_MIME } from './google-drive-source.ts';
-import { NATIVE_EXPORT_TYPES } from './google-drive-source.types.ts';
+import { NATIVE_EXPORT_EXTENSIONS, NATIVE_EXPORT_TYPES } from './google-drive-source.types.ts';
 
 const G = 'application/vnd.google-apps.';
 
@@ -43,8 +43,17 @@ describe('NativeFileRefused says the thing that is true for THIS type', () => {
   });
 
   it('an exportable type the chosen policy has no rendering for names the policy', () => {
+    // DEFENSIVE, and deliberately kept. Since every policy gained a rendering
+    // for every exportable type (drawings included, 2026-09-14), `refusalFor`
+    // can no longer reach this branch with real data — the guard below is what
+    // keeps that true. It comes back the moment somebody adds a fourth policy
+    // or Drive grows a fifth exportable type, and the sentence it produces is
+    // the one that would then have to be right.
+    //
+    // Constructed directly rather than through `refusalFor`, because the
+    // constructor does not consult the table; the caller decides.
     const e = new NativeFileRefused('Sketch', `${G}drawing`, 'export-office');
-    expect(e.message).toContain("export policy (export-office) has no rendering for a drawing");
+    expect(e.message).toContain('export policy (export-office) has no rendering for a drawing');
   });
 
   it('every refusal is a decision the loop parks, never a retry', () => {
@@ -54,10 +63,36 @@ describe('NativeFileRefused says the thing that is true for THIS type', () => {
     expect(isDecisionError(new Error('ECONNRESET'))).toBe(false);
   });
 
-  it('the exportable set is exactly what the export policies can render, plus drawing', () => {
+  it('the exportable set is exactly what the export policies can render', () => {
     const fromPolicies = new Set(Object.values(NATIVE_EXPORT_TYPES).flatMap((m) => Object.keys(m)));
     for (const mime of fromPolicies) expect(EXPORTABLE_NATIVE_TYPES.has(mime)).toBe(true);
     expect(EXPORTABLE_NATIVE_TYPES.has(`${G}form`)).toBe(false);
     expect(EXPORTABLE_NATIVE_TYPES.has(DRIVE_SHORTCUT_MIME)).toBe(false);
+  });
+
+  it('EVERY policy renders EVERY exportable type', () => {
+    // The other direction, and the one that matters to an owner: a type listed
+    // as exportable but unmapped by the policy they chose produces "choose a
+    // policy that covers it" about a file no policy covers. Drawings were in
+    // that state from the day the set was written until 2026-09-14 — listed
+    // exportable, mapped by nothing — so the sentence sent people to a setting
+    // that could not help.
+    for (const [policy, map] of Object.entries(NATIVE_EXPORT_TYPES)) {
+      for (const mime of EXPORTABLE_NATIVE_TYPES) {
+        expect(map[mime], `${policy} has no rendering for ${mime}`).toBeDefined();
+      }
+    }
+  });
+
+  it('every rendering a policy produces has a file extension', () => {
+    // Without one the export lands as "Aanbiedingstekst" holding ODT bytes,
+    // which the owner's desktop offers no application for. The connector falls
+    // back to the bare name when the extension is missing rather than
+    // inventing one, so a gap here is silent — this is what finds it.
+    for (const [policy, map] of Object.entries(NATIVE_EXPORT_TYPES)) {
+      for (const target of Object.values(map)) {
+        expect(NATIVE_EXPORT_EXTENSIONS[target], `${policy} exports ${target}`).toMatch(/^\.[a-z0-9]+$/);
+      }
+    }
   });
 });

@@ -44,10 +44,32 @@ export interface DriveFileList {
  */
 export type NativeFilePolicy = GoogleNativeFilePolicy;
 
-/** Export MIME types, for when the policy is not `refuse`. */
+/**
+ * Export MIME types, for when the policy is not `refuse`.
+ *
+ * Drive renders these server-side (`files.export`) — no converter of ours is
+ * involved, which is why three output families cost no dependency.
+ *
+ * A DRAWING IS THE ODD ONE. Drive exports Docs, Sheets and Slides into the
+ * matching member of each family, but a Drawing has no ODF or Office
+ * equivalent on offer: `files.export` gives a Drawing only PNG, JPEG, SVG and
+ * PDF. So SVG is what both document families get — it is the only VECTOR form
+ * available, it opens in LibreOffice Draw and in Word, and a Drawing rendered
+ * to PNG would be a diagram nobody can edit again. Do not "correct" these two
+ * entries to ODG or VSDX: Drive answers 400 for both.
+ */
 export const NATIVE_EXPORT_TYPES: Readonly<
   Record<Exclude<NativeFilePolicy, 'refuse'>, Readonly<Record<string, string>>>
 > = {
+  'export-odf': {
+    'application/vnd.google-apps.document': 'application/vnd.oasis.opendocument.text',
+    // `x-vnd`, NOT `vnd`. Google's export table spells the Sheets ODS type
+    // with the `x-` prefix and rejects the unprefixed one. It reads like a
+    // typo and has been "fixed" into a 400 before; it is Google's spelling.
+    'application/vnd.google-apps.spreadsheet': 'application/x-vnd.oasis.opendocument.spreadsheet',
+    'application/vnd.google-apps.presentation': 'application/vnd.oasis.opendocument.presentation',
+    'application/vnd.google-apps.drawing': 'image/svg+xml',
+  },
   'export-office': {
     'application/vnd.google-apps.document':
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -55,12 +77,39 @@ export const NATIVE_EXPORT_TYPES: Readonly<
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.google-apps.presentation':
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.google-apps.drawing': 'image/svg+xml',
   },
   'export-pdf': {
     'application/vnd.google-apps.document': 'application/pdf',
     'application/vnd.google-apps.spreadsheet': 'application/pdf',
     'application/vnd.google-apps.presentation': 'application/pdf',
+    'application/vnd.google-apps.drawing': 'application/pdf',
   },
+};
+
+/**
+ * The file extension each export MIME type lands under.
+ *
+ * A Google Doc's `name` carries no extension — there is no file, so there is
+ * nothing for one to describe. Copy the export out under that bare name and
+ * the result is a file called "Aanbiedingstekst" holding DOCX bytes: Nextcloud
+ * shows it as unknown, the desktop offers no application, and the owner's
+ * document has arrived in a form they cannot open. The extension is not
+ * decoration here; it is the difference between exported and usable.
+ *
+ * Keyed by the EXPORT type rather than the Google type, so a policy and its
+ * suffix cannot disagree — every value in `NATIVE_EXPORT_TYPES` must appear
+ * here, and a guard test asserts exactly that.
+ */
+export const NATIVE_EXPORT_EXTENSIONS: Readonly<Record<string, string>> = {
+  'application/vnd.oasis.opendocument.text': '.odt',
+  'application/x-vnd.oasis.opendocument.spreadsheet': '.ods',
+  'application/vnd.oasis.opendocument.presentation': '.odp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+  'image/svg+xml': '.svg',
+  'application/pdf': '.pdf',
 };
 
 export interface GoogleDriveSourceConfig {
