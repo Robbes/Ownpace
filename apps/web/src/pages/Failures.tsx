@@ -4,9 +4,14 @@
  *
  * Split the way the server splits it, because the two halves want different
  * things from the reader. `retrying` is the tool still working and wants
- * nobody's attention. `needsDecision` has run out of attempts and will never
- * move again until a person says something — and a cutover while it is non-empty
- * leaves data behind, which is the whole reason this queue exists.
+ * nobody's attention. `needsDecision` will never move again until a person
+ * says something — either because attempts ran out or because it was PARKED
+ * on sight — and a cutover while it is non-empty leaves data behind, which is
+ * the whole reason this queue exists.
+ *
+ * A parked row shows "waiting on you" INSTEAD of a try count. It was attempted
+ * once; its stored count used to be the ceiling because parking was written
+ * into that number, so the screen reported five attempts for one.
  *
  * `lastError` is rendered verbatim. It is the difference between a 507, a 403
  * and a parse error, and summarising it into "failed" would remove the only
@@ -49,8 +54,17 @@ const Row: React.FC<{
       )}
       <div className="text-xs text-red-700 break-words">{f.lastError}</div>
     </div>
+    {/*
+      A PARKED item is not a count. It was tried once — a policy that answers
+      the same way every pass is not something to retry five times — and then
+      set aside for a person. Printing `attempts` here claimed attempts against
+      somebody's Google account that never happened (owner report, 2026-09-14),
+      because parking used to be stored AS the attempt count.
+    */}
     <span className="text-xs text-gray-500 whitespace-nowrap">
-      {f.attempts} {f.attempts === 1 ? t('failures.try.one') : t('failures.try.many')}
+      {f.parkedAt
+        ? t('failures.parked')
+        : `${f.attempts} ${f.attempts === 1 ? t('failures.try.one') : t('failures.try.many')}`}
     </span>
     <HashChip hash={f.naturalKeyHash} />
     <div className="flex items-center gap-2 ml-auto">

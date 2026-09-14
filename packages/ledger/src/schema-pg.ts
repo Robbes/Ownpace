@@ -550,6 +550,16 @@ export const item = pgTable(
     // bookkeeping of which execution asked.
     confirmedByRun: uuid('confirmed_by_run').references(() => run.id, { onDelete: 'set null' }),
     attemptCount: integer('attempt_count').notNull().default(0),
+    /**
+     * When this item stopped being retried and started waiting on a person.
+     *
+     * NULL means it is still in the automatic lane. Separate from
+     * `attempt_count` since migration 0046: parking used to be encoded as
+     * "write the ceiling into the counter", which made a policy refusal
+     * attempted ONCE read as five attempts on the owner's screen, and a
+     * second park walk past the ceiling into a number that counted nothing.
+     */
+    parkedAt: timestamp('parked_at', { withTimezone: true }),
     lastError: text('last_error'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
