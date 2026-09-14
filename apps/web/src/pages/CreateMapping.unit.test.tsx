@@ -774,6 +774,108 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     expect((posted.syncConfig as { domains: string[] }).domains).toEqual(['file']);
   });
 
+  it('offers the Google-native format choice on the source step, defaulting to leaving them behind', () => {
+    // 0042 T0 Q3, owner ask 2026-09-14: "can we offer a best fitting
+    // fileformat to transform it in to and then store in target?" Four
+    // answers, ONE per migration, chosen where the folder is chosen — the
+    // same question as "which folder": what, of this Drive, comes across.
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
+
+    const policy = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/);
+    expect(policy).toBeVisible();
+    expect(policy).toHaveValue('refuse');
+    expect(
+      [...(policy as HTMLSelectElement).options].map((o) => o.value),
+      'every policy the parser accepts must be offerable, or one is unreachable from the app',
+    ).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
+  });
+
+  it('says an export is lossy only once an export is chosen', () => {
+    // Under `refuse` nothing lossy is happening, and a warning shown beside a
+    // choice it does not apply to is a warning people learn to skip past.
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
+    const policy = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/);
+
+    expect(screen.queryByText(/A rendering, not the original/)).not.toBeInTheDocument();
+    expect(screen.getByText(/reported by name, with a reason/)).toBeVisible();
+
+    fireEvent.change(policy, { target: { value: 'export-odf' } });
+    expect(screen.getByText(/A rendering, not the original/)).toBeVisible();
+    expect(screen.queryByText(/reported by name, with a reason/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the long half folded, one line on screen (0118 T1)', () => {
+    // Three thoughts belong beside this control — what these are, what an
+    // export costs, what happens if you decline. All three visible at once is
+    // exactly what the copy budget exists to stop, so the rest opens under
+    // "Why?" and `toBeVisible` knows it is hidden until it does.
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
+
+    expect(screen.getByText(/They have no file to copy/)).toBeVisible();
+    expect(screen.getByText(/A Google Doc lives in Google, not in a file/)).not.toBeVisible();
+
+    fireEvent.change(screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/), {
+      target: { value: 'export-pdf' },
+    });
+    expect(screen.getByText(/Nobody gets a Google Doc back out of an .odt/)).not.toBeVisible();
+  });
+
+  it('carries the chosen format all the way to the created mapping', async () => {
+    // The wiring that would otherwise fail silently: a control that changes
+    // nothing looks identical to one that works, right up until somebody's
+    // Docs are left behind after they chose ODF.
+    createMock.mockResolvedValue({ id: 'map-drive-odf' } as never);
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid.apps.googleusercontent.com' },
+    });
+    fireEvent.change(screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/), {
+      target: { value: 'export-odf' },
+    });
+    satisfySourceStep();
+    fireEvent.click(nextButton());
+    fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
+    satisfyTargetStep();
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+      target: { value: 'Acme files' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.click(nextButton());
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    const posted = createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
+    expect(posted.sourceConfig).toMatchObject({ nativeFilePolicy: 'export-odf' });
+  });
+
+  it('sends `refuse` rather than leaving the choice unsaid', async () => {
+    // Omitting it would land the same behaviour by default. It is sent so the
+    // mapping records that somebody CHOSE it — "why were my Docs left behind"
+    // has a different answer when the answer is "because you said so".
+    createMock.mockResolvedValue({ id: 'map-drive-refuse' } as never);
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid.apps.googleusercontent.com' },
+    });
+    satisfySourceStep();
+    fireEvent.click(nextButton());
+    fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
+    satisfyTargetStep();
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'x' } });
+    fireEvent.click(nextButton());
+    fireEvent.click(nextButton());
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    const posted = createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
+    expect(posted.sourceConfig).toMatchObject({ nativeFilePolicy: 'refuse' });
+  });
+
   it('domains beyond file are not offerable for a Drive source', () => {
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));

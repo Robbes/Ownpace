@@ -420,6 +420,23 @@ const en = {
   'wizard.noSharedDrives': 'No shared drives or folders visible; an empty root migrates My Drive.',
   'wizard.sharedDrivesGroup': 'Shared drives',
   'wizard.sharedFoldersGroup': 'Folders shared with me',
+  'wizard.nativePolicy': 'Google Docs, Sheets, Slides and Drawings',
+  'wizard.nativePolicy.hint':
+    'They have no file to copy, only a rendering Google makes.',
+  'wizard.nativePolicy.hint.why':
+    'A Google Doc lives in Google, not in a file: there is nothing to copy across. Drive can render one as a document or a PDF, and that rendering is what would arrive. Leaving them behind is the alternative, and the default.',
+  'wizard.nativePolicy.refuse': 'Leave them behind, and tell me about each one',
+  'wizard.nativePolicy.odf': 'OpenDocument — .odt, .ods, .odp (drawings as .svg)',
+  'wizard.nativePolicy.office': 'Microsoft Office — .docx, .xlsx, .pptx (drawings as .svg)',
+  'wizard.nativePolicy.pdf': 'PDF — everything as .pdf',
+  'wizard.nativePolicy.lossy':
+    'A rendering, not the original, and it applies to every file here.',
+  'wizard.nativePolicy.lossy.why':
+    'Nobody gets a Google Doc back out of an .odt or a .pdf: the export is a copy of how the document looks, and fine formatting can shift. Drawings arrive as .svg, because Drive offers nothing editable for them. One choice covers the whole migration; you can change it later, though files already copied keep the format they arrived in.',
+  'wizard.nativePolicy.unmeasured':
+    'Each one is reported by name, with a reason, for you to decide.',
+  'wizard.nativePolicy.unmeasured.why':
+    'Nothing is copied and nothing is lost: each Doc, Sheet, Slide and Drawing appears in the failure queue with its name, and you accept or retry them one at a time or all at once. Forms, My Maps, Sites and Apps Scripts always land here — Google can export those in no format at all.',
   'wizard.step.migration': 'Migration',
   'wizard.testConnections.reused': 'Already saved; this only checks it still works.',
   'wizard.connectionName': 'Connection name',
@@ -2237,6 +2254,23 @@ const nl: Record<keyof typeof en, string> = {
     'Geen gedeelde Drives of mappen zichtbaar; een lege hoofdmap migreert Mijn Drive.',
   'wizard.sharedDrivesGroup': 'Gedeelde Drives',
   'wizard.sharedFoldersGroup': 'Met mij gedeelde mappen',
+  'wizard.nativePolicy': 'Google Documenten, Spreadsheets, Presentaties en Tekeningen',
+  'wizard.nativePolicy.hint':
+    'Hiervan is geen bestand te kopiëren, alleen een weergave van Google.',
+  'wizard.nativePolicy.hint.why':
+    'Een Google-document staat bij Google, niet in een bestand: er is niets om over te zetten. Drive kan er een document of een PDF van maken, en díe weergave zou aankomen. Ze laten staan is het alternatief, en de standaard.',
+  'wizard.nativePolicy.refuse': 'Laat ze staan en meld ze stuk voor stuk',
+  'wizard.nativePolicy.odf': 'OpenDocument — .odt, .ods, .odp (tekeningen als .svg)',
+  'wizard.nativePolicy.office': 'Microsoft Office — .docx, .xlsx, .pptx (tekeningen als .svg)',
+  'wizard.nativePolicy.pdf': 'PDF — alles als .pdf',
+  'wizard.nativePolicy.lossy':
+    'Een weergave, niet het origineel, en dit geldt voor elk bestand.',
+  'wizard.nativePolicy.lossy.why':
+    'Uit een .odt of .pdf komt nooit weer een Google-document: de export legt vast hoe het document eruitziet, en fijne opmaak kan verschuiven. Tekeningen komen aan als .svg, omdat Google daar niets bewerkbaars voor aanbiedt. Eén keuze geldt voor de hele migratie; u kunt hem later wijzigen, al houden al gekopieerde bestanden het formaat waarin ze aankwamen.',
+  'wizard.nativePolicy.unmeasured':
+    'Elk bestand wordt met naam en reden gemeld, zodat u beslist.',
+  'wizard.nativePolicy.unmeasured.why':
+    'Er wordt niets gekopieerd en niets gaat verloren: elk document, elke spreadsheet, presentatie en tekening verschijnt met naam in de wachtrij, en u accepteert of probeert ze per stuk of in één keer. Formulieren, My Maps, Sites en Apps Scripts komen hier altijd terecht — die kan Google in geen enkel formaat exporteren.',
   'wizard.step.migration': 'Migratie',
   'wizard.testConnections.reused': 'Al bewaard; dit controleert alleen of hij nog werkt.',
   'wizard.connectionName': 'Naam van de verbinding',
