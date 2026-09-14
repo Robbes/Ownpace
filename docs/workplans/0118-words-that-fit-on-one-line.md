@@ -1,6 +1,14 @@
 # Workplan 0118 — Words that fit on one line
 
-## Status — 2026-09-05 (update this block at the end of every session)
+## Status — 2026-09-14 (update this block at the end of every session)
+
+**2026-09-14: §4 corrected — the board understated itself.** No code changed. "Not done,
+honestly" still claimed T2–T4 carried their long copy and that the guard did not reach their
+prefixes; both had been false since the night of 2026-09-05, four rows above it in this
+document's own table. Replaced with what is actually outstanding: the budget covers the web
+dictionary and nothing else, so the digest and event emails — the copy an owner reads — and
+the marketing site are outside the rule. Whether they should be under *this* rule is a
+question, not a backlog item.
 
 **2026-09-05, night: T4b built — the operator's and sign-in screens**, stacked on T4, and with
 it **every key in the dictionary is under the guard**: the prefix list is gone from the test,
@@ -151,5 +159,16 @@ shortened; the Dutch passed first time.
   if the owner wants it on screen.
 - **Checklist details were not shortened**, only folded. They are console paths and exact
   settings; precision beats brevity there, and a fold costs the reader nothing until asked.
-- **The other screens** (T2–T4) still carry their long copy, and the guard does not yet cover
-  their prefixes. Each is one PR.
+- **The screens are done; this bullet was not.** It said T2–T4 still carried their long copy
+  and that the guard did not cover their prefixes. That was true when T1 landed and stopped
+  being true the same day: T2, T3, T4, T4b and T5 all shipped on 2026-09-05, the table above
+  says so, and T4b's own row ends *"the guard now covers the whole dictionary"*. The prefix
+  list is gone from the test. Left standing until 2026-09-14, this page contradicted itself
+  four rows apart — which is the failure a Status block exists to prevent.
+- **The rule stops at the web dictionary.** `words-that-fit-on-one-line` reads `STRINGS`, and
+  nothing else in the repository is under a budget. Two bodies of customer-facing copy are
+  therefore outside it: the digest and event emails in `packages/shared/src/notifications.ts`
+  — which is the copy an owner actually reads, and which changed twice in September — and the
+  marketing site under `site/`. Neither is a screen, so the twelve-and-fifteen-word rule may
+  not be the right one for them; that is a question to answer rather than a gap to close by
+  extending the regex.
