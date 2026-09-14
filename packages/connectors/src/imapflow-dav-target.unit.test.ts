@@ -51,6 +51,15 @@ let connectError: Error | null = null;
 let lastErrorHandler: ((err: Error) => void) | undefined;
 /** Make the FETCH itself fail, which is a different branch from the lock. */
 let failFetch: Error | null;
+/**
+ * Make `search` give a NON-ANSWER after `afterCalls` real ones.
+ *
+ * imapflow returns `undefined` when no mailbox is selected and `false` when the
+ * SEARCH came back empty-handed. Neither shape can be produced by seeding
+ * messages, so without this knob the only path a presence check has is the
+ * happy one — which is how `undefined` went unnoticed through all of 1.x.
+ */
+let searchNonAnswer: { value: false | undefined; afterCalls: number } | null;
 /** What `exists` was when each mailbox was first SELECTed — see getMailboxLock. */
 let selectedExists: Map<string, number>;
 
@@ -144,6 +153,10 @@ vi.mock('imapflow', () => {
     async search(query: { uid?: string }, _o: Record<string, unknown>) {
       const box = (this.mailbox as { path: string }).path;
       calls.push(`search(${box},uid=${String(query.uid)})`);
+      if (searchNonAnswer) {
+        if (searchNonAnswer.afterCalls > 0) searchNonAnswer.afterCalls--;
+        else return searchNonAnswer.value;
+      }
       const uid = Number(query.uid);
       return (boxes.get(box) ?? []).filter((m) => m.uid === uid).map((m) => m.uid);
     }
@@ -216,6 +229,7 @@ beforeEach(() => {
   removalIsALie = false;
   failNext = null;
   failFetch = null;
+  searchNonAnswer = null;
   connectError = null;
   lastErrorHandler = undefined;
   selectedExists = new Map();
@@ -306,6 +320,45 @@ describe('a refused removal is never recorded as a success', () => {
     await expect(target().removeItem('7', { collection: 'INBOX' })).rejects.toThrow(
       /accepted but the message is still there/,
     );
+  });
+
+  it('refuses when the presence check itself got no answer, and removes nothing', async () => {
+    // imapflow returns `undefined` from `search` when no mailbox is selected.
+    // That is NOT "the message is gone" — nothing was checked at all. Reading
+    // it as absence would make `removeItem` report "already gone" for a message
+    // still sitting on the target, tombstoning a copy nobody looks at again.
+    //
+    // imapflow 1.x declared the return `number[] | false` while already
+    // returning `undefined` here, so a `=== false` guard fell through to
+    // `undefined.includes` and threw an unreadable TypeError instead.
+    searchNonAnswer = { value: undefined, afterCalls: 0 };
+    await expect(target().removeItem('7', { collection: 'INBOX' })).rejects.toThrow(
+      /UID search in INBOX was refused, so presence could not be checked/,
+    );
+    expect(calls.some((c) => c.startsWith('messageMove') || c.startsWith('messageDelete'))).toBe(
+      false,
+    );
+  });
+
+  it('refuses when the SEARCH came back empty-handed, and removes nothing', async () => {
+    searchNonAnswer = { value: false, afterCalls: 0 };
+    await expect(target().removeItem('7', { collection: 'INBOX' })).rejects.toThrow(
+      /UID search in INBOX was refused, so presence could not be checked/,
+    );
+    expect(calls.some((c) => c.startsWith('messageMove') || c.startsWith('messageDelete'))).toBe(
+      false,
+    );
+  });
+
+  it('refuses to record a removal whose read-back got no answer', async () => {
+    // The pre-check answers, the EXPUNGE goes through, and then the read-back
+    // cannot say whether the message left. Recording a tombstone on that is the
+    // same silent, permanent loss the read-back exists to prevent.
+    searchNonAnswer = { value: undefined, afterCalls: 1 };
+    await expect(target().removeItem('7', { collection: 'INBOX' })).rejects.toThrow(
+      /UID search in INBOX was refused, so presence could not be checked/,
+    );
+    expect(calls.some((c) => c.startsWith('messageDelete'))).toBe(true);
   });
 });
 
