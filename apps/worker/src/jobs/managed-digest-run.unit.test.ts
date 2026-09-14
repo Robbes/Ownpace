@@ -147,6 +147,29 @@ describe('nothing waiting means no email', () => {
   });
 });
 
+describe('the email names the migration its owner named', () => {
+  /**
+   * Found in a live mailpit on 2026-09-14: "Migration:
+   * 0cc9a844-4075-4d65-a562-374df8299b77". Here `mailbox_mapping.id` is a
+   * UUID and the wizard's name is a column of its own, so a digest that reads
+   * only the id addresses the owner by a handle no screen ever shows them.
+   */
+  it('carries the mapping name from the row into the body', async () => {
+    const d = deps({ listMappings: async () => [{ id: 'm-1', name: 'Gmail to Nextcloud', status: 'active' }] });
+    await runDigest(d);
+    expect(d.sent[0]?.message.body).toContain('Migration: Gmail to Nextcloud');
+    expect(d.sent[0]?.message.body).not.toContain('m-1');
+  });
+
+  it('falls back to the id for a row with no name', async () => {
+    // Rows the appliance wrote carry no name; an id is a poor label but a
+    // blank one is worse — the counts would belong to nothing nameable.
+    const d = deps();
+    await runDigest(d);
+    expect(d.sent[0]?.message.body).toContain('Migration: m-1');
+  });
+});
+
 describe('a blind spot is never a zero (hard rule 9)', () => {
   it('sends even when every count is zero, naming what could not be read', async () => {
     const d = deps({

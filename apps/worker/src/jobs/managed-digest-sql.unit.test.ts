@@ -29,12 +29,14 @@ import { describe, it, expect, beforeAll } from 'vitest';
 
 let ACTIVE_TENANTS_SQL: string;
 let DIGEST_RECIPIENTS_SQL: string;
+let DIGEST_MAPPINGS_SQL: string;
 
 beforeAll(async () => {
   process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
   const mod = await import('./managed-digest.ts');
   ACTIVE_TENANTS_SQL = mod.ACTIVE_TENANTS_SQL;
   DIGEST_RECIPIENTS_SQL = mod.DIGEST_RECIPIENTS_SQL;
+  DIGEST_MAPPINGS_SQL = mod.DIGEST_MAPPINGS_SQL;
 });
 
 describe('which tenants the digest considers', () => {
@@ -57,5 +59,24 @@ describe("who receives a tenant's digest", () => {
     // a deactivated member stops receiving them.
     expect(DIGEST_RECIPIENTS_SQL).toMatch(/role\s+IN\s*\(\s*'owner'\s*,\s*'admin'\s*\)/i);
     expect(DIGEST_RECIPIENTS_SQL).toMatch(/status\s*=\s*'active'/);
+  });
+});
+
+describe('what the digest knows about each migration', () => {
+  it('reads the NAME as well as the id', () => {
+    // The one assertion `runDigest`'s own tests cannot make: they fake
+    // `listMappings`, so dropping this column leaves them green and sends
+    // every owner a UUID instead of the name they typed in the wizard —
+    // which is exactly what an owner found in their inbox on 2026-09-14.
+    expect(DIGEST_MAPPINGS_SQL).toMatch(/\bname\b/);
+    expect(DIGEST_MAPPINGS_SQL).toMatch(/\bid\b/);
+    expect(DIGEST_MAPPINGS_SQL).toMatch(/\bstatus\b/);
+    expect(DIGEST_MAPPINGS_SQL).toMatch(/from\s+mailbox_mapping\b/i);
+  });
+
+  it('stays scoped to the one tenant being digested', () => {
+    // Not new, but it rides in the same string now: a mappings query without
+    // this clause would put one customer's migrations in another's email.
+    expect(DIGEST_MAPPINGS_SQL).toMatch(/tenant_id\s*=\s*\$1/);
   });
 });

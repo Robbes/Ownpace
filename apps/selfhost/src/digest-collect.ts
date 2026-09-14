@@ -105,7 +105,11 @@ export async function collectAttention(deps: CollectDeps): Promise<MappingAttent
       : 0;
 
     out.push(
-      summariseQueues(mapping.mappingId, {
+      // No `name`: on the appliance `mappingId` IS the config's own name —
+      // `index.ts` writes it into `mailbox_mapping.name` — so the id it prints
+      // is already the one the operator chose. The managed side is where `id`
+      // is a UUID and the name lives in its own column.
+      summariseQueues({ id: mapping.mappingId }, {
         deletions,
         moves,
         failures,

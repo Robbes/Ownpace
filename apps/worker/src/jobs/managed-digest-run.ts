@@ -51,6 +51,14 @@ export interface DigestTenant {
 export interface DigestMapping {
   readonly id: string;
   readonly status: string;
+  /**
+   * `mailbox_mapping.name` — what the owner typed in the wizard.
+   *
+   * Nullable in the database, so optional here: rows the appliance wrote carry
+   * none. Without it the digest addressed people by a UUID they have never
+   * seen on any screen.
+   */
+  readonly name?: string | null;
 }
 
 /** Everything the loop needs from the outside world. */
@@ -139,7 +147,7 @@ async function attentionFor(
     0,
   );
 
-  return summariseQueues(mapping.id, {
+  return summariseQueues(mapping, {
     deletions,
     moves,
     failures,
