@@ -30,13 +30,30 @@
  *
  *   pnpm exec tsx scripts/drive-export-stability.ts
  *
- * Environment (the same names the appliance reads — if it works here it works
- * there, which is half the point of not inventing new ones):
+ * Environment. BOTH EDITIONS, because both need this verdict and neither keeps
+ * its credentials where the other does (`drive-export-credentials.ts` says why
+ * the managed half was missing until 2026-09-14):
  *
- *   GOOGLE_CLIENT_ID        required
- *   GOOGLE_CLIENT_SECRET    required
- *   GOOGLE_REFRESH_TOKEN    required — delegated, for the account whose Drive
- *                           this reads
+ *   managed — nothing secret is typed, and nothing is read out of the database
+ *   by hand:
+ *
+ *   DRIVE_CONNECTION_ID     the Google connection to read the Drive as. Its
+ *                           refresh token is decrypted here through the same
+ *                           secret store the API uses.
+ *   DATABASE_URL            the stack that connection lives in.
+ *   SECRET_ENCRYPTION_KEY   as the API already has it — without it the stored
+ *                           grant cannot be decrypted.
+ *   GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET
+ *                           the deployment's own client, already set for
+ *                           Connect with Google. A connection carrying its own
+ *                           pair overrides them, as at every other door.
+ *
+ *   appliance — unchanged, and still the override on managed for a Drive with
+ *   no connection row yet:
+ *
+ *   GOOGLE_CLIENT_ID        with GOOGLE_CLIENT_SECRET; half a pair is refused
+ *   GOOGLE_CLIENT_SECRET    rather than completed from the deployment's
+ *   GOOGLE_REFRESH_TOKEN    delegated, for the account whose Drive this reads
  *   DRIVE_FILE_ID           optional — a specific Doc/Sheet/Slide. Unset means
  *                           "find the first native editor file under the root",
  *                           which is what most people want and nobody wants to
@@ -67,15 +84,19 @@ import {
   type DriveFile,
   type DriveFileList,
 } from '@openmig/connectors';
-import { fileContentHash, type GoogleNativeFilePolicy } from '@openmig/shared';
+import {
+  fileContentHash,
+  resolveGoogleClient,
+  type GoogleNativeFilePolicy,
+} from '@openmig/shared';
+import { SecretStore } from '@openmig/core/secret-store';
 import { createRecordingTransport } from '@openmig/testing/drive-capture';
 import { writeFileSync } from 'node:fs';
-
-const CREDS = {
-  clientId: process.env.GOOGLE_CLIENT_ID ?? '',
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-  refreshToken: process.env.GOOGLE_REFRESH_TOKEN ?? '',
-};
+import { Pool } from 'pg';
+import {
+  resolveMeasurementCredentials,
+  type OpenMeasurementRoute,
+} from './drive-export-credentials.ts';
 
 const ROOT = process.env.DRIVE_ROOT_FOLDER_ID || 'root';
 const GAP_MS = Number(process.env.DRIVE_EXPORT_GAP_MS ?? 3000);
@@ -94,16 +115,69 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-if (!CREDS.clientId || !CREDS.clientSecret || !CREDS.refreshToken) {
-  fail(
-    'Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN. These are the same ' +
-      'variables the appliance reads, so a value that works here works in a mapping.',
-  );
-}
+const ROUTE = resolveMeasurementCredentials(process.env);
+if (ROUTE.route === 'refuse') fail(ROUTE.reason);
 if (POLICY !== 'export-office' && POLICY !== 'export-pdf') {
   fail(`DRIVE_EXPORT_POLICY must be "export-office" or "export-pdf" (got "${POLICY}").`);
 }
 
+/**
+ * The refresh token, from wherever this edition keeps it.
+ *
+ * On the `connection` route nothing is read out by a person: the row names the
+ * grant and `SecretStore` decrypts it here, on the box, with the same
+ * `SECRET_ENCRYPTION_KEY` the API already has. A connection that carries its
+ * OWN client pair wins over the deployment's, through the same
+ * `resolveGoogleClient` every other door uses — measuring the deployment's
+ * application against a Drive granted to a different one would answer a
+ * question nobody asked.
+ */
+async function credentials(
+  route: OpenMeasurementRoute,
+): Promise<{ clientId: string; clientSecret: string; refreshToken: string }> {
+  if (route.route === 'env') return route;
+
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    const { rows } = await pool.query<{ kind: string; secret_ref: unknown }>(
+      `SELECT kind, secret_ref FROM connection WHERE id = $1`,
+      [route.connectionId],
+    );
+    const row = rows[0];
+    if (!row) {
+      fail(
+        `No connection with id "${route.connectionId}" in this database. The id is the one ` +
+          'the Connections page shows, and DATABASE_URL must point at the same stack.',
+      );
+    }
+    if (!row.secret_ref) {
+      fail(
+        `Connection "${route.connectionId}" (${row.kind}) stores no credentials, so there is ` +
+          'no grant to measure with. Reconnect it through Connect with Google first.',
+      );
+    }
+    const stored = SecretStore.decryptCredentials(row.secret_ref as object);
+    const refreshToken = (stored['refreshToken'] ?? '').trim();
+    if (!refreshToken) {
+      fail(
+        `Connection "${route.connectionId}" (${row.kind}) holds credentials but no ` +
+          'refreshToken, so it is not an OAuth grant this can read a Drive with. A Google ' +
+          'account connected through Connect with Google has one.',
+      );
+    }
+    // `sent` wins, exactly as at every other door (ADR-0041).
+    const client = resolveGoogleClient(
+      { clientId: stored['clientId'], clientSecret: stored['clientSecret'] },
+      process.env,
+    );
+    if (!client.ok) fail(client.reason);
+    return { clientId: client.clientId, clientSecret: client.clientSecret, refreshToken };
+  } finally {
+    await pool.end();
+  }
+}
+
+const CREDS = await credentials(ROUTE);
 const tokens = createGoogleTokenProvider(CREDS);
 
 /**

@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 128 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 129 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -1067,6 +1067,10 @@ reading a file drops off its entry by itself.
 
 - [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
 
+### `scripts/drive-export-stability.ts`
+
+- [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts) — A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
+
 ### `scripts/every-service-somebody-starts.unit.test.ts`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -1579,6 +1583,14 @@ Reads:
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/trigger-remember-token.sh`
 - `packages/testing/fixtures/stalwart/config.json`
+
+### [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts)
+
+A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
+
+Reads:
+
+- `scripts/drive-export-stability.ts`
 
 ### [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts)
 
