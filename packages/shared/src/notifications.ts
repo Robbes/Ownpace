@@ -133,6 +133,16 @@ export function createNotifier(transport: MailTransport, settings: NotifierSetti
  */
 export interface MappingAttention {
   readonly mappingId: string;
+  /**
+   * What the owner called this migration, when they called it anything.
+   *
+   * OPTIONAL because `mailbox_mapping.name` is nullable: the create route
+   * requires one (`z.string().min(1)`), but rows the appliance wrote and rows
+   * predating that do not have one. The digest prints the name when there is
+   * one and the id when there is not — never an empty label, and never a bare
+   * UUID to somebody who has only ever seen the migration by its name.
+   */
+  readonly name?: string;
   /** Drift decisions awaiting an answer (0028). */
   readonly pendingDecisions: number;
   /** Confirmed deletions not yet decided about. */
@@ -228,10 +238,26 @@ export function reportsToDigest(status: string | undefined): boolean {
   return status !== 'done';
 }
 
+/**
+ * One mapping, as much as naming it in an email needs: which one, and what
+ * its owner calls it. An object rather than two positional arguments so a
+ * caller that has the name cannot pass it in the wrong slot, and so the next
+ * thing the digest needs to say about a mapping arrives without another one.
+ */
+export interface MappingRef {
+  readonly id: string;
+  /** `mailbox_mapping.name`, straight through — nullable there, optional here. */
+  readonly name?: string | null;
+}
+
 /** Count one mapping's queues the way the screens count them. */
-export function summariseQueues(mappingId: string, reads: QueueReads): MappingAttention {
+export function summariseQueues(mapping: MappingRef, reads: QueueReads): MappingAttention {
+  // Trimmed, then `||`: a name of spaces is not a name, and `??` would let it
+  // through to produce a `Migration: ` line with nothing after the colon.
+  const named = mapping.name?.trim();
   return {
-    mappingId,
+    mappingId: mapping.id,
+    ...(named ? { name: named } : {}),
     pendingDecisions: reads.pendingDecisions,
     // Confirmed but unacknowledged: a deletion still being watched has not
     // been established as real yet, so it is not waiting on anybody.
@@ -397,7 +423,9 @@ export function renderDigest(
   }
 
   for (const m of waiting) {
-    lines.push(`${t.migration}: ${m.mappingId}`);
+    // The name, when the migration has one. An owner knows this migration as
+    // "Gmail to Nextcloud"; the UUID is our handle for it, not theirs.
+    lines.push(`${t.migration}: ${m.name ?? m.mappingId}`);
     if (m.pendingDecisions > 0) lines.push(`  - ${m.pendingDecisions} ${t.decisions}`);
     if (m.deletionsWaiting > 0) lines.push(`  - ${m.deletionsWaiting} ${t.deletions}`);
     if (m.movesWaiting > 0) lines.push(`  - ${m.movesWaiting} ${t.moves}`);

@@ -31,9 +31,38 @@ const EMPTY: QueueReads = {
   blindSpots: [],
 };
 
+describe('the mapping carries its own name to the digest', () => {
+  it('passes the name through, so the email can use it', () => {
+    expect(summariseQueues({ id: 'm', name: 'Gmail to Nextcloud' }, EMPTY).name).toBe(
+      'Gmail to Nextcloud',
+    );
+  });
+
+  it('treats a blank name as no name rather than as a label', () => {
+    // `mailbox_mapping.name` is nullable and the create route requires
+    // `min(1)`, but nothing stops a row holding spaces. Carried through, that
+    // renders as `Migration: ` with nothing after the colon — which reads as a
+    // value that went missing rather than one never given.
+    expect(summariseQueues({ id: 'm', name: '   ' }, EMPTY).name).toBeUndefined();
+    expect(summariseQueues({ id: 'm', name: '' }, EMPTY).name).toBeUndefined();
+    expect(summariseQueues({ id: 'm', name: null }, EMPTY).name).toBeUndefined();
+    expect(summariseQueues({ id: 'm' }, EMPTY).name).toBeUndefined();
+  });
+
+  it('trims a name rather than printing the owner\'s stray spaces', () => {
+    expect(summariseQueues({ id: 'm', name: '  Gmail to Nextcloud  ' }, EMPTY).name).toBe(
+      'Gmail to Nextcloud',
+    );
+  });
+
+  it('still reports the id, which is what every other surface keys on', () => {
+    expect(summariseQueues({ id: 'm', name: 'Gmail to Nextcloud' }, EMPTY).mappingId).toBe('m');
+  });
+});
+
 describe('what counts as waiting on a person', () => {
   it('counts a confirmed, unacknowledged deletion', () => {
-    const summary = summariseQueues('m', {
+    const summary = summariseQueues({ id: 'm' }, {
       ...EMPTY,
       deletions: [{ confirmed: true }],
     });
@@ -44,7 +73,7 @@ describe('what counts as waiting on a person', () => {
     // Unconfirmed means the ledger has not established the source item is
     // really gone. Reporting it would ask the owner to decide about something
     // that may simply not have synced yet.
-    const summary = summariseQueues('m', {
+    const summary = summariseQueues({ id: 'm' }, {
       ...EMPTY,
       deletions: [{ confirmed: false }],
     });
@@ -52,7 +81,7 @@ describe('what counts as waiting on a person', () => {
   });
 
   it('does NOT count a deletion that was already answered', () => {
-    const summary = summariseQueues('m', {
+    const summary = summariseQueues({ id: 'm' }, {
       ...EMPTY,
       deletions: [{ confirmed: true, acknowledgedAt: '2026-08-01T10:00:00Z' }],
     });
@@ -60,7 +89,7 @@ describe('what counts as waiting on a person', () => {
   });
 
   it('counts unacknowledged moves only', () => {
-    const summary = summariseQueues('m', {
+    const summary = summariseQueues({ id: 'm' }, {
       ...EMPTY,
       moves: [{}, { acknowledgedAt: '2026-08-01T10:00:00Z' }, {}],
     });
@@ -70,7 +99,7 @@ describe('what counts as waiting on a person', () => {
   it('counts only failures that gave up retrying', () => {
     // A failure still inside its retry budget is the machine's problem. The
     // owner hears about it when the machine has run out of ideas.
-    const summary = summariseQueues('m', {
+    const summary = summariseQueues({ id: 'm' }, {
       ...EMPTY,
       failures: [{ needsDecision: true }, { needsDecision: false }, { needsDecision: true }],
     });
@@ -78,23 +107,23 @@ describe('what counts as waiting on a person', () => {
   });
 
   it('carries the tenant-level decision count through unchanged', () => {
-    expect(summariseQueues('m', { ...EMPTY, pendingDecisions: 3 }).pendingDecisions).toBe(3);
+    expect(summariseQueues({ id: 'm' }, { ...EMPTY, pendingDecisions: 3 }).pendingDecisions).toBe(3);
   });
 
   it('flags a mapping sitting in cutover, and no other status', () => {
-    expect(summariseQueues('m', { ...EMPTY, status: 'cutover' }).readyForCutover).toBe(true);
-    expect(summariseQueues('m', { ...EMPTY, status: 'shadow' }).readyForCutover).toBe(false);
-    expect(summariseQueues('m', { ...EMPTY, status: undefined }).readyForCutover).toBe(false);
+    expect(summariseQueues({ id: 'm' }, { ...EMPTY, status: 'cutover' }).readyForCutover).toBe(true);
+    expect(summariseQueues({ id: 'm' }, { ...EMPTY, status: 'shadow' }).readyForCutover).toBe(false);
+    expect(summariseQueues({ id: 'm' }, { ...EMPTY, status: undefined }).readyForCutover).toBe(false);
   });
 
   it('is quiet when a mapping is genuinely quiet', () => {
-    expect(wantsAttention(summariseQueues('m', EMPTY))).toBe(false);
+    expect(wantsAttention(summariseQueues({ id: 'm' }, EMPTY))).toBe(false);
   });
 });
 
 describe('a blind spot is not a zero (hard rule 9)', () => {
   it('keeps the server’s own words rather than a count', () => {
-    const summary = summariseQueues('m', {
+    const summary = summariseQueues({ id: 'm' }, {
       ...EMPTY,
       blindSpots: ['the moves queue: connection terminated unexpectedly'],
     });
@@ -105,7 +134,7 @@ describe('a blind spot is not a zero (hard rule 9)', () => {
     // Every count is zero. Without the blind spot this mapping would be left
     // out of the digest entirely, and the owner would read "nothing needs
     // attention" from a summary that could not look.
-    const blind = summariseQueues('m', { ...EMPTY, blindSpots: ['the decision queue: timeout'] });
+    const blind = summariseQueues({ id: 'm' }, { ...EMPTY, blindSpots: ['the decision queue: timeout'] });
     expect(wantsAttention(blind)).toBe(true);
   });
 
@@ -113,7 +142,7 @@ describe('a blind spot is not a zero (hard rule 9)', () => {
     // Absent rather than an empty array: `wantsAttention` and the renderer
     // both branch on presence, and an empty array that reads as "there were
     // blind spots" would send a daily email about nothing.
-    expect(summariseQueues('m', EMPTY).blindSpots).toBeUndefined();
+    expect(summariseQueues({ id: 'm' }, EMPTY).blindSpots).toBeUndefined();
   });
 });
 

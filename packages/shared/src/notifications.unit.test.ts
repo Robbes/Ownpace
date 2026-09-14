@@ -58,6 +58,43 @@ describe('when NOT to send', () => {
   });
 });
 
+describe('the migration is named the way its owner named it', () => {
+  /**
+   * Reported from a live mailpit on 2026-09-14: an owner's summary opened
+   * "Migration: 0cc9a844-4075-4d65-a562-374df8299b77". On the managed side
+   * `mailbox_mapping.id` is a UUID and the name the owner typed in the wizard
+   * lives in its own column, which the digest never read — so the email
+   * addressed them by a handle that appears on no screen they have seen.
+   */
+  it('prints the NAME, and not the id, when the migration has one', () => {
+    const msg = renderDigest(
+      [{ ...quiet, mappingId: '0cc9a844-4075-4d65-a562-374df8299b77', name: 'Gmail to Nextcloud', failuresWaiting: 34 }],
+      'en',
+      'daily',
+    );
+    expect(msg?.body).toContain('Migration: Gmail to Nextcloud');
+    // Not "as well as": a UUID beside the name is the noise this removes.
+    expect(msg?.body).not.toContain('0cc9a844-4075-4d65-a562-374df8299b77');
+  });
+
+  it('falls back to the id for a migration that genuinely has no name', () => {
+    // `mailbox_mapping.name` is nullable — rows the appliance wrote have none.
+    // An id is a poor label; a blank one is worse, and leaves the reader
+    // unable to tell which migration the counts belong to.
+    const msg = renderDigest([{ ...quiet, failuresWaiting: 1 }], 'en', 'daily');
+    expect(msg?.body).toContain('Migration: acme-mail');
+  });
+
+  it('says it in Dutch too, since the name is not ours to translate', () => {
+    const msg = renderDigest(
+      [{ ...quiet, name: 'Gmail naar Nextcloud', failuresWaiting: 2 }],
+      'nl',
+      'daily',
+    );
+    expect(msg?.body).toContain('Migratie: Gmail naar Nextcloud');
+  });
+});
+
 describe('a blind spot is never silence (rule 9)', () => {
   it('SENDS on a blind spot alone, with every count at zero', () => {
     const msg = renderDigest(

@@ -66,6 +66,18 @@ export const ACTIVE_TENANTS_SQL = `SELECT id, name, settings FROM tenant WHERE s
 export const DIGEST_RECIPIENTS_SQL = `SELECT email FROM tenant_member
             WHERE tenant_id = $1 AND status = 'active' AND role IN ('owner', 'admin')`;
 
+/**
+ * `name` is not decoration: it is how the email says WHICH migration.
+ *
+ * Named and exported for the same reason as the two predicates above — the
+ * `runDigest` tests fake `listMappings`, so a query that quietly stopped
+ * selecting `name` would leave every one of them green while every owner went
+ * back to being addressed by a UUID. That is precisely how this shipped
+ * (found in a live mailbox, 2026-09-14), so the column is pinned in
+ * `managed-digest-sql.unit.test.ts` rather than trusted.
+ */
+export const DIGEST_MAPPINGS_SQL = `SELECT id, name, status FROM mailbox_mapping WHERE tenant_id = $1`;
+
 export const managedDigest = schedules.task({
   id: 'managed-digest',
   // 08:00 UTC. Morning on purpose: a summary that lands at 03:00 is read
@@ -109,10 +121,7 @@ export const managedDigest = schedules.task({
       },
 
       listMappings: async (tenantId) => {
-        const { rows } = await pool.query<DigestMapping>(
-          `SELECT id, status FROM mailbox_mapping WHERE tenant_id = $1`,
-          [tenantId],
-        );
+        const { rows } = await pool.query<DigestMapping>(DIGEST_MAPPINGS_SQL, [tenantId]);
         return rows;
       },
 
