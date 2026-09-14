@@ -306,6 +306,17 @@ export interface CreateMappingInput {
     clientSecret?: string;
     refreshToken?: string;
     rootFolderId?: string;
+    /**
+     * What to do with Google Docs, Sheets, Slides and Drawings (0042 T0 Q3):
+     * `refuse`, `export-odf`, `export-office` or `export-pdf`.
+     *
+     * Typed as a plain string, matching the server's own schema, so the ONE
+     * definition of the four values stays `GoogleNativeFilePolicy` in shared
+     * and the server's parser is what refuses a fifth (hard rule 5). A union
+     * repeated here is how a value comes to mean one thing to the form and
+     * another to the parser.
+     */
+    nativeFilePolicy?: string;
     /** Box only (workplan 0056): the numeric user id the CCG token reads for. */
     userId?: string;
     /** Archive only (workplan 0116): WHICH export — `google-takeout` or `apple-privacy`. */

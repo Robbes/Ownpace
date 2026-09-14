@@ -90,6 +90,15 @@ interface FormData {
   sourceServiceAccountKey: string;
   /** Google Drive: root the migration somewhere other than My Drive. */
   sourceRootFolderId: string;
+  /**
+   * What happens to Google Docs, Sheets, Slides and Drawings (0042 T0 Q3).
+   *
+   * One policy per migration, chosen HERE rather than defaulted silently: the
+   * two outcomes available are "your Docs did not migrate, and here is why"
+   * and "your Docs arrived as a rendering that cannot be edited back" — and
+   * only the owner can say which of those they want.
+   */
+  sourceNativeFilePolicy: string;
   /** Dropbox: root the migration at a folder ('' = the whole Dropbox). */
   sourceRootPath: string;
   /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
@@ -142,6 +151,9 @@ const initialFormData: FormData = {
   sourceRefreshToken: '',
   sourceServiceAccountKey: '',
   sourceRootFolderId: '',
+  // `refuse` is also the server's default, so this changes nothing by
+  // itself — it makes the choice VISIBLE, and records that somebody made it.
+  sourceNativeFilePolicy: 'refuse',
   sourceRootPath: '',
   sourceBoxUserId: '',
   sourceArchiveProvider: '',
@@ -256,6 +268,7 @@ function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
     sourceRefreshToken: '',
     sourceServiceAccountKey: '',
     sourceRootFolderId: '',
+    sourceNativeFilePolicy: 'refuse',
     sourceRootPath: '',
     sourceBoxUserId: '',
     sourceArchiveProvider: '',
@@ -561,6 +574,11 @@ const CreateMapping: React.FC = () => {
               ...(formData.sourceRootFolderId.trim()
                 ? { rootFolderId: formData.sourceRootFolderId.trim() }
                 : {}),
+              // Always sent, `refuse` included. Omitting it would land the
+              // same behaviour by default, but the mapping would then not say
+              // whether anybody chose it — and the answer to "why were my Docs
+              // left behind" is different when somebody decided that.
+              nativeFilePolicy: formData.sourceNativeFilePolicy,
             }
           : isGmailSource || isGoogleDavSource || isGoogleAccountSource
           ? {
@@ -1437,6 +1455,60 @@ const CreateMapping: React.FC = () => {
     </div>
   );
 
+  /**
+   * What happens to Google Docs, Sheets, Slides and Drawings (0042 T0 Q3).
+   *
+   * A folder of them is not an edge case — it is most people's Drive — and
+   * until this control existed the answer was decided by a default the owner
+   * never saw. They found out when the failure queue filled with files they
+   * thought had migrated.
+   *
+   * Sat beside the root-folder field rather than on a later step, because it
+   * is the same question as "which folder": what, of this Drive, comes across.
+   *
+   * The lossy sentence is not a warning to click past. An export is a
+   * RENDERING — nobody gets a Google Doc back out of an .odt — and an owner
+   * who learns that after cutover learns it too late.
+   */
+  const renderNativeFilePolicy = () => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700" htmlFor="native-file-policy">
+        {t('wizard.nativePolicy')}
+      </label>
+      {/* One line, the rest folded (0118 T1). Three thoughts belong here —
+          what these are, what an export costs, what happens if you decline —
+          and showing all three at once is the thing that rule exists to
+          stop. */}
+      <Hint text={t('wizard.nativePolicy.hint')} why={t('wizard.nativePolicy.hint.why')} />
+      <select
+        id="native-file-policy"
+        className="input w-full mt-2"
+        value={formData.sourceNativeFilePolicy}
+        onChange={(e) => updateField('sourceNativeFilePolicy', e.target.value)}
+      >
+        {/* `refuse` first and selected: of the two ways this can disappoint
+            somebody — "your Docs did not migrate, and here is why" and "your
+            Docs arrived as something you cannot edit" — only the first is one
+            they can still act on. */}
+        <option value="refuse">{t('wizard.nativePolicy.refuse')}</option>
+        <option value="export-odf">{t('wizard.nativePolicy.odf')}</option>
+        <option value="export-office">{t('wizard.nativePolicy.office')}</option>
+        <option value="export-pdf">{t('wizard.nativePolicy.pdf')}</option>
+      </select>
+      {formData.sourceNativeFilePolicy === 'refuse' ? (
+        <Hint
+          text={t('wizard.nativePolicy.unmeasured')}
+          why={t('wizard.nativePolicy.unmeasured.why')}
+        />
+      ) : (
+        <Hint
+          text={t('wizard.nativePolicy.lossy')}
+          why={t('wizard.nativePolicy.lossy.why')}
+        />
+      )}
+    </div>
+  );
+
   /** Dropbox's shared-folder browse (0055 follow-up), likewise. */
   const renderDropboxBrowse = () => (
     <div>
@@ -1647,6 +1719,7 @@ const CreateMapping: React.FC = () => {
           return (
             <React.Fragment key={field.key}>
               {isSource && field.key === 'rootFolderId' && isDriveSource && renderDriveBrowse()}
+              {isSource && field.key === 'rootFolderId' && isDriveSource && renderNativeFilePolicy()}
               {isSource && field.key === 'rootPath' && isDropboxSource && renderDropboxBrowse()}
               {folded ? (
                 <details className="rounded-md border border-gray-200 p-3">
