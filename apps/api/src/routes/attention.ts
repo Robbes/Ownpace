@@ -28,6 +28,22 @@
  * applies (`reportsToDigest`): a finished migration keeps its history and
  * stops nagging.
  *
+ * ## What is waiting on the ORGANISATION, not on a migration
+ *
+ * A pending drift decision — a newly-discovered mailbox — belongs to no
+ * mapping yet, which is why it was always counted once. But it was only ever
+ * ATTACHED to a mapping, so a tenant whose every migration is `done` carried
+ * its decisions nowhere: the screen said "Nothing is waiting. Every migration
+ * is running by itself" above a drift queue that was not empty, and neither
+ * clause was true.
+ *
+ * That is the same hole 0043 T4 closed in the digest, in the same shape and
+ * with the same rule: the decision queue is read ONCE, hoisted out of the
+ * mapping loop so a tenant with nothing reporting still asks; when a mapping
+ * reports it rides on the first one, and when none does it comes back as
+ * `tenant` instead of being invented onto a row with a mapping id nobody can
+ * open.
+ *
  * ## A read that failed is not a zero
  *
  * Every queue is read under `guarded`, and a failure becomes a BLIND SPOT
@@ -50,6 +66,7 @@ import {
   type DeletionRow,
   type MappingAttention,
   type MoveRow,
+  type TenantAttention,
   type FailureRow,
 } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
@@ -87,25 +104,54 @@ export interface AttentionReaders {
   moves(mappingId: string): Promise<readonly MoveRow[]>;
   failures(mappingId: string): Promise<readonly FailureRow[]>;
   sharingOpen(mappingId: string): Promise<number>;
-  /** Tenant-wide. Asked ONCE, for the first mapping that reports. */
+  /** Tenant-wide, and asked ONCE per answer whether or not a mapping reports. */
   pendingDecisions(): Promise<number>;
 }
 
+/** Everything waiting on this tenant: its migrations, and the tenant itself. */
+export interface TenantWideAttention {
+  readonly mappings: readonly MappingAttention[];
+  /**
+   * What is waiting on the ORGANISATION rather than on any one migration.
+   *
+   * Present only when NO mapping reported, mirroring the digest exactly: with
+   * live mappings the decisions already ride on the first one, and reporting
+   * them in both places would show one decision as two.
+   */
+  readonly tenant?: TenantAttention;
+}
+
 /**
- * What is waiting, per migration. Never throws for one queue's sake.
+ * What is waiting, per migration and for the tenant. Never throws for one
+ * queue's sake.
  *
  * A SEAM, not wiring: the rules below — skip the finished, count the decision
- * once, a failed read is a blind spot and not a zero — are the ones an owner
- * feels, and a rule buried inside an express handler is a rule with no test.
- * The appliance's `digest-collect.ts` was separated from its server for the
- * same reason and says so in the same words.
+ * once, a failed read is a blind spot and not a zero, and an organisation with
+ * no live migration still gets asked — are the ones an owner feels, and a rule
+ * buried inside an express handler is a rule with no test. The appliance's
+ * `digest-collect.ts` was separated from its server for the same reason and
+ * says so in the same words.
  */
 export async function collectTenantAttention(
   rows: readonly AttentionMappingRow[],
   read: AttentionReaders,
-): Promise<MappingAttention[]> {
+): Promise<TenantWideAttention> {
   const out: MappingAttention[] = [];
-  let decisionsCounted = false;
+
+  // ONCE per tenant, and HOISTED so it is asked even when no mapping reports.
+  // Inside the loop it could only ever be attached to a mapping, so the
+  // tenant whose every migration is finished — precisely the one nobody is
+  // watching — was never asked the question at all.
+  let decisionsPending: number | undefined;
+  let decisionsBlindSpot: string | undefined;
+  try {
+    decisionsPending = await read.pendingDecisions();
+  } catch (err) {
+    // The reason, verbatim (hard rule 9), whichever side it ends up on.
+    decisionsBlindSpot = `the decision queue: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
+  }
 
   for (const row of rows) {
     // Before the reads, so a finished migration costs four queries less as
@@ -129,14 +175,14 @@ export async function collectTenantAttention(
     const failures = await guarded('the failures queue', () => read.failures(row.id), []);
     const sharingOpen = await guarded('the sharing checklist', () => read.sharingOpen(row.id), 0);
 
-    // ONCE per tenant, not once per mapping. A drift decision about a new
-    // mailbox belongs to no mapping yet, so every mapping claiming it would
-    // multiply one decision by however many migrations the tenant has — the
-    // same rule both digest collectors apply, for the same reason.
-    const pendingDecisions = decisionsCounted
-      ? 0
-      : await guarded('the decision queue', () => read.pendingDecisions(), 0);
-    decisionsCounted = true;
+    // A drift decision about a new mailbox belongs to no mapping yet, so every
+    // mapping claiming it would multiply one decision by however many
+    // migrations the tenant has. It rides on the FIRST that reports — the same
+    // rule both digest collectors apply, for the same reason — and its own
+    // failure rides there too, as a blind spot rather than a zero.
+    const first = out.length === 0;
+    const pendingDecisions = first ? (decisionsPending ?? 0) : 0;
+    if (first && decisionsBlindSpot) blindSpots.push(decisionsBlindSpot);
 
     out.push(
       summariseQueues(
@@ -155,15 +201,33 @@ export async function collectTenantAttention(
       ),
     );
   }
-  return out;
+
+  // Nothing reported, so the decisions have nowhere to ride. They become the
+  // organisation's own line rather than vanishing — 0043 T4's rule, now on
+  // the screen as well as in the mail.
+  const tenant: TenantAttention = {
+    ...(decisionsPending ? { pendingDecisions: decisionsPending } : {}),
+    ...(decisionsBlindSpot ? { blindSpots: [decisionsBlindSpot] } : {}),
+  };
+  const organisationWants =
+    tenant.pendingDecisions !== undefined || tenant.blindSpots !== undefined;
+
+  return {
+    mappings: out,
+    ...(out.length === 0 && organisationWants ? { tenant } : {}),
+  };
 }
 
 /**
- * GET /api/attention — every queue, every migration, counted once.
+ * GET /api/attention — every queue, every migration, counted once, plus what
+ * is waiting on the organisation itself.
  *
  * `?all=true` keeps the migrations that want nothing, so a screen can say
  * "these four are quiet" rather than implying they do not exist. The default
- * is the digest's rule: only what wants a person.
+ * is the digest's rule: only what wants a person. It filters MAPPINGS only —
+ * `tenant` is never filtered, because it is already the answer to "is anything
+ * waiting that belongs to no migration", and dropping it under one query
+ * parameter would reopen the hole this route exists to close.
  */
 router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -177,7 +241,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
     }
     const includeQuiet = req.query['all'] === 'true';
 
-    const mappings = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+    const attention = await withTenantDb(tenantId, getSharedPool(), async (db) => {
       const ledger = new PgLedger(db);
       const decisions = new PgDecisionStore(db);
       const tenant = asTenantId(tenantId);
@@ -203,7 +267,10 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
       });
     });
 
-    res.json({ mappings: includeQuiet ? mappings : mappings.filter(wantsAttention) });
+    res.json({
+      mappings: includeQuiet ? attention.mappings : attention.mappings.filter(wantsAttention),
+      ...(attention.tenant ? { tenant: attention.tenant } : {}),
+    });
   } catch (error) {
     serverFault(res, 'attention_failed', 'reading what is waiting', error);
   }

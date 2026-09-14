@@ -2233,8 +2233,23 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           ...m,
           autoApplied: 0,
         }));
+        // And what is waiting on the ORGANISATION rather than on any one
+        // migration — asked under exactly the digest's rule a few hundred
+        // lines above (`attention.length === 0 ? ... : undefined`), because a
+        // tenant whose every migration is `done` carried its decisions
+        // nowhere: the screen said "Nothing is waiting. Every migration is
+        // running by itself" over a drift queue that was not empty.
+        //
+        // Never filtered by `all`: it is already the answer to "is anything
+        // waiting that belongs to no migration".
+        const tenant =
+          collected.length === 0 ? await collectTenantAttention(collectDeps()) : undefined;
+        const organisationWants =
+          tenant !== undefined &&
+          (tenant.pendingDecisions !== undefined || tenant.blindSpots !== undefined);
         return sendJson(res, 200, {
           mappings: all ? collected : collected.filter(wantsAttention),
+          ...(organisationWants ? { tenant } : {}),
         });
       }
       // The §11.1 drift decision queue (workplan 0028 T1). The appliance
