@@ -1590,6 +1590,20 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               // fetch then failed — there is no identifier to give, and the row
               // keeps whatever it already had.
               ...(naturalKeyPlain !== undefined ? { naturalKey: naturalKeyPlain } : {}),
+              // WHERE it is, beside what it is called. `recordFailure` learned
+              // to repair both on 2026-09-13, and the identifier half worked
+              // because this call site passes one — the collection half did
+              // nothing, because it did not.
+              //
+              // Safe here specifically because a MOVED item never reaches this
+              // line: `classifyKnownItem` returns 'moved' when the stored
+              // collection differs from this one, and that branch does nothing
+              // to the target and returns. So on this path the stored value is
+              // either already `collectionPath` (a no-op) or blank — and
+              // filling a blank ENABLES move detection on a row that could
+              // never report one, since the check excludes an empty stored
+              // collection.
+              collection: collectionPath,
               contentHash: ch,
               targetId: '',
               createdAt: new Date().toISOString(),
