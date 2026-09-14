@@ -109,6 +109,7 @@ import {
   renderDigest,
   renderShareAnnouncement,
   digestSchedule,
+  wantsAttention,
   type Notifier,
   type NotificationEvent,
   type NotificationLocale,
@@ -2213,6 +2214,28 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         });
         res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
         return res.end(markdown);
+      }
+      // EVERYTHING waiting, not just the queue below (owner report,
+      // 2026-09-14). The screen called "Attention" rendered `/decisions`
+      // alone, so an owner whose digest said "34 items that could not be
+      // copied" opened the tab it pointed at and found it empty.
+      //
+      // This reuses the DIGEST's own collector rather than counting again:
+      // two counters for one question is the defect, and the appliance
+      // already had the one that was right.
+      if (req.method === 'GET' && req.url?.split('?')[0] === '/attention') {
+        const all = new URL(req.url, 'http://x').searchParams.get('all') === 'true';
+        const collected = (await collectAttention()).map((m) => ({
+          // Zeroed on both editions, for the same reason (hard rule 5):
+          // auto-applied removals are news the DIGEST bounds by the window
+          // since the last one. A page has no window, so the number would sit
+          // there for ever with nothing anybody can do about it.
+          ...m,
+          autoApplied: 0,
+        }));
+        return sendJson(res, 200, {
+          mappings: all ? collected : collected.filter(wantsAttention),
+        });
       }
       // The §11.1 drift decision queue (workplan 0028 T1). The appliance
       // answers for every configured mapping's tenant, like every queue.

@@ -86,6 +86,8 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
     ],
   },
   { prefix: '/api/decisions', files: ['src/routes/decisions.ts'] },
+  // Every queue at once, for the screen that showed only the one above.
+  { prefix: '/api/attention', files: ['src/routes/attention.ts'] },
   { prefix: '/api/shared-addresses', files: ['src/routes/shared-addresses.ts'] },
   { prefix: '/api/permissions', files: ['src/routes/permissions.ts'] },
   { prefix: '/api/billing', files: ['src/routes/billing/index.ts'] },
