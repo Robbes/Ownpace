@@ -255,16 +255,43 @@ Read-only, writes nothing, and answers two things at once:
   compares the bytes.
 
 That second question is the one that decides whether `nativeFilePolicy` may be set to
-`export-office` / `export-pdf` at all. A Google Doc has no bytes; exporting one produces a
+`export-odf` / `export-office` / `export-pdf` at all. A Google Doc has no bytes; exporting one produces a
 rendering, and this product hashes what it writes. **If two exports of an unchanged document
 differ, every pass sees a changed document and re-copies all of them, forever, with every
 write succeeding and nothing looking wrong.** Until that has been measured on a real tenant,
 the default is `refuse`: each Doc is reported as un-migratable, one by one, with the reason,
 and the rest of the folder migrates.
 
-Run it for `export-office` and for `export-pdf` — different renderers — and ideally against a
-Doc, a Sheet and a Slide. Then keep a note of what you found — the answer decides whether exporting Google Docs is
+Run it for `export-odf`, for `export-office` and for `export-pdf` — three different renderers,
+and one can be stable while another is not — and ideally against a Doc, a Sheet and a Slide.
+Then keep a note of what you found — the answer decides whether exporting Google Docs is
 safe to turn on at all.
+
+### What each policy produces
+
+One policy per migration, chosen by the owner. Every one of them asks Drive to render the
+document server-side; nothing is converted here.
+
+| Google type | `export-odf` | `export-office` | `export-pdf` |
+| --- | --- | --- | --- |
+| Docs | `.odt` | `.docx` | `.pdf` |
+| Sheets | `.ods` | `.xlsx` | `.pdf` |
+| Slides | `.odp` | `.pptx` | `.pdf` |
+| Drawings | `.svg` | `.svg` | `.pdf` |
+
+**A Drawing is the odd one.** Drive offers a Drawing only PNG, JPEG, SVG and PDF — there is no
+ODG and no Office equivalent — so both document policies use SVG. It is the only vector form on
+offer, it opens in LibreOffice Draw and in Word, and a PNG would be a diagram nobody can edit
+again.
+
+**Forms, My Maps, Sites, Jamboards and Apps Scripts have no export in any format.** No policy
+changes that; they are reported one by one with a reason that says so, rather than pointing at
+a setting that would not help.
+
+The exported file lands under the document's name **plus the extension of whatever was
+rendered** — a Doc called "Aanbiedingstekst" arrives as `Aanbiedingstekst.odt`. Without that
+suffix the file holds ODT bytes under a name that claims nothing, and neither Nextcloud nor a
+desktop offers anything to open it with.
 
 ### Recording a fixture while you are there
 

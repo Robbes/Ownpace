@@ -56,6 +56,7 @@ import {
 import {
   DRIVE_FOLDER_MIME,
   GOOGLE_NATIVE_PREFIX,
+  NATIVE_EXPORT_EXTENSIONS,
   NATIVE_EXPORT_TYPES,
   type DriveFile,
   type DriveFileList,
@@ -79,8 +80,11 @@ const DEFAULT_BASE = 'https://www.googleapis.com/drive/v3';
  * `application/vnd.google-apps.*` — form, map, site, jam, script, shortcut —
  * has NO export in any format (`files.export` answers 403 for them), so an
  * export policy is not a way out for those and the message must not offer it.
- * Mirrors the keys of `NATIVE_EXPORT_TYPES`, plus drawing, which Drive exports
- * as PNG/SVG/PDF and this product does not yet map.
+ * Mirrors the keys of `NATIVE_EXPORT_TYPES` exactly — drawing included, since
+ * every policy now maps one (SVG under both document families, PDF under
+ * `export-pdf`). A guard test asserts the two agree, because a type listed
+ * here but unmapped there tells an owner "choose a policy that covers it"
+ * about a file no policy covers.
  */
 export const EXPORTABLE_NATIVE_TYPES: ReadonlySet<string> = new Set([
   'application/vnd.google-apps.document',
@@ -126,8 +130,9 @@ export class NativeFileRefused extends Error {
         `"${name}" is a Google ${kind} and has no file to copy. Migrating it means asking Drive ` +
         'to EXPORT a rendering (.docx, .pdf, …), which is lossy — the original is not ' +
         'recoverable from the result — and is not copied here because this migration is ' +
-        'configured with nativeFilePolicy="refuse". Set an export policy on the mapping to ' +
-        'migrate these, or move them out of scope.';
+        'configured with nativeFilePolicy="refuse". Set an export policy on the mapping — ' +
+        '"export-odf" (.odt/.ods/.odp), "export-office" (.docx/.xlsx/.pptx) or "export-pdf" — ' +
+        'to migrate these, or move them out of scope.';
     } else {
       message =
         `"${name}" is a Google ${kind}, and the mapping's export policy (${policy}) has no ` +
@@ -285,7 +290,11 @@ export class GoogleDriveSource implements FileSource {
     const items: RawFileItem[] = [];
 
     for (const file of await this.listChildren(folderId, false)) {
-      items.push({ item: this.toFileItem(file, this.childPath(folder.path, file.name)) });
+      // The SAME name for the path and the item, so the natural key and what
+      // the owner sees on the target cannot disagree about the suffix.
+      items.push({
+        item: this.toFileItem(file, this.childPath(folder.path, this.exportedName(file))),
+      });
     }
 
     // For `listKeys`, which the loop asks immediately after this for the same
@@ -842,10 +851,44 @@ export class GoogleDriveSource implements FileSource {
     return current;
   }
 
+  /**
+   * What this file is CALLED once it has landed on the target.
+   *
+   * A Google Doc's `name` carries no extension, because there is no file for
+   * one to describe. Under an export policy there is: the bytes that arrive
+   * are ODT, DOCX, SVG or PDF, and copying them out under the bare name
+   * produces "Aanbiedingstekst" holding a Word document — which Nextcloud
+   * shows as unknown and the owner's desktop offers no application for. So the
+   * export's own suffix is appended.
+   *
+   * NOT appended when the name already ends in it: somebody who called their
+   * Doc "Q3 report.pdf" gets one `.pdf`, not two. Case-insensitively, because
+   * ".PDF" is the same claim.
+   *
+   * THIS IS PART OF THE NATURAL KEY. The key is the path (§10, ADR-0020), and
+   * the path is built from this name — so a mapping that already copied Docs
+   * under a policy would see the suffixed paths as new items and copy them
+   * again beside the old. That is survivable only because it cannot have
+   * happened yet: `refuse` is the default, an export policy is documented as
+   * unmeasured (0042 T6), and no deployment has selected one. Anyone adding a
+   * fourth policy after that is no longer free to change this.
+   */
+  private exportedName(file: DriveFile): string {
+    if (this.policy === 'refuse' || !isNativeEditorFile(file.mimeType)) return file.name;
+    const target = NATIVE_EXPORT_TYPES[this.policy][file.mimeType];
+    if (!target) return file.name;
+    const ext = NATIVE_EXPORT_EXTENSIONS[target];
+    // No extension known for an export we do map is a gap in the table, not a
+    // reason to rename the file: leave the name alone rather than inventing a
+    // suffix. The guard test makes this branch unreachable.
+    if (!ext) return file.name;
+    return file.name.toLowerCase().endsWith(ext) ? file.name : `${file.name}${ext}`;
+  }
+
   private toFileItem(file: DriveFile, path: string): FileItem {
     return {
       path,
-      name: file.name,
+      name: this.exportedName(file),
       isDirectory: false,
       size: Number.parseInt(file.size ?? '0', 10) || 0,
       // Drive's MD5, for binary files only — see `FileItem.contentHash` for why

@@ -59,10 +59,10 @@
  *                           which is what most people want and nobody wants to
  *                           look up by hand.
  *   DRIVE_ROOT_FOLDER_ID    optional — where to search. Unset means My Drive.
- *   DRIVE_EXPORT_POLICY     optional — `export-office` (default) or `export-pdf`.
- *                           Measure BOTH before trusting either: they are
- *                           different renderers and one can be stable while the
- *                           other is not.
+ *   DRIVE_EXPORT_POLICY     optional — `export-office` (default), `export-odf`
+ *                           or `export-pdf`. Measure EACH before trusting any:
+ *                           they are different renderers and one can be stable
+ *                           while another is not.
  *   DRIVE_EXPORT_GAP_MS     optional — pause between the two exports, default
  *                           3000. A longer gap is a stronger test: an export
  *                           that is stable back-to-back because it was cached
@@ -117,8 +117,11 @@ function fail(message: string): never {
 
 const ROUTE = resolveMeasurementCredentials(process.env);
 if (ROUTE.route === 'refuse') fail(ROUTE.reason);
-if (POLICY !== 'export-office' && POLICY !== 'export-pdf') {
-  fail(`DRIVE_EXPORT_POLICY must be "export-office" or "export-pdf" (got "${POLICY}").`);
+if (POLICY !== 'export-odf' && POLICY !== 'export-office' && POLICY !== 'export-pdf') {
+  fail(
+    `DRIVE_EXPORT_POLICY must be "export-odf", "export-office" or "export-pdf" ` +
+      `(got "${POLICY}").`,
+  );
 }
 
 /**
