@@ -2984,6 +2984,38 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /api/attention:
+    get:
+      tags: [Decisions]
+      summary: Everything waiting on a person, across every queue
+      description: |
+        One line per migration, counted by the same function the weekly digest
+        counts with. It exists because the screen named "Attention" rendered
+        the drift queue alone, so an owner whose digest said "34 items that
+        could not be copied" opened the tab it pointed at and found it empty.
+
+        Auto-applied relocations are reported as zero: they are news the digest
+        bounds by its own window, not a queue anybody can act on.
+
+        A migration whose status is `done` is omitted entirely — a finished
+        migration keeps its history and stops nagging. A queue that could not
+        be READ is reported as a blind spot carrying the reason, never as zero.
+      parameters:
+        - name: all
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: |
+            `true` keeps the migrations that want nothing, so a screen can say
+            which ones are quiet. Default lists only what wants a person.
+      responses:
+        '200':
+          description: What is waiting, per migration.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /api/decisions:
     get:
       tags: [Decisions]

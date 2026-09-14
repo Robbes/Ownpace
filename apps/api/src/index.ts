@@ -26,6 +26,7 @@ import mappingRoutes from './routes/migrations/index.ts';
 import grantRoutes from './routes/grant.ts';
 import viewRoutes from './routes/view.ts';
 import decisionRoutes from './routes/decisions.ts';
+import attentionRoutes from './routes/attention.ts';
 import sharedAddressRoutes from './routes/shared-addresses.ts';
 import permissionRoutes from './routes/permissions.ts';
 import billingRoutes from './routes/billing/index.ts';
@@ -234,6 +235,9 @@ app.use('/api/grant', grantRoutes);
 app.use('/api/view', viewRoutes);
 // The §11.1 drift decision queue (workplan 0028 T1).
 app.use('/api/decisions', decisionRoutes);
+// Everything waiting on a person, across every queue — the read the
+// "Attention" screen was missing, which showed drift alone.
+app.use('/api/attention', attentionRoutes);
 app.use('/api/shared-addresses', sharedAddressRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/billing', billingRoutes);

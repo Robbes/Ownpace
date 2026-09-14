@@ -3218,6 +3218,27 @@ report_markdown "permissions report" \
 report_json "billing usage" "/api/billing/usage" '.period'
 report_json "invoices" "/api/billing/invoices" '.invoices | length'
 
+# WHAT IS WAITING, across every queue (owner report, 2026-09-14). The screen
+# called "Attention" rendered the drift queue alone, so an owner whose digest
+# said "34 items that could not be copied" opened the tab it pointed at and
+# found it empty. This is the read that was missing, asked of a live stack
+# under row security with an ordinary member's token.
+#
+# `all=true`, so the answer covers every migration rather than only the ones
+# that happen to want something on this run — a gate that asserted on a
+# filtered list would pass on an empty one for the wrong reason.
+report_json "attention, every migration" "/api/attention?all=true" '.mappings | length'
+# Every row fully shaped, not `[{}]`. `length == (…matching… | length)` is
+# also true of an empty list, which is deliberate: the demo seed's mappings
+# are real but this must not turn red on a tenant that has none.
+#
+# Deliberately NOT asserting on `.name`: the seed inserts its mappings without
+# one (`seed-managed.ts`), so a row with a null name is correct here. The
+# fallback that covers it is pinned in the unit tests instead.
+report_json "attention rows are complete" "/api/attention?all=true" \
+  '.mappings | (length == ([.[] | select(has("mappingId") and has("failuresWaiting") and has("deletionsWaiting") and has("movesWaiting") and has("readyForCutover"))] | length))' \
+  "true"
+
 # The operator's support surface (workplan 0110 T4), asked with an ORDINARY
 # token — and this is the one report whose expected answer is nothing.
 #
