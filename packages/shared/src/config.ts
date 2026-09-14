@@ -549,6 +549,21 @@ export interface ScheduleConfig {
 export interface MappingConfig {
   readonly tenantId: string;
   readonly mappingId: string;
+  /**
+   * What to call this migration in the emails Ownpace sends. Optional.
+   *
+   * `mappingId` is a SEED — it is hashed into the `mailbox_mapping` row id
+   * (`uuidFromString`) and matched against `mailbox_mapping.name` to claim a
+   * pre-2026-09-05 row, so changing it re-keys the mapping and orphans its
+   * ledger. The shipped example makes it a UUID, and every appliance that
+   * copied it got "Migration: 11111111-1111-4111-8111-111111111111" in its
+   * mail with no way out that did not cost them their history.
+   *
+   * This is that way out: a label, read only when an email is rendered, that
+   * touches neither the seed nor the row. Absent means the mail keeps naming
+   * the mapping by its `mappingId`, exactly as before.
+   */
+  readonly name?: string;
   readonly source: SourceConfig;
   readonly target: TargetConfig;
   readonly schedule?: ScheduleConfig;
@@ -1142,6 +1157,9 @@ export function parseMappingConfig(input: unknown): MappingConfig {
   const root = asRecord(input, '(root)');
   const tenantId = reqString(root, 'tenantId', 'tenantId');
   const mappingId = reqString(root, 'mappingId', 'mappingId');
+  // `reqString` when present: a `name` set to "" or to a number is a mistake
+  // somebody made on purpose and wants told about, not a field to ignore.
+  const name = root.name === undefined ? undefined : reqString(root, 'name', 'name');
   const source = parseSource(asRecord(root.source, 'source'));
   const target = parseTarget(asRecord(root.target, 'target'));
   const schedule =
@@ -1166,6 +1184,7 @@ export function parseMappingConfig(input: unknown): MappingConfig {
   return {
     tenantId,
     mappingId,
+    ...(name !== undefined ? { name } : {}),
     source,
     target,
     ...(schedule ? { schedule } : {}),

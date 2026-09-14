@@ -170,8 +170,29 @@ export const runRollback = schemaTask({
       // here would tell the operator their rollback failed when it did not.
       if (options.notifyUsers) {
         try {
+          // What the customer called it, read at send time from the row this
+          // job has just written. They know this migration as "Gmail to
+          // Nextcloud"; the UUID appears on no screen they have ever seen, so
+          // a mail carrying only that told them a rollback happened without
+          // telling them to WHAT (owner report, 2026-09-14). `name` is
+          // nullable and `mappingLabel` falls back to the id, so a migration
+          // nobody named still sends — the mail is not worth losing over a
+          // missing label.
+          const [row] = await db
+            .select({ name: schemaPg.mailboxMapping.name })
+            .from(schemaPg.mailboxMapping)
+            .where(
+              and(
+                eq(schemaPg.mailboxMapping.id, mappingId),
+                eq(schemaPg.mailboxMapping.tenantId, tenantId),
+              ),
+            )
+            .limit(1);
           await channel.notifier.notify(
-            renderEvent({ kind: 'rollback_finished', mappingId, reason }, channel.locale),
+            renderEvent(
+              { kind: 'rollback_finished', mapping: { id: mappingId, name: row?.name }, reason },
+              channel.locale,
+            ),
           );
           logger.info('Rollback notification sent');
         } catch (err) {

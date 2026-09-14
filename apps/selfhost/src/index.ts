@@ -113,6 +113,8 @@ import {
   type NotificationEvent,
   type NotificationLocale,
   type MappingAttention,
+  type MappingConfig,
+  type MappingRef,
   type DigestCadence,
 } from '@openmig/shared';
 import {
@@ -267,6 +269,24 @@ async function ensureMappingRecords(
       [mailboxMappingId, tenantId, sourceMailboxId, targetMailboxId, 'mirror', 'paused', pattern ?? null, configMappingId]
     );
     log.debug(`[selfhost] ensured mailbox_mapping ${mailboxMappingId}`);
+}
+
+/**
+ * How the appliance names a migration in the mail it sends.
+ *
+ * `mappingId` is the appliance's handle for the mapping and doubles as the
+ * seed its row id is hashed from, so it cannot be changed to read better
+ * without re-keying the mapping. `name` is the config's optional label, added
+ * for exactly that reason (see `MappingConfig.name`) — absent, the mail names
+ * the mapping by its id, which is what it has always done.
+ *
+ * Deliberately NOT `mailbox_mapping.name`: on this edition that column holds
+ * the config mappingId and `claimLegacyMappingRows` matches on it to decide
+ * which row an upgraded appliance owns. Writing a display name there would
+ * orphan the history the claim exists to keep.
+ */
+function mappingRef(config: MappingConfig): MappingRef {
+  return { id: config.mappingId, ...(config.name !== undefined ? { name: config.name } : {}) };
 }
 
 export interface SelfhostOptions {
@@ -795,7 +815,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       const allFailed = ran.length > 0 && ran.every((r) => r.error);
       await tell(
         failureStreak.record(
-          m.config.mappingId,
+          mappingRef(m.config),
           allFailed ? 'failed' : 'ok',
           results.find((r) => r.error)?.error,
         ),
@@ -815,7 +835,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // as a pass can be.
       await tell(
         failureStreak.record(
-          m.config.mappingId,
+          mappingRef(m.config),
           'failed',
           isCredentialRefusal(err)
             ? refusalText(err.refusal, notifyLocale)
@@ -1211,9 +1231,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     // PASS counts as passed: WARN is not a green light, and saying so in the
     // one email somebody reads about it would be the worst place to blur it.
     for (const [mappingId, report] of Object.entries(reports)) {
+      // `reports` is keyed by the CONFIG's mappingId (the loop above), so the
+      // mapping this key belongs to is the one whose config carries it — and
+      // that config is where the label lives.
+      const m = mappings.find((x) => x.config.mappingId === mappingId);
       await tell({
         kind: 'verification_finished',
-        mappingId,
+        mapping: m ? mappingRef(m.config) : { id: mappingId },
         passed: report.overallStatus === 'PASS',
       });
     }
@@ -2872,7 +2896,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         // Once, on the real transition: the repeat path above answers
         // `alreadyDone` and returns before reaching here, so finishing twice
         // cannot send twice (0030 T2).
-        await tell({ kind: 'migration_finished', mappingId: m.config.mappingId });
+        await tell({ kind: 'migration_finished', mapping: mappingRef(m.config) });
 
         const finished: FinishAccepted = {
           status: 'ok',

@@ -120,6 +120,16 @@ are `mail`, `calendar`, `contacts`, `files`, `tasks`, and a key that is none of
 those is refused at startup rather than ignored). Invalid or
 duplicate-`mappingId` files fail fast on startup with the offending path.
 
+**Name it, so the emails can say which migration they are about.** Ownpace's
+mails open with a `Migration: ...` line. Without a `"name"`, that line prints
+the `mappingId` — and because the template makes that a UUID, the one line
+whose job is to say which migration needs you says nothing you recognise. Add
+a `"name"` (`"Office 365 to Soverin"`) and the mails use it. Do NOT rename the
+`mappingId` instead: it is the seed the mapping's database row id is hashed
+from and the value that claims a row created before 2026-09-05, so changing it
+re-keys the mapping and leaves its ledger behind. `name` is read only when a
+mail is rendered and changes nothing else.
+
 **Several sources into one target?** Two mappings sharing the target's
 credentials MERGE by default — one inbox, one tree, the new platform as the
 single place, which is this product's philosophy. If you would rather keep a
