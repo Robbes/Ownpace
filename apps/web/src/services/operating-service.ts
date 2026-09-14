@@ -33,6 +33,7 @@ import type {
   DecisionRow,
   MappingLifecycle,
   ShareGrantRow,
+  MappingAttention,
 } from '@openmig/shared';
 import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition.ts';
 import { onUnauthorized } from './api.ts';
@@ -69,6 +70,21 @@ client.interceptors.response.use(
 
 // `mappingId` is required by the managed edition and ignored by the appliance —
 // see `queuePath()` for why the two differ, and why the difference stops there.
+/**
+ * Everything waiting on a person, across every queue and every migration.
+ *
+ * Tenant-wide on BOTH editions — no mapping in the path — so it needs no
+ * `queuePath`: the appliance serves `/attention` and managed `/api/attention`,
+ * and `operatingBaseUrl()` already carries that difference.
+ *
+ * `all=true` asks for the quiet migrations too, so the screen can say how many
+ * are running by themselves rather than implying they do not exist. The
+ * server's default would hide them.
+ */
+export async function fetchAttention(): Promise<{ mappings: MappingAttention[] }> {
+  return (await client.get<{ mappings: MappingAttention[] }>('/attention?all=true')).data;
+}
+
 export async function fetchDeletions(mappingId?: string): Promise<DeletionsResponse> {
   return (await client.get<DeletionsResponse>(queuePath('deletions', mappingId))).data;
 }

@@ -14,10 +14,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 
-const { fetchDecisions, resolveDecision, dismissDecision, fetchPresets, setPreset, auth } =
+const {
+  fetchDecisions,
+  resolveDecision,
+  dismissDecision,
+  fetchPresets,
+  setPreset,
+  fetchAttentionMock,
+  auth,
+} =
   vi.hoisted(() => ({
     fetchDecisions: vi.fn(),
+    fetchAttentionMock: vi.fn(),
     resolveDecision: vi.fn(),
     dismissDecision: vi.fn(),
     fetchPresets: vi.fn(),
@@ -31,6 +41,7 @@ vi.mock('../services/operating-service', () => ({
   dismissDriftDecision: dismissDecision,
   fetchDecisionPresets: fetchPresets,
   setDecisionPreset: setPreset,
+  fetchAttention: fetchAttentionMock,
 }));
 
 vi.mock('../stores/auth-store', () => ({ useAuthStore: () => auth }));
@@ -38,6 +49,10 @@ vi.mock('../stores/auth-store', () => ({ useAuthStore: () => auth }));
 const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
 vi.mock('../services/edition', () => ({
   isSelfHost: () => editionFlag.selfhost,
+  // The summary above the queue links OUT to each queue's screen, and the
+  // edition decides those URLs. Mocked to the managed shape, which is the
+  // shape this file's other assertions already assume.
+  queueScreenPath: (queue: string, mappingId: string) => `/mappings/${mappingId}/${queue}`,
 }));
 
 import Decisions from './Decisions.tsx';
@@ -58,7 +73,13 @@ function renderScreen() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <Decisions />
+      {/* A Router, since the summary above the queue LINKS to each queue's
+          screen. Without one `<Link>` throws and the whole page fails to
+          render — which is a real property of this screen now, not a testing
+          detail: it is mounted inside the app's router in every real use. */}
+      <MemoryRouter>
+        <Decisions />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -69,6 +90,54 @@ beforeEach(() => {
   auth.user = { id: 'u', email: 'owner@acme.nl', name: 'Owner', role: 'owner' };
   // No preset expressed: the default, and what most tenants will have.
   fetchPresets.mockResolvedValue({ presets: [], defaultAction: 'ask' });
+  // Nothing waiting anywhere, so the summary above the queue stays out of
+  // the way of this file's assertions. The one test that cares overrides it.
+  fetchAttentionMock.mockResolvedValue({ mappings: [] });
+});
+
+describe('the tab is called Attention and now answers to it', () => {
+  it('shows what is waiting in EVERY queue, above the drift queue it used to be', async () => {
+    // The defect this screen shipped with: it rendered `/api/decisions` and
+    // nothing else, so an owner whose digest said "34 items that could not be
+    // copied" opened the tab it pointed at and found it empty (owner report,
+    // 2026-09-14).
+    fetchDecisions.mockResolvedValue({ decisions: [] });
+    fetchAttentionMock.mockResolvedValue({
+      mappings: [
+        {
+          mappingId: '0cc9a844-4075-4d65-a562-374df8299b77',
+          name: 'Gmail to Nextcloud',
+          pendingDecisions: 0,
+          deletionsWaiting: 0,
+          movesWaiting: 0,
+          failuresWaiting: 34,
+          readyForCutover: false,
+          autoApplied: 0,
+          sharingOpen: 0,
+        },
+      ],
+    });
+    renderScreen();
+
+    expect(await screen.findByText('Gmail to Nextcloud')).toBeVisible();
+    expect(screen.getByText('34')).toBeVisible();
+    expect(screen.getByText(/items that could not be copied/).closest('a')).toHaveAttribute(
+      'href',
+      '/mappings/0cc9a844-4075-4d65-a562-374df8299b77/failures',
+    );
+  });
+
+  it("keeps the drift queue readable when the summary read fails", async () => {
+    // Two reads, separately: the drift queue being answerable says nothing
+    // about the 34 files that are not, and neither must empty the other.
+    fetchDecisions.mockResolvedValue({ decisions: [] });
+    fetchAttentionMock.mockRejectedValue(new Error('connection terminated'));
+    renderScreen();
+
+    expect(await screen.findByText(/could not be loaded/)).toBeVisible();
+    // The standing-answers control below it still rendered.
+    expect(screen.getByText(/When a mailbox appears/)).toBeInTheDocument();
+  });
 });
 
 describe('the honest empty state', () => {
