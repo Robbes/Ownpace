@@ -434,9 +434,41 @@ describe('the confirmed list screen', () => {
         <Confirmed />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(listed).toHaveBeenCalled());
+    // WAIT FOR THE BUTTON, NOT FOR THE CALL. `listed` having been CALLED says
+    // only that the read started; the mapping this press needs comes from the
+    // read's RESULT, a microtask or two later. Waiting on the call let the
+    // click land in that gap, where `start` found no mapping and returned in
+    // silence — an intermittent failure on this assertion, roughly one run in
+    // eighteen, and never when the test ran alone.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Check the destination/i })).toBeEnabled(),
+    );
     fireEvent.click(screen.getByRole('button', { name: /Check the destination/i }));
     expect(await screen.findByText(/already running/i)).toBeInTheDocument();
+  });
+
+  it('does not offer a press it would silently drop', async () => {
+    // The appliance's screen is flat, so until the list lands there is no
+    // mapping to start a pass on. The button used to be live throughout that
+    // window: pressing it did nothing, said nothing, and left somebody
+    // waiting on a pass that was never asked for.
+    let land: (v: unknown) => void = () => {};
+    listed.mockReturnValue(
+      new Promise((res) => {
+        land = res;
+      }) as never,
+    );
+
+    render(
+      <MemoryRouter>
+        <Confirmed />
+      </MemoryRouter>,
+    );
+    const button = screen.getByRole('button', { name: /Check the destination/i });
+    expect(button).toBeDisabled();
+
+    land({ 'mapping-1': queue() });
+    await waitFor(() => expect(button).toBeEnabled());
   });
 
   it('shows the read failure rather than an empty, reassuring page', async () => {
