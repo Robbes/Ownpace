@@ -42,7 +42,7 @@
     "drizzle-orm": "catalog:",
     "esbuild": "^0.28.2",
     "eslint": "10.10.0",
-    "imapflow": "^1.7.8",
+    "imapflow": "^2.0.2",
     "jsdom": "^30.0.1",
     "nodemailer": "^10.0.3",
     "pg": "catalog:",
