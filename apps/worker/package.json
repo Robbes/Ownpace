@@ -21,7 +21,7 @@
     "@openmig/shared": "workspace:*",
     "@trigger.dev/sdk": "4.5.16",
     "croner": "10.0.1",
-    "zod": "^4.5.4"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "drizzle-orm": "catalog:",
