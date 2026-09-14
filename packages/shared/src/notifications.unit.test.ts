@@ -164,7 +164,7 @@ describe('immediate events', () => {
     const lastError = 'getaddrinfo ENOTFOUND stalwart';
     for (const locale of ['en', 'nl'] as const) {
       const msg = renderEvent(
-        { kind: 'runs_failing', mappingId: 'acme-mail', consecutiveFailures: 4, lastError },
+        { kind: 'runs_failing', mapping: { id: 'acme-mail' }, consecutiveFailures: 4, lastError },
         locale,
       );
       expect(msg.body).toContain(lastError);
@@ -174,11 +174,11 @@ describe('immediate events', () => {
 
   it('distinguishes a passed check from a failed one, loudly', () => {
     const pass = renderEvent(
-      { kind: 'verification_finished', mappingId: 'm', passed: true },
+      { kind: 'verification_finished', mapping: { id: 'm' }, passed: true },
       'en',
     );
     const fail = renderEvent(
-      { kind: 'verification_finished', mappingId: 'm', passed: false },
+      { kind: 'verification_finished', mapping: { id: 'm' }, passed: false },
       'en',
     );
     expect(pass.body).toContain('passed');
@@ -193,7 +193,7 @@ describe('immediate events', () => {
     const msg = renderEvent(
       {
         kind: 'rollback_finished',
-        mappingId: 'm',
+        mapping: { id: 'm' },
         reason: 'target rejected 4% of messages during the first hour',
       },
       'en',
@@ -210,7 +210,7 @@ describe('immediate events', () => {
 
   it('carries the rollback reason verbatim in Dutch too', () => {
     const msg = renderEvent(
-      { kind: 'rollback_finished', mappingId: 'm', reason: 'target rejected 4% of messages' },
+      { kind: 'rollback_finished', mapping: { id: 'm' }, reason: 'target rejected 4% of messages' },
       'nl',
     );
     expect(msg.subject).toContain('teruggedraaid');
@@ -221,10 +221,10 @@ describe('immediate events', () => {
   it('gives every event a subject in both languages', () => {
     const events = [
       { kind: 'decision_raised', summary: 's' },
-      { kind: 'runs_failing', mappingId: 'm', consecutiveFailures: 1, lastError: 'e' },
-      { kind: 'verification_finished', mappingId: 'm', passed: true },
-      { kind: 'migration_finished', mappingId: 'm' },
-      { kind: 'rollback_finished', mappingId: 'm', reason: 'r' },
+      { kind: 'runs_failing', mapping: { id: 'm' }, consecutiveFailures: 1, lastError: 'e' },
+      { kind: 'verification_finished', mapping: { id: 'm' }, passed: true },
+      { kind: 'migration_finished', mapping: { id: 'm' } },
+      { kind: 'rollback_finished', mapping: { id: 'm' }, reason: 'r' },
     ] as const;
     for (const event of events) {
       for (const locale of ['en', 'nl'] as const) {
@@ -239,9 +239,9 @@ describe('immediate events', () => {
     // Cheap parity check: if an NL string were left as its EN twin by
     // accident, this catches it for every event at once.
     for (const event of [
-      { kind: 'migration_finished', mappingId: 'm' },
-      { kind: 'verification_finished', mappingId: 'm', passed: true },
-      { kind: 'rollback_finished', mappingId: 'm', reason: 'reason' },
+      { kind: 'migration_finished', mapping: { id: 'm' } },
+      { kind: 'verification_finished', mapping: { id: 'm' }, passed: true },
+      { kind: 'rollback_finished', mapping: { id: 'm' }, reason: 'reason' },
     ] as const) {
       expect(renderEvent(event, 'en').subject).not.toEqual(renderEvent(event, 'nl').subject);
       expect(renderEvent(event, 'en').body).not.toEqual(renderEvent(event, 'nl').body);
@@ -353,7 +353,7 @@ describe('access granted — the one event addressed to a non-member (0095)', ()
     // Every other event closes with "open the app to take action". This one is
     // read by somebody who has no account, so that line would be an instruction
     // they cannot follow.
-    const other = renderEvent({ kind: 'migration_finished', mappingId: 'm-1' }, 'en');
+    const other = renderEvent({ kind: 'migration_finished', mapping: { id: 'm-1' } }, 'en');
     expect(other.body).toContain('Open the app');
     expect(renderEvent(event, 'en').body).not.toContain('Open the app');
   });

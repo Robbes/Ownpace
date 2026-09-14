@@ -260,19 +260,19 @@ describe('the sending notifier', () => {
 describe('one outage, one email (the failure streak gate)', () => {
   it('stays quiet below the threshold — one bad pass is usually a blip', () => {
     const gate = createFailureStreakGate(3);
-    expect(gate.record('m', 'failed', 'boom')).toBeUndefined();
-    expect(gate.record('m', 'failed', 'boom')).toBeUndefined();
+    expect(gate.record({ id: 'm' }, 'failed', 'boom')).toBeUndefined();
+    expect(gate.record({ id: 'm' }, 'failed', 'boom')).toBeUndefined();
   });
 
   it('speaks EXACTLY once, at the threshold, and never again during the outage', () => {
     const gate = createFailureStreakGate(3);
-    gate.record('m', 'failed', 'boom');
-    gate.record('m', 'failed', 'boom');
+    gate.record({ id: 'm' }, 'failed', 'boom');
+    gate.record({ id: 'm' }, 'failed', 'boom');
 
-    const event = gate.record('m', 'failed', 'getaddrinfo ENOTFOUND stalwart');
+    const event = gate.record({ id: 'm' }, 'failed', 'getaddrinfo ENOTFOUND stalwart');
     expect(event).toMatchObject({
       kind: 'runs_failing',
-      mappingId: 'm',
+      mapping: { id: 'm' },
       consecutiveFailures: 3,
       // Verbatim, from the pass that crossed the line.
       lastError: 'getaddrinfo ENOTFOUND stalwart',
@@ -282,21 +282,21 @@ describe('one outage, one email (the failure streak gate)', () => {
     // that runs every minute would otherwise send sixty emails an hour about
     // one unplugged server, and the channel would be filtered by lunchtime.
     for (let i = 0; i < 20; i++) {
-      expect(gate.record('m', 'failed', 'boom')).toBeUndefined();
+      expect(gate.record({ id: 'm' }, 'failed', 'boom')).toBeUndefined();
     }
   });
 
   it('resets on recovery, so a LATER outage is reported again', () => {
     const gate = createFailureStreakGate(2);
-    gate.record('m', 'failed', 'boom');
-    expect(gate.record('m', 'failed', 'boom')).toBeDefined();
+    gate.record({ id: 'm' }, 'failed', 'boom');
+    expect(gate.record({ id: 'm' }, 'failed', 'boom')).toBeDefined();
 
-    gate.record('m', 'ok');
+    gate.record({ id: 'm' }, 'ok');
 
     // A channel that went permanently quiet after its first bad day would be
     // worse than none at all.
-    gate.record('m', 'failed', 'boom again');
-    expect(gate.record('m', 'failed', 'boom again')).toMatchObject({
+    gate.record({ id: 'm' }, 'failed', 'boom again');
+    expect(gate.record({ id: 'm' }, 'failed', 'boom again')).toMatchObject({
       consecutiveFailures: 2,
       lastError: 'boom again',
     });
@@ -304,15 +304,34 @@ describe('one outage, one email (the failure streak gate)', () => {
 
   it('counts each mapping separately', () => {
     const gate = createFailureStreakGate(2);
-    gate.record('a', 'failed', 'x');
+    gate.record({ id: 'a' }, 'failed', 'x');
     // b's first failure must not be pushed over the line by a's.
-    expect(gate.record('b', 'failed', 'y')).toBeUndefined();
-    expect(gate.record('a', 'failed', 'x')).toMatchObject({ mappingId: 'a' });
+    expect(gate.record({ id: 'b' }, 'failed', 'y')).toBeUndefined();
+    expect(gate.record({ id: 'a' }, 'failed', 'x')).toMatchObject({ mapping: { id: 'a' } });
+  });
+
+  it('keys the streak on the id, so renaming mid-outage does not restart it', () => {
+    // The label is what a person reads; the id is what the outage is. A gate
+    // keyed on the name would treat the rename as a new mapping, reset the
+    // count to one, and send a SECOND email about an outage already reported
+    // — the exact thing this gate exists to prevent.
+    const gate = createFailureStreakGate(2);
+    gate.record({ id: 'm', name: 'Gmail to Nextcloud' }, 'failed', 'boom');
+    expect(gate.record({ id: 'm', name: 'Gmail naar Nextcloud' }, 'failed', 'boom')).toMatchObject({
+      consecutiveFailures: 2,
+    });
+  });
+
+  it('carries the label through, so the email it produces can name the migration', () => {
+    const gate = createFailureStreakGate(1);
+    expect(gate.record({ id: 'uuid-1', name: 'Gmail to Nextcloud' }, 'failed', 'boom')).toMatchObject(
+      { mapping: { id: 'uuid-1', name: 'Gmail to Nextcloud' } },
+    );
   });
 
   it('says so rather than sending an empty reason when none was recorded', () => {
     const gate = createFailureStreakGate(1);
-    expect(gate.record('m', 'failed')).toMatchObject({
+    expect(gate.record({ id: 'm' }, 'failed')).toMatchObject({
       lastError: 'no error message was recorded',
     });
   });

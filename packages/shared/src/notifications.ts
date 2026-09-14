@@ -250,6 +250,25 @@ export interface MappingRef {
   readonly name?: string | null;
 }
 
+/**
+ * What to call this migration in an email.
+ *
+ * An owner knows their migration as "Gmail to Nextcloud". The UUID is OUR
+ * handle for it — it appears in no screen they read, and a mail whose only
+ * identifier is one tells them a migration needs them without telling them
+ * which (owner report, 2026-09-14).
+ *
+ * Trimmed, then `||` rather than `??`: a name of spaces is not a name, and
+ * `??` would let it through to produce a `Migration: ` line with nothing after
+ * the colon — worse than the UUID, because it looks like a value went missing.
+ *
+ * ONE rule, used by the digest and by every event mail, so the same migration
+ * cannot be called two different things by two different emails.
+ */
+export function mappingLabel(mapping: MappingRef): string {
+  return mapping.name?.trim() || mapping.id;
+}
+
 /** Count one mapping's queues the way the screens count them. */
 export function summariseQueues(mapping: MappingRef, reads: QueueReads): MappingAttention {
   // Trimmed, then `||`: a name of spaces is not a name, and `??` would let it
@@ -423,9 +442,7 @@ export function renderDigest(
   }
 
   for (const m of waiting) {
-    // The name, when the migration has one. An owner knows this migration as
-    // "Gmail to Nextcloud"; the UUID is our handle for it, not theirs.
-    lines.push(`${t.migration}: ${m.name ?? m.mappingId}`);
+    lines.push(`${t.migration}: ${mappingLabel({ id: m.mappingId, name: m.name })}`);
     if (m.pendingDecisions > 0) lines.push(`  - ${m.pendingDecisions} ${t.decisions}`);
     if (m.deletionsWaiting > 0) lines.push(`  - ${m.deletionsWaiting} ${t.deletions}`);
     if (m.movesWaiting > 0) lines.push(`  - ${m.movesWaiting} ${t.moves}`);
@@ -703,26 +720,26 @@ export function readNotifierConfig(env: {
 export type NotificationEvent =
   | {
       readonly kind: 'decision_raised';
-      readonly mappingId?: string;
+      readonly mapping?: MappingRef;
       /** The server's own sentence, rendered verbatim (prose boundary). */
       readonly summary: string;
     }
   | {
       readonly kind: 'runs_failing';
-      readonly mappingId: string;
+      readonly mapping: MappingRef;
       readonly consecutiveFailures: number;
       /** The server's own diagnostic, verbatim (hard rule 9). */
       readonly lastError: string;
     }
   | {
       readonly kind: 'verification_finished';
-      readonly mappingId: string;
+      readonly mapping: MappingRef;
       readonly passed: boolean;
     }
-  | { readonly kind: 'migration_finished'; readonly mappingId: string }
+  | { readonly kind: 'migration_finished'; readonly mapping: MappingRef }
   | {
       readonly kind: 'rollback_finished';
-      readonly mappingId: string;
+      readonly mapping: MappingRef;
       /** Why the operator rolled back, in their own words — never reworded. */
       readonly reason: string;
     }
@@ -822,7 +839,7 @@ export interface FailureStreakGate {
    * when this pass changes nothing anyone needs to be told about.
    */
   record(
-    mappingId: string,
+    mapping: MappingRef,
     outcome: 'ok' | 'failed',
     lastError?: string,
   ): NotificationEvent | undefined;
@@ -831,19 +848,23 @@ export interface FailureStreakGate {
 export function createFailureStreakGate(threshold = 3): FailureStreakGate {
   const streak = new Map<string, number>();
   return {
-    record(mappingId, outcome, lastError) {
+    record(mapping, outcome, lastError) {
+      // Keyed by the ID, never the label. A migration renamed mid-outage is
+      // the same migration, and keying on the name would restart its streak
+      // and send a second email about an outage already reported.
+      const key = mapping.id;
       if (outcome === 'ok') {
-        streak.delete(mappingId);
+        streak.delete(key);
         return undefined;
       }
-      const consecutiveFailures = (streak.get(mappingId) ?? 0) + 1;
-      streak.set(mappingId, consecutiveFailures);
+      const consecutiveFailures = (streak.get(key) ?? 0) + 1;
+      streak.set(key, consecutiveFailures);
       // EXACTLY at the threshold, never above it: the fourth, fifth and
       // hundredth consecutive failure are the same outage, already reported.
       if (consecutiveFailures !== threshold) return undefined;
       return {
         kind: 'runs_failing',
-        mappingId,
+        mapping,
         consecutiveFailures,
         // Verbatim — a diagnostic we reworded is a diagnostic we broke.
         lastError: lastError ?? 'no error message was recorded',
@@ -997,21 +1018,21 @@ export function renderEvent(
 
   switch (event.kind) {
     case 'decision_raised':
-      if (event.mappingId) lines.push(`${b.migration}: ${event.mappingId}`, '');
+      if (event.mapping) lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(b.decisionIntro, '', event.summary);
       break;
     case 'runs_failing':
-      lines.push(`${b.migration}: ${event.mappingId}`, '');
+      lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(`${b.failingIntro} ${event.consecutiveFailures} ${b.failingTail}`, '');
       // Verbatim, always: a diagnostic we reworded is a diagnostic we broke.
       lines.push(event.lastError);
       break;
     case 'verification_finished':
-      lines.push(`${b.migration}: ${event.mappingId}`, '');
+      lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(event.passed ? b.verifyPassed : b.verifyFailed);
       break;
     case 'migration_finished':
-      lines.push(`${b.migration}: ${event.mappingId}`, '');
+      lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(b.finished);
       break;
     case 'access_requested':
@@ -1035,7 +1056,7 @@ export function renderEvent(
       lines.push(b.declinedIntro, '', b.declinedReply);
       break;
     case 'rollback_finished':
-      lines.push(`${b.migration}: ${event.mappingId}`, '');
+      lines.push(`${b.migration}: ${mappingLabel(event.mapping)}`, '');
       lines.push(b.rolledBack, '');
       // The operator's own sentence, carried through untouched — the prose
       // boundary covers a human's words for the same reason it covers the
