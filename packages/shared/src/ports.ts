@@ -986,13 +986,26 @@ export interface LedgerRecord {
    */
   readonly moveAcknowledgedAt?: string;
   /**
-   * How many times this item has been attempted and failed.
+   * How many times this item has been attempted and failed. Attempts, and
+   * nothing else.
    *
-   * Reset to 0 by an operator RETRY. Once it reaches `MAX_ITEM_ATTEMPTS` the
-   * item stops being retried automatically and waits for a decision — see
-   * `ItemFailure`.
+   * Reset to 0 by an operator RETRY. Reaching `MAX_ITEM_ATTEMPTS` is one of
+   * the two ways an item stops being retried automatically; `parkedAt` is the
+   * other, and it does not wait for a count. Until 2026-09-14 parking was
+   * written INTO this number, which put "5 tries" in front of an owner for a
+   * policy refusal attempted once.
    */
   readonly attemptCount?: number;
+  /**
+   * When this item stopped being retried and started waiting on a person.
+   *
+   * Absent means it is still in the automatic lane. A decision-class failure
+   * (see `isDecisionError`) is parked on its FIRST attempt — a policy that
+   * answers the same way every pass is not something to try five times — so
+   * `attemptCount` alone cannot say whether an item is parked, and since
+   * migration 0046 it no longer pretends to.
+   */
+  readonly parkedAt?: string;
   /**
    * The last error, verbatim.
    *
@@ -1102,10 +1115,15 @@ export interface Ledger {
    * indistinguishable from one that failed once).
    *
    * `options.park` records the failure as one that is NOT going to be retried
-   * automatically: `attempt_count` lands at `MAX_ITEM_ATTEMPTS` at once, so
-   * the next pass hands the item to a person instead of fetching it again.
-   * For decision-class failures (see `isDecisionError`) — a policy that
-   * answers the same way every time is not something to try five times.
+   * automatically: it stamps `parked_at`, so the next pass hands the item to a
+   * person instead of fetching it again. For decision-class failures (see
+   * `isDecisionError`) — a policy that answers the same way every time is not
+   * something to try five times.
+   *
+   * It does NOT touch the attempt count beyond the single increment every
+   * failure gets. Until 2026-09-14 parking WAS the count — `attempt_count`
+   * jumped to `MAX_ITEM_ATTEMPTS` — and the owner's screen, which prints that
+   * number, reported five attempts against a Google Doc we asked for once.
    */
   recordFailure(
     record: LedgerRecord,
@@ -1619,10 +1637,21 @@ export interface ItemFailure {
   readonly lastError: string;
   readonly lastAttemptAt?: string;
   /**
-   * False while the item is still being retried automatically; true once
-   * attempts have run out and it is waiting on a decision.
+   * False while the item is still being retried automatically; true once it is
+   * waiting on a decision — either because attempts ran out or because it was
+   * PARKED on sight.
    */
   readonly needsDecision: boolean;
+  /**
+   * Set when this item is waiting on a person rather than on more attempts.
+   *
+   * The distinction a bare `attempts` cannot make: an item parked on its first
+   * failure was tried ONCE, and printing its count as a try total tells the
+   * owner we hammered their provider five times over a setting they chose.
+   * Absent on an item that simply exhausted its retries — there the count is
+   * the truth and says it.
+   */
+  readonly parkedAt?: string;
 }
 
 /**

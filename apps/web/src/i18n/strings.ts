@@ -861,6 +861,12 @@ const en = {
   'failures.group.accept': 'Migrate without all of these',
   'failures.try.one': 'try',
   'failures.try.many': 'tries',
+  // A parked item was tried ONCE and then set aside for a person, so printing
+  // its attempt count as a try total claims attempts that never happened —
+  // which is what an owner read on 2026-09-14 as "5 tries" against their
+  // Google account for a setting they had chosen. Said instead of the count,
+  // never beside it: two numbers where one is meaningless is worse.
+  'failures.parked': 'waiting on you',
   'deletions.title': 'Deleted on the old system',
   'deletions.intro':
     'Items the owner deleted at the source; the new system still has them, untouched.',
@@ -2627,6 +2633,7 @@ const nl: Record<keyof typeof en, string> = {
   'failures.group.accept': 'Migreer zonder al deze items',
   'failures.try.one': 'poging',
   'failures.try.many': 'pogingen',
+  'failures.parked': 'wacht op u',
   'deletions.title': 'Verwijderd op het oude systeem',
   'deletions.intro':
     'Items die de eigenaar bij de bron verwijderde; het nieuwe systeem heeft ze nog, onaangeroerd.',

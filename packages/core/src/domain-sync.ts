@@ -248,7 +248,12 @@ export type KnownItemAction =
 export function classifyKnownItem(
   known: Pick<
     LedgerRecord,
-    'sourceVersion' | 'status' | 'attemptCount' | 'collection' | 'movedToNaturalKeyHash'
+    | 'sourceVersion'
+    | 'status'
+    | 'attemptCount'
+    | 'parkedAt'
+    | 'collection'
+    | 'movedToNaturalKeyHash'
   >,
   sourceVersion: string | undefined,
   /**
@@ -298,6 +303,12 @@ export function classifyKnownItem(
     return known.movedToNaturalKeyHash !== undefined ? 'relocated-away' : 'tombstoned';
   }
   if (known.status === 'failed') {
+    // Parked BEFORE counted: a decision-class failure is parked on its first
+    // attempt, so its count is 1 and the ceiling test alone would send it back
+    // round the loop for four more pointless passes against a policy that
+    // answers the same way every time. Since migration 0046 the park is its
+    // own fact rather than a number written into the counter.
+    if (known.parkedAt !== undefined) return 'needs-decision';
     return (known.attemptCount ?? 0) >= MAX_ITEM_ATTEMPTS ? 'needs-decision' : 'retry-failed';
   }
 

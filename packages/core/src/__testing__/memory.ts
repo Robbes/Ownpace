@@ -371,10 +371,12 @@ export class MemoryLedger implements Ledger {
   ): Promise<LedgerRecord> {
     const k = this.key(record);
     const existing = this.rows.get(k);
-    // Mirrors PgLedger: parked lands at the ceiling at once, never below
-    // what the row already holds.
-    const bumped = (existing?.attemptCount ?? 0) + 1;
-    const attempts = options.park ? Math.max(bumped, MAX_ITEM_ATTEMPTS) : bumped;
+    // Mirrors PgLedger: the count counts ATTEMPTS, and parking is its own
+    // fact beside it. Both used to be this one number, which is how "5 tries"
+    // reached an owner for a policy refusal attempted once (migration 0046).
+    const attempts = (existing?.attemptCount ?? 0) + 1;
+    // `??`, like PgLedger's `coalesce`: re-parking keeps the FIRST park time.
+    const parkedAt = options.park ? (existing?.parkedAt ?? new Date().toISOString()) : undefined;
     // Mirrors PgLedger's ON CONFLICT set EXACTLY: on an existing row the
     // status, the attempt count and the error change — and, since 2026-09-13,
     // the two IDENTIFIER columns repair under the same rule `recordUpdate`
@@ -395,6 +397,7 @@ export class MemoryLedger implements Ledger {
           ...existing,
           status: 'failed',
           attemptCount: attempts,
+          ...(parkedAt !== undefined ? { parkedAt } : {}),
           lastError: error,
           ...(record.collection !== undefined ? { collection: record.collection } : {}),
           // `''` is nothing to say, not a value — so a caller round-tripping an
@@ -403,7 +406,13 @@ export class MemoryLedger implements Ledger {
             ? { naturalKey: record.naturalKey }
             : {}),
         }
-      : { ...record, status: 'failed', attemptCount: attempts, lastError: error };
+      : {
+          ...record,
+          status: 'failed',
+          attemptCount: attempts,
+          ...(parkedAt !== undefined ? { parkedAt } : {}),
+          lastError: error,
+        };
     this.rows.set(k, merged);
     return Promise.resolve(merged);
   }
@@ -810,7 +819,8 @@ export class MemoryLedger implements Ledger {
         naturalKeyHash: r.naturalKeyHash,
         attempts: r.attemptCount ?? 0,
         lastError: r.lastError ?? '(no error recorded)',
-        needsDecision: (r.attemptCount ?? 0) >= MAX_ITEM_ATTEMPTS,
+        needsDecision: (r.attemptCount ?? 0) >= MAX_ITEM_ATTEMPTS || r.parkedAt !== undefined,
+        ...(r.parkedAt ? { parkedAt: r.parkedAt } : {}),
       });
     }
     return Promise.resolve(out);
@@ -827,7 +837,9 @@ export class MemoryLedger implements Ledger {
       if (r.naturalKeyHash !== naturalKeyHash || r.status !== 'failed') continue;
       this.rows.set(
         k,
-        action === 'accept' ? { ...r, status: 'left_behind' } : { ...r, attemptCount: 0 },
+        action === 'accept'
+          ? { ...r, status: 'left_behind' }
+          : { ...r, attemptCount: 0, parkedAt: undefined },
       );
       return Promise.resolve(true);
     }
@@ -857,7 +869,9 @@ export class MemoryLedger implements Ledger {
       if (match.errorContains && !(r.lastError ?? '').includes(match.errorContains)) continue;
       this.rows.set(
         k,
-        action === 'accept' ? { ...r, status: 'left_behind' } : { ...r, attemptCount: 0 },
+        action === 'accept'
+          ? { ...r, status: 'left_behind' }
+          : { ...r, attemptCount: 0, parkedAt: undefined },
       );
       changed += 1;
     }

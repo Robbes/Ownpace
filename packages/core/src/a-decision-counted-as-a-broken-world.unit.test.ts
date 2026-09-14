@@ -16,6 +16,13 @@
  *
  * The fix is one bit on the error (`markNeedsDecision`) and one branch in
  * the loop's catch. This pins both halves.
+ *
+ * Half of (2) outlived that fix. Parking stopped the RETRYING, but it was
+ * implemented by writing the ceiling into `attempt_count`, so the queue went
+ * on reading "5 tries" for one attempt — and this file asserted it, which is
+ * how a symptom survives its own regression test. Parked-ness is its own
+ * column now (`item.parked_at`); see
+ * `a-park-that-counted-as-five-attempts.unit.test.ts`.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { runDomainSync } from './domain-sync.ts';
@@ -24,7 +31,6 @@ import {
   asTenantId,
   asMappingId,
   markNeedsDecision,
-  MAX_ITEM_ATTEMPTS,
   setLogLevel,
   resetLogLevel,
   type UpsertResult,
@@ -122,7 +128,7 @@ describe('a refused native file is a decision, not a failure of the world', () =
     expect(result.created).toBe(1);
   });
 
-  it('is parked at first sight: attempt count at the ceiling, no retry on the next pass', async () => {
+  it('is parked at first sight: ONE attempt, no retry on the next pass', async () => {
     const ledger = new MemoryLedger();
     const items: Item[] = [doc(1), { key: 'photo.jpg', body: 'jpeg-bytes' }];
 
@@ -130,7 +136,13 @@ describe('a refused native file is a decision, not a failure of the world', () =
     const r1 = await first.run();
     expect(r1.failures).toHaveLength(1);
     expect(r1.failures[0]?.needsDecision).toBe(true);
-    expect(r1.failures[0]?.attempts).toBe(MAX_ITEM_ATTEMPTS);
+    // One, because one is what happened. Parking used to be stored AS the
+    // count — `attempt_count = MAX_ITEM_ATTEMPTS` on the way in — so this
+    // queue told an owner we had asked their Google account five times for a
+    // file we asked for once (report 2026-09-14). That was this test's own
+    // assertion until then: it pinned the symptom as if it were the contract.
+    // Parked-ness is its own field now, so the count is free to be true.
+    expect(r1.failures[0]?.attempts).toBe(1);
     expect(r1.failures[0]?.lastError).toContain('has no file to copy');
 
     const second = pass(ledger, items);
@@ -140,7 +152,9 @@ describe('a refused native file is a decision, not a failure of the world', () =
     // photo.jpg is already on the target (ledger fast-path), the doc is parked.
     expect(second.fetchedCount()).toBe(0);
     expect(r2.needsDecision).toBe(1);
-    expect(r2.failures[0]?.attempts).toBe(MAX_ITEM_ATTEMPTS);
+    // STILL one. A parked row is never re-attempted, so there is nothing to
+    // increment — the number an owner reads does not drift while they think.
+    expect(r2.failures[0]?.attempts).toBe(1);
   });
 
   it('a genuine failure still trips the tripwire — decisions in between do not reset it either', async () => {

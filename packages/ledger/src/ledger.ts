@@ -271,19 +271,23 @@ export class PgLedger implements Ledger {
     error: string,
     options: { readonly park?: boolean } = {},
   ): Promise<LedgerRecord> {
-    // Parked: straight to the ceiling, so the loop's own rule ("attempts
-    // exhausted, hand it to a person") applies from the first sighting. Never
-    // BELOW what the row already holds — a decision arriving on an item that
-    // was already failing keeps that history.
-    const attempts = options.park
-      ? sql`GREATEST(${schemaPg.item.attemptCount} + 1, ${MAX_ITEM_ATTEMPTS})`
-      : sql`${schemaPg.item.attemptCount} + 1`;
+    // THE COUNT COUNTS ATTEMPTS. Parking used to be written INTO it —
+    // `GREATEST(count + 1, MAX_ITEM_ATTEMPTS)` — so an item parked on first
+    // sight reported five attempts it never made, and a second park walked the
+    // number past the ceiling where it counted nothing. Both were on the
+    // owner's screen verbatim (2026-09-14). One increment, always.
+    const attempts = sql`${schemaPg.item.attemptCount} + 1`;
+    // `coalesce`: re-parking an already-parked row keeps the FIRST park time,
+    // which is the one "waiting since" means. A Retry clears it, so a row
+    // parked again after that gets the second park's time — also correct.
+    const parked = sql`coalesce(${schemaPg.item.parkedAt}, now())`;
     const bump = () =>
       this.db
         .update(schemaPg.item)
         .set({
           status: 'failed',
           attemptCount: attempts,
+          ...(options.park ? { parkedAt: parked } : {}),
           lastError: error,
           updatedAt: sql`now()`,
           // Deliberately NOT content_hash or source_version: a failed attempt
@@ -348,7 +352,10 @@ export class PgLedger implements Ledger {
         // No `target_version`, deliberately, and for the same reason this path
         // leaves content_hash alone on an existing row: a failed attempt wrote
         // nothing, so there is no version of ours on the target to remember.
-        attemptCount: options.park ? MAX_ITEM_ATTEMPTS : 1,
+        // One attempt, because one attempt is what happened. Parking is the
+        // column beside it, not a number written into this one.
+        attemptCount: 1,
+        ...(options.park ? { parkedAt: sql`now()` } : {}),
         lastError: error,
         firstSeenAt: sql`now()`,
         updatedAt: sql`now()`,
@@ -472,7 +479,16 @@ export class PgLedger implements Ledger {
               row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
           }
         : {}),
-      needsDecision: row.attemptCount >= MAX_ITEM_ATTEMPTS,
+      // A decision-class failure is parked from its first attempt, so the
+      // count alone no longer answers this — that is the whole point of
+      // separating them.
+      needsDecision: row.attemptCount >= MAX_ITEM_ATTEMPTS || row.parkedAt !== null,
+      ...(row.parkedAt
+        ? {
+            parkedAt:
+              row.parkedAt instanceof Date ? row.parkedAt.toISOString() : String(row.parkedAt),
+          }
+        : {}),
     }));
   }
 
@@ -498,8 +514,10 @@ export class PgLedger implements Ledger {
             // decision is worthless without the reason it was made.
             { status: 'left_behind' as const, updatedAt: sql`now()` }
           : // Still 'failed' — the item has not succeeded, it has merely become
-            // eligible again. Zeroing the count is the whole of "retry".
-            { attemptCount: 0, updatedAt: sql`now()` },
+            // eligible again. Zeroing the count AND clearing the park is the
+            // whole of "retry": a parked row left parked would be skipped by
+            // the next pass however low its count went.
+            { attemptCount: 0, parkedAt: null, updatedAt: sql`now()` },
       )
       .where(
         and(
@@ -532,7 +550,7 @@ export class PgLedger implements Ledger {
       .set(
         action === 'accept'
           ? { status: 'left_behind' as const, updatedAt: sql`now()` }
-          : { attemptCount: 0, updatedAt: sql`now()` },
+          : { attemptCount: 0, parkedAt: null, updatedAt: sql`now()` },
       )
       .where(
         and(
@@ -1463,6 +1481,14 @@ export class PgLedger implements Ledger {
         : (row.firstSeenAt ?? ''),
       sizeBytes: row.sizeBytes !== null && row.sizeBytes !== undefined ? Number(row.sizeBytes) : undefined,
       status: row.status as LedgerRecord['status'],
+      // Carried so `classifyKnownItem` can see a parked item without
+      // re-deriving it from a count that no longer encodes it.
+      ...(row.parkedAt
+        ? {
+            parkedAt:
+              row.parkedAt instanceof Date ? row.parkedAt.toISOString() : String(row.parkedAt),
+          }
+        : {}),
       // Left off the record entirely when NULL rather than mapped to '', so
       // "never recorded" stays distinguishable from "the server sent an empty
       // ETag". The sync loop treats only the former as unknown.
