@@ -489,9 +489,21 @@ const Confirmed: React.FC = () => {
     watch(open[0], undefined);
   }, [list, watch]);
 
+  /**
+   * The mapping a press would act on, or `undefined` while there is none.
+   *
+   * On managed the URL carries it. On the appliance the screen is flat
+   * (`/confirmed`, see `queuePathFor`), so the only source is the list — and
+   * until that read lands there is no mapping to name. The BUTTON reads this
+   * too, because a press with nothing to act on used to return here in
+   * silence: on the appliance, for the width of the first read, `Check the
+   * destination` was a live button that did nothing and said nothing.
+   */
+  const pressableId = mappingId ?? Object.keys(list ?? {})[0];
+
   /** Start a pass — or join the one already running — and watch it. */
   const start = () => {
-    const id = mappingId ?? Object.keys(list ?? {})[0];
+    const id = pressableId;
     if (id === undefined) return;
     setChecking(true);
     setError(null);
@@ -528,7 +540,7 @@ const Confirmed: React.FC = () => {
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           onClick={start}
-          disabled={checking}
+          disabled={checking || pressableId === undefined}
           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {checking && <Loader2 className="w-4 h-4 animate-spin" />}
