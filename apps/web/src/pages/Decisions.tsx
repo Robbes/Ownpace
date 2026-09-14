@@ -18,6 +18,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListTodo } from 'lucide-react';
 import type { DecisionRow } from '@openmig/shared';
 import {
+  fetchAttention,
   fetchDriftDecisions,
   resolveDriftDecision,
   dismissDriftDecision,
@@ -31,6 +32,7 @@ import StateChip from '../components/StateChip.tsx';
 import AsOf from '../components/AsOf.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
+import { AttentionSummary } from '../components/AttentionSummary.tsx';
 
 /** The server's message for a failed request, verbatim; dictionary fallback. */
 function errorText(err: unknown, fallback: string): string {
@@ -72,6 +74,16 @@ const Decisions: React.FC = () => {
   const presetQuery = useQuery({
     queryKey: ['decision-presets'],
     queryFn: fetchDecisionPresets,
+  });
+
+  // EVERYTHING waiting, not just the queue below (owner report, 2026-09-14).
+  // Read separately from the decisions for the same reason the presets are:
+  // one failing read must not empty the screen, and this one especially —
+  // the drift queue being answerable says nothing about the 34 files that
+  // are not.
+  const attentionQuery = useQuery({
+    queryKey: ['attention'],
+    queryFn: fetchAttention,
   });
 
   /** The standing answer for new_mailbox — the only category with a detector. */
@@ -170,6 +182,14 @@ const Decisions: React.FC = () => {
         </div>
         <p className="text-gray-500 mt-1">{t('decisions.intro')}</p>
       </div>
+
+      {/* FIRST, above the drift queue. The tab is called "Attention" and this
+          is the answer to it; the queue below is one of the things it counts,
+          and was the only one this screen ever showed. */}
+      <AttentionSummary
+        mappings={attentionQuery.data?.mappings ?? []}
+        failed={attentionQuery.isError}
+      />
 
       {/* Standing answers (workplan 0028 T5) */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">

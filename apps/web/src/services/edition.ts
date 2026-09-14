@@ -150,6 +150,35 @@ export function verifyPathFor(
   return `/migrations/${encodeURIComponent(mappingId)}/verify/${action}`;
 }
 
+/**
+ * Where a queue's SCREEN lives, which is not where its data does.
+ *
+ * `queuePathFor` answers for the API; this answers for the router, and the two
+ * split on the same line for the same reason: the appliance's screens show
+ * every configured mapping at once (`/failures`), a managed tenant's are
+ * scoped to one (`/mappings/{id}/failures`).
+ *
+ * It exists because the Attention page links OUT to all of them. Building
+ * those hrefs inline would have put the edition split in a component, which is
+ * the thing this file is for — and a wrong link there sends somebody to a
+ * 404 or, worse, to another migration's queue.
+ */
+export type QueueScreen = 'failures' | 'deletions' | 'moves' | 'sharing';
+
+export function queueScreenPath(queue: QueueScreen, mappingId: string): string {
+  return queueScreenPathFor(edition(), queue, mappingId);
+}
+
+/** As `queueScreenPath`, as a pure function of the edition. See `queuePathFor`. */
+export function queueScreenPathFor(ed: Edition, queue: QueueScreen, mappingId: string): string {
+  // The sharing checklist is per-mapping in BOTH editions — its rows live in
+  // the ledger either way, and `AppRoutes` mounts only the scoped route. A
+  // flat `/sharing` would 404 on the appliance, which is the one case where
+  // copying the other three would be wrong.
+  if (ed === 'selfhost' && queue !== 'sharing') return `/${queue}`;
+  return `/mappings/${encodeURIComponent(mappingId)}/${queue}`;
+}
+
 /** Path prefix for the decisions and `finish`, which are per-mapping in both editions. */
 export function mappingPath(mappingId: string): string {
   return mappingPathFor(edition(), mappingId);
