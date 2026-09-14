@@ -15,7 +15,12 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { collectAttention, type CollectDeps, collectTenantAttention } from './digest-collect.ts';
+import {
+  attentionForScreen,
+  collectAttention,
+  type CollectDeps,
+  collectTenantAttention,
+} from './digest-collect.ts';
 import { wantsAttention } from '@openmig/shared';
 
 const MAPPING = { mappingId: 'm-1', tenantId: 't-1' };
@@ -266,3 +271,63 @@ describe('collectTenantAttention (0043 T4)', () => {
   });
 });
 
+
+describe('attentionForScreen — the appliance answers for its organisation too (hard rule 5)', () => {
+  const m = (id: string) => ({ mappingId: id }) as never;
+
+  it('asks the organisation when no migration reported', async () => {
+    // The hole, on the appliance side. Managed closed it in routes/attention.ts;
+    // hard rule 5 says the editions must not differ in MEANING, so the same
+    // tenant must see the same thing from either server.
+    let asked = 0;
+    const out = await attentionForScreen([], [], async () => {
+      asked++;
+      return { pendingDecisions: 4 };
+    });
+    expect(asked).toBe(1);
+    expect(out.tenant?.pendingDecisions).toBe(4);
+  });
+
+  it('does NOT ask when a migration reported, so one decision is not shown twice', async () => {
+    let asked = 0;
+    const out = await attentionForScreen([m('a')], [m('a')], async () => {
+      asked++;
+      return { pendingDecisions: 4 };
+    });
+    expect(asked).toBe(0);
+    expect(out.tenant).toBeUndefined();
+  });
+
+  it('judges on what REPORTED, not on what the filter left to show', async () => {
+    // `all=false` hides the quiet migrations, so the shown list can be empty
+    // while migrations did report. Asking the organisation on the strength of
+    // an empty VIEW would put its decisions on screen twice — once on the
+    // quiet migration already carrying them, once as the organisation's own.
+    let asked = 0;
+    const out = await attentionForScreen([m('quiet')], [], async () => {
+      asked++;
+      return { pendingDecisions: 4 };
+    });
+    expect(asked, 'the filtered view is not evidence that nothing reported').toBe(0);
+    expect(out.tenant).toBeUndefined();
+    expect(out.mappings).toEqual([]);
+  });
+
+  it('omits the organisation when it has nothing to say', async () => {
+    const out = await attentionForScreen([], [], async () => ({}));
+    expect(out.tenant, 'an empty object would render an empty heading').toBeUndefined();
+  });
+
+  it('carries a blind spot with no count', async () => {
+    const out = await attentionForScreen([], [], async () => ({
+      blindSpots: ['the decision queue: no'],
+    }));
+    expect(out.tenant?.blindSpots).toEqual(['the decision queue: no']);
+  });
+
+  it('passes the shown list through untouched', async () => {
+    const shown = [m('a'), m('b')];
+    const out = await attentionForScreen([m('a'), m('b'), m('c')], shown, async () => ({}));
+    expect(out.mappings).toBe(shown);
+  });
+});
