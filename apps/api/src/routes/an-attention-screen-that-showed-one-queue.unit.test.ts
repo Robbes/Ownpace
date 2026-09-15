@@ -212,7 +212,9 @@ describe('the collector, on the rules a screen full of migrations depends on', (
       }),
     );
     expect(asked).toBe(1);
-    expect(out.map((m) => m.pendingDecisions)).toEqual([2, 0, 0]);
+    expect(out.mappings.map((m) => m.pendingDecisions)).toEqual([2, 0, 0]);
+    // It rode on the first mapping, so there is no organisation line to draw.
+    expect(out.tenant).toBeUndefined();
   });
 
   it('skips a finished migration WITHOUT reading any of its queues', async () => {
@@ -226,7 +228,7 @@ describe('the collector, on the rules a screen full of migrations depends on', (
         },
       }),
     );
-    expect(out.map((m) => m.mappingId)).toEqual(['live-one']);
+    expect(out.mappings.map((m) => m.mappingId)).toEqual(['live-one']);
     expect(touched, 'a finished migration must cost four queries less, not four more').toEqual([
       'live-one',
     ]);
@@ -241,13 +243,13 @@ describe('the collector, on the rules a screen full of migrations depends on', (
         },
       }),
     );
-    expect(out[0]?.blindSpots).toEqual([
+    expect(out.mappings[0]?.blindSpots).toEqual([
       'the failures queue: connection terminated unexpectedly',
     ]);
     // And the other queues were still read — one broken queue must not take
     // the rest of the migration's counts down with it.
-    expect(out[0]?.failuresWaiting).toBe(0);
-    expect(wantsAttention(out[0]!)).toBe(true);
+    expect(out.mappings[0]?.failuresWaiting).toBe(0);
+    expect(wantsAttention(out.mappings[0]!)).toBe(true);
   });
 
   it('keeps going after one migration is unreadable, rather than losing the rest', async () => {
@@ -260,17 +262,122 @@ describe('the collector, on the rules a screen full of migrations depends on', (
         },
       }),
     );
-    expect(out).toHaveLength(2);
-    expect(out[1]?.movesWaiting).toBe(1);
+    expect(out.mappings).toHaveLength(2);
+    expect(out.mappings[1]?.movesWaiting).toBe(1);
   });
 
   it('reports autoApplied as zero whatever else it found', async () => {
     const out = await collectTenantAttention([row('m')], readers());
-    expect(out[0]?.autoApplied).toBe(0);
+    expect(out.mappings[0]?.autoApplied).toBe(0);
   });
 
   it('carries the name through, so the screen can label it as its owner does', async () => {
     const out = await collectTenantAttention([row('m', 'active', 'Gmail to Nextcloud')], readers());
-    expect(out[0]?.name).toBe('Gmail to Nextcloud');
+    expect(out.mappings[0]?.name).toBe('Gmail to Nextcloud');
+  });
+});
+
+
+describe('the organisation, which is not one of its migrations', () => {
+  const readers = (over: Partial<AttentionReaders> = {}): AttentionReaders => ({
+    deletions: async () => [],
+    moves: async () => [],
+    failures: async () => [],
+    sharingOpen: async () => 0,
+    pendingDecisions: async () => 0,
+    ...over,
+  });
+
+  const row = (id: string, status = 'active', name: string | null = null) => ({ id, name, status });
+
+  it('still ASKS the decision queue when every migration is finished', async () => {
+    // The hole this closes. A tenant whose every migration is `done` reported
+    // no mapping, the decision count was only ever attached to a mapping, and
+    // so the question was never asked at all — while the screen said "Nothing
+    // is waiting. Every migration is running by itself" over a drift queue
+    // that was not empty. Neither clause was true.
+    let asked = 0;
+    const out = await collectTenantAttention(
+      [row('a', 'done'), row('b', 'done')],
+      readers({
+        pendingDecisions: async () => {
+          asked++;
+          return 3;
+        },
+      }),
+    );
+    expect(asked, 'the tenant with nothing running is the one nobody is watching').toBe(1);
+    expect(out.mappings).toEqual([]);
+    expect(out.tenant?.pendingDecisions).toBe(3);
+  });
+
+  it('asks it for a tenant with no migrations at all', async () => {
+    const out = await collectTenantAttention([], readers({ pendingDecisions: async () => 1 }));
+    expect(out.tenant?.pendingDecisions).toBe(1);
+  });
+
+  it('says nothing about the organisation when a migration carried the count', async () => {
+    // One decision must not appear twice — once on the first mapping and
+    // again as the organisation's. That would be the multiply-by-migrations
+    // bug wearing a different hat.
+    const out = await collectTenantAttention(
+      [row('live')],
+      readers({ pendingDecisions: async () => 2 }),
+    );
+    expect(out.mappings[0]?.pendingDecisions).toBe(2);
+    expect(out.tenant).toBeUndefined();
+  });
+
+  it('omits the organisation entirely when it has nothing to say', async () => {
+    const out = await collectTenantAttention([row('x', 'done')], readers());
+    expect(out.mappings).toEqual([]);
+    expect(out.tenant, 'an empty object would render an empty heading').toBeUndefined();
+  });
+
+  it('carries a decision read that THREW as the organisation blind spot', async () => {
+    // Rule 9 at tenant scope: "I could not look" must not arrive as "nothing
+    // is waiting" just because no mapping was there to carry the reason.
+    const out = await collectTenantAttention(
+      [row('x', 'done')],
+      readers({
+        pendingDecisions: async () => {
+          throw new Error('permission denied for table decision');
+        },
+      }),
+    );
+    expect(out.tenant?.blindSpots).toEqual([
+      'the decision queue: permission denied for table decision',
+    ]);
+    expect(out.tenant?.pendingDecisions).toBeUndefined();
+  });
+
+  it('puts that same failure on the FIRST migration when one reports', async () => {
+    const out = await collectTenantAttention(
+      [row('live'), row('other')],
+      readers({
+        pendingDecisions: async () => {
+          throw new Error('no');
+        },
+      }),
+    );
+    expect(out.mappings[0]?.blindSpots).toEqual(['the decision queue: no']);
+    // Absent, not empty: `summariseQueues` omits the key when there is
+    // nothing to report. What matters is that the decision's failure did not
+    // follow it here and get counted as a second hole.
+    expect(out.mappings[1]?.blindSpots ?? []).toEqual([]);
+    expect(out.tenant).toBeUndefined();
+  });
+
+  it('does not let a broken decision read cost the migrations their counts', async () => {
+    const out = await collectTenantAttention(
+      [row('live')],
+      readers({
+        pendingDecisions: async () => {
+          throw new Error('no');
+        },
+        failures: async () => [failure(true), failure(true)],
+      }),
+    );
+    expect(out.mappings[0]?.failuresWaiting).toBe(2);
   });
 });

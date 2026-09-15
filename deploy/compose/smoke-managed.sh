@@ -3238,6 +3238,18 @@ report_json "attention, every migration" "/api/attention?all=true" '.mappings | 
 report_json "attention rows are complete" "/api/attention?all=true" \
   '.mappings | (length == ([.[] | select(has("mappingId") and has("failuresWaiting") and has("deletionsWaiting") and has("movesWaiting") and has("readyForCutover"))] | length))' \
   "true"
+# A pending drift decision belongs to the ORGANISATION and is counted ONCE, so
+# the two places it can be reported are mutually exclusive: it rides on the
+# first migration that reports, and only when none does is there a `tenant`
+# block. Both at once would show one decision as two.
+#
+# Asserted as an invariant rather than against a seeded count, so it holds on
+# whatever this stack's tenant happens to look like — with live mappings or
+# without.
+report_json "attention reports the organisation OR a migration, never both" \
+  "/api/attention?all=true" \
+  '((.mappings | length) == 0) or (has("tenant") | not)' \
+  "true"
 
 # The operator's support surface (workplan 0110 T4), asked with an ORDINARY
 # token — and this is the one report whose expected answer is nothing.

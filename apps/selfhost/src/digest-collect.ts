@@ -141,6 +141,33 @@ export async function collectAttention(deps: CollectDeps): Promise<MappingAttent
  * The caller decides when to ask: only when no mapping reported, mirroring
  * managed. With live mappings the decisions already ride on the first one.
  */
+/**
+ * The Attention SCREEN's envelope: the migrations, and the organisation when
+ * no migration reported (the same rule this file's digest caller applies).
+ *
+ * Extracted rather than left in the HTTP handler for the reason the managed
+ * side gives in `routes/attention.ts`: a rule buried in a handler is a rule
+ * with no test, and this one decides whether a tenant whose every migration
+ * is `done` sees its pending decisions at all.
+ *
+ * `reported` is the UNFILTERED list. The `all=false` view can be empty while
+ * migrations did report — a quiet one is still a report — and asking the
+ * organisation on the strength of an empty VIEW would put its decisions on
+ * screen twice: once on the quiet migration carrying them, once as the
+ * organisation's own.
+ */
+export async function attentionForScreen(
+  reported: readonly MappingAttention[],
+  shown: readonly MappingAttention[],
+  readOrganisation: () => Promise<TenantAttention>,
+): Promise<{ mappings: readonly MappingAttention[]; tenant?: TenantAttention }> {
+  if (reported.length > 0) return { mappings: shown };
+  const tenant = await readOrganisation();
+  // An empty object would render an empty heading; absent says "nothing".
+  const wants = tenant.pendingDecisions !== undefined || tenant.blindSpots !== undefined;
+  return { mappings: shown, ...(wants ? { tenant } : {}) };
+}
+
 export async function collectTenantAttention(deps: CollectDeps): Promise<TenantAttention> {
   const seen = new Set<string>();
   let pendingDecisions = 0;

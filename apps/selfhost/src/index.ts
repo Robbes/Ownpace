@@ -166,6 +166,7 @@ const detectorHttpClient: HttpClient = {
 import {
   collectAttention as collectAttentionFrom,
   collectTenantAttention,
+  attentionForScreen,
 } from './digest-collect.ts';
 
 const DEFAULT_CONFIG_DIR = '/data/config';
@@ -2233,9 +2234,22 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           ...m,
           autoApplied: 0,
         }));
-        return sendJson(res, 200, {
-          mappings: all ? collected : collected.filter(wantsAttention),
-        });
+        // And what is waiting on the ORGANISATION rather than on any one
+        // migration, under exactly the digest's rule a few hundred lines above
+        // (`attention.length === 0 ? ... : undefined`): a tenant whose every
+        // migration is `done` carried its decisions nowhere, so the screen said
+        // "Nothing is waiting. Every migration is running by itself" over a
+        // drift queue that was not empty.
+        //
+        // The rule itself lives in `attentionForScreen`, beside the collector,
+        // because a rule in a handler is a rule with no test.
+        return sendJson(
+          res,
+          200,
+          await attentionForScreen(collected, all ? collected : collected.filter(wantsAttention), () =>
+            collectTenantAttention(collectDeps()),
+          ),
+        );
       }
       // The §11.1 drift decision queue (workplan 0028 T1). The appliance
       // answers for every configured mapping's tenant, like every queue.

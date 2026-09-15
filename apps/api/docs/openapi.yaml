@@ -3000,6 +3000,14 @@ paths:
         A migration whose status is `done` is omitted entirely — a finished
         migration keeps its history and stops nagging. A queue that could not
         be READ is reported as a blind spot carrying the reason, never as zero.
+
+        A pending drift decision belongs to the ORGANISATION, not to a
+        migration, so it is counted once. When a migration reports, it rides on
+        the first one; when none does — a tenant whose every migration is
+        `done`, which is the tenant nobody is watching — it comes back under
+        `tenant` instead, so it is not lost. `tenant` is therefore present only
+        when `mappings` is empty and something is actually waiting, and it is
+        never removed by `all`.
       parameters:
         - name: all
           in: query
@@ -3007,10 +3015,11 @@ paths:
           schema: { type: boolean }
           description: |
             `true` keeps the migrations that want nothing, so a screen can say
-            which ones are quiet. Default lists only what wants a person.
+            which ones are quiet. Default lists only what wants a person. It
+            filters `mappings` only, never `tenant`.
       responses:
         '200':
-          description: What is waiting, per migration.
+          description: What is waiting, per migration and for the organisation.
           content:
             application/json:
               schema: { type: object }
