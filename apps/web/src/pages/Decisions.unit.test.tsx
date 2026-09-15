@@ -479,3 +479,21 @@ describe('answered rows tell their whole story (0038 T5)', () => {
   });
 });
 
+
+describe('the organisation reaches the page, not just the endpoint', () => {
+  it('renders what is waiting on the tenant when no migration reports', async () => {
+    // A tenant whose every migration is `done` is the one nobody is watching,
+    // and its decisions used to reach the digest and never this screen.
+    fetchAttentionMock.mockResolvedValue({ mappings: [], tenant: { pendingDecisions: 2 } });
+    renderScreen();
+    expect(await screen.findByText('Your organisation')).toBeVisible();
+    expect(screen.getByText('2')).toBeVisible();
+  });
+
+  it('passes no tenant along when the server sent none', async () => {
+    fetchAttentionMock.mockResolvedValue({ mappings: [] });
+    renderScreen();
+    expect(await screen.findByText(/Nothing is waiting/)).toBeVisible();
+    expect(screen.queryByText('Your organisation')).not.toBeInTheDocument();
+  });
+});

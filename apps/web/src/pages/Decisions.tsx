@@ -188,6 +188,7 @@ const Decisions: React.FC = () => {
           and was the only one this screen ever showed. */}
       <AttentionSummary
         mappings={attentionQuery.data?.mappings ?? []}
+        {...(attentionQuery.data?.tenant ? { tenant: attentionQuery.data.tenant } : {})}
         failed={attentionQuery.isError}
       />
 

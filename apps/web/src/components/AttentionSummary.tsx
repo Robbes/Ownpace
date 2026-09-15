@@ -21,11 +21,19 @@
  * list and says so. "I found nothing" and "I could not look" arriving as the
  * same quiet row is how somebody decides a migration is finished when it is
  * not (hard rule 9).
+ *
+ * THE ORGANISATION IS NOT ONE OF ITS MIGRATIONS. A pending drift decision
+ * belongs to the tenant, and a tenant whose every migration is `done` used to
+ * read "Nothing is waiting. Every migration is running by itself" over a
+ * drift queue that was not empty — neither clause true. It gets its own
+ * heading here, under the same words the digest uses for it ("Your
+ * organisation"), because the whole point of this screen is that it says what
+ * the email said.
  */
 
 import React from 'react';
 import { Link } from 'react-router';
-import type { MappingAttention } from '@openmig/shared';
+import type { MappingAttention, TenantAttention } from '@openmig/shared';
 import { queueScreenPath } from '../services/edition.ts';
 import { useT } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
@@ -72,14 +80,22 @@ const Count: React.FC<{ n: number; label: string; to?: string }> = ({ n, label, 
   );
 };
 
+/** Has the ORGANISATION itself got something waiting, as opposed to a migration? */
+export function organisationWants(tenant?: TenantAttention): boolean {
+  return (tenant?.pendingDecisions ?? 0) > 0 || (tenant?.blindSpots?.length ?? 0) > 0;
+}
+
 export const AttentionSummary: React.FC<{
   mappings: readonly MappingAttention[];
+  /** What is waiting on the organisation rather than on any one migration. */
+  tenant?: TenantAttention;
   /** The read failed outright — say so rather than rendering an empty list. */
   failed?: boolean;
-}> = ({ mappings, failed }) => {
+}> = ({ mappings, tenant, failed }) => {
   const t = useT();
   const loud = mappings.filter(wantsSomeone);
   const quiet = mappings.length - loud.length;
+  const org = organisationWants(tenant);
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -90,10 +106,45 @@ export const AttentionSummary: React.FC<{
         // The whole read failed. An empty list here would say "nothing is
         // waiting" about a question nobody managed to ask.
         <p className="text-amber-800">{t('attention.failed')}</p>
-      ) : loud.length === 0 ? (
-        <p className="text-gray-500">{t('attention.empty')}</p>
+      ) : loud.length === 0 && !org ? (
+        // Two different silences. With migrations on the list, they are
+        // running and nothing wants a person. With NONE, saying "every
+        // migration is running by itself" is simply false — there are none,
+        // or they have all finished — and that false sentence is what this
+        // screen showed the tenant nobody is watching.
+        <p className="text-gray-500">
+          {mappings.length > 0 ? t('attention.empty') : t('attention.emptyNoneRunning')}
+        </p>
       ) : (
         <ul className="space-y-4">
+          {/* Above the migrations, and first, because it belongs to none of
+              them. In practice the server sends this only when there are no
+              migrations to list — but rendering both is the honest shape, and
+              a screen that dropped one because the other arrived would be the
+              defect this whole route exists to close. */}
+          {org && (
+            <li>
+              <div className="text-gray-900 font-medium">{t('attention.organisation')}</div>
+              <ul className="mt-1 ml-4 space-y-1 text-sm list-disc text-gray-700">
+                {(tenant?.pendingDecisions ?? 0) > 0 && (
+                  <Count n={tenant!.pendingDecisions!} label={t('attention.decisions')} />
+                )}
+              </ul>
+              {(tenant?.blindSpots?.length ?? 0) > 0 && (
+                <Hint
+                  className="mt-2 ml-4"
+                  tone="caution"
+                  text={t('attention.couldNotRead')}
+                  why={t('attention.couldNotRead.why')}
+                />
+              )}
+              {tenant?.blindSpots?.map((spot) => (
+                <p key={spot} className="ml-4 text-xs text-amber-800 break-words">
+                  {spot}
+                </p>
+              ))}
+            </li>
+          )}
           {loud.map((m) => (
             <li key={m.mappingId}>
               {/* The NAME, when the migration has one. An owner knows this

@@ -33,8 +33,8 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, it, expect } from 'vitest';
-import type { MappingAttention } from '@openmig/shared';
-import { AttentionSummary, wantsSomeone } from './AttentionSummary.tsx';
+import type { MappingAttention, TenantAttention } from '@openmig/shared';
+import { AttentionSummary, organisationWants, wantsSomeone } from './AttentionSummary.tsx';
 import { queueScreenPathFor } from '../services/edition.ts';
 
 const UUID = '0cc9a844-4075-4d65-a562-374df8299b77';
@@ -54,10 +54,14 @@ function mapping(over: Partial<MappingAttention> = {}): MappingAttention {
   } as MappingAttention;
 }
 
-const show = (mappings: MappingAttention[], failed = false) =>
+const show = (mappings: MappingAttention[], failed = false, tenant?: TenantAttention) =>
   render(
     <MemoryRouter>
-      <AttentionSummary mappings={mappings} failed={failed} />
+      <AttentionSummary
+        mappings={mappings}
+        {...(tenant ? { tenant } : {})}
+        failed={failed}
+      />
     </MemoryRouter>,
   );
 
@@ -161,5 +165,77 @@ describe('the links respect the edition', () => {
     // scoped route — a flat `/sharing` would 404 on the appliance.
     expect(queueScreenPathFor('selfhost', 'sharing', UUID)).toBe(`/mappings/${UUID}/sharing`);
     expect(queueScreenPathFor('managed', 'sharing', UUID)).toBe(`/mappings/${UUID}/sharing`);
+  });
+});
+
+
+describe('the organisation, which is not one of its migrations', () => {
+  it('names it and counts its decisions when no migration reports', () => {
+    // The hole. A tenant whose every migration is `done` reported no mapping,
+    // so the pending decisions had nowhere to go and the panel said "Nothing
+    // is waiting. Every migration is running by itself" over a drift queue
+    // that was not empty. Neither clause was true.
+    show([], false, { pendingDecisions: 3 });
+    expect(screen.getByText('Your organisation')).toBeVisible();
+    expect(screen.getByText('3')).toBeVisible();
+    expect(screen.getByText(/changes needing a decision/)).toBeVisible();
+    expect(screen.queryByText(/Every migration is running by itself/)).not.toBeInTheDocument();
+  });
+
+  it('does not link the count, because it is answered on this page', () => {
+    // Same rule the migrations' drift decisions follow: a link to the screen
+    // you are already on is worse than none.
+    show([], false, { pendingDecisions: 2 });
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it("prints the server's own words when the decision queue could not be READ", () => {
+    // Rule 9 at tenant scope. "I could not look" must not read as "nothing is
+    // waiting" merely because no migration was there to carry the reason.
+    show([], false, { blindSpots: ['the decision queue: permission denied'] });
+    expect(screen.getByText('Your organisation')).toBeVisible();
+    expect(screen.getByText('the decision queue: permission denied')).toBeVisible();
+    expect(screen.queryByText(/Every migration is running by itself/)).not.toBeInTheDocument();
+  });
+
+  it('stops claiming migrations are running when there are none', () => {
+    // The false sentence, on its own. No organisation attention either, so
+    // this is the genuinely quiet all-finished tenant — and the panel must
+    // still not assert something that is running.
+    show([]);
+    expect(screen.getByText('Nothing is waiting, and no migration is running.')).toBeVisible();
+    expect(screen.queryByText(/Every migration is running by itself/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the original sentence when migrations ARE running quietly', () => {
+    // The other silence, which was never wrong: migrations on the list, none
+    // of them wanting anybody. Guarding it so the fix above does not take a
+    // true sentence away with the false one.
+    show([mapping()]);
+    expect(screen.getByText(/Every migration is running by itself/)).toBeVisible();
+  });
+
+  it('says nothing about the organisation when it has nothing to say', () => {
+    show([mapping({ failuresWaiting: 1 })], false, {});
+    expect(screen.queryByText('Your organisation')).not.toBeInTheDocument();
+  });
+
+  it('shows both when both report, rather than dropping one', () => {
+    // The server sends `tenant` only when no migration reported, so this does
+    // not happen today. It is asserted anyway: a screen that dropped one
+    // because the other arrived would be this route's own defect, and the
+    // rule that keeps them apart lives on the server where it can change.
+    show([mapping({ failuresWaiting: 34 })], false, { pendingDecisions: 1 });
+    expect(screen.getByText('Your organisation')).toBeVisible();
+    expect(screen.getByText('Gmail to Nextcloud')).toBeVisible();
+  });
+
+  it('organisationWants is false for absent, empty and zero', () => {
+    expect(organisationWants(undefined)).toBe(false);
+    expect(organisationWants({})).toBe(false);
+    expect(organisationWants({ pendingDecisions: 0 })).toBe(false);
+    expect(organisationWants({ blindSpots: [] })).toBe(false);
+    expect(organisationWants({ pendingDecisions: 1 })).toBe(true);
+    expect(organisationWants({ blindSpots: ['x'] })).toBe(true);
   });
 });

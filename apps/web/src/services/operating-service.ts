@@ -34,6 +34,7 @@ import type {
   MappingLifecycle,
   ShareGrantRow,
   MappingAttention,
+  TenantAttention,
 } from '@openmig/shared';
 import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition.ts';
 import { onUnauthorized } from './api.ts';
@@ -81,8 +82,23 @@ client.interceptors.response.use(
  * are running by themselves rather than implying they do not exist. The
  * server's default would hide them.
  */
-export async function fetchAttention(): Promise<{ mappings: MappingAttention[] }> {
-  return (await client.get<{ mappings: MappingAttention[] }>('/attention?all=true')).data;
+/**
+ * `all=true` so the quiet migrations come back too — a screen that lists two
+ * of six looks like it has lost four.
+ *
+ * `tenant` is what is waiting on the ORGANISATION rather than on any one
+ * migration, and the server sends it only when no migration reported. It is
+ * never filtered by `all`: see the route's own note.
+ */
+export async function fetchAttention(): Promise<{
+  mappings: MappingAttention[];
+  tenant?: TenantAttention;
+}> {
+  return (
+    await client.get<{ mappings: MappingAttention[]; tenant?: TenantAttention }>(
+      '/attention?all=true',
+    )
+  ).data;
 }
 
 export async function fetchDeletions(mappingId?: string): Promise<DeletionsResponse> {
