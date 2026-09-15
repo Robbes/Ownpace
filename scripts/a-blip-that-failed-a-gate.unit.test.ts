@@ -106,6 +106,29 @@ rm -f "$COUNT"
   };
 }
 
+/**
+ * `is_read`, lifted out and run — same reason as the helper above. Which calls
+ * are re-asked is a behaviour, and a regex over the source would be satisfied
+ * by the shape of the condition rather than by what it decides.
+ */
+function readable(pairs: ReadonlyArray<readonly [string, string]>): boolean[] {
+  const start = source.indexOf('is_read() {');
+  expect(
+    start,
+    'setup-zitadel.sh no longer defines is_read. The retry decides which calls\n' +
+      'are safe to re-ask; if that moved, point this test at where it lives.',
+  ).toBeGreaterThan(-1);
+  const end = source.indexOf('\n}\n', start);
+  const fn = source.slice(start, end + 3);
+  const checks = pairs
+    .map(([m, path]) => `if is_read ${m} '${path}'; then echo yes; else echo no; fi`)
+    .join('\n');
+  const out = execFileSync('bash', ['-c', `set -euo pipefail\n${fn}\n${checks}\n`], {
+    encoding: 'utf8',
+  }).trim();
+  return out.split('\n').map((l) => l === 'yes');
+}
+
 describe('a dropped handshake is asked again', () => {
   it('rides out two failures and succeeds on the third ask', () => {
     const r = run(2);
@@ -151,14 +174,76 @@ const code = source
   .join('\n');
 
 describe('the boundary the retry must not cross', () => {
-  it('re-asks GET and nothing else', () => {
+  it('asks `api` to decide by meaning, not by verb', () => {
+    // This assertion used to read `if [ "$method" = GET ]` out of the source —
+    // it pinned the IMPLEMENTATION of rule 2 rather than the rule. That is how
+    // the gap below survived: Zitadel's list endpoints are POST, so the retry
+    // written for reads covered almost none of this script's reads, and a test
+    // named "re-asks GET and nothing else" passed while it happened.
     expect(
       code,
-      'The retry in `api` is no longer conditioned on the method. A `recv\n' +
+      'The retry in `api` is no longer routed through `is_read`. A `recv\n' +
         'failure` can land AFTER the server acted, so a re-sent write can apply\n' +
         'twice — and this script mints personal access tokens, where that leaves\n' +
         'a second live credential nothing tracks and nothing revokes.',
-    ).toMatch(/if\s+\[\s+"\$method"\s+=\s+GET\s+\];\s+then\s*\n\s*curl_read_retrying/);
+    ).toMatch(/if\s+is_read\s+"\$method"\s+"\$path";\s+then\s*\n\s*curl_read_retrying/);
+  });
+
+  it('counts a `_search` as the read it is', () => {
+    // The 2026-09-15 bring-up died here: one dropped handshake on
+    // `projects/{id}/apps/_search`, asked once, whole phase gone.
+    expect(
+      readable([
+        ['GET', '/auth/v1/users/me'],
+        ['POST', '/management/v1/projects/_search'],
+        ['POST', '/management/v1/projects/PID/apps/_search'],
+        ['POST', '/admin/v1/policies/login/idps/_search'],
+      ]),
+    ).toEqual([true, true, true, true]);
+  });
+
+  it('still asks every WRITE exactly once, underscore or not', () => {
+    // The two underscored writes are the reason this predicate is a suffix
+    // match and not `*_*`: `_activate` turns an SMTP provider on and `_test`
+    // SENDS MAIL. Re-asking either is a side effect, not a retry.
+    expect(
+      readable([
+        ['POST', '/management/v1/users/UID/pats'],
+        ['POST', '/admin/v1/email/ID/_activate'],
+        ['POST', '/admin/v1/smtp/ID/_test'],
+        ['POST', '/management/v1/projects'],
+        ['PUT', '/v2/features/instance'],
+        ['DELETE', '/admin/v1/policies/login/idps/OID'],
+      ]),
+    ).toEqual([false, false, false, false, false, false]);
+  });
+
+  it('reads the token list but never re-mints one', () => {
+    // The sharpest pair in the script, one path segment apart: `pats/_search`
+    // lists the tokens, `pats` creates one. Rule 2 exists for the second.
+    expect(
+      readable([
+        ['POST', '/management/v1/users/UID/pats/_search'],
+        ['POST', '/management/v1/users/UID/pats'],
+      ]),
+    ).toEqual([true, false]);
+  });
+
+  it('classifies every call this script actually makes', () => {
+    // The guard that outlives this change: walk the REAL call sites, so a
+    // write added later under a retried shape fails here rather than in a
+    // bring-up. A `_search` is a read; everything else that is not a GET is
+    // a write.
+    const sites = [...source.matchAll(/\bapi\s+(GET|POST|PUT|DELETE|PATCH)\s+"?([^"\s)]+)/g)].map(
+      (m) => [m[1]!, m[2]!] as const,
+    );
+    expect(sites.length, 'no `api <verb> <path>` call sites found — has the helper been renamed?')
+      .toBeGreaterThan(10);
+    const verdicts = readable(sites);
+    const wrong = sites
+      .map((s2, i) => ({ site: s2, retried: verdicts[i]! }))
+      .filter(({ site, retried }) => retried !== (site[0] === 'GET' || site[1].endsWith('_search')));
+    expect(wrong, `misclassified: ${JSON.stringify(wrong)}`).toEqual([]);
   });
 
   it('never re-asks an HTTP status', () => {
