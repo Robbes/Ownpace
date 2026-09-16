@@ -103,6 +103,27 @@ const GAP_MS = Number(process.env.DRIVE_EXPORT_GAP_MS ?? 3000);
 const POLICY = (process.env.DRIVE_EXPORT_POLICY || 'export-office') as GoogleNativeFilePolicy;
 const BASE = 'https://www.googleapis.com/drive/v3';
 
+/**
+ * Whether the recording machinery below exists yet.
+ *
+ * `fail()` is reached from TWO eras of this module and only one of them has a
+ * recorder. The refusals for a bad environment run at import time, ABOVE the
+ * `const`s that `writeCapture` reads — and reading a `const` before its line
+ * has run is not `undefined`, it throws:
+ *
+ *   ReferenceError: Cannot access 'recorder' before initialization
+ *
+ * The operator gets a stack trace naming line 373 instead of the sentence
+ * saying which variable they are missing, and the refusal that was written to
+ * help them is the thing that hides it. Found on the owner's stack 2026-09-15,
+ * on the first managed run of this script.
+ *
+ * A flag rather than a `typeof` check, because `typeof` on a const in its dead
+ * zone throws too — there is no way to ASK whether one is ready, only to have
+ * been told.
+ */
+let recordingReady = false;
+
 function fail(message: string): never {
   // The capture is written FIRST, and that ordering is the fix for a real hole:
   // `fail()` exits the process rather than throwing, so every refusal reached
@@ -368,8 +389,16 @@ async function main(): Promise<void> {
  * somebody will eventually ask what changed between two exports.
  */
 let captureWritten = false;
+// Everything `writeCapture` touches now exists. Set HERE, below the last of
+// them, rather than beside the recorder: a call landing between the two would
+// have cleared the flag's guard and hit this line's own dead zone instead.
+recordingReady = true;
 
 function writeCapture(options: { partial?: boolean } = {}): void {
+  // Nothing was recorded because nothing could record yet — an environment
+  // refusal at import time. There is no capture to write, and saying so is the
+  // whole job: the refusal's sentence gets to print.
+  if (!recordingReady) return;
   if (!recorder || !CAPTURE_FILE || captureWritten) return;
   captureWritten = true;
   const recording = recorder.capture();

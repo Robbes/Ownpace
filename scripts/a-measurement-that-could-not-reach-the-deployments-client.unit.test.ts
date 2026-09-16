@@ -16,11 +16,18 @@
  * value, and the workaround was reading a secret out of the database by hand.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   resolveMeasurementCredentials,
   type MeasurementEnv,
 } from './drive-export-credentials.ts';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 const APPLIANCE: MeasurementEnv = {
   GOOGLE_CLIENT_ID: 'appliance-id',
@@ -130,5 +137,97 @@ describe('a refusal names a remedy the operator can actually apply', () => {
     expect(resolved.route).toBe('refuse');
     if (resolved.route !== 'refuse') throw new Error('unreachable');
     expect(resolved.reason).toContain('GOOGLE_OAUTH_CLIENT_SECRET');
+  });
+});
+
+/**
+ * ...AND THEN THE REFUSAL ITSELF CRASHED.
+ *
+ * Reported by the owner 2026-09-15, running the managed route for the first
+ * time. Every environment refusal above — the ones this whole file exists to
+ * get right — died before printing:
+ *
+ *   ReferenceError: Cannot access 'recorder' before initialization
+ *       at writeCapture (scripts/drive-export-stability.ts:373:3)
+ *       at fail (scripts/drive-export-stability.ts:113:3)
+ *
+ * `fail()` writes a partial capture first, deliberately, so a refusal from
+ * inside `main()` still leaves the recording. But `fail()` is ALSO how the
+ * module refuses a bad environment, and that runs at import time — above the
+ * `const`s `writeCapture` reads. A `const` read before its line has run does
+ * not answer `undefined`; it throws.
+ *
+ * So the operator asking for help got a stack trace naming a line they had
+ * nothing to do with, instead of the sentence naming the variable they were
+ * missing. Both of this module's import-time refusals had it, and neither
+ * could be reached by a unit test of `resolveMeasurementCredentials` — the
+ * resolver was right the whole time. It has to be RUN.
+ */
+describe('an environment refusal prints its sentence, rather than crashing on the recorder', () => {
+  const made: string[] = [];
+  afterAll(() => {
+    for (const d of made) rmSync(d, { recursive: true, force: true });
+  });
+
+  /** The real script, in a process, with a clean environment. No network. */
+  function run(extra: Record<string, string>): { out: string; code: number } {
+    const env = { ...process.env, ...extra };
+    // A developer's own shell may carry these; the case decides what is set.
+    for (const k of [
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'GOOGLE_REFRESH_TOKEN',
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'GOOGLE_OAUTH_CLIENT_SECRET',
+      'DRIVE_CONNECTION_ID',
+      'DRIVE_EXPORT_POLICY',
+      'DRIVE_CAPTURE_FILE',
+      'DATABASE_URL',
+    ]) {
+      if (!(k in extra)) delete env[k];
+    }
+    const r = spawnSync('pnpm', ['exec', 'tsx', join(HERE, 'drive-export-stability.ts')], {
+      encoding: 'utf8',
+      env,
+      cwd: join(HERE, '..'),
+    });
+    return { out: `${r.stdout ?? ''}${r.stderr ?? ''}`, code: r.status ?? -1 };
+  }
+
+  it('says which variables are missing, with no credentials at all', () => {
+    const { out, code } = run({});
+    // THE HEADLINE: the sentence, not a stack.
+    expect(out).toContain('GOOGLE_OAUTH_CLIENT_ID');
+    expect(out).toContain('GOOGLE_CLIENT_ID');
+    expect(out).not.toContain('ReferenceError');
+    // Said on its own, because this is the exact wording the crash replaced and
+    // it deserves its own line when it comes back.
+    expect(out).not.toContain('before initialization');
+    // The exit code was ALREADY 1 while it was crashing — an uncaught throw
+    // exits 1 too. Asserting only on the code would have passed on the bug.
+    expect(code).toBe(1);
+  });
+
+  it('refuses an unknown export policy, even with a capture requested', () => {
+    // The second import-time refusal, and the interesting interaction: asking
+    // for a recording is what BUILDS the recorder, so a refusal that comes
+    // before it exists is where the two eras of this module meet.
+    const dir = mkdtempSync(join(tmpdir(), 'drive-capture-'));
+    made.push(dir);
+    const capture = join(dir, 'capture.json');
+    const { out, code } = run({
+      GOOGLE_OAUTH_CLIENT_ID: 'sentinel-id',
+      GOOGLE_OAUTH_CLIENT_SECRET: 'sentinel-secret',
+      DRIVE_CONNECTION_ID: 'sentinel-connection',
+      DRIVE_EXPORT_POLICY: 'nonsense',
+      DRIVE_CAPTURE_FILE: capture,
+    });
+    expect(out).toContain('DRIVE_EXPORT_POLICY');
+    expect(out).toContain('export-odf');
+    expect(out).not.toContain('ReferenceError');
+    expect(code).toBe(1);
+    // Nothing was recorded, so nothing is written — and in particular no empty
+    // file that a later replay would read as "Drive answered nothing".
+    expect(existsSync(capture)).toBe(false);
   });
 });

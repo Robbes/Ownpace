@@ -16,11 +16,16 @@
  * refusal can have. Found 2026-08-31 by the owner, on the Spark, following the
  * document exactly.
  *
- * Two guards, because there are two ways for this to come back:
+ * Three guards, because there are three ways for this to come back:
  *
  *   1. A doc recipe reads a key out of `.env` that `managed.env.example` does
  *      not ship. That is the general rule, and it is checked over every doc.
- *   2. `operator.sh` stops composing the connection the way `seed-managed.sh`
+ *   2. The same read arrives by the OTHER door — `set -a; . .env` — which is
+ *      how most of this repo's recipes take their configuration, and which
+ *      guard 1 never looked at. Sourcing fails identically and more quietly:
+ *      an unshipped key expands to "" with no grep to inspect, and `set -u`
+ *      is not on in a snippet somebody pastes.
+ *   3. `operator.sh` stops composing the connection the way `seed-managed.sh`
  *      does — from the parts, at the port compose REPORTS. That one is proved
  *      by running it against stubs rather than by reading it.
  */
@@ -82,6 +87,71 @@ describe('no documented recipe reads a key the env file does not carry', () => {
     expect(readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8')).toMatch(
       /DATABASE_URL:\s*postgresql:\/\/\$\{POSTGRES_USER/,
     );
+  });
+});
+
+/** Fenced code blocks, with the 1-based line each fence opened on. */
+function fencedBlocks(text: string): { body: string; line: number }[] {
+  const out: { body: string; line: number }[] = [];
+  const lines = text.split('\n');
+  let start = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/^\s*```/.test(lines[i]!)) continue;
+    if (start === -1) start = i;
+    else {
+      out.push({ body: lines.slice(start + 1, i).join('\n'), line: start + 2 });
+      start = -1;
+    }
+  }
+  return out;
+}
+
+describe('no documented recipe SOURCES the env file and expands a key it does not carry', () => {
+  // `set -a; . deploy/compose/.env; set +a`, in any of the spellings the docs
+  // use — `.` or `source`, with or without a `cd` ahead of it on the line.
+  const SOURCES_ENV = /set -a\b[\s\S]{0,60}?(?:\.|source)\s+\S*\.env\b/;
+  // `${NAME}`, `${NAME:-default}`, `${NAME##*:}` and bare `$NAME`.
+  const EXPANSION = /\$\{([A-Z][A-Z0-9_]*)[^}]*\}|\$([A-Z][A-Z0-9_]*)\b/g;
+  // A name the block ASSIGNS is the block's own — it is not read from `.env`.
+  const ASSIGNED = /(?:^|\s)(?:export\s+)?([A-Z][A-Z0-9_]*)=/gm;
+  // The shell hands these out; no `.env` is involved.
+  const FROM_THE_SHELL = new Set(['HOME', 'PATH', 'PWD', 'OLDPWD', 'USER', 'SHELL', 'TMPDIR', 'HOSTNAME', 'LANG', 'RANDOM']);
+
+  const found = docs(join(REPO_ROOT, 'docs')).flatMap((file) =>
+    fencedBlocks(readFileSync(file, 'utf8'))
+      .filter((b) => SOURCES_ENV.test(b.body))
+      .flatMap((b) => {
+        const assigned = new Set([...b.body.matchAll(ASSIGNED)].map((m) => m[1]!));
+        const keys = new Set(
+          [...b.body.matchAll(EXPANSION)]
+            .map((m) => m[1] ?? m[2]!)
+            .filter((k) => !assigned.has(k) && !FROM_THE_SHELL.has(k)),
+        );
+        return [...keys].map((key) => ({ file: relative(REPO_ROOT, file), key, line: b.line }));
+      }),
+  );
+
+  it('found recipes to check', () => {
+    // Same vacuity guard as above, and for the same reason: a pattern that
+    // stops matching turns every case below into a pass over an empty list.
+    expect(found.length, 'no `set -a; . .env` recipes found in docs/').toBeGreaterThan(0);
+  });
+
+  it.each(found.map((f) => [`${f.file}:${f.line}`, f.key] as const))(
+    '%s expands %s, which managed.env.example ships',
+    (_where, key) => {
+      expect(
+        new RegExp(`^${key}=`, 'm').test(envExample),
+        `managed.env.example ships no ${key}= line, so sourcing leaves this empty`,
+      ).toBe(true);
+    },
+  );
+
+  it('DATABASE_URL is never among them — a sourced .env cannot supply it either', () => {
+    // The composed-not-stored rule from guard 1, restated at this door: a
+    // recipe that needs a connection must BUILD one, as the Drive probe's
+    // block in google-workspace-setup.md §6 does, at the port compose reports.
+    expect(found.map((f) => f.key)).not.toContain('DATABASE_URL');
   });
 });
 

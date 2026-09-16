@@ -74,6 +74,13 @@ DRIVE_EXPORT_POLICY=export-pdf pnpm exec tsx scripts/drive-export-stability.ts
 Ideally point `DRIVE_FILE_ID` at a Doc, a Sheet and a Slide in turn — three
 renderers, three answers.
 
+**Running it against a managed stack instead?** Name the Google *connection*
+rather than pasting credentials: `DRIVE_CONNECTION_ID`, with `DATABASE_URL`,
+`SECRET_ENCRYPTION_KEY` and the deployment's client pair. The exact block,
+including why the host's `DATABASE_URL` is not the container's, is in
+[`google-workspace-setup.md` §6](./google-workspace-setup.md#which-credentials-it-reads-and-where).
+Either way: **from the repo root**, not from `deploy/compose`.
+
 **Send back:** the full printed output of every run (the verdict is printed, not
 stored), and `drive-capture.json`. The capture is redacted by construction —
 names, ids and page tokens become pseudonyms, bodies become a hash and a length —
