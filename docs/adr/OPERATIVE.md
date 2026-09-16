@@ -719,14 +719,31 @@ Nothing in this amendment is built. It records the decision the three tasks in
 
 ## [ADR-0046: A rendering is compared by its parts, not by its bytes](./0046-a-rendering-is-compared-by-its-parts.md)
 
-- **Nothing here is in force yet — this ADR is PROPOSED.** What holds today is unchanged:
-  `nativeFilePolicy` defaults to `refuse`, all three export policies are refused, and
-  `contentHash` is a sha256 over the whole file for every file without exception.
-- **The measured facts the proposal rests on hold regardless of the decision**, and are the
-  part to trust: a `.docx` from `files.export` is byte-unstable ONLY in its zip container —
-  all nine members were byte-identical across five draws while the member timestamps moved. A
-  `.odt` additionally varies `settings.xml`. A `.pdf` was byte-identical over five draws.
-- **If accepted**, the bullets under *Decision* become the operative rules and replace the
-  first bullet above; the guards named there are what would enforce them.
-- **Until then, no code may treat a Google-native export as comparable by anything other than
-  its bytes**, and no export policy may be enabled on the strength of this file.
+- **DECIDED, NOT YET BUILT — and the code is the older rule until it is.** Today
+  `contentHash` is still a sha256 over the whole file for every file without exception, and
+  `nativeFilePolicy` still defaults to `refuse` with all three export policies refused. The
+  build is [0042 T7](../workplans/0042-google-drive-source.md). Read the bullets below as what
+  the code MUST do when that lands, not as what it does now.
+- **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
+  `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
+  uncompressed bytes. Excluded — member timestamps, member order, compression method and level,
+  extra fields, archive comment. Every field that describes the zip rather than the document.
+- **sha256 of inflated bytes, NEVER the zip's stored CRC-32.** `drive-export-members.ts`
+  fingerprints members by the stored CRC-32 because it is free and it answers "what moved".
+  CRC-32 is 32 bits and not collision-resistant, and `contentHash` decides whether a customer's
+  file is rewritten. That value must never be derived from it.
+- **ONLY a rendering we asked for.** A `.zip` a customer stored is compared by its bytes like
+  any other file, because for that file the container IS the content. The narrow trigger is the
+  safety argument, not an implementation detail.
+- **A stored hash records its scheme, and schemes are never compared across.** A row whose
+  stored scheme differs from the current one is NOT evidence of change: recompute, store, and
+  do not re-copy on that basis. Without this rule, adopting the scheme rewrites every
+  already-migrated native file once.
+- **Verification says what it compared.** For structurally hashed rows, §20's report states
+  that the comparison was over the container's parts.
+- **`export-odf` is NOT rescued by this**, and enabling `export-office` remains a separate
+  per-migration choice that still wants a Sheet and a Slide measured.
+- **The measured facts hold independently of the decision**: a `.docx` from `files.export` is
+  byte-unstable ONLY in its zip container — all nine members byte-identical across five draws
+  while the member timestamps moved. A `.odt` additionally varies `settings.xml`. A `.pdf` was
+  byte-identical over five draws.
