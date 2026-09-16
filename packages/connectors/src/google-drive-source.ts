@@ -245,6 +245,43 @@ export interface DriveStorageUsage {
   readonly nativeFilesExcluded: true;
 }
 
+/**
+ * THE ONE WAY PAST THE STABILITY REFUSAL, and it exists for the instrument that
+ * produced the measurement in the first place.
+ *
+ * ## The circle this breaks
+ *
+ * `EXPORT_STABILITY` is built from the output of
+ * `scripts/drive-export-stability.ts`, and that script measures THROUGH this
+ * connector on purpose — the question it answers is "what would a migration
+ * store", and a hand-rolled export would answer a different one. So when the
+ * connector learned to refuse what the table calls `unstable`, the script
+ * inherited the refusal and stopped being able to measure the two combinations
+ * the table condemns. The instrument could no longer take a reading it had
+ * itself produced, which also means it could not notice Google FIXING one: a
+ * red would have been permanent by construction, with no way back to green
+ * short of editing the table by hand on no evidence.
+ *
+ * ## Why a third argument and not a config field
+ *
+ * `GoogleDriveSourceConfig` is parsed from an appliance's config file and from
+ * a managed connection's stored row. Anything in it is reachable by a customer
+ * or an operator typing a key, which is exactly what must not be true of this:
+ * the refusal is the only thing standing between a Slides deck and a library
+ * rewritten nightly. A separate positional argument is not in that schema,
+ * cannot arrive through it, and reads at the call site as the sentence it is.
+ *
+ * `a-deck-that-would-be-rewritten-nightly.unit.test.ts` holds the other half:
+ * no production call site passes it.
+ */
+export type MeasuringInstrument = {
+  /**
+   * Named at length so it cannot be set casually, and so a reviewer seeing it
+   * in a diff outside `scripts/` knows immediately that something is wrong.
+   */
+  readonly exportDespiteMeasuredInstability: true;
+};
+
 export class GoogleDriveSource implements FileSource {
   private readonly baseUrl: string;
   private readonly rootFolderId: string;
@@ -274,11 +311,21 @@ export class GoogleDriveSource implements FileSource {
   private readonly refusedNative = new Map<string, number>();
 
   private readonly transport: DriveTransport;
+
+  /**
+   * Whether this source may export a combination the measurements call
+   * `unstable`. FALSE for every migration, and settable only by passing a
+   * third constructor argument that spells out what it is for.
+   */
+  private readonly measuring: boolean;
+
   constructor(
     transport: DriveTransport,
     config: GoogleDriveSourceConfig = {},
+    instrument?: MeasuringInstrument,
   ) {
     this.transport = transport;
+    this.measuring = instrument?.exportDespiteMeasuredInstability === true;
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE).replace(/\/$/, '');
     this.rootFolderId = config.rootFolderId ?? 'root';
     // Defaults to refusing, not exporting. See NativeFilePolicy: of the two ways
@@ -1039,7 +1086,9 @@ export class GoogleDriveSource implements FileSource {
     // and an ordering is what a later edit reorders. The cost of the duplicate
     // check is a map lookup; the cost of losing it is a policy silently
     // exporting the file the measurement refused.
-    if (exportStabilityOf(this.policy, file.mimeType) === 'unstable') return undefined;
+    if (!this.measuring && exportStabilityOf(this.policy, file.mimeType) === 'unstable') {
+      return undefined;
+    }
     return (
       `${this.baseUrl}/files/${encodeURIComponent(file.id)}/export` +
       `?mimeType=${encodeURIComponent(target)}`
@@ -1082,15 +1131,24 @@ export class GoogleDriveSource implements FileSource {
     // `unmeasured` is recorded in the table and reported, but it does NOT stop
     // a copy: turning off a path that works today on the strength of a
     // measurement nobody has run would be a product decision — it would refuse
-    // every Drawing, and every Sheet and Slide under `export-pdf`, which is the
-    // escape hatch an owner reaches for when `export-office` will not do. A
-    // Drawing under `export-office` was deliberately made to work (SVG), and
-    // this is not the change that turns it off again.
+    // every Drawing, and it would have refused every Sheet and Slide under
+    // `export-pdf`, the escape hatch an owner reaches for when `export-office`
+    // will not do. Those were measured on 2026-09-16 and came back stable, one
+    // day after this comment was written: the hatch would have been shut on no
+    // evidence, the day before the evidence arrived. A Drawing under
+    // `export-office` was deliberately made to work (SVG), and this is not the
+    // change that turns it off again.
     //
     // The asymmetry is the same one the whole workplan runs on: a red is
     // conclusive and a blank is not. A blank is a reason to go and measure,
     // which `EXPORT_STABILITY` now names precisely enough to act on.
     const stability = exportStabilityOf(this.policy, file.mimeType);
+    // The instrument is exempt from this ONE refusal and from no other: a
+    // shortcut still has nothing to export, a Form still cannot be rendered,
+    // and `refuse` still refuses. Only the verdict this script's own output
+    // wrote is lifted, and only for the script that has to be able to write it
+    // again.
+    if (this.measuring) return undefined;
     return stability === 'unstable'
       ? new NativeFileRefused(file.name, file.mimeType, this.policy, stability)
       : undefined;

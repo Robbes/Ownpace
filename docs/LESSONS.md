@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 136 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 137 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -722,6 +722,7 @@ reading a file drops off its entry by itself.
 
 - [a-deck-that-would-be-rewritten-nightly](../scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts) — A MEASURED-UNSTABLE EXPORT, COPIED ANYWAY (workplan 0042 T3 and T7, ADR-0046, owner's decision 2026-09-16).
 - [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
+- [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts) — THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/connectors/src/google-token-provider.ts`
@@ -914,6 +915,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/shared/src/config.ts`
 
+- [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts) — THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `packages/shared/src/confirmed-list.ts`
@@ -1124,6 +1126,7 @@ reading a file drops off its entry by itself.
 ### `scripts/drive-export-stability.ts`
 
 - [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts) — A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
+- [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts) — THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
 - [two-draws-that-could-agree-by-accident](../scripts/two-draws-that-could-agree-by-accident.unit.test.ts) — TWO DRAWS OF A ONE-BYTE WOBBLE CAN AGREE, AND THE SCRIPT WOULD HAVE CALLED THAT STABLE.
 
 ### `scripts/every-service-somebody-starts.unit.test.ts`
@@ -2154,6 +2157,16 @@ Reads:
 - `deploy/compose/gatus.yaml`
 - `deploy/compose/managed.yml`
 - `deploy/compose/www.yml`
+
+### [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts)
+
+THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
+
+Reads:
+
+- `packages/connectors/src/google-drive-source.ts`
+- `packages/shared/src/config.ts`
+- `scripts/drive-export-stability.ts`
 
 ### [an-integration-test-is-handed-its-database](../scripts/an-integration-test-is-handed-its-database.unit.test.ts)
 
