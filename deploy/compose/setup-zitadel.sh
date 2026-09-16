@@ -418,6 +418,11 @@ ${#PAT} characters long, which is too short to be one:
 #      tracks and nothing revokes. A read cannot do that — and the call that
 #      actually failed in #174 was a read.
 #
+#      WHICH IS A READ IS A QUESTION ABOUT MEANING, NOT ABOUT THE VERB. See
+#      `is_read`: this rule was first written as `method = GET`, and Zitadel
+#      spells its list endpoints `POST …/_search`, so two thirds of this
+#      script's reads were left outside the retry that was written for them.
+#
 #   3. THE LAST FAILURE IS STILL FATAL, in the caller, with the message it
 #      always had. This makes the script survive a blip; it must not make it
 #      quieter about a provider that is really gone.
@@ -439,6 +444,38 @@ curl_read_retrying() { # curl_read_retrying <label> <curl args…>
   done
 }
 
+# IS THIS CALL A READ — whatever verb it travels under?
+#
+# Zitadel's list endpoints are `POST …/_search`: the query goes in the body
+# because the filters do not fit in a URL. They return a list and change
+# nothing, so rule 2's reason to ask exactly once — a re-sent write can apply
+# twice — does not reach them.
+#
+# Rule 2 was nevertheless implemented as `method = GET`, which is the verb and
+# not the meaning, and this script makes SEVEN `_search` calls and barely any
+# GETs. The cost, on 2026-09-15: a bring-up of the live managed stack died on
+# `projects/{id}/apps/_search` with the same `curl: (35) … tlsv1 alert internal
+# error` E2E #174 produced — asked once, no retry — seconds after the identical
+# `projects/_search` had succeeded through the same front. The retry existed and
+# did not cover the call that needed it.
+#
+# NARROW ON PURPOSE, and the narrowness is the point. Only a path ENDING in
+# `_search`. Zitadel spells real WRITES with the same leading underscore and
+# they must keep asking exactly once:
+#
+#   POST /admin/v1/email/{id}/_activate   turns an SMTP provider on
+#   POST /admin/v1/smtp/{id}/_test        SENDS MAIL
+#
+# and the mint rule 2 names by name — `POST /management/v1/users/{id}/pats` —
+# carries no underscore at all.
+is_read() { # is_read <method> <path> — true when re-asking is safe
+  [ "$1" = GET ] && return 0
+  case "$1:$2" in
+    POST:*/_search) return 0 ;;
+  esac
+  return 1
+}
+
 api() { # api <method> <path> [json-body] — dies on any non-2xx, prints the body
   local method="$1" path="$2" body="${3:-}"
   # DECLARED, THEN ASSIGNED. `local out="$(curl …)"` makes the exit status
@@ -450,9 +487,10 @@ api() { # api <method> <path> [json-body] — dies on any non-2xx, prints the bo
     -w '\n%{http_code}')
   [ -n "$body" ] && args+=(-d "$body")
 
-  # Reads are re-asked, writes are asked once — rule 2 on `curl_read_retrying`.
+  # Reads are re-asked, writes are asked once — rule 2 on `curl_read_retrying`,
+  # with `is_read` above deciding which this is by MEANING rather than by verb.
   local tries=1
-  if [ "$method" = GET ]; then
+  if is_read "$method" "$path"; then
     curl_read_retrying "${method} ${path}" "${args[@]}"
     out="$CURL_OUT"; rc="$CURL_RC"; tries="$CURL_ATTEMPTS"
   else
