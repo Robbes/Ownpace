@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 133 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 134 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -606,6 +606,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/LESSONS.md`
 
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
 ### `docs/adr/0000-template.md`
@@ -616,12 +617,25 @@ reading a file drops off its entry by itself.
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
+### `docs/adr/0041-who-owns-the-oauth-client.md`
+
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
+### `docs/adr/0046-a-rendering-is-compared-by-its-parts.md`
+
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
 ### `docs/adr/OPERATIVE.md`
 
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
 ### `docs/apple-setup.md`
+
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
+### `docs/architecture/solution-architecture.md`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
@@ -1057,11 +1071,13 @@ reading a file drops off its entry by itself.
 
 ### `scripts/adr-operative.mjs`
 
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
 ### `scripts/adr-operative.unit.test.ts`
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
 ### `scripts/an-integration-test-is-handed-its-database.unit.test.ts`
@@ -1110,6 +1126,10 @@ reading a file drops off its entry by itself.
 
 - [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
+
+### `scripts/lessons.unit.test.ts`
+
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
 ### `scripts/local-pg.sh`
 
@@ -1361,8 +1381,16 @@ Reads:
 
 - `.github/workflows/ci.yml`
 - `apps/web/src/pages/end-user-docs.unit.test.tsx`
+- `docs/LESSONS.md`
+- `docs/adr/0041-who-owns-the-oauth-client.md`
+- `docs/adr/0046-a-rendering-is-compared-by-its-parts.md`
+- `docs/adr/OPERATIVE.md`
 - `docs/apple-setup.md`
+- `docs/architecture/solution-architecture.md`
 - `docs/workplans/0115-the-account-apple-will-not-hand-over.md`
+- `scripts/adr-operative.mjs`
+- `scripts/adr-operative.unit.test.ts`
+- `scripts/lessons.unit.test.ts`
 
 ### [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts)
 
