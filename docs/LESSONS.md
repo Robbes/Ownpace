@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 129 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 130 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -521,6 +521,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/smoke-managed.sh`
 
 - [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
+- [a-person-opened-in-the-wrong-organisation](../scripts/a-person-opened-in-the-wrong-organisation.unit.test.ts) — A SEARCH THAT FINDS ONE PERSON IN TWO ORGANISATIONS, AND A GATE THAT OPENED WHICHEVER ROW POSTGRES HAPPENED TO RETURN FIRST.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
@@ -1671,6 +1672,14 @@ Reads:
 
 - `apps/worker/src/jobs/run-delta-sync.ts`
 - `packages/orchestration/src/orchestration.ts`
+
+### [a-person-opened-in-the-wrong-organisation](../scripts/a-person-opened-in-the-wrong-organisation.unit.test.ts)
+
+A SEARCH THAT FINDS ONE PERSON IN TWO ORGANISATIONS, AND A GATE THAT OPENED WHICHEVER ROW POSTGRES HAPPENED TO RETURN FIRST.
+
+Reads:
+
+- `deploy/compose/smoke-managed.sh`
 
 ### [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts)
 

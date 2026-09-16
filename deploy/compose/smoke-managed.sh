@@ -3617,7 +3617,22 @@ if [ -n "${STACK_ISSUER:-}" ]; then
         # AND OPENING ONE IS ITS OWN READ. A different view_name, scoped to the
         # tenant, because "searched for an address" and "opened that account"
         # are different things to anybody reading the log afterwards.
-        found_user="$(jq -r --arg e "$GRANT_EMAIL" '.people[]? | select(.email == $e) | .user_id' <<<"$body" 2>/dev/null | awk 'NR==1')"
+        # THE PERSON IN *THIS* ORGANISATION, not whichever row came back first.
+        #
+        # This block deliberately made TWO organisations for one address, and
+        # granting mints `pending:<uuid>` fresh each time (access-requests.ts),
+        # so the two rows carry the SAME email and DIFFERENT user_ids. The
+        # search orders by `m.email`, which cannot break that tie, and Postgres
+        # is free to return either first — so selecting on the address alone was
+        # a coin flip that then POSTed the second organisation's user against
+        # the first organisation's id. E2E (managed) #184 called tails: HTTP 404,
+        # `support_read` person rows = 0.
+        #
+        # The line above already asks the right question for `in_first`; this
+        # asks it again rather than trusting an order nothing pins.
+        found_user="$(jq -r --arg e "$GRANT_EMAIL" --arg t "$new_tenant" \
+          '[.people[]? | select(.email == $e and .tenant_id == $t)] | .[0].user_id // empty' \
+          <<<"$body" 2>/dev/null || true)"
         if [ -n "$found_user" ]; then
           r="$(http POST "$API/api/support/people/${new_tenant}/${found_user}/opened" "$OP_TOKEN" '{}')"
           code="${r%% *}"
