@@ -101,6 +101,28 @@ export interface RawFileItem {
    * trying.
    */
   readonly body?: FileBody;
+  /**
+   * These bytes are a RENDERING THIS PRODUCT ASKED FOR, not a file the customer
+   * stored — ADR-0046, workplan 0042 T7.
+   *
+   * Set only by a source that asked a provider to render something that has no
+   * bytes of its own: today that is Google Drive's `files.export` branch and
+   * nothing else. It changes how `contentHash` is computed, and the NARROWNESS
+   * is the whole safety argument.
+   *
+   * WHY IT MATTERS. A Google Doc has no bytes; the export comes back in a
+   * rebuilt zip container every time, so hashing the whole file sees a change
+   * on every pass and the migration rewrites every document nightly. Hashing
+   * the container's PARTS instead settles that. But a `.zip` a CUSTOMER stored
+   * must keep being compared by its bytes, because for that file the container
+   * IS the content — its member order and timestamps are data they own, and
+   * normalising them away would hide a real change.
+   *
+   * So this flag is the line between the two, and it is set by the one place
+   * that knows: the code that asked for the rendering. Nothing infers it from
+   * a file extension, and nothing may start.
+   */
+  readonly rendering?: true;
 }
 
 /** File folder/collection. */

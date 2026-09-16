@@ -804,9 +804,29 @@ export interface TargetReindexer {
    *
    * Return undefined when this particular item's content cannot be read;
    * the sample is then counted as unavailable rather than as a mismatch.
+   *
+   * `scheme` SAYS WHICH QUESTION TO ANSWER, and answering a different one is
+   * worse than answering none (ADR-0046, 0042 T7). The ledger's stored hash
+   * carries the scheme that made it; the caller reads that and asks for the
+   * same one back, because a value taken one way and a value taken another way
+   * say nothing about each other. An implementation that cannot produce the
+   * scheme it was asked for returns **undefined** — "not measured", which is
+   * already this method's answer for anything it cannot read — and never a
+   * hash of a different kind, which would be a comparison nobody made.
+   * Omitted means `bytes`, which is what every caller wanted before renderings
+   * existed and what every row without a tag still means.
    */
-  contentHashFor?(entry: TargetEntry): Promise<string | undefined>;
+  contentHashFor?(entry: TargetEntry, scheme?: TargetHashScheme): Promise<string | undefined>;
 }
+
+/**
+ * Which way to hash what the target holds — see `contentHashFor`.
+ *
+ * Two, not three: this is not the ledger's tag vocabulary (`cal1:`, `zip1:`,
+ * untagged) but the question a target can be ASKED. A caller maps a stored
+ * tag onto one of these; a target answers it or answers nothing.
+ */
+export type TargetHashScheme = 'bytes' | 'container-parts';
 
 /** One row of idempotency state. */
 export interface LedgerRecord {

@@ -76,6 +76,18 @@ const en = {
   'discovery.colliding.pre.many': 'items already on your destination match something in your source. We will',
   'discovery.colliding.strong': "keep the destination's copy",
   'discovery.colliding.post': 'and not overwrite it. Anything else already there is left untouched.',
+  'discovery.refusedNative.kind.document': 'Google Docs',
+  'discovery.refusedNative.kind.spreadsheet': 'Google Sheets',
+  'discovery.refusedNative.kind.presentation': 'Google Slides',
+  'discovery.refusedNative.kind.drawing': 'Google Drawings',
+  'discovery.refusedNative.kind.other': 'Google files',
+  'discovery.refusedNative.strong': 'will not be copied',
+  // Fifteen words, like every `discovery.*.post` beside it (0118). The whole
+  // reasoning — what was measured, and that a copy would be re-copied nightly —
+  // is in the connector's refusal, which the failures queue prints verbatim.
+  // This line is the one an owner reads while the choice is still open.
+  'discovery.refusedNative.post':
+    'because this export format does not produce the same file twice. Choose another format.',
   'applyFlag.readFailed': 'Could not read whether applying deletions is enabled:',
   'applyFlag.on': 'Applying deletions is ON for this migration.',
   'applyFlag.off': 'Applying deletions is OFF for this migration (the default).',
@@ -2014,6 +2026,14 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.colliding.pre.many': 'items die al op uw bestemming staan, komen overeen met iets in uw bron. We',
   'discovery.colliding.strong': 'behouden de kopie op de bestemming',
   'discovery.colliding.post': 'en overschrijven die niet. Al het andere dat er al staat, blijft onaangeroerd.',
+  'discovery.refusedNative.kind.document': 'Google Documenten',
+  'discovery.refusedNative.kind.spreadsheet': 'Google Spreadsheets',
+  'discovery.refusedNative.kind.presentation': 'Google Presentaties',
+  'discovery.refusedNative.kind.drawing': 'Google Tekeningen',
+  'discovery.refusedNative.kind.other': 'Google-bestanden',
+  'discovery.refusedNative.strong': 'worden niet gekopieerd',
+  'discovery.refusedNative.post':
+    'omdat dit exportformaat niet twee keer hetzelfde bestand oplevert. Kies een ander formaat.',
   'applyFlag.readFailed': 'Kon niet lezen of het toepassen van verwijderingen is ingeschakeld:',
   'applyFlag.on': 'Het toepassen van verwijderingen staat AAN voor deze migratie.',
   'applyFlag.off': 'Het toepassen van verwijderingen staat UIT voor deze migratie (de standaard).',

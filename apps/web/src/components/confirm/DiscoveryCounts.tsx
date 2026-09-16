@@ -19,6 +19,7 @@
 import React from 'react';
 import { domainsCountedBeforeTheirError, type DiscoveryDomain, type DiscoveryRecord } from '@openmig/shared';
 import { useT } from '../../i18n/index.tsx';
+import type { StringKey } from '../../i18n/strings.ts';
 import { formatBytes } from '../../i18n/bytes.ts';
 // The dictionary's own domain words — the old local map silently bypassed
 // them, so the table said "Email" beside screens saying the translated word.
@@ -30,6 +31,39 @@ import { DOMAIN_STRING_KEY as DOMAIN_KEY } from '../../i18n/domain-words.ts';
 // Moved to `i18n/bytes.ts` (2026-09-02) so the measured-volume line can share
 // it; re-exported here for the importers this file already has.
 export { formatBytes };
+
+/**
+ * Google editor kinds, as a person calls them. Keyed by the short name the
+ * ledger stores (`presentation`, taken off the `application/vnd.google-apps.`
+ * prefix), so the column stays provider-shaped and only the screen translates.
+ */
+const NATIVE_KIND_KEY: Readonly<Record<string, StringKey>> = {
+  document: 'discovery.refusedNative.kind.document',
+  spreadsheet: 'discovery.refusedNative.kind.spreadsheet',
+  presentation: 'discovery.refusedNative.kind.presentation',
+  drawing: 'discovery.refusedNative.kind.drawing',
+};
+
+/**
+ * Refused native files across every domain, by kind, biggest first and zeroes
+ * dropped.
+ *
+ * Sorted so the number a person acts on leads. Zeroes dropped because `{}` and
+ * `{presentation: 0}` mean the same thing to a reader and only one of them is
+ * worth a line — and a domain that never looked contributes nothing at all,
+ * which is the distinction the column's nullability exists to keep.
+ */
+function refusedByKind(
+  domains: ReadonlyArray<{ readonly refusedNative?: Readonly<Record<string, number>> }>,
+): ReadonlyArray<readonly [string, number]> {
+  const total = new Map<string, number>();
+  for (const d of domains) {
+    for (const [kind, n] of Object.entries(d.refusedNative ?? {})) {
+      if (n > 0) total.set(kind, (total.get(kind) ?? 0) + n);
+    }
+  }
+  return [...total.entries()].sort((a, b) => b[1] - a[1]);
+}
 
 /**
  * WHAT IS STILL COMING IS PART OF THE ANSWER (2026-09-07).
@@ -87,6 +121,15 @@ export const DiscoveryCounts: React.FC<{
   // default, but it decides what the customer ends up with, so it belongs here
   // and not in a verification report after the fact.
   const colliding = domains.reduce((sum, d) => sum + (d.targetColliding ?? 0), 0);
+  // Native editor files this migration's export policy will REFUSE for measured
+  // byte-instability (0042 T7, ADR-0046). `export-office` carries a Doc and a
+  // Sheet and would rewrite a Slides deck every night, so the person choosing
+  // the policy needs the number here — while the choice is still open — and not
+  // as a queue full of failure rows after the first pass.
+  //
+  // Named by KIND rather than totalled. "3 items will not be copied" sends
+  // somebody hunting through their Drive; "3 Google Slides" does not.
+  const refused = refusedByKind(domains);
 
   if (domains.length === 0) {
     return (
@@ -201,6 +244,14 @@ export const DiscoveryCounts: React.FC<{
           {t(colliding === 1 ? 'discovery.colliding.pre.one' : 'discovery.colliding.pre.many')}{' '}
           <strong>{t('discovery.colliding.strong')}</strong>{' '}
           {t('discovery.colliding.post')}
+        </p>
+      )}
+
+      {refused.length > 0 && (
+        <p className="mt-2 text-sm text-amber-700" role="note">
+          {refused.map(([kind, n]) => `${n} ${t(NATIVE_KIND_KEY[kind] ?? 'discovery.refusedNative.kind.other')}`).join(', ')}{' '}
+          <strong>{t('discovery.refusedNative.strong')}</strong>{' '}
+          {t('discovery.refusedNative.post')}
         </p>
       )}
     </div>

@@ -53,15 +53,18 @@
 // only the loop can stop taking new work. One meter instance, two roles.
 
 import {
+  CONTAINER_FINGERPRINT_VERSION,
   calendarNaturalKeyHash,
   contactNaturalKeyHash,
   fileNaturalKeyHash,
   naturalKeyHash,
   taskNaturalKeyHash,
+  versionOf,
   type ByteBudget,
   type DiscoveryDomain,
   type RateBudget,
   type TargetEntry,
+  type TargetHashScheme,
   type TargetReindexer,
 } from '@openmig/shared';
 import type { ConfirmableItem, ConfirmationReader } from './confirmation-pass.ts';
@@ -188,6 +191,20 @@ export async function readerOverTarget(args: {
       : new Error(`could not list the target: ${String(enumerationFailed)}`);
   };
 
+/**
+ * Which question to ask the target, read off the ledger's own stored value.
+ *
+ * The tag is the only record of the scheme — there is no column beside it — so
+ * this is a two-line function on purpose: anything cleverer would be inventing
+ * a fact the row does not carry. An untagged hash is a whole-file sha256, which
+ * is what every row was before renderings existed.
+ */
+function schemeFor(contentHash: string | null): TargetHashScheme {
+  return contentHash !== null && versionOf(contentHash) === CONTAINER_FINGERPRINT_VERSION
+    ? 'container-parts'
+    : 'bytes';
+}
+
   const hashOnTarget = args.reindexer.contentHashFor?.bind(args.reindexer);
 
   return {
@@ -206,7 +223,14 @@ export async function readerOverTarget(args: {
             // no token taken — no request is made.
             if (!entry) return undefined;
             await token();
-            const hash = await hashOnTarget(entry);
+            // ASK FOR THE SCHEME THE ROW WAS STORED IN (ADR-0046, 0042 T7).
+            // The stored value carries its own tag and nothing else knows: a
+            // `zip1:` row holds a rendering compared by its container's parts,
+            // and a target re-read taken any other way would be a different
+            // measurement. A target that cannot answer that question answers
+            // `undefined`, which reads as "not measured" — the honest result,
+            // and the one `answerFor` already handles.
+            const hash = await hashOnTarget(entry, schemeFor(item.contentHash));
             // Spent AFTER the read, and only what the target itself reported.
             // `sizeBytes` is *"what lets verification report totalBytesTarget
             // as a real measurement"* and its own rule is to leave it undefined

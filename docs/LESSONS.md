@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 135 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 136 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -720,6 +720,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/connectors/src/google-drive-source.ts`
 
+- [a-deck-that-would-be-rewritten-nightly](../scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts) — A MEASURED-UNSTABLE EXPORT, COPIED ANYWAY (workplan 0042 T3 and T7, ADR-0046, owner's decision 2026-09-16).
 - [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
@@ -765,6 +766,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/core/src/dav-sync.ts`
 
+- [a-deck-that-would-be-rewritten-nightly](../scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts) — A MEASURED-UNSTABLE EXPORT, COPIED ANYWAY (workplan 0042 T3 and T7, ADR-0046, owner's decision 2026-09-16).
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
 
@@ -1392,6 +1394,15 @@ Reads:
 - `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 - `scripts/local-pg.sh`
 - `vitest.global-setup.ts`
+
+### [a-deck-that-would-be-rewritten-nightly](../scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts)
+
+A MEASURED-UNSTABLE EXPORT, COPIED ANYWAY (workplan 0042 T3 and T7, ADR-0046, owner's decision 2026-09-16).
+
+Reads:
+
+- `packages/connectors/src/google-drive-source.ts`
+- `packages/core/src/dav-sync.ts`
 
 ### [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts)
 
