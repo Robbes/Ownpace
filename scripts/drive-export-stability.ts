@@ -66,6 +66,13 @@
  *                           "find the first native editor file under the root",
  *                           which is what most people want and nobody wants to
  *                           look up by hand.
+ *   DRIVE_FILE_KIND         optional — `doc`, `sheet` or `slide`: measure the
+ *                           first file OF THAT KIND under the root, so nobody
+ *                           has to look an id up in a browser to measure the
+ *                           other two renderers. `DRIVE_FILE_ID` wins when both
+ *                           are set. A typo REFUSES rather than falling back —
+ *                           see `drive-export-choose.ts` for why, and for the
+ *                           run that made it necessary.
  *   DRIVE_ROOT_FOLDER_ID    optional — where to search. Unset means My Drive.
  *   DRIVE_EXPORT_POLICY     optional — `export-office` (default), `export-odf`
  *                           or `export-pdf`. Measure EACH before trusting any:
@@ -116,12 +123,14 @@ import {
   readZipMembers,
   type ZipMember,
 } from './drive-export-members.ts';
+import { chooseFile, readKind } from './drive-export-choose.ts';
 import { stabilityVerdict, type ExportSample } from './drive-export-verdict.ts';
 
 const ROOT = process.env.DRIVE_ROOT_FOLDER_ID || 'root';
 const GAP_MS = Number(process.env.DRIVE_EXPORT_GAP_MS ?? 3000);
 const SAMPLES = Number(process.env.DRIVE_EXPORT_SAMPLES ?? 5);
 const POLICY = (process.env.DRIVE_EXPORT_POLICY || 'export-office') as GoogleNativeFilePolicy;
+const KIND_READ = readKind(process.env.DRIVE_FILE_KIND);
 const BASE = 'https://www.googleapis.com/drive/v3';
 
 /**
@@ -175,6 +184,16 @@ if (!Number.isInteger(SAMPLES) || SAMPLES < 2) {
       `is taken.`,
   );
 }
+if (!KIND_READ.ok) {
+  // Refused rather than fallen back from, and refused HERE rather than beside
+  // the read at the top of the file: `fail()` touches the recorder, which does
+  // not exist until `recordingReady` is set below it. A typo quietly measuring
+  // "whatever was first" would file a Doc's stability under a Sheet's heading,
+  // which is the same shape of wrong answer as the run that made
+  // `DRIVE_FILE_KIND` necessary at all.
+  fail(KIND_READ.reason);
+}
+const KIND = KIND_READ.file;
 
 /**
  * The refresh token, from wherever this edition keeps it.
@@ -281,20 +300,20 @@ async function pickDocument(): Promise<DriveFile> {
     fail(`Drive answered ${response.status} listing ${ROOT}: ${await response.text()}`);
   }
   const found = ((await response.json()) as DriveFileList).files ?? [];
-  // Only the three types the policy can actually export. A Google Form or a
-  // Drawing is a native editor file with no export mapping, so picking one
-  // would refuse — correctly, and answering a question nobody asked.
+  // Only the three types the policy can actually export, and only the KIND
+  // asked for when one was. A Google Form or a Drawing is a native editor file
+  // with no export mapping, so picking one would refuse — correctly, and
+  // answering a question nobody asked. See `drive-export-choose.ts`.
   const exportable = NATIVE_EXPORT_TYPES[POLICY as Exclude<GoogleNativeFilePolicy, 'refuse'>];
-  const native = found.find((f) => isNativeEditorFile(f.mimeType) && exportable[f.mimeType]);
-  if (!native) {
-    fail(
-      `No Google Doc, Sheet or Slide directly under ${ROOT === 'root' ? 'My Drive' : ROOT} ` +
-        '(this listing is that folder only, not its subfolders). Set DRIVE_FILE_ID to one, or ' +
-        'point DRIVE_ROOT_FOLDER_ID at a folder that has one — the whole question is about ' +
-        'native editor files, so an ordinary file cannot answer it.',
-    );
-  }
-  return native;
+  const chosen = chooseFile(
+    found.filter((f) => isNativeEditorFile(f.mimeType)),
+    exportable,
+    KIND,
+    ROOT === 'root' ? 'My Drive' : ROOT,
+    POLICY,
+  );
+  if (!chosen.ok) fail(chosen.reason);
+  return chosen.file;
 }
 
 /**

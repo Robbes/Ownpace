@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 132 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 133 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -1068,6 +1068,10 @@ reading a file drops off its entry by itself.
 
 - [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
 
+### `scripts/drive-export-choose.ts`
+
+- [a-placeholder-that-reached-google](../scripts/a-placeholder-that-reached-google.unit.test.ts) — A guard that the measurement can be aimed by kind, so no instruction for it has to carry a placeholder.
+
 ### `scripts/drive-export-members.ts`
 
 - [the-member-that-moved-inside-an-unchanged-document](../scripts/the-member-that-moved-inside-an-unchanged-document.unit.test.ts) — A guard that an unstable export can name the part of itself that moved.
@@ -1685,6 +1689,14 @@ A SEARCH THAT FINDS ONE PERSON IN TWO ORGANISATIONS, AND A GATE THAT OPENED WHIC
 Reads:
 
 - `deploy/compose/smoke-managed.sh`
+
+### [a-placeholder-that-reached-google](../scripts/a-placeholder-that-reached-google.unit.test.ts)
+
+A guard that the measurement can be aimed by kind, so no instruction for it has to carry a placeholder.
+
+Reads:
+
+- `scripts/drive-export-choose.ts`
 
 ### [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts)
 
