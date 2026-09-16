@@ -264,11 +264,12 @@ why an apply button is missing rather than leaving them to guess.
 Not (yet) migrated:
 - ⏳ **Google Docs / Sheets / Slides** — refused, each named with the reason: they have no
   bytes, only lossy exports, and an unstable export would silently rewrite every document
-  every night. **`export-odf` was measured against a real tenant on 2026-09-16 and is NOT
-  byte-stable** — two exports of one unchanged Doc differed in length — so it is refused on
-  evidence, not on caution (workplan 0042 T3). `export-office` and `export-pdf` are still
-  unmeasured (Stage 1, `scripts/drive-export-stability.ts`) and refuse meanwhile. Drive
-  **shortcuts** fall under the same refusal (they are pointers, not files).
+  every night. **All three export policies were measured against a real tenant on 2026-09-16**
+  (workplan 0042 T3): `export-odf` and `export-office` are **NOT byte-stable** and are refused
+  on evidence rather than caution; `export-pdf` produced identical bytes five times and is the
+  first candidate — refused meanwhile, because five draws on one Doc is evidence and not proof,
+  and no Sheet, Slide or Drawing has been measured under any policy. Drive **shortcuts** fall
+  under the same refusal (they are pointers, not files).
 - 🚫 **Sharing permissions / ACLs, version history, comments, stars** — the file's bytes
   and place migrate; its social metadata does not. The Finish screen's **permissions
   handover** document is the deliberate substitute for ACL migration.

@@ -144,16 +144,24 @@ export interface WebDAVSource {
  * is why" and "your Docs are silently re-copied nightly, and their formatting
  * changed" — only the first is one an owner can act on.
  *
- * **`export-odf` HAS now been measured, and it is not byte-stable** (2026-09-16,
- * the owner's tenant, measured twice: four exports of one unchanged Doc produced
- * four different renderings, spanning 3127558 to 3127561 bytes). One
- * counterexample is the whole answer, because the claim a policy needs is
- * universal — every document, every pass. Setting `export-odf` is choosing a
- * behaviour MEASURED to rewrite documents forever.
+ * **ALL THREE HAVE NOW BEEN MEASURED** against one real Doc (2026-09-16, the
+ * owner's tenant — 0042 T3 carries the numbers):
  *
- * `export-office` and `export-pdf` remain unmeasured, so setting either is still
- * choosing an unmeasured behaviour. 0042 T3 records what was measured and what
- * was not, and states the two ways an export policy could be made usable at all.
+ *   `export-odf`     NOT byte-stable. Four draws, three sizes in a four-byte
+ *                    window — a variable-length field inside the container.
+ *   `export-office`  NOT byte-stable. Five draws, 17644 bytes EVERY time and
+ *                    five different hashes — a fixed-width field overwritten in
+ *                    place, which is a different defect with a different fix.
+ *   `export-pdf`     Identical bytes five times. The first policy to survive.
+ *
+ * **The default stays `refuse` for all three, and the asymmetry is why.** A red
+ * verdict is conclusive: the claim a policy needs is universal — every document,
+ * every pass — so one counterexample settles it. Five identical draws are not the
+ * mirror image; they are one document, of one type, on one tenant, on one day.
+ * Setting `export-odf` or `export-office` is choosing a behaviour MEASURED to
+ * rewrite every document forever. Setting `export-pdf` is choosing one that has
+ * survived the best evidence this repository has, which is not the same as safe —
+ * a Sheet, a Slide and a Drawing are different renderers and none is measured.
  *
  * Defined here rather than beside the connector because it is a product
  * decision that now appears in a mapping file, not part of Google's wire format.
@@ -1107,9 +1115,10 @@ function parseNativeFilePolicy(value: unknown): GoogleNativeFilePolicy {
       '"export-odf", "export-office", or "export-pdf"). "refuse" is the default and reports ' +
       'each Google Doc, Sheet and Slide as un-migratable with a reason; the export policies ' +
       'ask Drive to render one — ODF (.odt/.ods/.odp), Office (.docx/.xlsx/.pptx) or PDF — ' +
-      'which is lossy. "export-odf" was MEASURED on 2026-09-16 and is not byte-stable, so it ' +
-      'would re-copy every document on every pass; "export-office" and "export-pdf" are still ' +
-      'unmeasured (workplan 0042 T3).',
+      'which is lossy. Measured 2026-09-16 against a real Doc: "export-odf" and "export-office" ' +
+      'are NOT byte-stable and would re-copy every document on every pass; "export-pdf" produced ' +
+      'identical bytes five times, which is evidence rather than proof — a Sheet, a Slide and a ' +
+      'Drawing are different renderers and none is measured (workplan 0042 T3).',
   );
 }
 
