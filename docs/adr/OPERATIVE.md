@@ -728,7 +728,9 @@ Nothing in this amendment is built. It records the decision the three tasks in
   under `export-office` for measured instability, per item, inside the sync loop's boundary. The
   preflight counts what a policy will refuse and the confirm screen names it before the run
   (owner's decision, 2026-09-16). An **unmeasured** combination is recorded and NOT refused: a
-  blank is not a red, and refusing on one would turn off paths that work today.
+  blank is not a red, and refusing on one would turn off paths that work today. **The refused
+  deck has somewhere to go** — `export-pdf` was measured stable on a Slide the same day (see the
+  2026-09-16 addendum below), and the refusal names it, derived from the measurement table.
 - **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
   `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
   uncompressed bytes. Excluded — member timestamps, member order, compression method and level,

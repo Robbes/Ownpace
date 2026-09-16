@@ -107,12 +107,14 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  *                  rewrite.
  *   - `unmeasured` nobody has run it. **Recorded, and NOT acted on** — a blank
  *                  is not a red. Refusing on absence of a measurement would
- *                  turn off a Drawing under `export-office` (deliberately made
- *                  to work) and every Sheet and Slide under `export-pdf`, which
- *                  is the escape hatch an owner reaches for. The entry exists
- *                  so somebody can see what is missing and go and measure it;
- *                  a table with only two answers would have had to guess for
- *                  every blank, which is how a guess becomes a fact.
+ *                  turn off every Drawing, under every policy, though a Drawing
+ *                  under `export-office` was deliberately made to work; and it
+ *                  would have turned off `export-pdf` on Sheets and Slides,
+ *                  which sat blank here for one day and then measured STABLE —
+ *                  the escape hatch, nearly refused on no evidence at all. The
+ *                  entry exists so somebody can see what is missing and go and
+ *                  measure it; a table with only two answers would have had to
+ *                  guess for every blank, which is how a guess becomes a fact.
  *
  * WHAT WAS ACTUALLY MEASURED, on the owner's tenant, five draws each, 3000 ms
  * apart, with `scripts/drive-export-stability.ts`:
@@ -128,10 +130,19 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  *   - `export-odf` on a **Doc**: `settings.xml` genuinely changes, 24 other
  *     members only restamped. Same verdict as the Slide, one format earlier.
  *   - `export-pdf` on a **Doc**: 195869 bytes and ONE hash, five times.
+ *   - `export-pdf` on a **Sheet**: 54591 bytes and one hash, five times.
+ *   - `export-pdf` on a **Slide**: 2017 bytes and one hash, five times.
  *
- * Everything else in this table is `unmeasured` because it is, including every
- * Drawing and every Sheet or Slide under `export-odf` and `export-pdf`. Run
- * `DRIVE_FILE_KIND=sheet DRIVE_EXPORT_POLICY=export-pdf` against a real tenant
+ * THE THREE `export-pdf` GREENS ARE WHAT MAKES THE SLIDE REFUSAL SURVIVABLE.
+ * Without them `export-office` refusing a deck is a dead end — the customer is
+ * told their decks cannot be migrated and given nothing to do about it. With
+ * them the refusal names a format measured to carry the same file, which is
+ * the difference between a gate and a wall. `stablePoliciesFor` below is how
+ * the refusal reaches them without a second copy of this table.
+ *
+ * Everything else here is `unmeasured` because it is: every Drawing under every
+ * policy, and a Sheet or a Slide under `export-odf`. Run
+ * `DRIVE_FILE_KIND=sheet DRIVE_EXPORT_POLICY=export-odf` against a real tenant
  * and move an entry; do not move one on a guess.
  *
  * A GREEN IS NOT THE MIRROR OF A RED. Five identical draws are evidence, not
@@ -139,6 +150,17 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  * proves it. That asymmetry is why `stable` here means "measured and not
  * disproved" and why the Slide, which took one run to disprove, outranks every
  * green in this table.
+ *
+ * WHICH DOCUMENTS THE GREENS WERE TAKEN ON IS PART OF THE EVIDENCE, and the
+ * `export-pdf` Slide renders to **2017 bytes** — a thin deck, with little in it
+ * to be unstable about. The `.pptx` of that same deck is 34833 bytes and the
+ * five members that moved there are `.rels` files and themes, i.e. packaging
+ * around not much content. A deck carrying images, embedded fonts or charts has
+ * more surface: font subset tags and image recompression are the places a PDF
+ * renderer is known to vary. So this green is real and narrower than it looks,
+ * and a richer deck is the measurement worth taking next (`DRIVE_FILE_ID` names
+ * one exactly). Recorded here rather than left for somebody to infer from a
+ * byte count.
  */
 export type ExportStability = 'stable' | 'unstable' | 'unmeasured';
 
@@ -163,12 +185,50 @@ export const EXPORT_STABILITY: Readonly<
     'application/vnd.google-apps.drawing': 'unmeasured',
   },
   'export-pdf': {
+    // All three editor types, byte-identical over five draws each. A PDF is not
+    // a zip, so there is no container to normalise and no second chance: these
+    // are greens on the bytes themselves, which is the strongest shape a green
+    // in this table can have. The Slide is the one that matters — it is the
+    // only measured way to carry a deck at all.
     'application/vnd.google-apps.document': 'stable',
-    'application/vnd.google-apps.spreadsheet': 'unmeasured',
-    'application/vnd.google-apps.presentation': 'unmeasured',
+    'application/vnd.google-apps.spreadsheet': 'stable',
+    'application/vnd.google-apps.presentation': 'stable',
     'application/vnd.google-apps.drawing': 'unmeasured',
   },
 };
+
+/**
+ * Every policy MEASURED stable for this type, in table order.
+ *
+ * This is what a refusal says instead of naming a policy by hand. The sentence
+ * it feeds used to read *"export-pdf is stable for a Doc"* — written when a Doc
+ * was the only thing measured, and still saying Doc to a customer whose DECK
+ * had just been refused. Deriving it means the sentence can only ever name a
+ * policy this table calls stable FOR THE TYPE IN FRONT OF IT, and that a
+ * measurement which goes the other way silently corrects the advice instead of
+ * leaving a stale promise in a string.
+ *
+ * Read off `EXPORT_STABILITY`'s own keys rather than a second list of policies,
+ * so a policy added to the table is considered here without being remembered.
+ *
+ * BOTH TABLES ARE CONSULTED, not just the stability one. A policy is only a way
+ * out if it can render this type AT ALL, and the two tables are maintained by
+ * hand: a `stable` sitting beside a rendering that does not exist would put a
+ * format in front of a customer that Drive would then refuse to produce. The
+ * guard in `a-deck-that-would-be-rewritten-nightly.unit.test.ts` holds the
+ * other direction — every rendering has a stability entry — and this holds
+ * this one.
+ */
+export function stablePoliciesFor(
+  mimeType: string,
+): ReadonlyArray<Exclude<NativeFilePolicy, 'refuse'>> {
+  const policies = Object.keys(EXPORT_STABILITY) as Exclude<NativeFilePolicy, 'refuse'>[];
+  return policies.filter(
+    (policy) =>
+      exportStabilityOf(policy, mimeType) === 'stable' &&
+      NATIVE_EXPORT_TYPES[policy][mimeType] !== undefined,
+  );
+}
 
 /**
  * How stable this policy's rendering of this type is, for a caller that has a

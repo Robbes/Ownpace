@@ -59,6 +59,7 @@ import {
   NATIVE_EXPORT_EXTENSIONS,
   NATIVE_EXPORT_TYPES,
   exportStabilityOf,
+  stablePoliciesFor,
   type DriveFile,
   type DriveFileList,
   type DriveTransport,
@@ -113,6 +114,43 @@ export const DRIVE_SHORTCUT_MIME = 'application/vnd.google-apps.shortcut';
  *     nothing;
  *   - a shortcut is a pointer to something else, not content.
  */
+/**
+ * WHAT TO DO ABOUT A REFUSED FILE, read off the measurements rather than
+ * written into the sentence.
+ *
+ * This used to be the fixed clause *"export-pdf is stable for a Doc and loses
+ * editability"*, which was true on the day a Doc was the only thing anyone had
+ * measured. It then said Doc to every customer whose SLIDES DECK had just been
+ * refused — the wrong file type, in the one sentence whose whole job is telling
+ * somebody what to do next. Two measurements later it would also have been
+ * needlessly bleak: a Doc refused under `export-odf` can go to `export-office`
+ * and STAY EDITABLE, and the fixed clause sent it to PDF.
+ *
+ * So the way out is derived per type, and the consequence is that a
+ * measurement is the only thing that can change this advice. A green that turns
+ * red later removes a recommendation nobody has to remember to withdraw.
+ *
+ * AN EMPTY LIST IS NOT A BUG and must not be read as one: a type with nothing
+ * measured stable genuinely has no way out through a policy today, and saying
+ * that is better than naming a format nobody has run. Every Drawing is in that
+ * position as this is written.
+ */
+function wayOutFor(kind: string, mimeType: string, refused: NativeFilePolicy): string {
+  const alternatives = stablePoliciesFor(mimeType).filter((policy) => policy !== refused);
+  const keepIt = `Move the ${kind} out of scope and keep it where it is.`;
+  if (alternatives.length === 0) {
+    return `No export policy is measured stable for a ${kind}, so there is no format to switch to. ${keepIt}`;
+  }
+  const named = alternatives.map((policy) => `"${policy}"`).join(' and ');
+  const verb = alternatives.length === 1 ? 'is' : 'are';
+  // The editability cost is attached to the policy that carries it rather than
+  // stated in general: "export-office" keeps a document editable and "export-pdf"
+  // does not, and a customer choosing between them needs that difference and not
+  // a blanket warning over both.
+  const cost = alternatives.includes('export-pdf') ? ' ("export-pdf" is not editable afterwards)' : '';
+  return `${named} ${verb} measured stable for a ${kind}${cost}. Switch the mapping's export policy, or: ${keepIt}`;
+}
+
 export class NativeFileRefused extends Error {
   constructor(
     name: string,
@@ -161,9 +199,8 @@ export class NativeFileRefused extends Error {
         `"${name}" is a Google ${kind}. Drive can export one under "${policy}", but the export ` +
         'is NOT byte-stable: exporting the same unchanged file twice gives two different ' +
         'results, measured on a real account. Copying it would make every later pass see a ' +
-        'change that did not happen and re-copy it, nightly, forever. "export-pdf" is stable ' +
-        `for a Doc and loses editability; otherwise move the ${kind} out of scope and keep it ` +
-        'where it is. This is a measurement, not a guess — see workplan 0042 T3.';
+        `change that did not happen and re-copy it, nightly, forever. ${wayOutFor(kind, mimeType, policy)} ` +
+        'This is a measurement, not a guess — see workplan 0042 T3.';
     } else {
       message =
         `"${name}" is a Google ${kind}, and the mapping's export policy (${policy}) has no ` +

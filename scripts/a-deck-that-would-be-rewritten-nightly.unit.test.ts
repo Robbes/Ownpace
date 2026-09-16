@@ -37,10 +37,21 @@
  * Only `unstable` refuses. `unmeasured` is recorded and NOT acted on, and that
  * is a deliberate product line rather than an oversight: refusing on absence of
  * a measurement would turn off a Drawing under `export-office` — which a
- * previous change deliberately made work — and would take `export-pdf` on
- * Sheets and Slides with it, the escape hatch an owner reaches for when
- * `export-office` will not do. A blank is a reason to go and measure. A red is
- * a reason to refuse.
+ * previous change deliberately made work — and would have taken `export-pdf` on
+ * Sheets and Slides with it. Those two were measured the day after, and both
+ * came back STABLE: the escape hatch would have been shut on no evidence, one
+ * day before the evidence arrived. A blank is a reason to go and measure. A red
+ * is a reason to refuse.
+ *
+ * ## The way out, which is the other half of a refusal
+ *
+ * A gate that names no alternative is a wall. `export-pdf` is measured stable
+ * on a Doc, a Sheet AND a Slide, so the deck this file is named after has a
+ * format that carries it — and the refusal says which, derived from the table
+ * by `stablePoliciesFor` rather than written into the sentence. It used to be
+ * written into the sentence, as *"export-pdf is stable for a Doc"*, and it told
+ * a customer whose DECK had been refused about a Doc. The last describe block
+ * here is what keeps the advice and the measurements the same thing.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -49,7 +60,9 @@ import { join } from 'node:path';
 import {
   EXPORT_STABILITY,
   NATIVE_EXPORT_TYPES,
+  NativeFileRefused,
   exportStabilityOf,
+  stablePoliciesFor,
 } from '@openmig/connectors';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -77,10 +90,31 @@ describe('what the measurements say, as the code reads them', () => {
     expect(exportStabilityOf('export-odf', `${G}document`)).toBe('unstable');
   });
 
+  it('holds all three editor types under export-pdf STABLE — the way out', () => {
+    // Measured 2026-09-16 on the owner's tenant, five draws each, byte-identical:
+    // Doc 195869, Sheet 54591, Slide 2017. The Slide is the one that matters —
+    // it is the only measured way to carry a deck at all, and it is what turns
+    // the `export-office` refusal above from a wall into a gate.
+    //
+    // A PDF is not a zip, so no container hash is involved in any of these:
+    // they are greens on the bytes themselves.
+    for (const kind of ['document', 'spreadsheet', 'presentation']) {
+      expect(exportStabilityOf('export-pdf', `${G}${kind}`), `export-pdf on a ${kind}`).toBe(
+        'stable',
+      );
+    }
+  });
+
   it('answers `unmeasured` for a type nobody has run, and for one not listed', () => {
     // The third answer, and the honest one. A table with two answers would have
     // had to guess for every blank.
-    expect(exportStabilityOf('export-pdf', `${G}presentation`)).toBe('unmeasured');
+    //
+    // Every Drawing is still blank, under every policy — the live example now
+    // that `export-pdf` on a Sheet and a Slide have been run. Whichever pair is
+    // used here, the point is the same: this must be a combination nobody has
+    // measured, or the test stops testing the third answer.
+    expect(exportStabilityOf('export-pdf', `${G}drawing`)).toBe('unmeasured');
+    expect(exportStabilityOf('export-odf', `${G}spreadsheet`)).toBe('unmeasured');
     expect(exportStabilityOf('export-office', 'application/vnd.google-apps.form')).toBe(
       'unmeasured',
     );
@@ -153,5 +187,83 @@ describe('the hash that makes the safe cases safe', () => {
       /rendering: true as const/g,
     );
     expect(hits?.length, 'the rendering marker has more than one writer').toBe(1);
+  });
+});
+
+describe('the way out a refusal offers, derived from the same table', () => {
+  it('sends a refused Slides deck to export-pdf, which is measured to carry it', () => {
+    // The whole point of measuring `export-pdf` on a Slide. Before that run the
+    // honest answer for a deck was "nothing will carry this"; now there is one,
+    // and this asserts the refusal actually says so.
+    const refused = new NativeFileRefused(
+      'Thema-avond',
+      `${G}presentation`,
+      'export-office',
+      'unstable',
+    );
+    expect(refused.message).toMatch(/"export-pdf" is measured stable for a presentation/);
+    expect(refused.message, 'the way out no longer names the editability cost').toMatch(
+      /not editable afterwards/,
+    );
+  });
+
+  it('does NOT tell that customer about a Doc, which is what it used to do', () => {
+    // The defect this replaced, asserted as an absence so it cannot come back
+    // by somebody re-hardcoding a clause that was true when they wrote it.
+    const refused = new NativeFileRefused(
+      'Thema-avond',
+      `${G}presentation`,
+      'export-office',
+      'unstable',
+    );
+    expect(
+      refused.message,
+      'the refusal for a presentation mentions a Doc — the advice has been hard-coded again, ' +
+        'and it is now the wrong file type for the person reading it',
+    ).not.toMatch(/\bDoc\b/);
+  });
+
+  it('offers a Doc refused under export-odf the EDITABLE way out first', () => {
+    // `export-office` is measured stable for a document and keeps it editable.
+    // The old fixed clause sent this case to PDF, which was needlessly lossy —
+    // deriving the advice fixed a second defect nobody had noticed.
+    const refused = new NativeFileRefused('Q3 report', `${G}document`, 'export-odf', 'unstable');
+    expect(refused.message).toMatch(/"export-office" and "export-pdf" are measured stable/);
+  });
+
+  it('never offers the policy that just refused the file', () => {
+    // Trivially true today (a refusing policy is `unstable` for that type, so
+    // it cannot be in the stable list) and worth pinning anyway: if the product
+    // line on `unmeasured` is ever revisited, "switch to the policy you are
+    // already on" is the first sentence that would appear.
+    for (const kind of ['document', 'spreadsheet', 'presentation']) {
+      const refused = new NativeFileRefused('x', `${G}${kind}`, 'export-pdf', 'unstable');
+      expect(refused.message, `export-pdf refusing a ${kind} recommends itself`).not.toMatch(
+        /"export-pdf" (is|and)/,
+      );
+    }
+  });
+
+  it('says plainly when nothing is measured stable, rather than naming a guess', () => {
+    // A Drawing: blank under every policy. The empty case has to read as an
+    // answer, because the alternative is a sentence recommending a format on
+    // the strength of a run nobody has done.
+    expect(stablePoliciesFor(`${G}drawing`)).toEqual([]);
+    const refused = new NativeFileRefused('Sketch', `${G}drawing`, 'export-office', 'unstable');
+    expect(refused.message).toMatch(/No export policy is measured stable for a drawing/);
+  });
+
+  it('only ever names a policy that can actually render the type', () => {
+    // Two hand-maintained tables. A `stable` beside a rendering that does not
+    // exist would put a format in front of a customer that Drive would then
+    // refuse to produce — a worse failure than the refusal it replaced.
+    for (const mime of Object.keys(EXPORT_STABILITY['export-office'])) {
+      for (const policy of stablePoliciesFor(mime)) {
+        expect(
+          NATIVE_EXPORT_TYPES[policy][mime],
+          `${policy} is offered as a way out for ${mime} and has no rendering for it`,
+        ).toBeDefined();
+      }
+    }
   });
 });
