@@ -33,7 +33,9 @@
   under `export-office` for measured instability, per item, inside the sync loop's boundary. The
   preflight counts what a policy will refuse and the confirm screen names it before the run
   (owner's decision, 2026-09-16). An **unmeasured** combination is recorded and NOT refused: a
-  blank is not a red, and refusing on one would turn off paths that work today.
+  blank is not a red, and refusing on one would turn off paths that work today. **The refused
+  deck has somewhere to go** — `export-pdf` was measured stable on a Slide the same day (see the
+  2026-09-16 addendum below), and the refusal names it, derived from the measurement table.
 - **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
   `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
   uncompressed bytes. Excluded — member timestamps, member order, compression method and level,
@@ -247,3 +249,42 @@ asked Drive to export is compared by its parts, by sha256 of inflated bytes, nev
 schemes, only for renderings we asked for. Those rules were never contingent on which editor
 type produced the file. What narrowed is the SET OF FILES the rules rescue, and therefore what
 an owner may be told `export-office` is good for.
+
+---
+
+## 2026-09-16, later still: the deck has a way out, and the refusal names it
+
+The section above ends on *"what an owner may be told `export-office` is good for"*. This is the
+other half of that sentence: what an owner may be told to do **instead**.
+
+`export-pdf` was measured the same day on the same tenant, on the same Sheet and the same Slide,
+five draws each, three seconds apart:
+
+| type | bytes | verdict |
+| --- | --- | --- |
+| Doc | 195869, one hash ×5 | **stable** (measured earlier) |
+| Sheet | 54591, one hash ×5 | **stable** |
+| Slide | 2017, one hash ×5 | **stable** |
+
+A PDF is not a zip, so **this ADR's hash is not involved in any of those greens**. They are
+byte-identical draws, settled by the ordinary whole-file sha256, and `containerContentHash`
+returning `null` on a non-zip is exactly what makes that work with no PDF-specific branch
+anywhere. The decision is untouched again; what changes is the shape of the refusal it produces.
+
+**A gate that names no alternative is a wall.** Until this run, `export-office` refusing a deck
+told a customer their decks could not be carried and offered nothing. Now the refusal names a
+format measured to carry the same file. The sentence is **derived** from the measurement table
+(`stablePoliciesFor`) rather than written out, because the written-out version had already gone
+stale: it read *"export-pdf is stable for a Doc"*, composed when a Doc was the only measurement
+in existence, and it said **Doc** to every customer whose **deck** had just been refused — the
+wrong file type, in the one sentence whose whole job is saying what to do next. Deriving it also
+corrected a second defect nobody had reported: a Doc refused under `export-odf` is now sent to
+`export-office`, measured stable for it and **still editable**, where the fixed clause sent it
+to PDF and lost that for no reason.
+
+**The evidence, stated at its real width.** The deck measured renders to 2017 bytes — a thin
+one. Its `.pptx` is 34833 bytes and the five members that moved there are `.rels` files and
+themes: packaging around not much content. Images, embedded fonts and charts are the surface a
+PDF renderer is known to vary on (font subset tags, image recompression), so a content-rich deck
+is a different question and an unmeasured one. The green is real, the asymmetry still holds, and
+the next measurement worth taking is named in workplan 0042 T3.
