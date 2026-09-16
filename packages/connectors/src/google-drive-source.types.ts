@@ -162,6 +162,49 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  * one exactly). Recorded here rather than left for somebody to infer from a
  * byte count.
  */
+/**
+ * THE NAME A PERSON CALLS EACH OF THESE, for the sentence they read.
+ *
+ * The refusals used to say "a Google presentation", which is the MIME suffix
+ * with a space in front of it. Nobody calls it that. Google calls the product
+ * Slides, people call the file a deck, and a customer scanning a failures queue
+ * for the thing they are missing is looking for the word they use, not the word
+ * our URL scheme uses.
+ *
+ * ## Why this is not the same map the ledger uses
+ *
+ * `migration_discovery.refused_native` is keyed by that MIME suffix —
+ * `{"presentation": 3}` — on purpose: a stored key is provider-shaped and stays
+ * still, and the screen translates it (`discovery.refusedNative.kind.*`, both
+ * locales). This map is for the ENGLISH sentence the connector writes into a
+ * failure row verbatim, which no locale file touches. Two maps, two jobs; the
+ * ledger key must not start reading "Slides deck".
+ *
+ * ## Only the four a policy can render, and that is the rule
+ *
+ * For a Form, a Site, a My Map or an Apps Script the suffix IS the word people
+ * use — "a Google form", "a Google site" — and those refusals say the same
+ * thing whatever the noun: Drive will not export this in any format, ever. It
+ * is the four EDITOR types where the suffix actively misleads, because those
+ * are the refusals that ask somebody to choose a policy, and choosing one means
+ * first recognising which of your files this is about. "A Google presentation"
+ * is nobody's name for a deck.
+ *
+ * Anything unlisted falls back to the suffix, so a Google product nobody has
+ * met yet still produces a sentence rather than a gap.
+ */
+const NATIVE_FILE_WORDS: Readonly<Record<string, string>> = {
+  'application/vnd.google-apps.document': 'Doc',
+  'application/vnd.google-apps.spreadsheet': 'Sheet',
+  'application/vnd.google-apps.presentation': 'Slides deck',
+  'application/vnd.google-apps.drawing': 'Drawing',
+};
+
+/** What to call this file in a sentence somebody reads. */
+export function nativeFileWord(mimeType: string): string {
+  return NATIVE_FILE_WORDS[mimeType] ?? mimeType.slice('application/vnd.google-apps.'.length);
+}
+
 export type ExportStability = 'stable' | 'unstable' | 'unmeasured';
 
 export const EXPORT_STABILITY: Readonly<

@@ -201,7 +201,10 @@ describe('the way out a refusal offers, derived from the same table', () => {
       'export-office',
       'unstable',
     );
-    expect(refused.message).toMatch(/"export-pdf" is measured stable for a presentation/);
+    // "Slides deck", not "presentation": the sentence calls the file what its
+    // owner calls it (`nativeFileWord`), because a refusal that asks somebody
+    // to choose a policy starts with them recognising which file it means.
+    expect(refused.message).toMatch(/"export-pdf" is measured stable for a Slides deck/);
     expect(refused.message, 'the way out no longer names the editability cost').toMatch(
       /not editable afterwards/,
     );
@@ -250,7 +253,7 @@ describe('the way out a refusal offers, derived from the same table', () => {
     // the strength of a run nobody has done.
     expect(stablePoliciesFor(`${G}drawing`)).toEqual([]);
     const refused = new NativeFileRefused('Sketch', `${G}drawing`, 'export-office', 'unstable');
-    expect(refused.message).toMatch(/No export policy is measured stable for a drawing/);
+    expect(refused.message).toMatch(/No export policy is measured stable for a Drawing/);
   });
 
   it('only ever names a policy that can actually render the type', () => {
