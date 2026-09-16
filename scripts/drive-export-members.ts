@@ -41,6 +41,19 @@
  * A PDF is not a zip and gets `null` from `readZipMembers`, which is not a
  * failure — it is the honest answer, and the caller says so rather than
  * pretending it looked.
+ *
+ * NOTHING HERE IS A `contentHash`, AND NOTHING HERE MAY BECOME ONE. The CRC-32
+ * this reads is free because the zip index already stores it, and it is the
+ * right instrument for "what moved" — a wrong answer there costs a re-run. A
+ * `contentHash` answers "are these the same file" and decides whether a
+ * customer's document is rewritten; CRC-32 is 32 bits and is not
+ * collision-resistant, so deriving one from this would be a real defect
+ * wearing the shape of an optimisation. That hash is
+ * `packages/shared/src/container-hash.ts`, it inflates each member and takes a
+ * sha256, and ADR-0046 rule (b) says so in one line. The distinction is
+ * guarded by `a-content-hash-built-from-thirty-two-bits.unit.test.ts`, which
+ * reads both files — because swapping sha256 for CRC-32 passes every
+ * behavioural test there is, and that was measured rather than assumed.
  */
 
 import { createHash } from 'node:crypto';
