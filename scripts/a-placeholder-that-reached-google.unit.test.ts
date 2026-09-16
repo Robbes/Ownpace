@@ -20,11 +20,32 @@
  * The middle one is the one that matters. A silent fallback would report a
  * Doc's stability under the heading of a Sheet's — the same class of error as
  * the run that prompted this, and harder to notice.
+ *
+ * ## The same evening, the same mistake, one reason later
+ *
+ * `DRIVE_FILE_KIND` removed the need to name a file — as long as ANY file of
+ * that kind would do. It stopped being true the moment which document mattered.
+ * `export-pdf` measured `stable` on a Slides deck rendering to **2017 bytes**,
+ * a deck with almost nothing in it to be unstable about, because "first of that
+ * kind" is a document nobody chose. Measuring a richer one meant naming it,
+ * naming it meant an id, and the id went into a written instruction as
+ * `PASTE_DECK_ID_HERE` — which was pasted, run, and answered 404 by Drive,
+ * exactly as `sheet-file-id` had that morning.
+ *
+ * Twice in one day is a pattern, and the pattern is that any instruction
+ * carrying a blank to fill in will eventually be run with the blank still in
+ * it. `DRIVE_PICK=largest` is the fix: the script finds a substantial document
+ * itself, so the instruction has no blank. `candidatesToWeigh` is the part of
+ * that which can be tested without a Drive, and the tests for it are at the
+ * bottom of this file rather than in a new one, because it is the same defect.
  */
 
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   KIND_MIME_TYPES,
+  candidatesToWeigh,
   chooseFile,
   readKind,
   type ChoosableFile,
@@ -108,5 +129,84 @@ describe('chooseFile', () => {
     expect(outcome.ok).toBe(false);
     expect(outcome.ok === false && outcome.reason).toContain('no export mapping for a sheet');
     expect(outcome.ok === false && outcome.reason).toContain('not about your Drive');
+  });
+});
+
+describe('candidatesToWeigh — choosing a document with something in it', () => {
+  it('keeps only the asked-for kind, so a Doc cannot be weighed against a deck', () => {
+    // Sizes across kinds are not comparable: a long Doc outweighs any deck and
+    // would win every time, answering a question about Slides with a Doc.
+    const got = candidatesToWeigh(ALL, OFFICE, 'slide', 25);
+    expect(got.ok && got.file).toEqual([SLIDE]);
+  });
+
+  it('keeps every exportable kind when none was asked for', () => {
+    // No kind is a real choice, not an omission, and it must not silently
+    // become one kind. The PDF and the Drawing still go: neither is exportable
+    // under this policy, so weighing them would weigh nothing.
+    const got = candidatesToWeigh(ALL, OFFICE, undefined, 25);
+    expect(got.ok && got.file).toEqual([DOC, SHEET, SLIDE]);
+  });
+
+  it('CAPS the list, because every candidate costs a real export', () => {
+    // The one that protects somebody's Drive and their rate budget. Without it
+    // "measure a good deck" becomes "export every deck you own", which is not a
+    // decision a measurement script may take by itself.
+    const many = Array.from({ length: 40 }, (_, i) => ({ ...SLIDE, id: `p${i}` }));
+    const got = candidatesToWeigh(many, OFFICE, 'slide', 5);
+    expect(got.ok && got.file).toHaveLength(5);
+  });
+
+  it('treats a limit of zero or less as a typo, not as "weigh nothing"', () => {
+    // An empty list would strand the caller with "nothing to measure" for a
+    // reason that has nothing to do with their Drive — a confusing dead end
+    // from a stray character.
+    for (const limit of [0, -3, Number.NaN]) {
+      const got = candidatesToWeigh(ALL, OFFICE, 'slide', limit);
+      expect(got.ok && got.file, `limit ${limit}`).toHaveLength(1);
+    }
+  });
+
+  it('refuses a kind the policy cannot export, in the same words chooseFile uses', () => {
+    // A policy with no rendering for a type is a fact about the policy. Both
+    // entry points say so identically, so a reader who has met one recognises
+    // the other.
+    const pdfOnly: Record<string, string> = { [KIND_MIME_TYPES.doc]: 'pdf' };
+    const got = candidatesToWeigh(ALL, pdfOnly, 'slide', 25);
+    expect(got.ok).toBe(false);
+    expect(!got.ok && got.reason).toMatch(/fact about the policy, not about your Drive/);
+  });
+
+  it('refuses an empty result with a way forward, rather than measuring nothing', () => {
+    // "No decks here" is not an error in the Drive; it is a reason to stop and
+    // a thing the operator can act on. The refusal names both routes out.
+    const got = candidatesToWeigh([PDF, DRAWING], OFFICE, 'slide', 25);
+    expect(got.ok).toBe(false);
+    expect(!got.ok && got.reason).toMatch(/Unset DRIVE_PICK/);
+  });
+});
+
+describe('the instruction still needs no blank to fill in', () => {
+  const script = readFileSync(join(import.meta.dirname, 'drive-export-stability.ts'), 'utf8');
+
+  it('refuses DRIVE_FILE_ID together with DRIVE_PICK, rather than picking one', () => {
+    // Both name a document. Letting either win silently would make the output
+    // a lie about which document was measured — the same shape as the typo'd
+    // kind falling back, which is what the middle test above exists for.
+    expect(script).toMatch(/DRIVE_FILE_ID names one document and DRIVE_PICK=largest/);
+  });
+
+  it('prints neither a name nor an id when it picks for you', () => {
+    // This output gets pasted into workplans and issues. The run already prints
+    // the mime type and the timestamp rather than the name and the id, and the
+    // picker must not undo that by announcing which file it found.
+    const picker = script.slice(script.indexOf('async function pickLargest'));
+    const body = picker.slice(0, picker.indexOf('\n}'));
+    // Matches through any depth of property access — `${file.name}` and
+    // `${best.file.name}` alike. The first draft of this anchored on `\w+\.name`
+    // and therefore passed while a mutation printed `${best.file.name}`: a
+    // guard that asserts nothing is worse than no guard, because it is counted.
+    expect(body, 'pickLargest prints a file name').not.toMatch(/\$\{[^}]*\.name\b/);
+    expect(body, 'pickLargest prints a file id').not.toMatch(/\$\{[^}]*\.id\b/);
   });
 });

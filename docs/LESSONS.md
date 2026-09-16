@@ -1126,6 +1126,7 @@ reading a file drops off its entry by itself.
 ### `scripts/drive-export-stability.ts`
 
 - [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts) — A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
+- [a-placeholder-that-reached-google](../scripts/a-placeholder-that-reached-google.unit.test.ts) — A guard that the measurement can be aimed by kind, so no instruction for it has to carry a placeholder.
 - [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts) — THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
 - [two-draws-that-could-agree-by-accident](../scripts/two-draws-that-could-agree-by-accident.unit.test.ts) — TWO DRAWS OF A ONE-BYTE WOBBLE CAN AGREE, AND THE SCRIPT WOULD HAVE CALLED THAT STABLE.
 
@@ -1792,6 +1793,7 @@ A guard that the measurement can be aimed by kind, so no instruction for it has 
 Reads:
 
 - `scripts/drive-export-choose.ts`
+- `scripts/drive-export-stability.ts`
 
 ### [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts)
 

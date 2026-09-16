@@ -73,6 +73,22 @@
  *                           are set. A typo REFUSES rather than falling back —
  *                           see `drive-export-choose.ts` for why, and for the
  *                           run that made it necessary.
+ *   DRIVE_PICK              optional — `largest`: instead of taking the FIRST
+ *                           file of the kind, export every candidate ONCE and
+ *                           measure the biggest. A measurement is only as wide
+ *                           as the document it was taken on, and "the first
+ *                           one found" is a document nobody chose: the Slides
+ *                           deck that answered `export-pdf` on 2026-09-16
+ *                           rendered to 2017 bytes, which is a deck with very
+ *                           little in it to be unstable about. This finds a
+ *                           document with something in it WITHOUT anybody
+ *                           pasting an id, which is the other half of why it
+ *                           exists — a placeholder in a command block is a
+ *                           command that gets run verbatim.
+ *   DRIVE_PICK_LIMIT        optional — how many candidates `largest` may
+ *                           export to choose between. Default 25. Each one
+ *                           costs a real export, so this is a spend, and it is
+ *                           capped rather than unbounded.
  *   DRIVE_ROOT_FOLDER_ID    optional — where to search. Unset means My Drive.
  *   DRIVE_EXPORT_POLICY     optional — `export-office` (default), `export-odf`
  *                           or `export-pdf`. Measure EACH before trusting any:
@@ -123,13 +139,15 @@ import {
   readZipMembers,
   type ZipMember,
 } from './drive-export-members.ts';
-import { chooseFile, readKind } from './drive-export-choose.ts';
+import { KIND_MIME_TYPES, candidatesToWeigh, chooseFile, readKind } from './drive-export-choose.ts';
 import { stabilityVerdict, type ExportSample } from './drive-export-verdict.ts';
 
 const ROOT = process.env.DRIVE_ROOT_FOLDER_ID || 'root';
 const GAP_MS = Number(process.env.DRIVE_EXPORT_GAP_MS ?? 3000);
 const SAMPLES = Number(process.env.DRIVE_EXPORT_SAMPLES ?? 5);
 const POLICY = (process.env.DRIVE_EXPORT_POLICY || 'export-office') as GoogleNativeFilePolicy;
+const PICK = (process.env.DRIVE_PICK || '').trim().toLowerCase();
+const PICK_LIMIT = Number(process.env.DRIVE_PICK_LIMIT ?? 25);
 const KIND_READ = readKind(process.env.DRIVE_FILE_KIND);
 const BASE = 'https://www.googleapis.com/drive/v3';
 
@@ -270,10 +288,104 @@ const recorder = CAPTURE_FILE
   : undefined;
 const transport = recorder ? recorder.transport : googleDriveTransport(tokens);
 
+/**
+ * THE BIGGEST RENDERING OF THE REQUESTED KIND, found by exporting each once.
+ *
+ * ## Why "biggest", when the question is about stability
+ *
+ * A green in `EXPORT_STABILITY` is exactly as wide as the document it was taken
+ * on, and taking it on whatever Drive listed first means taking it on a
+ * document nobody chose. That is how `export-pdf` came to be recorded `stable`
+ * for a Slides deck on a deck that renders to **2017 bytes** — a title and not
+ * much else, with almost no surface to be unstable about. A deck carrying
+ * images, embedded fonts or charts has far more: font subset tags and image
+ * recompression are where a PDF renderer is known to differ between draws.
+ *
+ * Size is a PROXY for that surface, not a measure of it, and saying so matters.
+ * A 4 MB deck of one photograph has less varying structure than a 400 KB deck
+ * of thirty charts. But it is a proxy available for one export apiece, needing
+ * no parsing and no judgement about what "content-rich" means, and it is a very
+ * great deal better than first-found.
+ *
+ * ## Why size is measured rather than read
+ *
+ * Drive reports NO `size` for a native editor file — a Google Doc has no bytes
+ * until somebody asks for some — so there is no field to sort on. The rendering
+ * has to exist before it can be weighed, which is why this costs an export per
+ * candidate and why `DRIVE_PICK_LIMIT` caps how many.
+ *
+ * ## What it prints, and what it deliberately does not
+ *
+ * A count and a size. No names and no ids, exactly as the run below: this
+ * output gets pasted into workplans and issues, and a document's name is the
+ * most identifying thing about it. The operator knows which Drive they pointed
+ * it at.
+ */
+async function pickLargest(candidates: readonly DriveFile[]): Promise<DriveFile> {
+  // Through the connector with the stability refusal lifted, for the same
+  // reason the measurement below does it: this is the instrument, and a
+  // candidate the table calls `unstable` is still a candidate for measuring.
+  const source = new GoogleDriveSource(
+    transport,
+    { rootFolderId: ROOT, nativeFilePolicy: POLICY },
+    { exportDespiteMeasuredInstability: true },
+  );
+
+  console.log(
+    `  weighing ${candidates.length} candidate(s) under "${POLICY}" — one export each, to ` +
+      'choose a document with something in it',
+  );
+
+  let best: { file: DriveFile; bytes: number } | undefined;
+  let refused = 0;
+  for (const file of candidates) {
+    let got;
+    try {
+      got = await source.fetch({
+        path: file.name,
+        isDirectory: false,
+        size: 0,
+        modifiedAt: file.modifiedTime ?? new Date(0).toISOString(),
+        sourceRef: file.id,
+      });
+    } catch {
+      // One candidate failing is not the run failing. A file the grant cannot
+      // read, or one Drive declines to render today, simply is not the one
+      // being measured — and turning that into a dead run would make the whole
+      // option useless on any Drive with a single awkward file in it.
+      refused += 1;
+      continue;
+    }
+    const bytes = got.content?.byteLength ?? 0;
+    if (!best || bytes > best.bytes) best = { file, bytes };
+  }
+
+  if (!best) {
+    fail(
+      `None of the ${candidates.length} candidate(s) could be exported under "${POLICY}", so ` +
+        'there is nothing to measure. That is a fact about this policy and these files, not ' +
+        'about the script — try another policy, or unset DRIVE_PICK to measure the first file ' +
+        'found instead.',
+    );
+  }
+
+  const skipped = refused > 0 ? `, ${refused} could not be exported` : '';
+  console.log(`  ✔ largest renders to ${best.bytes} bytes${skipped}\n`);
+  return best.file;
+}
+
 /** The first native editor file under the root, or the one that was named. */
 async function pickDocument(): Promise<DriveFile> {
   const named = process.env.DRIVE_FILE_ID;
   if (named) {
+    if (PICK === 'largest') {
+      // Both name a document, and silently letting one win would make the
+      // output a lie about which was measured.
+      fail(
+        'DRIVE_FILE_ID names one document and DRIVE_PICK=largest searches for another, so ' +
+          'only one of them can be what gets measured. Set one or the other.',
+      );
+    }
     const response = await transport(
       `${BASE}/files/${encodeURIComponent(named)}?fields=id,name,mimeType,modifiedTime`,
     );
@@ -291,7 +403,17 @@ async function pickDocument(): Promise<DriveFile> {
     return file;
   }
 
-  const q = `'${ROOT}' in parents and trashed=false`;
+  // THE SEARCH WIDENS FOR `largest`, and only for it. The default stays one
+  // folder deep, because "the first file under here" is a promise about a place
+  // the operator named. `largest` is a promise about a DOCUMENT instead — the
+  // most substantial one the grant can see — and keeping that inside one folder
+  // would mean the richest deck in the Drive loses to whatever happens to sit
+  // beside it at the top level. An explicit DRIVE_ROOT_FOLDER_ID still pins the
+  // parent either way: a named folder is a scope somebody chose.
+  const parent = PICK === 'largest' && ROOT === 'root' ? '' : `'${ROOT}' in parents and `;
+  const kindFilter =
+    PICK === 'largest' && KIND ? `mimeType = '${KIND_MIME_TYPES[KIND]}' and ` : '';
+  const q = `${parent}${kindFilter}trashed=false`;
   const fields = 'files(id,name,mimeType,modifiedTime)';
   const response = await transport(
     `${BASE}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&pageSize=200`,
@@ -305,8 +427,16 @@ async function pickDocument(): Promise<DriveFile> {
   // with no export mapping, so picking one would refuse — correctly, and
   // answering a question nobody asked. See `drive-export-choose.ts`.
   const exportable = NATIVE_EXPORT_TYPES[POLICY as Exclude<GoogleNativeFilePolicy, 'refuse'>];
+  const native = found.filter((f) => isNativeEditorFile(f.mimeType));
+
+  if (PICK === 'largest') {
+    const candidates = candidatesToWeigh(native, exportable, KIND, PICK_LIMIT);
+    if (!candidates.ok) fail(candidates.reason);
+    return pickLargest(candidates.file);
+  }
+
   const chosen = chooseFile(
-    found.filter((f) => isNativeEditorFile(f.mimeType)),
+    native,
     exportable,
     KIND,
     ROOT === 'root' ? 'My Drive' : ROOT,

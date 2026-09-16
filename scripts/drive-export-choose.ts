@@ -133,3 +133,68 @@ export function chooseFile<T extends ChoosableFile>(
   }
   return { ok: true, file: first };
 }
+
+/**
+ * WHICH FILES A `largest` RUN MAY WEIGH, and how many of them.
+ *
+ * `chooseFile` above answers "which one", for a run that takes the first file
+ * of a kind. This answers "which several", for a run that exports each once and
+ * measures the biggest — and it exists for the same reason `chooseFile` does.
+ *
+ * The header of `a-placeholder-that-reached-google.unit.test.ts` records the
+ * first half of that reason: a placeholder in a pasted command is a trap, and
+ * `DRIVE_FILE_KIND` removed the need for one. The second half arrived the same
+ * evening. `export-pdf` measured `stable` on a Slides deck that renders to 2017
+ * bytes — a deck with almost nothing in it — because "first file of that kind"
+ * is a document nobody chose. Measuring a richer one meant naming it, naming it
+ * meant an id, and an id in an instruction meant a placeholder again: the
+ * literal `PASTE_DECK_ID_HERE` reached Drive and got its 404, one written
+ * instruction after the last one did.
+ *
+ * So the way to pick a substantial document must not be an id either. This is
+ * the filtering half of that; the weighing half needs real exports and lives in
+ * the script.
+ *
+ * ## The limit is not a detail
+ *
+ * Every candidate costs a real export against somebody's Drive and their rate
+ * budget. An unbounded list would turn "measure a good deck" into a full export
+ * of every deck they own, which is not a thing a measurement script may decide
+ * to do on its own. The cap is required rather than optional for that reason —
+ * there is no sentinel here meaning "all of them".
+ */
+export function candidatesToWeigh<T extends ChoosableFile>(
+  files: readonly T[],
+  exportable: Readonly<Record<string, unknown>>,
+  kind: DriveFileKind | undefined,
+  limit: number,
+): ChoiceOutcome<readonly T[]> {
+  const wanted = kind ? KIND_MIME_TYPES[kind] : undefined;
+  if (wanted && !exportable[wanted]) {
+    // Word for word the refusal `chooseFile` gives, because it is the same
+    // fact: this policy renders nothing for this type. A reader who has seen
+    // one should recognise the other.
+    return {
+      ok: false,
+      reason:
+        `"${kind}" has no export mapping under this policy, so there is nothing to weigh. ` +
+        'That is a fact about the policy, not about your Drive.',
+    };
+  }
+
+  const matching = files.filter((f) => (wanted ? f.mimeType === wanted : exportable[f.mimeType]));
+  if (matching.length === 0) {
+    return {
+      ok: false,
+      reason:
+        `No ${kind ? `Google ${kind}` : 'exportable native editor file'} found to weigh. ` +
+        'Unset DRIVE_PICK to measure the first file found instead, or point ' +
+        'DRIVE_ROOT_FOLDER_ID somewhere that has one.',
+    };
+  }
+
+  // A limit below one is a typo, not an instruction to do nothing: answering
+  // with an empty list would strand the caller with "nothing to measure" for a
+  // reason that has nothing to do with their Drive.
+  return { ok: true, file: matching.slice(0, Math.max(1, Math.floor(limit) || 1)) };
+}
