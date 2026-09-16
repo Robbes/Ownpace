@@ -111,7 +111,20 @@ jobs:
           # while `apple-setup.md` cited three workplans; the failure only
           # surfaced on a later branch that happened to touch code.
           #
-          # Deliberately NOT `docs/**`: workplans, ADRs and architecture notes
+          # `docs/LESSONS.md` and `docs/adr/**` added 2026-09-16, by the same
+          # rule and after the same defect in two more places. Both are read by
+          # tests: `lessons.unit.test.ts` compares LESSONS.md against a fresh
+          # regeneration, and `adr-operative.unit.test.ts` assembles OPERATIVE.md
+          # from every ADR's own `## Operative rules` block. So a docs-only
+          # change to either CAN break a unit test, and this filter was skipping
+          # it — #772's defect exactly, in two places nobody had re-checked.
+          # It bit for real: #968 and #969 each added a guard and each
+          # regenerated LESSONS.md against a base without the other, so main
+          # landed on a count of 133 against 134 guard files and CI run #2654
+          # went red. The one-line fix could not prove itself either, because
+          # THAT pull request was docs-only too.
+          #
+          # Deliberately still NOT `docs/**`: workplans and architecture notes
           # are read by nothing, and un-skipping the suite for them would give
           # every prose commit a nine-minute test run for no assertion. The
           # rule is narrow on purpose — a doc a TEST reads is code's business.
@@ -120,6 +133,8 @@ jobs:
           # `#` line is a PATTERN rather than a comment.
           files: |
             docs/*-setup.md
+            docs/LESSONS.md
+            docs/adr/**
             **.ts
             **.tsx
             **.js

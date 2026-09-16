@@ -8,17 +8,33 @@
  * architecture notes are read by nobody but people, and running a nine-minute
  * suite over a prose commit buys no assertion.
  *
- * **It is wrong for exactly one family.** `end-user-docs.unit.test.tsx` reads
- * `docs/*-setup.md` through the same `import.meta.glob` the customer-facing
- * `/docs` page uses, and asserts those guides cite no workplan, no ADR and no
- * edition aside — because a customer cannot open any of those. Those documents
- * are inputs to a test, which makes them code's business however much they
- * look like prose.
+ * **It is wrong for three families**, and this file said "exactly one" until
+ * 2026-09-16, when the second one went red on main. All three are documents
+ * that a test READS, which makes them code's business however much they look
+ * like prose:
+ *
+ *   1. `docs/*-setup.md` — `end-user-docs.unit.test.tsx` reads them through the
+ *      same `import.meta.glob` the customer-facing `/docs` page uses, and
+ *      asserts they cite no workplan, no ADR and no edition aside, because a
+ *      customer cannot open any of those.
+ *   2. `docs/LESSONS.md` — `lessons.unit.test.ts` compares it against a fresh
+ *      regeneration. It is build output; a stale copy is a red guard.
+ *   3. `docs/adr/*.md` — `adr-operative.unit.test.ts` assembles `OPERATIVE.md`
+ *      from every ADR's own `## Operative rules` block. Editing that block
+ *      without regenerating is a red guard, and an ADR edit is prose-shaped.
  *
  * Observed 2026-09-04 on PR #772: `apple-setup.md` cited three workplans, the
  * guard was red, the change was docs-only, and `ci-complete` reported success.
  * The failure surfaced a branch later, on a commit that happened to touch a
  * `.ts` file — which is to say it surfaced by luck, and on the wrong PR.
+ *
+ * Observed again 2026-09-16, on family (2), and worse. #968 and #969 each added
+ * a guard and each regenerated `LESSONS.md` against a base without the other,
+ * so main landed on a count of 133 against 134 guard files and CI run #2654
+ * went red. The one-line fix could not prove itself either: THAT pull request
+ * was docs-only, so the suite containing the drift guard was skipped on it too.
+ * Family (3) had not fired yet — #966 and #967 both edited ADRs and regenerated
+ * `OPERATIVE.md` with their code lanes skipped, and were simply correct.
  *
  * ## What this holds
  *
@@ -95,7 +111,35 @@ function selectedBy(patterns: ReadonlyArray<string>, path: string): boolean {
   });
 }
 
+/** Documents read by a test that are named directly rather than globbed. */
+const DIRECTLY_READ: ReadonlyArray<{ readonly path: string; readonly reader: string }> = [
+  { path: 'docs/LESSONS.md', reader: 'scripts/lessons.unit.test.ts' },
+  // One real ADR, not a pattern: the question is whether the filter selects an
+  // ADR at all, and naming a file that exists keeps the assertion honest.
+  {
+    path: 'docs/adr/0046-a-rendering-is-compared-by-its-parts.md',
+    reader: 'scripts/adr-operative.unit.test.ts',
+  },
+];
+
 describe('a document a test reads is not a docs-only change', () => {
+  it('every document read by name is on a path CI runs tests for', () => {
+    const patterns = filterPatterns();
+    for (const { path, reader } of DIRECTLY_READ) {
+      expect(
+        readdirSync(join(REPO_ROOT, dirname(path))).includes(path.split('/').pop()!),
+        `${path} does not exist — this guard names it because ${reader} reads it`,
+      ).toBe(true);
+      expect(
+        selectedBy(patterns, path),
+        `${path} is read by ${reader}, but no detect-changes pattern selects it. A docs-only ` +
+          'change to it will SKIP the unit suite, so the guard that reads it cannot go red ' +
+          'and ci-complete will report success over a broken one. Add a pattern covering it ' +
+          'to the `files:` block in .github/workflows/ci.yml.',
+      ).toBe(true);
+    }
+  });
+
   it('every customer guide the web test globs is on a path CI runs tests for', () => {
     const patterns = filterPatterns();
     const globs = guideGlobsTheTestReads();
@@ -135,6 +179,11 @@ describe('a document a test reads is not a docs-only change', () => {
       'the filter now selects workplans, so every prose commit runs the whole suite for no ' +
         'assertion. The rule is meant to be narrow: a doc a TEST reads, and nothing else.',
     ).toBe(false);
-    expect(selectedBy(patterns, 'docs/adr/0041-google-client.md')).toBe(false);
+    expect(selectedBy(patterns, 'docs/architecture/solution-architecture.md')).toBe(false);
+    // ADRs were on this list until 2026-09-16 and have moved to the other one.
+    // Not a widening of the rule — a correction of a fact: `adr-operative.mjs`
+    // assembles OPERATIVE.md from every ADR's `## Operative rules` block, so an
+    // ADR edit can break a guard. It always could; nobody had re-checked.
+    expect(selectedBy(patterns, 'docs/adr/0041-who-owns-the-oauth-client.md')).toBe(true);
   });
 });
