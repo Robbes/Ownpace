@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 131 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 132 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -1067,6 +1067,10 @@ reading a file drops off its entry by itself.
 ### `scripts/dav-target-probe.mjs`
 
 - [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
+
+### `scripts/drive-export-members.ts`
+
+- [the-member-that-moved-inside-an-unchanged-document](../scripts/the-member-that-moved-inside-an-unchanged-document.unit.test.ts) — A guard that an unstable export can name the part of itself that moved.
 
 ### `scripts/drive-export-stability.ts`
 
@@ -2481,6 +2485,14 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/smoke-managed.sh`
+
+### [the-member-that-moved-inside-an-unchanged-document](../scripts/the-member-that-moved-inside-an-unchanged-document.unit.test.ts)
+
+A guard that an unstable export can name the part of itself that moved.
+
+Reads:
+
+- `scripts/drive-export-members.ts`
 
 ### [the-moment-pressed](../scripts/the-moment-pressed.unit.test.ts)
 
