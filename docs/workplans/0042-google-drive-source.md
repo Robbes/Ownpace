@@ -4,13 +4,13 @@
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 decide the FOUR questions that have no precedent here | 🟡 **Three answered by building; Q3 is the only one still open, and it is blocked on the owner** | **Q1 delta — answered by T1:** per-folder enumeration, no `changes.list`, on the WebDAV precedent. **Q2 identity — answered by T2 and [ADR-0030](../adr/0030-relocation-is-positive-evidence.md):** the path-shaped natural key is KEPT, and the gap that made `fileId` look necessary is closed by correlating a rename to its arrival by content hash instead of by changing how every provider is keyed. **Q4 `removed` semantics — answered by T4:** the Drive source never populates `removed`, so a scope or access change cannot become destructive evidence; absence-counting does its slower, corroborated job. **Q3 native files — FIRST MEASUREMENT TAKEN 2026-09-16, and it settles one of the three:** `export-odf` is NOT byte-stable. Two exports of the same unchanged Doc, three seconds apart, differed in LENGTH — 3127560 vs 3127558 bytes — and so in hash; reproduced on a second run the same day (3127561, 3127560). **One counterexample settles a policy here**, because enabling one needs stability for EVERY document, not for most of them: the claim being tested is universal, so a single document that breaks it is the whole answer. `refuse` therefore stands for `export-odf` on measured grounds rather than on caution. `export-office` and `export-pdf` are still unmeasured and still refuse. See T3 and T6. |
+| T0 decide the FOUR questions that have no precedent here | 🟡 **Three answered by building; Q3 is the only one still open, and it is blocked on the owner** | **Q1 delta — answered by T1:** per-folder enumeration, no `changes.list`, on the WebDAV precedent. **Q2 identity — answered by T2 and [ADR-0030](../adr/0030-relocation-is-positive-evidence.md):** the path-shaped natural key is KEPT, and the gap that made `fileId` look necessary is closed by correlating a rename to its arrival by content hash instead of by changing how every provider is keyed. **Q4 `removed` semantics — answered by T4:** the Drive source never populates `removed`, so a scope or access change cannot become destructive evidence; absence-counting does its slower, corroborated job. **Q3 native files — ANSWERED 2026-09-16, all three renderers measured against one real Doc.** `export-odf` NOT byte-stable (three sizes in a four-byte window across four draws). `export-office` NOT byte-stable (17644 bytes every time, five different hashes over five draws — a fixed-width field overwritten in place). `export-pdf` produced **identical bytes five times**, the first policy ever to survive this measurement. **One counterexample settles a policy against**, because enabling one needs stability for EVERY document: the claim is universal, so a single document that breaks it is the whole answer. Five identical draws are NOT the mirror image — one document, one type, one tenant, one day. So `refuse` stays the default for all three: measured for two, and a much narrower caution for the third. Enabling `export-pdf` is a decision the owner has not taken, and it wants a Sheet and a Slide measured first. See T3 and T6. |
 | T1 the delta shape: a per-drive changes feed behind a per-folder port | 🟢 **Sidestepped for the first slice** | The slice enumerates per folder like `WebdavFileSource` and lets the natural key + ledger give idempotency — a pass costs a listing per folder and creates zero on the second run. Slower than a delta, and correct, which is the right order. `changes.list` remains unbuilt and unneeded until someone measures that the listing cost hurts. |
 | T2 identity: opaque fileId vs the path-shaped natural key | ✅ **Done 2026-08-15 — path key kept, and the real gap found and CLOSED** | The audit's finding, verified by running it: a renamed file was not correlated at all, so it became an absence and — two clean scans later — a reported DELETION of a file plainly still there, carrying `inferred` evidence that ADR-0024 gate 3 refuses. A moved file was correlated and its only action was `keep`. Either way the target kept a stale copy nothing could remove. **[ADR-0030](../adr/0030-relocation-is-positive-evidence.md) was proposed, accepted by the owner the same day, and built**: relocations are recorded by natural key, a rename in place is now one move report instead of a phantom deletion, and `apply` removes the old copy under every ADR-0024 gate plus one that re-checks the arrival is ours and unchanged. ~~Appliance only~~ **Managed route built 2026-08-16**: `POST …/moves/{hash}/apply` + the `run-apply-relocation` job + an action-discriminated receipt (migration 0010), and the Moves screen offers the action in both editions. **Then audited twice more, because the first build of a destructive path is not the one to trust.** Round two confirmed 19 defects (gate 7 could not see the arrival; a correlation could pair the wrong two files; a tombstoned row still competed for arrivals) and produced the owner's decision to ASK THE TARGET before removing anything. Round three (PR #408) confirmed six more, of which two were unrecoverable: gate 4 admitted four statuses the ledger's own `UPDATE` refuses, and since this path removes first and records second, it did not race into "copy destroyed, ledger refused" — it guaranteed it; and an already-explained disappearance went on competing for arrivals, so a file renamed twice lost the explanation for its real move. Also: the mass breaker measured deletions and nothing else, so a whole corpus could relocate at once and every apply would sail through; a `keep` was enforced only by a button that happened not to render; a rename showed the operator a SHA-256; and `applyRelocation`'s statement had never been executed by any test — only the in-memory fake ran it, which proves the fake is self-consistent and nothing else. Nine integration cases now run the SQL itself. |
-| T3 native Google editor files: export, or refuse | 🟡 **Built; `export-odf` MEASURED UNSTABLE 2026-09-16 and refused on that evidence; the other two exports still unmeasured** | `NativeFilePolicy` is `refuse` (default) / `export-office` / `export-pdf`, per migration as the owner chose. A refusal is thrown INSIDE the per-item boundary, so it lands in the failures queue with a verbatim reason and the rest of the folder still migrates — not skipped, which would report "migrated" for a file nobody copied. **The export paths must not be enabled for a real migration until `files.export` byte-stability is measured**: if it is not stable, `contentHash` sees a change every pass and every document is rewritten forever. **Measured for `export-odf` on the owner's tenant, 2026-09-16** (`scripts/drive-export-stability.ts`, policy `export-odf`, My Drive, 3000 ms gap, one `application/vnd.google-apps.document` last modified 2026-08-25): export 1 was 3127560 bytes, export 2 was 3127558 — **NOT STABLE**, and **reproduced the same day on a second run** (3127561, 3127560): four exports, four renderings, three distinct sizes in a four-byte window. The lengths differ, which is worth more than the hashes differing: a timestamp rewritten in place would change the bytes and not the size, so something inside the container changed SIZE between two renderings of an unchanged document. An ODF file is a zip of XML, and the volatile part is somewhere inside it — which means a "hash only the parts that matter" workaround would have to rewrite zip members, not skip a fixed offset. The second run also changed the MEASUREMENT: two draws of a four-byte wobble can collide and read as stable, so the script now takes `DRIVE_EXPORT_SAMPLES` draws (default 5) and refuses a single one. That matters for the two policies still to be measured, not for this one. **Not yet measured, and not to be assumed from this:** `export-office` (also zip+XML, so the same mechanism is available to it — a hypothesis, not a result) and `export-pdf`, and any of the three against a Sheet, a Slide or a Drawing. |
+| T3 native Google editor files: export, or refuse | 🟡 **Built; ALL THREE MEASURED 2026-09-16 — `export-odf` and `export-office` unstable and refused on evidence, `export-pdf` identical over five draws and the first candidate; the default stays `refuse` pending the owner's decision** | `NativeFilePolicy` is `refuse` (default) / `export-office` / `export-pdf`, per migration as the owner chose. A refusal is thrown INSIDE the per-item boundary, so it lands in the failures queue with a verbatim reason and the rest of the folder still migrates — not skipped, which would report "migrated" for a file nobody copied. **The export paths must not be enabled for a real migration until `files.export` byte-stability is measured**: if it is not stable, `contentHash` sees a change every pass and every document is rewritten forever. **ALL THREE MEASURED on the owner's tenant, 2026-09-16** (`scripts/drive-export-stability.ts`, My Drive, 3000 ms gap, one `application/vnd.google-apps.document` last modified 2026-08-25). `export-odf`: four draws, three sizes in a four-byte window (3127558/3127560/3127561) — **NOT STABLE**, a variable-length field. `export-office`: five draws, **17644 bytes every time and five different hashes** — NOT STABLE, and a different failure: nothing changed size, so a fixed-width field was overwritten in place (`docProps/core.xml` timestamps and `w:rsid` are the candidates — a hypothesis, nobody has diffed the members). `export-pdf`: five draws, **195869 bytes and one hash, `a4271e749a2279c5…`, five times** — the first policy ever to survive this. The default stays `refuse` for all three: measured for two, and for the third because five identical draws on ONE Doc of ONE type on ONE tenant are evidence and not proof — the red verdicts are conclusive in a way the green one is not. **Also recorded because the bytes are metered (0109 T3):** the same document renders to 17644 / 195869 / 3127560 bytes, a 177-fold spread, so the policy choice is also a choice about what a customer is billed. **Not measured, and not to be assumed:** a Sheet, a Slide or a Drawing under any policy, and any policy on a second document, tenant or day. |
 | T4 the connector itself, against a fake transport | ✅ **First slice done 2026-08-15** | `google-drive-source.ts` implements `FileSource`, modelled on **WebDAV rather than Graph** — full folder enumeration, no `changes.list`, `removed` never populated. 11 tests against a fake transport, no network. Mutation-verified: silently skipping native files, dropping `trashed=false`, and downloading a native file instead of exporting it each fail exactly one test. **Amended 2026-08-15, second slice: the connector could never feed move detection.** Found preparing the owner's manual drill, not by a test: `listSince` returned a sentinel cursor and the connector had no `listKeys`, so with a cursor store configured — always, in production — every pass after the first counted its key set incomplete and `detectPathKeyedMoves` never ran. No rename, move, drift or absence-counted deletion could EVER surface for a Drive source; the ADR-0030 relocation path was unreachable through the connector that motivated it, and every pass reported clean. Fixed with `listKeys` answering from the listing `listSince` just made (consume-once memo — no second `files.list` per folder), plus a two-pass regression through the real `runFileSync` with cursors configured, red before the fix. Four mutations killed: deleting `listKeys`, bypassing the memo, dropping the path prefix, and removing the consume-once clear. **Amended 2026-08-16, third slice: a shared drive listed as EMPTY.** The docs promise `rootFolderId` may name a shared drive; the API silently omits shared-drive items from `files.list` without `supportsAllDrives` + `includeItemsFromAllDrives` (200, empty array — not an error), so a shared-drive migration would have discovered zero files and completed every pass clean, having copied nothing. The parameters now ride every listing, and `supportsAllDrives` the metadata read and download (`files.export` defines neither — an export is addressed by id alone, and the code says so). Three tests, three mutations, each killed. **Amended 2026-08-16, fourth slice: the bin is read** (`listTrashedPaths`): a trashed file's ORIGINAL path is recovered by walking its intact `parents` up to the migration root (the `'root'` alias resolved to its real id first — parents carry real ids, and comparing the alias reads the whole bin as out of scope), per-file failures skip that file only, and the shared-drive parameters ride the trash listing too. Drive deletions now carry positive `trashed` evidence and the apply action is offerable, end-to-end-tested through `runFileSync`; T0 Q4's decision stands untouched — `removed` is still never populated, and the bin is a different kind of evidence: a deletion the owner PERFORMED, found where they put it. Two mutations killed: deleting the method, and comparing the root alias instead of the resolved id. |
 | T5 wiring: config schema, both editions, credentials | ✅ **Done 2026-08-15 — the connector is now REACHABLE** | `SourceConfig` has a `google-drive` variant with validation; both editions construct it through one shared factory (`drive-source-factory.ts`), each refusing in its own vocabulary — `GOOGLE_CLIENT_ID` for the appliance, `clientId` for a managed connection. Credentials: a **second `TokenProvider`**, because `createTokenProvider` is MSAL and would have posted a Google refresh token to `login.microsoftonline.com`; scope is `drive.readonly`, so the token cannot write. Managed needed a migration (`0008`) — `connection.kind` is a CHECK constraint, so without it the appliance could be pointed at a Drive and the managed edition could not represent one. 27 new tests. **Mutation-verified, 13 mutations, every one caught**: dropping the 401 retry, letting a caller override the Authorization header, removing single-flight, leaking the client secret into an error, defaulting a bad `nativeFilePolicy` to `refuse`, accepting an empty `rootFolderId`, routing Drive through the DAV resolver, deleting either edition's branch, using the wrong vocabulary in the managed refusal, dropping the pool close on a refusal, the factory inventing its own policy default, dropping `rootFolderId` on the way to the connector, and removing `google_drive` from the TS enum. |
-| T6 proof against a real Drive | 🟡 **Both halves built and tested; the VERDICT half has now been run against the owner's tenant (2026-09-16 — see T3), the fixture half has not** | `scripts/drive-export-stability.ts` with `DRIVE_CAPTURE_FILE` set produces, in ONE run, the T0 Q3 byte-stability verdict AND a redacted fixture — it also walks the folder tree and lists a subfolder, because path derivation is the thing most likely to be wrong and a flat listing of the root cannot gate it. `createReplayTransport` turns a capture back into a `DriveTransport`; an unmatched request THROWS and repeats are served in order, so a stale fixture cannot go green by answering nothing. **An adversarial audit of the redactor found 24 confirmed defects in it, including one live leak** — the preserved "extension" was everything after the last dot, and a native Doc has no extension at all, so any dot in a Doc's name carried the rest of the sentence into the fixture. All fixed, each with a test named after it. **What the tier will not cover, stated now:** anything Drive changes after the day it was recorded, and anything about the owner's specific documents — the verdict speaks to that and is printed, not stored. |
+| T6 proof against a real Drive | 🟡 **Both halves built and tested; the VERDICT half has now been run against the owner's tenant for ALL THREE policies (2026-09-16 — see T3), the fixture half has not** | `scripts/drive-export-stability.ts` with `DRIVE_CAPTURE_FILE` set produces, in ONE run, the T0 Q3 byte-stability verdict AND a redacted fixture — it also walks the folder tree and lists a subfolder, because path derivation is the thing most likely to be wrong and a flat listing of the root cannot gate it. `createReplayTransport` turns a capture back into a `DriveTransport`; an unmatched request THROWS and repeats are served in order, so a stale fixture cannot go green by answering nothing. **An adversarial audit of the redactor found 24 confirmed defects in it, including one live leak** — the preserved "extension" was everything after the last dot, and a native Doc has no extension at all, so any dot in a Doc's name carried the rest of the sentence into the fixture. All fixed, each with a test named after it. **What the tier will not cover, stated now:** anything Drive changes after the day it was recorded, and anything about the owner's specific documents — the verdict speaks to that and is printed, not stored. |
 
 ## What this is
 
@@ -228,61 +228,103 @@ Implement the T0 decision. If exporting: pin byte-stability with a test that exp
 unchanged document twice and asserts identical bytes — and if it is NOT stable, say so here and
 change the decision rather than shipping a connector that rewrites every Doc on every pass.
 
-### Said here, as this section asked: `export-odf` is not stable
+### Said here, as this section asked: all three renderers, measured
 
-Measured 2026-09-16 on the owner's tenant, one Google Doc, exports three seconds apart, and
-then measured AGAIN — same document, same policy, untouched in between:
+Measured 2026-09-16 on the owner's tenant, **one Google Doc** (`modifiedTime`
+2026-08-25T06:30:25.392Z), untouched throughout, exports three seconds apart.
 
-    run 1   export 1  3127560 bytes  sha256 2d334acfb9b69d41…
-            export 2  3127558 bytes  sha256 c4fdb158a78761c8…
-    run 2   export 1  3127561 bytes  sha256 2668e39774465da6…
-            export 2  3127560 bytes  sha256 ee131b91a46d7aef…
+| policy | draws | bytes | verdict |
+| --- | --- | --- | --- |
+| `export-odf` | 2 + 2 | 3127558 / 3127560 / 3127561 — three sizes in a four-byte window | **NOT STABLE** |
+| `export-office` | 5 | 17644 every time, five different hashes | **NOT STABLE** |
+| `export-pdf` | 5 | 195869 every time, one hash `a4271e749a2279c5…` five times | **stable over five draws** |
 
-Four exports, four renderings, **three distinct sizes inside a four-byte window** —
-3127558, 3127560, 3127561 — with 3127560 appearing in both runs.
+**T0 Q3 is answered.** Two of the three export policies are disproved. The third is the first
+credible candidate this workplan has ever had, and it is not the same kind of fact.
 
-The decision does not change — it was already `refuse`, and this is what keeps it there. What
-changes is the GROUND for it: `refuse` is no longer the cautious default for an unmeasured
-behaviour, it is the correct answer to a measured one, for this policy.
+**The asymmetry is the spine of this section, so it goes first.** A policy needs a UNIVERSAL
+claim: every document, every pass, or `contentHash` sees a change and the migration rewrites the
+lot. So:
 
-**Why one document is enough.** The claim an export policy needs is universal — every document,
-every pass, or `contentHash` sees a change and the migration rewrites the lot. A universal claim
-is disproved by one counterexample, so there is no sample size to argue about and no point
-re-running against more Docs hoping for a better average. A second unstable document would add
-nothing; a stable one would not rescue the policy.
+- **NOT STABLE is conclusive.** One counterexample disproves a universal claim. There is no
+  sample size to argue about and no point re-running against more Docs hoping for a better
+  average — a second failing document adds nothing, and a passing one rescues nothing.
+- **Five identical draws are not the mirror image.** They are five draws that failed to disprove
+  it, on ONE document, of ONE type, on ONE tenant, on one day. That is the best evidence this
+  repository has about an export policy and it is still evidence, not proof.
 
-**The second run changed the instrument, not the verdict.** Four draws of a rendering that
-wobbles by a byte or two is also a warning about how it was measured: the script exported
-exactly twice and compared the pair, and two draws of a four-byte window can land on the same
-value. `export-odf` never did — but `export-office` and `export-pdf` have not been measured yet,
-and they were going to be measured by that same two-draw test. A false STABLE there enables the
-nightly rewrite this whole workplan exists to prevent, arriving through the instrument built to
-prevent it. The script now takes `DRIVE_EXPORT_SAMPLES` draws (default 5, minimum 2, and a
-single draw is REFUSED rather than reported stable), and the verdict states the asymmetry: red
-is conclusive, green means only that N draws failed to disprove it.
+`refuse` therefore remains the default for all three. For `export-odf` and `export-office` that
+is now the correct answer to a measured behaviour rather than caution about an unmeasured one.
+For `export-pdf` it is caution again — but about a much narrower gap than before.
 
-**What the window size refines.** A four-byte spread is small and bounded, which argues against
-whole-container recompression and for one short variable-length field — a fractional-second
-timestamp, or a number rendered without padding. That makes the normalisation route (2 below)
-more tractable than "the bytes are just nondeterministic" would: plausibly one field in one zip
-member, not the whole archive. It is a reading of the numbers, not a measurement of the cause —
-nobody has opened the two files and diffed the members, and that is the next thing that would
-actually settle it.
+**THE TWO FAILURES FAIL DIFFERENTLY, and the difference is diagnostic.**
 
-**If exporting is to be usable at all**, the change signal has to stop being the exported bytes.
-Two candidates, neither built:
+`export-odf` moved in LENGTH — three sizes across four draws. Something inside the container
+changed size, which means a variable-length field: a fractional-second timestamp, a number
+rendered without padding.
+
+`export-office` held 17644 bytes across all five draws and hashed differently every time.
+Nothing changed size; something was overwritten IN PLACE. That is a fixed-width field, and for
+a `.docx` the candidates are short and well known — `docProps/core.xml` carries
+`dcterms:created` and `dcterms:modified` as fixed-width ISO-8601 stamps, and `w:rsid` values
+are fixed-width hex. Naming them is a hypothesis, not a measurement; nobody has unzipped the
+two files and diffed the members yet, and that is still the one cheap thing that would settle
+what varies.
+
+It matters because it changes how tractable the normalisation route is. A fixed-width field
+overwritten in place is the easiest possible case: the volatile bytes are at stable offsets
+inside one known member. `export-office` is therefore a better candidate for a normalised hash
+than `export-odf`, which is the opposite of what the first measurement suggested.
+
+**AN OBSERVATION NOBODY ASKED FOR, recorded because the bytes are metered.** One document
+renders to 17644 bytes of `.docx`, 195869 of `.pdf`, and 3127560 of `.odt`. That is a
+**177-fold** spread between the smallest and the largest rendering of the same content. A PDF
+carrying embedded fonts plausibly explains its middle position; what makes the ODT three
+megabytes is not explained here. This is not a correctness problem, but this product meters
+first-copy bytes (0109 T3), sums them onto an invoice, and prices tiers off them — so the
+choice of export policy is also a choice about what a customer is billed for, by two orders of
+magnitude. Worth knowing before anybody picks a default.
+
+**WHAT IS STILL NOT MEASURED**, stated so nobody reads the green as broader than it is:
+
+- a **Sheet**, a **Slide** or a **Drawing** under any policy. These are different renderers and
+  the script says so in its own output. A Drawing under either document policy exports as SVG,
+  which is text and a different risk again.
+- any policy on a **second document**, a **second tenant**, or a **second day**.
+
+**Enabling `export-pdf` is a decision, not a consequence of this table.** The case for: it is
+the only policy with evidence, and a refusal that names PDF as un-migratable while PDF is in
+fact stable costs customers their documents for no reason. The case against: five draws on one
+Doc, and PDF is the most lossy of the three — a `.pdf` is not a document anybody can edit
+again, so migrating a Doc as PDF trades an editable original for a fixed rendering. That trade
+is the owner's to make, and it wants the Sheet and the Slide measured first.
+
+**If the two refused policies are to be usable at all**, the change signal has to stop being the
+exported bytes. Two candidates, neither built:
 
 1. **Drive's own `version`** (or `modifiedTime`) as the change signal for native files only.
    `files.get` returns a counter Drive increments on change, so an unchanged document re-exports
    to different bytes and still reports no change. The cost: one class of file stops being
    verified by content, so §20's report would be comparing something else for those rows, and
    that needs saying out loud rather than quietly.
-2. **A normalised hash** that ignores the volatile parts. The length difference above says those
-   parts are inside the zip, so this means unpacking members, normalising each, and hashing the
-   result — a renderer-specific contract that breaks whenever Google changes one.
+2. **A normalised hash** that ignores the volatile parts. `export-office`'s same-length result
+   makes this the more plausible of the two for that policy — a fixed-width field in a known
+   member — while `export-odf`'s length changes make it harder. Either way it is a
+   renderer-specific contract that breaks whenever Google changes one.
 
 Both are decisions, not tasks: either would want an ADR first, and (1) touches what verification
 means.
+
+**How the instrument changed mid-measurement, for the record.** `export-odf` was measured with
+the original two-draw comparison, twice. `export-office` and `export-pdf` were measured with
+five draws, because four draws of `export-odf`'s four-byte window showed that two draws of a
+small wobble can collide and read as STABLE — a false green over a policy that would rewrite
+every document nightly, arriving through the instrument built to prevent exactly that. The
+script now takes `DRIVE_EXPORT_SAMPLES` draws (default 5, minimum 2; a single draw is REFUSED
+rather than reported stable) and prints the asymmetry above with its verdict. `export-office`
+proves the change earned its keep in the most direct way available: five draws, five hashes,
+same length every time — a two-draw test would have had to be lucky to catch a wobble that
+never moves the size.
 
 ## T4 — the connector
 

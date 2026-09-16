@@ -270,12 +270,27 @@ and one can be stable while another is not — and ideally against a Doc, a Shee
 Then keep a note of what you found — the answer decides whether exporting Google Docs is
 safe to turn on at all.
 
-**What we have measured so far, on one real tenant (2026-09-16): `export-odf` is not stable.**
-Two exports of the same untouched Google Doc, three seconds apart, came back different sizes —
-3127560 bytes and then 3127558. That is enough to rule the policy out rather than a reason to
-try more documents: for exporting to be safe it has to hold for *every* document you own, so one
-that fails answers the question. `export-office` and `export-pdf` have not been measured by
-anyone yet. Until they are, `refuse` is the honest setting, and it is the default.
+**What we have measured, on one real tenant (2026-09-16), against one untouched Google Doc:**
+
+| policy | what came back | verdict |
+| --- | --- | --- |
+| `export-odf` | four exports, three different sizes | **not stable** |
+| `export-office` | five exports, same size every time, five different files | **not stable** |
+| `export-pdf` | five exports, byte-for-byte identical | survived five tries |
+
+A failure settles a policy: for exporting to be safe it has to hold for *every* document you
+own, so one that fails answers the question and there is no point trying more. A pass is weaker
+— five tries that did not break it, on one document, of one kind, on one day. Nobody has yet
+measured a Sheet, a Slide or a Drawing under any policy, and those are different renderers.
+
+So `refuse` is still the default for all three, and it is still the honest setting. If you want
+to turn `export-pdf` on for your own migration, measure your own Sheets and Slides first — and
+remember what a PDF costs you: it is a picture of the document, not a document anyone can edit
+again.
+
+One more thing worth knowing before you choose, because you are billed for the bytes we copy:
+that same document came back as 17644 bytes of Office, 195869 of PDF, and 3127560 of ODF. That
+is the same content weighing 177 times more in one format than another.
 
 ### Which credentials it reads, and where
 
