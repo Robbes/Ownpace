@@ -349,6 +349,56 @@ describe('evaluate and apply agree on every ledger-side relocation refusal', () 
     });
   }
 
+  it('refuses a cross-scheme pair WITHOUT claiming the customer edited it', async () => {
+    // ADR-0046 rule (d). The old row was fingerprinted by one method and the
+    // arrival by another — the upgrade case, which the version tag on the front
+    // of each value is the whole record of. The refusal is the same; the
+    // SENTENCE is not, and the sentence is the deliverable. "Probably edited
+    // after it was moved" is a specific claim about what the person did, and
+    // here there is no evidence for it at all.
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(fileRow({ contentHash: 'aaaa' }));
+    await ledger.recordIfAbsent(
+      fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf', contentHash: 'zip1:aaaa' }),
+    );
+    await ledger.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
+
+    const { evaluated, applied, removeItem } = await bothRelocation(ledger, true);
+
+    expect(evaluated.ok).toBe(false);
+    if (!evaluated.ok && !applied.ok) {
+      expect(evaluated.code).toBe('relocation_unconfirmed');
+      expect(evaluated.reason).toMatch(/fingerprinted by different methods/);
+      expect(
+        evaluated.reason,
+        'the refusal blames the customer for an edit that nothing here observed',
+      ).not.toMatch(/edited/);
+      expect(applied.reason).toBe(evaluated.reason);
+    }
+    expect(removeItem).not.toHaveBeenCalled();
+  });
+
+  it('still says "probably edited" when the two really were hashed the same way', async () => {
+    // The other half. Making every mismatch read as an upgrade would throw away
+    // the one case where the sentence IS right, so the scheme question has to
+    // separate them rather than replace them.
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(fileRow({ contentHash: 'zip1:aaaa' }));
+    await ledger.recordIfAbsent(
+      fileRow({ naturalKeyHash: NEW, targetId: 'target/summary.pdf', contentHash: 'zip1:bbbb' }),
+    );
+    await ledger.recordMove(RELOCATION_TENANT, MAPPING, 'file', OLD, 'Docs', NEW);
+
+    const { evaluated, removeItem } = await bothRelocation(ledger, true);
+
+    expect(evaluated.ok).toBe(false);
+    if (!evaluated.ok) {
+      expect(evaluated.code).toBe('relocation_unconfirmed');
+      expect(evaluated.reason).toMatch(/probably edited after it was moved/);
+    }
+    expect(removeItem).not.toHaveBeenCalled();
+  });
+
   it('and when every ledger gate permits, the evaluator predicts the removal', async () => {
     const ledger = new MemoryLedger();
     await ledger.recordIfAbsent(fileRow());
