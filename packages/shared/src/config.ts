@@ -145,10 +145,11 @@ export interface WebDAVSource {
  * changed" — only the first is one an owner can act on.
  *
  * **`export-odf` HAS now been measured, and it is not byte-stable** (2026-09-16,
- * the owner's tenant: two exports of one unchanged Doc, three seconds apart,
- * 3127560 and 3127558 bytes). One counterexample is the whole answer, because the
- * claim a policy needs is universal — every document, every pass. Setting
- * `export-odf` is choosing a behaviour MEASURED to rewrite documents forever.
+ * the owner's tenant, measured twice: four exports of one unchanged Doc produced
+ * four different renderings, spanning 3127558 to 3127561 bytes). One
+ * counterexample is the whole answer, because the claim a policy needs is
+ * universal — every document, every pass. Setting `export-odf` is choosing a
+ * behaviour MEASURED to rewrite documents forever.
  *
  * `export-office` and `export-pdf` remain unmeasured, so setting either is still
  * choosing an unmeasured behaviour. 0042 T3 records what was measured and what

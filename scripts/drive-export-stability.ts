@@ -63,10 +63,15 @@
  *                           or `export-pdf`. Measure EACH before trusting any:
  *                           they are different renderers and one can be stable
  *                           while another is not.
- *   DRIVE_EXPORT_GAP_MS     optional — pause between the two exports, default
- *                           3000. A longer gap is a stronger test: an export
- *                           that is stable back-to-back because it was cached
- *                           for four seconds is not stable.
+ *   DRIVE_EXPORT_GAP_MS     optional — pause between exports, default 3000. A
+ *                           longer gap is a stronger test: an export that is
+ *                           stable back-to-back because it was cached for four
+ *                           seconds is not stable.
+ *   DRIVE_EXPORT_SAMPLES    optional — how many times to export, default 5,
+ *                           minimum 2. TWO IS NOT ENOUGH when the wobble is
+ *                           small: `export-odf` was measured moving inside a
+ *                           four-byte window, and two draws of that can collide
+ *                           and read as stable. See `drive-export-verdict.ts`.
  *   DRIVE_CAPTURE_FILE      optional — where to write a REDACTED recording of
  *                           everything Drive answered, so this one run also
  *                           produces the fixture the replay tier needs (T6).
@@ -97,9 +102,11 @@ import {
   resolveMeasurementCredentials,
   type OpenMeasurementRoute,
 } from './drive-export-credentials.ts';
+import { stabilityVerdict, type ExportSample } from './drive-export-verdict.ts';
 
 const ROOT = process.env.DRIVE_ROOT_FOLDER_ID || 'root';
 const GAP_MS = Number(process.env.DRIVE_EXPORT_GAP_MS ?? 3000);
+const SAMPLES = Number(process.env.DRIVE_EXPORT_SAMPLES ?? 5);
 const POLICY = (process.env.DRIVE_EXPORT_POLICY || 'export-office') as GoogleNativeFilePolicy;
 const BASE = 'https://www.googleapis.com/drive/v3';
 
@@ -142,6 +149,16 @@ if (POLICY !== 'export-odf' && POLICY !== 'export-office' && POLICY !== 'export-
   fail(
     `DRIVE_EXPORT_POLICY must be "export-odf", "export-office" or "export-pdf" ` +
       `(got "${POLICY}").`,
+  );
+}
+if (!Number.isInteger(SAMPLES) || SAMPLES < 2) {
+  // Refused rather than clamped. One draw cannot disagree with anything, so a
+  // run with SAMPLES=1 would report STABLE over every policy ever measured —
+  // the one verdict this script must never produce by accident.
+  fail(
+    `DRIVE_EXPORT_SAMPLES must be a whole number of at least 2 ` +
+      `(got "${process.env.DRIVE_EXPORT_SAMPLES}"). Two exports cannot disagree if only one ` +
+      `is taken.`,
   );
 }
 
@@ -346,33 +363,40 @@ async function main(): Promise<void> {
     sourceRef: doc.id,
   };
 
-  const first = await source.fetch(item);
-  const firstHash = fileContentHash(first.content!);
-  console.log(`  export 1  ${first.content!.byteLength} bytes  sha256 ${firstHash.slice(0, 16)}…`);
+  const samples: ExportSample[] = [];
+  for (let i = 0; i < SAMPLES; i += 1) {
+    // The gap goes BEFORE each export after the first, so a cached rendering
+    // cannot be what makes two of them agree.
+    if (i > 0) await new Promise((resolve) => setTimeout(resolve, GAP_MS));
+    const got = await source.fetch(item);
+    const hash = fileContentHash(got.content!);
+    samples.push({ bytes: got.content!.byteLength, hash });
+    console.log(
+      `  export ${i + 1}  ${got.content!.byteLength} bytes  sha256 ${hash.slice(0, 16)}…`,
+    );
+  }
+  console.log('');
 
-  await new Promise((resolve) => setTimeout(resolve, GAP_MS));
+  const verdict = stabilityVerdict(samples);
 
-  const second = await source.fetch(item);
-  const secondHash = fileContentHash(second.content!);
-  console.log(`  export 2  ${second.content!.byteLength} bytes  sha256 ${secondHash.slice(0, 16)}…\n`);
-
-  if (firstHash === secondHash) {
-    console.log('  ✔ STABLE — two exports of an unchanged document produced identical bytes.');
-    console.log(`    "${POLICY}" is usable: a second pass over this document creates nothing.`);
-    console.log('    Measure the other policy too, and ideally a Sheet and a Slide as well —');
-    console.log('    they are different renderers and this result does not speak for them.');
+  if (verdict.stable) {
+    console.log(`  ✔ STABLE — ${SAMPLES} exports of an unchanged document produced identical bytes.`);
+    console.log(`    "${POLICY}" is usable on this evidence: a second pass creates nothing.`);
+    console.log('');
+    console.log('    READ THE ASYMMETRY. A red verdict here is CONCLUSIVE: one counterexample');
+    console.log('    disproves the "every document, every pass" claim a policy needs. A green one');
+    console.log(`    is weaker — ${SAMPLES} draws failed to disprove it, which is not the same as`);
+    console.log('    proof. Raise DRIVE_EXPORT_SAMPLES if you want more of it, and measure a Sheet');
+    console.log('    and a Slide too: different renderers, and this says nothing about them.');
     console.log('\n    Record the result in docs/workplans/0042-google-drive-source.md (T3).\n');
     return;
   }
 
-  const sizeNote =
-    first.content!.byteLength === second.content!.byteLength
-      ? 'Same LENGTH, different bytes — so something inside the rendering varies (a timestamp, ' +
-        'a generated id) rather than the content.'
-      : `Different lengths (${first.content!.byteLength} vs ${second.content!.byteLength}).`;
-
-  console.log('  ✖ NOT STABLE — the same unchanged document exported differently twice.');
-  console.log(`    ${sizeNote}`);
+  console.log(
+    `  ✖ NOT STABLE — ${verdict.renderings} different renderings in ${SAMPLES} exports of an ` +
+      `unchanged document.`,
+  );
+  console.log(`    ${verdict.note}`);
   console.log(`    "${POLICY}" MUST NOT be enabled for a real migration: contentHash would see a`);
   console.log('    change on every pass, and every document would be re-copied nightly, forever,');
   console.log('    with every write succeeding and nothing looking wrong.');

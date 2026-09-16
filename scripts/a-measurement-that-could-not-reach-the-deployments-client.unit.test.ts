@@ -181,6 +181,7 @@ describe('an environment refusal prints its sentence, rather than crashing on th
       'GOOGLE_OAUTH_CLIENT_SECRET',
       'DRIVE_CONNECTION_ID',
       'DRIVE_EXPORT_POLICY',
+      'DRIVE_EXPORT_SAMPLES',
       'DRIVE_CAPTURE_FILE',
       'DATABASE_URL',
     ]) {
@@ -205,6 +206,22 @@ describe('an environment refusal prints its sentence, rather than crashing on th
     expect(out).not.toContain('before initialization');
     // The exit code was ALREADY 1 while it was crashing — an uncaught throw
     // exits 1 too. Asserting only on the code would have passed on the bug.
+    expect(code).toBe(1);
+  });
+
+  it('refuses a single sample, which would turn every policy green', () => {
+    // The third import-time refusal, added when two draws turned out to be too
+    // few (see two-draws-that-could-agree-by-accident.unit.test.ts). One export
+    // cannot disagree with anything, so SAMPLES=1 is a switch that reports
+    // STABLE over a renderer nobody measured.
+    const { out, code } = run({
+      GOOGLE_OAUTH_CLIENT_ID: 'sentinel-id',
+      GOOGLE_OAUTH_CLIENT_SECRET: 'sentinel-secret',
+      DRIVE_CONNECTION_ID: 'sentinel-connection',
+      DRIVE_EXPORT_SAMPLES: '1',
+    });
+    expect(out).toContain('DRIVE_EXPORT_SAMPLES');
+    expect(out).not.toContain('ReferenceError');
     expect(code).toBe(1);
   });
 
