@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 132 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 133 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -897,6 +897,14 @@ reading a file drops off its entry by itself.
 
 - [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts) — A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
 
+### `packages/shared/src/container-hash.ts`
+
+- [a-content-hash-built-from-thirty-two-bits](../scripts/a-content-hash-built-from-thirty-two-bits.unit.test.ts) — A guard that `contentHash` is never derived from a CRC-32.
+
+### `packages/shared/src/container-hash.unit.test.ts`
+
+- [a-content-hash-built-from-thirty-two-bits](../scripts/a-content-hash-built-from-thirty-two-bits.unit.test.ts) — A guard that `contentHash` is never derived from a CRC-32.
+
 ### `packages/shared/src/credential-fields.ts`
 
 - [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
@@ -1070,6 +1078,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/drive-export-members.ts`
 
+- [a-content-hash-built-from-thirty-two-bits](../scripts/a-content-hash-built-from-thirty-two-bits.unit.test.ts) — A guard that `contentHash` is never derived from a CRC-32.
 - [the-member-that-moved-inside-an-unchanged-document](../scripts/the-member-that-moved-inside-an-unchanged-document.unit.test.ts) — A guard that an unstable export can name the part of itself that moved.
 
 ### `scripts/drive-export-stability.ts`
@@ -1319,6 +1328,16 @@ Reads:
 - `packages/orchestration/src/graph-domain-source-factory.ts`
 - `packages/orchestration/src/mail-source-factory.ts`
 - `packages/shared/src/microsoft-scopes.ts`
+
+### [a-content-hash-built-from-thirty-two-bits](../scripts/a-content-hash-built-from-thirty-two-bits.unit.test.ts)
+
+A guard that `contentHash` is never derived from a CRC-32.
+
+Reads:
+
+- `packages/shared/src/container-hash.ts`
+- `packages/shared/src/container-hash.unit.test.ts`
+- `scripts/drive-export-members.ts`
 
 ### [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts)
 
