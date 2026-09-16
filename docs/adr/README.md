@@ -71,6 +71,7 @@ first.
 | [0043](./0043-a-migration-is-silent-by-default.md) | A migration is silent by default — outward mail is a human-pressed action | Accepted 2026-08-25 |
 | [0044](./0044-the-books-are-not-ours.md) | The books are not ours — an external bookkeeping system is the record for invoices | Accepted 2026-08-28 |
 | [0045](./0045-migrations-are-hand-written-sql.md) | Migrations are hand-written SQL, applied by our own runner | Accepted 2026-09-09 — supersedes 0017's authoring-and-applying half, which credited a tool this repository has never used for it |
+| [0046](./0046-a-rendering-is-compared-by-its-parts.md) | A rendering is compared by its parts, not by its bytes | **Proposed 2026-09-16** — rests on the 0042 T3 measurement that `export-office` is byte-unstable only in its zip container; nothing changes until accepted |
 
 ## Reading the statuses
 
