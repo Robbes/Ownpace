@@ -719,12 +719,16 @@ Nothing in this amendment is built. It records the decision the three tasks in
 
 ## [ADR-0046: A rendering is compared by its parts, not by its bytes](./0046-a-rendering-is-compared-by-its-parts.md)
 
-- **PART-BUILT, and the code is still the older rule for the part that is not.** The hash
-  exists (`packages/shared/src/container-hash.ts`) and the scheme rule holds at every site that
-  compares two stored hashes, but **nothing calls the hash yet**: `contentHash` is still a
-  sha256 over the whole file for every file without exception, and `nativeFilePolicy` still
-  defaults to `refuse` with all three export policies refused. The remaining build is
-  [0042 T7](../workplans/0042-google-drive-source.md) (c) and the two-sided wiring.
+- **BUILT, and live.** A rendering a source marks as such (`RawFileItem.rendering`, set only by
+  Drive's `files.export` branch) is hashed by `containerContentHash`; the target re-read is asked
+  for the same scheme the row was stored in; the confirmed list says `container-parts` rather
+  than "by hash". `nativeFilePolicy` still defaults to `refuse` — that is the owner's per-migration
+  choice and always was — but choosing `export-office` is now a supported thing to do.
+- **AND IT RESCUES A DOC AND A SHEET, NOT A DECK.** The connector refuses a Google Slides file
+  under `export-office` for measured instability, per item, inside the sync loop's boundary. The
+  preflight counts what a policy will refuse and the confirm screen names it before the run
+  (owner's decision, 2026-09-16). An **unmeasured** combination is recorded and NOT refused: a
+  blank is not a red, and refusing on one would turn off paths that work today.
 - **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
   `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
   uncompressed bytes. Excluded — member timestamps, member order, compression method and level,

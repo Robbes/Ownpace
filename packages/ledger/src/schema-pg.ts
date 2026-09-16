@@ -1213,6 +1213,12 @@ export const migrationDiscovery = pgTable(
     // enumerated", which is a different claim from 0, "empty". See 0018.
     targetExisting: integer('target_existing'),
     targetColliding: integer('target_colliding'),
+    // Native editor files this mapping's export policy will refuse for MEASURED
+    // byte-instability, by Google editor kind — `{"presentation": 3}` (0042 T7,
+    // ADR-0046). Nullable on the same rule as the two above: null = "did not
+    // look", which every non-Drive source means permanently, and `{}` = looked
+    // and found none. Migration 0047.
+    refusedNative: jsonb('refused_native'),
     lastError: text('last_error'),
     discoveredAt: timestamp('discovered_at', { withTimezone: true }).notNull().defaultNow(),
   },

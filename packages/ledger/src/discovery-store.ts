@@ -35,6 +35,9 @@ export class PgDiscoveryStore implements DiscoveryStore {
     // `?? null`, never `?? 0`: an unreadable destination must not be recorded
     // as an empty one.
     const targetExisting = discovery.targetExisting ?? null;
+    // `?? null` rather than `?? {}`: an absent tally means the source could not
+    // count, and writing an empty object there would claim a look nobody took.
+    const refusedNative = discovery.refusedNative ?? null;
     const targetColliding = discovery.targetColliding ?? null;
     await this.db
       .insert(schemaPg.migrationDiscovery)
@@ -48,6 +51,7 @@ export class PgDiscoveryStore implements DiscoveryStore {
         perCollection,
         generatedIdItems,
         targetExisting,
+        refusedNative,
         targetColliding,
         lastError: null,
         discoveredAt: sql`now()`,
@@ -65,6 +69,7 @@ export class PgDiscoveryStore implements DiscoveryStore {
           perCollection,
           generatedIdItems,
           targetExisting,
+          refusedNative,
           targetColliding,
           lastError: null,
           discoveredAt: sql`now()`,
@@ -90,6 +95,7 @@ export class PgDiscoveryStore implements DiscoveryStore {
         perCollection: null,
         generatedIdItems: null,
         targetExisting: null,
+        refusedNative: null,
         targetColliding: null,
         lastError: error,
         discoveredAt: sql`now()`,
@@ -146,6 +152,12 @@ export class PgDiscoveryStore implements DiscoveryStore {
           ? { generatedIdItems: Number(row.generatedIdItems) }
           : {}),
         ...(row.targetExisting != null ? { targetExisting: Number(row.targetExisting) } : {}),
+        // Left OUT when null rather than defaulted to `{}` — the read has to
+        // preserve the same "did not look" / "found none" distinction the
+        // column stores, or the screen cannot tell them apart either.
+        ...(row.refusedNative != null
+          ? { refusedNative: row.refusedNative as Readonly<Record<string, number>> }
+          : {}),
         ...(row.targetColliding != null ? { targetColliding: Number(row.targetColliding) } : {}),
         ...(row.perCollection
           ? { perCollection: row.perCollection as DiscoveryRecord['perCollection'] }

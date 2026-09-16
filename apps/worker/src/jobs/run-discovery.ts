@@ -149,6 +149,24 @@ interface DomainDepsToCount {
  * always close. Exported for
  * `a-domain-counted-through-another-domains-source.unit.test.ts`.
  */
+/**
+ * A source's own count of what this migration's policy will refuse for measured
+ * instability, when the source keeps one.
+ *
+ * `undefined` for every source that does not — which is all of them but Google
+ * Drive — and `undefined` rather than `{}` on purpose: the preflight's field
+ * distinguishes "did not look" from "looked and found none", the same way
+ * `generatedIdItems` and `targetExisting` already do in that interface.
+ *
+ * An empty tally is still a LOOK and is reported as `{}`: a Drive with no
+ * Slides under `export-office` has genuinely been counted, and telling the
+ * owner "not measured" there would understate what is known.
+ */
+function refusalsFrom(source: unknown): Readonly<Record<string, number>> | undefined {
+  const counting = source as { nativeRefusals?: () => Readonly<Record<string, number>> };
+  return typeof counting.nativeRefusals === 'function' ? counting.nativeRefusals() : undefined;
+}
+
 export function buildTask(
   scopePool: Pool,
   tenantId: TenantId,
@@ -161,7 +179,22 @@ export function buildTask(
     run: async () => {
       const deps = await counted.open(scopePool, tenantId, mappingId);
       try {
-        return await discoverSource(deps.source, counted.itemBytes ? { itemBytes: sizeOf } : {});
+        const out = await discoverSource(
+          deps.source,
+          counted.itemBytes ? { itemBytes: sizeOf } : {},
+        );
+        // AFTER the walk, not before — the tally is what the walk accumulated
+        // (0042 T7, owner's decision 2026-09-16). An OPTIONAL capability in the
+        // shape `listTrashedPaths` and `storageUsage` already use: only the
+        // Drive source has it, every other source keeps the field absent, and
+        // absent means "did not look" rather than "found none".
+        //
+        // Read here rather than inside `discoverSource` because that function
+        // is generic over every domain and this is one connector's knowledge
+        // about one provider's exports. Teaching the generic walker about
+        // Google Slides would put Drive's business in five other domains' path.
+        const counts = refusalsFrom(deps.source);
+        return counts === undefined ? out : { ...out, refusedNative: counts };
       } finally {
         await deps.close();
       }

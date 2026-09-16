@@ -159,14 +159,32 @@ export interface WebDAVSource {
  *                    a container defect, not a document one.
  *   `export-pdf`     Identical bytes five times. The first policy to survive.
  *
- * **The default stays `refuse` for all three, and the asymmetry is why.** A red
- * verdict is conclusive: the claim a policy needs is universal — every document,
- * every pass — so one counterexample settles it. Five identical draws are not the
- * mirror image; they are one document, of one type, on one tenant, on one day.
- * Setting `export-odf` or `export-office` is choosing a behaviour MEASURED to
- * rewrite every document forever. Setting `export-pdf` is choosing one that has
- * survived the best evidence this repository has, which is not the same as safe —
- * a Sheet, a Slide and a Drawing are different renderers and none is measured.
+ * **THE SHEET AND THE SLIDE WERE MEASURED LATER THE SAME DAY, and they do not
+ * agree.** A Sheet under `export-office` fails container-only exactly as the Doc
+ * does — 5659 bytes every draw, all ten members byte-identical. A **Slide does
+ * not**: five members genuinely change content, and normalising the container
+ * leaves two draws still differing. So the structural hash rescues a Doc and a
+ * Sheet and does nothing for a deck.
+ *
+ * **WHICH IS WHY A POLICY IS NO LONGER ALL-OR-NOTHING (owner's decision,
+ * 2026-09-16).** `export-office` is usable, and the connector refuses the one
+ * combination measured unstable — a Slide — per item, inside the sync loop's
+ * boundary, so it lands in the failures queue with its reason while the rest of
+ * the folder migrates. `EXPORT_STABILITY` in
+ * `google-drive-source.types.ts` is the table; the preflight counts what a
+ * policy will refuse so the number is on the confirm screen before the run.
+ *
+ * `export-odf` is refused for a Doc by the same rule, one format earlier.
+ *
+ * **The asymmetry still decides everything here.** A red verdict is conclusive:
+ * the claim a policy needs is universal — every document, every pass — so one
+ * counterexample settles it. Five identical draws are not the mirror image; they
+ * are one document, of one type, on one tenant, on one day. `export-pdf` has
+ * survived the best evidence this repository has for a Doc, which is not the same
+ * as safe, and a Sheet, a Slide and a Drawing under it remain unmeasured.
+ * **Unmeasured is recorded and NOT refused**: refusing on absence of a
+ * measurement would turn off paths that work today on the strength of a run
+ * nobody has done.
  *
  * Defined here rather than beside the connector because it is a product
  * decision that now appears in a mapping file, not part of Google's wire format.

@@ -35,6 +35,7 @@ import { applyTargetFolderPrefix,
   contactNaturalKeyHash,
   contactContentHash,
   fileNaturalKeyHash,
+  containerContentHash,
   fileContentHash,
 } from '@openmig/shared';
 import { runDomainSync, type DomainSyncResult } from './domain-sync.ts';
@@ -412,7 +413,31 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     // has removals. Falls back to the path for any source with no handle of its
     // own, so a blank is never recorded as if it meant something.
     sourceRef: (item) => item.item.sourceRef || item.item.path,
-    contentHash: (raw) => fileContentHash((raw as RawFileItem).content ?? new Uint8Array(0)),
+    // HOW A FILE'S BYTES BECOME A STORED HASH, and the one branch in it.
+    //
+    // Whole-file sha256 for everything the customer stored. For a RENDERING —
+    // bytes that exist only because this product asked a provider to produce
+    // them, which today means Google's `files.export` — the hash is taken over
+    // the container's PARTS instead (ADR-0046, 0042 T7). Member names and the
+    // sha256 of each member's uncompressed bytes; the zip's own stamps, member
+    // order and compression settings left out, because those describe the zip
+    // and not the document.
+    //
+    // That is the whole reason the flag exists: an exported `.docx` comes back
+    // in a freshly built container every single time, so a whole-file hash sees
+    // a change on every pass and the migration rewrites every document nightly,
+    // with every write succeeding and nothing looking wrong.
+    //
+    // `null` FALLS BACK, and the fallback is the conservative direction. Not a
+    // zip, a compression method we do not implement, zip64, a malformed index,
+    // an inflate that throws: `containerContentHash` answers null and the whole
+    // file is hashed instead. That can cause a rewrite; it can never miss a
+    // change, which is the only asymmetry worth having here.
+    contentHash: (raw) => {
+      const bytes = (raw as RawFileItem).content ?? new Uint8Array(0);
+      if (!(raw as RawFileItem).rendering) return fileContentHash(bytes);
+      return containerContentHash(bytes) ?? fileContentHash(bytes);
+    },
     ensureCollection: (folder) =>
       target.ensureDirectory(
         deps.targetFolderPrefix

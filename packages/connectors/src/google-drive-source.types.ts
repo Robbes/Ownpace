@@ -88,6 +88,103 @@ export const NATIVE_EXPORT_TYPES: Readonly<
 };
 
 /**
+ * WHETHER AN EXPORT IS STABLE ENOUGH TO MIGRATE — the measurements, as a table
+ * the code reads (workplan 0042 T3, ADR-0046, decision 2026-09-16).
+ *
+ * THE PROBLEM THIS EXISTS FOR. A Google Doc has no bytes; migrating one means
+ * asking Drive to EXPORT a rendering. If two exports of an unchanged document
+ * differ, `contentHash` sees a change on every pass and the migration rewrites
+ * every document nightly, forever, with every write succeeding and nothing
+ * looking broken. ADR-0046 settles ONE class of that — a container rebuilt
+ * around identical parts — and settles nothing else.
+ *
+ * THREE ANSWERS, NOT TWO, and the third is the important one:
+ *
+ *   - `stable`     measured, and either byte-identical or settleable by the
+ *                  container hash. Safe to export.
+ *   - `unstable`   measured, and NOT settleable: something inside a member
+ *                  varies. Refused, because exporting it is the nightly
+ *                  rewrite.
+ *   - `unmeasured` nobody has run it. **Recorded, and NOT acted on** — a blank
+ *                  is not a red. Refusing on absence of a measurement would
+ *                  turn off a Drawing under `export-office` (deliberately made
+ *                  to work) and every Sheet and Slide under `export-pdf`, which
+ *                  is the escape hatch an owner reaches for. The entry exists
+ *                  so somebody can see what is missing and go and measure it;
+ *                  a table with only two answers would have had to guess for
+ *                  every blank, which is how a guess becomes a fact.
+ *
+ * WHAT WAS ACTUALLY MEASURED, on the owner's tenant, five draws each, 3000 ms
+ * apart, with `scripts/drive-export-stability.ts`:
+ *
+ *   - `export-office` on a **Doc**: 17644 bytes every draw, five hashes, all
+ *     nine members byte-identical, only zip stamps moved. Container-only.
+ *   - `export-office` on a **Sheet**: 5659 bytes every draw, five hashes, all
+ *     ten members byte-identical. Container-only.
+ *   - `export-office` on a **Slide**: lengths oscillate by one byte, and FIVE
+ *     members change content (`ppt/_rels/presentation.xml.rels`, two more
+ *     `.rels`, both themes). Two draws still differ once the container is
+ *     normalised — so the container hash does not save it.
+ *   - `export-odf` on a **Doc**: `settings.xml` genuinely changes, 24 other
+ *     members only restamped. Same verdict as the Slide, one format earlier.
+ *   - `export-pdf` on a **Doc**: 195869 bytes and ONE hash, five times.
+ *
+ * Everything else in this table is `unmeasured` because it is, including every
+ * Drawing and every Sheet or Slide under `export-odf` and `export-pdf`. Run
+ * `DRIVE_FILE_KIND=sheet DRIVE_EXPORT_POLICY=export-pdf` against a real tenant
+ * and move an entry; do not move one on a guess.
+ *
+ * A GREEN IS NOT THE MIRROR OF A RED. Five identical draws are evidence, not
+ * proof — one counterexample disproves stability and no number of agreements
+ * proves it. That asymmetry is why `stable` here means "measured and not
+ * disproved" and why the Slide, which took one run to disprove, outranks every
+ * green in this table.
+ */
+export type ExportStability = 'stable' | 'unstable' | 'unmeasured';
+
+export const EXPORT_STABILITY: Readonly<
+  Record<Exclude<NativeFilePolicy, 'refuse'>, Readonly<Record<string, ExportStability>>>
+> = {
+  'export-odf': {
+    // `settings.xml` changes content between draws — measured, not settleable.
+    'application/vnd.google-apps.document': 'unstable',
+    'application/vnd.google-apps.spreadsheet': 'unmeasured',
+    'application/vnd.google-apps.presentation': 'unmeasured',
+    'application/vnd.google-apps.drawing': 'unmeasured',
+  },
+  'export-office': {
+    // Container-only, both of them: ADR-0046's hash settles these two and they
+    // are the reason that decision exists.
+    'application/vnd.google-apps.document': 'stable',
+    'application/vnd.google-apps.spreadsheet': 'stable',
+    // The counterexample. Five members change content; normalising the
+    // container leaves two draws still differing.
+    'application/vnd.google-apps.presentation': 'unstable',
+    'application/vnd.google-apps.drawing': 'unmeasured',
+  },
+  'export-pdf': {
+    'application/vnd.google-apps.document': 'stable',
+    'application/vnd.google-apps.spreadsheet': 'unmeasured',
+    'application/vnd.google-apps.presentation': 'unmeasured',
+    'application/vnd.google-apps.drawing': 'unmeasured',
+  },
+};
+
+/**
+ * How stable this policy's rendering of this type is, for a caller that has a
+ * MIME type and a policy and nothing else.
+ *
+ * `unmeasured` for a type the table does not list at all, which is the same
+ * answer for the same reason: nobody ran it.
+ */
+export function exportStabilityOf(
+  policy: Exclude<NativeFilePolicy, 'refuse'>,
+  mimeType: string,
+): ExportStability {
+  return EXPORT_STABILITY[policy][mimeType] ?? 'unmeasured';
+}
+
+/**
  * The file extension each export MIME type lands under.
  *
  * A Google Doc's `name` carries no extension — there is no file, so there is

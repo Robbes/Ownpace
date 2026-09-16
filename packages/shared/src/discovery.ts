@@ -38,6 +38,29 @@ export interface DomainDiscovery {
    */
   readonly excludedItems?: number;
   /**
+   * Native editor files this migration's export policy will REFUSE for measured
+   * instability, by Google editor kind — `{ presentation: 3 }` (0042 T7,
+   * ADR-0046, owner's decision 2026-09-16).
+   *
+   * Counted apart for the same reason `excludedItems` is, and the comment above
+   * says it best: these are a different promise from `items`, and it can only
+   * be a choice if the number is in front of the owner. `export-office` carries
+   * a Doc and a Sheet perfectly well and would rewrite a Slides deck every
+   * night; the person choosing the policy needs to know how many decks that is
+   * BEFORE the first pass, not as a queue full of failure rows afterwards.
+   *
+   * A SNAPSHOT, and not the thing that keeps anybody safe. The gate is the
+   * per-item refusal in the connector, which holds for a deck added after this
+   * count was taken. This is the early warning, and the two are not
+   * interchangeable.
+   *
+   * Absent (rather than `{}`) when the source cannot answer — every source but
+   * Drive, and Drive under `refuse`. Absent means "did not look", which is a
+   * different claim from `{}`, "looked and found none" — the same distinction
+   * `generatedIdItems` and `targetExisting` already draw in this interface.
+   */
+  readonly refusedNative?: Readonly<Record<string, number>>;
+  /**
    * Items the DESTINATION already holds for this domain, before we copy
    * anything. Omitted when the target could not be enumerated.
    *

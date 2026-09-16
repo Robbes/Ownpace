@@ -19,10 +19,12 @@ import type {
   TargetReindexer,
   TargetPresenceCheck,
   TargetEntry,
+  TargetHashScheme,
   RemovalResult,
 } from '@openmig/shared';
 import {
   fileNaturalKeyHash,
+  containerContentHash,
   fileContentHash,
   streamingFileContentHash,
   tooLargeToBuffer,
@@ -553,7 +555,10 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
    * Called for sampled items only. Returns undefined when the file cannot be
    * read: the sample is then counted as unavailable, never as a mismatch.
    */
-  async contentHashFor(entry: TargetEntry): Promise<string | undefined> {
+  async contentHashFor(
+    entry: TargetEntry,
+    scheme: TargetHashScheme = 'bytes',
+  ): Promise<string | undefined> {
     const filePath = this.normalizeRelativePath(entry.naturalKey);
     let response: HttpResponse;
     try {
@@ -579,6 +584,21 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     // Bytes only. Hashing the UTF-8 decoded `body` would differ from the source
     // hash for every non-ASCII binary file — reporting healthy files as corrupt.
     if (!response.bodyBytes) return undefined;
+    if (scheme === 'container-parts') {
+      // THE SAME QUESTION THE LEDGER'S ROW ANSWERED (ADR-0046, 0042 T7). This
+      // row holds a rendering we asked Drive to export; it was stored as a hash
+      // over the container's parts, so a whole-file sha256 taken here would be
+      // a different measurement wearing the same shape — and every migrated
+      // document would read as changed on the page somebody deletes their
+      // originals from.
+      //
+      // `undefined` when the bytes will not canonicalise, which is this
+      // method's existing answer for anything it cannot read. NEVER a
+      // whole-file hash as a consolation: the caller would compare two
+      // different questions, and `sameFingerprintVersion` would then have to
+      // rescue a mistake this line could simply not make.
+      return containerContentHash(response.bodyBytes) ?? undefined;
+    }
     return fileContentHash(response.bodyBytes);
   }
 

@@ -58,11 +58,13 @@ import {
   GOOGLE_NATIVE_PREFIX,
   NATIVE_EXPORT_EXTENSIONS,
   NATIVE_EXPORT_TYPES,
+  exportStabilityOf,
   type DriveFile,
   type DriveFileList,
   type DriveTransport,
   type DriveResponse,
   type GoogleDriveSourceConfig,
+  type ExportStability,
   type NativeFilePolicy,
 } from './google-drive-source.types.ts';
 // The seam's threshold, not DAV's — every connector that moves to `FileBody`
@@ -112,7 +114,22 @@ export const DRIVE_SHORTCUT_MIME = 'application/vnd.google-apps.shortcut';
  *   - a shortcut is a pointer to something else, not content.
  */
 export class NativeFileRefused extends Error {
-  constructor(name: string, mimeType: string, policy: NativeFilePolicy = 'refuse') {
+  constructor(
+    name: string,
+    mimeType: string,
+    policy: NativeFilePolicy = 'refuse',
+    /**
+     * What the measurement says about THIS policy on THIS type, when the
+     * policy has a rendering for it at all.
+     *
+     * Only `unstable` ever reaches here — `refusalFor` does not refuse an
+     * `unmeasured` combination, because a blank is not a red (see there). The
+     * parameter takes the whole type rather than a boolean so that if that
+     * product decision is ever revisited, the call site changes and this
+     * signature does not.
+     */
+    stability: ExportStability = 'stable',
+  ) {
     const kind = mimeType.slice(GOOGLE_NATIVE_PREFIX.length);
     let message: string;
     if (mimeType === DRIVE_SHORTCUT_MIME) {
@@ -133,6 +150,20 @@ export class NativeFileRefused extends Error {
         'configured with nativeFilePolicy="refuse". Set an export policy on the mapping — ' +
         '"export-odf" (.odt/.ods/.odp), "export-office" (.docx/.xlsx/.pptx) or "export-pdf" — ' +
         'to migrate these, or move them out of scope.';
+    } else if (stability === 'unstable') {
+      // MEASURED, not suspected. Drive CAN export this one — the refusal is
+      // about what the export is worth, which is a harder thing to explain and
+      // a worse thing to get wrong. If this file were copied, every later pass
+      // would see a different hash for a document nobody touched, re-copy it,
+      // and succeed; the owner would find their whole library rewritten every
+      // night with nothing in any report saying so.
+      message =
+        `"${name}" is a Google ${kind}. Drive can export one under "${policy}", but the export ` +
+        'is NOT byte-stable: exporting the same unchanged file twice gives two different ' +
+        'results, measured on a real account. Copying it would make every later pass see a ' +
+        'change that did not happen and re-copy it, nightly, forever. "export-pdf" is stable ' +
+        `for a Doc and loses editability; otherwise move the ${kind} out of scope and keep it ` +
+        'where it is. This is a measurement, not a guess — see workplan 0042 T3.';
     } else {
       message =
         `"${name}" is a Google ${kind}, and the mapping's export policy (${policy}) has no ` +
@@ -198,6 +229,12 @@ export class GoogleDriveSource implements FileSource {
   private lastListing?: { readonly path: string; readonly keys: ReadonlyArray<string> };
   /** The ACTUAL id behind a `rootFolderId` of `'root'` — see `actualRootId`. */
   private rootIdResolved?: string;
+
+  /**
+   * Native files this policy will refuse, by Google editor kind, accumulated as
+   * folders are listed. Read by the preflight through `nativeRefusals()`.
+   */
+  private readonly refusedNative = new Map<string, number>();
 
   private readonly transport: DriveTransport;
   constructor(
@@ -290,6 +327,31 @@ export class GoogleDriveSource implements FileSource {
     const items: RawFileItem[] = [];
 
     for (const file of await this.listChildren(folderId, false)) {
+      // TALLIED HERE BECAUSE THE WALK IS ALREADY HAPPENING (0042 T7). The
+      // preflight lists every folder to count items; asking `refusalFor` about
+      // each file as it goes costs a map lookup and no request at all, where a
+      // second walk would cost the owner's Drive quota to learn something this
+      // one already knows.
+      //
+      // The item is still pushed. A refused file is LISTED and then refused at
+      // `fetch`, inside the sync loop's per-item boundary, so it lands in the
+      // failures queue with its reason and the rest of the folder migrates.
+      // Filtering it out of the listing here would make it vanish instead —
+      // uncounted, unreported, and indistinguishable from a file that was never
+      // there.
+      // MEASURED-UNSTABLE ONLY, which is narrower than "would be refused" and
+      // is the number that tells an owner something they cannot already see.
+      // Under `refuse` every native file is refused and the policy's own name
+      // says so; a type this policy has no rendering for is refused for a
+      // reason that is Drive's, not ours. The surprise — and the only one worth
+      // a line on the confirm screen — is the file a policy carries in general
+      // and will not carry here.
+      if (this.policy !== 'refuse' && isNativeEditorFile(file.mimeType)) {
+        if (exportStabilityOf(this.policy, file.mimeType) === 'unstable') {
+          const kind = file.mimeType.slice(GOOGLE_NATIVE_PREFIX.length);
+          this.refusedNative.set(kind, (this.refusedNative.get(kind) ?? 0) + 1);
+        }
+      }
       // The SAME name for the path and the item, so the natural key and what
       // the owner sees on the target cannot disagree about the suffix.
       items.push({
@@ -796,7 +858,18 @@ export class GoogleDriveSource implements FileSource {
 
     const response = await this.download(url, item);
     const bytes = new Uint8Array(await response.arrayBuffer());
-    return { item: { ...item, size: bytes.byteLength }, content: bytes };
+    return {
+      item: { ...item, size: bytes.byteLength },
+      content: bytes,
+      // THE ONE PLACE THAT KNOWS. These bytes exist because we asked Drive to
+      // render a document that has none of its own, and `RawFileItem.rendering`
+      // is what tells the sync loop to compare them by the container's parts
+      // rather than whole (ADR-0046). An ordinary file downloaded through
+      // `alt=media` takes the other branch of this same expression and is not
+      // marked — a `.zip` the customer stored is their bytes, and normalising
+      // its container away would hide a change they made.
+      ...(exportUrl === undefined ? {} : { rendering: true as const }),
+    };
   }
 
   /** The one download, issued fresh each time — buffered read and `open()` alike. */
@@ -924,10 +997,35 @@ export class GoogleDriveSource implements FileSource {
     if (this.policy === 'refuse' || !isNativeEditorFile(file.mimeType)) return undefined;
     const target = NATIVE_EXPORT_TYPES[this.policy][file.mimeType];
     if (!target) return undefined;
+    // A SECOND GATE, on purpose. `fetch` asks `refusalFor` first and throws, so
+    // nothing measured-unstable reaches here today — but that is an ORDERING,
+    // and an ordering is what a later edit reorders. The cost of the duplicate
+    // check is a map lookup; the cost of losing it is a policy silently
+    // exporting the file the measurement refused.
+    if (exportStabilityOf(this.policy, file.mimeType) === 'unstable') return undefined;
     return (
       `${this.baseUrl}/files/${encodeURIComponent(file.id)}/export` +
       `?mimeType=${encodeURIComponent(target)}`
     );
+  }
+
+  /**
+   * What this policy will refuse in everything listed so far, by editor kind.
+   *
+   * An OPTIONAL CAPABILITY, in the shape `listTrashedPaths` and `storageUsage`
+   * already use: the preflight asks for it if the source has it and carries on
+   * if not. It is meaningful only after a walk — before one it is `{}`, which
+   * is why the caller attaches it AFTER `discoverSource` returns rather than
+   * reading it up front.
+   *
+   * `{}` under `refuse` as well, and that is correct rather than a gap: under
+   * that policy EVERY native file is refused and the existing per-item reason
+   * already says so at the front door. This number exists for the case where a
+   * policy carries most things and refuses some, which is the one an owner
+   * cannot see coming.
+   */
+  nativeRefusals(): Readonly<Record<string, number>> {
+    return Object.fromEntries(this.refusedNative);
   }
 
   /** Whether this item would be refused, and why — exposed so callers can ask. */
@@ -935,9 +1033,30 @@ export class GoogleDriveSource implements FileSource {
     if (!isNativeEditorFile(file.mimeType)) return undefined;
     if (this.policy === 'refuse') return new NativeFileRefused(file.name, file.mimeType);
     const map = NATIVE_EXPORT_TYPES[this.policy];
-    return map[file.mimeType]
-      ? undefined
-      : new NativeFileRefused(file.name, file.mimeType, this.policy);
+    // No rendering at all — the oldest of the three refusals, and the only one
+    // that is about Drive rather than about us.
+    if (!map[file.mimeType]) {
+      return new NativeFileRefused(file.name, file.mimeType, this.policy);
+    }
+    // A rendering exists. Whether it is worth having is the measurement's
+    // question.
+    //
+    // ONLY `unstable` REFUSES, and the line is drawn there deliberately.
+    // `unmeasured` is recorded in the table and reported, but it does NOT stop
+    // a copy: turning off a path that works today on the strength of a
+    // measurement nobody has run would be a product decision — it would refuse
+    // every Drawing, and every Sheet and Slide under `export-pdf`, which is the
+    // escape hatch an owner reaches for when `export-office` will not do. A
+    // Drawing under `export-office` was deliberately made to work (SVG), and
+    // this is not the change that turns it off again.
+    //
+    // The asymmetry is the same one the whole workplan runs on: a red is
+    // conclusive and a blank is not. A blank is a reason to go and measure,
+    // which `EXPORT_STABILITY` now names precisely enough to act on.
+    const stability = exportStabilityOf(this.policy, file.mimeType);
+    return stability === 'unstable'
+      ? new NativeFileRefused(file.name, file.mimeType, this.policy, stability)
+      : undefined;
   }
 }
 
