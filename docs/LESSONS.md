@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 129 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 130 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -1070,6 +1070,7 @@ reading a file drops off its entry by itself.
 ### `scripts/drive-export-stability.ts`
 
 - [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts) — A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
+- [two-draws-that-could-agree-by-accident](../scripts/two-draws-that-could-agree-by-accident.unit.test.ts) — TWO DRAWS OF A ONE-BYTE WOBBLE CAN AGREE, AND THE SCRIPT WOULD HAVE CALLED THAT STABLE.
 
 ### `scripts/every-service-somebody-starts.unit.test.ts`
 
@@ -2534,6 +2535,14 @@ Reads:
 
 - `.github/workflows/e2e-managed.yml`
 - `deploy/compose/trigger-version.sh`
+
+### [two-draws-that-could-agree-by-accident](../scripts/two-draws-that-could-agree-by-accident.unit.test.ts)
+
+TWO DRAWS OF A ONE-BYTE WOBBLE CAN AGREE, AND THE SCRIPT WOULD HAVE CALLED THAT STABLE.
+
+Reads:
+
+- `scripts/drive-export-stability.ts`
 
 ### [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts)
 

@@ -139,12 +139,21 @@ export interface WebDAVSource {
  * byte-stable across calls. If it is not, `contentHash` sees a change on every
  * pass and the migration rewrites every document forever.
  *
- * **The owner chooses per migration (0042 T0 Q3), and the default is `refuse`
- * until byte-stability has been measured against a real tenant.** Of the two
- * failure modes available here — "your Docs did not migrate, and here is why"
- * and "your Docs are silently re-copied nightly, and their formatting changed" —
- * only the first is one an owner can act on. Setting an export policy today is
- * choosing an UNMEASURED behaviour; 0042 T6 is where that measurement goes.
+ * **The owner chooses per migration (0042 T0 Q3), and the default is `refuse`.**
+ * Of the two failure modes available here — "your Docs did not migrate, and here
+ * is why" and "your Docs are silently re-copied nightly, and their formatting
+ * changed" — only the first is one an owner can act on.
+ *
+ * **`export-odf` HAS now been measured, and it is not byte-stable** (2026-09-16,
+ * the owner's tenant, measured twice: four exports of one unchanged Doc produced
+ * four different renderings, spanning 3127558 to 3127561 bytes). One
+ * counterexample is the whole answer, because the claim a policy needs is
+ * universal — every document, every pass. Setting `export-odf` is choosing a
+ * behaviour MEASURED to rewrite documents forever.
+ *
+ * `export-office` and `export-pdf` remain unmeasured, so setting either is still
+ * choosing an unmeasured behaviour. 0042 T3 records what was measured and what
+ * was not, and states the two ways an export policy could be made usable at all.
  *
  * Defined here rather than beside the connector because it is a product
  * decision that now appears in a mapping file, not part of Google's wire format.
@@ -1098,8 +1107,9 @@ function parseNativeFilePolicy(value: unknown): GoogleNativeFilePolicy {
       '"export-odf", "export-office", or "export-pdf"). "refuse" is the default and reports ' +
       'each Google Doc, Sheet and Slide as un-migratable with a reason; the export policies ' +
       'ask Drive to render one — ODF (.odt/.ods/.odp), Office (.docx/.xlsx/.pptx) or PDF — ' +
-      'which is lossy and whose byte-stability across passes is NOT yet measured ' +
-      '(workplan 0042 T6).',
+      'which is lossy. "export-odf" was MEASURED on 2026-09-16 and is not byte-stable, so it ' +
+      'would re-copy every document on every pass; "export-office" and "export-pdf" are still ' +
+      'unmeasured (workplan 0042 T3).',
   );
 }
 
