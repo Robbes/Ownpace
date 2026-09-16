@@ -387,7 +387,19 @@ async function main(): Promise<void> {
 
   // Through the connector, not through a hand-rolled request: the point is to
   // measure what a MIGRATION would store, and that is whatever `fetch` returns.
-  const source = new GoogleDriveSource(transport, { rootFolderId: ROOT, nativeFilePolicy: POLICY });
+  //
+  // WITH THE STABILITY REFUSAL LIFTED, and only that one. The connector refuses
+  // what `EXPORT_STABILITY` calls `unstable`, and `EXPORT_STABILITY` is written
+  // from THIS SCRIPT'S OUTPUT — so without the exemption the instrument cannot
+  // re-take a reading it once took, which also means a red can never go back to
+  // green no matter what Google fixes. Every other refusal still applies here:
+  // a shortcut has nothing to export, a Form cannot be rendered, and `refuse`
+  // refuses.
+  const source = new GoogleDriveSource(
+    transport,
+    { rootFolderId: ROOT, nativeFilePolicy: POLICY },
+    { exportDespiteMeasuredInstability: true },
+  );
   const item = {
     path: doc.name,
     isDirectory: false,
