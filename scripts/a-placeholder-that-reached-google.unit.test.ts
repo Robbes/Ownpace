@@ -233,6 +233,19 @@ describe('a weigh that fails for a reason nothing to do with the policy', () => 
     expect(allFailed).toMatch(/firstFailure/);
   });
 
+  it('says why it skipped even when the weigh SUCCEEDED', () => {
+    // The owner's run, 2026-09-16: "✔ largest renders to 2017 bytes, 1 could
+    // not be exported" — a number with no way to tell whether that file was in
+    // a shared drive, was a shortcut, or failed for a reason that also affects
+    // the document about to be measured. One awkward file among several is the
+    // commonest shape of this, not all of them failing at once, so the partial
+    // case is the one that had to learn it.
+    const success = body.slice(body.indexOf('console.log(`  ✔ largest renders'));
+    expect(success, 'the partial-failure path prints a count and no cause').toMatch(
+      /firstFailure/,
+    );
+  });
+
   it('says plainly that a 401 or 403 is not the policy', () => {
     // The specific misdirection worth naming: "try another policy" is wrong
     // advice for an expired grant, and a reader who has just been handed a 401

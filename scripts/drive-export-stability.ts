@@ -385,8 +385,20 @@ async function pickLargest(candidates: readonly DriveFile[]): Promise<DriveFile>
     );
   }
 
-  const skipped = refused > 0 ? `, ${refused} could not be exported` : '';
-  console.log(`  ✔ largest renders to ${best.bytes} bytes${skipped}\n`);
+  console.log(`  ✔ largest renders to ${best.bytes} bytes`);
+  if (refused > 0) {
+    // THE COUNT IS NOT THE ANSWER, and the owner's run on 2026-09-16 is why:
+    // it printed "1 could not be exported" and stopped there, leaving somebody
+    // looking at a number with no way to tell whether a file was in a shared
+    // drive, was a shortcut, or was refused for a reason that also affects the
+    // document about to be measured. The all-failed message below had already
+    // learned to carry its cause; this one had not, which made the lesson half
+    // applied — the commonest case is one awkward file among several, not all
+    // of them failing at once.
+    console.log(`    ${refused} of ${candidates.length} could not be exported. The first:`);
+    console.log(`      ${firstFailure ?? 'no error recorded'}`);
+  }
+  console.log('');
   return best.file;
 }
 
