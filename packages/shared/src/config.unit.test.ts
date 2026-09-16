@@ -219,9 +219,10 @@ describe('the google-drive file source', () => {
     expect(() => parseMappingConfig(driveMapping({ nativeFilePolicy: 'export_office' }))).toThrow(
       /nativeFilePolicy/,
     );
-    // And the refusal names all of them, plus the caveat that export is
-    // unmeasured — an owner reading it should not have to go looking for the
-    // option they actually wanted.
+    // And the refusal names all of them, plus what is known about each — an owner
+    // reading it should not have to go looking for the option they actually
+    // wanted, nor for whether it has been measured (0042 T3: export-odf has, and
+    // failed; the other two have not).
     for (const named of [/export-odf/, /export-office/, /export-pdf/]) {
       expect(() => parseMappingConfig(driveMapping({ nativeFilePolicy: 'export_office' }))).toThrow(
         named,

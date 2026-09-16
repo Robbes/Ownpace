@@ -270,6 +270,13 @@ and one can be stable while another is not — and ideally against a Doc, a Shee
 Then keep a note of what you found — the answer decides whether exporting Google Docs is
 safe to turn on at all.
 
+**What we have measured so far, on one real tenant (2026-09-16): `export-odf` is not stable.**
+Two exports of the same untouched Google Doc, three seconds apart, came back different sizes —
+3127560 bytes and then 3127558. That is enough to rule the policy out rather than a reason to
+try more documents: for exporting to be safe it has to hold for *every* document you own, so one
+that fails answers the question. `export-office` and `export-pdf` have not been measured by
+anyone yet. Until they are, `refuse` is the honest setting, and it is the default.
+
 ### Which credentials it reads, and where
 
 The script goes through the same token provider a migration does, so it reads its credentials

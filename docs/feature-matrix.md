@@ -262,12 +262,13 @@ evidence drops to `inferred`, which gate 3 will not apply — so the count is wh
 why an apply button is missing rather than leaving them to guess.
 
 Not (yet) migrated:
-- ⏳ **Google Docs / Sheets / Slides** — refused by default, each named with the reason:
-  they have no bytes, only lossy exports, and `nativeFilePolicy` stays `refuse` until
-  export **byte-stability is measured** against a real tenant (Stage 1,
-  `scripts/drive-export-stability.ts`). An unstable export would silently rewrite every
-  document every night. Drive **shortcuts** fall under the same refusal (they are pointers,
-  not files).
+- ⏳ **Google Docs / Sheets / Slides** — refused, each named with the reason: they have no
+  bytes, only lossy exports, and an unstable export would silently rewrite every document
+  every night. **`export-odf` was measured against a real tenant on 2026-09-16 and is NOT
+  byte-stable** — two exports of one unchanged Doc differed in length — so it is refused on
+  evidence, not on caution (workplan 0042 T3). `export-office` and `export-pdf` are still
+  unmeasured (Stage 1, `scripts/drive-export-stability.ts`) and refuse meanwhile. Drive
+  **shortcuts** fall under the same refusal (they are pointers, not files).
 - 🚫 **Sharing permissions / ACLs, version history, comments, stars** — the file's bytes
   and place migrate; its social metadata does not. The Finish screen's **permissions
   handover** document is the deliberate substitute for ACL migration.
