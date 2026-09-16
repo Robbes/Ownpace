@@ -147,11 +147,16 @@ export interface WebDAVSource {
  * **ALL THREE HAVE NOW BEEN MEASURED** against one real Doc (2026-09-16, the
  * owner's tenant — 0042 T3 carries the numbers):
  *
- *   `export-odf`     NOT byte-stable. Four draws, three sizes in a four-byte
- *                    window — a variable-length field inside the container.
+ *   `export-odf`     NOT byte-stable. Nine draws across three runs, four sizes
+ *                    in a four-byte window. Reading the zip index says where:
+ *                    `settings.xml` — the ODF part holding application and view
+ *                    settings — really changes, and the other 24 members are
+ *                    only restamped.
  *   `export-office`  NOT byte-stable. Five draws, 17644 bytes EVERY time and
- *                    five different hashes — a fixed-width field overwritten in
- *                    place, which is a different defect with a different fix.
+ *                    five different hashes — but NOTHING INSIDE THE DOCUMENT
+ *                    MOVED. All nine members are byte-identical every draw and
+ *                    only the zip's own modification stamps changed, so this is
+ *                    a container defect, not a document one.
  *   `export-pdf`     Identical bytes five times. The first policy to survive.
  *
  * **The default stays `refuse` for all three, and the asymmetry is why.** A red
