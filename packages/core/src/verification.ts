@@ -12,7 +12,7 @@
  */
 
 import type { TenantId, MappingId } from '@openmig/shared';
-import { versionOf } from '@openmig/shared';
+import { sameFingerprintVersion } from '@openmig/shared';
 
 // The report SHAPES moved to @openmig/shared under ADR-0026 so the UI and both
 // editions compile against one declaration; the ENGINE below is core's own.
@@ -567,16 +567,23 @@ function isComparableContent(content: Uint8Array | string): boolean {
 /**
  * Were these two hashes produced by the same algorithm?
  *
- * Canonical DAV fingerprints carry a version tag (`cal1:`, `card1:`); mail and
- * file hashes are bare sha256 hex and have none. Comparing across versions —
- * a ledger row written by an older build against a value computed now — is
- * meaningless, and reporting it as a mismatch would manufacture corruption out
- * of an upgrade. Bare-vs-bare and tagged-vs-same-tag are comparable; anything
- * else is not.
+ * Canonical DAV fingerprints carry a version tag (`cal1:`, `card1:`, and
+ * `zip1:` for a container hashed by its parts); mail and file hashes are bare
+ * sha256 hex and have none. Comparing across versions — a ledger row written
+ * by an older build against a value computed now — is meaningless, and
+ * reporting it as a mismatch would manufacture corruption out of an upgrade.
+ * Bare-vs-bare and tagged-vs-same-tag are comparable; anything else is not.
+ *
+ * ONE RULE, and this is the wrapper rather than the rule. The comparison is
+ * `sameFingerprintVersion` in `dav-canonical.ts`, which `confirmation-pass.ts`
+ * calls too; ADR-0046 rule (d) is what both are holding. What this adds is the
+ * BYTES case: §20 samples arrive as `Uint8Array | string`, and two buffers are
+ * raw content rather than fingerprints, so the scheme question does not apply
+ * to them.
  */
 function sameHashAlgorithm(a: Uint8Array | string, b: Uint8Array | string): boolean {
   if (typeof a !== 'string' || typeof b !== 'string') return true;
-  return versionOf(a) === versionOf(b);
+  return sameFingerprintVersion(a, b);
 }
 
 function compareContent(

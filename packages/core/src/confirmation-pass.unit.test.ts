@@ -161,6 +161,64 @@ describe('a comparison that could not be made is never a mismatch', () => {
     expect(row).toEqual({ state: 'present', claim: 'none' });
     expect(hashed, 'the pass fetched a body it had nothing to compare to').toBe(0);
   });
+
+  it('says present when the two hashes were made by DIFFERENT schemes', async () => {
+    // ADR-0046 rule (d). The ledger holds a `zip1:` fingerprint — a rendering
+    // compared by its container's parts — and the target read came back a
+    // plain sha256 over whole bytes. Those two strings say nothing about each
+    // other, and `differs` would be corruption manufactured out of an upgrade,
+    // on the page somebody deletes their originals from.
+    const row = await confirmOne(
+      'file',
+      item({ contentHash: 'zip1:aaaa' }),
+      reader({ hashOnTarget: async () => 'bbbb' }),
+    );
+    expect(row).toEqual({ state: 'present', claim: 'none' });
+  });
+
+  it('says present across two DIFFERENT tags, not just tagged against bare', async () => {
+    // The rule is "same scheme", not "one of them is untagged". Two fingerprint
+    // schemes are as incomparable with each other as either is with a raw hash.
+    const row = await confirmOne(
+      'file',
+      item({ contentHash: 'zip1:aaaa' }),
+      reader({ hashOnTarget: async () => 'cal1:aaaa' }),
+    );
+    expect(row).toEqual({ state: 'present', claim: 'none' });
+  });
+
+  it('and identical hex under different tags is still not a match', async () => {
+    // The sharpest form of it: the halves after the colon are the same string.
+    // Reading that as agreement would be two schemes colliding by coincidence
+    // of encoding, which is precisely what the tag exists to prevent — and it
+    // is why the version goes INTO the digest as well as onto its front.
+    const row = await confirmOne(
+      'file',
+      item({ contentHash: 'zip1:ffff' }),
+      reader({ hashOnTarget: async () => 'card1:ffff' }),
+    );
+    expect(row).toEqual({ state: 'present', claim: 'none' });
+  });
+
+  it('but the SAME tag on both sides still compares, and can still differ', async () => {
+    // The other half, or the rule above would be a way to never report a
+    // mismatch at all. Same scheme, different digests, and the pass says so.
+    const row = await confirmOne(
+      'file',
+      item({ contentHash: 'zip1:aaaa' }),
+      reader({ hashOnTarget: async () => 'zip1:bbbb' }),
+    );
+    expect(row).toEqual({ state: 'differs', claim: 'byte-hash' });
+  });
+
+  it('and the same tag agreeing is verified', async () => {
+    const row = await confirmOne(
+      'file',
+      item({ contentHash: 'zip1:aaaa' }),
+      reader({ hashOnTarget: async () => 'zip1:aaaa' }),
+    );
+    expect(row).toEqual({ state: 'verified', claim: 'byte-hash' });
+  });
 });
 
 describe('what the pass may claim when both hashes are in hand', () => {

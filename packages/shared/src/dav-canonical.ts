@@ -79,6 +79,14 @@ export function contactFingerprint(vcard: string): string {
  * A ledger row written before an algorithm change holds an older tag. Comparing
  * across versions says nothing about the data, so the caller must report it as
  * unmeasured rather than as a mismatch.
+ *
+ * ADR-0046 rule (d) states this as a rule of the product rather than a habit of
+ * this file, and it is not only about DAV: `zip1:` — a rendering compared by
+ * its container's parts (`container-hash.ts`) — is a third tag, and a plain
+ * sha256 over whole bytes is the untagged fourth. So this answers for every
+ * content hash the ledger holds, not just the two written here. §20's content
+ * leg (`verification.ts`) and the confirmation pass (`confirmation-pass.ts`)
+ * are its callers; each turns `false` into "unavailable", never "differ".
  */
 export function sameFingerprintVersion(a: string, b: string): boolean {
   return versionOf(a) === versionOf(b);

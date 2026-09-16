@@ -63,6 +63,7 @@ import {
   canRemove,
   isOnTarget,
   log,
+  sameFingerprintVersion,
   type Ledger,
   type LedgerRecord,
   type MappingId,
@@ -824,6 +825,24 @@ async function relocationCheck(
       reason:
         'This item has no recorded content hash, so there is no way to confirm the relocated ' +
         'copy holds the same bytes. Nothing was removed.',
+    };
+  }
+  // TWO SCHEMES ARE NOT A DISAGREEMENT — ADR-0046 rule (d), and here it changes
+  // only the SENTENCE, never the outcome. The gate below already refuses, since
+  // two differently-tagged values can never be equal; what it would say is
+  // "probably edited after it was moved", which is a specific claim about the
+  // customer's behaviour and would be untrue. A hash recorded by a build that
+  // hashed whole files, against one taken over a container's parts, is not
+  // evidence of an edit — it is evidence of nothing.
+  if (!sameFingerprintVersion(arrival.contentHash, row.contentHash)) {
+    return {
+      ok: false,
+      code: 'relocation_unconfirmed',
+      reason:
+        'These two copies were fingerprinted by different methods — one of them was recorded ' +
+        'by an older version of this product — so there is no way to tell whether they hold ' +
+        'the same bytes. That is not evidence they differ, and it is not enough to remove ' +
+        'anything on. Nothing was removed.',
     };
   }
   if (arrival.contentHash !== row.contentHash) {

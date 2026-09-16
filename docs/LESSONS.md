@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 134 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 135 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -755,7 +755,12 @@ reading a file drops off its entry by itself.
 
 ### `packages/core/src/apply-deletion.ts`
 
+- [a-hash-compared-against-a-different-scheme](../scripts/a-hash-compared-against-a-different-scheme.unit.test.ts) — TWO HASHES MADE DIFFERENT WAYS, COMPARED AS IF THEY WERE THE SAME KIND OF THING (ADR-0046 rule (d), workplan 0042 T7 (d)).
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
+
+### `packages/core/src/confirmation-pass.ts`
+
+- [a-hash-compared-against-a-different-scheme](../scripts/a-hash-compared-against-a-different-scheme.unit.test.ts) — TWO HASHES MADE DIFFERENT WAYS, COMPARED AS IF THEY WERE THE SAME KIND OF THING (ADR-0046 rule (d), workplan 0042 T7 (d)).
 
 ### `packages/core/src/dav-sync.ts`
 
@@ -769,6 +774,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/core/src/verification.ts`
 
+- [a-hash-compared-against-a-different-scheme](../scripts/a-hash-compared-against-a-different-scheme.unit.test.ts) — TWO HASHES MADE DIFFERENT WAYS, COMPARED AS IF THEY WERE THE SAME KIND OF THING (ADR-0046 rule (d), workplan 0042 T7 (d)).
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 
 ### `packages/engines/package.json`
@@ -924,6 +930,10 @@ reading a file drops off its entry by itself.
 - [a-consent-nobody-can-answer](../scripts/a-consent-nobody-can-answer.unit.test.ts) — A BUTTON WHOSE FOLD NEVER HAPPENS ASKS FOR WHAT IT WAS THERE TO SUPPLY.
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
+
+### `packages/shared/src/dav-canonical.ts`
+
+- [a-hash-compared-against-a-different-scheme](../scripts/a-hash-compared-against-a-different-scheme.unit.test.ts) — TWO HASHES MADE DIFFERENT WAYS, COMPARED AS IF THEY WERE THE SAME KIND OF THING (ADR-0046 rule (d), workplan 0042 T7 (d)).
 
 ### `packages/shared/src/dav-refusal.unit.test.ts`
 
@@ -1545,6 +1555,17 @@ Reads:
 - `apps/api/src/routes/migrations/google-consent.unit.test.ts`
 - `apps/web/src/i18n/probe-text.unit.test.tsx`
 - `packages/shared/src/qualification-gate.ts`
+
+### [a-hash-compared-against-a-different-scheme](../scripts/a-hash-compared-against-a-different-scheme.unit.test.ts)
+
+TWO HASHES MADE DIFFERENT WAYS, COMPARED AS IF THEY WERE THE SAME KIND OF THING (ADR-0046 rule (d), workplan 0042 T7 (d)).
+
+Reads:
+
+- `packages/core/src/apply-deletion.ts`
+- `packages/core/src/confirmation-pass.ts`
+- `packages/core/src/verification.ts`
+- `packages/shared/src/dav-canonical.ts`
 
 ### [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts)
 

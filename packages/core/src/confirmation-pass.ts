@@ -41,6 +41,7 @@
 import {
   needsTargetRead,
   rowFor,
+  sameFingerprintVersion,
   type ConfirmedRow,
   type DiscoveryDomain,
   type LedgerRecord,
@@ -60,6 +61,12 @@ export interface ConfirmableItem {
    * existed, or a domain whose `contentHash` function produces a fingerprint
    * the target cannot be asked to reproduce. A row with nothing to compare
    * against is `present`, never `differs` — see `answerFor`.
+   *
+   * IT CARRIES ITS OWN SCHEME, and the value is the only record of it. A
+   * fingerprint is prefixed (`cal1:`, `card1:`, `zip1:`); a plain sha256 over
+   * whole bytes is bare. There is no column saying which — there does not need
+   * to be, because the tag travels inside the string the row already holds, and
+   * `answerFor` reads it before it compares anything.
    */
   readonly contentHash: string | null;
 }
@@ -116,9 +123,11 @@ export interface ConfirmedItem<T extends ConfirmableItem = ConfirmableItem>
  * 1. A throw is `unreachable`. Not absence, not a mismatch.
  * 2. Not present is `onTarget: false`, and only when the target said so.
  * 3. Present with nothing to compare — no `hashOnTarget`, or it answered
- *    undefined, or the ledger holds no hash — is `unavailable`. Three different
- *    reasons for one honest answer: we did not check the bytes.
- * 4. Present with both hashes in hand is `match` or `differ`, and nothing else.
+ *    undefined, or the ledger holds no hash, or the two hashes were made by
+ *    different schemes — is `unavailable`. Four different reasons for one
+ *    honest answer: we did not check the bytes.
+ * 4. Present with both hashes in hand AND both made the same way is `match` or
+ *    `differ`, and nothing else.
  */
 async function answerFor(
   item: ConfirmableItem,
@@ -145,6 +154,32 @@ async function answerFor(
     return { onTarget: true, comparison: 'unavailable' };
   }
   if (onTarget === undefined) return { onTarget: true, comparison: 'unavailable' };
+  // TWO HASHES ARE ONLY COMPARABLE IF THE SAME SCHEME MADE THEM — ADR-0046
+  // rule (d), and the reason it is a rule rather than a remark.
+  //
+  // A fingerprint carries its scheme on its front: `cal1:`, `card1:`, `zip1:`
+  // for a container hashed by its parts, and nothing at all for a plain sha256
+  // over whole bytes. Two values with different tags say nothing about each
+  // other, so `differ` would be a claim this pass cannot support — it would be
+  // manufacturing corruption out of an upgrade, on the page somebody deletes
+  // their originals from.
+  //
+  // NOT REACHABLE TODAY, and built anyway. The two domains that reach this
+  // line both hash whole bytes on both sides (`fileContentHash`, `contentHash`
+  // in `hash.ts`), and the two that use tagged fingerprints — calendars and
+  // contacts — never get here at all, because their servers re-serialise what
+  // they store and `hashOnTarget` is absent for them permanently. It becomes
+  // reachable the moment 0042 T7 writes a `zip1:` row for an exported Google
+  // Doc against a target re-read that is still a whole-file sha256. Adding the
+  // rule AFTERWARDS means shipping one pass that calls every migrated document
+  // changed; there is no version of that worth the ordering.
+  //
+  // `verification.ts` has held this rule since the fingerprints were versioned
+  // — §20's content leg counts a cross-scheme sample as unavailable — and this
+  // file did not. Same rule, same function, two callers now.
+  if (!sameFingerprintVersion(onTarget, item.contentHash)) {
+    return { onTarget: true, comparison: 'unavailable' };
+  }
   return {
     onTarget: true,
     comparison: onTarget === item.contentHash ? 'match' : 'differ',
