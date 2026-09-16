@@ -35,6 +35,7 @@ import { join } from 'node:path';
 const ROOT = join(import.meta.dirname, '..');
 const CONTAINER_HASH = join(ROOT, 'packages/shared/src/container-hash.ts');
 const MEMBERS_DIAGNOSTIC = join(ROOT, 'scripts/drive-export-members.ts');
+const SCHEME = join(ROOT, 'packages/shared/src/fingerprint-scheme.ts');
 
 describe('the container content hash', () => {
   const source = readFileSync(CONTAINER_HASH, 'utf8');
@@ -61,7 +62,19 @@ describe('the container content hash', () => {
   it('carries a version tag, so a scheme change is never read as a change', () => {
     // ADR-0046 rule (d). Without it, adopting this hash re-labels every
     // already-migrated native file and rewrites the lot exactly once.
-    expect(source).toMatch(/CONTAINER_FINGERPRINT_VERSION\s*=\s*'[a-z0-9]+'/);
+    //
+    // The tag is DEFINED in `fingerprint-scheme.ts` and used here. It moved
+    // there on 2026-09-16, when 0042 T7 (c) needed it in `confirmed-list.ts` —
+    // a module guarded as pure, which could not import this one. Both halves
+    // are asserted, because a tag defined and never stamped on the output, or
+    // stamped from a literal rather than the shared constant, would each pass
+    // half of this and neither is the rule.
+    expect(readFileSync(SCHEME, 'utf8')).toMatch(
+      /CONTAINER_FINGERPRINT_VERSION\s*=\s*'[a-z0-9]+'/,
+    );
+    expect(source).toMatch(
+      /import \{ CONTAINER_FINGERPRINT_VERSION \} from '\.\/fingerprint-scheme\.ts'/,
+    );
     expect(source).toMatch(/\$\{CONTAINER_FINGERPRINT_VERSION\}:/);
   });
 });

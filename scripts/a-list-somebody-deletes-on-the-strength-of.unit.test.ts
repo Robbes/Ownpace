@@ -31,6 +31,15 @@
  * the word "hash" is not. §7d of the workplan is explicit that the list holds
  * two kinds of row and must say which per row.
  *
+ * **4. It can say "verified by hash" over a row whose BYTES were never
+ * compared** (0042 T7 (c), ADR-0046). A Google Doc has no bytes of its own;
+ * migrating one means asking Drive to export a rendering, and a rendering comes
+ * back in a rebuilt container every time, so it is compared by its PARTS. That
+ * is a real comparison of real content and it is not a claim about the file's
+ * bytes. The trap here is sharper than (3): the domain is `file`, whose ceiling
+ * IS `byte-hash`, so the ceiling alone cannot tell the two apart — only the
+ * scheme tag on the row's own stored hash can.
+ *
  * `packages/shared/src/confirmed-list.ts` is the whole subject, and it is
  * deliberately pure: no I/O, nothing to mock, and therefore no way for this
  * guard to pass because a fake behaved.
@@ -41,6 +50,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   claimCeilingFor,
+  claimFor,
   countsAsVerified,
   mustAppearDespiteNoClaim,
   needsTargetRead,
@@ -108,7 +118,8 @@ const everyRow = (): Array<{
   for (const domain of DISCOVERY_DOMAINS) {
     for (const status of ALL_STATUSES) {
       for (const answer of ALL_ANSWERS) {
-        out.push({ domain, status, answer, row: rowFor({ domain, status, answer }) });
+        const row = rowFor({ domain, status, answer, contentHash: null });
+        out.push({ domain, status, answer, row });
       }
     }
   }
@@ -126,7 +137,7 @@ describe('a row that was never placed cannot read as verified, and cannot be hid
     for (const status of NEVER_PLACED) {
       for (const domain of DISCOVERY_DOMAINS) {
         for (const answer of ANSWERED) {
-          const row = rowFor({ domain, status, answer });
+          const row = rowFor({ domain, status, answer, contentHash: null });
           expect(
             row,
             `status '${String(status)}' on ${domain} with answer ${JSON.stringify(answer)} ` +
@@ -142,7 +153,8 @@ describe('a row that was never placed cannot read as verified, and cannot be hid
     // is smaller than it is." The predicate exists so a template cannot filter
     // them out without this failing.
     for (const status of NEVER_PLACED) {
-      const row = rowFor({ domain: 'file', status, answer: { onTarget: false } });
+      const answer = { onTarget: false } as const;
+      const row = rowFor({ domain: 'file', status, answer, contentHash: null });
       expect(mustAppearDespiteNoClaim(row), `'${String(status)}' would be filtered out`).toBe(true);
     }
   });
@@ -165,7 +177,7 @@ describe("the customer's own bytes are never reported as ours, verified or wrong
     for (const domain of DISCOVERY_DOMAINS) {
       for (const answer of ANSWERED) {
         expect(
-          rowFor({ domain, status: 'adopted', answer }),
+          rowFor({ contentHash: null, domain, status: 'adopted', answer }),
           `adopted/${domain} with ${JSON.stringify(answer)} did not read as 'yours'`,
         ).toEqual({ state: 'yours', claim: 'none' });
       }
@@ -174,6 +186,7 @@ describe("the customer's own bytes are never reported as ours, verified or wrong
 
   it('and is excluded from the verified headline even though it is on the target', () => {
     const row = rowFor({
+      contentHash: null,
       domain: 'file',
       status: 'adopted',
       answer: { onTarget: true, comparison: 'match' },
@@ -204,7 +217,7 @@ describe("the customer's own bytes are never reported as ours, verified or wrong
   });
 });
 
-describe('the two kinds of claim, and the one word that must not travel', () => {
+describe('the three kinds of claim, and the one word that must not travel', () => {
   it('files and mail can claim bytes; calendar, contacts and tasks never can', () => {
     expect(claimCeilingFor('file')).toBe('byte-hash');
     expect(claimCeilingFor('email')).toBe('byte-hash');
@@ -219,12 +232,13 @@ describe('the two kinds of claim, and the one word that must not travel', () => 
   it('every domain has an answer — a new one cannot default into bytes', () => {
     for (const domain of DISCOVERY_DOMAINS) {
       const ceiling: ClaimKind = claimCeilingFor(domain);
-      expect(['byte-hash', 'fingerprint', 'none']).toContain(ceiling);
+      expect(['byte-hash', 'fingerprint', 'container-parts', 'none']).toContain(ceiling);
     }
   });
 
   it('a matching calendar row is verified BY FINGERPRINT, never by hash', () => {
     const row = rowFor({
+      contentHash: null,
       domain: 'calendar',
       status: 'copied',
       answer: { onTarget: true, comparison: 'match' },
@@ -240,7 +254,9 @@ describe('the two kinds of claim, and the one word that must not travel', () => 
   it('no row anywhere claims more than its domain allows', () => {
     // The sweep. Anything that raises a claim above the ceiling — a rule that
     // read the answer before the domain, say — fails here rather than in the
-    // one hand-written case above.
+    // one hand-written case above. `everyRow` builds untagged rows, so the
+    // ceiling IS the expected claim for all of them; the structural case is
+    // separated out below because it is the one that legitimately sits below.
     for (const { domain, status, answer, row } of everyRow()) {
       if (row.claim === 'none') continue;
       expect(
@@ -251,11 +267,67 @@ describe('the two kinds of claim, and the one word that must not travel', () => 
     }
   });
 
+  it('a file compared by its container PARTS never says "by hash"', () => {
+    // 0042 T7 (c). The domain is `file` and its ceiling is `byte-hash`, so
+    // nothing above catches this: it is the row's own scheme tag or nothing.
+    const row = rowFor({
+      domain: 'file',
+      status: 'copied',
+      answer: { onTarget: true, comparison: 'match' },
+      contentHash: 'zip1:aaaa',
+    });
+    expect(row.state).toBe('verified');
+    expect(
+      row.claim,
+      'a rendering compared by its container\'s parts claimed a byte hash. Nobody compared ' +
+        "the file's bytes — the export comes back in a rebuilt container every time, which is " +
+        'why it is hashed structurally at all (ADR-0046).',
+    ).toBe('container-parts');
+  });
+
+  it('the scheme NARROWS a claim and never raises one', () => {
+    // A tag is not a promotion. A calendar fingerprint is tagged too, and a
+    // rule that read "tagged, therefore structural" would put the file domain's
+    // vocabulary on a DAV row — the fan-out defect one step sideways.
+    expect(claimFor('calendar', 'cal1:aaaa')).toBe('fingerprint');
+    expect(claimFor('contact', 'card1:aaaa')).toBe('fingerprint');
+    expect(claimFor('task', 'zip1:aaaa')).toBe('fingerprint');
+    // And an untagged file hash is not demoted for lacking a tag.
+    expect(claimFor('file', null)).toBe('byte-hash');
+    expect(claimFor('file', 'a'.repeat(64))).toBe('byte-hash');
+    // A tag this build does not know is left alone rather than guessed at.
+    expect(claimFor('file', 'zip9:aaaa')).toBe('byte-hash');
+  });
+
+  it('every claim word the list can produce has somewhere to be rendered', () => {
+    // The vocabulary and the screen are in different packages, and a word added
+    // to one without the other is a row that renders blank on the page somebody
+    // deletes their originals from. The page's own map is typed
+    // `Record<ClaimKind, StringKey>`, so tsc catches a missing key — this
+    // asserts the string EXISTS, which tsc cannot see.
+    const strings = read('apps/web/src/i18n/strings.ts');
+    const words: ReadonlyArray<ClaimKind> = ['byte-hash', 'fingerprint', 'container-parts', 'none'];
+    const keyFor: Readonly<Record<ClaimKind, string>> = {
+      'byte-hash': 'confirmed.claim.byteHash',
+      fingerprint: 'confirmed.claim.fingerprint',
+      'container-parts': 'confirmed.claim.containerParts',
+      none: 'confirmed.claim.none',
+    };
+    for (const word of words) {
+      const key = keyFor[word];
+      expect(
+        (strings.match(new RegExp(`'${key}':`, 'g')) ?? []).length,
+        `'${key}' (the claim '${word}') is not defined in BOTH locales`,
+      ).toBe(2);
+    }
+  });
+
   it('an uncomparable answer is `present`, not a mismatch and not a pass', () => {
     // A JMAP contact target implements no contentHashFor at all, deliberately.
     // Scoring those as mismatches would fail a migration that is fine;
     // scoring them as matches would confirm something nobody checked.
     const row = rowFor({
+      contentHash: null,
       domain: 'contact',
       status: 'copied',
       answer: { onTarget: true, comparison: 'unavailable' },
@@ -268,7 +340,8 @@ describe('the two kinds of claim, and the one word that must not travel', () => 
 describe('the states that need somebody to do something', () => {
   it('a placed item the re-read cannot find is `missing`', () => {
     for (const status of ['copied', 'updated', 'deleted_source'] as const) {
-      expect(rowFor({ domain: 'file', status, answer: { onTarget: false } })).toEqual({
+      const gone = { onTarget: false } as const;
+      expect(rowFor({ domain: 'file', status, answer: gone, contentHash: null })).toEqual({
         state: 'missing',
         claim: 'none',
       });
@@ -280,7 +353,7 @@ describe('the states that need somebody to do something', () => {
     // as missing would turn a completed decision into an alarm, which is the
     // same mistake `isOnTarget` documents for §20 verification.
     for (const answer of ANSWERED) {
-      expect(rowFor({ domain: 'file', status: 'tombstoned', answer })).toEqual({
+      expect(rowFor({ contentHash: null, domain: 'file', status: 'tombstoned', answer })).toEqual({
         state: 'removed',
         claim: 'none',
       });
@@ -291,6 +364,7 @@ describe('the states that need somebody to do something', () => {
     // The source no longer has the item. That is precisely when somebody wants
     // to know their copy is safe, so the row must be able to reach `verified`.
     const row = rowFor({
+      contentHash: null,
       domain: 'file',
       status: 'deleted_source',
       answer: { onTarget: true, comparison: 'match' },
@@ -330,9 +404,24 @@ describe('the headline is assembled in one place', () => {
     const src = source('packages/shared/src/confirmed-list.ts');
     const imports = [...src.matchAll(/^import .*? from '([^']+)';$/gm)].map((m) => m[1]!);
     expect(imports.sort(), 'confirmed-list.ts grew an import it should not have').toEqual([
+      // `fingerprint-scheme.ts` joined the list on 2026-09-16 and only because
+      // it earned it: 0042 T7 (c) needs the container scheme tag to say which
+      // question a row answered, and the tag used to live beside the hashing
+      // code. Importing THAT would have ended this module's purity for one
+      // string constant, and copying the tag would have been the drift the
+      // scheme exists to prevent. So the tags moved to a module that imports
+      // nothing — which this guard should re-check if it ever grows an import.
       './discovery.ts',
+      './fingerprint-scheme.ts',
       './ports.ts',
     ]);
+    // The new dependency is only safe while it stays pure, so say so here
+    // rather than trusting it.
+    const scheme = source('packages/shared/src/fingerprint-scheme.ts');
+    expect(
+      [...scheme.matchAll(/^import .*? from '([^']+)';$/gm)].map((m) => m[1]!),
+      'fingerprint-scheme.ts grew an import, and confirmed-list.ts depends on it having none',
+    ).toEqual([]);
     expect(/\bawait\b|\basync\b/.test(src), 'confirmed-list.ts became asynchronous').toBe(false);
   });
 });
@@ -369,7 +458,9 @@ describe('the pass may only skip a read where the answer could not have mattered
     for (const domain of DISCOVERY_DOMAINS) {
       for (const status of ALL_STATUSES) {
         if (needsTargetRead(status)) continue;
-        const rows = ANSWERED.map((answer) => rowFor({ domain, status, answer }));
+        const rows = ANSWERED.map((answer) =>
+          rowFor({ domain, status, answer, contentHash: null }),
+        );
         const first = rows[0]!;
         for (const row of rows) {
           expect(
@@ -392,7 +483,9 @@ describe('the pass may only skip a read where the answer could not have mattered
       // that had started demanding a read for `skipped`, which is exactly the
       // waste it exists to catch.
       const seen = new Set(
-        ANSWERED.map((answer) => rowFor({ domain: 'file', status, answer }).state),
+        ANSWERED.map(
+          (answer) => rowFor({ domain: 'file', status, answer, contentHash: null }).state,
+        ),
       );
       expect(seen.size, `status '${String(status)}' reads the target and never varies`).
         toBeGreaterThan(1);
@@ -408,7 +501,7 @@ describe('a row we could not ask about is not a row we found missing', () => {
     // with rows we did not.
     for (const domain of DISCOVERY_DOMAINS) {
       for (const status of ALL_STATUSES) {
-        const row = rowFor({ domain, status, answer: { unreachable: true } });
+        const row = rowFor({ contentHash: null, domain, status, answer: { unreachable: true } });
         expect(row, `${domain}/${String(status)} on an unreachable target`).toEqual({
           state: 'unchecked',
           claim: 'none',
@@ -418,7 +511,12 @@ describe('a row we could not ask about is not a row we found missing', () => {
   });
 
   it('never counts toward the headline, and can never be filtered out', () => {
-    const row = rowFor({ domain: 'file', status: 'copied', answer: { unreachable: true } });
+    const row = rowFor({
+      domain: 'file',
+      status: 'copied',
+      answer: { unreachable: true },
+      contentHash: null,
+    });
     expect(countsAsVerified(row)).toBe(false);
     // The one a template would drop hardest: it looks like an absence of
     // information rather than a fact. It is a fact, and it is the one a person
@@ -427,8 +525,18 @@ describe('a row we could not ask about is not a row we found missing', () => {
   });
 
   it('is a different answer from "we looked and it is gone"', () => {
-    const gone = rowFor({ domain: 'file', status: 'copied', answer: { onTarget: false } });
-    const unknown = rowFor({ domain: 'file', status: 'copied', answer: { unreachable: true } });
+    const gone = rowFor({
+      domain: 'file',
+      status: 'copied',
+      answer: { onTarget: false },
+      contentHash: null,
+    });
+    const unknown = rowFor({
+      domain: 'file',
+      status: 'copied',
+      answer: { unreachable: true },
+      contentHash: null,
+    });
     expect(gone.state).toBe('missing');
     expect(unknown.state).toBe('unchecked');
     expect(gone).not.toEqual(unknown);

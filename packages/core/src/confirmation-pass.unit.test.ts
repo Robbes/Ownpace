@@ -208,7 +208,9 @@ describe('a comparison that could not be made is never a mismatch', () => {
       item({ contentHash: 'zip1:aaaa' }),
       reader({ hashOnTarget: async () => 'zip1:bbbb' }),
     );
-    expect(row).toEqual({ state: 'differs', claim: 'byte-hash' });
+    // `container-parts` rather than `byte-hash` since 0042 T7 (c): the scheme
+    // tag this test is about is also what says WHICH question was answered.
+    expect(row).toEqual({ state: 'differs', claim: 'container-parts' });
   });
 
   it('and the same tag agreeing is verified', async () => {
@@ -217,7 +219,7 @@ describe('a comparison that could not be made is never a mismatch', () => {
       item({ contentHash: 'zip1:aaaa' }),
       reader({ hashOnTarget: async () => 'zip1:aaaa' }),
     );
-    expect(row).toEqual({ state: 'verified', claim: 'byte-hash' });
+    expect(row).toEqual({ state: 'verified', claim: 'container-parts' });
   });
 });
 
@@ -230,6 +232,35 @@ describe('what the pass may claim when both hashes are in hand', () => {
   it('differs when they disagree', async () => {
     const row = await confirmOne('email', item(), reader({ hashOnTarget: async () => 'other' }));
     expect(row).toEqual({ state: 'differs', claim: 'byte-hash' });
+  });
+
+  it('says CONTAINER-PARTS, not byte-hash, when the row was hashed structurally', async () => {
+    // 0042 T7 (c). A Google Doc has no bytes of its own; what was compared is
+    // the parts of a rendering we asked Drive to export. "Verified by hash"
+    // over that row would be a claim about bytes nobody ever compared — one
+    // word wrong, on the page somebody deletes their originals from.
+    const row = await confirmOne(
+      'file',
+      item({ contentHash: 'zip1:aaaa' }),
+      reader({ hashOnTarget: async () => 'zip1:aaaa' }),
+    );
+    expect(row).toEqual({ state: 'verified', claim: 'container-parts' });
+  });
+
+  it('carries the same claim onto a DISAGREEMENT, not just a match', async () => {
+    // "These differ" means nothing until a reader knows what was compared, and
+    // a differing row is the one somebody investigates.
+    const row = await confirmOne(
+      'file',
+      item({ contentHash: 'zip1:aaaa' }),
+      reader({ hashOnTarget: async () => 'zip1:bbbb' }),
+    );
+    expect(row).toEqual({ state: 'differs', claim: 'container-parts' });
+  });
+
+  it('leaves an ordinary file on byte-hash — the scheme narrows, it does not relabel', async () => {
+    const row = await confirmOne('file', item(), reader());
+    expect(row).toEqual({ state: 'verified', claim: 'byte-hash' });
   });
 
   it('never lets an adopted row reach verified, however well the hashes agree', async () => {

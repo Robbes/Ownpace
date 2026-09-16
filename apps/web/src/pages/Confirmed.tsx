@@ -132,6 +132,7 @@ const STATE: Readonly<
 const CLAIM: Readonly<Record<ClaimKind, StringKey>> = {
   'byte-hash': 'confirmed.claim.byteHash',
   fingerprint: 'confirmed.claim.fingerprint',
+  'container-parts': 'confirmed.claim.containerParts',
   none: 'confirmed.claim.none',
 };
 

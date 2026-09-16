@@ -719,11 +719,12 @@ Nothing in this amendment is built. It records the decision the three tasks in
 
 ## [ADR-0046: A rendering is compared by its parts, not by its bytes](./0046-a-rendering-is-compared-by-its-parts.md)
 
-- **DECIDED, NOT YET BUILT — and the code is the older rule until it is.** Today
-  `contentHash` is still a sha256 over the whole file for every file without exception, and
-  `nativeFilePolicy` still defaults to `refuse` with all three export policies refused. The
-  build is [0042 T7](../workplans/0042-google-drive-source.md). Read the bullets below as what
-  the code MUST do when that lands, not as what it does now.
+- **PART-BUILT, and the code is still the older rule for the part that is not.** The hash
+  exists (`packages/shared/src/container-hash.ts`) and the scheme rule holds at every site that
+  compares two stored hashes, but **nothing calls the hash yet**: `contentHash` is still a
+  sha256 over the whole file for every file without exception, and `nativeFilePolicy` still
+  defaults to `refuse` with all three export policies refused. The remaining build is
+  [0042 T7](../workplans/0042-google-drive-source.md) (c) and the two-sided wiring.
 - **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
   `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
   uncompressed bytes. Excluded — member timestamps, member order, compression method and level,
@@ -741,9 +742,20 @@ Nothing in this amendment is built. It records the decision the three tasks in
   already-migrated native file once.
 - **Verification says what it compared.** For structurally hashed rows, §20's report states
   that the comparison was over the container's parts.
-- **`export-odf` is NOT rescued by this**, and enabling `export-office` remains a separate
-  per-migration choice that still wants a Sheet and a Slide measured.
-- **The measured facts hold independently of the decision**: a `.docx` from `files.export` is
-  byte-unstable ONLY in its zip container — all nine members byte-identical across five draws
-  while the member timestamps moved. A `.odt` additionally varies `settings.xml`. A `.pdf` was
-  byte-identical over five draws.
+- **WHAT THIS RESCUES IS A DOC AND A SHEET, NOT EVERY `export-office` FILE.** Measured
+  2026-09-16, after this was accepted: a **Sheet** fails container-only exactly as a Doc does
+  (5659 bytes every draw, all 10 members byte-identical, only stamps moved) and the structural
+  hash settles it. A **Slide does not**: five members genuinely change content
+  (`ppt/_rels/presentation.xml.rels`, two more `.rels`, `ppt/theme/theme1.xml`,
+  `ppt/theme/theme2.xml`), and two draws still differ once the container is normalised. So a
+  migration carrying Google Slides would still rewrite every deck on every pass. Enabling
+  `export-office` remains a separate per-migration choice AND now depends on what the Drive
+  holds.
+- **`export-odf` is NOT rescued by this either**, for the same reason one step earlier: its
+  `settings.xml` genuinely changes.
+- **The measured facts hold independently of the decision**, and there are now five of them.
+  A **`.docx` from a Doc** is byte-unstable ONLY in its zip container — all nine members
+  byte-identical across five draws while the member timestamps moved. An **`.xlsx` from a
+  Sheet**: the same, all ten members. A **`.pptx` from a Slide**: NOT only the container —
+  five members change content and the length oscillates by one byte. A **`.odt`** varies
+  `settings.xml`. A **`.pdf`** was byte-identical over five draws.

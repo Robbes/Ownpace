@@ -42,19 +42,15 @@
 
 import { createHash } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
+import { CONTAINER_FINGERPRINT_VERSION } from './fingerprint-scheme.ts';
 
 /**
- * Version tag for container fingerprints. Bump when the algorithm changes.
- *
- * Same shape and the same reason as `CALENDAR_FINGERPRINT_VERSION`: a ledger
- * row written by an older build carries an older tag, comparing across
- * versions says nothing about the data, and the caller must report that as
- * unmeasured rather than as a change. Without this, adopting the scheme would
- * re-label every already-migrated native file and rewrite the lot exactly once
- * — the disease arriving through the cure. `sameFingerprintVersion` in
- * `dav-canonical.ts` reads this prefix as it reads the others.
+ * The tag this hash stamps on its output, defined in `fingerprint-scheme.ts`
+ * because `confirmed-list.ts` needs it too and is guarded as a pure module —
+ * see that file. Re-exported here so a reader who arrives at the hash still
+ * finds its version beside it.
  */
-export const CONTAINER_FINGERPRINT_VERSION = 'zip1';
+export { CONTAINER_FINGERPRINT_VERSION } from './fingerprint-scheme.ts';
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_SIGNATURE = 0x02014b50;

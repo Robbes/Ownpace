@@ -48,11 +48,24 @@
  */
 
 import { createHash } from 'node:crypto';
+import {
+  CALENDAR_FINGERPRINT_VERSION,
+  CONTACT_FINGERPRINT_VERSION,
+} from './fingerprint-scheme.ts';
 
-/** Version tag for calendar fingerprints. Bump when the algorithm changes. */
-export const CALENDAR_FINGERPRINT_VERSION = 'cal1';
-/** Version tag for contact fingerprints. Bump when the algorithm changes. */
-export const CONTACT_FINGERPRINT_VERSION = 'card1';
+/**
+ * The scheme tags and the never-compare-across rule live in
+ * `fingerprint-scheme.ts`, which imports nothing — see that file for why. They
+ * are re-exported here because every caller has always reached them through
+ * this module, and a move that renames an import path for no reason is churn
+ * a reviewer has to read.
+ */
+export {
+  CALENDAR_FINGERPRINT_VERSION,
+  CONTACT_FINGERPRINT_VERSION,
+  sameFingerprintVersion,
+  versionOf,
+} from './fingerprint-scheme.ts';
 
 /**
  * iCalendar properties compared. Opaque text only — see the note above on why
@@ -71,31 +84,6 @@ export function calendarFingerprint(icalendar: string): string {
 /** A versioned fingerprint of a vCard. */
 export function contactFingerprint(vcard: string): string {
   return `${CONTACT_FINGERPRINT_VERSION}:${digest(canonicalLines(vcard, CONTACT_PROPERTIES))}`;
-}
-
-/**
- * Do these two fingerprints use the same algorithm version?
- *
- * A ledger row written before an algorithm change holds an older tag. Comparing
- * across versions says nothing about the data, so the caller must report it as
- * unmeasured rather than as a mismatch.
- *
- * ADR-0046 rule (d) states this as a rule of the product rather than a habit of
- * this file, and it is not only about DAV: `zip1:` — a rendering compared by
- * its container's parts (`container-hash.ts`) — is a third tag, and a plain
- * sha256 over whole bytes is the untagged fourth. So this answers for every
- * content hash the ledger holds, not just the two written here. §20's content
- * leg (`verification.ts`) and the confirmation pass (`confirmation-pass.ts`)
- * are its callers; each turns `false` into "unavailable", never "differ".
- */
-export function sameFingerprintVersion(a: string, b: string): boolean {
-  return versionOf(a) === versionOf(b);
-}
-
-/** The version tag of a fingerprint, or undefined for an unversioned value. */
-export function versionOf(fingerprint: string): string | undefined {
-  const match = /^([a-z0-9]+):/i.exec(fingerprint);
-  return match?.[1];
 }
 
 /**

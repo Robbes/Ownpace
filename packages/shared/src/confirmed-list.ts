@@ -20,6 +20,7 @@
  * "verified" on different evidence would be the same defect wearing one word.
  */
 
+import { CONTAINER_FINGERPRINT_VERSION } from './fingerprint-scheme.ts';
 import type { DiscoveryDomain } from './discovery.ts';
 import type { LedgerRecord } from './ports.ts';
 
@@ -44,11 +45,22 @@ import type { LedgerRecord } from './ports.ts';
  *   not a claim about bytes, and saying "verified by hash" over a calendar row
  *   would be a lie of one word.
  *
+ * - **`container-parts`** — a hash over the PARTS of a zip container rather than
+ *   over the file's bytes — ADR-0046, workplan 0042 T7 (c). A Google Doc has
+ *   no bytes of its own; migrating one means asking Drive to export a
+ *   rendering, and a rendering comes back in a rebuilt container every time.
+ *   Member names and the sha256 of each member's uncompressed bytes are
+ *   compared; the zip's own stamps, member order and
+ *   compression settings are not. It is a real comparison of real content — it
+ *   is simply not a claim about the file's bytes, and a reader deciding whether
+ *   to delete an original must not have to guess which of the two a green row
+ *   means.
+ *
  * - **`none`** — nothing comparable could be computed, or nothing was placed.
  *   A row with this claim may still be worth showing; it may never be shown as
  *   verified.
  */
-export type ClaimKind = 'byte-hash' | 'fingerprint' | 'none';
+export type ClaimKind = 'byte-hash' | 'fingerprint' | 'container-parts' | 'none';
 
 /**
  * The strongest claim a domain can EVER make, before anything is read.
@@ -72,6 +84,36 @@ export function claimCeilingFor(domain: DiscoveryDomain): ClaimKind {
     case 'task':
       return 'fingerprint';
   }
+}
+
+/**
+ * What was ACTUALLY compared for one row — the ceiling, narrowed by the scheme
+ * that produced the row's stored hash (0042 T7 (c), ADR-0046 rule 5).
+ *
+ * THE DOMAIN IS NOT ENOUGH, and that is the whole reason this exists beside
+ * `claimCeilingFor`. Two rows in the `file` domain can have been compared by
+ * two different questions: an ordinary file the customer stored is compared by
+ * its bytes, and a rendering this product asked Drive to export is compared by
+ * its container's parts. The ceiling knows the domain and cannot tell them
+ * apart.
+ *
+ * THE STORED HASH CAN, because it carries its own scheme on its front — the
+ * same tag rule (d) built, and the reason that rule had to land first. A
+ * `zip1:` value was produced structurally and nothing else was; there is no
+ * column to consult and none is needed.
+ *
+ * IT ONLY EVER NARROWS. A calendar row's `cal1:` fingerprint does not become
+ * `container-parts` because it happens to be tagged, and a bare hash never
+ * rises above its domain's ceiling. Anything unrecognised is left alone rather
+ * than guessed at: a tag this build does not know is a row an older or newer
+ * build wrote, and `answerFor` has already refused to compare it at all.
+ */
+export function claimFor(domain: DiscoveryDomain, contentHash: string | null): ClaimKind {
+  const ceiling = claimCeilingFor(domain);
+  if (ceiling !== 'byte-hash') return ceiling;
+  return contentHash !== null && contentHash.startsWith(`${CONTAINER_FINGERPRINT_VERSION}:`)
+    ? 'container-parts'
+    : ceiling;
 }
 
 /**
@@ -197,8 +239,19 @@ export function rowFor(args: {
   readonly domain: DiscoveryDomain;
   readonly status: LedgerRecord['status'];
   readonly answer: TargetAnswer;
+  /**
+   * The ledger's stored hash for this item, which says WHICH QUESTION was
+   * answered — see `claimFor`.
+   *
+   * Required rather than optional, and that is deliberate. An optional
+   * parameter would let a call site forget it and quietly report `byte-hash`
+   * over a row compared by its container's parts, which is the one sentence
+   * 0042 T7 (c) exists to stop the list from saying. There are two callers;
+   * both hold the value; the compiler names any third.
+   */
+  readonly contentHash: string | null;
 }): ConfirmedRow {
-  const { domain, status, answer } = args;
+  const { domain, status, answer, contentHash } = args;
 
   // BEFORE the status switch, and that order is the rule. A row we could not
   // ask about is unchecked whatever the ledger says it should be — including
@@ -238,13 +291,17 @@ export function rowFor(args: {
     case 'updated':
     case 'deleted_source': {
       if (!answer.onTarget) return { state: 'missing', claim: 'none' };
-      // Rule 3.
-      const ceiling = claimCeilingFor(domain);
+      // Rule 3, narrowed by the row's own scheme: the ceiling says what the
+      // DOMAIN could ever claim, `claimFor` says what this row's hash actually
+      // answered. `differs` carries it too — "these differ" means nothing until
+      // a reader knows what was compared, and that is as true of a
+      // disagreement as of a match.
+      const claim = claimFor(domain, contentHash);
       switch (answer.comparison) {
         case 'match':
-          return { state: 'verified', claim: ceiling };
+          return { state: 'verified', claim };
         case 'differ':
-          return { state: 'differs', claim: ceiling };
+          return { state: 'differs', claim };
         case 'unavailable':
           return { state: 'present', claim: 'none' };
       }
