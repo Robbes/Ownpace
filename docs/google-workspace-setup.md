@@ -243,6 +243,9 @@ section before setting it.
 
 ## 6. Prove it, before migrating anything
 
+**From the repo root.** The path is relative to it, and `deploy/compose` is not it — run it
+from there and Node reports a missing module under a path nobody wrote.
+
 ```sh
 pnpm exec tsx scripts/drive-export-stability.ts
 ```
@@ -266,6 +269,45 @@ Run it for `export-odf`, for `export-office` and for `export-pdf` — three diff
 and one can be stable while another is not — and ideally against a Doc, a Sheet and a Slide.
 Then keep a note of what you found — the answer decides whether exporting Google Docs is
 safe to turn on at all.
+
+### Which credentials it reads, and where
+
+The script goes through the same token provider a migration does, so it reads its credentials
+the way that edition stores them. **Nothing secret is typed in either case.**
+
+**Appliance** — the same three values as the step above, as environment variables:
+
+```sh
+export GOOGLE_CLIENT_ID=…apps.googleusercontent.com
+export GOOGLE_CLIENT_SECRET=…
+export GOOGLE_REFRESH_TOKEN=…
+```
+
+**Managed** — name a *connection*, not a mapping, and the grant is decrypted here through the
+same secret store the API uses. The other three values come out of the stack's own `.env`:
+
+```sh
+cd /path/to/your/checkout            # the repo root, not deploy/compose
+
+# SECRET_ENCRYPTION_KEY and the deployment's GOOGLE_OAUTH_CLIENT_ID / _SECRET,
+# straight from the file the stack already runs on.
+set -a; . deploy/compose/.env; set +a
+
+# The in-container DATABASE_URL names `pgbouncer:6432`, which does not exist on the
+# host. Ask compose which port Postgres is published on rather than assuming 5432 —
+# on a shared host that port may belong to something else entirely.
+hostport="$(docker compose -f deploy/compose/managed.yml port postgres 5432 | tail -1)"
+export DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@localhost:${hostport##*:}/${POSTGRES_DB:-openmigrate}"
+
+export DRIVE_CONNECTION_ID=…            # the Google connection's uuid, from Connections
+export DRIVE_EXPORT_POLICY=export-odf   # then export-office, then export-pdf
+
+pnpm exec tsx scripts/drive-export-stability.ts
+```
+
+A connection carrying its own client pair overrides the deployment's, as at every other door.
+A Drive with no connection row yet can still be measured on managed, using the three variables
+above instead of `DRIVE_CONNECTION_ID`.
 
 ### What each policy produces
 
