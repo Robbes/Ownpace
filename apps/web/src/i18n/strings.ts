@@ -1288,6 +1288,7 @@ const en = {
     'The destination could not be asked. Nothing is known either way.',
   'confirmed.claim.byteHash': 'by hash',
   'confirmed.claim.fingerprint': 'by fingerprint',
+  'confirmed.claim.containerParts': "by the document's parts",
   'confirmed.claim.none': 'not compared',
   'finish.title': 'Finish a migration',
   'finish.intro': 'Finishing stops the copying and the reporting; work the steps in order.',
@@ -2911,6 +2912,7 @@ const nl: Record<keyof typeof en, string> = {
     'De bestemming kon niet worden bevraagd. Er is niets over bekend.',
   'confirmed.claim.byteHash': 'via hash',
   'confirmed.claim.fingerprint': 'via vingerafdruk',
+  'confirmed.claim.containerParts': 'via de onderdelen van het document',
   'confirmed.claim.none': 'niet vergeleken',
   'finish.title': 'Rond een migratie af',
   'finish.intro':

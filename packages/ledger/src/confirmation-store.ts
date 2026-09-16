@@ -237,6 +237,11 @@ export class ConfirmationStore {
         status: schemaPg.item.status,
         confirmedAnswer: schemaPg.item.confirmedAnswer,
         confirmedAt: schemaPg.item.confirmedAt,
+        // Read for the CLAIM, not for the comparison: the pass already did the
+        // comparing and stored its answer. What this column still carries is
+        // the scheme that produced it, and that is what decides whether the row
+        // says "by hash" or "by the container's parts" (0042 T7 (c)).
+        contentHash: schemaPg.item.contentHash,
       })
       .from(schemaPg.item)
       .where(
@@ -276,7 +281,12 @@ export class ConfirmationStore {
         : needsTargetRead(status)
           ? { unreachable: true }
           : NOT_CONSULTED;
-      const row = rowFor({ domain: r.domain as DiscoveryDomain, status, answer });
+      const row = rowFor({
+        domain: r.domain as DiscoveryDomain,
+        status,
+        answer,
+        contentHash: r.contentHash,
+      });
       return {
         ...row,
         itemId: r.id,

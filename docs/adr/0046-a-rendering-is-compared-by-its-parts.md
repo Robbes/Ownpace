@@ -24,11 +24,12 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **DECIDED, NOT YET BUILT — and the code is the older rule until it is.** Today
-  `contentHash` is still a sha256 over the whole file for every file without exception, and
-  `nativeFilePolicy` still defaults to `refuse` with all three export policies refused. The
-  build is [0042 T7](../workplans/0042-google-drive-source.md). Read the bullets below as what
-  the code MUST do when that lands, not as what it does now.
+- **PART-BUILT, and the code is still the older rule for the part that is not.** The hash
+  exists (`packages/shared/src/container-hash.ts`) and the scheme rule holds at every site that
+  compares two stored hashes, but **nothing calls the hash yet**: `contentHash` is still a
+  sha256 over the whole file for every file without exception, and `nativeFilePolicy` still
+  defaults to `refuse` with all three export policies refused. The remaining build is
+  [0042 T7](../workplans/0042-google-drive-source.md) (c) and the two-sided wiring.
 - **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
   `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
   uncompressed bytes. Excluded — member timestamps, member order, compression method and level,
@@ -46,12 +47,23 @@
   already-migrated native file once.
 - **Verification says what it compared.** For structurally hashed rows, §20's report states
   that the comparison was over the container's parts.
-- **`export-odf` is NOT rescued by this**, and enabling `export-office` remains a separate
-  per-migration choice that still wants a Sheet and a Slide measured.
-- **The measured facts hold independently of the decision**: a `.docx` from `files.export` is
-  byte-unstable ONLY in its zip container — all nine members byte-identical across five draws
-  while the member timestamps moved. A `.odt` additionally varies `settings.xml`. A `.pdf` was
-  byte-identical over five draws.
+- **WHAT THIS RESCUES IS A DOC AND A SHEET, NOT EVERY `export-office` FILE.** Measured
+  2026-09-16, after this was accepted: a **Sheet** fails container-only exactly as a Doc does
+  (5659 bytes every draw, all 10 members byte-identical, only stamps moved) and the structural
+  hash settles it. A **Slide does not**: five members genuinely change content
+  (`ppt/_rels/presentation.xml.rels`, two more `.rels`, `ppt/theme/theme1.xml`,
+  `ppt/theme/theme2.xml`), and two draws still differ once the container is normalised. So a
+  migration carrying Google Slides would still rewrite every deck on every pass. Enabling
+  `export-office` remains a separate per-migration choice AND now depends on what the Drive
+  holds.
+- **`export-odf` is NOT rescued by this either**, for the same reason one step earlier: its
+  `settings.xml` genuinely changes.
+- **The measured facts hold independently of the decision**, and there are now five of them.
+  A **`.docx` from a Doc** is byte-unstable ONLY in its zip container — all nine members
+  byte-identical across five draws while the member timestamps moved. An **`.xlsx` from a
+  Sheet**: the same, all ten members. A **`.pptx` from a Slide**: NOT only the container —
+  five members change content and the length oscillates by one byte. A **`.odt`** varies
+  `settings.xml`. A **`.pdf`** was byte-identical over five draws.
 
 ## Context
 
@@ -187,3 +199,47 @@ which fields of which formats may be discarded, which is a standing claim about 
 version of those formats. Container normalisation needs to know only that a zip is a zip.
 
 **Do nothing.** The honest baseline, and the one that was in force until this was decided.
+
+## Measured after acceptance — 2026-09-16, the same day
+
+This section is appended rather than folded into the text above, because what the decision
+rested on and what was learned afterwards are different things and a reader needs to see both.
+The **Consequences** section says `export-office` "becomes defensible for the first time". That
+is now true for a Doc and a Sheet and **false for a Slide**, and the operative bullets have been
+amended to say so.
+
+The ADR was accepted on **one Doc**, and it said so: *"it still wants a **Sheet** and a
+**Slide** measured — different renderers, both unmeasured under every policy."* Both were
+measured hours later, on the same tenant, same 3000 ms gap, five draws each.
+
+| editor type | export | draws | verdict once the container is normalised |
+| --- | --- | --- | --- |
+| Doc | `.docx` | 5 | **agree** — 9 members byte-identical, only stamps moved |
+| Sheet | `.xlsx` | 5 | **agree** — 10 members byte-identical, only stamps moved |
+| Slide | `.pptx` | 5 | **still differ** — 5 members change content |
+
+The Sheet confirms the decision. The Slide refutes the general claim behind it: a container
+hash computes perfectly well for a `.pptx` and **still moves on every pass**, because what
+varies is inside the members rather than around them. A migration carrying Google Slides under
+`export-office` would rewrite every deck nightly — the exact failure this ADR exists to
+prevent, arriving through the fix for it.
+
+**This is the measurement asymmetry doing its work.** Five green draws on a Doc were never
+proof of a rule about `export-office`; one red draw on a Slide is a disproof of it. The cost of
+finding out was one command, and the cost of not finding out would have been an owner enabling
+`export-office` on the strength of an accepted ADR.
+
+**What varies is plumbing, and that is said narrowly.** The five members are three `.rels`
+relationship files and two themes; no `ppt/slides/slideN.xml` is among them, and the one-byte
+length oscillation is what a relationship id changing width looks like. That is an observation
+about **which members**, not a reading of what is inside them — `drive-export-members.ts`
+compares the zip index and never inflates a member, on purpose. Whether those five could be
+declared "not the document" is precisely the question rule 6 above declined to answer for
+`settings.xml`: a claim about a format's semantics rather than about packaging. It would be its
+own ADR, and it has not been written.
+
+**What this does not change.** The decision itself stands unaltered: a rendering this product
+asked Drive to export is compared by its parts, by sha256 of inflated bytes, never across
+schemes, only for renderings we asked for. Those rules were never contingent on which editor
+type produced the file. What narrowed is the SET OF FILES the rules rescue, and therefore what
+an owner may be told `export-office` is good for.

@@ -226,7 +226,13 @@ export async function confirmFinding(
 ): Promise<ConfirmedFinding> {
   const consulted = needsTargetRead(item.status);
   const answer = consulted ? await answerFor(item, reader) : NOT_CONSULTED;
-  return { answer, row: rowFor({ domain, status: item.status, answer }), consulted };
+  return {
+    answer,
+    // The hash goes with the answer, because the row must say WHICH question
+    // was answered and only the stored value's own scheme tag knows (0042 T7 (c)).
+    row: rowFor({ domain, status: item.status, answer, contentHash: item.contentHash }),
+    consulted,
+  };
 }
 
 export async function confirmOne(

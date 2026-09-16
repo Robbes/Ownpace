@@ -89,8 +89,15 @@ const COMPARES_TWO_STORED_HASHES: ReadonlyArray<{
   },
 ];
 
-/** The one implementation. Everything above must reach this and not re-derive it. */
-const THE_RULE = 'packages/shared/src/dav-canonical.ts';
+/**
+ * The one implementation. Everything above must reach this and not re-derive it.
+ *
+ * It moved out of `dav-canonical.ts` on 2026-09-16, when 0042 T7 (c) gave the
+ * rule a fourth caller that could not import a module carrying `node:crypto`.
+ * The tags live in a file that imports nothing, which is what the scheme
+ * question always was.
+ */
+const THE_RULE = 'packages/shared/src/fingerprint-scheme.ts';
 
 describe('the rule that two schemes are never compared', () => {
   it('is reached by every file that compares two stored hashes', () => {

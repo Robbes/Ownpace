@@ -229,6 +229,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/i18n/strings.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts) — A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
@@ -915,6 +916,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/shared/src/confirmed-list.ts`
 
+- [a-content-hash-built-from-thirty-two-bits](../scripts/a-content-hash-built-from-thirty-two-bits.unit.test.ts) — A guard that `contentHash` is never derived from a CRC-32.
 - [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts) — A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
 
 ### `packages/shared/src/container-hash.ts`
@@ -947,6 +949,12 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/file.ts`
 
 - [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
+
+### `packages/shared/src/fingerprint-scheme.ts`
+
+- [a-content-hash-built-from-thirty-two-bits](../scripts/a-content-hash-built-from-thirty-two-bits.unit.test.ts) — A guard that `contentHash` is never derived from a CRC-32.
+- [a-hash-compared-against-a-different-scheme](../scripts/a-hash-compared-against-a-different-scheme.unit.test.ts) — TWO HASHES MADE DIFFERENT WAYS, COMPARED AS IF THEY WERE THE SAME KIND OF THING (ADR-0046 rule (d), workplan 0042 T7 (d)).
+- [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts) — A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
 
 ### `packages/shared/src/front-door.ts`
 
@@ -1369,8 +1377,10 @@ A guard that `contentHash` is never derived from a CRC-32.
 
 Reads:
 
+- `packages/shared/src/confirmed-list.ts`
 - `packages/shared/src/container-hash.ts`
 - `packages/shared/src/container-hash.unit.test.ts`
+- `packages/shared/src/fingerprint-scheme.ts`
 - `scripts/drive-export-members.ts`
 
 ### [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts)
@@ -1566,6 +1576,7 @@ Reads:
 - `packages/core/src/confirmation-pass.ts`
 - `packages/core/src/verification.ts`
 - `packages/shared/src/dav-canonical.ts`
+- `packages/shared/src/fingerprint-scheme.ts`
 
 ### [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts)
 
@@ -1637,8 +1648,10 @@ A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
 
 Reads:
 
+- `apps/web/src/i18n/strings.ts`
 - `packages/core/src/domain-sync.ts`
 - `packages/shared/src/confirmed-list.ts`
+- `packages/shared/src/fingerprint-scheme.ts`
 - `packages/shared/src/ports.ts`
 
 ### [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts)
