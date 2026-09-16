@@ -28,6 +28,14 @@
  * IT WRITES NOTHING. The token is minted with `drive.readonly`, so it cannot,
  * whatever this script does.
  *
+ * WHEN IT SAYS NOT STABLE IT ALSO SAYS WHERE. A `.docx` and a `.odt` are zip
+ * containers, and a zip's index already records a CRC-32 per member, so the
+ * run names the members that moved instead of leaving the operator to guess —
+ * see `drive-export-members.ts`, which also explains why reading the index
+ * rather than the members keeps the promise this script makes about a
+ * customer's documents. A `.pdf` is not a zip and the run says so rather than
+ * pretending it looked.
+ *
  *   pnpm exec tsx scripts/drive-export-stability.ts
  *
  * Environment. BOTH EDITIONS, because both need this verdict and neither keeps
@@ -102,6 +110,12 @@ import {
   resolveMeasurementCredentials,
   type OpenMeasurementRoute,
 } from './drive-export-credentials.ts';
+import {
+  compareMembers,
+  containerNormalisedHash,
+  readZipMembers,
+  type ZipMember,
+} from './drive-export-members.ts';
 import { stabilityVerdict, type ExportSample } from './drive-export-verdict.ts';
 
 const ROOT = process.env.DRIVE_ROOT_FOLDER_ID || 'root';
@@ -364,6 +378,13 @@ async function main(): Promise<void> {
   };
 
   const samples: ExportSample[] = [];
+  // The zip INDEX of each draw, never the draw itself. Taken here, inside the
+  // loop, so the document's bytes are eligible for collection the moment the
+  // hash and the index have been read off them — this script must not
+  // accumulate somebody's documents in memory to answer a question about
+  // timestamps. `null` for a rendering that is not a zip, which is the honest
+  // answer for `export-pdf` rather than a failure.
+  const indexes: (readonly ZipMember[] | null)[] = [];
   for (let i = 0; i < SAMPLES; i += 1) {
     // The gap goes BEFORE each export after the first, so a cached rendering
     // cannot be what makes two of them agree.
@@ -371,6 +392,7 @@ async function main(): Promise<void> {
     const got = await source.fetch(item);
     const hash = fileContentHash(got.content!);
     samples.push({ bytes: got.content!.byteLength, hash });
+    indexes.push(readZipMembers(got.content!));
     console.log(
       `  export ${i + 1}  ${got.content!.byteLength} bytes  sha256 ${hash.slice(0, 16)}…`,
     );
@@ -397,6 +419,7 @@ async function main(): Promise<void> {
       `unchanged document.`,
   );
   console.log(`    ${verdict.note}`);
+  reportMembers(indexes);
   console.log(`    "${POLICY}" MUST NOT be enabled for a real migration: contentHash would see a`);
   console.log('    change on every pass, and every document would be re-copied nightly, forever,');
   console.log('    with every write succeeding and nothing looking wrong.');
@@ -405,6 +428,51 @@ async function main(): Promise<void> {
   console.log("    a stored export hash that ignores the volatile parts, or Drive's own revision");
   console.log('    id as the change signal instead of the bytes.\n');
   process.exitCode = 2;
+}
+
+/**
+ * Say WHICH part of the container moved, when the container is one that can be
+ * asked.
+ *
+ * Until this existed, a NOT STABLE verdict ended at "something changed" and the
+ * next step was a guess — #963 recorded `export-office` moving with its length
+ * pinned at 17644 bytes and had to write down `docProps/core.xml` as a
+ * hypothesis, in as many words, because nobody had opened the file. This is the
+ * opening, and it costs one read of the zip index.
+ *
+ * It also prints what the NORMALISED-hash route would have concluded on these
+ * same draws, because that route is one of the two candidates 0042 T3 names and
+ * an argument about it is much shorter when the number is on the screen.
+ */
+function reportMembers(indexes: readonly (readonly ZipMember[] | null)[]): void {
+  if (indexes.some((index) => index === null)) {
+    // Not a failure. A PDF has no members, and saying so beats a silence the
+    // reader would have to interpret.
+    console.log('    This rendering is not a zip container, so there is no member to name.');
+    return;
+  }
+
+  const draws = indexes as (readonly ZipMember[])[];
+  const comparison = compareMembers(draws);
+  console.log(`\n    INSIDE THE CONTAINER — ${comparison.unchanged} member(s) held completely.`);
+  console.log(`    ${comparison.note}`);
+
+  const normalised = new Set(draws.map((draw) => containerNormalisedHash(draw)));
+  if (normalised.size === 1) {
+    console.log(
+      '    Ignoring the zip\'s OWN bookkeeping — its stamps and member order — the draws agree.\n' +
+        '    So nothing inside the document varies and only the container was rebuilt. That is\n' +
+        '    the cheapest failure there is, and the one a rewrite of the container would fix.',
+    );
+    return;
+  }
+  console.log(
+    `    ${normalised.size} draws still differ once the zip's own stamps and member order are\n` +
+      '    ignored, so this is NOT merely a rebuilt container: some member really varies.\n' +
+      '    Whether stripping volatile fields from INSIDE that member would settle it is the\n' +
+      '    open route in 0042 T3, and this run does not measure it — that needs a parser per\n' +
+      '    format and a decision about what may be discarded, which is an ADR, not a script.',
+  );
 }
 
 /**
