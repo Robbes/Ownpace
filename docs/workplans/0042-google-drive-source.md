@@ -350,6 +350,15 @@ exported bytes. Two candidates, neither built:
 Both are decisions, not tasks: either would want an ADR first, and (1) touches what verification
 means.
 
+**(2) is now written up as [ADR-0046](../adr/0046-a-rendering-is-compared-by-its-parts.md),
+PROPOSED 2026-09-16 and not accepted.** It proposes exactly the narrow form the measurement
+supports — a canonical container hash for renderings THIS PRODUCT asked Drive to produce, never
+for a `.zip` a customer stored — and it carries the two things that are easy to get wrong: the
+sha256-not-CRC-32 rule from above, and a versioned hash scheme, without which accepting it would
+silently re-label every already-migrated native file and rewrite the lot once. `export-odf` is
+explicitly NOT rescued by it. Until it is accepted, `refuse` stands for all three and every file
+is compared by its bytes.
+
 **How the instrument changed mid-measurement, for the record.** `export-odf` was first measured
 with the original two-draw comparison, twice, and re-measured with five draws once the member
 reading existed. `export-office` and `export-pdf` were measured with five draws from the start,
