@@ -53,6 +53,7 @@ import {
   type SyncCursor,
   type TrashListing,
 } from '@openmig/shared';
+import { driveFailure, isDriveDecision } from './drive-refusal.ts';
 import {
   DRIVE_FOLDER_MIME,
   GOOGLE_NATIVE_PREFIX,
@@ -974,10 +975,23 @@ export class GoogleDriveSource implements FileSource {
   private async download(url: string, item: FileItem): Promise<DriveResponse> {
     const response = await this.transport(url);
     if (!response.ok) {
-      throw new Error(
-        `Drive refused the download of "${item.path}" (${response.status}): ` +
-          `${await safeText(response)}`,
+      // Google's envelope goes; Google's words stay. See `drive-refusal.ts`
+      // for the shape and for why the sentence says what reached the
+      // destination — the failure queue's own category reads a 403 like this
+      // as the TARGET refusing, and sends the reader to the wrong account.
+      const body = await safeText(response);
+      const failure = new Error(
+        driveFailure(`Drive refused the download of "${item.path}"`, {
+          status: response.status,
+          body,
+        }),
       );
+      // A refusal that answers the same way every pass is parked on its first
+      // attempt rather than tried five times (`ports.ts`, and #207 in the
+      // other direction). `cannotExportFile` is the observed one: Drive will
+      // refuse that file for that account until somebody changes something in
+      // Drive, and five attempts only delay the person finding out.
+      throw isDriveDecision(body) ? markNeedsDecision(failure) : failure;
     }
     return response;
   }
