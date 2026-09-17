@@ -106,15 +106,19 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  *                  varies. Refused, because exporting it is the nightly
  *                  rewrite.
  *   - `unmeasured` nobody has run it. **Recorded, and NOT acted on** — a blank
- *                  is not a red. Refusing on absence of a measurement would
- *                  turn off every Drawing, under every policy, though a Drawing
- *                  under `export-office` was deliberately made to work; and it
- *                  would have turned off `export-pdf` on Sheets and Slides,
- *                  which sat blank here for one day and then measured STABLE —
- *                  the escape hatch, nearly refused on no evidence at all. The
- *                  entry exists so somebody can see what is missing and go and
- *                  measure it; a table with only two answers would have had to
- *                  guess for every blank, which is how a guess becomes a fact.
+ *                  is not a red. EVERY entry that has ever left this column has
+ *                  gone to `stable`, twice now: `export-pdf` on a Sheet and a
+ *                  Slide, blank for one day and then STABLE, and the Drawing
+ *                  under both document policies, blank until somebody aimed the
+ *                  instrument at it and then STABLE at 8324 bytes. Refusing on
+ *                  absence of a measurement would have turned off all four —
+ *                  the `export-pdf` escape hatch and every Drawing in every
+ *                  migration — on no evidence at all. That is not an argument
+ *                  that blanks are safe; it is the record of what treating them
+ *                  as reds would have cost, against nothing it would have saved.
+ *                  The entry exists so somebody can see what is missing and go
+ *                  and measure it; a table with only two answers would have had
+ *                  to guess for every blank, which is how a guess becomes a fact.
  *
  * WHAT WAS ACTUALLY MEASURED, on the owner's tenant, five draws each, 3000 ms
  * apart, with `scripts/drive-export-stability.ts`:
@@ -132,6 +136,9 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  *   - `export-pdf` on a **Doc**: 195869 bytes and ONE hash, five times.
  *   - `export-pdf` on a **Sheet**: 54591 bytes and one hash, five times.
  *   - `export-pdf` on a **Slide**: 2017 bytes and one hash, five times.
+ *   - `export-office` on a **Drawing**: 8324 bytes and one hash, five times
+ *     (2026-09-17) — which is also `export-odf` on a Drawing, for the reason
+ *     in the next paragraph.
  *
  * THE THREE `export-pdf` GREENS ARE WHAT MAKES THE SLIDE REFUSAL SURVIVABLE.
  * Without them `export-office` refusing a deck is a dead end — the customer is
@@ -140,8 +147,21 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  * the difference between a gate and a wall. `stablePoliciesFor` below is how
  * the refusal reaches them without a second copy of this table.
  *
- * Everything else here is `unmeasured` because it is: every Drawing under every
- * policy, and a Sheet or a Slide under `export-odf`. Run
+ * ONE REQUEST CANNOT HAVE TWO ANSWERS, and that is why one run moved two
+ * entries. `exportUrlFor` builds the export url out of
+ * `NATIVE_EXPORT_TYPES[policy][mimeType]` and nothing else — the policy's NAME
+ * never reaches Google. So wherever two policies render the same source type to
+ * the same export type, they issue the byte-identical HTTP request, and a
+ * measurement of one IS a measurement of the other. That is not an inference
+ * about how Drive behaves, which would be a guess; it is the url, which is ours.
+ * It applies exactly once today: a Drawing has neither an ODF nor an Office
+ * form, so `export-odf` and `export-office` both ask for `image/svg+xml`.
+ * `an-answer-that-must-match-its-twin.unit.test.ts` holds every such pair to a
+ * single answer, so nobody can record a green under one policy and leave its
+ * twin sitting blank — or, worse, mark one of them `unstable`.
+ *
+ * Everything else here is `unmeasured` because it is: a Sheet or a Slide under
+ * `export-odf`, and a Drawing under `export-pdf`. Run
  * `DRIVE_FILE_KIND=sheet DRIVE_EXPORT_POLICY=export-odf` against a real tenant
  * and move an entry; do not move one on a guess.
  *
@@ -215,7 +235,12 @@ export const EXPORT_STABILITY: Readonly<
     'application/vnd.google-apps.document': 'unstable',
     'application/vnd.google-apps.spreadsheet': 'unmeasured',
     'application/vnd.google-apps.presentation': 'unmeasured',
-    'application/vnd.google-apps.drawing': 'unmeasured',
+    // Nobody ran the instrument under THIS policy, and it is measured anyway:
+    // a Drawing has no ODF form, so this policy and `export-office` both ask
+    // Drive for `image/svg+xml` and issue the identical request. Same request,
+    // same evidence — see ONE REQUEST CANNOT HAVE TWO ANSWERS above. A unit
+    // guard refuses to let this entry and its twin drift apart.
+    'application/vnd.google-apps.drawing': 'stable',
   },
   'export-office': {
     // Container-only, both of them: ADR-0046's hash settles these two and they
@@ -225,7 +250,10 @@ export const EXPORT_STABILITY: Readonly<
     // The counterexample. Five members change content; normalising the
     // container leaves two draws still differing.
     'application/vnd.google-apps.presentation': 'unstable',
-    'application/vnd.google-apps.drawing': 'unmeasured',
+    // 8324 bytes and ONE hash, five draws (2026-09-17). An SVG is XML text,
+    // not a zip, so — like the PDFs below — there is no container to normalise
+    // and no second chance: this is a green on the bytes themselves.
+    'application/vnd.google-apps.drawing': 'stable',
   },
   'export-pdf': {
     // All three editor types, byte-identical over five draws each. A PDF is not
@@ -236,6 +264,10 @@ export const EXPORT_STABILITY: Readonly<
     'application/vnd.google-apps.document': 'stable',
     'application/vnd.google-apps.spreadsheet': 'stable',
     'application/vnd.google-apps.presentation': 'stable',
+    // The last blank, and a real one: a Drawing under this policy renders to
+    // PDF, which is a different request from the SVG the other two ask for, so
+    // the twin rule does not reach it and the 2026-09-17 green says nothing
+    // about it. `DRIVE_EXPORT_POLICY=export-pdf DRIVE_FILE_KIND=drawing`.
     'application/vnd.google-apps.drawing': 'unmeasured',
   },
 };

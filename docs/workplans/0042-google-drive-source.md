@@ -25,7 +25,7 @@
 
 **THE 2017 BYTES ARE PART OF THE EVIDENCE.** That is a thin deck — the `.pptx` of the same file is 34833 bytes and the five members that moved there are `.rels` files and themes, i.e. packaging around not much content. A deck carrying images, embedded fonts or charts has more surface to vary on, and font subset tags and image recompression are where a PDF renderer is known to differ between draws. So this green is real, and narrower than a reader might take it: **a content-rich deck under `export-pdf` is the measurement worth taking next** (`DRIVE_FILE_ID` names one exactly).
 
-**Still not measured, and still not to be assumed:** a Drawing under any policy; a Sheet or Slide under `export-odf`; a content-rich deck under `export-pdf` — **looked for on 2026-09-16 with `DRIVE_PICK=largest` and not found: the largest of the owner's four exportable decks IS the 2017-byte one**, so this tenant cannot answer it; any of this on a second tenant or day. Every `export-pdf` green is still five identical draws on one document of its type, and a green is not the mirror of a red. |
+**THE DRAWING, MEASURED 2026-09-17:** `export-office` renders it to SVG at **8324 bytes and one hash over five draws** — and because a Drawing has no ODF form either, `export-odf` asks Drive for the identical `image/svg+xml` and the one run answers both entries. Not an inference about Drive: `exportUrlFor` builds the url from the render table alone, so the two policies issue the same request. A guard derives every such pair and holds it to one answer, so nobody can later refuse a Drawing under one policy while exporting the identical bytes under the other. **Still not measured, and still not to be assumed:** a Drawing under `export-pdf` (a different request — PDF, not SVG); a Sheet or Slide under `export-odf`; a content-rich deck under `export-pdf` — **looked for on 2026-09-16 with `DRIVE_PICK=largest` and not found: the largest of the owner's four exportable decks IS the 2017-byte one**, so this tenant cannot answer it; any of this on a second tenant or day. Every `export-pdf` green is still five identical draws on one document of its type, and a green is not the mirror of a red. |
 | T4b a refusal Drive makes that no policy can answer | 🟢 **DONE 2026-09-17 — found live, and it blamed the wrong account** | A Slides deck in the owner's Drive answered `403 cannotExportFile`, "This file cannot be exported by the user." Three things were wrong with what a customer would have been told, and only the first is cosmetic. **(1)** Fourteen lines of JSON envelope around nine words, into a failures queue read on a phone — `dav-refusal.ts` and `graph-refusal.ts` had each fixed this for their provider and Drive had nothing. **(2) The remedy named the wrong account.** `classifyFailure` sees 403 + "refused" and answers `target_refused`, whose sentence is *"The destination refused to accept this. Common causes are a full mailbox, a read-only folder or missing permission on the target account."* Google refused to EXPORT; the destination never saw the file, and a customer following that advice audits Nextcloud for a problem entirely inside Drive. **(3) It was retried.** `cannotExportFile` cannot succeed on a second attempt or a fifth, and unmarked it rode the automatic lane, so an item needing a person sat looking busy. `drive-refusal.ts` is the sibling of the other two — Google nests the actionable reason in `error.errors[0].reason` where Graph puts a string at `error.code`, so a reader for one finds nothing in the other. Reasons that are answers rather than weather (`cannotExportFile` observed; `exportSizeLimitExceeded`, `fileNotDownloadable`, `insufficientFilePermissions`, `appNotAuthorizedToFile` from Google's published list, **not seen here, and the distinction is kept**) park on the first attempt. An unrecognised reason passes through with Google's own words and **no invented advice** — silence is the honest answer, and inventing a remedy for an unmet refusal is the defect this module exists to fix. Until the category vocabulary grows a source-side answer the LINE carries the correction itself: "Nothing was sent to the destination for this item." Three mutations killed, each asserting its search matched first. |
 | T4 the connector itself, against a fake transport | ✅ **First slice done 2026-08-15** | `google-drive-source.ts` implements `FileSource`, modelled on **WebDAV rather than Graph** — full folder enumeration, no `changes.list`, `removed` never populated. 11 tests against a fake transport, no network. Mutation-verified: silently skipping native files, dropping `trashed=false`, and downloading a native file instead of exporting it each fail exactly one test. **Amended 2026-08-15, second slice: the connector could never feed move detection.** Found preparing the owner's manual drill, not by a test: `listSince` returned a sentinel cursor and the connector had no `listKeys`, so with a cursor store configured — always, in production — every pass after the first counted its key set incomplete and `detectPathKeyedMoves` never ran. No rename, move, drift or absence-counted deletion could EVER surface for a Drive source; the ADR-0030 relocation path was unreachable through the connector that motivated it, and every pass reported clean. Fixed with `listKeys` answering from the listing `listSince` just made (consume-once memo — no second `files.list` per folder), plus a two-pass regression through the real `runFileSync` with cursors configured, red before the fix. Four mutations killed: deleting `listKeys`, bypassing the memo, dropping the path prefix, and removing the consume-once clear. **Amended 2026-08-16, third slice: a shared drive listed as EMPTY.** The docs promise `rootFolderId` may name a shared drive; the API silently omits shared-drive items from `files.list` without `supportsAllDrives` + `includeItemsFromAllDrives` (200, empty array — not an error), so a shared-drive migration would have discovered zero files and completed every pass clean, having copied nothing. The parameters now ride every listing, and `supportsAllDrives` the metadata read and download (`files.export` defines neither — an export is addressed by id alone, and the code says so). Three tests, three mutations, each killed. **Amended 2026-08-16, fourth slice: the bin is read** (`listTrashedPaths`): a trashed file's ORIGINAL path is recovered by walking its intact `parents` up to the migration root (the `'root'` alias resolved to its real id first — parents carry real ids, and comparing the alias reads the whole bin as out of scope), per-file failures skip that file only, and the shared-drive parameters ride the trash listing too. Drive deletions now carry positive `trashed` evidence and the apply action is offerable, end-to-end-tested through `runFileSync`; T0 Q4's decision stands untouched — `removed` is still never populated, and the bin is a different kind of evidence: a deletion the owner PERFORMED, found where they put it. Two mutations killed: deleting the method, and comparing the root alias instead of the resolved id. |
 | T5 wiring: config schema, both editions, credentials | ✅ **Done 2026-08-15 — the connector is now REACHABLE** | `SourceConfig` has a `google-drive` variant with validation; both editions construct it through one shared factory (`drive-source-factory.ts`), each refusing in its own vocabulary — `GOOGLE_CLIENT_ID` for the appliance, `clientId` for a managed connection. Credentials: a **second `TokenProvider`**, because `createTokenProvider` is MSAL and would have posted a Google refresh token to `login.microsoftonline.com`; scope is `drive.readonly`, so the token cannot write. Managed needed a migration (`0008`) — `connection.kind` is a CHECK constraint, so without it the appliance could be pointed at a Drive and the managed edition could not represent one. 27 new tests. **Mutation-verified, 13 mutations, every one caught**: dropping the 401 retry, letting a caller override the Authorization header, removing single-flight, leaking the client secret into an error, defaulting a bad `nativeFilePolicy` to `refuse`, accepting an empty `rootFolderId`, routing Drive through the DAV resolver, deleting either edition's branch, using the wrong vocabulary in the managed refusal, dropping the pool close on a refusal, the factory inventing its own policy default, dropping `rootFolderId` on the way to the connector, and removing `google_drive` from the TS enum. |
@@ -44,7 +44,7 @@
 
 **THE GATE: `export-office` REFUSES A SLIDES DECK, per item.** `EXPORT_STABILITY` in `google-drive-source.types.ts` is the one place the measurements live, with three answers rather than two — `stable`, `unstable`, `unmeasured`. `refusalFor` refuses on `unstable` with a sentence that says what was measured and what to do instead; `exportUrlFor` refuses to build the URL at all, a second gate on purpose, because the first is protected only by the order of two statements in `fetch`. `export-odf` on a Doc is refused by the same rule.
 
-**`unmeasured` IS RECORDED AND NOT ACTED ON**, and the line is drawn there deliberately. Refusing on absence of a measurement would turn off a Drawing under `export-office` — which #969's predecessor deliberately made work — and would take `export-pdf` on Sheets and Slides with it, the escape hatch an owner reaches for. A blank is a reason to go and measure; the table now names exactly which blanks.
+**`unmeasured` IS RECORDED AND NOT ACTED ON**, and the line is drawn there deliberately. Refusing on absence of a measurement would have turned off a Drawing under `export-office` — which #969's predecessor deliberately made work — and would have taken `export-pdf` on Sheets and Slides with it, the escape hatch an owner reaches for. **All four have since measured STABLE**, the Sheet and Slide on 2026-09-16 and the Drawing on 2026-09-17: every entry that has ever left this column left it for `stable`, and none for `unstable`. A blank is a reason to go and measure; the table now names exactly which blanks.
 
 **THE PREFLIGHT COUNT, end to end.** The Drive source tallies what its policy will refuse **during the listing the preflight already makes** — a map lookup per file, no extra request — and `buildTask` attaches it to the domain's result as an optional capability, in the shape `listTrashedPaths` and `storageUsage` already use. Migration 0047 adds `migration_discovery.refused_native jsonb`, nullable on the table's own established rule: NULL is "did not look" (every non-Drive source, permanently), `{}` is "looked and found none". The confirm screen reads it as a note beside the existing two — *"3 Google Slides **will not be copied** because this export format does not produce the same file twice"* — in both locales, inside the fifteen-word budget 0118 set.
 
@@ -345,19 +345,10 @@ magnitude. Worth knowing before anybody picks a default.
 
 **WHAT IS STILL NOT MEASURED**, stated so nobody reads the green as broader than it is:
 
-- a **Drawing** under any policy — still blank everywhere, and a different renderer again: under
-  either document policy it exports as SVG, which is text and a different risk. **MEASURABLE FROM
-  2026-09-17, and it was not before.** `DriveFileKind` held `doc`/`sheet`/`slide` only, with a
-  comment calling the Drawing "deliberately absent… a different question from the one 0042 T3
-  asks". That was sound while the question was whether `export-office` could be trusted at all.
-  It expired the day `unmeasured` was decided to COPY rather than refuse: from then a Drawing was
-  exported on every pass with nothing measured behind it, AND was the one native type the
-  instrument could not be aimed at, so the blank could never be filled. A deliberate omission had
-  become the only unmeasurable hole in the table. The judgement is now replaced by a rule — **if a
-  policy can render it, it must be aimable by kind** — held by
-  `a-placeholder-that-reached-google.unit.test.ts` against `NATIVE_EXPORT_TYPES`, so a fifth
-  exportable type Drive grows cannot arrive unmeasurable by omission. Run
-  `DRIVE_EXPORT_POLICY=export-office DRIVE_FILE_KIND=drawing`.
+- a **Drawing** under `export-pdf` — the last blank, and a real one: a Drawing renders to PDF
+  under that policy and to SVG under the other two, so it is a different request and the
+  2026-09-17 green below says nothing about it. Run
+  `DRIVE_EXPORT_POLICY=export-pdf DRIVE_FILE_KIND=drawing`.
 - a **Sheet** or a **Slide** under `export-odf`.
 - a **content-rich deck** under `export-pdf`. **SOUGHT AND NOT FOUND on this tenant, 2026-09-16.**
   `DRIVE_PICK=largest` weighed every Slides deck in the owner's Drive — five found, one not
@@ -372,7 +363,33 @@ magnitude. Worth knowing before anybody picks a default.
 
 *(A Sheet and a Slide under `export-office` and under `export-pdf` were on this list until
 2026-09-16 and have since been measured — see T3. The `export-office` Slide came back NOT STABLE
-and is refused; the three `export-pdf` runs came back stable.)*
+and is refused; the three `export-pdf` runs came back stable. A **Drawing under any policy** was
+on it until 2026-09-17 — see below.)*
+
+**THE DRAWING, MEASURED 2026-09-17 — and one run moved two entries.** `export-office` on the
+owner's Drawing: **8324 bytes and one hash, `31bff0f3661a1eab…`, five draws.** An SVG is XML
+text, not a zip, so no container normalisation is involved: this is a green on the bytes
+themselves, the same shape as the three `export-pdf` greens and the strongest a green in this
+table can have.
+
+It is also, without a second run, the measurement for **`export-odf` on a Drawing** — and that is
+an identity rather than an inference. `exportUrlFor` builds the export url out of
+`NATIVE_EXPORT_TYPES[policy][mimeType]` and nothing else; the policy's NAME never reaches Google.
+A Drawing has neither an ODF nor an Office form, so both entries read `image/svg+xml` and both
+policies issue the byte-identical `files/{id}/export?mimeType=image%2Fsvg%2Bxml`. One request
+cannot have two answers. `an-answer-that-must-match-its-twin.unit.test.ts` derives every such
+pair from the render table and holds it to a single answer — proved by breaking it three ways.
+The untidy failure it prevents is a blank left beside a green; **the failure that matters is the
+other order**, somebody recording one of the pair `unstable` so that the connector refuses a
+Drawing under `export-office` and exports the identical bytes under `export-odf`.
+
+**What made the run possible at all was #979**, which added `drawing` as a fourth `DriveFileKind`.
+Until then the instrument could not be aimed at the one native type it had no reading for, so the
+blank could never have been filled — a Drawing was exported on every pass with nothing measured
+behind it, and was the only unmeasurable hole in the table. That is the second entry to leave
+`unmeasured` for `stable`, after `export-pdf` on a Sheet and a Slide; **no entry has ever left it
+for `unstable`.** Not an argument that blanks are safe — a record of what refusing on absence
+would have cost, against nothing it would have saved.
 
 **Enabling `export-pdf` is a decision, not a consequence of this table.** The case for: it is
 the only policy stable on every editor type measured, and a refusal that names PDF as
