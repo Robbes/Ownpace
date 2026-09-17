@@ -337,7 +337,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         : row.status.completedAt ?? undefined,
       lastError: row.status.lastError ?? undefined,
       // Read back through the guard rather than cast: the column is `text`
-      // with no CHECK (the six are product vocabulary, revisable without a
+      // with no CHECK (the values are product vocabulary, revisable without a
       // lock), so a value written by an older or newer build must not become
       // a category the UI has no sentence for.
       ...(isFailureCategory(row.status.lastErrorCategory)

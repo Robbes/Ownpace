@@ -17,8 +17,8 @@
  *
  * Exhaustive by type, so a ninth category cannot reach either screen with
  * nothing to say. That is not decoration: adding `source_refused` and
- * `format_refused` on 2026-09-17 reded this file and its sibling before a line
- * of UI was touched, which is the whole of how a new category gets a sentence.
+ * `format_refused` on 2026-09-17 turned this file and its sibling red before a
+ * line of UI was touched, which is the whole of how a new category gets a sentence.
  */
 
 import type { FailureCategory, FailureSide } from '@openmig/shared';

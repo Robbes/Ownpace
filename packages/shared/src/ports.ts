@@ -1039,6 +1039,15 @@ export interface LedgerRecord {
    */
   readonly lastError?: string;
   /**
+   * What KIND of failure `lastError` was (migration 0049).
+   *
+   * On the RECORD as well as on `ItemFailure` so the in-memory ledger can hold
+   * what the real one stores: a fake that dropped this would let a test assert
+   * a remedy the product never wrote, which is the shape of mistake every
+   * other comment in that file exists to prevent.
+   */
+  readonly lastErrorCategory?: FailureCategory;
+  /**
    * The SOURCE's own version marker for the item as we last copied it — a DAV
    * ETag, and nothing else today.
    *
@@ -1148,7 +1157,20 @@ export interface Ledger {
   recordFailure(
     record: LedgerRecord,
     error: string,
-    options?: { readonly park?: boolean },
+    options?: {
+      readonly park?: boolean;
+      /**
+       * Which side threw, when the pass could tell (0094 T5) — the input the
+       * item's `last_error_category` is derived from, in the same statement
+       * that writes the prose (migration 0049).
+       *
+       * A source refusal and a target one read IDENTICALLY, so this is the only
+       * thing that can tell `source_refused` from `target_refused`. Optional
+       * because a failure raised outside either closure genuinely has no side,
+       * and `undefined` is a real answer there rather than a guess.
+       */
+      readonly side?: FailureSide;
+    },
   ): Promise<LedgerRecord>;
   /**
    * Everything the ledger says is ON THE TARGET for one domain, with the source
@@ -1655,6 +1677,21 @@ export interface ItemFailure {
   readonly attempts: number;
   /** Verbatim, so the operator can tell a 507 from a 403 from a parse error. */
   readonly lastError: string;
+  /**
+   * What KIND of failure `lastError` was, in the same eight values the domain
+   * level uses — so the screen can show a remedy in the reader's language
+   * beside prose that is always the provider's English (migration 0049).
+   *
+   * BESIDE the prose, never instead of it. An operator diagnosing a 507 needs
+   * the provider's own words; a customer deciding what to do needs a sentence
+   * they can act on, and until now the item level had only the first.
+   *
+   * ABSENT rather than `'unknown'` when the row has none: every row written
+   * before migration 0049 has NULL, and `'unknown'` is a real classification
+   * ("we looked and could not tell"). Reporting one as the other would put a
+   * remedy under a failure nobody classified.
+   */
+  readonly category?: FailureCategory;
   readonly lastAttemptAt?: string;
   /**
    * False while the item is still being retried automatically; true once it is

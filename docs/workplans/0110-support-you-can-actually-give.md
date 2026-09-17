@@ -1,6 +1,30 @@
 # Workplan 0110 — support you can actually give
 
-## Status — 2026-09-05 (update this block at the end of every session)
+## Status — 2026-09-17 (update this block at the end of every session)
+
+**2026-09-17: T3's other half — an ITEM's failure has a category too.** The owner named the
+gap: `migration_status.last_error_category` has given the DOMAIN level a remedy in the
+customer's own language since migration 0033, and `item.last_error_category` did not exist.
+So a migration where one domain stops explains itself, and one where nine hundred items
+succeed and three fail shows the provider's English with no remedy in any language. That is
+backwards — the item level is the common case, it is what the failures queue is FOR, and it is
+what somebody is looking at when they ask what to do.
+
+Migration 0049 adds the column, `recordFailure` derives it in the same statement that writes
+the prose, and the Failures page shows it ABOVE the prose in both languages from the map the
+domain strip and the operator's support screen already share. Nothing is paraphrased away:
+`lastError` stays verbatim, because the category is coarse and actionable and the prose is
+what says whether Retry has a chance.
+
+**The side travels with it, and it is the whole reason this needed a slice rather than a
+column.** A source refusal and a target one read IDENTICALLY — a 403 is a 403 — so the pass
+tags what the SOURCE closure throws and what the TARGET closure throws at the closure itself,
+and the item's category is derived from that tag. `a-failed-item-that-could-not-say-what-kind`
+proves it the only way that means anything: two passes differing in nothing but which closure
+raises, with byte-identical messages, landing as `source_refused` and `target_refused`.
+
+A row with no category reads as ABSENT rather than `unknown`: every row written before 0049
+has NULL, and `unknown` is a real classification meaning "we looked and could not tell".
 
 **2026-08-30: T6 finished — the disclosure joined the v1.1 lawyer drafts.** Privacy §4.5
 (EN+NL) now discloses standing operator access in the build's own terms — metadata-only,
@@ -23,7 +47,7 @@ place. The two decisions of 2026-08-27 that still stand unchanged are **metadata
 |---|---|---|
 | T1 Standing access, and the log that has to earn it | ✅ **Done 2026-08-27** | `support_read` (managed 0009): one row per view served — who, whose, which screen, when. Append-only by GRANT (no UPDATE, no DELETE), an operator may read only their OWN reads (a log somebody can browse tells them what colleagues are investigating), the screen vocabulary is a CHECK because a fourth screen is a design change, and a read attributed to nobody is REFUSED — the decayed-GUC case, where a row with no subject makes the log look complete while hiding the thing it exists to show. Written through the same handle the view is read with, so a log cannot fail independently of what it logs. |
 | T2 The read model: metadata-only views, in the managed chain | ✅ **Done 2026-08-27** | Five views in managed 0009. **The bypass is measured, not assumed:** as `app_user` with no tenant, a DIRECT read of `tenant` returns 0 rows and a read through the view returns them all — a view runs with its OWNER's privileges and the owner is the migrating superuser, so `FORCE ROW LEVEL SECURITY` does not reach through it. That precondition is now a TEST, because on a database where migrations run as a non-superuser owner every operator screen would go quietly empty (fail-closed, but broken). Since there is no second net, the `EXISTS` against `platform_operator` is written out in every view rather than factored into a helper somebody could forget to call — and a catalog test fails on ANY `support_%` view lacking it, so a sixth cannot arrive quietly. Proved by breaking: removing one view's predicate turns 3 tests red. The column list is the boundary — `last_error`, `secret_ref`, `encrypted_credentials` and `config` are unreachable BY ERROR, and there is no view over `item`, `mailbox` or `collection_mapping` at all. |
-| T3 A failure has a CATEGORY, not only prose | ✅ **Done 2026-08-27** | Six categories classified at `markFailed`, stored beside the prose in migration 0033, and rendered on the CUSTOMER's own progress strip as a remedy sentence in both languages — the owner's reframing, so the primary reader is the person whose migration stopped. `last_error` still renders verbatim beneath it: precision for whoever needs it, the way out for whoever does not. Ordering is load-bearing and tested — quota beats rate beats auth, because *"wait until tomorrow"*, *"wait a minute"* and *"reconnect"* are different instructions and telling somebody to reconnect a working credential sends them to do damage. `unknown` is a real answer with its own sentence carrying the way OUT of self-service, and NULL (nothing failed) is deliberately distinguishable from `unknown` (failed, unclassified). Proved at three levels and by breaking each: the classifier against real provider messages (20), the STORE against PGlite (4 — dropping the classify call leaves all 20 classifier tests green, which is the whole reason that file exists), and the SCREEN (6 — rendering the label instead of the sentence turns 3 red). **2026-09-05:** the side joined the category on the operator's level-3 view (managed 0022, `failed_side` — two words, metadata like the category; 0094 T5's second slice records it).
+| T3 A failure has a CATEGORY, not only prose | ✅ **Done 2026-08-27 at the domain level; the ITEM level followed 2026-09-17 (migration 0049)** | Classified at `markFailed`, stored beside the prose in migration 0033, and rendered on the CUSTOMER's own progress strip as a remedy sentence in both languages — the owner's reframing, so the primary reader is the person whose migration stopped. `last_error` still renders verbatim beneath it: precision for whoever needs it, the way out for whoever does not. Ordering is load-bearing and tested — quota beats rate beats auth, because *"wait until tomorrow"*, *"wait a minute"* and *"reconnect"* are different instructions and telling somebody to reconnect a working credential sends them to do damage. `unknown` is a real answer with its own sentence carrying the way OUT of self-service, and NULL (nothing failed) is deliberately distinguishable from `unknown` (failed, unclassified). Proved at three levels and by breaking each: the classifier against real provider messages (20), the STORE against PGlite (4 — dropping the classify call leaves all 20 classifier tests green, which is the whole reason that file exists), and the SCREEN (6 — rendering the label instead of the sentence turns 3 red). **2026-09-05:** the side joined the category on the operator's level-3 view (managed 0022, `failed_side` — two words, metadata like the category; 0094 T5's second slice records it).
 
 **2026-09-17 — SIX BECAME EIGHT, and the side stopped being decoration.** A live Drive refusal (`cannotExportFile`, a Doc whose owner had turned off downloading) reached a customer as `target_refused`, whose remedy is *"a full mailbox, a read-only folder or missing permission on the target account"*. Nothing had been sent to the destination. The customer was told to audit an account that never saw the file, which is worse than `unknown`: `unknown` at least says it does not know.
 

@@ -22,7 +22,13 @@ import type {
   TargetWriter,
   UpsertResult,
 } from '@openmig/shared';
-import { readMessageId, MAX_ITEM_ATTEMPTS, DELETION_CONFIRMATIONS } from '@openmig/shared';
+import {
+  readMessageId,
+  MAX_ITEM_ATTEMPTS,
+  DELETION_CONFIRMATIONS,
+  classifyFailure,
+  type FailureSide,
+} from '@openmig/shared';
 
 /** Seed shape for {@link MemorySource}. */
 export interface SeedMessage {
@@ -367,8 +373,13 @@ export class MemoryLedger implements Ledger {
   recordFailure(
     record: LedgerRecord,
     error: string,
-    options: { readonly park?: boolean } = {},
+    options: { readonly park?: boolean; readonly side?: FailureSide } = {},
   ): Promise<LedgerRecord> {
+    // Mirrored from `PgLedger.recordFailure`, and mirrored rather than skipped
+    // for the reason the long comment below gives one column over: a fake that
+    // lagged the real store here would let a test assert a remedy the product
+    // never writes. Derived from the message AND the side, in one place.
+    const lastErrorCategory = classifyFailure(error, options.side);
     const k = this.key(record);
     const existing = this.rows.get(k);
     // Mirrors PgLedger: the count counts ATTEMPTS, and parking is its own
@@ -399,6 +410,7 @@ export class MemoryLedger implements Ledger {
           attemptCount: attempts,
           ...(parkedAt !== undefined ? { parkedAt } : {}),
           lastError: error,
+          lastErrorCategory,
           ...(record.collection !== undefined ? { collection: record.collection } : {}),
           // `''` is nothing to say, not a value — so a caller round-tripping an
           // unrepaired row cannot blank a name the ledger already holds.
@@ -412,6 +424,7 @@ export class MemoryLedger implements Ledger {
           attemptCount: attempts,
           ...(parkedAt !== undefined ? { parkedAt } : {}),
           lastError: error,
+          lastErrorCategory,
         };
     this.rows.set(k, merged);
     return Promise.resolve(merged);
@@ -819,6 +832,7 @@ export class MemoryLedger implements Ledger {
         naturalKeyHash: r.naturalKeyHash,
         attempts: r.attemptCount ?? 0,
         lastError: r.lastError ?? '(no error recorded)',
+        ...(r.lastErrorCategory ? { category: r.lastErrorCategory } : {}),
         needsDecision: (r.attemptCount ?? 0) >= MAX_ITEM_ATTEMPTS || r.parkedAt !== undefined,
         ...(r.parkedAt ? { parkedAt: r.parkedAt } : {}),
       });

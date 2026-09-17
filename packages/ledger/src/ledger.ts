@@ -14,6 +14,9 @@ import {
   type MappingId,
   type SetupStepRow,
   type ShareGrantRow,
+  classifyFailure,
+  isFailureCategory,
+  type FailureSide,
 } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
 import { eq, and, ne, gt, gte, isNull, isNotNull, or, desc, sql } from 'drizzle-orm';
@@ -269,8 +272,17 @@ export class PgLedger implements Ledger {
   async recordFailure(
     record: LedgerRecord,
     error: string,
-    options: { readonly park?: boolean } = {},
+    options: { readonly park?: boolean; readonly side?: FailureSide } = {},
   ): Promise<LedgerRecord> {
+    // DERIVED HERE, in the same statement that writes the prose, for the reason
+    // `markFailed` gives at the domain level: a category computed anywhere the
+    // message later travels to is a second derivation that can disagree with
+    // the first. One call, both columns (migration 0049).
+    //
+    // `side` is what tells `source_refused` from `target_refused`, and it is
+    // structural — the pass tags the closure that threw. No amount of matching
+    // on the wording could do it: a 403 is a 403.
+    const category = classifyFailure(error, options.side);
     // THE COUNT COUNTS ATTEMPTS. Parking used to be written INTO it —
     // `GREATEST(count + 1, MAX_ITEM_ATTEMPTS)` — so an item parked on first
     // sight reported five attempts it never made, and a second park walked the
@@ -289,6 +301,7 @@ export class PgLedger implements Ledger {
           attemptCount: attempts,
           ...(options.park ? { parkedAt: parked } : {}),
           lastError: error,
+          lastErrorCategory: category,
           updatedAt: sql`now()`,
           // Deliberately NOT content_hash or source_version: a failed attempt
           // wrote nothing, so both still describe what is actually on the
@@ -357,6 +370,7 @@ export class PgLedger implements Ledger {
         attemptCount: 1,
         ...(options.park ? { parkedAt: sql`now()` } : {}),
         lastError: error,
+        lastErrorCategory: category,
         firstSeenAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -473,6 +487,13 @@ export class PgLedger implements Ledger {
       ...(row.collection ? { collection: row.collection } : {}),
       attempts: row.attemptCount,
       lastError: row.lastError ?? '(no error recorded)',
+      // Through the guard rather than cast: the column is `text` with no CHECK
+      // (the vocabulary is a product decision, revisable without a lock), so a
+      // value written by an older or a newer build must not become a category
+      // the screen has no sentence for. Absent when NULL, which is every row
+      // written before migration 0049 — the prose still shows, as it always
+      // did, and the next attempt on that item writes a real one.
+      ...(isFailureCategory(row.lastErrorCategory) ? { category: row.lastErrorCategory } : {}),
       ...(row.updatedAt
         ? {
             lastAttemptAt:
@@ -1571,6 +1592,12 @@ export class PgLedger implements Ledger {
       attemptCount: row.attemptCount,
       ...(row.lastError !== null && row.lastError !== undefined
         ? { lastError: row.lastError }
+        : {}),
+      // Through the guard, like every other read of this column: `text` with no
+      // CHECK, so a value from another build must not arrive as a category the
+      // screen has no sentence for.
+      ...(isFailureCategory(row.lastErrorCategory)
+        ? { lastErrorCategory: row.lastErrorCategory }
         : {}),
     };
   }
