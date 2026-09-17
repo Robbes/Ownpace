@@ -138,6 +138,17 @@ describe('extractUid', () => {
     expect(extractUid('UID;X-SOMETHING=1:the-uid')).toBe('the-uid');
   });
 
+  it('keeps a value that itself contains colons', () => {
+    // `urn:uuid:` is what Apple, Nextcloud and many DAV servers emit, and it
+    // is what both writers' private copies truncated to 'urn' until
+    // 2026-09-17 — see `a-uid-cut-at-its-first-colon.unit.test.ts` for what
+    // that cost. Everything after the FIRST colon is the value.
+    expect(extractUid('BEGIN:VCARD\r\nUID:urn:uuid:8f2b1c4e-0000-4000-8000-000000000001\r\nEND:VCARD')).toBe(
+      'urn:uuid:8f2b1c4e-0000-4000-8000-000000000001',
+    );
+    expect(extractUid('UID;VALUE=TEXT:urn:uuid:abc')).toBe('urn:uuid:abc');
+  });
+
   it('returns undefined when there is no UID at all', () => {
     // The callers must treat this as an error, never as a usable key.
     expect(extractUid('BEGIN:VEVENT\r\nSUMMARY:no uid here\r\nEND:VEVENT')).toBeUndefined();
