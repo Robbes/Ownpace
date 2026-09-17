@@ -90,18 +90,29 @@ describe('what the measurements say, as the code reads them', () => {
     expect(exportStabilityOf('export-odf', `${G}document`)).toBe('unstable');
   });
 
-  it('holds all three editor types under export-pdf STABLE — the way out', () => {
-    // Measured 2026-09-16 on the owner's tenant, five draws each, byte-identical:
-    // Doc 195869, Sheet 54591, Slide 2017. The Slide is the one that matters —
-    // it is the only measured way to carry a deck at all, and it is what turns
-    // the `export-office` refusal above from a wall into a gate.
+  it('holds EVERY editor type under export-pdf STABLE — the way out', () => {
+    // Measured on the owner's tenant, five draws each, byte-identical:
+    // Doc 195869, Sheet 54591, Slide 2017 (2026-09-16), Drawing 16854
+    // (2026-09-17). The Slide is the one that matters — it is the only measured
+    // way to carry a deck at all, and it is what turns the `export-office`
+    // refusal above from a wall into a gate.
     //
     // A PDF is not a zip, so no container hash is involved in any of these:
     // they are greens on the bytes themselves.
-    for (const kind of ['document', 'spreadsheet', 'presentation']) {
-      expect(exportStabilityOf('export-pdf', `${G}${kind}`), `export-pdf on a ${kind}`).toBe(
-        'stable',
-      );
+    //
+    // THE DRAWING WAS MISSING FROM THIS LOOP until 2026-09-17, and the test's
+    // own name counted the types it covered — written when a Drawing was not a
+    // kind this table could even name. It went green under `export-pdf` the day
+    // it became one, and the pin that claimed to hold "the way out" was not
+    // holding the way out for a quarter of the types it applies to.
+    // Derived from what `export-pdf` can RENDER, so a type Drive adds is in
+    // this loop the moment somebody teaches the policy to export it — and a
+    // type that is rendered but not measured stable fails here rather than
+    // waiting for a person to widen a hand-written list.
+    const rendered = Object.keys(NATIVE_EXPORT_TYPES['export-pdf']);
+    expect(rendered.length).toBeGreaterThan(3);
+    for (const mime of rendered) {
+      expect(exportStabilityOf('export-pdf', mime), `export-pdf on ${mime}`).toBe('stable');
     }
   });
 

@@ -825,7 +825,7 @@ const en = {
   'view.retrying.one': '{count} item is being tried again.',
   'view.retrying.many': '{count} items are being tried again.',
   'view.moved': '{bytes} moved so far.',
-  // The six failure categories, re-voiced for a reader who cannot act on them
+  // Every failure category, re-voiced for a reader who cannot act on them
   // — see i18n/view-failure-key.ts. Never the provider's own prose: that
   // names files, and it does not cross (workplan 0122 §3).
   'view.failure.authExpired': 'The connection to your account needs renewing. Whoever set this up can do it.',
@@ -1005,7 +1005,7 @@ const en = {
   'confirm.note.continuous': 'Continuous. Cutover has happened; this keeps copying instead of ending.',
   'confirm.introStarted':
     'Migrations here have started. Live progress is per migration; the scan stays as a snapshot.',
-  // The six failure categories (workplan 0110 T3). Each is a SENTENCE with a
+  // Every failure category (workplan 0110 T3). Each is a SENTENCE with a
   // remedy, not a label: the owner's reframing made the customer the primary
   // reader, and nobody can act on the words "auth expired". The raw provider
   // message still renders verbatim beside these — this is the actionable

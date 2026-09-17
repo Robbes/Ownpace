@@ -58,7 +58,18 @@ const SLIDE = { id: 'p1', name: 'Deck', mimeType: KIND_MIME_TYPES.slide };
 const PDF = { id: 'f1', name: 'scan.pdf', mimeType: 'application/pdf' };
 const DRAWING = { id: 'w1', name: 'Sketch', mimeType: 'application/vnd.google-apps.drawing' };
 
-/** What `export-office` can export — the three editor types, not the drawing. */
+/**
+ * A DELIBERATELY REDUCED `export-office`, and the reduction is load-bearing:
+ * two cases below hand `chooseFile` nothing but a PDF and a Drawing and expect
+ * "no exportable file found", which needs a render table that cannot export a
+ * Drawing. `OFFICE_WITH_DRAWING` further down is the real shape.
+ *
+ * THE REAL TABLE DOES EXPORT A DRAWING — as `image/svg+xml`, under both
+ * document policies. This comment used to count the editor types and exclude
+ * the drawing, as though that were a fact about `export-office` rather than a
+ * property of this fixture, which invited somebody to "fix"
+ * `NATIVE_EXPORT_TYPES` to match a test double.
+ */
 const OFFICE: Record<string, string> = {
   [KIND_MIME_TYPES.doc]: 'docx',
   [KIND_MIME_TYPES.sheet]: 'xlsx',
@@ -68,10 +79,23 @@ const OFFICE: Record<string, string> = {
 const ALL: readonly ChoosableFile[] = [PDF, DOC, DRAWING, SHEET, SLIDE];
 
 describe('readKind', () => {
-  it('reads each of the three kinds, case and padding forgiven', () => {
+  it('reads every kind the table names, case and padding forgiven', () => {
     expect(readKind('sheet')).toEqual({ ok: true, file: 'sheet' });
     expect(readKind('  SLIDE  ')).toEqual({ ok: true, file: 'slide' });
     expect(readKind('Doc')).toEqual({ ok: true, file: 'doc' });
+    // `drawing` became a kind on 2026-09-17 and this case did not follow it —
+    // the test was named for three and kept passing with four, which is the
+    // shape of hole a count in a sentence leaves behind.
+    expect(readKind('Drawing')).toEqual({ ok: true, file: 'drawing' });
+  });
+
+  it('reads every key of KIND_MIME_TYPES, so a fifth kind cannot be unreadable', () => {
+    // Derived rather than listed: the case above is worth keeping for the
+    // spellings it forgives, and this is worth having so the NEXT kind is
+    // covered without anybody remembering to widen it.
+    for (const kind of Object.keys(KIND_MIME_TYPES)) {
+      expect(readKind(kind), kind).toEqual({ ok: true, file: kind });
+    }
   });
 
   it('treats unset as no preference rather than an error', () => {
