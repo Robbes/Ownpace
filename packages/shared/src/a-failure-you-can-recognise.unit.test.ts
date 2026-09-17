@@ -26,8 +26,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildDomainStatusReports } from './operating-contract.ts';
 import { summariseQueues } from './notifications.ts';
-import type { ItemFailure } from './ports.ts';
-import type { MigrationStatus } from './operating-contract.ts';
+import type { ItemFailure, MigrationStatus } from './ports.ts';
 
 /** Two names that would be unmistakable in any output that carried them. */
 const NAMES = ['Jan Jansen', 'Tandarts Wieke'] as const;
