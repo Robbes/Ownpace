@@ -18,25 +18,26 @@ import Mappings from './Mappings.tsx';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { list: vi.fn(), triggerSync: vi.fn(), delete: vi.fn() },
+  mappingApi: { list: vi.fn(), triggerSync: vi.fn(), delete: vi.fn(), pause: vi.fn() },
 }));
 
 const listMock = vi.mocked(mappingApi.list);
 const syncMock = vi.mocked(mappingApi.triggerSync);
 const deleteMock = vi.mocked(mappingApi.delete);
+const pauseMock = vi.mocked(mappingApi.pause);
 
-const renderMappings = (path = '/mappings') => {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
+const renderMappings = (path = '/mappings', queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+})) => ({
+  queryClient,
+  ...render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[path]}>
         <Mappings />
       </MemoryRouter>
     </QueryClientProvider>
-  );
-};
+  ),
+});
 
 const sampleMapping = (over: Partial<MappingListItem> = {}): MappingListItem => ({
   id: 'm1',
@@ -381,5 +382,39 @@ describe('Mappings — filtering by lifecycle state (0074)', () => {
     expect(await screen.findByText(/Showing only:/)).toBeInTheDocument();
     expect(screen.queryByText('Active one')).toBeNull();
     expect(screen.queryByText('Paused one')).toBeNull();
+  });
+});
+
+describe('Mappings — pausing here tells the migration’s own page too (owner, 2026-09-17)', () => {
+  beforeEach(() => {
+    listMock.mockReset();
+    pauseMock.mockReset();
+    pauseMock.mockResolvedValue(undefined as never);
+  });
+
+  it('marks the migration’s own cached page for re-reading, not just this list', async () => {
+    /**
+     * The owner met this the other way round — *"in the Migrations view it
+     * shows Status 'Active' in green. But when i click on it ... i read
+     * 'Paused'"* — and the cause is the same on both sides: `App.tsx` gives
+     * every query a five-minute `staleTime`, so a lifecycle change on one
+     * screen leaves the other answering from before it.
+     *
+     * This row's Pause refreshed the list and nothing else, so `['mapping',
+     * id]` would have gone on saying `active`, with a Pause button offered on
+     * an already-paused migration.
+     */
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', status: 'active', name: 'Inbox' })]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // What a visit to the migration's own page left behind, before the pause.
+    queryClient.setQueryData(['mapping', 'm1'], { id: 'm1', status: 'active' });
+
+    renderMappings('/mappings', queryClient);
+    fireEvent.click(await screen.findByTitle('Pause'));
+
+    await waitFor(() => expect(pauseMock).toHaveBeenCalledWith('m1'));
+    await waitFor(() =>
+      expect(queryClient.getQueryState(['mapping', 'm1'])?.isInvalidated).toBe(true),
+    );
   });
 });

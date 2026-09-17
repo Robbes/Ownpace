@@ -135,6 +135,44 @@ export function sourceKindFor(
 }
 
 /**
+ * WHICH ACCOUNT A CONNECTION SIGNS IN AS, for the detail route to print.
+ *
+ * THE DEFECT (owner, 2026-09-17): *"in the migration overview or 'Migration
+ * Details' view ... it doesnt list the username within the source and username
+ * within target ... please that those in this overview."* The screen printed
+ * neither, and for his migration this route could not have supplied them: it
+ * read the account out of the encrypted credential record alone.
+ *
+ * TWO PLACES, because two kinds of connection keep it in different ones:
+ *
+ *  - a PASSWORD kind (imap, the DAV targets) stores `{username, password}`
+ *    encrypted together, so the account is in the secret;
+ *  - an OAUTH kind (every Google, Microsoft and Apple row — the doors most
+ *    customers now come through) has no password and stores no username at
+ *    all: `sourceCredentialRecord` writes the client pair and the refresh
+ *    token, and the ADDRESS goes in the connection's own config as `user`.
+ *
+ * The secret first and the config second, so a row that has both answers with
+ * the credential it actually signs in with. `password` is never returned by
+ * the route whatever this finds; an address is not a secret, and a screen that
+ * cannot say whose mailbox is being read is the one the owner met.
+ */
+export function accountOnConnection(
+  conn: { readonly secretRef?: string | null; readonly config?: unknown } | null | undefined,
+): string | undefined {
+  const fromConfig = (conn?.config as { user?: unknown } | null | undefined)?.user;
+  const fallback = typeof fromConfig === 'string' && fromConfig !== '' ? fromConfig : undefined;
+  if (!conn?.secretRef) return fallback;
+  try {
+    // A secret this process cannot read is a fact for the connection card to
+    // report (0094 T5), not a reason to print nothing here.
+    return SecretStore.decryptCredentials(conn.secretRef).username ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
  * The source connection's config JSONB, in the ENGINE's own shape —
  * build-deps-from-mapping.ts casts this straight to shared's `SourceConfig`
  * and branches on `type`. Until 2026-08-10 create stored `{host, port,
@@ -2191,20 +2229,13 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       ? completedTimestamps.sort().at(-1)
       : undefined;
 
-    // Config is real: host/port/useSsl come straight from the connection's non-secret
-    // config JSON. username is NOT in that JSON, though — create-mapping stores it
-    // encrypted alongside the password (SecretStore.encryptCredentials({ username,
-    // password })), so it has to be decrypted to surface it here. password itself
-    // stays masked — never return the real secret, even though it's technically
-    // available server-side for a sync pass.
-    const usernameFor = (conn: typeof sourceConn): string | undefined => {
-      if (!conn?.secretRef) return undefined;
-      try {
-        return SecretStore.decryptCredentials(conn.secretRef).username;
-      } catch {
-        return undefined;
-      }
-    };
+    // Config is real: host/port/useSsl come straight from the connection's
+    // non-secret config JSON. The ACCOUNT is not always in there — where it
+    // lives depends on the kind, which is `accountOnConnection`'s whole
+    // subject. The password stays masked whatever that finds: never return the
+    // real secret, even though it is available server-side for a sync pass.
+    const usernameFor = (conn: typeof sourceConn): string | undefined =>
+      accountOnConnection(conn);
 
     res.json({
       id: mapping.id,

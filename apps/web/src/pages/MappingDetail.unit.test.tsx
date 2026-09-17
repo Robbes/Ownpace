@@ -106,6 +106,53 @@ describe('the per-mapping navigation', () => {
  * test pins the RETRYING count specifically, because raw MigrationStatus
  * rows lacked it and the strip silently rendered nothing there before.
  */
+describe('whose account, on each side (owner, 2026-09-17)', () => {
+  /**
+   * *"in the migration overview or 'Migration Details' view ... it doesnt list
+   * the username within the source and username within target ... please that
+   * those in this overview."*
+   *
+   * The name is what somebody typed and can be anything — "G to Sov", "test".
+   * The address is the fact: which mailbox is read, which account is written
+   * to. It was already on the wire and no screen printed it.
+   */
+  it('prints the connection name AND the account beside it', async () => {
+    mappingApiGet.mockResolvedValue({
+      name: 'Acme mail',
+      status: 'active',
+      sourceType: 'google',
+      targetType: 'nextcloud',
+      sourceConnection: { id: 'c1', name: 'Acme Google', kind: 'google' },
+      targetConnection: { id: 'c2', name: 'Anna’s Nextcloud', kind: 'nextcloud' },
+      sourceConfig: { username: 'owner@acme.example' },
+      targetConfig: { username: 'anna@nc.example' },
+    });
+    renderHub();
+    expect(
+      await screen.findByText(
+        /From Acme Google \(owner@acme\.example\) to Anna’s Nextcloud \(anna@nc\.example\)/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('prints no empty brackets where the account is not known', async () => {
+    // An older row, or a kind that stores neither. "Acme Google ()" would read
+    // as a connection with no account rather than a page that cannot say.
+    mappingApiGet.mockResolvedValue({
+      name: 'Acme mail',
+      status: 'active',
+      sourceType: 'google',
+      targetType: 'nextcloud',
+      sourceConnection: { id: 'c1', name: 'Acme Google', kind: 'google' },
+      sourceConfig: {},
+      targetConfig: {},
+    });
+    renderHub();
+    expect(await screen.findByText(/From Acme Google to nextcloud/)).toBeInTheDocument();
+    expect(screen.queryByText(/\(\)/)).toBeNull();
+  });
+});
+
 describe('the live progress strip', () => {
   const emailDomain = {
     domain: 'email',

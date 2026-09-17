@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { isSelfHost } from '../services/edition.ts';
 import { mappingApi } from '../services/mapping-service.ts';
+import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import { fetchStatus } from '../services/operating-service.ts';
 import { useT } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
@@ -37,6 +38,33 @@ import CompletionReportDownload from '../components/CompletionReportDownload.tsx
 import LiveProgress from '../components/LiveProgress.tsx';
 import StateChip from '../components/StateChip.tsx';
 import type { StringKey } from '../i18n/index.tsx';
+
+/**
+ * ONE SIDE OF THE LINE: the connection's name, AND THE ACCOUNT IT SIGNS IN AS
+ * (owner, 2026-09-17).
+ *
+ * *"in the migration overview or 'Migration Details' view ... it doesnt list
+ * the username within the source and username within target ... please that
+ * those in this overview."*
+ *
+ * The name is what somebody typed and can be anything — "G to Sov", "test",
+ * the default. The address is the fact: which mailbox is being read, which
+ * account is being written to. It was already on the wire (the detail route
+ * returns it beside a masked password) and no screen printed it.
+ *
+ * Falls back exactly as the line did before: the connection's name if there is
+ * one, the provider kind if there is not, and no parenthesis at all when the
+ * account is unknown — an empty `()` would read as a connection with no
+ * account rather than as a page that could not say.
+ */
+function sideLabel(
+  name: string | null | undefined,
+  kind: string,
+  account: string | undefined,
+): string {
+  const head = name ?? kind;
+  return account === undefined || account === '' ? head : `${head} (${account})`;
+}
 
 const SCREENS: ReadonlyArray<{
   nameKey: StringKey;
@@ -86,8 +114,10 @@ const MappingDetail: React.FC = () => {
     setPauseFailed(null);
     try {
       await mappingApi.pause(id);
-      await queryClient.invalidateQueries({ queryKey: ['mapping', id] });
-      await queryClient.invalidateQueries({ queryKey: ['mappings'] });
+      // Both screens, from one place (2026-09-17). This page had it right and
+      // the other two lifecycle writes did not, which is why it is a helper
+      // now rather than a habit.
+      await forgetMappingLifecycle(queryClient, id);
     } catch (err) {
       setPauseFailed(err instanceof Error ? err.message : String(err));
     } finally {
@@ -153,8 +183,16 @@ const MappingDetail: React.FC = () => {
       {detail.data && (detail.data.sourceConnection || detail.data.targetConnection) && (
         <p className="mt-1 text-sm text-gray-600">
           {t('hub.connections', {
-            source: detail.data.sourceConnection?.name ?? detail.data.sourceType,
-            target: detail.data.targetConnection?.name ?? detail.data.targetType,
+            source: sideLabel(
+              detail.data.sourceConnection?.name,
+              detail.data.sourceType,
+              detail.data.sourceConfig.username,
+            ),
+            target: sideLabel(
+              detail.data.targetConnection?.name,
+              detail.data.targetType,
+              detail.data.targetConfig.username,
+            ),
           })}
         </p>
       )}
