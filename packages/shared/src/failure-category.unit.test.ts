@@ -107,6 +107,49 @@ describe('the target refused the write', () => {
       'auth_expired',
     );
   });
+
+  it("reads the 500 that refused two of the owner's contacts (2026-09-17)", () => {
+    // VERBATIM from `mailbox_item.last_error` on the live run, and it read
+    // `unknown` — whose remedy is "send it to us and we will look" — for the
+    // one failure in the whole migration where the reason was in the
+    // customer's own destination log.
+    expect(
+      classifyFailure(
+        'PUT failed for /addressbooks/users/admin/address-book/926caf98adce563.vcf ' +
+          'with status 500: TypeError — A type error occurred. For more details, ' +
+          'please refer to the logs, which provide additional context about the ' +
+          'type error.',
+        'target',
+      ),
+    ).toBe('target_refused');
+  });
+
+  it('reads the reason phrase as well as the status', () => {
+    expect(classifyFailure('500 Internal Server Error')).toBe('target_refused');
+  });
+
+  it('reads a 500 on the SOURCE side as a source refusal', () => {
+    // The whole point of the sided rules: a destination that was never asked
+    // must not be the thing the customer is sent to check.
+    expect(classifyFailure('GET failed with status 500', 'source')).toBe('source_refused');
+  });
+
+  it('does not read a COUNT of 500 as a server error', () => {
+    // Why the rule matches `status 500` and not `\b500\b`. A bare number would
+    // turn every message that happens to count to five hundred into a refusal,
+    // which is the false diagnosis this module's own rule forbids.
+    expect(classifyFailure('copied 500 items')).toBe('unknown');
+    expect(classifyFailure('the source holds 500 MB in this folder')).toBe('unknown');
+  });
+
+  it('leaves a gateway blip alone — 502, 503 and 504 are not refusals', () => {
+    // `target_refused` is NOT self-healing (see SELF_HEALING_CATEGORIES), so
+    // reading a proxy hiccup as one would put a working migration on the
+    // backoff ladder. They stay `unknown` until a real refusal argues
+    // otherwise — except where another rule already answers better.
+    expect(classifyFailure('PUT failed with status 502')).toBe('unknown');
+    expect(classifyFailure('PUT failed with status 504')).toBe('unknown');
+  });
 });
 
 describe('unknown is an answer, not a gap', () => {

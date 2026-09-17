@@ -106,6 +106,20 @@ describe('the two refusals say different things, which is the whole point', () =
     }
   });
 
+  it("the target remedy points at the destination's OWN log for an internal error", () => {
+    // 2026-09-17: two contacts were refused five times each with a bare
+    // `TypeError`, and the whole readable account of why was in the customer's
+    // Nextcloud log. The remedy named a full mailbox, a read-only folder and
+    // missing permission — three things that were all fine — and pointed
+    // nowhere near the one place that had the answer.
+    for (const locale of LOCALES) {
+      const target = sentenceFor(locale, FAILURE_KEY.target_refused, 'target_refused');
+      expect(target.toLowerCase(), `the ${locale} target remedy names no log`).toMatch(
+        locale === 'nl' ? /logboek/ : /\blog\b/,
+      );
+    }
+  });
+
   it('the format remedy is about the file, not about the account', () => {
     for (const locale of LOCALES) {
       const format = sentenceFor(locale, FAILURE_KEY.format_refused, 'format_refused');

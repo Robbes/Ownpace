@@ -221,9 +221,33 @@ const RULES: ReadonlyArray<{
   // anything above it is a better answer when both fit. WHICH side refused is
   // the whole difference between "go and look at your destination" and
   // "nothing was sent anywhere" — see the comment above this list.
+  //
+  // A 500 IS A REFUSAL, AND WAS `unknown` UNTIL 2026-09-17. Two of the owner's
+  // contacts were refused five times each by a live Nextcloud with
+  //
+  //   PUT failed for …/address-book/….vcf with status 500: TypeError — A type
+  //   error occurred. For more details, please refer to the logs…
+  //
+  // and the category on both rows read `unknown`, whose remedy is *"send it to
+  // us and we will look"*. That is the wrong instruction for the one failure in
+  // the run where the reason was sitting in the customer's OWN destination log,
+  // one `docker logs` away. The write did not happen and the destination is
+  // where to look, which is precisely `target_refused`.
+  //
+  // MATCHED AS A STATUS, NEVER AS A BARE NUMBER: `status 500` is how every
+  // refusal in this codebase phrases it, and "internal server error" is the
+  // specified reason phrase (RFC 9110 §15.6.1). A bare `\b500\b` would read
+  // "500 items" and "500 MB" as server errors, which is the false-positive this
+  // module's own rule about protocol vocabulary exists to avoid.
+  //
+  // 502, 503 AND 504 ARE DELIBERATELY ABSENT. A gateway that is briefly
+  // unavailable in front of a healthy destination has not refused anything, and
+  // `target_refused` is not self-healing — so reading a proxy blip as one would
+  // put a working migration on the backoff ladder. They stay `unknown` until a
+  // real refusal argues otherwise.
   {
     category: 'target_refused',
-    test: /\b(403|409|412|422|507|forbidden|permission\s+denied|insufficient\s+(permission|storage|quota)|read[\s_-]?only|refused\s+the|rejected|conflict|precondition\s+failed|mailbox\s+full|over\s+capacity)\b/i,
+    test: /\b(403|409|412|422|507|status\s+500|internal\s+server\s+error|forbidden|permission\s+denied|insufficient\s+(permission|storage|quota)|read[\s_-]?only|refused\s+the|rejected|conflict|precondition\s+failed|mailbox\s+full|over\s+capacity)\b/i,
     whenSource: 'source_refused',
   },
 ];
