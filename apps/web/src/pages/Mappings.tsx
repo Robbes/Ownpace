@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FolderGit2,
   Plus,
@@ -13,6 +13,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { mappingApi } from '../services/mapping-service.ts';
+import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import { serverMessage } from '../services/api.ts';
 import StateChip from '../components/StateChip.tsx';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
@@ -22,6 +23,7 @@ const Mappings: React.FC = () => {
   const t = useT();
   const navigate = useNavigate();
   const { relativeToNow } = useFormatters();
+  const queryClient = useQueryClient();
   const { data: allMappings, isLoading, error, refetch } = useQuery({
     queryKey: ['mappings'],
     queryFn: mappingApi.list,
@@ -94,7 +96,11 @@ const Mappings: React.FC = () => {
         const { [mappingId]: _done, ...rest } = o;
         return rest;
       });
-      await refetch();
+      // This row and the migration's OWN page (2026-09-17). `refetch()` alone
+      // refreshed the list and left `['mapping', id]` saying `active` for five
+      // minutes — the owner's Active-here-Paused-there, in the other
+      // direction, with a Pause button offered on a paused migration.
+      await forgetMappingLifecycle(queryClient, mappingId);
     } catch (error) {
       setSyncOutcomes((o) => ({
         ...o,

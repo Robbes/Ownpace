@@ -3,8 +3,9 @@
 import React from 'react';
 import DiscoveryCounts from './confirm/DiscoveryCounts.tsx';
 import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi } from '../services/mapping-service.ts';
+import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import { useT } from '../i18n/index.tsx';
 
 export interface ConfirmMigrationProps {
@@ -95,9 +96,26 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
     queryFn: () => scopeManifestApi.get(),
   });
 
+  const queryClient = useQueryClient();
   const startMutation = useMutation({
     mutationFn: () => mappingApi.start(mappingId),
-    onSuccess: onStarted,
+    /**
+     * THE CACHE GOES BEFORE THE NAVIGATION (owner, 2026-09-17).
+     *
+     * Pressing this makes the migration `active`, and until today it told
+     * nothing: the migration's own page kept answering `paused` from the copy
+     * it had fetched before the press — for five minutes, by `App.tsx`'s
+     * `staleTime` — with *Review and start* beside it. The list, fetched
+     * after the navigation, said `active`. Two answers, and the stale one
+     * offered to start a migration that was already running.
+     *
+     * Awaited, so the page the navigation lands on reads the server rather
+     * than the cache it is about to be handed.
+     */
+    onSuccess: async () => {
+      await forgetMappingLifecycle(queryClient, mappingId);
+      onStarted();
+    },
   });
 
   const domains = discovery.data?.domains ?? [];
