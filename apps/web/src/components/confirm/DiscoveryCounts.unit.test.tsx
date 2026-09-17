@@ -98,6 +98,72 @@ describe('the two things the customer has to be told', () => {
   });
 });
 
+describe('the screen says it is working (owner, 2026-09-17)', () => {
+  /**
+   * *"In that 'Review & confirm your migration' ... i dont see like an
+   * hourglass or indicator the website is working/in progress. Please add some
+   * indicator."*
+   *
+   * The sentences were already here and static. A first count over a real
+   * account takes minutes, and a still page with a sentence on it reads exactly
+   * like one that has stopped — which is the same failure the pending line was
+   * built to fix, one layer up.
+   */
+  const spinner = (el: HTMLElement) => el.querySelector('.animate-spin');
+
+  it('spins beside the scanning line, before anything has landed', () => {
+    render(<DiscoveryCounts domains={[]} expected={['email', 'calendar']} />);
+    expect(spinner(screen.getByRole('status'))).not.toBeNull();
+  });
+
+  it('spins beside the line naming what is still counting', () => {
+    render(
+      <DiscoveryCounts domains={[record({ domain: 'email' })]} expected={['email', 'file']} />,
+    );
+    const still = screen.getByRole('status');
+    expect(still).toHaveTextContent(/Files/);
+    expect(spinner(still)).not.toBeNull();
+  });
+
+  it('stops spinning once every expected domain has answered', () => {
+    // A spinner that never stops is the same lie as a static page, the other
+    // way round.
+    render(<DiscoveryCounts domains={[record({ domain: 'email' })]} expected={['email']} />);
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(document.querySelector('.animate-spin')).toBeNull();
+  });
+});
+
+describe('the column that meant nothing to anybody (owner, 2026-09-17)', () => {
+  /**
+   * *"'What we found in your source' has a table 'Needs an ID': what is that
+   * and why would a users have any interest in that? If it is not relevant for
+   * user, dont show it."*
+   *
+   * It counted messages arriving without a Message-ID. That IS worth
+   * disclosing — we add one to the copy — and the amber note below the table
+   * says so in a sentence, only when there are any. As a column it printed a
+   * grey nought on every row of every migration, mail or not.
+   */
+  it('is not a column any more', () => {
+    render(<DiscoveryCounts domains={[record({ generatedIdItems: 4 })]} />);
+    expect(screen.queryByText('Needs an ID')).toBeNull();
+  });
+
+  it('still says it in words, where the number is not nought', () => {
+    // The disclosure is the point; the column was not.
+    render(<DiscoveryCounts domains={[record({ generatedIdItems: 4 })]} />);
+    expect(screen.getByRole('note')).toHaveTextContent(
+      /4 messages arrived without a Message-ID/,
+    );
+  });
+
+  it('says nothing at all when every message brought its own ID', () => {
+    render(<DiscoveryCounts domains={[record({ generatedIdItems: 0 })]} />);
+    expect(screen.queryByRole('note')).toBeNull();
+  });
+});
+
 describe('formatBytes', () => {
   it('says em dash for unknown rather than 0 B', () => {
     expect(formatBytes(undefined)).toBe('—');

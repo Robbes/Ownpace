@@ -62,7 +62,6 @@ const en = {
   'discovery.th.collections': 'Collections',
   'discovery.th.items': 'Items',
   'discovery.th.size': 'Size',
-  'discovery.th.needsId': 'Needs an ID',
   'discovery.th.existing': 'Already on the destination',
   'discovery.keptAsIs': 'kept as-is',
   'discovery.generatedId.pre.one':
@@ -2035,7 +2034,6 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.th.collections': 'Collecties',
   'discovery.th.items': 'Items',
   'discovery.th.size': 'Grootte',
-  'discovery.th.needsId': 'Heeft een ID nodig',
   'discovery.th.existing': 'Al op de bestemming',
   'discovery.keptAsIs': 'blijven ongewijzigd',
   'discovery.generatedId.pre.one':
