@@ -16,14 +16,21 @@
  *    failures queue read on a phone. `dav-refusal.ts` and `graph-refusal.ts`
  *    had each met this and fixed it for their provider; Drive had nothing.
  *
- * 2. **The remedy named the wrong account.** `classifyFailure` sees a 403 and
- *    the word "refused" and answers `target_refused`, whose sentence is *"The
+ * 2. **The remedy named the wrong account.** `classifyFailure` saw a 403 and
+ *    the word "refused" and answered `target_refused`, whose sentence is *"The
  *    destination refused to accept this. Common causes are a full mailbox, a
  *    read-only folder or missing permission on the target account."* Google
  *    refused to export; the destination never saw the file. A customer
  *    following that goes and audits Nextcloud for a problem that is entirely
- *    in Drive. Until the category vocabulary grows a source-side answer, the
- *    line itself has to say so.
+ *    in Drive.
+ *
+ *    **FIXED 2026-09-17**, the day after this file was written and on the
+ *    owner's go-ahead: `source_refused` now exists, and a refusal the pass
+ *    tagged `source` reads as one. Not by matching different words — the
+ *    prose of a source refusal and a target one is identical — but from the
+ *    side the pass already recorded at the closure that threw. The tests below
+ *    assert both readings, because the unsided default is still
+ *    `target_refused` and that is deliberate.
  *
  * 3. **It was retried.** `cannotExportFile` cannot succeed on a second
  *    attempt, or a fifth. Unmarked, it rode the automatic lane, so an item
@@ -130,22 +137,32 @@ describe('the line a customer actually reads', () => {
     expect(line).not.toContain('"domain"');
   });
 
-  it('says the destination never saw it, because the category says otherwise', () => {
-    // The correction that matters. Asserted TOGETHER with the category below,
-    // so that if a source-side category ever lands and this sentence becomes
-    // redundant, whoever removes it meets the reason it was here.
+  it('says the destination never saw it, and still says it', () => {
+    // This sentence was written to correct a category that blamed the wrong
+    // account, and the category was fixed on 2026-09-17 — so the obvious move
+    // was to delete it. It stays, for a reason the original note did not
+    // anticipate: a native-file refusal is thrown INSIDE the per-item boundary
+    // so the rest of the folder migrates, which lands it in `item.last_error`,
+    // and THAT row has no category column at all. The fix reached the surface
+    // that has a category; this is the surface that does not.
     expect(line).toContain('Nothing was sent to the destination for this item.');
   });
 
-  it('is still classified target_refused, which is why the sentence is needed', () => {
-    // Not an assertion that this is RIGHT — it is an assertion that it is the
-    // state of things, so the correcting sentence above cannot be dropped
-    // while the classifier still answers this way.
-    expect(
-      classifyFailure(line),
-      'the classifier no longer reads this as a target refusal — if a source-side category ' +
-        'landed, the "Nothing was sent" sentence in driveFailure can go, and this test with it',
-    ).toBe('target_refused');
+  it('reads as a SOURCE refusal once the pass says which side threw it', () => {
+    // The fix. `fetchRaw` is tagged `source` by `sided()`, so a pass-level row
+    // for this failure carries side='source' and the remedy now says the
+    // destination is not the thing to go and look at.
+    expect(classifyFailure(line, 'source')).toBe('source_refused');
+  });
+
+  it('reads as a target refusal with no side, and that is the deliberate default', () => {
+    // NOT a bug and not an oversight. `failed_side` is NULL for a pass that
+    // could not tell and for every row written before the column existed;
+    // re-reading those as source refusals would rewrite history on no
+    // evidence, and a write is where the overwhelming majority of refusals
+    // happen anyway. The default is both the old answer and the likely one.
+    expect(classifyFailure(line)).toBe('target_refused');
+    expect(classifyFailure(line, 'target')).toBe('target_refused');
   });
 
   it('reads as one sentence a person can act on', () => {

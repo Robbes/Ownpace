@@ -1144,10 +1144,10 @@ export const migrationStatus = pgTable(
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastError: text('last_error'),
     /**
-     * What KIND of failure `last_error` was — one of six (workplan 0110 T3,
-     * migration 0033). Beside the prose, never instead of it: `last_error`
-     * stays verbatim because it is the precise answer, and this is the
-     * ACTIONABLE one, for the customer first.
+     * What KIND of failure `last_error` was — one of eight (workplan 0110 T3,
+     * migration 0033; two refusals added by migration 0048). Beside the prose,
+     * never instead of it: `last_error` stays verbatim because it is the
+     * precise answer, and this is the ACTIONABLE one, for the customer first.
      *
      * Safe where `last_error` is not. This carries no address, no folder name
      * and no subject, which is what lets 0110's metadata-only operator views
@@ -1155,6 +1155,17 @@ export const migrationStatus = pgTable(
      *
      * NULL = nothing has failed. `'unknown'` = something failed and we could
      * not classify it. A screen must not conflate those.
+     *
+     * `text` WITH NO CHECK, on purpose — see migration 0033. The vocabulary is
+     * a product decision expected to be revisited, and 0048 is the proof it
+     * was worth it: adding `source_refused` and `format_refused` took no lock
+     * and no column change, only a comment that had gone out of date.
+     * `isFailureCategory` is the guard on the way back in.
+     *
+     * READ IT WITH `failed_side` BELOW. The two refusals are told apart by the
+     * side the pass recorded, never by the wording — a source refusal and a
+     * target one read identically. Both are written in one statement from one
+     * call, so they cannot disagree.
      */
     lastErrorCategory: text('last_error_category'),
     /**

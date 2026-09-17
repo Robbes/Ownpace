@@ -16,6 +16,7 @@ import {
   FAILURE_CATEGORIES,
   classifyFailure,
   isFailureCategory,
+  type FailureSide,
 } from './failure-category.ts';
 
 describe('the credential no longer works', () => {
@@ -124,14 +125,31 @@ describe('unknown is an answer, not a gap', () => {
 });
 
 describe('the vocabulary itself', () => {
-  it('is exactly the six the owner accepted', () => {
-    // Adding a seventh is a product decision, not a refactor: the test the
-    // owner set was "does it change what you do next".
+  it('is exactly the eight the owner accepted', () => {
+    // Adding one is a product decision, not a refactor: the test the owner set
+    // was "does it change what you do next". This pin is how that stays true —
+    // it went red when the two refusals below were added, which is the point.
+    //
+    // The six became eight on 2026-09-17, on the owner's go-ahead, after a
+    // live Drive refusal was shown to a customer as a target problem:
+    // "yes, it also makes sense a target might refuse certain fileformats/
+    // types and we need to be transparrant about that."
+    //
+    //   source_refused  the source would not hand it over, so the destination
+    //                   is not the account to go and check
+    //   format_refused  the destination will not take this KIND of file, which
+    //                   is not the same instruction as "free up space"
+    //
+    // ORDER IS PART OF THE PIN. The two refusals sit together and in the
+    // order a reader meets them — source first, because the question is always
+    // "did it even get sent" before "was it accepted".
     expect([...FAILURE_CATEGORIES]).toEqual([
       'auth_expired',
       'rate_limited',
       'quota_exceeded',
+      'source_refused',
       'target_refused',
+      'format_refused',
       'network',
       'unknown',
     ]);
@@ -146,18 +164,47 @@ describe('the vocabulary itself', () => {
 
   it('every category except unknown is reachable from some message', () => {
     // A category nothing can produce is a category that lies on the screen.
+    //
+    // Each case is (message, side) since 2026-09-17, because two of the eight
+    // are only reachable WITH a side: the same 403 is a source refusal or a
+    // target one depending on which closure threw it, and no wording tells
+    // them apart. Written as an explicit arrow rather than `.map(classifyFailure)`
+    // — which is how it read until the compiler refused it — because `.map`
+    // passes the ARRAY INDEX as the second argument, so element 1 of any such
+    // list would be classified with a side of `1`.
     const reached = new Set(
-      [
-        'invalid_grant',
-        '429 too many requests',
-        'daily limit exceeded',
-        '403 Forbidden',
-        'ECONNREFUSED',
-      ].map(classifyFailure),
+      (
+        [
+          ['invalid_grant', undefined],
+          ['429 too many requests', undefined],
+          ['daily limit exceeded', undefined],
+          ['403 Forbidden', 'target'],
+          ['403 Forbidden', 'source'],
+          ['415 unsupported media type', 'target'],
+          ['ECONNREFUSED', undefined],
+        ] as ReadonlyArray<readonly [string, FailureSide | undefined]>
+      ).map(([message, side]) => classifyFailure(message, side)),
     );
     for (const c of FAILURE_CATEGORIES) {
       if (c === 'unknown') continue;
       expect(reached, `${c} is not reachable from any message`).toContain(c);
     }
+  });
+
+  it('a bare `.map(classifyFailure)` cannot compile, and that is load-bearing', () => {
+    // The hazard is quiet: `Array.prototype.map` calls back with
+    // (value, index, array), so a bare reference would hand the classifier an
+    // INDEX where the side goes. Element 0 would be classified unsided and
+    // element 1 with side `1` — neither 'source' nor 'target', so every rule
+    // would fall through to its target reading and nothing would look wrong.
+    //
+    // TypeScript refuses it because `number` is not assignable to
+    // `FailureSide | undefined`, which is why the signature takes the union
+    // and not a `string`. This test states the guarantee; the compiler holds
+    // it, and `@ts-expect-error` fails the build if it ever stops holding.
+    const messages = ['403 Forbidden', '403 Forbidden'];
+    // @ts-expect-error — index is not a FailureSide, and must never become one
+    const wrong = messages.map(classifyFailure);
+    expect(wrong).toHaveLength(2);
   });
 });

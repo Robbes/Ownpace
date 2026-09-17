@@ -217,7 +217,17 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // matcher later cannot silently change the answer a customer was
         // already given. The prose is kept verbatim beside it — the category
         // is the actionable twin, not a replacement.
-        lastErrorCategory: classifyFailure(error),
+        //
+        // THE SIDE GOES IN WITH IT (2026-09-17). A refusal reads the same in
+        // prose wherever it happened, so the classifier could not tell a
+        // source refusal from a target one and called every one of them
+        // `target_refused` — sending a customer whose SOURCE would not hand a
+        // file over to go and check the destination that had done nothing.
+        // This is the one call site where both facts are in hand at once,
+        // which is why the category is derived here rather than anywhere the
+        // message later travels to. The two are written in the same statement
+        // and cannot disagree.
+        lastErrorCategory: classifyFailure(error, side),
         // See markCompleted: a failure is not a scheduled pause, and a row
         // carrying both would say the domain is fine and broken at once.
         pausedReason: null,

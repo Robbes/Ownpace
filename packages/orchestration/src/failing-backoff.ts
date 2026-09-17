@@ -49,7 +49,13 @@
  * rate limit that clears in minutes and a network blip are all EXPECTED to
  * recover on the normal cadence — slowing those would delay exactly the
  * recovery the cadence exists for. Only the ones that need somebody to act
- * (`auth_expired`, `target_refused`, `unknown`) are worth asking about less.
+ * (`auth_expired`, `source_refused`, `target_refused`, `format_refused`,
+ * `unknown`) are worth asking about less. That list is not maintained here —
+ * it is the complement of the set below, so the two refusals added on
+ * 2026-09-17 landed on the needs-a-person side with no edit to this file.
+ * Correctly: somebody has to re-enable downloading on the file, or pick an
+ * export format the destination will store, and asking every fifteen minutes
+ * in the meantime is asking a question that has already been answered.
  *
  * Conservative on purpose: if ANY domain of a mapping reports a self-healing
  * cause, the whole mapping keeps its cadence. A mapping whose mail is rate
@@ -64,8 +70,9 @@ import type { FailureCategory } from '@openmig/shared';
  *
  * Derived from what each category means rather than from a hand-kept list of
  * the others: a category not named here is one whose remedy is a person, and
- * the union is checked against `FAILURE_CATEGORIES` by the guard so a seventh
- * category cannot be added and silently treated as needing a human.
+ * the union is checked against `FAILURE_CATEGORIES` by the guard so a new
+ * category cannot be added and silently treated as needing a human — or,
+ * worse, as healing itself.
  */
 export const SELF_HEALING_CATEGORIES: ReadonlySet<FailureCategory> = new Set([
   // The provider asked us to slow down. It clears in minutes.
