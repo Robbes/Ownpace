@@ -13,6 +13,8 @@
  * parks it on first sight rather than retrying a policy five times.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { isDecisionError } from '@openmig/shared';
 import { NativeFileRefused, EXPORTABLE_NATIVE_TYPES, DRIVE_SHORTCUT_MIME } from './google-drive-source.ts';
 import { NATIVE_EXPORT_EXTENSIONS, NATIVE_EXPORT_TYPES } from './google-drive-source.types.ts';
@@ -22,11 +24,15 @@ const G = 'application/vnd.google-apps.';
 describe('NativeFileRefused says the thing that is true for THIS type', () => {
   it('a Doc under refuse: the export policy is the way out, and is named', () => {
     const e = new NativeFileRefused('Heen-en-Weer tas', `${G}document`);
-    expect(e.message).toContain('is a Google document');
+    expect(e.message).toContain('is a Google Doc');
     expect(e.message).toContain('nativeFilePolicy="refuse"');
     expect(e.message).toContain('Set an export policy');
   });
 
+  // Still the raw suffix for these four, deliberately: "a Google form" and "a
+  // Google site" ARE what people say, and these refusals do not ask anybody to
+  // choose anything, so there is no file to recognise. Only the four editor
+  // types get a product name — see `nativeFileWord`.
   it.each(['form', 'map', 'site', 'script'])('a %s: no export exists, so no policy is offered', (kind) => {
     const e = new NativeFileRefused('Thema-avond', `${G}${kind}`);
     expect(e.message).toContain(`is a Google ${kind}`);
@@ -53,7 +59,7 @@ describe('NativeFileRefused says the thing that is true for THIS type', () => {
     // Constructed directly rather than through `refusalFor`, because the
     // constructor does not consult the table; the caller decides.
     const e = new NativeFileRefused('Sketch', `${G}drawing`, 'export-office');
-    expect(e.message).toContain('export policy (export-office) has no rendering for a drawing');
+    expect(e.message).toContain('export policy (export-office) has no rendering for a Drawing');
   });
 
   it('every refusal is a decision the loop parks, never a retry', () => {
@@ -94,5 +100,70 @@ describe('NativeFileRefused says the thing that is true for THIS type', () => {
         expect(NATIVE_EXPORT_EXTENSIONS[target], `${policy} exports ${target}`).toMatch(/^\.[a-z0-9]+$/);
       }
     }
+  });
+});
+
+describe('the refusal calls each file what its owner calls it', () => {
+  /**
+   * "A Google presentation" is the MIME suffix with a space in front of it, and
+   * it went out to every customer whose deck was refused. The four types a
+   * policy can render are exactly the ones where that matters: those refusals
+   * ask somebody to choose a policy, and choosing one starts with recognising
+   * which of your files is being talked about.
+   */
+  it.each([
+    ['document', 'Doc'],
+    ['spreadsheet', 'Sheet'],
+    ['presentation', 'Slides deck'],
+    ['drawing', 'Drawing'],
+  ])('calls a %s a "%s"', (mime, word) => {
+    const e = new NativeFileRefused('Thema-avond', `${G}${mime}`, 'export-office', 'unstable');
+    expect(e.message).toContain(`is a Google ${word}`);
+    // And in the way out too, not just the opening — the sentence that tells
+    // somebody what to do is the one they act on.
+    expect(e.message).toContain(`Move the ${word} out of scope`);
+  });
+
+  it('never leaks the raw MIME suffix for one of those four', () => {
+    // The failure mode is a sentence half-translated: "is a Google Slides deck
+    // ... move the presentation out of scope". Asserted as an absence because
+    // that is how it would arrive — one interpolation somebody missed.
+    for (const mime of ['document', 'spreadsheet', 'presentation']) {
+      const e = new NativeFileRefused('Thema-avond', `${G}${mime}`, 'export-office', 'unstable');
+      expect(e.message, `${mime} leaked into the sentence`).not.toContain(` ${mime}`);
+    }
+  });
+
+  it('leaves the LEDGER key alone, which is the suffix and must stay it', () => {
+    // `migration_discovery.refused_native` is `{"presentation": 3}` and the
+    // screen translates that key in both locales. If the connector started
+    // writing "Slides deck" there, every stored count would miss its label and
+    // the confirm screen would show a raw word in a Dutch sentence.
+    const source = readFileSync(join(import.meta.dirname, 'google-drive-source.ts'), 'utf8');
+    expect(
+      source,
+      'the refused-native tally stopped keying on the MIME suffix, so stored counts no longer ' +
+        'match `discovery.refusedNative.kind.*`',
+    ).toMatch(/refusedNative\.set\(\s*kind/);
+    const tally = source.slice(source.indexOf('this.refusedNative.set') - 200);
+    expect(tally.slice(0, 260)).toMatch(/slice\(GOOGLE_NATIVE_PREFIX\.length\)/);
+  });
+});
+
+describe('the way out does not say the same policy twice', () => {
+  it('reads as one clause when export-pdf is the only alternative', () => {
+    // Was: `"export-pdf" is measured stable for a Slides deck ("export-pdf" is
+    // not editable afterwards)` — the name twice in a row, which reads as a
+    // stutter and buries the only thing the clause is there to say.
+    const e = new NativeFileRefused('Thema-avond', `${G}presentation`, 'export-office', 'unstable');
+    expect(e.message).toContain('"export-pdf" is measured stable for a Slides deck, though a PDF is not editable afterwards');
+    expect(e.message.match(/"export-pdf"/g), 'names export-pdf more than once').toHaveLength(1);
+  });
+
+  it('keeps the parenthetical when there are two, because it says WHICH', () => {
+    // With two alternatives the aside is doing real work: it is the difference
+    // between them, and it is the reason to prefer the other one.
+    const e = new NativeFileRefused('Q3 report', `${G}document`, 'export-odf', 'unstable');
+    expect(e.message).toContain('"export-office" and "export-pdf" are measured stable for a Doc ("export-pdf" is not editable afterwards)');
   });
 });

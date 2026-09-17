@@ -59,6 +59,7 @@ import {
   NATIVE_EXPORT_EXTENSIONS,
   NATIVE_EXPORT_TYPES,
   exportStabilityOf,
+  nativeFileWord,
   stablePoliciesFor,
   type DriveFile,
   type DriveFileList,
@@ -147,7 +148,18 @@ function wayOutFor(kind: string, mimeType: string, refused: NativeFilePolicy): s
   // stated in general: "export-office" keeps a document editable and "export-pdf"
   // does not, and a customer choosing between them needs that difference and not
   // a blanket warning over both.
-  const cost = alternatives.includes('export-pdf') ? ' ("export-pdf" is not editable afterwards)' : '';
+  //
+  // TWO SHAPES, because with one alternative the parenthetical form names the
+  // same policy twice in a row — `"export-pdf" is measured stable for a Slides
+  // deck ("export-pdf" is not editable afterwards)` — which reads like a stutter
+  // and buries the one thing being said. With two it is the parenthetical that
+  // does the work, saying WHICH of them costs the editing.
+  const onlyPdf = alternatives.length === 1 && alternatives[0] === 'export-pdf';
+  const cost = onlyPdf
+    ? ', though a PDF is not editable afterwards'
+    : alternatives.includes('export-pdf')
+      ? ' ("export-pdf" is not editable afterwards)'
+      : '';
   return `${named} ${verb} measured stable for a ${kind}${cost}. Switch the mapping's export policy, or: ${keepIt}`;
 }
 
@@ -168,7 +180,9 @@ export class NativeFileRefused extends Error {
      */
     stability: ExportStability = 'stable',
   ) {
-    const kind = mimeType.slice(GOOGLE_NATIVE_PREFIX.length);
+    // The word a person uses, not the MIME suffix. The LEDGER key stays the
+    // suffix (see `nativeFileWord`); this is only the sentence.
+    const kind = nativeFileWord(mimeType);
     let message: string;
     if (mimeType === DRIVE_SHORTCUT_MIME) {
       message =
