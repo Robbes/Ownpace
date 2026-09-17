@@ -31,7 +31,7 @@ import * as schemaPg from './schema-pg.ts';
 function likeLiteral(needle: string): string {
   return needle.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
-import type { DiscoveryDomain } from '@openmig/shared';
+import type { DiscoveryDomain, FailureCategory } from '@openmig/shared';
 
 /**
  * SQL-backed idempotency ledger for PostgreSQL — workplan 0001, T0.
@@ -564,7 +564,11 @@ export class PgLedger implements Ledger {
     tenantId: TenantId,
     mappingId: MappingId,
     action: FailureAction,
-    match: { readonly domain?: DiscoveryDomain; readonly errorContains?: string },
+    match: {
+      readonly domain?: DiscoveryDomain;
+      readonly category?: FailureCategory;
+      readonly errorContains?: string;
+    },
   ): Promise<number> {
     const rows = await this.db
       .update(schemaPg.item)
@@ -579,6 +583,12 @@ export class PgLedger implements Ledger {
           eq(schemaPg.item.mappingId, mappingId),
           eq(schemaPg.item.status, 'failed'),
           ...(match.domain ? [eq(schemaPg.item.domain, match.domain)] : []),
+          // EXACT, and only against a recorded value. `last_error_category` is
+          // NULL on every row written before migration 0049, and SQL equality
+          // never matches NULL — so an uncategorised row is reached by no
+          // category press, which is what the screen's own grouping relies on
+          // to keep its count honest.
+          ...(match.category ? [eq(schemaPg.item.lastErrorCategory, match.category)] : []),
           ...(match.errorContains
             ? [
                 // LITERAL, NOT A PATTERN. `%` and `_` are LIKE's own wildcards,

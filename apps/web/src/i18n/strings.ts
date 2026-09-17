@@ -891,6 +891,17 @@ const en = {
   'failures.group.hint': 'A connector fixed since these parked will not unpark them by itself.',
   'failures.group.hint.why':
     'Being parked is a stored count of attempts, so deploying a fix does not lower it — the items sit there while the migration reports itself complete. Pick a kind, or type part of the error the items share, and this decides all of them in one go: a retry also clears this migration’s sync cursors once, which is what puts the items back in front of the next pass. The wording is matched literally, so a % or an _ in what you type means a % or an _.',
+  // THE GROUPS, READ OFF THE ROWS (the owner, 2026-09-17: *"why now detail
+  // groups that share sumilarities and offer those to pick from to do bulk
+  // actions?"*). Typing a substring describes a group somebody has already
+  // worked out; these are the ones the queue announces about itself.
+  'failures.group.found': 'Groups in this queue',
+  'failures.group.items.one': '1 item',
+  'failures.group.items.many': '{count} items',
+  'failures.group.noCategory': 'No kind of failure recorded',
+  'failures.group.noCategory.why':
+    'These items failed before this deployment stored a failure kind on each one. The next attempt on them records it, and they join a group. Until then they can be decided one at a time, or by the error text below.',
+  'failures.group.manual': 'Match on the error text instead',
   'failures.group.domain': 'Kind',
   'failures.group.domain.any': 'Any kind',
   'failures.group.error': 'Error contains',
@@ -2725,6 +2736,13 @@ const nl: Record<keyof typeof en, string> = {
     'Een sindsdien opgeloste storing haalt deze items er niet zelf weer uit.',
   'failures.group.hint.why':
     'Geparkeerd zijn is een opgeslagen aantal pogingen, dus een oplossing uitrollen verlaagt dat niet — de items blijven staan terwijl de migratie zich voltooid noemt. Kies een soort, of typ een deel van de fout die de items delen, en dit beslist ze in één keer: opnieuw proberen wist ook eenmalig de synchronisatiecursors van deze migratie, en dat is wat de items weer vóór de volgende ronde zet. De tekst wordt letterlijk vergeleken, dus een % of een _ die je typt betekent een % of een _.',
+  'failures.group.found': 'Groepen in deze wachtrij',
+  'failures.group.items.one': '1 item',
+  'failures.group.items.many': '{count} items',
+  'failures.group.noCategory': 'Geen soort fout vastgelegd',
+  'failures.group.noCategory.why':
+    'Deze items mislukten voordat deze installatie per item een soort fout vastlegde. De volgende poging legt die vast en dan horen ze bij een groep. Tot dan kunt u ze \u00E9\u00E9n voor \u00E9\u00E9n beslissen, of via de fouttekst hieronder.',
+  'failures.group.manual': 'Zoek in plaats daarvan op de fouttekst',
   'failures.group.domain': 'Soort',
   'failures.group.domain.any': 'Elke soort',
   'failures.group.error': 'Fout bevat',

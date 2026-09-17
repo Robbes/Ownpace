@@ -43,6 +43,8 @@ import * as schema from '@openmig/ledger';
 import { PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
 import {
   DISCOVERY_DOMAINS,
+  FAILURE_CATEGORIES,
+  isFailureCategory,
   type DiscoveryDomain,
   type GroupDecisionAccepted,
   assembleShareAnnouncements,
@@ -819,6 +821,7 @@ router.post('/:mappingId/failures', authenticate, async (req: AuthenticatedReque
     const body = (req.body ?? {}) as {
       action?: unknown;
       domain?: unknown;
+      category?: unknown;
       errorContains?: unknown;
     };
     const raw = String(body.action ?? '');
@@ -837,6 +840,18 @@ router.post('/:mappingId/failures', authenticate, async (req: AuthenticatedReque
         hint: `One of ${DISCOVERY_DOMAINS.join(', ')}.`,
       });
     }
+    // THE PRODUCT'S OWN GROUPING VOCABULARY (the owner, 2026-09-17: *"why now
+    // detail groups that share sumilarities and offer those to pick from to do
+    // bulk actions?"*). Validated against the eight rather than passed through:
+    // an unknown word would match no row, and a press that silently changes
+    // nothing is how somebody concludes the screen is broken.
+    const category = body.category === undefined ? undefined : String(body.category);
+    if (category !== undefined && !isFailureCategory(category)) {
+      return void res.status(400).json({
+        error: `unknown category '${category}'`,
+        hint: `One of ${FAILURE_CATEGORIES.join(', ')}.`,
+      });
+    }
     const errorContains =
       body.errorContains === undefined ? undefined : String(body.errorContains);
 
@@ -845,12 +860,17 @@ router.post('/:mappingId/failures', authenticate, async (req: AuthenticatedReque
     // which re-park the moment they are seen again. An unnarrowed press costs
     // a refetch per undecidable item and changes nothing about them, which is
     // not what the person meant by it.
-    if (domain === undefined && (errorContains === undefined || errorContains === '')) {
+    if (
+      domain === undefined &&
+      category === undefined &&
+      (errorContains === undefined || errorContains === '')
+    ) {
       return void res.status(400).json({
         error: 'a group decision has to say WHICH failures it is for',
         hint:
-          'Send a domain, an errorContains substring, or both. The queue holds refusals that ' +
-          'will not change on a retry, so "all of them" is almost never the intent.',
+          'Send a domain, a category, an errorContains substring, or any combination. The queue ' +
+          'holds refusals that will not change on a retry, so "all of them" is almost never the ' +
+          'intent.',
       });
     }
 
@@ -859,6 +879,7 @@ router.post('/:mappingId/failures', authenticate, async (req: AuthenticatedReque
 
     const match = {
       ...(domain !== undefined ? { domain: domain as DiscoveryDomain } : {}),
+      ...(category !== undefined ? { category } : {}),
       ...(errorContains !== undefined ? { errorContains } : {}),
     };
     const matched = await withLedger(s.tenantId, (l) =>

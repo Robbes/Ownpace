@@ -1277,7 +1277,11 @@ export interface Ledger {
     tenantId: TenantId,
     mappingId: MappingId,
     action: FailureAction,
-    match: { readonly domain?: DiscoveryDomain; readonly errorContains?: string },
+    match: {
+      readonly domain?: DiscoveryDomain;
+      readonly category?: FailureCategory;
+      readonly errorContains?: string;
+    },
   ): Promise<number>;
   resolveFailure(
     tenantId: TenantId,
