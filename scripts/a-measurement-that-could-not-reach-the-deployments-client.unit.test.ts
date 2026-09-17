@@ -39,6 +39,7 @@ const MANAGED: MeasurementEnv = {
   GOOGLE_OAUTH_CLIENT_ID: 'deployment-id',
   GOOGLE_OAUTH_CLIENT_SECRET: 'deployment-secret',
   DRIVE_CONNECTION_ID: 'conn-1',
+  DATABASE_URL: 'postgresql://openmigrate@localhost:55432/openmigrate',
 };
 
 describe('the managed deployment already has the client', () => {
@@ -141,6 +142,74 @@ describe('a refusal names a remedy the operator can actually apply', () => {
 });
 
 /**
+ * ...AND THEN IT COST THREE COMMANDS ANYWAY.
+ *
+ * Reported by the owner 2026-09-17. The resolver above was right — the managed
+ * route works and reads nothing by hand — but the SENTENCE it refuses with only
+ * said which variables to set, and stopped there. So all three measurements
+ * died on the same line:
+ *
+ *   ✖ This needs a Google OAuth client and there is none. On a managed
+ *     deployment set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET …
+ *
+ * and the two facts that would have ended it in one were nowhere in it: the
+ * pair is ALREADY SET, in `deploy/compose/.env`, on the machine reading the
+ * refusal — and this script reads the environment and never that file. Rule 9
+ * again, one turn further in: a remedy the operator can apply is not the same
+ * as a remedy that says where the value already is.
+ *
+ * `docs/google-workspace-setup.md` had said both since the managed route was
+ * built. Nobody reaching a refusal in a terminal is reading a guide.
+ */
+describe('the refusal says the values are already on the box, and where', () => {
+  it('names the file that holds the pair, and that this script does not read it', () => {
+    const resolved = resolveMeasurementCredentials({ DRIVE_CONNECTION_ID: 'conn-1' });
+    expect(resolved.route).toBe('refuse');
+    if (resolved.route !== 'refuse') throw new Error('unreachable');
+    // THE HEADLINE, in three parts: where the pair is, that this does not read
+    // it, and the one line that fixes it.
+    // Asserted as the CLAIM, not as the path: `deploy/compose/.env` alone is
+    // also in the shell line below, so a location sentence that went missing
+    // would still have found the string and this would have proved nothing.
+    expect(resolved.reason).toContain('are in deploy/compose/.env');
+    expect(resolved.reason).toContain('never reads that file');
+    expect(resolved.reason).toContain('set -a; . deploy/compose/.env; set +a');
+  });
+
+  it('still tells an appliance there is no such file to load', () => {
+    // The script runs in both editions and cannot know which reader it has, so
+    // the managed half must not read as an instruction to an appliance operator
+    // who has no compose directory at all.
+    const resolved = resolveMeasurementCredentials({ DRIVE_CONNECTION_ID: 'conn-1' });
+    if (resolved.route !== 'refuse') throw new Error('unreachable');
+    expect(resolved.reason).toContain('no such file');
+    expect(resolved.reason).toContain('GOOGLE_CLIENT_ID');
+  });
+
+  it('refuses a connection route with no database, naming the derivation', () => {
+    // The third thing, and the one LOADING THE FILE DOES NOT GIVE YOU: the
+    // stack's own DATABASE_URL names `pgbouncer:6432`, which does not resolve
+    // from the host, and `deploy/compose/.env` carries no host-usable one. Left
+    // alone this reached `new Pool(undefined)` and came back as libpq's
+    // default-socket error naming a user nobody set.
+    const { DATABASE_URL: _dropped, ...noDatabase } = MANAGED;
+    const resolved = resolveMeasurementCredentials(noDatabase);
+    expect(resolved.route).toBe('refuse');
+    if (resolved.route !== 'refuse') throw new Error('unreachable');
+    expect(resolved.reason).toContain('DATABASE_URL');
+    expect(resolved.reason).toContain('port postgres 5432');
+    // And the way out that needs no database at all.
+    expect(resolved.reason).toContain('GOOGLE_REFRESH_TOKEN');
+  });
+
+  it('does not ask an appliance for a database it never reads', () => {
+    // The `env` route resolves the token itself, so a missing DATABASE_URL is
+    // not a defect there and must not be reported as one.
+    expect(resolveMeasurementCredentials(APPLIANCE)).toMatchObject({ route: 'env' });
+  });
+});
+
+/**
  * ...AND THEN THE REFUSAL ITSELF CRASHED.
  *
  * Reported by the owner 2026-09-15, running the managed route for the first
@@ -218,6 +287,11 @@ describe('an environment refusal prints its sentence, rather than crashing on th
       GOOGLE_OAUTH_CLIENT_ID: 'sentinel-id',
       GOOGLE_OAUTH_CLIENT_SECRET: 'sentinel-secret',
       DRIVE_CONNECTION_ID: 'sentinel-connection',
+      // Never connected to: every refusal below is reached before the pool is
+      // built. It is here because the credential resolver now refuses a
+      // connection route with no database, and that refusal would otherwise
+      // pre-empt the one this case is about.
+      DATABASE_URL: 'postgresql://sentinel@localhost:1/sentinel',
       DRIVE_EXPORT_SAMPLES: '1',
     });
     expect(out).toContain('DRIVE_EXPORT_SAMPLES');
@@ -236,6 +310,11 @@ describe('an environment refusal prints its sentence, rather than crashing on th
       GOOGLE_OAUTH_CLIENT_ID: 'sentinel-id',
       GOOGLE_OAUTH_CLIENT_SECRET: 'sentinel-secret',
       DRIVE_CONNECTION_ID: 'sentinel-connection',
+      // Never connected to: every refusal below is reached before the pool is
+      // built. It is here because the credential resolver now refuses a
+      // connection route with no database, and that refusal would otherwise
+      // pre-empt the one this case is about.
+      DATABASE_URL: 'postgresql://sentinel@localhost:1/sentinel',
       DRIVE_EXPORT_POLICY: 'nonsense',
       DRIVE_CAPTURE_FILE: capture,
     });

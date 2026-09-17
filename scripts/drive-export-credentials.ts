@@ -28,6 +28,13 @@
  * when neither is open; the script does the database read for the `connection`
  * route. That keeps the part worth testing free of a pool, and it is why this
  * is a module rather than twenty lines inlined into a script nobody can test.
+ *
+ * AND THE SECOND DEFECT, 2026-09-17. The routes above were right and the
+ * refusals still cost the owner three commands, because they named the
+ * variables to set and not the fact that a managed box ALREADY HAS THEM SET, in
+ * `deploy/compose/.env`, which this script does not read. Every refusal here
+ * therefore says where the value already is and what does not reach it — not
+ * only which name it goes under.
  */
 
 import { googleDeploymentClient, googleDeploymentClientProblem } from '@openmig/shared';
@@ -40,6 +47,7 @@ export interface MeasurementEnv {
   readonly GOOGLE_OAUTH_CLIENT_ID?: string | undefined;
   readonly GOOGLE_OAUTH_CLIENT_SECRET?: string | undefined;
   readonly DRIVE_CONNECTION_ID?: string | undefined;
+  readonly DATABASE_URL?: string | undefined;
 }
 
 /**
@@ -94,10 +102,12 @@ function clientPair(env: MeasurementEnv): { clientId: string; clientSecret: stri
   if (deployment) return deployment;
   return (
     googleDeploymentClientProblem(env) ??
-    'This needs a Google OAuth client and there is none. On a managed deployment set ' +
-      'GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET (the same pair the app already ' +
-      'uses for Connect with Google); on an appliance set GOOGLE_CLIENT_ID and ' +
-      'GOOGLE_CLIENT_SECRET.'
+    'This needs a Google OAuth client and there is none. On a MANAGED deployment you already ' +
+      'have one: GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET are in ' +
+      'deploy/compose/.env — the same pair the app uses for Connect with Google — but this ' +
+      'script reads the environment and never reads that file, so load it first, from the ' +
+      'repo root: `set -a; . deploy/compose/.env; set +a`. On an appliance there is no such ' +
+      'file; set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET yourself.'
   );
 }
 
@@ -116,7 +126,28 @@ export function resolveMeasurementCredentials(env: MeasurementEnv): MeasurementC
   if (refreshToken) return { route: 'env', ...client, refreshToken };
 
   const connectionId = trimmed(env.DRIVE_CONNECTION_ID);
-  if (connectionId) return { route: 'connection', ...client, connectionId };
+  if (connectionId) {
+    // THE THIRD THING, and the one loading the file does NOT give you. The pair
+    // and `SECRET_ENCRYPTION_KEY` are both in `deploy/compose/.env`; a usable
+    // `DATABASE_URL` is not, because the one the containers run on names
+    // `pgbouncer:6432` — a host that exists only inside the compose network.
+    // Left to `new Pool(undefined)` this comes back as libpq's default-socket
+    // error naming a user nobody set, so it is refused here with the derivation
+    // instead.
+    if (!trimmed(env.DATABASE_URL)) {
+      return {
+        route: 'refuse',
+        reason:
+          'DRIVE_CONNECTION_ID names a row in a database, and DATABASE_URL is empty so there ' +
+          'is no database to look in. Loading deploy/compose/.env does not give you one: the ' +
+          'stack runs on an in-container URL naming pgbouncer:6432, which does not resolve ' +
+          'from the host. Ask compose which port Postgres is published on and build it — ' +
+          '`docker compose -f deploy/compose/managed.yml port postgres 5432` — or set ' +
+          'GOOGLE_REFRESH_TOKEN instead and skip the database entirely.',
+      };
+    }
+    return { route: 'connection', ...client, connectionId };
+  }
 
   return {
     route: 'refuse',
