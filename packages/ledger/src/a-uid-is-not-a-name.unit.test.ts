@@ -259,3 +259,42 @@ describe('the confirmed list carries it to the screen', () => {
     expect(unnamed?.displayName).toBeNull();
   });
 });
+
+describe('the failures queue carries it to the screen it is acted on from', () => {
+  it('a failed row arrives named', async () => {
+    // The surface the whole problem was reported from: this queue asked the
+    // owner to Retry or Leave behind an item it could only call
+    // `926caf98adce563`.
+    await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).recordFailure(
+        record({ displayName: CARD_NAME, status: 'failed', targetId: '' }),
+        'PUT failed with status 500: TypeError',
+      ),
+    );
+
+    const failures = await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).listFailures(TENANT, MAPPING),
+    );
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.displayName).toBe(CARD_NAME);
+    // The hash is still the handle for both actions. The name is a label and
+    // nothing looks a row up by it.
+    expect(failures[0]?.naturalKeyHash).toBe(CARD_HASH);
+  });
+
+  it('and an unnamed one arrives with no name rather than an invented one', async () => {
+    await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).recordFailure(
+        record({ status: 'failed', targetId: '' }),
+        'PUT failed with status 500: TypeError',
+      ),
+    );
+
+    const failures = await withTenant(driver, TENANT, async (db) =>
+      new PgLedger(db).listFailures(TENANT, MAPPING),
+    );
+
+    expect(failures[0]?.displayName).toBeUndefined();
+  });
+});

@@ -511,6 +511,11 @@ export class PgLedger implements Ledger {
     return rows.map((row) => ({
       domain: row.domain as ItemFailure['domain'],
       naturalKeyHash: row.naturalKeyHash,
+      // The name, when the row has one (migration 0050). The hash above is
+      // still the handle for both actions; this is the only thing on the row a
+      // person can recognise, and without it this queue asked the owner to act
+      // on `926caf98adce563`.
+      ...(row.displayName ? { displayName: row.displayName } : {}),
       ...(row.collection ? { collection: row.collection } : {}),
       attempts: row.attemptCount,
       lastError: row.lastError ?? '(no error recorded)',

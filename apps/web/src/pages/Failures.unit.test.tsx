@@ -218,3 +218,50 @@ describe('a failed item says what to do about it', () => {
     expect(screen.queryByText(/reached what its provider allows/i)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * The queue whose whole purpose is being acted on could not say what it was
+ * asking about.
+ *
+ * The owner, 2026-09-13: two contacts refused five times each, and this screen
+ * identified them by a hash. Four days later, handed the UIDs instead: *"I can
+ * not find these contacts, or atleast i do no know how."*
+ */
+describe('a failure says whose card it is', () => {
+  const NAMED = {
+    naturalKeyHash: 'h-card',
+    domain: 'contact' as const,
+    collection: 'Contacts',
+    displayName: 'Jan Jansen',
+    lastError: 'PUT failed with status 500: TypeError',
+    attempts: 5,
+    needsDecision: true,
+  };
+
+  it('leads with the name when the row has one', async () => {
+    fetchFailuresMock.mockResolvedValue(queue({ needsDecision: [NAMED] }));
+    renderScreen();
+
+    expect(await screen.findByText('Jan Jansen')).toBeInTheDocument();
+  });
+
+  it('keeps the collection beside it, so the row is no taller', async () => {
+    // Both on one line: the name says which item, the folder says where. A
+    // second line per row is what the owner asked us to compress out of this
+    // product the same afternoon.
+    fetchFailuresMock.mockResolvedValue(queue({ needsDecision: [NAMED] }));
+    renderScreen();
+
+    const name = await screen.findByText('Jan Jansen');
+    expect(name).toHaveTextContent('Contacts');
+  });
+
+  it('falls back to the collection alone for a row with no name', async () => {
+    // A file, a mail message, and every row written before names were
+    // recorded. Exactly what this screen showed before.
+    fetchFailuresMock.mockResolvedValue(queue());
+    renderScreen();
+
+    expect(await screen.findByText('INBOX/Archive')).toBeInTheDocument();
+  });
+});
