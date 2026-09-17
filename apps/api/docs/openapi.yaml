@@ -1380,7 +1380,7 @@ paths:
                                   migration's connections.
                               category:
                                 type: string
-                                enum: [auth_expired, rate_limited, quota_exceeded, target_refused, network, unknown]
+                                enum: [auth_expired, rate_limited, quota_exceeded, source_refused, target_refused, format_refused, network, unknown]
                               domains:
                                 type: array
                                 description: The domains this category stands on.
@@ -4311,10 +4311,13 @@ components:
         last_error_category:
           type: string
           nullable: true
-          # The six of `FAILURE_CATEGORIES` in @openmig/shared, asserted
+          # The eight of `FAILURE_CATEGORIES` in @openmig/shared, asserted
           # against it in `support-routes.unit.test.ts` so this list cannot
-          # drift from the values the column actually holds.
-          enum: [auth_expired, rate_limited, quota_exceeded, target_refused, network, unknown]
+          # drift from the values the column actually holds. It went from six
+          # to eight on 2026-09-17 and that assertion is what said so: the two
+          # refusals split by `failed_side` below, which the pass records at
+          # the closure that threw rather than reading it out of the prose.
+          enum: [auth_expired, rate_limited, quota_exceeded, source_refused, target_refused, format_refused, network, unknown]
         failed_side:
           type: string
           nullable: true

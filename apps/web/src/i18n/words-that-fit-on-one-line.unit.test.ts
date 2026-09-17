@@ -42,6 +42,13 @@ const ALLOWED_OVER: Readonly<Record<string, string>> = {
   'failure.quotaExceeded': 'remedy sentence, verbatim by owner decision',
   'failure.targetRefused': 'remedy sentence, verbatim by owner decision',
   'failure.unknown': 'remedy sentence, verbatim by owner decision',
+  // The two refusals added 2026-09-17, under the same rule as the five above.
+  // Both are longer than those, and deliberately: each has to name the
+  // account NOT to go and check, which is the whole reason the category
+  // exists. Their `view.*` twins are NOT here — that reader cannot act, so
+  // theirs say the fact in fifteen words and stop.
+  'failure.sourceRefused': 'remedy sentence, verbatim by owner decision',
+  'failure.formatRefused': 'remedy sentence, verbatim by owner decision',
   // The consent page (0089): what the person being migrated reads before
   // granting. Consent sentences stay verbatim — owner, 2026-09-05.
   'grant.asking': 'consent sentence, verbatim by owner decision',

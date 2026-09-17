@@ -163,13 +163,28 @@ export function isDriveDecision(body: string): boolean {
 /**
  * Both halves in one, plus the sentence that corrects the queue.
  *
- * "Nothing reached the destination" is here because of where this message
- * ends up. `classifyFailure` reads a 403 carrying "refused" as
- * `target_refused`, whose remedy tells the customer their destination would
- * not accept the item and to check its permissions and free space — the exact
- * opposite of what happened, sending them to audit an account that never saw
- * the file. Until the category vocabulary grows a source-side answer, the
- * LINE has to carry the correction itself.
+ * "Nothing reached the destination" was written as a workaround: `classifyFailure`
+ * read a 403 carrying "refused" as `target_refused`, whose remedy told the
+ * customer their destination would not accept the item and to go and check its
+ * permissions and free space — the exact opposite of what happened, sending
+ * them to audit an account that never saw the file. The comment here said so,
+ * and said the line would carry the correction "until the category vocabulary
+ * grows a source-side answer".
+ *
+ * **IT GREW ONE on 2026-09-17, and this sentence stays anyway.** Not because
+ * the fix was incomplete — a pass-level refusal thrown inside `fetchRaw` is
+ * now `source_refused`, and its remedy says the destination is not the thing to
+ * look at — but because a Drive refusal usually never reaches a pass-level row.
+ * It is thrown INSIDE the per-item boundary so the rest of the folder still
+ * migrates, which lands it in `item.last_error`: prose, and no category column
+ * beside it. The category work moved the surface that has a category and left
+ * untouched the one that does not.
+ *
+ * So on a pass-level row the correction is now said twice, once here and once
+ * in the remedy, which is redundancy and not contradiction; and on the
+ * per-item row it is said the only place it can be. Deleting it would trade a
+ * duplicated sentence for a silent one. What would retire it properly is a
+ * category on `item`, which is its own change with its own migration.
  */
 export function driveFailure(
   what: string,

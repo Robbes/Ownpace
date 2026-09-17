@@ -117,6 +117,49 @@ describe('markFailed stores the category beside the prose', () => {
     }
   });
 
+  it('writes source_refused when the SOURCE threw, from the same call', async () => {
+    // THE WIRING, and the only place it exists: `markFailed` is where the
+    // message and the side are in hand at once, so it is where the category
+    // is derived. Before 2026-09-17 this stored `target_refused` and the
+    // customer was told to go and check a destination that had never been
+    // sent the file.
+    //
+    // Asserted against the DATABASE rather than against `classifyFailure`,
+    // because the classifier was already right the moment it was given the
+    // side — what could regress is the argument, and dropping it here is a
+    // one-character edit that no test of the pure function would notice.
+    await withTenant(driver, TENANT, async (db) => {
+      const s = store(db);
+      await s.initDomainStatus(TENANT, MAPPING, 'email');
+      await s.markFailed(TENANT, MAPPING, 'email', 'Drive refused the download (403)', 'source');
+    });
+    expect(await storedCategory()).toBe('source_refused');
+  });
+
+  it('writes target_refused for the identical message from the TARGET side', async () => {
+    // The pair, in one file: nothing in the prose differs, and the stored
+    // answers are opposite.
+    await withTenant(driver, TENANT, async (db) => {
+      const s = store(db);
+      await s.initDomainStatus(TENANT, MAPPING, 'email');
+      await s.markFailed(TENANT, MAPPING, 'email', 'Drive refused the download (403)', 'target');
+    });
+    expect(await storedCategory()).toBe('target_refused');
+  });
+
+  it('stores a category and a side that agree, never one contradicting the other', async () => {
+    // Two columns saying where. They are written by ONE statement from ONE
+    // call, which is what makes them incapable of disagreeing — this reads
+    // both back out of the row to prove the claim rather than assert it.
+    await withTenant(driver, TENANT, async (db) => {
+      const s = store(db);
+      await s.initDomainStatus(TENANT, MAPPING, 'email');
+      await s.markFailed(TENANT, MAPPING, 'email', '507 insufficient storage', 'source');
+    });
+    expect(await storedCategory()).toBe('source_refused');
+    expect(await storedSide()).toBe('source');
+  });
+
   it("writes 'unknown' rather than NULL when nothing matched", async () => {
     // NULL means "nothing has failed"; 'unknown' means "something failed and
     // we could not say what". A screen must be able to tell those apart.

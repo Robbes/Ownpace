@@ -823,7 +823,11 @@ const en = {
   'view.failure.authExpired': 'The connection to your account needs renewing. Whoever set this up can do it.',
   'view.failure.rateLimited': 'Your provider asked us to slow down. This carries on by itself.',
   'view.failure.quotaExceeded': 'A daily limit was reached. Copying resumes tomorrow on its own.',
+  'view.failure.sourceRefused':
+    'Your old account would not release some items. Nothing was sent to your new account.',
   'view.failure.targetRefused': 'Your new account would not accept some items.',
+  'view.failure.formatRefused':
+    'Your new account refuses some file types. Whoever set this up can change that.',
   'view.failure.network': 'A server could not be reached. This is usually brief and retries itself.',
   'view.failure.unknown': 'Something we could not put a name to. The person running this can see more.',
   'view.failure.side.source': 'It was your old account.',
@@ -1004,8 +1008,12 @@ const en = {
     'The provider asked us to slow down. Nothing is wrong: this pauses and resumes on its own.',
   'failure.quotaExceeded':
     'This account has reached what its provider allows for one day. It resumes tomorrow on its own \u2014 no action needed.',
+  'failure.sourceRefused':
+    'The source would not hand this over, so nothing was sent to the destination \u2014 there is nothing to check there. Common causes are a file whose owner turned off downloading or copying, a share that was withdrawn, and an item this account may open but not export.',
   'failure.targetRefused':
     'The destination refused to accept this. Common causes are a full mailbox, a read-only folder or missing permission on the target account.',
+  'failure.formatRefused':
+    'The destination will not accept this KIND of file. The account itself is fine \u2014 it is this file\u2019s format or name that is not allowed there. Change the export format on the mapping, or leave these items behind.',
   'failure.network':
     'We could not reach the server. This is usually brief, and it retries by itself.',
   // The one whose text must carry the way OUT of self-service.
@@ -1870,8 +1878,12 @@ const nl: Record<keyof typeof en, string> = {
     'De provider vroeg ons om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
   'failure.quotaExceeded':
     'Dit account heeft bereikt wat de provider per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
+  'failure.sourceRefused':
+    'De bron wilde dit niet afgeven, dus er is niets naar de bestemming gestuurd \u2014 daar valt niets te controleren. Veelvoorkomende oorzaken: een bestand waarvan de eigenaar downloaden of kopi\u00EBren heeft uitgezet, een ingetrokken deling, en een item dat dit account wel mag openen maar niet exporteren.',
   'failure.targetRefused':
     'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: een volle mailbox, een alleen-lezen map, of ontbrekende rechten op het doelaccount.',
+  'failure.formatRefused':
+    'De bestemming accepteert dit SOORT bestand niet. Met het account zelf is niets mis \u2014 het is de indeling of de naam van dit bestand die daar niet is toegestaan. Wijzig het exportformaat op de koppeling, of laat deze items achter.',
   'failure.network':
     'We konden de server niet bereiken. Dit duurt meestal kort en wordt vanzelf opnieuw geprobeerd.',
   'failure.unknown':
@@ -2634,7 +2646,11 @@ const nl: Record<keyof typeof en, string> = {
   'view.failure.authExpired': 'De koppeling met uw account moet vernieuwd worden. Wie dit heeft ingesteld kan dat.',
   'view.failure.rateLimited': 'Uw provider vroeg ons rustiger aan te doen. Dit gaat vanzelf verder.',
   'view.failure.quotaExceeded': 'Een daglimiet is bereikt. Morgen gaat het kopiëren vanzelf verder.',
+  'view.failure.sourceRefused':
+    'Uw oude account gaf sommige items niet vrij. Er ging niets naar uw nieuwe account.',
   'view.failure.targetRefused': 'Uw nieuwe account wilde sommige items niet aannemen.',
+  'view.failure.formatRefused':
+    'Uw nieuwe account accepteert sommige soorten bestanden niet. Wie dit uitvoert kan de indeling aanpassen.',
   'view.failure.network': 'Een server was niet bereikbaar. Dat is meestal kort en wordt opnieuw geprobeerd.',
   'view.failure.unknown': 'Iets wat we niet konden benoemen. Wie dit uitvoert kan er meer over zien.',
   'view.failure.side.source': 'Het ging om uw oude account.',

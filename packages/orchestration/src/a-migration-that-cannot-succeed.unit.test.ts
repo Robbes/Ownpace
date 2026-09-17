@@ -147,14 +147,29 @@ describe('only failures that cannot heal themselves', () => {
   });
 
   it('leaves the ones that need a person on the other side', () => {
-    // Stated as the complement rather than as a second list, so a seventh
-    // category cannot be added and land on the wrong side unnoticed. Slowing
-    // a cause that clears by itself would delay the recovery the cadence
-    // exists for; NOT slowing one that needs a person is the whole defect.
+    // Stated as the complement rather than as a second list, so a new category
+    // cannot be added and land on the wrong side unnoticed. Slowing a cause
+    // that clears by itself would delay the recovery the cadence exists for;
+    // NOT slowing one that needs a person is the whole defect.
+    //
+    // THE COMPLEMENT DID ITS JOB on 2026-09-17. `source_refused` and
+    // `format_refused` were added to the vocabulary and landed here with no
+    // edit to `failing-backoff.ts` — correctly, because both need a person:
+    // somebody has to re-enable downloading on the file, or choose an export
+    // format the destination will store. Neither clears on its own, and a
+    // migration that keeps asking every fifteen minutes for one of them is
+    // asking a question already answered. The only thing that needed changing
+    // was this list, which is the guard working rather than the guard failing.
     const needsAPerson = FAILURE_CATEGORIES.filter(
       (c: FailureCategory) => !SELF_HEALING_CATEGORIES.has(c),
     );
-    expect(needsAPerson).toEqual(['auth_expired', 'target_refused', 'unknown']);
+    expect(needsAPerson).toEqual([
+      'auth_expired',
+      'source_refused',
+      'target_refused',
+      'format_refused',
+      'unknown',
+    ]);
   });
 });
 

@@ -46,9 +46,25 @@
  */
 
 /**
- * The six. Each earns its place by changing what the person does next — that
+ * The eight. Each earns its place by changing what the person does next — that
  * was the owner's test, and it is why there is no `provider_error` or
  * `internal`: neither tells anybody to do anything different.
+ *
+ * ## It was six until 2026-09-17, and a refusal was one word
+ *
+ * `target_refused` was the only refusal, so every refusal became one — including
+ * the ones where the destination was never asked. Drive answering
+ * `cannotExportFile` on a Google Doc whose owner disabled download is a SOURCE
+ * refusal: nothing was sent anywhere, the destination is fine, and the remedy
+ * offered ("a full mailbox, a read-only folder or missing permission on the
+ * target account") sent the reader to check an account that had done nothing
+ * wrong. A wrong remedy is worse than `unknown`, which at least says so.
+ *
+ * The owner added the third case on the same day: *"it also makes sense a
+ * target might refuse certain fileformats/types and we need to be transparrant
+ * about that."* A destination that will not take a `.svg` is not a destination
+ * that is full, and telling somebody to free up space is the same failure one
+ * step along.
  */
 export const FAILURE_CATEGORIES = [
   /** The credential no longer works. Reconnect. By far the most common. */
@@ -57,8 +73,19 @@ export const FAILURE_CATEGORIES = [
   'rate_limited',
   /** A daily ceiling is spent (Gmail's 2 500 MB/day). Resumes tomorrow. */
   'quota_exceeded',
+  /**
+   * The SOURCE would not hand the item over — so nothing was ever sent, and
+   * the destination is not the thing to go and look at.
+   */
+  'source_refused',
   /** The TARGET refused the write. The one that usually needs a human. */
   'target_refused',
+  /**
+   * The target refused THIS KIND OF FILE — a blocked extension, a rejected
+   * media type, a name the destination will not store. Always the target: a
+   * source that will not produce a format is `source_refused`.
+   */
+  'format_refused',
   /** The network did not reach. Transient; it retries. */
   'network',
   /** Not recognised. A real answer, with its own way out. */
@@ -85,7 +112,34 @@ export function isFailureCategory(value: unknown): value is FailureCategory {
  * minute" are different instructions, and the daily ceiling is the one that
  * ruins an afternoon if it is described as a blip.
  */
-const RULES: ReadonlyArray<{ readonly category: FailureCategory; readonly test: RegExp }> = [
+/**
+ * WHICH SIDE TURNS ONE SIGNAL INTO TWO ANSWERS.
+ *
+ * A refusal looks the same in prose wherever it happened — a 403 is a 403 —
+ * so the text cannot tell a source refusal from a target one. The pass
+ * already knows: `sided()` tags what `fetchRaw` throws as `source` and what
+ * `upsert` throws as `target`, at the closure, and `markFailed` receives that
+ * tag and this message in the same call. So the side is READ here rather than
+ * guessed at, which keeps the module's own rule — protocol vocabulary, never
+ * marketing copy — and adds nothing to the regexes.
+ *
+ * **When the side is absent the answer is the target**, which is what this
+ * code has always said. That is a default, not a finding: `failed_side` is
+ * NULL for a pass that could not tell and for every row written before it
+ * existed, and re-reading those as source refusals would rewrite history on no
+ * evidence. A write is also where the overwhelming majority of refusals
+ * happen, so the default is the likely answer as well as the old one.
+ */
+const RULES: ReadonlyArray<{
+  readonly category: FailureCategory;
+  readonly test: RegExp;
+  /**
+   * What this same signal means when the pass recorded the SOURCE side.
+   * Absent where the side cannot change the answer — a 429 is a rate limit
+   * whoever sent it.
+   */
+  readonly whenSource?: FailureCategory;
+}> = [
   // A daily ceiling. Gmail's own words, plus this product's refusal (0090 T4),
   // which names the ceiling before the provider ever locks the account out.
   {
@@ -108,11 +162,43 @@ const RULES: ReadonlyArray<{ readonly category: FailureCategory; readonly test: 
     category: 'network',
     test: /\b(econnrefused|econnreset|enotfound|etimedout|ehostunreach|enetunreach|epipe|socket\s+hang\s+up|network\s+error|dns|getaddrinfo|tls|certificate)\b/i,
   },
-  // The target said no to the write. Deliberately last of the matchers: it is
-  // the broadest, and anything above it is a better answer when both fit.
+  // THE DESTINATION WILL NOT TAKE THIS KIND OF FILE (the owner's third case,
+  // 2026-09-17). Above the general refusal because it is the narrower reading
+  // of the same event, and below everything else for the usual reason.
+  //
+  // WHAT IS MATCHED, AND HOW SURE EACH PART IS — the same distinction
+  // `drive-refusal.ts` keeps between a reason observed and a reason published,
+  // because the cost of guessing here is a confident wrong sentence:
+  //
+  //  - `415` / "unsupported media type" is SPECIFIED (RFC 9110 §15.5.16) and
+  //    means exactly this and nothing else. It is the anchor.
+  //  - The filename phrases are what Nextcloud and Sabre PUBLISH for a name or
+  //    extension they refuse to store. **None has been observed by this code.**
+  //    They are narrow on purpose: a phrase that turns out to be wrong simply
+  //    never fires and the failure reads `target_refused`, which is what it
+  //    read before this rule existed. A phrase that is too broad would
+  //    mislabel a full mailbox as a format problem, which is the failure worth
+  //    avoiding.
+  //
+  // NOT MATCHED, deliberately: a bare 403 carrying a blocked extension. Sabre
+  // answers a file-access-control refusal with a plain `Forbidden` and no word
+  // about the reason, so there is nothing in it to read. Those stay
+  // `target_refused` and the prose beside them carries the path, which is what
+  // a reader actually needs there.
+  {
+    category: 'format_refused',
+    test: /\b(415|unsupported\s+media\s+type|invalid\s+file\s*name|reserved\s+word|not\s+an\s+allowed\s+file\s*type|forbidden\s+file\s*(name|type)|blacklisted\s+file)\b/i,
+    // A source that will not produce a format is not a target refusing one.
+    whenSource: 'source_refused',
+  },
+  // A refusal. Deliberately last of the matchers: it is the broadest, and
+  // anything above it is a better answer when both fit. WHICH side refused is
+  // the whole difference between "go and look at your destination" and
+  // "nothing was sent anywhere" — see the comment above this list.
   {
     category: 'target_refused',
     test: /\b(403|409|412|422|507|forbidden|permission\s+denied|insufficient\s+(permission|storage|quota)|read[\s_-]?only|refused\s+the|rejected|conflict|precondition\s+failed|mailbox\s+full|over\s+capacity)\b/i,
+    whenSource: 'source_refused',
   },
 ];
 
@@ -120,14 +206,21 @@ const RULES: ReadonlyArray<{ readonly category: FailureCategory; readonly test: 
  * The category a failure message falls into. `unknown` when nothing matches,
  * and `unknown` is a real answer rather than a gap — see the module comment.
  *
+ * `side` is the pass's own record of WHERE it happened (`FAILURE_SIDES`
+ * below), not a hint parsed out of the message. It is optional because it is
+ * genuinely absent sometimes, and it only ever moves a refusal between the
+ * source and the target reading of the same signal: every other category
+ * answers the same whoever sent it.
+ *
  * Never throws, for any input, including one that is not a string: this runs
  * where a failure is ALREADY being recorded, and a classifier that threw
  * would replace a useful error with a useless one.
  */
-export function classifyFailure(message: unknown): FailureCategory {
+export function classifyFailure(message: unknown, side?: FailureSide): FailureCategory {
   if (typeof message !== 'string' || message.trim() === '') return 'unknown';
   for (const rule of RULES) {
-    if (rule.test.test(message)) return rule.category;
+    if (!rule.test.test(message)) continue;
+    return side === 'source' && rule.whenSource ? rule.whenSource : rule.category;
   }
   return 'unknown';
 }

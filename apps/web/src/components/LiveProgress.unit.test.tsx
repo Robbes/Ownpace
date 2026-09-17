@@ -20,6 +20,7 @@ import LiveProgress from './LiveProgress.tsx';
 import type { LiveProgressRow } from './LiveProgress.tsx';
 import { STRINGS, LOCALES } from '../i18n/strings.ts';
 import { FAILURE_CATEGORIES } from '@openmig/shared';
+import { FAILURE_KEY } from '../i18n/failure-key.ts';
 
 const row = (over: Partial<LiveProgressRow> = {}): LiveProgressRow => ({
   domain: 'email',
@@ -65,18 +66,20 @@ describe('a failed domain says what to do about it', () => {
 });
 
 describe('every category can be said, in both languages', () => {
-  it('has a non-empty sentence for all six in en and nl', () => {
+  it('has a non-empty sentence for every category in en and nl', () => {
     // A category with no sentence reaches a screen with nothing to say. The
     // Record<FailureCategory, StringKey> in the component makes a MISSING key
     // a typecheck failure; this makes an EMPTY one a test failure.
-    const keys = {
-      auth_expired: 'failure.authExpired',
-      rate_limited: 'failure.rateLimited',
-      quota_exceeded: 'failure.quotaExceeded',
-      target_refused: 'failure.targetRefused',
-      network: 'failure.network',
-      unknown: 'failure.unknown',
-    } as const;
+    //
+    // THE MAP IS IMPORTED, not retyped here (2026-09-17). It used to be a
+    // hand-copied literal of the six, which meant this test asserted that the
+    // six it knew about had sentences — not that the categories the PRODUCT
+    // has do. Adding `source_refused` and `format_refused` proved the point:
+    // `FAILURE_CATEGORIES` grew, the copy did not, and the loop was checking
+    // two of them against `undefined`. The file this map lives in opens by
+    // explaining why a second copy of it is a defect; this was the second
+    // copy.
+    const keys = FAILURE_KEY;
     for (const category of FAILURE_CATEGORIES) {
       for (const locale of LOCALES) {
         const sentence = STRINGS[locale][keys[category]];
