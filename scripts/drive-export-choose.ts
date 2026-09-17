@@ -32,21 +32,43 @@
  */
 
 /** What a caller may ask for by name. */
-export type DriveFileKind = 'doc' | 'sheet' | 'slide';
+export type DriveFileKind = 'doc' | 'sheet' | 'slide' | 'drawing';
 
 /**
- * The three native editor types this measurement can speak about.
+ * Every native editor type a policy can RENDER, and therefore every type this
+ * measurement must be able to speak about.
  *
- * A Drawing is deliberately absent. It IS a native editor file, and under
- * either document policy it exports as SVG — text, a different risk, and a
- * different question from the one 0042 T3 asks. A Form has no export mapping at
- * all. Offering either as a `--kind` would invite a run whose refusal answers
- * something nobody asked.
+ * ## The Drawing was left out, and the reason expired
+ *
+ * This map held three kinds until 2026-09-17. The comment said a Drawing was
+ * "deliberately absent": it exports as SVG under either document policy, which
+ * is text, a different risk, and a different question from the one 0042 T3 was
+ * asking. That was sound while the question was whether `export-office` could
+ * be trusted at all.
+ *
+ * It stopped being sound when `unmeasured` was decided to COPY rather than
+ * refuse. From that moment a Drawing was a file the product exports on every
+ * pass with nothing measured behind it — and the one native type nobody could
+ * point the instrument at, so the blank could never be filled. A deliberate
+ * omission had quietly become the only unmeasurable hole in the table.
+ *
+ * ## The rule that replaces the judgement
+ *
+ * If a policy can render it, it must be aimable by kind. Not "the types worth
+ * asking about" — that is a judgement, and the judgement is what went stale.
+ * `a-placeholder-that-reached-google.unit.test.ts` holds the two tables against
+ * each other, so a fifth exportable type Drive grows cannot arrive measurable
+ * by accident or unmeasurable by omission.
+ *
+ * A Form, a Site, a My Map and an Apps Script are still absent, and correctly:
+ * no policy renders them, `files.export` answers 403 for all four, and there is
+ * nothing to measure. That is the same rule, not an exception to it.
  */
 export const KIND_MIME_TYPES: Readonly<Record<DriveFileKind, string>> = {
   doc: 'application/vnd.google-apps.document',
   sheet: 'application/vnd.google-apps.spreadsheet',
   slide: 'application/vnd.google-apps.presentation',
+  drawing: 'application/vnd.google-apps.drawing',
 };
 
 /** Just enough of a Drive file to choose between candidates. */
@@ -78,8 +100,8 @@ export function readKind(raw: string | undefined): ChoiceOutcome<DriveFileKind |
   return {
     ok: false,
     reason:
-      `DRIVE_FILE_KIND="${raw}" is not one of doc, sheet, slide. Leave it unset to measure ` +
-      'the first exportable native file found, or set DRIVE_FILE_ID to name one exactly.',
+      `DRIVE_FILE_KIND="${raw}" is not one of doc, sheet, slide, drawing. Leave it unset to ` +
+      'measure the first exportable native file found, or set DRIVE_FILE_ID to name one exactly.',
   };
 }
 

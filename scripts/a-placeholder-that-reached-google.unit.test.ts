@@ -41,6 +41,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { NATIVE_EXPORT_TYPES } from '@openmig/connectors';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -253,5 +254,73 @@ describe('a weigh that fails for a reason nothing to do with the policy', () => 
     expect(body).toMatch(/401/);
     expect(body).toMatch(/403/);
     expect(body).toMatch(/the policy is not the/);
+  });
+});
+
+describe('every type a policy can render is a type this can be aimed at', () => {
+  /**
+   * THE RULE THAT REPLACES A JUDGEMENT, and the hole it was found by.
+   *
+   * `KIND_MIME_TYPES` held three kinds until 2026-09-17, with a comment calling
+   * the Drawing "deliberately absent" — it exports as SVG, a different risk and
+   * a different question from the one 0042 T3 was asking. Sound at the time.
+   *
+   * It expired the day `unmeasured` was decided to COPY rather than refuse.
+   * From then a Drawing was exported on every pass with nothing measured behind
+   * it, AND was the one native type nobody could point the instrument at, so
+   * the blank could never be filled. Not a wrong judgement — a judgement that
+   * stopped being true while nothing rechecked it.
+   *
+   * So the list is no longer "the types worth asking about". It is "the types a
+   * policy can render", which is a fact in another table, and these assertions
+   * are what hold the two together.
+   */
+  it('can aim at every type any export policy renders', () => {
+    const renderable = new Set(
+      Object.values(NATIVE_EXPORT_TYPES).flatMap((m) => Object.keys(m)),
+    );
+    const aimable = new Set(Object.values(KIND_MIME_TYPES));
+    for (const mime of renderable) {
+      expect(
+        aimable.has(mime),
+        `${mime} is rendered by a policy and cannot be measured by kind, so its stability can ` +
+          'never be filled in — and `unmeasured` COPIES, so it is exported on every pass on no ' +
+          'evidence. Add it to KIND_MIME_TYPES.',
+      ).toBe(true);
+    }
+  });
+
+  it('aims at nothing a policy cannot render', () => {
+    // The other direction, and the reason a Form is still absent: no policy
+    // renders one, `files.export` answers 403, and offering it as a kind would
+    // invite a run whose refusal answers a question nobody asked.
+    const renderable = new Set(
+      Object.values(NATIVE_EXPORT_TYPES).flatMap((m) => Object.keys(m)),
+    );
+    for (const [kind, mime] of Object.entries(KIND_MIME_TYPES)) {
+      expect(
+        renderable.has(mime),
+        `"${kind}" can be asked for by name and no policy renders it, so the run would refuse ` +
+          'rather than measure',
+      ).toBe(true);
+    }
+  });
+
+  it('reads `drawing`, and says so when a kind is mistyped', () => {
+    expect(readKind('drawing')).toEqual({ ok: true, file: 'drawing' });
+    const bad = readKind('drawings');
+    expect(bad.ok).toBe(false);
+    expect(!bad.ok && bad.reason, 'the refusal does not list every kind it accepts').toContain(
+      'doc, sheet, slide, drawing',
+    );
+  });
+
+  it('chooses a Drawing when one is asked for, under a policy that renders it', () => {
+    const OFFICE_WITH_DRAWING: Record<string, string> = {
+      ...OFFICE,
+      [KIND_MIME_TYPES.drawing]: 'svg',
+    };
+    const got = chooseFile(ALL, OFFICE_WITH_DRAWING, 'drawing', 'My Drive', 'export-office');
+    expect(got.ok && got.file).toEqual(DRAWING);
   });
 });

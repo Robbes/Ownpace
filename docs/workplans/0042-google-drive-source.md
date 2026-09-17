@@ -345,7 +345,18 @@ magnitude. Worth knowing before anybody picks a default.
 **WHAT IS STILL NOT MEASURED**, stated so nobody reads the green as broader than it is:
 
 - a **Drawing** under any policy — still blank everywhere, and a different renderer again: under
-  either document policy it exports as SVG, which is text and a different risk.
+  either document policy it exports as SVG, which is text and a different risk. **MEASURABLE FROM
+  2026-09-17, and it was not before.** `DriveFileKind` held `doc`/`sheet`/`slide` only, with a
+  comment calling the Drawing "deliberately absent… a different question from the one 0042 T3
+  asks". That was sound while the question was whether `export-office` could be trusted at all.
+  It expired the day `unmeasured` was decided to COPY rather than refuse: from then a Drawing was
+  exported on every pass with nothing measured behind it, AND was the one native type the
+  instrument could not be aimed at, so the blank could never be filled. A deliberate omission had
+  become the only unmeasurable hole in the table. The judgement is now replaced by a rule — **if a
+  policy can render it, it must be aimable by kind** — held by
+  `a-placeholder-that-reached-google.unit.test.ts` against `NATIVE_EXPORT_TYPES`, so a fifth
+  exportable type Drive grows cannot arrive unmeasurable by omission. Run
+  `DRIVE_EXPORT_POLICY=export-office DRIVE_FILE_KIND=drawing`.
 - a **Sheet** or a **Slide** under `export-odf`.
 - a **content-rich deck** under `export-pdf`. **SOUGHT AND NOT FOUND on this tenant, 2026-09-16.**
   `DRIVE_PICK=largest` weighed every Slides deck in the owner's Drive — five found, one not
