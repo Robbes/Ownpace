@@ -338,6 +338,18 @@ async function pickLargest(candidates: readonly DriveFile[]): Promise<DriveFile>
 
   let best: { file: DriveFile; bytes: number } | undefined;
   let refused = 0;
+  /**
+   * WHY the first failure failed, kept for the case where they all do.
+   *
+   * Swallowing these entirely made the run lie about its own cause. A grant
+   * that expires between the listing and the first export fails EVERY
+   * candidate with a 401, and the only sentence left was "none of them could
+   * be exported under this policy — try another policy": a setting change
+   * proposed for an authentication problem, which is the same wrong-cause
+   * failure the refusals in this workplan exist to stop. A per-candidate skip
+   * is still right; a silent one is not.
+   */
+  let firstFailure: string | undefined;
   for (const file of candidates) {
     let got;
     try {
@@ -348,12 +360,13 @@ async function pickLargest(candidates: readonly DriveFile[]): Promise<DriveFile>
         modifiedAt: file.modifiedTime ?? new Date(0).toISOString(),
         sourceRef: file.id,
       });
-    } catch {
+    } catch (error) {
       // One candidate failing is not the run failing. A file the grant cannot
       // read, or one Drive declines to render today, simply is not the one
       // being measured — and turning that into a dead run would make the whole
       // option useless on any Drive with a single awkward file in it.
       refused += 1;
+      firstFailure ??= error instanceof Error ? error.message : String(error);
       continue;
     }
     const bytes = got.content?.byteLength ?? 0;
@@ -363,14 +376,29 @@ async function pickLargest(candidates: readonly DriveFile[]): Promise<DriveFile>
   if (!best) {
     fail(
       `None of the ${candidates.length} candidate(s) could be exported under "${POLICY}", so ` +
-        'there is nothing to measure. That is a fact about this policy and these files, not ' +
-        'about the script — try another policy, or unset DRIVE_PICK to measure the first file ' +
-        'found instead.',
+        'there is nothing to measure. The first one failed with:\n\n' +
+        `      ${firstFailure ?? 'no error recorded'}\n\n` +
+        '    Read that before changing anything. If it is a 401 or a 403 the policy is not the ' +
+        'problem and a different one will fail the same way — the grant is what needs ' +
+        'attention. If it is Drive declining to render these particular files, try another ' +
+        'policy, or unset DRIVE_PICK to measure the first file found instead.',
     );
   }
 
-  const skipped = refused > 0 ? `, ${refused} could not be exported` : '';
-  console.log(`  ✔ largest renders to ${best.bytes} bytes${skipped}\n`);
+  console.log(`  ✔ largest renders to ${best.bytes} bytes`);
+  if (refused > 0) {
+    // THE COUNT IS NOT THE ANSWER, and the owner's run on 2026-09-16 is why:
+    // it printed "1 could not be exported" and stopped there, leaving somebody
+    // looking at a number with no way to tell whether a file was in a shared
+    // drive, was a shortcut, or was refused for a reason that also affects the
+    // document about to be measured. The all-failed message below had already
+    // learned to carry its cause; this one had not, which made the lesson half
+    // applied — the commonest case is one awkward file among several, not all
+    // of them failing at once.
+    console.log(`    ${refused} of ${candidates.length} could not be exported. The first:`);
+    console.log(`      ${firstFailure ?? 'no error recorded'}`);
+  }
+  console.log('');
   return best.file;
 }
 

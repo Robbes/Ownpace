@@ -210,3 +210,48 @@ describe('the instruction still needs no blank to fill in', () => {
     expect(body, 'pickLargest prints a file id').not.toMatch(/\$\{[^}]*\.id\b/);
   });
 });
+
+describe('a weigh that fails for a reason nothing to do with the policy', () => {
+  const script = readFileSync(join(import.meta.dirname, 'drive-export-stability.ts'), 'utf8');
+  const picker = script.slice(script.indexOf('async function pickLargest'));
+  const body = picker.slice(0, picker.indexOf('\n}'));
+
+  it('records WHY the first candidate failed, rather than only that it did', () => {
+    // A grant that expires between the listing and the first export fails
+    // EVERY candidate with a 401. A bare `catch {}` counted those and threw the
+    // reason away, leaving the run with nothing true to say about itself.
+    expect(body, 'the per-candidate catch discards the error').toMatch(/catch \(\s*\w+\s*\)/);
+    expect(body).toMatch(/firstFailure/);
+  });
+
+  it('puts that reason in front of the reader when every candidate failed', () => {
+    // The sentence somebody acts on. Without the cause it proposed a setting
+    // change for an authentication problem — the same wrong-cause failure the
+    // refusals in this workplan exist to stop, arriving through the tool built
+    // to measure them.
+    const allFailed = body.slice(body.indexOf('if (!best)'));
+    expect(allFailed).toMatch(/firstFailure/);
+  });
+
+  it('says why it skipped even when the weigh SUCCEEDED', () => {
+    // The owner's run, 2026-09-16: "✔ largest renders to 2017 bytes, 1 could
+    // not be exported" — a number with no way to tell whether that file was in
+    // a shared drive, was a shortcut, or failed for a reason that also affects
+    // the document about to be measured. One awkward file among several is the
+    // commonest shape of this, not all of them failing at once, so the partial
+    // case is the one that had to learn it.
+    const success = body.slice(body.indexOf('console.log(`  ✔ largest renders'));
+    expect(success, 'the partial-failure path prints a count and no cause').toMatch(
+      /firstFailure/,
+    );
+  });
+
+  it('says plainly that a 401 or 403 is not the policy', () => {
+    // The specific misdirection worth naming: "try another policy" is wrong
+    // advice for an expired grant, and a reader who has just been handed a 401
+    // should be told so rather than left to infer it.
+    expect(body).toMatch(/401/);
+    expect(body).toMatch(/403/);
+    expect(body).toMatch(/the policy is not the/);
+  });
+});
