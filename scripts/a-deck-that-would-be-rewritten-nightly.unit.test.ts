@@ -247,13 +247,50 @@ describe('the way out a refusal offers, derived from the same table', () => {
     }
   });
 
-  it('says plainly when nothing is measured stable, rather than naming a guess', () => {
-    // A Drawing: blank under every policy. The empty case has to read as an
-    // answer, because the alternative is a sentence recommending a format on
-    // the strength of a run nobody has done.
-    expect(stablePoliciesFor(`${G}drawing`)).toEqual([]);
-    const refused = new NativeFileRefused('Sketch', `${G}drawing`, 'export-office', 'unstable');
-    expect(refused.message).toMatch(/No export policy is measured stable for a Drawing/);
+  it('every refusable type has a measured way out — no refusal is a wall', () => {
+    // THE DRAWING USED TO BE THE COUNTEREXAMPLE HERE, and stopped being one on
+    // 2026-09-17: this test used to assert that a Drawing had no measured way
+    // out and read the "no format to switch to" sentence. The measurement moved
+    // it, which is the pin doing its job rather than a gap opening — so what is
+    // pinned now is the property that replaced it.
+    //
+    // THE PROPERTY: every type a policy can RENDER has at least one policy
+    // measured stable for it. That is what makes a refusal survivable — a
+    // refused deck is sent to `export-pdf`, a refused Doc to `export-office`,
+    // and neither customer is told their files cannot be migrated and left
+    // there. `wayOutFor`'s empty branch is unreachable while this holds, and is
+    // kept because this can stop holding: measure a Drawing's SVG unstable
+    // while its PDF stays blank and a Drawing becomes the first wall. IF THIS
+    // GOES RED, that is what happened — read the sentence that type now gets
+    // before shipping it, then record the new state here.
+    const walls = Object.keys(NATIVE_EXPORT_TYPES['export-office']).filter(
+      (mime) => stablePoliciesFor(mime).length === 0,
+    );
+    expect(walls, `${walls.join(', ')} can be rendered but has no measured way out`).toEqual([]);
+  });
+
+  it('a type the render table never heard of gets no advice at all', () => {
+    // The other half: `stablePoliciesFor` invents nothing for a Google product
+    // this table has not met. A Jamboard is a real one
+    // (`application/vnd.google-apps.jam`), and it takes the earlier branch —
+    // Drive cannot export it in ANY format, so no policy is offered and none
+    // should be.
+    expect(stablePoliciesFor(`${G}jam`)).toEqual([]);
+    const refused = new NativeFileRefused('Standup board', `${G}jam`, 'export-office', 'unstable');
+    expect(refused.message).toContain('Drive cannot export a jam in any format');
+    expect(refused.message).not.toMatch(/measured stable/);
+  });
+
+  it('offers a Drawing the two policies that measured it, and not the third', () => {
+    // One run on 2026-09-17 moved two entries, because for a Drawing
+    // `export-odf` and `export-office` both ask Drive for `image/svg+xml` and
+    // are therefore the same request. `export-pdf` asks for something else and
+    // stays blank, so the advice must not name it.
+    expect([...stablePoliciesFor(`${G}drawing`)].sort()).toEqual(['export-odf', 'export-office']);
+    const refused = new NativeFileRefused('Sketch', `${G}drawing`, 'export-pdf', 'unstable');
+    expect(refused.message).toMatch(/"export-odf" and "export-office" are measured stable/);
+    expect(refused.message).toContain('for a Drawing');
+    expect(refused.message).not.toContain('not editable afterwards');
   });
 
   it('only ever names a policy that can actually render the type', () => {

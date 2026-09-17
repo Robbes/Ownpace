@@ -179,12 +179,19 @@ export interface WebDAVSource {
  * **The asymmetry still decides everything here.** A red verdict is conclusive:
  * the claim a policy needs is universal — every document, every pass — so one
  * counterexample settles it. Five identical draws are not the mirror image; they
- * are one document, of one type, on one tenant, on one day. `export-pdf` has
- * survived the best evidence this repository has for a Doc, which is not the same
- * as safe, and a Sheet, a Slide and a Drawing under it remain unmeasured.
+ * are one document, of one type, on one tenant, on one day — so a green here
+ * means "measured and not disproved", never proof.
  * **Unmeasured is recorded and NOT refused**: refusing on absence of a
  * measurement would turn off paths that work today on the strength of a run
  * nobody has done.
+ *
+ * **WHICH COMBINATIONS ARE MEASURED IS IN `EXPORT_STABILITY`, NOT HERE.** This
+ * comment used to end by listing what was still blank, and that list was wrong
+ * within the day, twice: first when `export-pdf` measured stable on a Sheet and
+ * a Slide, then when a Drawing did under both document policies. The paragraphs
+ * above are dated on purpose and describe the runs that produced this decision;
+ * the live state of the table is the table's business, and this file states it
+ * once by pointing at it.
  *
  * Defined here rather than beside the connector because it is a product
  * decision that now appears in a mapping file, not part of Google's wire format.
