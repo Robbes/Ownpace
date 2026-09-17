@@ -138,6 +138,60 @@ describe('the confirmed list screen', () => {
     expect(await screen.findByText(/name not recorded/i)).toBeInTheDocument();
   });
 
+  it('shows the NAME when the row has one, not the UID', async () => {
+    // The owner, on sight (2026-09-17): *"Why not show calander item names and
+    // contact names?"* A calendar row's identifier is a UID, and a UID is not
+    // something anybody has ever seen.
+    show(
+      queue({
+        verified: 0,
+        total: 1,
+        rows: [
+          row({
+            domain: 'calendar',
+            collection: 'Agenda',
+            naturalKey: 'urn:uuid:8f2bc0de-1111-4222-8333-444455556666',
+            displayName: 'Tandarts',
+          }),
+        ],
+      }),
+    );
+    const table = within(await screen.findByRole('table'));
+    expect(table.getByText('Tandarts')).toBeInTheDocument();
+    expect(table.queryByText(/urn:uuid:8f2bc0de/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the identifier reachable, because it is what searches the old account', async () => {
+    // Off the row and into its hover: dropping it would take away the one
+    // string somebody can paste into Google's own search box. The CSV export
+    // carries both in two columns, which is where a reconciliation belongs.
+    show(
+      queue({
+        verified: 0,
+        total: 1,
+        rows: [
+          row({
+            domain: 'contact',
+            collection: 'Contacts',
+            naturalKey: '926caf98adce563',
+            displayName: 'Jan Jansen',
+          }),
+        ],
+      }),
+    );
+    const table = within(await screen.findByRole('table'));
+    expect(table.getByText('Jan Jansen')).toHaveAttribute('title', '926caf98adce563');
+  });
+
+  it('falls back to the identifier for a row with no name', async () => {
+    // A file (whose identifier IS its name), a mail message, and every row
+    // written before names were recorded. Exactly what this page showed
+    // before, so an old row loses nothing.
+    show(queue({ verified: 0, total: 1, rows: [row({ naturalKey: '/Documents/tax-2025.pdf' })] }));
+    const table = within(await screen.findByRole('table'));
+    expect(table.getByText('/Documents/tax-2025.pdf')).toBeInTheDocument();
+  });
+
   it('renders unchecked and missing as DIFFERENT words', async () => {
     // The whole argument of `confirmed-list.ts`: "we did not check" and "we
     // checked and it is gone" are different facts, and a list that renders

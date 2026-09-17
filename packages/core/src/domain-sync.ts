@@ -484,6 +484,25 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    */
   readonly naturalKeyText?: (item: Item, raw?: unknown) => string | undefined;
   /**
+   * The name a PERSON calls the item: an event's SUMMARY, a contact's FN.
+   *
+   * Beside `naturalKeyText`, never instead of it. The identifier is what the
+   * SOURCE calls the item and is unique; this is what its owner calls it and is
+   * not, so nothing keys, matches or decides on it — it is read by the
+   * confirmed list and its export, and by nothing else.
+   *
+   * Called with `raw` in hand for the same reason `naturalKeyText` is, though
+   * no domain needs it yet: every name this loop can record sits on the parsed
+   * item already.
+   *
+   * Absent for a domain with no name to give. A file's key IS its name, and a
+   * second copy of it on the row would be noise; mail's name is its Subject,
+   * which lives in the RFC 822 bytes behind encoded-words and is not decoded
+   * anywhere in this codebase yet. Both leave the column NULL, and the screen
+   * falls back to the identifier — which is exactly what it showed before.
+   */
+  readonly displayName?: (item: Item, raw?: unknown) => string | undefined;
+  /**
    * Every natural-key hash currently in a collection, ignoring any cursor.
    *
    * Supplied only by domains whose source can answer it cheaply (files, from
@@ -816,6 +835,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     upsert,
     naturalKey,
     naturalKeyText,
+    displayName,
     naturalKeyFromRaw,
     contentHash,
     onCollision,
@@ -1107,6 +1127,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       // `natural_key` column can only be repaired by a pass that reads the item
       // again rather than by a database migration.
       let naturalKeyPlain = naturalKeyText?.(item);
+      // And the name beside it, by the same rule and for the same reason: a
+      // sha256 cannot be turned back into the words a person typed, so a row
+      // that never recorded one can only be healed by a pass that reads the
+      // item again.
+      let itemName = displayName?.(item);
       const version = sourceVersion?.(item);
       if (naturalKeyHash !== undefined) seenHere.add(naturalKeyHash);
 
@@ -1323,6 +1348,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // The text follows the key: for these items the identifier itself is
           // only knowable once the body has been read.
           naturalKeyPlain = naturalKeyText?.(item, raw) ?? naturalKeyPlain;
+          itemName = displayName?.(item, raw) ?? itemName;
 
           // Second fast-path check, now that we have a key. This is what keeps
           // these items idempotent: a re-run pays the fetch again (unavoidable
@@ -1483,6 +1509,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // one field on this row that exists for a person to read rather than
           // for the loop to key on.
           ...(naturalKeyPlain !== undefined ? { naturalKey: naturalKeyPlain } : {}),
+          // And what its owner calls it, which is the half a UID cannot give.
+          ...(itemName !== undefined ? { displayName: itemName } : {}),
           // WHERE it came from, not just what it was. Until this was recorded
           // the ledger could not tell an item that had never moved from one
           // that had, so a move was indistinguishable from a steady state.
@@ -1604,6 +1632,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               // fetch then failed — there is no identifier to give, and the row
               // keeps whatever it already had.
               ...(naturalKeyPlain !== undefined ? { naturalKey: naturalKeyPlain } : {}),
+              // And the name, which on THIS path is the point: a failure is the
+              // row somebody has to go and act on, and two contact 500s on the
+              // owner's live deployment showed a UID on every screen that could
+              // have said whose card it was.
+              ...(itemName !== undefined ? { displayName: itemName } : {}),
               // WHERE it is, beside what it is called. `recordFailure` learned
               // to repair both on 2026-09-13, and the identifier half worked
               // because this call site passes one — the collection half did

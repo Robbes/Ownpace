@@ -76,6 +76,12 @@ export interface ConfirmedListRow extends ConfirmedRow {
   readonly domain: DiscoveryDomain;
   readonly collection: string;
   readonly naturalKey: string;
+  /**
+   * The name a PERSON calls it, or `null` when none was recorded — a file
+   * (whose key IS its name), mail (whose Subject is not decoded yet), and every
+   * row written before 2026-09-17. A reader falls back to `naturalKey`.
+   */
+  readonly displayName: string | null;
   /** When the target was asked. `null` = never — the row is `unchecked`. */
   readonly confirmedAt: Date | null;
 }
@@ -234,6 +240,9 @@ export class ConfirmationStore {
         domain: schemaPg.item.domain,
         collection: schemaPg.item.collection,
         naturalKey: schemaPg.item.naturalKey,
+        // Beside the identifier, never instead of it: a UID says which row this
+        // is and the name says which item a person is looking at.
+        displayName: schemaPg.item.displayName,
         status: schemaPg.item.status,
         confirmedAnswer: schemaPg.item.confirmedAnswer,
         confirmedAt: schemaPg.item.confirmedAt,
@@ -293,6 +302,7 @@ export class ConfirmationStore {
         domain: r.domain as DiscoveryDomain,
         collection: r.collection,
         naturalKey: r.naturalKey,
+        displayName: r.displayName ?? null,
         confirmedAt: r.confirmedAt ?? null,
       };
     });

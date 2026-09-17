@@ -850,6 +850,24 @@ export interface LedgerRecord {
    * same rule `collection` and `sourceRef` follow.
    */
   readonly naturalKey?: string;
+  /**
+   * The name a PERSON calls this item: an event's SUMMARY, a contact's FN.
+   *
+   * Beside `naturalKey`, never instead of it. The key is what the source calls
+   * the item and is unique; this is what its owner calls it and is not. Two
+   * people named Jan Jansen are two rows, keyed apart and labelled the same,
+   * and that is correct.
+   *
+   * Absent for a domain whose key is ALREADY the name (a file's path) and for
+   * one whose name this code cannot yet read (a mail Subject lives behind RFC
+   * 2047 encoded-words). See `displayNameForCalendar` in `hash.ts` for which
+   * domains fill it and why the other two do not.
+   *
+   * Optional and never blanked, the same rule `naturalKey` follows: a caller
+   * with nothing to say leaves the column alone rather than erasing what an
+   * earlier pass recorded.
+   */
+  readonly displayName?: string;
   readonly contentHash: string;
   readonly targetId: string;
   /** ISO 8601 timestamp the row was first recorded. */

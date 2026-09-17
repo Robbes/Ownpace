@@ -436,6 +436,10 @@ export const item = pgTable(
     domain: text('domain', { enum: DISCOVERY_DOMAINS }).notNull(),
     collection: text('collection').notNull(),
     naturalKey: text('natural_key').notNull(),
+    // The name a PERSON calls it (migration 0050). Nullable, because a file's
+    // key is already its name and a mail Subject is not decoded yet, and
+    // because every row written before 2026-09-17 has none. Never a key.
+    displayName: text('display_name'),
     naturalKeyHash: text('natural_key_hash').notNull(), // Using text for hex hash
     contentHash: text('content_hash'),
     sizeBytes: bigint('size_bytes', { mode: 'bigint' }),
