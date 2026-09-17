@@ -580,6 +580,109 @@ describe('reusing a stored connection', () => {
  * Order is the assertion because order is the defect. `credential-fields.ts`
  * has declared the right one since 0063; this pins that the screen obeys it.
  */
+describe('the connection you already have is the default (owner, 2026-09-17)', () => {
+  /**
+   * *"'Reuse a saved target connection' has default a new connection, while i
+   * suggest the default should be to use an existing configured connection if
+   * there already is one. This should be there for adding source and when
+   * adding target."*
+   *
+   * The second migration from one account is the ordinary case — files this
+   * week, calendars next — and the wizard opened it by offering to store the
+   * same credential a second time. A credential stored twice is a secret to
+   * rotate twice.
+   */
+  const boxOne = {
+    id: 'c0000000-0000-4000-8000-0000000000a1',
+    role: 'source' as const,
+    kind: 'box',
+    displayName: 'Acme Box',
+    status: 'connected' as const,
+    createdAt: '2026-08-01T00:00:00.000Z',
+    usedByMigrations: 1,
+  };
+  const boxTwo = { ...boxOne, id: 'c0000000-0000-4000-8000-0000000000a2', displayName: 'Other Box' };
+  const davTarget = {
+    id: 'c0000000-0000-4000-8000-0000000000b1',
+    role: 'target' as const,
+    kind: 'webdav',
+    displayName: 'Anna’s Nextcloud',
+    status: 'connected' as const,
+    createdAt: '2026-08-02T00:00:00.000Z',
+    usedByMigrations: 1,
+  };
+
+  const sourcePicker = () => fieldFor(/^Reuse a saved source connection/) as HTMLSelectElement;
+
+  it('starts on the one stored source connection, not on "a new connection"', async () => {
+    listMock.mockResolvedValue([boxOne]);
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+    await waitFor(() => expect(sourcePicker().value).toBe(boxOne.id));
+    // And the step is passable on it alone, with no client id typed — which is
+    // what makes the default worth having rather than merely tidier.
+    await waitFor(() => expect(nextButton()).toBeEnabled());
+  });
+
+  it('offers "a new connection" LAST, where a choice sits rather than a default', async () => {
+    listMock.mockResolvedValue([boxOne]);
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+    const options = [...sourcePicker().options];
+    expect(options[options.length - 1]!.value).toBe('');
+  });
+
+  it('refuses to guess between two stored accounts', async () => {
+    // A connection decides WHOSE data is read. Two rows of one kind are two
+    // accounts, and picking the first would migrate somebody else's files on
+    // the customer's behalf — the one mistake this screen must not make. So
+    // the list opens with them and nothing is chosen.
+    listMock.mockResolvedValue([boxOne, boxTwo]);
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+    expect(sourcePicker().textContent).toContain('Other Box');
+    expect(sourcePicker().value).toBe('');
+  });
+
+  it('keeps "a new connection" once that is what somebody chose', async () => {
+    // The default must be a starting point, not a correction applied on every
+    // render: somebody storing a second credential deliberately has to be able
+    // to leave this alone.
+    listMock.mockResolvedValue([boxOne]);
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Box/ }));
+    await waitFor(() => expect(sourcePicker().value).toBe(boxOne.id));
+    fireEvent.change(sourcePicker(), { target: { value: '' } });
+    expect(sourcePicker().value).toBe('');
+    // A re-render with the same list must not put it back.
+    fill(/^Username/, 'anna@acme.example');
+    await waitFor(() => expect(sourcePicker().value).toBe(''));
+  });
+
+  it('does the same for the target side', async () => {
+    listMock.mockResolvedValue([davTarget]);
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^IMAP/ }));
+    fill(/^Username/, 'anna@acme.example');
+    fill(/^Host$/, 'mail.example.com');
+    fill(/^Password/, 'shh-imap');
+    await waitFor(() => expect(nextButton()).toBeEnabled());
+    fireEvent.click(nextButton());
+    // The stored row is a `webdav` target, so the card has to be picked before
+    // it is a candidate at all — the list is filtered by kind.
+    fireEvent.click(await screen.findByRole('button', { name: /^WebDAV/ }));
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved target connection/)).not.toBeNull());
+    await waitFor(() =>
+      expect((fieldFor(/^Reuse a saved target connection/) as HTMLSelectElement).value).toBe(
+        davTarget.id,
+      ),
+    );
+  });
+});
+
 describe('the source step asks in the descriptor order', () => {
   /** Every field label on screen, top to bottom. */
   const labelsInOrder = (): string[] =>
@@ -728,6 +831,11 @@ describe('naming the connection that testing saves', () => {
       },
     ]);
     filledImapSource();
+    // THE STORED ROW IS THE DEFAULT NOW (owner, 2026-09-17), and this test is
+    // about storing a SECOND credential of the same kind — so it says so
+    // first, the way a person would, or there is no name to clash.
+    await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+    fireEvent.change(fieldFor(/^Reuse a saved source connection/), { target: { value: '' } });
     fill(/^Connection name/, 'Acme old mail server');
 
     // A warning, not a refusal: nothing keys off the name, and blocking here

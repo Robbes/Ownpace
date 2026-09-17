@@ -1407,10 +1407,6 @@ const en = {
   'finish.button': 'Finish this migration',
   'finish.button.disabledTitle':
     'Confirm step 4 first — finishing before delivery has moved loses anything that arrives afterwards.',
-  'createMapping.target.userOperated':
-    'The destination server is yours to run; we carry no service level for it.',
-  'createMapping.target.userOperated.more':
-    'We migrate your data into it; we do not operate, monitor or back it up. If it is a managed European platform, its own provider is responsible for it.',
   'tenants.title': 'Team & organization',
   'tenants.intro':
     'Who can sign in to this organization and what they may do; changes apply immediately.',
@@ -3043,10 +3039,6 @@ const nl: Record<keyof typeof en, string> = {
   'finish.button': 'Rond deze migratie af',
   'finish.button.disabledTitle':
     'Bevestig eerst stap 4; afronden voordat de bezorging is omgezet, verliest alles wat daarna binnenkomt.',
-  'createMapping.target.userOperated':
-    'De doelserver beheert u zelf; van onze kant geldt er geen serviceniveau voor.',
-  'createMapping.target.userOperated.more':
-    'Wij zetten uw gegevens erin over; wij beheren, bewaken of back-uppen hem niet. Is het een beheerd Europees platform, dan is de aanbieder ervan verantwoordelijk.',
   'tenants.title': 'Team & organisatie',
   'tenants.intro':
     'Wie zich bij deze organisatie kan aanmelden en wat ze mogen doen; wijzigingen gelden direct.',
