@@ -579,17 +579,32 @@ describe('CreateMapping — a dirty wizard does not discard silently (0037 T5)',
     expect(screen.getByText('mappings-list-route')).toBeInTheDocument();
   });
 
-  it('the sovereignty notice renders on the TARGET step, where the destination is chosen (owner decision 2026-08-10)', () => {
+  it('carries no sovereignty banner on either step (owner, 2026-09-17)', () => {
+    /**
+     * This test used to assert the opposite, and the change is the owner's
+     * decision rather than a tidy-up: *"Just remove that banner."*
+     *
+     * The sentence — the destination server is yours to run, we carry no
+     * service level for it — is true, and it was in the wrong place. Somebody
+     * choosing where their own data goes is not deciding whether to trust us
+     * with a server they already own, and an amber panel over the connection
+     * fields teaches people to read past amber panels, which is expensive on a
+     * screen that has real warnings to give. The fact stays where it binds:
+     * ADR-0011 and `docs/target-providers.md`.
+     *
+     * Kept as a test rather than deleted with the code, so a well-meant
+     * revival has to meet the decision first.
+     */
     renderWizard();
-    // Source step: no destination talk here anymore.
-    expect(screen.queryByText(/destination server is yours to run/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/yours to run/)).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
       target: { value: 'mail.old-provider.example' },
     });
     satisfySourceStep();
     fireEvent.click(nextButton());
-    expect(screen.getByText(/destination server is yours to run/)).toBeInTheDocument();
+    expect(screen.queryByText(/yours to run/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/service level/)).not.toBeInTheDocument();
   });
 });
 

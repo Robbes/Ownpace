@@ -173,4 +173,6 @@ collects fields it cannot use without saying so on screen.
   `CreateMapping.tsx:199-206`) with an in-code comment claiming deliberate
   placement — its own rationale ("where the choice is made") argues for the
   target step. Move it, or bless the placement?~~ **Answered 2026-08-10
-  (owner): moved to the target step.**
+  (owner): moved to the target step. Superseded 2026-09-17 — the owner asked
+  for the banner itself to go (*"Just remove that banner"*), so the key no
+  longer exists; ADR-0011 and `docs/target-providers.md` state the fact.**

@@ -74,7 +74,9 @@ that list, each verified in source:
   no `useT` at all.
 - `Login.tsx`: entire screen (title, labels, error, help text).
 - `CreateMapping.tsx`: the six-step wizard (all but the one existing
-  `createMapping.target.userOperated` key).
+  `createMapping.target.userOperated` key — that banner was removed at the
+  owner's ask on 2026-09-17, so the key is gone; the wizard is translated
+  throughout).
 - `Billing.tsx`: entire screen.
 - `Layout.tsx`: the `'User'` / `'user@example.com'` fallbacks (0034 T2 deletes
   these) and the brand-title fallback.

@@ -301,6 +301,12 @@ const ConnectionPicker: React.FC<{
   value: string;
   onChange: (id: string) => void;
 }> = ({ labelKey, options, value, onChange }) => {
+  // `wizard.reuseNone` is LAST now, and that is the whole of the owner's ask
+  // (2026-09-17): *"'Reuse a saved target connection' has default a new
+  // connection, while i suggest the default should be to use an existing
+  // configured connection if there already is one."* The default itself is
+  // decided above, where the list is known; here it is only the order.
+
   const t = useT();
   // Joined by id, not by sitting next to each other (0067 T7 (a)): a screen
   // reader hears the label only through the association.
@@ -317,12 +323,12 @@ const ConnectionPicker: React.FC<{
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="">{t('wizard.reuseNone')}</option>
         {options.map((c) => (
           <option key={c.id} value={c.id}>
             {c.displayName} ({c.kind})
           </option>
         ))}
+        <option value="">{t('wizard.reuseNone')}</option>
       </select>
       <p className="mt-1 text-sm text-gray-500">{t('wizard.reuse.hint')}</p>
     </div>
@@ -531,6 +537,69 @@ const CreateMapping: React.FC = () => {
   const reusableTargets = (existingConnections ?? []).filter(
     (c) => c.role === 'target' && c.kind === formData.targetType,
   );
+
+  /**
+   * THE CONNECTION YOU ALREADY HAVE IS THE DEFAULT (owner, 2026-09-17).
+   *
+   * *"'Reuse a saved target connection' has default a new connection, while i
+   * suggest the default should be to use an existing configured connection if
+   * there already is one. This should be there for adding source and when
+   * adding target."*
+   *
+   * The second migration from one account is the ordinary case — files this
+   * week, calendars next — and it used to start by offering to store the same
+   * credential a second time. Every connection stored twice is a secret to
+   * rotate twice and a row that can go stale on its own.
+   *
+   * **Only where there is NO doubt: exactly one candidate.** The list is
+   * already filtered to this role and this connection kind, so one entry means
+   * one account and the default cannot be wrong. Two entries mean two
+   * accounts, and a connection decides WHOSE data is read — picking the first
+   * of several would quietly migrate somebody else's mailbox, which is the one
+   * mistake this screen must not make on the customer's behalf. With several,
+   * the list still opens with them and "a new connection" sits at the bottom.
+   *
+   * ONCE PER KIND, and a deliberate "new connection" sticks: the ref records
+   * which kind has had its default applied, and the picker's own onChange
+   * records it too — so somebody who chooses to store a new credential is not
+   * overruled by this effect on the next render.
+   */
+  const defaultedConnection = React.useRef<{ source?: string; target?: string }>({});
+  const sourceConnectionKind = sourceKindOf(formData.sourceType);
+  React.useEffect(() => {
+    // `length > 0` GATES THE MARK, and it is the whole of what makes this
+    // work: the connections arrive after the first render, so a kind marked
+    // as decided while the list was still empty would never be offered its
+    // default at all. Nothing to choose from is not a decision.
+    if (defaultedConnection.current.source !== sourceConnectionKind && reusableSources.length > 0) {
+      defaultedConnection.current.source = sourceConnectionKind;
+      if (formData.sourceConnectionId === '' && reusableSources.length === 1) {
+        updateField('sourceConnectionId', reusableSources[0]!.id);
+      }
+    }
+    if (defaultedConnection.current.target !== formData.targetType && reusableTargets.length > 0) {
+      defaultedConnection.current.target = formData.targetType;
+      if (formData.targetConnectionId === '' && reusableTargets.length === 1) {
+        updateField('targetConnectionId', reusableTargets[0]!.id);
+      }
+    }
+    // THE DEPS, each for a reason:
+    //  - the kinds, because a different provider is a different candidate list;
+    //  - the list LENGTHS, because the connections load after the first render
+    //    and an effect keyed only on the kinds would run once against an empty
+    //    list and default nothing;
+    //  - the chosen ids, so that this runs right after somebody answers the
+    //    picker themselves. That is what makes the ref above load-bearing
+    //    rather than decorative: without it, this pass would put the stored
+    //    row back over their "a new connection".
+  }, [
+    sourceConnectionKind,
+    formData.targetType,
+    reusableSources.length,
+    reusableTargets.length,
+    formData.sourceConnectionId,
+    formData.targetConnectionId,
+  ]);
 
   // The config shapes, shared by submit AND the connection test (workplan
   // 0046) — the probe must run on exactly what create would post, or "test
@@ -2154,6 +2223,10 @@ const CreateMapping: React.FC = () => {
               value={formData.sourceConnectionId}
               onChange={(id) => {
                 forgetProbe('source');
+                // Whatever they picked — a stored row or "a new connection" —
+                // is now their answer for this kind, and the default effect
+                // above must not reapply over it.
+                defaultedConnection.current.source = sourceConnectionKind;
                 updateField('sourceConnectionId', id);
               }}
             />
@@ -2264,19 +2337,18 @@ const CreateMapping: React.FC = () => {
                   {t('wizard.providerDefaults.note', targetProvenance)}
                 </p>
               )}
-              {/* ADR-0011's consequence, on the step where the destination is
-                  chosen (owner decision 2026-08-10 — it previously rendered on
-                  the SOURCE step): whatever server the owner points this at is
-                  THEIRS. We migrate into it; we do not run it, monitor it,
-                  back it up, or carry an SLA for it. Said before the
-                  connection details are typed, not after. */}
-              <Hint
-                className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3"
-                tone="body"
-                label="more"
-                text={t('createMapping.target.userOperated')}
-                why={t('createMapping.target.userOperated.more')}
-              />
+              {/* NO SOVEREIGNTY BANNER HERE ANY MORE (owner, 2026-09-17:
+                  *"Just remove that banner"*).
+                  ADR-0011's consequence — the destination server is the
+                  customer's to run, and we carry no service level for it —
+                  stood in amber on this step from 2026-08-10. It is a true
+                  sentence in the wrong place: somebody choosing where their
+                  own data goes is not deciding whether to trust us with a
+                  server they already own, and an amber panel above the
+                  connection fields teaches people to read past amber panels.
+                  The fact itself is unchanged and stated where it binds —
+                  ADR-0011 and `docs/target-providers.md` — rather than over
+                  the form. */}
             </div>
 
             <ConnectionPicker
@@ -2285,6 +2357,8 @@ const CreateMapping: React.FC = () => {
               value={formData.targetConnectionId}
               onChange={(id) => {
                 forgetProbe('target');
+                // Their answer for this target kind, default effect included.
+                defaultedConnection.current.target = formData.targetType;
                 updateField('targetConnectionId', id);
               }}
             />
