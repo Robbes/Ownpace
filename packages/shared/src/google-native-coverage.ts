@@ -129,3 +129,43 @@ export function policyCarriesEveryKind(
 ): boolean {
   return policyLeavesBehind(policy).length === 0;
 }
+
+/**
+ * THE SOURCE TYPES WHOSE FILES COME OUT OF GOOGLE DRIVE.
+ *
+ * THE DEFECT THIS EXISTS TO FIX (the owner's live run, 2026-09-17). Every
+ * Google Doc and Drawing in a 7,480-item migration was left behind, each one
+ * reported as refused under `nativeFilePolicy="refuse"` — the default. The
+ * owner's report: *"i didnt find any options to pick what export format i want
+ * to get in my target from the google propiritory formats."* There was none to
+ * find. The chooser rendered beside the `rootFolderId` box, and only the legacy
+ * `google-drive` source type has that field; the migration was built on the
+ * `google` ACCOUNT kind (Connect with Google), which asks for an address and a
+ * consent and has no root folder to hang anything on.
+ *
+ * So the setting existed, the engine read it, the create door stored it — and
+ * the only screen that could set it was unreachable from the door most people
+ * come through. A default nobody was offered a way out of.
+ *
+ * **Which is why this is a list of source types and not a field.** The question
+ * "what should happen to your Docs" belongs to a migration that carries Google
+ * files, whichever row signs in for them: the account kind's file face IS the
+ * Drive builder (`ACCOUNT_FACE_BUILDERS.google.file`), the same connector with
+ * the same export policy. `scripts/a-chooser-one-google-kind-could-not-reach.unit.test.ts`
+ * holds this list against that table, so a provider account that gains a Drive
+ * face cannot gain it without the chooser.
+ */
+export const GOOGLE_NATIVE_FILE_SOURCE_TYPES = ['google-drive', 'google'] as const;
+
+/**
+ * Whether a migration from this source type has Google-native files to decide
+ * about — asked by the wizard before it offers the export chooser, and by the
+ * create door before it stores one.
+ *
+ * Takes a plain string: callers hold a wizard source type typed as `string`
+ * (the form's own state, a request body's field), and a signature demanding the
+ * union would only move the cast to them.
+ */
+export function carriesGoogleNativeFiles(sourceType: string): boolean {
+  return (GOOGLE_NATIVE_FILE_SOURCE_TYPES as ReadonlyArray<string>).includes(sourceType);
+}

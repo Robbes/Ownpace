@@ -298,6 +298,23 @@ export interface GoogleAccountSource {
   readonly type: 'google';
   /** The Google account whose calendars and contacts are read. */
   readonly user: string;
+  /**
+   * What becomes of its Google Docs — where this account carries files.
+   *
+   * The account's file face IS `GoogleDriveSource`'s connector
+   * (`ACCOUNT_FACE_BUILDERS.google.file`), reading this key out of the stored
+   * blob, so the answer has to be able to live here: until 2026-09-17 the
+   * wizard could not even ask it, and every Doc in the owner's first real
+   * migration was left behind under the `refuse` default.
+   *
+   * Carried by the reader rather than dropped, although the appliance builds
+   * no file face from a `google` mapping file today (`build-deps.ts` branches
+   * on `google-drive` for that). The day it does, this is the key it reads —
+   * and a parser that quietly dropped it would hand that builder a
+   * policy-free config and leave somebody's Docs behind for a reason nothing
+   * on either side could show.
+   */
+  readonly nativeFilePolicy?: GoogleNativeFilePolicy;
 }
 
 /**
@@ -1039,6 +1056,12 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
     return {
       type: 'google',
       user: reqString(obj, 'user', 'source.user'),
+      // Read through the SAME validator the `google-drive` row's policy goes
+      // through, so one spelling of a policy cannot be refused on one kind and
+      // accepted on the other.
+      ...(obj['nativeFilePolicy'] === undefined
+        ? {}
+        : { nativeFilePolicy: parseNativeFilePolicy(obj['nativeFilePolicy']) }),
     };
   }
   if (type === 'microsoft') {

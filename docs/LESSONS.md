@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 139 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 140 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -898,6 +898,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/orchestration/src/source-face-builders.ts`
 
+- [a-chooser-one-google-kind-could-not-reach](../scripts/a-chooser-one-google-kind-could-not-reach.unit.test.ts) — A SOURCE WHOSE FILES COME OUT OF GOOGLE DRIVE AND CANNOT CHOOSE THEIR EXPORT LEAVES EVERY DOC BEHIND, SILENTLY.
 - [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts) — A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
 
@@ -973,6 +974,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/google-deployment-client.unit.test.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+
+### `packages/shared/src/google-native-coverage.ts`
+
+- [a-chooser-one-google-kind-could-not-reach](../scripts/a-chooser-one-google-kind-could-not-reach.unit.test.ts) — A SOURCE WHOSE FILES COME OUT OF GOOGLE DRIVE AND CANNOT CHOOSE THEIR EXPORT LEAVES EVERY DOC BEHIND, SILENTLY.
 
 ### `packages/shared/src/index.ts`
 
@@ -1317,6 +1322,15 @@ A password check that was valid for zero seconds, and the general rule that woul
 Reads:
 
 - `deploy/compose/setup-zitadel.sh`
+
+### [a-chooser-one-google-kind-could-not-reach](../scripts/a-chooser-one-google-kind-could-not-reach.unit.test.ts)
+
+A SOURCE WHOSE FILES COME OUT OF GOOGLE DRIVE AND CANNOT CHOOSE THEIR EXPORT LEAVES EVERY DOC BEHIND, SILENTLY.
+
+Reads:
+
+- `packages/orchestration/src/source-face-builders.ts`
+- `packages/shared/src/google-native-coverage.ts`
 
 ### [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts)
 
