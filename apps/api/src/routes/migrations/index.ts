@@ -71,6 +71,7 @@ import {
   resolveGoogleClient,
   resolveDropboxClient,
   parseGoogleDriveSource,
+  carriesGoogleNativeFiles,
   ConfigError,
   describeCronScheduleProblem,
   credentialFieldsFor,
@@ -226,7 +227,29 @@ export function sourceConnectionConfig(
   // and the two silent kinds proved: a config that cannot identify its row is
   // one nobody can read back, and one that identifies it WRONGLY is worse.
   if (isProviderAccountKind(body.sourceType)) {
-    return { type: body.sourceType, user: cfg.username };
+    return {
+      type: body.sourceType,
+      user: cfg.username,
+      // AND WHAT BECOMES OF ITS GOOGLE DOCS, where the account has files
+      // (owner's live run, 2026-09-17). The account kind's file face is the
+      // Drive connector — `parseGoogleDriveSource` reads this blob on the way
+      // in, so a policy stored here is the policy that migration exports with.
+      // Until the wizard could offer it, every Doc was left behind under the
+      // `refuse` default and no screen could say otherwise.
+      //
+      // Through the SHARED parser like `google-drive` above, for the reason
+      // hard rule 5 gives: a value one edition refuses must not be one the
+      // other stores and ignores. The superRefine has already refused garbage
+      // with a field-anchored message, so a throw here is a coding error.
+      ...(carriesGoogleNativeFiles(body.sourceType) && cfg.nativeFilePolicy
+        ? {
+            nativeFilePolicy: parseGoogleDriveSource({
+              type: 'google-drive',
+              nativeFilePolicy: cfg.nativeFilePolicy,
+            }).nativeFilePolicy,
+          }
+        : {}),
+    };
   }
   if (body.sourceType === 'graph') {
     // Graph REST transport: the tenant + mailbox are the address — there is
@@ -329,6 +352,44 @@ function refuseHalfDropboxClientPair(
   if (!problem) return;
   const missing = sourceConfig.clientId?.trim() ? 'clientSecret' : 'clientId';
   ctx.addIssue({ code: 'custom', path: ['sourceConfig', missing], message: problem });
+}
+
+/**
+ * Refuse a Drive setting the CONNECTOR could not read — in the shared parser's
+ * own words, for every source type whose files come out of Google Drive.
+ *
+ * Hard rule 5: a `nativeFilePolicy` the appliance refuses in a mapping file
+ * must not be one this door accepts and the connector then ignores. That held
+ * for the `google-drive` row from the day the policy existed, and not for the
+ * `google` ACCOUNT kind, which gained a chooser on 2026-09-17 — whose file face
+ * is the same connector reading the same key.
+ *
+ * ONE KEY AT A TIME, so the anchor is the box at fault. The block this replaces
+ * parsed both settings together and anchored every refusal on
+ * `nativeFilePolicy`, so a rejected root folder pointed a form at the wrong
+ * field. An empty string still means "unset" at this door, as it always has:
+ * the wizard posts neither key when its box is empty, and refusing `''` here
+ * would refuse a shape that has been accepted since the field existed.
+ */
+function refuseUnreadableDriveSettings(
+  ctx: { addIssue: (issue: { code: 'custom'; path: string[]; message: string }) => void },
+  sourceType: string,
+  sourceConfig: { rootFolderId?: string | undefined; nativeFilePolicy?: string | undefined },
+): void {
+  if (!carriesGoogleNativeFiles(sourceType)) return;
+  const refuse = (key: 'rootFolderId' | 'nativeFilePolicy') => {
+    try {
+      parseGoogleDriveSource({ type: 'google-drive', [key]: sourceConfig[key] });
+    } catch (err) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig', key],
+        message: err instanceof ConfigError ? err.message : String(err),
+      });
+    }
+  };
+  if (sourceConfig.rootFolderId) refuse('rootFolderId');
+  if (sourceConfig.nativeFilePolicy) refuse('nativeFilePolicy');
 }
 
 /**
@@ -474,8 +535,16 @@ export function sourceConfigOverride(
     case 'gmail':
     case 'google-calendar':
     case 'google-contacts':
-    case 'google':
       return keep({ user: cfg.username });
+    case 'google':
+      // The ACCOUNT kind splits off from the three single-purpose rows: its
+      // file face is Drive, so "what becomes of the Docs" is this mapping's to
+      // answer on a shared connection, exactly as `rootFolderId` is for the
+      // `google-drive` row above. Without it here, a second migration from a
+      // reused account connection would silently inherit the first one's
+      // export choice — and a person who picked PDF for their files would have
+      // no way to leave them behind next time.
+      return keep({ user: cfg.username, nativeFilePolicy: cfg.nativeFilePolicy });
     case 'graph':
       // The tenant is the app registration's, which the connection holds.
       return keep({ mailbox: cfg.username });
@@ -952,23 +1021,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
     }
-    try {
-      parseGoogleDriveSource({
-        type: 'google-drive',
-        ...(body.sourceConfig.rootFolderId ? { rootFolderId: body.sourceConfig.rootFolderId } : {}),
-        ...(body.sourceConfig.nativeFilePolicy
-          ? { nativeFilePolicy: body.sourceConfig.nativeFilePolicy }
-          : {}),
-      });
-    } catch (err) {
-      // The shared parser's own words (hard rule 5): the same sentence the
-      // appliance prints for the same mistake in a mapping file.
-      ctx.addIssue({
-        code: 'custom',
-        path: ['sourceConfig', 'nativeFilePolicy'],
-        message: err instanceof ConfigError ? err.message : String(err),
-      });
-    }
+    refuseUnreadableDriveSettings(ctx, 'google-drive', body.sourceConfig);
   } else if (
     body.sourceType === 'google-calendar' ||
     body.sourceType === 'google-contacts' ||
@@ -1021,6 +1074,12 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
     }
+    // An export policy is refused in the SAME words here as on the
+    // `google-drive` row (hard rule 5), because from 2026-09-17 the account
+    // kind can carry one: its file face is the Drive connector, and a value
+    // this door accepted and the connector then ignored would leave somebody's
+    // Docs behind for a reason nobody could find.
+    refuseUnreadableDriveSettings(ctx, body.sourceType, body.sourceConfig);
   } else if (body.sourceType === 'microsoft') {
     // The Microsoft ACCOUNT (workplan 0114). Named here rather than left to
     // the Azure catch-all below, and that distinction is the whole point of

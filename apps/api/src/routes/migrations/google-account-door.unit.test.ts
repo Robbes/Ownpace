@@ -13,9 +13,13 @@
  *     nothing set up in advance" rather than as an error. `google` is the one
  *     Google source whose wizard word and connection kind are the same word,
  *     so the round trip is asserted rather than assumed from that.
- *  2. **The config it stores.** One field, and deliberately one: a Google
- *     account serves its faces from one address, and a list of domains here
- *     would be a second copy of the ticks, free to disagree with them.
+ *  2. **The config it stores.** The address, and — since 2026-09-17 — what
+ *     becomes of its Google Docs. Deliberately not a list of domains: a Google
+ *     account serves its faces from one address, and a list of the ticks here
+ *     would be a second copy of them, free to disagree. The export policy is
+ *     not a face; it is what the file face DOES, and the owner's first real
+ *     migration left every Doc behind because this door could take one and no
+ *     screen could set it.
  *  3. **The scopes its refusal names.** With several Google sources sharing
  *     one OAuth client, "which consent is this" is the mistake waiting to
  *     happen — and for an account the answer is a SET. The sentence is built
@@ -26,7 +30,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { CreateMappingSchema, sourceKindFor, sourceConnectionConfig } from './index.ts';
+import {
+  CreateMappingSchema,
+  sourceKindFor,
+  sourceConnectionConfig,
+  sourceConfigOverride,
+} from './index.ts';
 import { googleAccountScopeSentence } from './google-account-consent.ts';
 import {
   parseMappingConfig,
@@ -117,6 +126,110 @@ describe('the config it stores', () => {
       },
     });
     expect(parsed.source).toEqual({ type: 'google', user: GOOGLE_CREDS.username });
+  });
+});
+
+describe('what becomes of its Google Docs (owner 2026-09-17)', () => {
+  /**
+   * The account kind's file face IS the Drive connector, reading
+   * `nativeFilePolicy` out of this blob — and until this slice the wizard could
+   * not ask for one, because the chooser rendered beside a root-folder field
+   * only the legacy `google-drive` row has. Every Doc and Drawing in the
+   * owner's 7,480-item migration was left behind under the `refuse` default,
+   * reported one file at a time, with no screen anywhere that could change it.
+   *
+   * So the door has to take it, refuse what the connector could not read, and
+   * let a reused connection be asked again per migration.
+   */
+  it('stores the chosen policy beside the address', () => {
+    const config = sourceConnectionConfig({
+      sourceType: 'google',
+      sourceConfig: { ...GOOGLE_CREDS, nativeFilePolicy: 'export-pdf' },
+    } as never);
+    expect(config).toEqual({
+      type: 'google',
+      user: GOOGLE_CREDS.username,
+      nativeFilePolicy: 'export-pdf',
+    });
+  });
+
+  it('survives the reader an appliance mapping file goes through', () => {
+    // Hard rule 5, the same round trip this file already pins for the address:
+    // a key the managed door stores and the shared reader drops is a policy
+    // that exists until somebody reads the config back.
+    const config = sourceConnectionConfig({
+      sourceType: 'google',
+      sourceConfig: { ...GOOGLE_CREDS, nativeFilePolicy: 'export-odf' },
+    } as never);
+    const parsed = parseMappingConfig({
+      tenantId: 't',
+      mappingId: 'm',
+      source: config,
+      target: {
+        type: 'caldav',
+        url: 'https://dav.example.invalid/',
+        user: 'u',
+        auth: { kind: 'login', passwordFromEnv: 'UNUSED_IN_THIS_TEST' },
+      },
+    });
+    expect(parsed.source).toEqual({
+      type: 'google',
+      user: GOOGLE_CREDS.username,
+      nativeFilePolicy: 'export-odf',
+    });
+  });
+
+  it('refuses a policy no connector could read, in the shared parser’s words', () => {
+    const msg = refusalText(body({ sourceConfig: { ...GOOGLE_CREDS, nativeFilePolicy: 'odf' } }));
+    // The appliance's sentence for the same mistake in a mapping file, naming
+    // every value that IS accepted — not "invalid enum value".
+    expect(msg).toContain('source.nativeFilePolicy');
+    expect(msg).toContain('export-odf');
+  });
+
+  it('anchors that refusal on the box the value was typed in', () => {
+    // A field-anchored issue is what lets the wizard put the sentence under
+    // the chooser instead of at the top of the form.
+    const result = CreateMappingSchema.safeParse(
+      body({ sourceConfig: { ...GOOGLE_CREDS, nativeFilePolicy: 'odf' } }),
+    );
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues.map((i) => i.path.join('.'))).toContain(
+      'sourceConfig.nativeFilePolicy',
+    );
+  });
+
+  it('lets a REUSED account connection be asked again, per migration', () => {
+    // A shared connection says as whom we sign in; the mapping says what
+    // becomes of the files. Without this, the second migration from one
+    // account would inherit the first one's export silently.
+    expect(
+      sourceConfigOverride({
+        sourceType: 'google',
+        sourceConfig: { username: 'someone@example.invalid', nativeFilePolicy: 'export-pdf' },
+      } as never),
+    ).toEqual({ user: 'someone@example.invalid', nativeFilePolicy: 'export-pdf' });
+  });
+
+  it('keeps the three single-purpose Google rows carrying the address alone', () => {
+    // Gmail and the DAV pair have no file face, so an export policy on one of
+    // them is a setting that could never do anything.
+    for (const sourceType of ['gmail', 'google-calendar', 'google-contacts'] as const) {
+      expect(
+        sourceConfigOverride({
+          sourceType,
+          sourceConfig: { username: 'someone@example.invalid', nativeFilePolicy: 'export-pdf' },
+        } as never),
+        `${sourceType} carries no files and must store no export policy`,
+      ).toEqual({ user: 'someone@example.invalid' });
+      expect(
+        sourceConnectionConfig({
+          sourceType,
+          sourceConfig: { ...GOOGLE_CREDS, nativeFilePolicy: 'export-pdf' },
+        } as never),
+      ).not.toHaveProperty('nativeFilePolicy');
+    }
   });
 });
 

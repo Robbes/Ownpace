@@ -41,6 +41,7 @@ import {
   type CredentialField,
   credentialFieldRequired,
   policyLeavesBehind,
+  carriesGoogleNativeFiles,
   type GoogleNativeFilePolicy,
 } from '@openmig/shared';
 import { nativeKindKey } from '../i18n/native-kind-key.ts';
@@ -599,6 +600,15 @@ const CreateMapping: React.FC = () => {
               ...(formData.sourceServiceAccountKey.trim()
                 ? { serviceAccountKey: formData.sourceServiceAccountKey }
                 : {}),
+              // The account kind's file face is the Drive connector, so its
+              // export policy travels too — sent only where it MEANS something
+              // (the ticks include files), because a Drive policy stored on a
+              // calendar-only migration is an answer to a question nobody was
+              // asked. Gmail and the DAV pair carry no files at all, so this is
+              // never set for them.
+              ...(nativePolicyApplies
+                ? { nativeFilePolicy: formData.sourceNativeFilePolicy }
+                : {}),
             }
           : isO365Source
           ? {
@@ -1149,6 +1159,27 @@ const CreateMapping: React.FC = () => {
   // An EXPORT ARCHIVE (workplan 0116 T5/T6): no username, no secret — which
   // export and where it is, and nothing else.
   const isArchiveSource = formData.sourceType === 'archive';
+  /**
+   * WHETHER THIS MIGRATION HAS GOOGLE DOCS TO DECIDE ABOUT.
+   *
+   * Two conditions, and the first one is the owner's bug (2026-09-17): the
+   * export chooser used to render beside the `rootFolderId` box, which only the
+   * legacy `google-drive` type has. The `google` ACCOUNT kind carries files
+   * through the same Drive connector with the same policy and has no root
+   * folder — so every Doc in the owner's first real migration was left behind
+   * under the `refuse` default, with no screen anywhere that could change it.
+   * `carriesGoogleNativeFiles` is the product fact, held against the engine's
+   * own face table by a guard, so the next Google-ish kind cannot arrive
+   * chooserless either.
+   *
+   * And the second: a migration carrying no files has no Docs to leave behind,
+   * so it is not asked. `google-drive`, `dropbox`, `box` and `archive` pin
+   * `['file']` when their card is picked, so for the legacy Drive type this is
+   * the constant `true` it has always been; the account kind is the one whose
+   * ticks can say otherwise, and they are ticked on this very step.
+   */
+  const nativePolicyApplies =
+    carriesGoogleNativeFiles(formData.sourceType) && formData.domains.includes('file');
   /**
    * What the picked source IS — one line after the card, the rest under
    * More (0118 T1). Six amber panels of forty to seventy words stood here
@@ -1763,7 +1794,6 @@ const CreateMapping: React.FC = () => {
           return (
             <React.Fragment key={field.key}>
               {isSource && field.key === 'rootFolderId' && isDriveSource && renderDriveBrowse()}
-              {isSource && field.key === 'rootFolderId' && isDriveSource && renderNativeFilePolicy()}
               {isSource && field.key === 'rootPath' && isDropboxSource && renderDropboxBrowse()}
               {folded ? (
                 <details className="rounded-md border border-gray-200 p-3">
@@ -1799,6 +1829,14 @@ const CreateMapping: React.FC = () => {
             </React.Fragment>
           );
         })}
+        {/* WHICH EXPORT, for every source that carries Google files — not only
+            the one that happens to ask for a root folder (owner, 2026-09-17).
+            It sat beside that box until then, which read as "chosen where the
+            folder is chosen" and worked out as "unreachable from the account
+            kind". At the foot of the fields it is the same place on the Drive
+            source, whose root folder is its last field, and it is now also a
+            place the account kind has. */}
+        {isSource && nativePolicyApplies && renderNativeFilePolicy()}
         {/* What happens to these secrets — one sentence, at the foot of the
             fields it is about rather than in a panel of its own. */}
         {!chosen && <p className="text-sm text-blue-900">{t('wizard.credentials.storage')}</p>}

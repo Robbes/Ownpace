@@ -1188,6 +1188,150 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
   });
 });
 
+describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-17)', () => {
+  /**
+   * The owner's first real migration left every Google Doc and Drawing behind,
+   * each one reported as refused under `nativeFilePolicy="refuse"`, and his
+   * report was *"i didnt find any options to pick what export format i want to
+   * get in my target"*. There was none to find: the chooser rendered beside the
+   * `rootFolderId` box, a field only the legacy `google-drive` type has, and he
+   * had migrated through the `google` ACCOUNT kind — whose file face is the
+   * same Drive connector reading the same policy.
+   *
+   * A feature reachable from one of the two doors that lead to it is, for the
+   * person who came in the other one, a default with no way out.
+   */
+  const facts: ProviderAccountFacts = { google: { domains: ['calendar', 'contact', 'file'] } };
+  const policyBox = () => screen.queryByLabelText(/Google Docs, Sheets, Slides and Drawings/);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // A deployment that declared Google's restricted scopes, which is what
+    // makes `file` a face this account may be ticked for — the owner's.
+    vi.mocked(providerAccountsApi.get).mockResolvedValue(facts);
+  });
+  afterEach(() => {
+    vi.mocked(providerAccountsApi.get).mockResolvedValue({});
+  });
+
+  /**
+   * Pick the account card, carrying files.
+   *
+   * The tick is SET here rather than awaited. Which faces arrive pre-ticked
+   * comes from the deployment's ceiling, read at the moment the card is picked
+   * — so whether `file` is already ticked depends on whether that answer had
+   * landed, which is a race and not the subject. What every walk below is about
+   * is an account migrating files, however the tick got there.
+   */
+  const pickAccountCarryingFiles = async () => {
+    fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+    await waitFor(() => expect(screen.getByLabelText('Files')).toBeInTheDocument());
+    const files = screen.getByLabelText('Files');
+    if (!(files as HTMLInputElement).checked) fireEvent.click(files);
+    expect(files).toBeChecked();
+  };
+
+  it('offers the ACCOUNT kind every format the legacy Drive source offers', async () => {
+    renderWizard();
+    await pickAccountCarryingFiles();
+
+    const policy = policyBox();
+    expect(policy, 'the account kind carries files through Drive and must be able to choose').not
+      .toBeNull();
+    expect(policy).toHaveValue('refuse');
+    expect(
+      [...(policy as HTMLSelectElement).options].map((o) => o.value),
+      'a format offered on one Drive-backed door and not the other is a default nobody can leave',
+    ).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
+  });
+
+  it('carries the account’s chosen format all the way to the created mapping', async () => {
+    createMock.mockResolvedValue({ id: 'map-google-pdf' } as never);
+    renderWizard();
+    await pickAccountCarryingFiles();
+    // Files alone, so the default JMAP target carries everything ticked and
+    // the domain step prunes nothing.
+    fireEvent.click(screen.getByLabelText('Calendar'));
+    fireEvent.click(screen.getByLabelText('Contacts'));
+    fireEvent.change(policyBox()!, { target: { value: 'export-pdf' } });
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid.apps.googleusercontent.com' },
+    });
+    satisfySourceStep();
+    fireEvent.click(nextButton());
+    fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
+    satisfyTargetStep();
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+      target: { value: 'Acme Google files' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.click(nextButton());
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    const posted = createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
+    expect(posted.sourceType).toBe('google');
+    // The wiring that would otherwise fail silently: a chooser that changes
+    // nothing looks exactly like one that works, until the Docs are missing.
+    expect(posted.sourceConfig).toMatchObject({ nativeFilePolicy: 'export-pdf' });
+    expect((posted.syncConfig as { domains: string[] }).domains).toEqual(['file']);
+  });
+
+  it('is not asked of an account migrating no files at all', async () => {
+    renderWizard();
+    await pickAccountCarryingFiles();
+    expect(policyBox()).not.toBeNull();
+
+    fireEvent.click(screen.getByLabelText('Files'));
+    // Nothing to leave behind, so nothing to decide — the same rule the owner
+    // asked for one line later about the discovery table: *"if it is not
+    // relevant for user, dont show it"*.
+    expect(policyBox()).toBeNull();
+  });
+
+  it('sends no export policy when the migration carries no files', async () => {
+    createMock.mockResolvedValue({ id: 'map-google-cal' } as never);
+    renderWizard();
+    await pickAccountCarryingFiles();
+    // Calendar alone: the two faces this account was pre-ticked for, minus the
+    // contacts a CalDAV target cannot carry.
+    fireEvent.click(screen.getByLabelText('Files'));
+    fireEvent.click(screen.getByLabelText('Contacts'));
+    fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
+      target: { value: 'cid.apps.googleusercontent.com' },
+    });
+    satisfySourceStep();
+    fireEvent.click(nextButton());
+    // A CalDAV target, which carries the one face left ticked.
+    fireEvent.click(screen.getByRole('button', { name: /CalDAV/ }));
+    fireEvent.change(targetHostBox(), { target: { value: 'dav.acme.example' } });
+    satisfyTargetStep();
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), {
+      target: { value: 'Acme Google calendar' },
+    });
+    fireEvent.click(nextButton());
+    fireEvent.click(nextButton());
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    const posted = createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
+    // A Drive policy stored on a calendar migration is an answer to a question
+    // nobody was asked, and one the reuse path would then inherit.
+    expect(posted.sourceConfig).not.toHaveProperty('nativeFilePolicy');
+  });
+
+  it('is offered by no Google source that carries no files', () => {
+    // Gmail and the DAV pair share Drive's credential SHAPE and none of its
+    // content: a chooser keyed on "is this Google" rather than on "does this
+    // carry files" would land here.
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /^Google Calendar/ }));
+    expect(policyBox()).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
+    expect(policyBox()).toBeNull();
+  });
+});
+
 describe('CreateMapping — the deployment carries its own Google client (ADR-0041)', () => {
   // The fact the screen could not see: #703 made the server accept a consent
   // and a create without a client id and secret when GOOGLE_OAUTH_CLIENT_* is
