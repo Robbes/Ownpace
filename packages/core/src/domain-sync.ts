@@ -8,7 +8,7 @@
  * domain-specific injected functions.
  */
 
-import { sided } from './failure-side.ts';
+import { sided, failureSideOf } from './failure-side.ts';
 import {
   mapWithConcurrency,
   MAX_ITEM_ATTEMPTS,
@@ -1582,6 +1582,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         }
         // Captured so the closure below keeps the narrowing from the guard.
         const failedKey = naturalKeyHash;
+        // Read once, here, from the thrown value — not from `reason`, which is
+        // its message and has already lost the tag.
+        const itemSide = failureSideOf(err);
 
         // `recordFailure`, not `recordIfAbsent`: the attempt COUNT is what
         // eventually stops the retrying and hands the item to a person, and
@@ -1622,9 +1625,27 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               status: 'failed',
             },
             reason,
-            // Straight to the ceiling: the loop's next pass then parks it by
-            // its own rule and never fetches it again.
-            decision ? { park: true } : {},
+            {
+              // Straight to the ceiling: the loop's next pass then parks it by
+              // its own rule and never fetches it again.
+              ...(decision ? { park: true } : {}),
+              // WHICH SIDE THREW, read off the error itself rather than the
+              // prose (0094 T5, migration 0049). `sided()` tagged it at the
+              // closure — `fetchRaw` as `source`, `upsert` as `target` — and
+              // the ledger derives `last_error_category` from this in the same
+              // statement that writes the message.
+              //
+              // It is the ONLY thing that can tell `source_refused` from
+              // `target_refused`: a 403 from a Drive whose owner disabled
+              // downloading and a 403 from a full Nextcloud read identically,
+              // and the wrong one of those sends a customer to audit a
+              // destination that was never sent the file.
+              //
+              // `failureSideOf` answers `undefined` when nothing tagged it,
+              // which is a real answer ("neither, or unknown") and is passed
+              // through as such rather than defaulted to a side.
+              ...(itemSide !== undefined ? { side: itemSide } : {}),
+            },
           ),
         );
 

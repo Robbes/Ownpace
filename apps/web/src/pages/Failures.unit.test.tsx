@@ -162,3 +162,59 @@ describe('the group panel is given every failed row, not just the parked ones', 
     expect(screen.queryByText('Decide a whole group at once')).not.toBeInTheDocument();
   });
 });
+
+/**
+ * THE REMEDY, ON THE ROW THAT NEEDS IT.
+ *
+ * A domain-level failure has said what to do, in the reader's language, since
+ * workplan 0110 T3. An ITEM-level one said whatever the provider said, in
+ * English, with no remedy — and the item level is the common case and the whole
+ * reason this queue exists. Migration 0049 gave the row a category; this is the
+ * half that puts it on the screen, from the same map the domain strip and the
+ * operator's support screen already share.
+ */
+describe('a failed item says what to do about it', () => {
+  it('shows the remedy for its category, above the provider prose', async () => {
+    fetchFailuresMock.mockResolvedValue(
+      queue({ needsDecision: [{ ...FAILURE, category: 'quota_exceeded' as const }] }),
+    );
+    renderScreen();
+
+    // The remedy the customer can act on…
+    expect(await screen.findByText(/reached what its provider allows/i)).toBeVisible();
+    // …and the provider's own words, still there and still verbatim: the
+    // category is coarse, this is what says whether Retry has a chance.
+    expect(screen.getByText('IMAP APPEND failed: 507 over quota')).toBeVisible();
+  });
+
+  it('tells a source refusal from a target one, which is the point of the column', async () => {
+    // The two remedies point at DIFFERENT accounts. Getting this wrong sends
+    // somebody to audit a destination that was never sent the file — the live
+    // defect migration 0048 was written about, one level up.
+    fetchFailuresMock.mockResolvedValue(
+      queue({
+        needsDecision: [
+          { ...FAILURE, naturalKeyHash: 'h-src', category: 'source_refused' as const },
+        ],
+      }),
+    );
+    renderScreen();
+
+    await screen.findByText('acme-mail');
+    // Names the SOURCE and says explicitly that the destination is not where
+    // to look — the sentence that exists because the wrong one sent people to
+    // the wrong account.
+    expect(screen.getByText(/would not hand this over/i)).toBeVisible();
+    expect(screen.getByText(/nothing to check there/i)).toBeVisible();
+  });
+
+  it('shows the prose alone when the row has no category', async () => {
+    // Every row written before migration 0049, and any the classifier could not
+    // reach. The screen behaves exactly as it did rather than inventing one.
+    fetchFailuresMock.mockResolvedValue(queue());
+    renderScreen();
+
+    expect(await screen.findByText('IMAP APPEND failed: 507 over quota')).toBeVisible();
+    expect(screen.queryByText(/reached what its provider allows/i)).not.toBeInTheDocument();
+  });
+});

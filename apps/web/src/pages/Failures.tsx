@@ -16,6 +16,15 @@
  * `lastError` is rendered verbatim. It is the difference between a 507, a 403
  * and a parse error, and summarising it into "failed" would remove the only
  * thing that tells an operator whether `retry` has any chance of working.
+ *
+ * ABOVE it, since migration 0049, is the remedy for the item's CATEGORY — in
+ * the reader's own language, from the map the domain strip and the operator's
+ * support screen already share. The prose is always the provider's English and
+ * always will be; a person deciding what to do needs a sentence they can act
+ * on, and this queue is exactly where they are when they need it.
+ *
+ * Absent on a row with no category, which is every row written before that
+ * migration: the prose shows alone, as it always did.
  */
 
 import React from 'react';
@@ -35,6 +44,10 @@ import {
 import { acceptFailure, fetchFailures, retryFailure } from '../services/operating-service.ts';
 import { FailureGroupPanel } from '../components/queues/FailureGroupPanel.tsx';
 import { useT } from '../i18n/index.tsx';
+// One map, shared with the domain strip and the operator's support screen
+// (0110 T4), so the person who phones and the person they phone read the same
+// sentence. An item's category is the same eight-way vocabulary.
+import { FAILURE_KEY } from '../i18n/failure-key.ts';
 import { Hint } from '../components/Hint.tsx';
 
 const Row: React.FC<{
@@ -52,6 +65,23 @@ const Row: React.FC<{
           {f.collection}
         </div>
       )}
+      {f.category && (
+        // THE WAY OUT, FIRST — the same order the domain strip uses, and the
+        // same sentence from the same map, so the customer and the operator who
+        // takes their call read one thing (0110 T3, migration 0049).
+        //
+        // Until 2026-09-17 this row had only the line below: the provider's own
+        // English, with no remedy in any language. A domain-level failure has
+        // said what to do since August; the ITEM level — the common case, and
+        // the whole reason this queue exists — said nothing.
+        <div className="text-xs text-red-900">{t(FAILURE_KEY[f.category])}</div>
+      )}
+      {/*
+        Verbatim, under the sentence above rather than instead of it: the
+        category is coarse and actionable, this is precise. It is the difference
+        between a 507, a 403 and a parse error, and summarising it away removes
+        the only thing that says whether Retry has a chance.
+      */}
       <div className="text-xs text-red-700 break-words">{f.lastError}</div>
     </div>
     {/*

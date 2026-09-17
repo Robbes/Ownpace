@@ -561,6 +561,31 @@ export const item = pgTable(
      */
     parkedAt: timestamp('parked_at', { withTimezone: true }),
     lastError: text('last_error'),
+    /**
+     * What KIND of failure `last_error` was — the same vocabulary the domain
+     * level uses (`migration_status.last_error_category`, migration 0033,
+     * extended by 0048). Added to the ITEM by migration 0049.
+     *
+     * THE GAP IT CLOSES. A domain-level failure has said "this is an expired
+     * credential, reconnect the account" in the customer's own language since
+     * August. An item-level one said whatever the provider said, in English,
+     * with no remedy — and the item level is the COMMON case, the thing the
+     * failures queue exists for, and what somebody is looking at when they ask
+     * what to do. The three items that need a person had the least help.
+     *
+     * Beside the prose, never instead of it: `last_error` stays verbatim
+     * because an operator diagnosing a 507 needs the provider's own words.
+     *
+     * `source_refused` vs `target_refused` is decided by the SIDE the pass
+     * tagged at the closure that threw, not by the wording — a 403 is a 403.
+     * There is deliberately no `failed_side` column here: at the item level the
+     * side IS the category, said in the vocabulary the screen speaks, and a
+     * column repeating it would be a second copy that can drift.
+     *
+     * NULL on every row written before 0049, and not backfilled: classifying
+     * old prose without its side is the exact mistake 0048 exists to undo.
+     */
+    lastErrorCategory: text('last_error_category'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
