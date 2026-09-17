@@ -20,7 +20,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 const { editionFlag } = vi.hoisted(() => ({ editionFlag: { selfhost: false } }));
@@ -30,7 +30,8 @@ vi.mock('../services/edition', () => ({
 
 import Confirmed from './Confirmed.tsx';
 import * as service from '../services/operating-service.ts';
-import type { ConfirmedListQueue, ConfirmedRowView, RunReport } from '@openmig/shared';
+import { ROW_STATES } from '@openmig/shared';
+import type { ConfirmedListQueue, ConfirmedRowView, RowState, RunReport } from '@openmig/shared';
 
 vi.mock('../services/operating-service', () => ({
   fetchConfirmedList: vi.fn(),
@@ -53,14 +54,26 @@ const row = (over: Partial<ConfirmedRowView> = {}): ConfirmedRowView => ({
   ...over,
 });
 
-const queue = (over: Partial<ConfirmedListQueue> = {}): ConfirmedListQueue => ({
-  migrationStatus: 'active',
-  verified: 0,
-  total: 0,
-  rows: [],
-  lastPass: { state: 'never-run' },
-  ...over,
-});
+const queue = (over: Partial<ConfirmedListQueue> = {}): ConfirmedListQueue => {
+  /**
+   * The server's tally, derived from the SAME rows the fixture carries, so a
+   * fixture cannot assert a breakdown its own rows contradict. `verified` rows
+   * never reach the screen, so the headline count is added on top of them —
+   * which is exactly the relationship the real server sends.
+   */
+  const byState = Object.fromEntries(ROW_STATES.map((s) => [s, 0])) as Record<RowState, number>;
+  for (const r of over.rows ?? []) byState[r.state] += 1;
+  byState.verified = over.verified ?? 0;
+  return {
+    migrationStatus: 'active',
+    verified: 0,
+    total: 0,
+    rows: [],
+    lastPass: { state: 'never-run' },
+    byState,
+    ...over,
+  };
+};
 
 /**
  * One run as the wire carries it — `kind` included, which is the field that
@@ -139,8 +152,100 @@ describe('the confirmed list screen', () => {
         ],
       }),
     );
-    expect(await screen.findByText('Not checked')).toBeInTheDocument();
-    expect(screen.getByText('Missing')).toBeInTheDocument();
+    // Scoped to the TABLE, because each state word now appears twice: once in
+    // the breakdown line that accounts for the whole list, once on the row it
+    // belongs to. What this test is about is the row.
+    const table = within(await screen.findByRole('table'));
+    expect(table.getByText('Not checked')).toBeInTheDocument();
+    expect(table.getByText('Missing')).toBeInTheDocument();
+  });
+
+  it('accounts for the items the headline does not claim (owner 2026-09-17)', async () => {
+    /**
+     * The owner's first real migration, in miniature. His destination already
+     * held a previous run's calendars, so most of the account came back
+     * `adopted` — `yours` on this page, never `verified` by design — and he
+     * read a headline of nought over a progress line saying six thousand had
+     * been checked. *"This seems double."* Both numbers were right; the page
+     * simply never said where the other six thousand were.
+     */
+    show(
+      queue({
+        verified: 2,
+        total: 10,
+        rows: [
+          row({ state: 'yours', claim: 'none', naturalKey: 'uid-1' }),
+          row({ state: 'never-placed', naturalKey: '/c.pdf' }),
+        ],
+        byState: {
+          verified: 2,
+          differs: 0,
+          present: 0,
+          yours: 6,
+          missing: 0,
+          'never-placed': 1,
+          removed: 0,
+          unchecked: 1,
+        },
+      }),
+    );
+    expect(await screen.findByText('The rest of the account:')).toBeInTheDocument();
+    // The matched element IS the line: testing-library matches an element by
+    // its own text nodes, and the counts hang off child spans.
+    const rest = screen.getByText('The rest of the account:');
+    // Every non-verified state that HAS items, with its own count — counted by
+    // the server over the whole account, never from the rows on screen: there
+    // are two rows here and seven other items.
+    expect(within(rest).getByText('Yours already')).toBeInTheDocument();
+    expect(within(rest).getByText('6')).toBeInTheDocument();
+    expect(within(rest).getByText('Never placed')).toBeInTheDocument();
+    expect(within(rest).getByText('Not checked')).toBeInTheDocument();
+    // And nothing about the states with no items in them: seven zeroes would
+    // bury the one number that is not nought.
+    expect(within(rest).queryByText('Differs')).toBeNull();
+    expect(within(rest).queryByText('Present')).toBeNull();
+    expect(within(rest).queryByText('Removed')).toBeNull();
+    // The headline is still the hash claim alone. It must never widen to
+    // include `yours`: nobody re-read those bytes.
+    expect(within(rest).queryByText('Verified')).toBeNull();
+    expect(
+      screen.getByText(/items in your new home are verified by hash/),
+    ).toBeInTheDocument();
+  });
+
+  it('reads worst-first, so a lost item is not buried under six thousand kept ones', async () => {
+    show(
+      queue({
+        verified: 0,
+        total: 3,
+        rows: [row({ state: 'missing', naturalKey: '/gone.pdf' })],
+        byState: {
+          verified: 0,
+          differs: 0,
+          present: 0,
+          yours: 6000,
+          missing: 1,
+          'never-placed': 0,
+          removed: 0,
+          unchecked: 0,
+        },
+      }),
+    );
+    const rest = await screen.findByText('The rest of the account:');
+    const text = rest.textContent ?? '';
+    expect(
+      text.indexOf('Missing'),
+      'one missing item asks something of the reader; six thousand kept ones ask nothing',
+    ).toBeLessThan(text.indexOf('Yours already'));
+  });
+
+  it('says nothing at all when every item is verified', async () => {
+    // The line is an account of what the headline does not claim. With nothing
+    // left over there is nothing to account for, and a lead-in followed by
+    // white space reads as a page that failed to load.
+    show(queue({ verified: 4, total: 4, rows: [] }));
+    await waitFor(() => expect(screen.getByText(/verified by hash/)).toBeInTheDocument());
+    expect(screen.queryByText('The rest of the account:')).toBeNull();
   });
 
   it('names what was compared without scoring it', async () => {

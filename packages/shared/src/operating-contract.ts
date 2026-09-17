@@ -37,7 +37,7 @@
 import type { DiscoveryDomain } from './discovery.ts';
 import type { FailureCategory, FailureSide } from './failure-category.ts';
 import type { PauseReason } from './pause-reason.ts';
-import type { ConfirmedRowView } from './confirmed-list.ts';
+import type { ConfirmedRowView, RowState } from './confirmed-list.ts';
 import {
   DELETION_CONFIRMATIONS,
   MAX_ITEM_ATTEMPTS,
@@ -942,6 +942,17 @@ export interface ConfirmedListQueue {
   readonly lastPass: ConfirmationPassState;
   /** Why the last pass stopped early, when it did (0090 T4). */
   readonly pausedAt?: PauseReason;
+  /**
+   * Every item, counted by state — so the page can account for the ones the
+   * headline does not claim (owner, 2026-09-17).
+   *
+   * `verified` is in here too, and equals the headline: a breakdown that left
+   * it out would be a second arithmetic for the screen to add up. What it is
+   * FOR is the other seven — six thousand items sitting on the target as
+   * `yours`, invisible behind a headline of nought. The reasoning is in
+   * `ConfirmedList.byState`, which this passes through unchanged.
+   */
+  readonly byState: Readonly<Record<RowState, number>>;
 }
 
 /**

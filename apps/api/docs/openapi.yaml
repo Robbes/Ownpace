@@ -2812,7 +2812,7 @@ paths:
                   same code. This path names one mapping, so there is one key.
                 additionalProperties:
                   type: object
-                  required: [migrationStatus, verified, total, rows, lastPass]
+                  required: [migrationStatus, verified, total, rows, lastPass, byState]
                   properties:
                     migrationStatus: { type: string }
                     verified:
@@ -2821,6 +2821,35 @@ paths:
                     total:
                       type: integer
                       description: Every item in the account, including the ones `rows` does not carry.
+                    byState:
+                      type: object
+                      description: |
+                        Every item counted by state — the account, whole.
+
+                        `verified` is the headline and must not widen, so the
+                        rest of the account is counted instead of implied. A
+                        migration into a destination that already holds the
+                        customer's own copies comes back mostly `yours`, which
+                        can never be `verified` (nobody re-read those bytes),
+                        and a page showing only the headline then leads with a
+                        nought over an account that is largely in place.
+
+                        Counted over every item by the server, not from `rows`:
+                        `rows` is bounded, and a screen tallying what it was
+                        sent would describe the first page as if it were the
+                        account. `byState.verified` equals `verified`.
+                      required:
+                        [verified, differs, present, yours, missing, never-placed, removed, unchecked]
+                      additionalProperties: false
+                      properties:
+                        verified: { type: integer }
+                        differs: { type: integer }
+                        present: { type: integer }
+                        yours: { type: integer }
+                        missing: { type: integer }
+                        never-placed: { type: integer }
+                        removed: { type: integer }
+                        unchecked: { type: integer }
                     truncated:
                       type: boolean
                       description: '`rows` is the first N of more. The export carries the rest.'
