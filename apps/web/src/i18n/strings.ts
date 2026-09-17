@@ -1017,8 +1017,12 @@ const en = {
     'This account has reached what its provider allows for one day. It resumes tomorrow on its own \u2014 no action needed.',
   'failure.sourceRefused':
     'The source would not hand this over, so nothing was sent to the destination \u2014 there is nothing to check there. Common causes are a file whose owner turned off downloading or copying, a share that was withdrawn, and an item this account may open but not export.',
+  // The last clause was added on 2026-09-17, when two contacts were refused
+  // with a bare `TypeError` five times over and the only readable account of
+  // WHY was in the customer's own Nextcloud log. Nothing on this screen pointed
+  // there, so the reader had a remedy naming three things that were all fine.
   'failure.targetRefused':
-    'The destination refused to accept this. Common causes are a full mailbox, a read-only folder or missing permission on the target account.',
+    'The destination refused to accept this. Common causes are a full mailbox, a read-only folder or missing permission on the target account. If it answered with an internal error, the reason is in the destination\u2019s own log rather than in what it sent back.',
   'failure.formatRefused':
     'The destination will not accept this KIND of file. The account itself is fine \u2014 it is this file\u2019s format or name that is not allowed there. Change the export format on the mapping, or leave these items behind.',
   'failure.network':
@@ -1891,7 +1895,7 @@ const nl: Record<keyof typeof en, string> = {
   'failure.sourceRefused':
     'De bron wilde dit niet afgeven, dus er is niets naar de bestemming gestuurd \u2014 daar valt niets te controleren. Veelvoorkomende oorzaken: een bestand waarvan de eigenaar downloaden of kopi\u00EBren heeft uitgezet, een ingetrokken deling, en een item dat dit account wel mag openen maar niet exporteren.',
   'failure.targetRefused':
-    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: een volle mailbox, een alleen-lezen map, of ontbrekende rechten op het doelaccount.',
+    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: een volle mailbox, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Antwoordde de bestemming met een interne fout, dan staat de reden in het logboek van de bestemming zelf en niet in het antwoord dat wij terugkregen.',
   'failure.formatRefused':
     'De bestemming accepteert dit SOORT bestand niet. Met het account zelf is niets mis \u2014 het is de indeling of de naam van dit bestand die daar niet is toegestaan. Wijzig het exportformaat op de koppeling, of laat deze items achter.',
   'failure.network':

@@ -14,18 +14,40 @@
  * Argument #1 ($string) must be of type string, array given` in
  * `getClassNameForPropertyValue`, which Sabre reaches as
  * `getClassNameForPropertyValue($parameters['VALUE'])`. An array lands there
- * when a property line carries the same parameter twice.
+ * whenever the parser read more than one value for `VALUE`.
  *
  * So the gap was never legibility. The refusal could not name the item, the
  * line, or the property, and the bytes that would have were at the source. This
  * closes that: when a target refuses a write, the error says what is wrong with
  * the payload we handed it.
+ *
+ * ## THEN THE OWNER PULLED THE LOG (2026-09-17)
+ *
+ * The first version of this file guessed at one cause — a parameter written
+ * twice — and its fixture is still below, labelled as the guess it was. Four
+ * days later the destination's log named the property and printed the array:
+ *
+ *   createProperty('BDAY', NULL, Array, NULL, 7, 'BDAY;VALUE=DATE...')
+ *   args: [["DATE","X-APPLE-OMIT-YEAR=1604"]]
+ *
+ * `VALUE` was not holding two value types. It was holding `DATE` and a whole
+ * SECOND PARAMETER, folded into its value list by a `,` standing where a `;`
+ * belongs. That shape is ONE parameter, written ONCE, so the repetition scan
+ * saw nothing and the refusal said nothing — on the only two failures in the
+ * owner's entire run that anybody had to chase.
+ *
+ * The tests below the guess are for the shape the log actually named.
  */
 
 import { describe, it, expect } from 'vitest';
 import { payloadDefects, payloadDefectNote } from './dav-payload-defects.ts';
 
-/** The shape that actually broke, as Google serves it. */
+/**
+ * A repeated parameter. Written on 2026-09-13 as "the shape that actually
+ * broke"; the destination's log named a different one four days later, so this
+ * is now what it always was — a real defect this reader must catch, and not a
+ * record of the owner's failure. `SWALLOWED` below is that one.
+ */
 const DUPLICATED = [
   'BEGIN:VCARD',
   'VERSION:3.0',
@@ -165,5 +187,101 @@ describe('the note the writers append', () => {
     expect(note).toContain('and 4 more');
     expect(note).toContain('X-P4');
     expect(note).not.toContain('X-P5');
+  });
+});
+
+describe('the shape the destination log named', () => {
+  /**
+   * The line Sabre must have parsed to build `['DATE', 'X-APPLE-OMIT-YEAR=1604']`.
+   * Parameters are separated by `;`; the values inside ONE parameter by `,`.
+   * Put the wrong one there and the next parameter stops being a parameter.
+   */
+  const SWALLOWED = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    'FN:A Person',
+    'BDAY;VALUE=DATE,X-APPLE-OMIT-YEAR=1604:1604-05-15',
+    'END:VCARD',
+  ].join('\r\n');
+
+  it('was completely invisible before, and is the whole reason for this change', () => {
+    // ONE parameter, written ONCE, carrying a list. Nothing in the repetition
+    // scan can see it. Assert the sentence rather than merely non-emptiness:
+    // a reader sent to the wrong line is barely better than silence.
+    expect(payloadDefects(SWALLOWED)).toEqual([
+      'line 4: property BDAY carries the parameter VALUE with 2 values, one of which is itself a parameter: a "," stands where a ";" belongs',
+    ]);
+  });
+
+  it('names the mistake, not "the same parameter twice"', () => {
+    // The wrong explanation is worse than a vague one here: it sends somebody
+    // hunting a duplicate their card has not got.
+    const note = payloadDefectNote(SWALLOWED);
+    expect(note).toContain('a "," stands where a ";" belongs');
+    expect(note).toContain('folds the next parameter into the previous one');
+    expect(note).not.toContain('carries each parameter once');
+  });
+
+  it('reports the SHAPE and never the text of what was swallowed', () => {
+    // Same rule as the load-bearing test above, on the new path. The name half
+    // would usually be vocabulary and the value half never is, and neither is
+    // needed by somebody who has the line, the property and the parameter.
+    const note = payloadDefectNote(SWALLOWED);
+    for (const text of ['X-APPLE-OMIT-YEAR', '1604', 'DATE']) {
+      expect(note, `the note leaks ${text}`).not.toContain(text);
+    }
+  });
+
+  it('finds it wherever the separator went wrong, not only under VALUE', () => {
+    // Parameter-agnostic on purpose: `TYPE` may legally carry a list, but a
+    // list entry that is itself `NAME=value` is never one of its types.
+    expect(payloadDefects('TEL;TYPE=work,home,PREF=1:+31000')).toEqual([
+      'line 1: property TEL carries the parameter TYPE with 3 values, one of which is itself a parameter: a "," stands where a ";" belongs',
+    ]);
+  });
+
+  it('says both when a line carries both, the position first', () => {
+    const both = 'BDAY;VALUE=DATE,X-APPLE-OMIT-YEAR=1604;VALUE=DATE:1604-05-15';
+    expect(payloadDefects(both)).toEqual([
+      'line 1: property BDAY carries the parameter VALUE with 2 values, one of which is itself a parameter: a "," stands where a ";" belongs',
+      'line 1: property BDAY carries the parameter VALUE twice',
+    ]);
+    // And the note explains BOTH readings, in one sentence each.
+    const note = payloadDefectNote(both);
+    expect(note).toContain('carries each parameter once');
+    expect(note).toContain('folds the next parameter into the previous one');
+  });
+});
+
+describe('a list where the spec allows one value', () => {
+  it('reports VALUE carrying two value types, which breaks the same parser', () => {
+    // No `=` anywhere in the list, so the separator reading does not apply —
+    // and Sabre still gets an array where it calls strtoupper. RFC 6350 §5.2
+    // and RFC 5545 §3.2.20: VALUE names ONE type.
+    expect(payloadDefects('DTSTART;VALUE=DATE,DATE-TIME:20260913')).toEqual([
+      'line 1: property DTSTART carries the parameter VALUE with 2 values, and VALUE takes exactly one',
+    ]);
+    expect(payloadDefectNote('DTSTART;VALUE=DATE,DATE-TIME:20260913')).toContain(
+      'VALUE names one value type',
+    );
+  });
+
+  it('is silent about a parameter that MAY carry a list', () => {
+    // The commonest line in any address book. A reader that called this a
+    // defect would put a false diagnosis on every refusal in the product.
+    expect(payloadDefects('TEL;TYPE=work,home,cell:+31000')).toEqual([]);
+    expect(payloadDefects('EMAIL;TYPE=internet,pref:someone@example.invalid')).toEqual([]);
+    expect(payloadDefects('X-ABLabel;PID=1.1,2.2:_$!<Home>!$_')).toEqual([]);
+  });
+
+  it('is silent about one value, which is the ordinary case', () => {
+    expect(payloadDefects('BDAY;VALUE=DATE:19700101')).toEqual([]);
+  });
+
+  it('does not split a list INSIDE quotes', () => {
+    // Discriminating: with the quote handling deleted this reads two values,
+    // the second carrying an `=`, and reports the separator defect. Quoted,
+    // it is one value and there is nothing to report.
+    expect(payloadDefects('BDAY;VALUE="DATE,X-APPLE-OMIT-YEAR=1604":1604-05-15')).toEqual([]);
   });
 });
