@@ -155,8 +155,16 @@ describe('the way out does not say the same policy twice', () => {
     // Was: `"export-pdf" is measured stable for a Slides deck ("export-pdf" is
     // not editable afterwards)` — the name twice in a row, which reads as a
     // stutter and buries the only thing the clause is there to say.
-    const e = new NativeFileRefused('Thema-avond', `${G}presentation`, 'export-office', 'unstable');
-    expect(e.message).toContain('"export-pdf" is measured stable for a Slides deck, though a PDF is not editable afterwards');
+    //
+    // THE EXAMPLE MOVED on 2026-09-17 and the rule did not. A deck used to be
+    // the one-alternative case; `export-odf` on a deck then measured
+    // container-only, so a deck has two and takes the branch below. A DOC is
+    // the one-alternative case now — `export-odf` is genuinely unstable for
+    // one, so `export-pdf` stands alone. If that ever stops being true this
+    // reds again, and the single-alternative wording needs a live example or
+    // it is dead prose.
+    const e = new NativeFileRefused('Q3 report', `${G}document`, 'export-office', 'unstable');
+    expect(e.message).toContain('"export-pdf" is measured stable for a Doc, though a PDF is not editable afterwards');
     expect(e.message.match(/"export-pdf"/g), 'names export-pdf more than once').toHaveLength(1);
   });
 
@@ -165,5 +173,17 @@ describe('the way out does not say the same policy twice', () => {
     // between them, and it is the reason to prefer the other one.
     const e = new NativeFileRefused('Q3 report', `${G}document`, 'export-odf', 'unstable');
     expect(e.message).toContain('"export-office" and "export-pdf" are measured stable for a Doc ("export-pdf" is not editable afterwards)');
+  });
+
+  it('a refused DECK now gets an editable alternative, which it never had', () => {
+    // The product change hiding inside a table edit. Until `export-odf` on a
+    // deck was measured, the only measured way to carry a refused deck was a
+    // PDF — a fixed rendering. Now the sentence leads with a format that
+    // stays editable and marks the lossy one as the aside.
+    const e = new NativeFileRefused('Thema-avond', `${G}presentation`, 'export-office', 'unstable');
+    expect(e.message).toContain(
+      '"export-odf" and "export-pdf" are measured stable for a Slides deck ' +
+        '("export-pdf" is not editable afterwards)',
+    );
   });
 });

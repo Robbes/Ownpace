@@ -345,11 +345,15 @@ magnitude. Worth knowing before anybody picks a default.
 
 **WHAT IS STILL NOT MEASURED**, stated so nobody reads the green as broader than it is:
 
-- a **Drawing** under `export-pdf` — the last blank, and a real one: a Drawing renders to PDF
-  under that policy and to SVG under the other two, so it is a different request and the
-  2026-09-17 green below says nothing about it. Run
-  `DRIVE_EXPORT_POLICY=export-pdf DRIVE_FILE_KIND=drawing`.
-- a **Sheet** or a **Slide** under `export-odf`.
+- ~~a **Drawing** under `export-pdf`~~ — **MEASURED 2026-09-17: 16854 bytes and one hash, five
+  draws. STABLE.** A different renderer from the SVG pair and a different size, which is the cheap
+  confirmation that the PDF branch answered.
+- ~~a **Sheet** or a **Slide** under `export-odf`~~ — **MEASURED 2026-09-17, and both are
+  CONTAINER-ONLY.** A Sheet: 12856 bytes, five hashes, **zero members changed content**, 15
+  restamped, normalised draws agree. A Slide: 12633 bytes, five hashes, zero content changes, 16
+  restamped, normalised draws agree. By this table's own definition — `stable` is "byte-identical
+  OR settleable by the container hash" — both are **stable**, the same shape as `export-office` on
+  a Doc and a Sheet, settled by the same ADR-0046 hash.
 - a **content-rich deck** under `export-pdf`. **SOUGHT AND NOT FOUND on this tenant, 2026-09-16.**
   `DRIVE_PICK=largest` weighed every Slides deck in the owner's Drive — five found, one not
   exportable, four weighed with one export apiece — and the biggest renders to **2017 bytes: the
@@ -365,6 +369,47 @@ magnitude. Worth knowing before anybody picks a default.
 2026-09-16 and have since been measured — see T3. The `export-office` Slide came back NOT STABLE
 and is refused; the three `export-pdf` runs came back stable. A **Drawing under any policy** was
 on it until 2026-09-17 — see below.)*
+
+**THE TABLE HAS NO BLANKS LEFT (2026-09-17).** All twelve cells have been run on the owner's
+tenant. Two are `unstable` and ten are `stable`, and `export-pdf` is now stable on **all four**
+editor types, which is the fullest evidence the escape hatch can have short of a second tenant.
+What a full table does NOT mean is settled: every green is still five draws, of one document, of
+one type, on one day. `unmeasured` therefore has no instances and STAYS — it is the answer for a
+type Drive adds next, and the day a rule has no instance is not the day to delete it.
+
+**A REFUSED DECK NOW HAS AN EDITABLE WAY OUT, which is the product change hiding inside a table
+edit.** Until `export-odf` on a deck was measured, the only measured way to carry a deck refused
+under `export-office` was `export-pdf` — a fixed rendering. The refusal now reads *"export-odf"
+and "export-pdf" are measured stable for a Slides deck ("export-pdf" is not editable
+afterwards)*, leading with the format that keeps the deck editable and marking the lossy one as
+the aside. Nobody wrote that sentence; `wayOutFor` derives it, which is why recording a
+measurement changed the advice.
+
+**AND THE SAME DECK IS UNSTABLE UNDER `export-office`.** Five members genuinely move there; under
+`export-odf` none does. Two renderers, two answers, same document — the sharpest evidence in this
+workplan that a policy cannot be judged as a whole, and the reason the table is keyed per
+(policy, type).
+
+**THE SCRIPT HAD BEEN CONTRADICTING THIS TABLE SINCE ADR-0046, and the owner's run is how it was
+found.** Both `export-odf` verdicts printed `✖ NOT STABLE`, then *"Ignoring the zip's OWN
+bookkeeping ... the draws agree ... the one a rewrite of the container would fix"*, and then, in
+the next sentence, *"MUST NOT be enabled for a real migration ... keep the default `refuse`"*.
+Both cannot be true. The rewrite SHIPPED as ADR-0046: `containerContentHash` ignores the zip's
+stamps, order and compression, and it is live on this exact path — `google-drive-source.ts` marks
+every export `rendering: true` whatever the policy, and `dav-sync.ts` hashes a rendering that
+way. `export-office` on a Doc and a Sheet are recorded `stable` on precisely this evidence and
+have been exported ever since.
+
+The script now has the table's three answers instead of two: byte-identical, **settled by the
+container hash**, and genuinely unstable. Only the third exits 2 and keeps the `refuse` advice.
+`a-red-verdict-the-table-calls-stable.unit.test.ts` holds the claim the recording rests on — a
+rendering whose members are identical and whose stamps moved is ONE content hash to the code that
+does the copying — and asserts the settled branch precedes the refusal sentence in the source.
+
+This is the fourth piece of guidance found in one day that was sound when written and expired
+when a later decision was taken, after the Drawing's "deliberately absent", `config.ts` listing
+which measurements were blank, and `failure-category.ts` claiming no retry policy keys on a
+category. The pattern is worth a deliberate sweep rather than four accidents.
 
 **THE DRAWING, MEASURED 2026-09-17 — and one run moved two entries.** `export-office` on the
 owner's Drawing: **8324 bytes and one hash, `31bff0f3661a1eab…`, five draws.** An SVG is XML

@@ -140,7 +140,7 @@ import {
   type ZipMember,
 } from './drive-export-members.ts';
 import { KIND_MIME_TYPES, candidatesToWeigh, chooseFile, readKind } from './drive-export-choose.ts';
-import { stabilityVerdict, type ExportSample } from './drive-export-verdict.ts';
+import { exportOutcome, stabilityVerdict, type ExportSample } from './drive-export-verdict.ts';
 
 const ROOT = process.env.DRIVE_ROOT_FOLDER_ID || 'root';
 const GAP_MS = Number(process.env.DRIVE_EXPORT_GAP_MS ?? 3000);
@@ -608,7 +608,46 @@ async function main(): Promise<void> {
       `unchanged document.`,
   );
   console.log(`    ${verdict.note}`);
-  reportMembers(indexes);
+  const container = reportMembers(indexes);
+
+  /**
+   * THE THIRD ANSWER, and the table has always had it (2026-09-17).
+   *
+   * `EXPORT_STABILITY` calls a combination `stable` when it is "byte-identical
+   * OR settleable by the container hash". This script knew only the first, so
+   * a container-only result printed `reportMembers` saying the normalised
+   * draws agree and then, in the very next sentence, "MUST NOT be enabled ...
+   * keep the default `refuse`" — advice the table contradicts and the
+   * connector ignores. `export-office` on a Doc and a Sheet are recorded
+   * `stable` on exactly this evidence and have been exported since.
+   *
+   * It read that way because it was written BEFORE ADR-0046, when a rewrite of
+   * the container was a candidate rather than a thing that shipped. It has
+   * shipped: `containerContentHash` hashes member names and each member's
+   * UNCOMPRESSED bytes, ignoring stamps, order and compression, and it is live
+   * on this exact path — the Drive source marks every export `rendering: true`
+   * whatever the policy, and `dav-sync` routes a rendering through that hash.
+   *
+   * So a settled result is not a red, and does not exit 2. The asymmetry is
+   * unchanged and repeated below: this is still five draws on one document.
+   */
+  if (exportOutcome(verdict.stable, container) === 'settled-by-container') {
+    console.log(`\n  ✔ SETTLED BY THE CONTAINER HASH — the bytes moved, the document did not.`);
+    console.log(`    "${POLICY}" is usable for this type on this evidence. ADR-0046's`);
+    console.log('    containerContentHash ignores the zip\'s own stamps, member order and');
+    console.log('    compression, so a rebuilt container is not a change and a second pass');
+    console.log('    creates nothing. It is already live on this path: the Drive source marks');
+    console.log('    every export as a rendering, and the sync hashes a rendering that way.');
+    console.log('');
+    console.log('    READ THE ASYMMETRY. This is still five draws of one document, of one type,');
+    console.log('    on one tenant, on one day — weaker than the red verdict it is not.');
+    console.log(`\n    Record this as \`stable\` in EXPORT_STABILITY, and in`);
+    console.log('    docs/workplans/0042-google-drive-source.md (T3), with the member counts\n' +
+      '    above as the evidence — a green here means something different from a green\n' +
+      '    on the bytes, and the difference belongs in the record.\n');
+    return;
+  }
+
   console.log(`    "${POLICY}" MUST NOT be enabled for a real migration: contentHash would see a`);
   console.log('    change on every pass, and every document would be re-copied nightly, forever,');
   console.log('    with every write succeeding and nothing looking wrong.');
@@ -633,12 +672,14 @@ async function main(): Promise<void> {
  * same draws, because that route is one of the two candidates 0042 T3 names and
  * an argument about it is much shorter when the number is on the screen.
  */
-function reportMembers(indexes: readonly (readonly ZipMember[] | null)[]): void {
+function reportMembers(
+  indexes: readonly (readonly ZipMember[] | null)[],
+): 'settled' | 'not-settled' | 'no-container' {
   if (indexes.some((index) => index === null)) {
     // Not a failure. A PDF has no members, and saying so beats a silence the
     // reader would have to interpret.
     console.log('    This rendering is not a zip container, so there is no member to name.');
-    return;
+    return 'no-container';
   }
 
   const draws = indexes as (readonly ZipMember[])[];
@@ -651,9 +692,9 @@ function reportMembers(indexes: readonly (readonly ZipMember[] | null)[]): void 
     console.log(
       '    Ignoring the zip\'s OWN bookkeeping — its stamps and member order — the draws agree.\n' +
         '    So nothing inside the document varies and only the container was rebuilt. That is\n' +
-        '    the cheapest failure there is, and the one a rewrite of the container would fix.',
+        '    the cheapest failure there is, and the one this product already rewrites.',
     );
-    return;
+    return 'settled';
   }
   console.log(
     `    ${normalised.size} draws still differ once the zip's own stamps and member order are\n` +
@@ -662,6 +703,7 @@ function reportMembers(indexes: readonly (readonly ZipMember[] | null)[]): void 
       '    open route in 0042 T3, and this run does not measure it — that needs a parser per\n' +
       '    format and a decision about what may be discarded, which is an ADR, not a script.',
   );
+  return 'not-settled';
 }
 
 /**

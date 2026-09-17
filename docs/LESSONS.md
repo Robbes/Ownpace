@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 137 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 138 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -930,6 +930,7 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/container-hash.unit.test.ts`
 
 - [a-content-hash-built-from-thirty-two-bits](../scripts/a-content-hash-built-from-thirty-two-bits.unit.test.ts) — A guard that `contentHash` is never derived from a CRC-32.
+- [a-red-verdict-the-table-calls-stable](../scripts/a-red-verdict-the-table-calls-stable.unit.test.ts) — A RED VERDICT THE TABLE CALLS STABLE (found 2026-09-17, on the owner's run).
 
 ### `packages/shared/src/credential-fields.ts`
 
@@ -1127,6 +1128,7 @@ reading a file drops off its entry by itself.
 
 - [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts) — A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
 - [a-placeholder-that-reached-google](../scripts/a-placeholder-that-reached-google.unit.test.ts) — A guard that the measurement can be aimed by kind, so no instruction for it has to carry a placeholder.
+- [a-red-verdict-the-table-calls-stable](../scripts/a-red-verdict-the-table-calls-stable.unit.test.ts) — A RED VERDICT THE TABLE CALLS STABLE (found 2026-09-17, on the owner's run).
 - [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts) — THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
 - [two-draws-that-could-agree-by-accident](../scripts/two-draws-that-could-agree-by-accident.unit.test.ts) — TWO DRAWS OF A ONE-BYTE WOBBLE CAN AGREE, AND THE SCRIPT WOULD HAVE CALLED THAT STABLE.
 
@@ -1863,6 +1865,15 @@ Reads:
 - `deploy/compose/operator.sh`
 - `deploy/compose/seed-managed.sh`
 - `docs/managed-bring-up.md`
+
+### [a-red-verdict-the-table-calls-stable](../scripts/a-red-verdict-the-table-calls-stable.unit.test.ts)
+
+A RED VERDICT THE TABLE CALLS STABLE (found 2026-09-17, on the owner's run).
+
+Reads:
+
+- `packages/shared/src/container-hash.unit.test.ts`
+- `scripts/drive-export-stability.ts`
 
 ### [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts)
 
