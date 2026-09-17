@@ -39,10 +39,36 @@
  *     the message the connector produced, so nothing has to be re-derived
  *     later from a string that travelled.
  *
- * Where it stops: this must never become the thing that DECIDES anything —
- * no retry policy, no billing, no refusal branches on a category. It is a
- * label for a human. `unknown` staying large is a signal the list needs work,
- * not a reason to guess harder.
+ * Where it stops: this must not become the thing that DECIDES anything — no
+ * billing, no refusal branches on a category. It is a label for a human.
+ * `unknown` staying large is a signal the list needs work, not a reason to
+ * guess harder.
+ *
+ * ## The one exception, and it is a real one (recorded 2026-09-17)
+ *
+ * This paragraph read *"no retry policy"* until today, and the codebase had
+ * already stopped obeying it. `SELF_HEALING_CATEGORIES` in
+ * `@openmig/orchestration/failing-backoff` is a set of the categories below,
+ * passed as `$2` into the managed tick's SQL, and the `any_self_healing` it
+ * computes decides whether a failing mapping is attempted at all on this tick.
+ * That is a retry policy keyed on a category.
+ *
+ * It was the owner's decision and it is a good one — a daily ceiling that
+ * clears tomorrow and a rate limit that clears in minutes should NOT be slowed
+ * down, because slowing them delays exactly the recovery the cadence exists
+ * for. What went wrong is only that the rule here was never told. A "never"
+ * that the code openly breaks is worse than no rule: it tells the next reader
+ * the opposite of what is true, and this repository has now watched three
+ * comments expire the same way in a single day.
+ *
+ * **SO: ADDING A CATEGORY CHANGES BEHAVIOUR.** A new category is by default
+ * NOT self-healing, so a migration that hits it is asked less and less often
+ * until somebody acts. That is usually right — it was right for both refusals
+ * added on 2026-09-17 — and it is never automatic. `failing-backoff.ts` states
+ * the set as the COMPLEMENT of "needs a person" and a guard there asserts the
+ * complement by name, so a category cannot be added and land on the wrong side
+ * unnoticed. Go and look at that guard's expectation when you add one; it will
+ * be red, and what it asks is whether this new thing clears on its own.
  */
 
 /**
