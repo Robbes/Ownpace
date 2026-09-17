@@ -791,19 +791,60 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     ).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
   });
 
-  it('says an export is lossy only once an export is chosen', () => {
-    // Under `refuse` nothing lossy is happening, and a warning shown beside a
+  it('says what the format costs only once an export is chosen', () => {
+    // Under `refuse` nothing is being exported, and a warning shown beside a
     // choice it does not apply to is a warning people learn to skip past.
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
     const policy = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/);
 
-    expect(screen.queryByText(/A rendering, not the original/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/leaves .* behind/)).not.toBeInTheDocument();
     expect(screen.getByText(/reported by name, with a reason/)).toBeVisible();
 
     fireEvent.change(policy, { target: { value: 'export-odf' } });
-    expect(screen.getByText(/A rendering, not the original/)).toBeVisible();
+    expect(screen.getByText(/leaves .* behind/)).toBeVisible();
     expect(screen.queryByText(/reported by name, with a reason/)).not.toBeInTheDocument();
+  });
+
+  /**
+   * A CHOOSER THAT OFFERED THREE FORMATS AS EQUALS.
+   *
+   * Two of them drop a whole kind of file — measured since 2026-09-16 — and the
+   * chooser said only that an export is a rendering, which is true of all three
+   * and silent about the difference that decides whether a file moves. The
+   * person found out at discovery, or in the failures queue after the run.
+   *
+   * `NATIVE_POLICY_COVERAGE` is the fact; `a-chooser-that-hid-which-files-it-
+   * would-drop.unit.test.ts` holds it equal to the measurements. This is the
+   * half that puts it on the screen.
+   */
+  it('names the kind each format leaves behind, before the choice is made', () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
+    const policy = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/);
+
+    // THE HEADLINE, and the sharpest case: the label starts with `.odt`.
+    fireEvent.change(policy, { target: { value: 'export-odf' } });
+    expect(screen.getByText(/leaves Google Docs behind/)).toBeVisible();
+
+    // A different format drops a different kind. One sentence, driven by data.
+    fireEvent.change(policy, { target: { value: 'export-office' } });
+    expect(screen.getByText(/leaves Google Slides behind/)).toBeVisible();
+    expect(screen.queryByText(/leaves Google Docs behind/)).not.toBeInTheDocument();
+  });
+
+  it('says PDF carries everything, and what that costs', () => {
+    // The other half of the trade, and the reason this is not just a warning:
+    // there IS a format that drops nothing, and its price is the editing.
+    renderWizard();
+    fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
+    fireEvent.change(screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/), {
+      target: { value: 'export-pdf' },
+    });
+
+    expect(screen.getByText(/Carries all four kinds/)).toBeVisible();
+    expect(screen.getByText(/None of them arrives editable/)).toBeVisible();
+    expect(screen.queryByText(/leaves .* behind/)).not.toBeInTheDocument();
   });
 
   it('keeps the long half folded, one line on screen (0118 T1)', () => {
@@ -820,7 +861,14 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     fireEvent.change(screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/), {
       target: { value: 'export-pdf' },
     });
-    expect(screen.getByText(/Nobody gets a Google Doc back out of an .odt/)).not.toBeVisible();
+    expect(screen.getByText(/Nobody gets a Google Doc back out of a .pdf/)).not.toBeVisible();
+
+    // And the same for the line that replaced it on the other branch: what a
+    // refused kind costs is a paragraph, and it stays folded too.
+    fireEvent.change(screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/), {
+      target: { value: 'export-office' },
+    });
+    expect(screen.getByText(/do not come back the same/)).not.toBeVisible();
   });
 
   it('carries the chosen format all the way to the created mapping', async () => {

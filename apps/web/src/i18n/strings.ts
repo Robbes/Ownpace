@@ -441,10 +441,18 @@ const en = {
   'wizard.nativePolicy.odf': 'OpenDocument — .odt, .ods, .odp (drawings as .svg)',
   'wizard.nativePolicy.office': 'Microsoft Office — .docx, .xlsx, .pptx (drawings as .svg)',
   'wizard.nativePolicy.pdf': 'PDF — everything as .pdf',
-  'wizard.nativePolicy.lossy':
-    'A rendering, not the original, and it applies to every file here.',
-  'wizard.nativePolicy.lossy.why':
-    'Nobody gets a Google Doc back out of an .odt or a .pdf: the export is a copy of how the document looks, and fine formatting can shift. Drawings arrive as .svg, because Drive offers nothing editable for them. One choice covers the whole migration; you can change it later, though files already copied keep the format they arrived in.',
+  // WHAT THIS FORMAT WILL ACTUALLY LEAVE BEHIND, on the screen where the choice
+  // is made. Measured, not guessed: `NATIVE_POLICY_COVERAGE` derives these from
+  // `EXPORT_STABILITY`, and a guard fails the build if the two disagree. Until
+  // 2026-09-17 this said only that an export is lossy — true of all three, and
+  // silent about the one difference between them that drops files.
+  'wizard.nativePolicy.drops': 'This format leaves {kinds} behind. They stay where they are.',
+  'wizard.nativePolicy.drops.why':
+    'Two exports of an unchanged file of that kind do not come back the same, so copying it would mean re-copying it on every pass, for ever. It is left behind instead and reported by name, exactly as if you had chosen to leave everything. Every other kind here is carried — as a rendering, not the original: fine formatting can shift, and drawings arrive as .svg because Drive offers nothing editable for them. PDF is the one format measured to carry all four, at the cost that nothing arrives editable. One choice covers the whole migration; you can change it later, though files already copied keep the format they arrived in.',
+  'wizard.nativePolicy.carriesAll':
+    'Carries all four kinds. None of them arrives editable again.',
+  'wizard.nativePolicy.carriesAll.why':
+    'This is the trade: the formats that stay editable each drop a whole kind of file, and the one that drops nothing is a PDF. Nobody gets a Google Doc back out of a .pdf — the export is a copy of how the document looks, and fine formatting can shift. One choice covers the whole migration; you can change it later, though files already copied keep the format they arrived in.',
   'wizard.nativePolicy.unmeasured':
     'Each one is reported by name, with a reason, for you to decide.',
   'wizard.nativePolicy.unmeasured.why':
@@ -2312,10 +2320,12 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.nativePolicy.odf': 'OpenDocument — .odt, .ods, .odp (tekeningen als .svg)',
   'wizard.nativePolicy.office': 'Microsoft Office — .docx, .xlsx, .pptx (tekeningen als .svg)',
   'wizard.nativePolicy.pdf': 'PDF — alles als .pdf',
-  'wizard.nativePolicy.lossy':
-    'Een weergave, niet het origineel, en dit geldt voor elk bestand.',
-  'wizard.nativePolicy.lossy.why':
-    'Uit een .odt of .pdf komt nooit weer een Google-document: de export legt vast hoe het document eruitziet, en fijne opmaak kan verschuiven. Tekeningen komen aan als .svg, omdat Google daar niets bewerkbaars voor aanbiedt. Eén keuze geldt voor de hele migratie; u kunt hem later wijzigen, al houden al gekopieerde bestanden het formaat waarin ze aankwamen.',
+  'wizard.nativePolicy.drops': 'Dit formaat laat {kinds} staan. Die blijven waar ze zijn.',
+  'wizard.nativePolicy.drops.why':
+    'Twee exports van zo’n ongewijzigd bestand komen niet hetzelfde terug, dus kopiëren zou betekenen dat het bij elke ronde opnieuw wordt gekopieerd, eindeloos. Het blijft daarom staan en wordt met naam gemeld, net alsof u had gekozen alles te laten staan. Elke andere soort hier gaat wel mee — als weergave, niet als origineel: fijne opmaak kan verschuiven, en tekeningen komen aan als .svg omdat Google daar niets bewerkbaars voor aanbiedt. PDF is het enige formaat waarvan gemeten is dat het alle vier meeneemt, tegen de prijs dat niets bewerkbaar aankomt. Eén keuze geldt voor de hele migratie; u kunt hem later wijzigen, al houden al gekopieerde bestanden het formaat waarin ze aankwamen.',
+  'wizard.nativePolicy.carriesAll': 'Neemt alle vier de soorten mee. Geen daarvan komt bewerkbaar aan.',
+  'wizard.nativePolicy.carriesAll.why':
+    'Dat is de afweging: de formaten die bewerkbaar blijven laten elk een hele soort bestanden staan, en het formaat dat niets laat staan is een PDF. Uit een .pdf komt nooit weer een Google-document — de export legt vast hoe het document eruitziet, en fijne opmaak kan verschuiven. Eén keuze geldt voor de hele migratie; u kunt hem later wijzigen, al houden al gekopieerde bestanden het formaat waarin ze aankwamen.',
   'wizard.nativePolicy.unmeasured':
     'Elk bestand wordt met naam en reden gemeld, zodat u beslist.',
   'wizard.nativePolicy.unmeasured.why':

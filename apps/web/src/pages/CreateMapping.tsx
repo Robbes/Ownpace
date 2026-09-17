@@ -40,7 +40,10 @@ import {
   providerDefaultsProvenance,
   type CredentialField,
   credentialFieldRequired,
+  policyLeavesBehind,
+  type GoogleNativeFilePolicy,
 } from '@openmig/shared';
+import { nativeKindKey } from '../i18n/native-kind-key.ts';
 import {
   connectionsApi,
   mappingApi,
@@ -1470,6 +1473,48 @@ const CreateMapping: React.FC = () => {
    * RENDERING — nobody gets a Google Doc back out of an .odt — and an owner
    * who learns that after cutover learns it too late.
    */
+  /**
+   * WHICH OF THEIR FILES THIS FORMAT WILL ACTUALLY LEAVE BEHIND.
+   *
+   * The line that used to sit here said an export is a rendering rather than
+   * the original — true of all three formats, and silent about the one
+   * difference between them that decides whether a file moves at all:
+   * OpenDocument leaves every Google Doc behind and Microsoft Office leaves
+   * every Slides deck behind, measured (0042 T3). A person picking
+   * "OpenDocument — .odt, .ods, .odp" was choosing, unknowingly, to drop the
+   * kind of file that label starts with.
+   *
+   * They did find out — at discovery, and per file in the failures queue. Both
+   * are after the choice, and the second is after the run.
+   *
+   * Read off `NATIVE_POLICY_COVERAGE`, which a guard holds equal to the
+   * measurements, so a cell that changes colour changes this sentence and
+   * nobody has to remember to.
+   */
+  const renderPolicyCoverage = (policy: Exclude<GoogleNativeFilePolicy, 'refuse'>) => {
+    const dropped = policyLeavesBehind(policy);
+    if (dropped.length === 0) {
+      return (
+        <Hint
+          text={t('wizard.nativePolicy.carriesAll')}
+          why={t('wizard.nativePolicy.carriesAll.why')}
+        />
+      );
+    }
+    return (
+      <Hint
+        // `caution`, like the other line somebody must read before typing: this
+        // one says files will not move, and it is the last screen where that is
+        // still a choice.
+        tone="caution"
+        text={t('wizard.nativePolicy.drops', {
+          kinds: dropped.map((kind) => t(nativeKindKey(kind))).join(', '),
+        })}
+        why={t('wizard.nativePolicy.drops.why')}
+      />
+    );
+  };
+
   const renderNativeFilePolicy = () => (
     <div>
       <label className="block text-sm font-medium text-gray-700" htmlFor="native-file-policy">
@@ -1501,10 +1546,9 @@ const CreateMapping: React.FC = () => {
           why={t('wizard.nativePolicy.unmeasured.why')}
         />
       ) : (
-        <Hint
-          text={t('wizard.nativePolicy.lossy')}
-          why={t('wizard.nativePolicy.lossy.why')}
-        />
+        renderPolicyCoverage(
+          formData.sourceNativeFilePolicy as Exclude<GoogleNativeFilePolicy, 'refuse'>,
+        )
       )}
     </div>
   );

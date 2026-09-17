@@ -257,36 +257,56 @@ Read-only, writes nothing, and answers two things at once:
 - **Is a Google Doc export byte-stable?** It exports the same unchanged document twice and
   compares the bytes.
 
-That second question is the one that decides whether `nativeFilePolicy` may be set to
-`export-odf` / `export-office` / `export-pdf` at all. A Google Doc has no bytes; exporting one produces a
-rendering, and this product hashes what it writes. **If two exports of an unchanged document
-differ, every pass sees a changed document and re-copies all of them, forever, with every
-write succeeding and nothing looking wrong.** Until that has been measured on a real tenant,
-the default is `refuse`: each Doc is reported as un-migratable, one by one, with the reason,
-and the rest of the folder migrates.
+That second question is the one that decides whether a format may carry a given kind of file.
+A Google Doc has no bytes; exporting one produces a rendering, and this product hashes what it
+writes. **If two exports of an unchanged document differ, every pass sees a changed document
+and re-copies all of them, forever, with every write succeeding and nothing looking wrong.**
+The table below is what that measurement found on one real tenant, and the product acts on it
+per file: a combination measured unstable is refused by name while the rest of the folder
+migrates. Run it on your own Drive if you want your own answer.
 
 Run it for `export-odf`, for `export-office` and for `export-pdf` — three different renderers,
 and one can be stable while another is not — and ideally against a Doc, a Sheet and a Slide.
 Then keep a note of what you found — the answer decides whether exporting Google Docs is
 safe to turn on at all.
 
-**What we have measured, on one real tenant (2026-09-16), against one untouched Google Doc:**
+**What we have measured, on one real tenant, five exports of each unchanged file, finished
+2026-09-17.** Every combination has now been run — four kinds of file, three formats:
 
-| policy | what came back | verdict |
-| --- | --- | --- |
-| `export-odf` | four exports, three different sizes | **not stable** |
-| `export-office` | five exports, same size every time, five different files | **not stable** |
-| `export-pdf` | five exports, byte-for-byte identical | survived five tries |
+| | `export-odf` | `export-office` | `export-pdf` |
+| --- | --- | --- | --- |
+| **Doc** | **left behind** | carried | carried |
+| **Sheet** | carried | carried | carried |
+| **Slides deck** | carried | **left behind** | carried |
+| **Drawing** | carried | carried | carried |
 
-A failure settles a policy: for exporting to be safe it has to hold for *every* document you
-own, so one that fails answers the question and there is no point trying more. A pass is weaker
-— five tries that did not break it, on one document, of one kind, on one day. Nobody has yet
-measured a Sheet, a Slide or a Drawing under any policy, and those are different renderers.
+Two cells are red and they are red for the same reason: two exports of the same unchanged file
+do not come back the same, so copying it would mean re-copying it on every pass, for ever. The
+greens are not all identical either — several of them come back as the same content in a
+re-stamped zip, which this product compares by the document's parts rather than by the whole
+file, so a re-stamp is not a change. That is what "carried" means here.
 
-So `refuse` is still the default for all three, and it is still the honest setting. If you want
-to turn `export-pdf` on for your own migration, measure your own Sheets and Slides first — and
-remember what a PDF costs you: it is a picture of the document, not a document anyone can edit
-again.
+**A policy is not all-or-nothing.** Only the red cell is refused, per file, with its reason;
+everything else in the folder migrates. So `export-odf` moves your Sheets, decks and drawings
+and leaves your Docs; `export-office` moves everything but your decks.
+
+**`export-pdf` carries all four, and it is the only format that does.** That is the whole
+trade, and it is worth stating plainly: the two formats that keep a file editable each drop a
+whole category, and the format that drops nothing is a picture of the document rather than a
+document anyone can edit again. The wizard says which category each format drops, on the screen
+where you choose, so nobody has to hold this table in their head.
+
+**`refuse` is still the default**, and still the honest one: nothing is copied and nothing is
+guessed at, each file is reported by name, and you decide. It is a decision rather than a
+recommendation — if your Drive is mostly Docs you may well want `export-office`, and if you
+care most about everything arriving you want `export-pdf`.
+
+**What a green is and is not.** A failure settles a policy: for exporting to be safe it has to
+hold for *every* file you own, so one counterexample answers the question. A pass is weaker —
+five tries that did not break it, on one file of that kind, on one tenant, on one day. In
+particular the deck measured under `export-pdf` was a thin one; a deck carrying images, embedded
+fonts or charts gives a PDF renderer more to vary, and that measurement is worth taking on your
+own files if decks are what you care about.
 
 One more thing worth knowing before you choose, because you are billed for the bytes we copy:
 that same document came back as 17644 bytes of Office, 195869 of PDF, and 3127560 of ODF. That
