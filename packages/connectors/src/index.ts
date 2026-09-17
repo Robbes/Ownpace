@@ -104,6 +104,7 @@ export * from './nextcloud-share-scan.ts';
 export * from './graph-access-check.ts';
 // Google Drive as a file source (workplan 0042): the connector, the OAuth flow
 // it deliberately knows nothing about, and the transport that joins them.
+export * from './drive-refusal.ts';
 export * from './google-drive-source.ts';
 export * from './google-drive-source.types.ts';
 export * from './google-drive-transport.ts';
