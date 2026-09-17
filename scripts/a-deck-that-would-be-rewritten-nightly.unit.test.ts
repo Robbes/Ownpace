@@ -109,12 +109,15 @@ describe('what the measurements say, as the code reads them', () => {
     // The third answer, and the honest one. A table with two answers would have
     // had to guess for every blank.
     //
-    // Every Drawing is still blank, under every policy — the live example now
-    // that `export-pdf` on a Sheet and a Slide have been run. Whichever pair is
-    // used here, the point is the same: this must be a combination nobody has
-    // measured, or the test stops testing the third answer.
-    expect(exportStabilityOf('export-pdf', `${G}drawing`)).toBe('unmeasured');
-    expect(exportStabilityOf('export-odf', `${G}spreadsheet`)).toBe('unmeasured');
+    // THE TABLE HAS NO BLANKS LEFT since 2026-09-17, so there is no longer a
+    // measured combination to point at — every cell has been run. This test
+    // used to name two of them and both have since gone green, which is the
+    // pin working rather than the answer disappearing.
+    //
+    // `unmeasured` is now reachable only the way it will be reached in future:
+    // a type this table has never met. That is precisely the case it exists
+    // for — the day Drive adds a fifth editor type, its first pass must COPY
+    // rather than refuse, and nothing here may quietly turn that into a red.
     expect(exportStabilityOf('export-office', 'application/vnd.google-apps.form')).toBe(
       'unmeasured',
     );
@@ -191,10 +194,14 @@ describe('the hash that makes the safe cases safe', () => {
 });
 
 describe('the way out a refusal offers, derived from the same table', () => {
-  it('sends a refused Slides deck to export-pdf, which is measured to carry it', () => {
-    // The whole point of measuring `export-pdf` on a Slide. Before that run the
-    // honest answer for a deck was "nothing will carry this"; now there is one,
-    // and this asserts the refusal actually says so.
+  it('sends a refused Slides deck to BOTH policies measured to carry it', () => {
+    // The whole point of measuring a deck at all. Before `export-pdf` on a
+    // Slide, the honest answer was "nothing will carry this". Since 2026-09-17
+    // there are two, and the second one matters more than the count: a deck
+    // under `export-odf` came back container-only, so the customer can now be
+    // sent somewhere the deck stays EDITABLE rather than only to a fixed
+    // rendering. The refusal has to offer both, and name the cost of the one
+    // that has a cost.
     const refused = new NativeFileRefused(
       'Thema-avond',
       `${G}presentation`,
@@ -204,10 +211,16 @@ describe('the way out a refusal offers, derived from the same table', () => {
     // "Slides deck", not "presentation": the sentence calls the file what its
     // owner calls it (`nativeFileWord`), because a refusal that asks somebody
     // to choose a policy starts with them recognising which file it means.
-    expect(refused.message).toMatch(/"export-pdf" is measured stable for a Slides deck/);
-    expect(refused.message, 'the way out no longer names the editability cost').toMatch(
-      /not editable afterwards/,
+    expect(refused.message).toMatch(
+      /"export-odf" and "export-pdf" are measured stable for a Slides deck/,
     );
+    // The cost is attached to the ONE policy that has it, not to the clause.
+    // With two alternatives and only one of them lossy, saying "not editable
+    // afterwards" without naming which would make the editable route look
+    // lossy too — and the editable route is the one that just became
+    // available.
+    expect(refused.message).toContain('("export-pdf" is not editable afterwards)');
+    expect(refused.message).not.toMatch(/"export-odf".{0,40}not editable/);
   });
 
   it('does NOT tell that customer about a Doc, which is what it used to do', () => {
@@ -281,12 +294,17 @@ describe('the way out a refusal offers, derived from the same table', () => {
     expect(refused.message).not.toMatch(/measured stable/);
   });
 
-  it('offers a Drawing the two policies that measured it, and not the third', () => {
-    // One run on 2026-09-17 moved two entries, because for a Drawing
-    // `export-odf` and `export-office` both ask Drive for `image/svg+xml` and
-    // are therefore the same request. `export-pdf` asks for something else and
-    // stays blank, so the advice must not name it.
-    expect([...stablePoliciesFor(`${G}drawing`)].sort()).toEqual(['export-odf', 'export-office']);
+  it('offers a Drawing every policy but the one that just refused it', () => {
+    // All three are measured stable for a Drawing now: two from the shared SVG
+    // request, `export-pdf` from its own run. The advice still names only two,
+    // and that is `wayOutFor` excluding the policy that did the refusing —
+    // "switch to the policy you are already on" is the first sentence a
+    // careless derivation would produce.
+    expect([...stablePoliciesFor(`${G}drawing`)].sort()).toEqual([
+      'export-odf',
+      'export-office',
+      'export-pdf',
+    ]);
     const refused = new NativeFileRefused('Sketch', `${G}drawing`, 'export-pdf', 'unstable');
     expect(refused.message).toMatch(/"export-odf" and "export-office" are measured stable/);
     expect(refused.message).toContain('for a Drawing');

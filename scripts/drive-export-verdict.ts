@@ -80,3 +80,39 @@ export function stabilityVerdict(samples: readonly ExportSample[]): StabilityVer
       : `Lengths differ: ${sizes.join(', ')}.`;
   return { stable: false, renderings, sizes, note };
 }
+
+/**
+ * What a container reading found, when the rendering is a zip at all.
+ *
+ * `settled` means the draws agree once the zip's own stamps and member order
+ * are ignored — the case ADR-0046's `containerContentHash` exists for.
+ */
+export type ContainerReading = 'settled' | 'not-settled' | 'no-container';
+
+/**
+ * WHICH OF THE TABLE'S THREE ANSWERS THIS RUN FOUND.
+ *
+ * `EXPORT_STABILITY` has always had three — `stable` is defined as
+ * "byte-identical OR settleable by the container hash" — and the script had
+ * two. So a container-only result printed "the draws agree once normalised"
+ * and then, one sentence later, "MUST NOT be enabled ... keep the default
+ * `refuse`", which the table contradicts and the connector ignores. The owner
+ * met that on 2026-09-17 measuring `export-odf` on a Sheet and a Slide, and
+ * both were recorded `stable` — on the same evidence the script had just told
+ * him to refuse.
+ *
+ * ## Why this is a function and not an `if` in the script
+ *
+ * The first guard for it read the script's SOURCE and asserted the settled
+ * branch appeared before the refusal sentence. It passed against
+ * `if (container === 'settled' && false)` — the mutation neutered the branch
+ * and left the text alone, so a test that had been written to prove the fix
+ * proved nothing. A decision worth guarding has to be callable; this is.
+ */
+export function exportOutcome(
+  byteIdentical: boolean,
+  container: ContainerReading,
+): 'byte-identical' | 'settled-by-container' | 'unstable' {
+  if (byteIdentical) return 'byte-identical';
+  return container === 'settled' ? 'settled-by-container' : 'unstable';
+}

@@ -90,12 +90,17 @@ describe('policies that issue the same request carry the same answer', () => {
     expect(exportStabilityOf('export-office', drawing)).toBe('stable');
   });
 
-  it('export-pdf is NOT in that pair: a PDF of a Drawing is its own request', () => {
+  it('export-pdf is NOT in that pair, and was measured on its own', () => {
     const drawing = 'application/vnd.google-apps.drawing';
     expect(NATIVE_EXPORT_TYPES['export-pdf'][drawing]).toBe('application/pdf');
-    // Still blank, and honestly so — nobody has run it. A twin rule that
-    // dragged this to `stable` would be exactly the guess the table forbids.
-    expect(exportStabilityOf('export-pdf', drawing)).toBe('unmeasured');
+    // It reads `stable` since 2026-09-17 — 16854 bytes, one hash, five draws —
+    // and the point of this test is that the twin rule had nothing to do with
+    // it. The instrument was aimed at this cell separately, which is what the
+    // rule requires: it carries evidence ACROSS a shared request, never into a
+    // different one. The differing byte counts are the cheap proof they are
+    // different requests: 8324 for the SVG pair, 16854 here.
+    expect(exportStabilityOf('export-pdf', drawing)).toBe('stable');
+    expect(twins().some((t) => t.policies.includes('export-pdf'))).toBe(false);
   });
 
   it('a PDF shared across DIFFERENT source types is not a twin', () => {
@@ -109,15 +114,25 @@ describe('policies that issue the same request carry the same answer', () => {
 });
 
 describe('the measurement reaches the advice', () => {
-  it('a Drawing now has two measured ways to carry it', () => {
+  it('a Drawing has all three, the last of them measured separately', () => {
+    // Two from the shared SVG request, the third from its own PDF run.
     expect([...stablePoliciesFor('application/vnd.google-apps.drawing')].sort()).toEqual([
       'export-odf',
       'export-office',
+      'export-pdf',
     ]);
   });
 
-  it('the Slide still has exactly one, and it is the PDF', () => {
-    expect(stablePoliciesFor('application/vnd.google-apps.presentation')).toEqual(['export-pdf']);
+  it('the Slide has two, and one of them keeps it editable', () => {
+    // It had exactly one — `export-pdf` — until 2026-09-17, when `export-odf`
+    // on a deck came back container-only and therefore `stable`. That is not a
+    // cosmetic change to this list: a deck refused under `export-office` can
+    // now be sent somewhere it stays EDITABLE, where before the only measured
+    // answer was a fixed rendering.
+    expect([...stablePoliciesFor('application/vnd.google-apps.presentation')].sort()).toEqual([
+      'export-odf',
+      'export-pdf',
+    ]);
   });
 
   it('every stable entry can actually be rendered by that policy', () => {

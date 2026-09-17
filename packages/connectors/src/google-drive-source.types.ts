@@ -139,6 +139,15 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  *   - `export-office` on a **Drawing**: 8324 bytes and one hash, five times
  *     (2026-09-17) — which is also `export-odf` on a Drawing, for the reason
  *     in the next paragraph.
+ *   - `export-pdf` on a **Drawing**: 16854 bytes and one hash, five times
+ *     (2026-09-17). A different renderer from the SVG above and a different
+ *     size, which is the cheap confirmation that the PDF branch answered.
+ *   - `export-odf` on a **Sheet**: 12856 bytes, five hashes, and ZERO members
+ *     changed content — 15 restamped, normalised draws agree. Container-only.
+ *   - `export-odf` on a **Slide**: 12633 bytes, five hashes, zero content
+ *     changes, 16 members restamped, normalised draws agree. Container-only —
+ *     and the same deck under `export-office` is NOT, which is the sharpest
+ *     evidence in this table that a policy cannot be judged as a whole.
  *
  * THE THREE `export-pdf` GREENS ARE WHAT MAKES THE SLIDE REFUSAL SURVIVABLE.
  * Without them `export-office` refusing a deck is a dead end — the customer is
@@ -160,10 +169,17 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  * single answer, so nobody can record a green under one policy and leave its
  * twin sitting blank — or, worse, mark one of them `unstable`.
  *
- * Everything else here is `unmeasured` because it is: a Sheet or a Slide under
- * `export-odf`, and a Drawing under `export-pdf`. Run
- * `DRIVE_FILE_KIND=sheet DRIVE_EXPORT_POLICY=export-odf` against a real tenant
- * and move an entry; do not move one on a guess.
+ * **THERE IS NOTHING LEFT UNMEASURED (2026-09-17).** Every one of the twelve
+ * cells has been run on the owner's tenant. That is the first time this table
+ * has been complete, and it is worth saying what it does NOT mean: the greens
+ * are still five draws each, on one document of each type, on one tenant, on
+ * one day. A full table is not a proved table — see the asymmetry below.
+ *
+ * `unmeasured` therefore has no instances today and STAYS, because it is the
+ * answer for a type Drive adds next: the rule is that a blank is recorded and
+ * copies rather than refusing, and the day that rule has no cell to stand on is
+ * not the day to delete it. `exportStabilityOf` still returns it for any
+ * mimeType this table has not met.
  *
  * A GREEN IS NOT THE MIRROR OF A RED. Five identical draws are evidence, not
  * proof — one counterexample disproves stability and no number of agreements
@@ -232,9 +248,22 @@ export const EXPORT_STABILITY: Readonly<
 > = {
   'export-odf': {
     // `settings.xml` changes content between draws — measured, not settleable.
+    // THE ONLY ODF TYPE THAT FAILS, and the contrast with the two below is the
+    // whole point of ADR-0046: a member whose CONTENT moves cannot be
+    // normalised away, a restamped container can.
     'application/vnd.google-apps.document': 'unstable',
-    'application/vnd.google-apps.spreadsheet': 'unmeasured',
-    'application/vnd.google-apps.presentation': 'unmeasured',
+    // Container-only (2026-09-17). 12856 bytes every draw, five hashes, and
+    // ZERO members changed content — 15 were restamped and the normalised
+    // draws agree. Same shape as `export-office` on a Doc and a Sheet, settled
+    // by the same hash, and `rendering` is set for EVERY export policy
+    // (`google-drive-source.ts`), so that hash is live on this path too.
+    'application/vnd.google-apps.spreadsheet': 'stable',
+    // Container-only as well: 12633 bytes, five hashes, zero content changes,
+    // 16 members restamped, normalised draws agree. A deck under `export-odf`
+    // is therefore usable where the same deck under `export-office` is NOT —
+    // there five members genuinely move. Two renderers, two answers, which is
+    // exactly why this table is per (policy, type) and not per policy.
+    'application/vnd.google-apps.presentation': 'stable',
     // Nobody ran the instrument under THIS policy, and it is measured anyway:
     // a Drawing has no ODF form, so this policy and `export-office` both ask
     // Drive for `image/svg+xml` and issue the identical request. Same request,
@@ -264,11 +293,12 @@ export const EXPORT_STABILITY: Readonly<
     'application/vnd.google-apps.document': 'stable',
     'application/vnd.google-apps.spreadsheet': 'stable',
     'application/vnd.google-apps.presentation': 'stable',
-    // The last blank, and a real one: a Drawing under this policy renders to
-    // PDF, which is a different request from the SVG the other two ask for, so
-    // the twin rule does not reach it and the 2026-09-17 green says nothing
-    // about it. `DRIVE_EXPORT_POLICY=export-pdf DRIVE_FILE_KIND=drawing`.
-    'application/vnd.google-apps.drawing': 'unmeasured',
+    // Measured the same day the blank was named: 16854 bytes and ONE hash,
+    // five draws. A different request from the SVG the other two policies ask
+    // for — and a different SIZE, which is the cheap confirmation that it
+    // really was the PDF renderer answering. The twin rule never reached this
+    // entry; the instrument did.
+    'application/vnd.google-apps.drawing': 'stable',
   },
 };
 
