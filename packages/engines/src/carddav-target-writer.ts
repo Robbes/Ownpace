@@ -589,13 +589,33 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     return requestWithDavRetry(() => this.httpClient.request(options));
   }
 
+  /**
+   * THE UID, WHOLE (2026-09-17).
+   *
+   * This read `uidMatch[0].split(':')` and returned `parts[1]`, which is the
+   * first colon-separated piece of the value and not the value:
+   *
+   *     UID:urn:uuid:8f2b…   →   'urn'
+   *
+   * `urn:uuid:` UIDs are what Apple, Nextcloud and many DAV servers emit, so
+   * for a whole class of source data every card resolved to the SAME uid —
+   * and therefore to the same filename, `urn.vcf`. The first card landed; the
+   * second got a 412, which `uploadContact` reads as *"something is already
+   * there, and it is exactly what we would have written"* and records as
+   * placed. It was somebody else's card. That is silent loss, and the shape of
+   * it — a wrong answer recorded as a good one — is worse than a failure.
+   *
+   * `extractUid` in `dav-multistatus.ts` has been correct the whole time: it
+   * takes everything after the FIRST colon, tolerates a parameter
+   * (`UID;VALUE=text:…`) and unfolds a wrapped line first. Both writers kept a
+   * private broken copy instead; both now use the shared one.
+   */
   private extractUidFromVcard(vcard: string): string {
-    const uidMatch = vcard.match(/UID:[^\r\n]+/i);
-    if (!uidMatch) {
+    const uid = extractUid(vcard);
+    if (uid === undefined) {
       throw new Error('Invalid vCard data: missing UID');
     }
-    const parts = uidMatch[0].split(':');
-    return parts[1]?.trim() ?? '';
+    return uid;
   }
 
   /** See the same method in caldav-target-writer.ts. */

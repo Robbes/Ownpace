@@ -820,13 +820,24 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     return requestWithDavRetry(() => this.httpClient.request(options));
   }
 
+  /**
+   * THE UID, WHOLE (2026-09-17) — see `extractUidFromVcard` in
+   * `carddav-target-writer.ts` for the defect this replaces, which was the
+   * same code and the same consequence one file over: `UID:urn:uuid:8f2b…`
+   * became `urn`, every such event resolved to `urn.ics`, and the second
+   * onwards were recorded as already placed on the strength of a 412 about
+   * somebody else's event.
+   *
+   * `extractUid` is imported by this file already — for the multistatus
+   * parse, four hundred lines down — which is what makes the private copy
+   * above it worth naming rather than just deleting.
+   */
   private extractUidFromIcalendar(icalendar: string): string {
-    const uidMatch = icalendar.match(/UID:[^\r\n]+/i);
-    if (!uidMatch) {
+    const uid = extractUid(icalendar);
+    if (uid === undefined) {
       throw new Error('Invalid iCalendar data: missing UID');
     }
-    const parts = uidMatch[0].split(':');
-    return parts[1]?.trim() ?? '';
+    return uid;
   }
 
   /**
