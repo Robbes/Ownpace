@@ -134,8 +134,11 @@ export const DRIVE_SHORTCUT_MIME = 'application/vnd.google-apps.shortcut';
  *
  * AN EMPTY LIST IS NOT A BUG and must not be read as one: a type with nothing
  * measured stable genuinely has no way out through a policy today, and saying
- * that is better than naming a format nobody has run. Every Drawing is in that
- * position as this is written.
+ * that is better than naming a format nobody has run. **No type is in that
+ * position as this is written** (2026-09-17): every one of the twelve cells has
+ * been measured and every editor type has at least two policies measured
+ * stable. The branch stays because a Google product added tomorrow starts with
+ * nothing measured, which is exactly the case it is for.
  */
 function wayOutFor(kind: string, mimeType: string, refused: NativeFilePolicy): string {
   const alternatives = stablePoliciesFor(mimeType).filter((policy) => policy !== refused);

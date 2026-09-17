@@ -1143,12 +1143,15 @@ function parseNativeFilePolicy(value: unknown): GoogleNativeFilePolicy {
   throw new ConfigError(
     `source.nativeFilePolicy: unsupported ${JSON.stringify(value)} (expected "refuse", ` +
       '"export-odf", "export-office", or "export-pdf"). "refuse" is the default and reports ' +
-      'each Google Doc, Sheet and Slide as un-migratable with a reason; the export policies ' +
-      'ask Drive to render one — ODF (.odt/.ods/.odp), Office (.docx/.xlsx/.pptx) or PDF — ' +
-      'which is lossy. Measured 2026-09-16 against a real Doc: "export-odf" and "export-office" ' +
-      'are NOT byte-stable and would re-copy every document on every pass; "export-pdf" produced ' +
-      'identical bytes five times, which is evidence rather than proof — a Sheet, a Slide and a ' +
-      'Drawing are different renderers and none is measured (workplan 0042 T3).',
+      'each Google Doc, Sheet, Slide and Drawing as un-migratable with a reason; the export ' +
+      'policies ask Drive to render one — ODF (.odt/.ods/.odp), Office (.docx/.xlsx/.pptx) or ' +
+      'PDF — which is lossy. All twelve combinations were measured on a real tenant by ' +
+      '2026-09-17, and a policy is NOT all-or-nothing: "export-odf" carries everything but a ' +
+      'Doc, "export-office" everything but a Slides deck, and "export-pdf" all four. The two ' +
+      'refused combinations are byte-unstable and would re-copy that file on every pass, so ' +
+      'they are refused per item while the rest of the folder migrates. `EXPORT_STABILITY` in ' +
+      '`google-drive-source.types.ts` is the live table, and the greens are five draws each ' +
+      'rather than proof (workplan 0042 T3).',
   );
 }
 

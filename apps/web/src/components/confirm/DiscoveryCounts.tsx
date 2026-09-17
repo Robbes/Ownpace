@@ -19,7 +19,6 @@
 import React from 'react';
 import { domainsCountedBeforeTheirError, type DiscoveryDomain, type DiscoveryRecord } from '@openmig/shared';
 import { useT } from '../../i18n/index.tsx';
-import type { StringKey } from '../../i18n/strings.ts';
 import { formatBytes } from '../../i18n/bytes.ts';
 // The dictionary's own domain words — the old local map silently bypassed
 // them, so the table said "Email" beside screens saying the translated word.
@@ -27,22 +26,11 @@ import { formatBytes } from '../../i18n/bytes.ts';
 // copies of the same map, and a fifth domain reached only whichever was
 // remembered.
 import { DOMAIN_STRING_KEY as DOMAIN_KEY } from '../../i18n/domain-words.ts';
+import { nativeKindKey } from '../../i18n/native-kind-key.ts';
 
 // Moved to `i18n/bytes.ts` (2026-09-02) so the measured-volume line can share
 // it; re-exported here for the importers this file already has.
 export { formatBytes };
-
-/**
- * Google editor kinds, as a person calls them. Keyed by the short name the
- * ledger stores (`presentation`, taken off the `application/vnd.google-apps.`
- * prefix), so the column stays provider-shaped and only the screen translates.
- */
-const NATIVE_KIND_KEY: Readonly<Record<string, StringKey>> = {
-  document: 'discovery.refusedNative.kind.document',
-  spreadsheet: 'discovery.refusedNative.kind.spreadsheet',
-  presentation: 'discovery.refusedNative.kind.presentation',
-  drawing: 'discovery.refusedNative.kind.drawing',
-};
 
 /**
  * Refused native files across every domain, by kind, biggest first and zeroes
@@ -249,7 +237,7 @@ export const DiscoveryCounts: React.FC<{
 
       {refused.length > 0 && (
         <p className="mt-2 text-sm text-amber-700" role="note">
-          {refused.map(([kind, n]) => `${n} ${t(NATIVE_KIND_KEY[kind] ?? 'discovery.refusedNative.kind.other')}`).join(', ')}{' '}
+          {refused.map(([kind, n]) => `${n} ${t(nativeKindKey(kind))}`).join(', ')}{' '}
           <strong>{t('discovery.refusedNative.strong')}</strong>{' '}
           {t('discovery.refusedNative.post')}
         </p>
