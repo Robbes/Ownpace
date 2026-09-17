@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { Loader2 } from 'lucide-react';
 import { domainsCountedBeforeTheirError, type DiscoveryDomain, type DiscoveryRecord } from '@openmig/shared';
 import { useT } from '../../i18n/index.tsx';
 import { formatBytes } from '../../i18n/bytes.ts';
@@ -121,7 +122,13 @@ export const DiscoveryCounts: React.FC<{
 
   if (domains.length === 0) {
     return (
-      <p className="text-sm text-gray-500" role="status">
+      <p className="flex items-center gap-2 text-sm text-gray-500" role="status">
+        {/* SOMETHING THAT MOVES (owner, 2026-09-17: *"i dont see like an
+            hourglass or indicator the website is working/in progress. Please
+            add some indicator."*). The sentence was here and static, which on a
+            first count over a real account — minutes, not seconds — is
+            indistinguishable from a page that has stopped. */}
+        <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" aria-hidden="true" />
         {t('discovery.scanning')}
       </p>
     );
@@ -132,12 +139,20 @@ export const DiscoveryCounts: React.FC<{
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
+            {/* NO "NEEDS AN ID" COLUMN (owner, 2026-09-17: *"what is that and
+                why would a users have any interest in that? If it is not
+                relevant for user, dont show it."*).
+                It counted messages arriving with no Message-ID, which we add
+                one to — a real disclosure, and the amber note below the table
+                already makes it in words, only when there are any. As a column
+                it printed a grey nought on every row of every migration,
+                including the ones carrying no mail at all, and taught a reader
+                to skip a table that has real numbers in it. */}
             <tr className="text-left text-gray-500">
               <th className="py-1 pr-4 font-medium">{t('discovery.th.type')}</th>
               <th className="py-1 pr-4 font-medium">{t('discovery.th.collections')}</th>
               <th className="py-1 pr-4 font-medium">{t('discovery.th.items')}</th>
               <th className="py-1 pr-4 font-medium">{t('discovery.th.size')}</th>
-              <th className="py-1 pr-4 font-medium">{t('discovery.th.needsId')}</th>
               <th className="py-1 pr-4 font-medium">{t('discovery.th.existing')}</th>
               <th className="py-1 font-medium" />
             </tr>
@@ -149,13 +164,6 @@ export const DiscoveryCounts: React.FC<{
                 <td className="py-1 pr-4">{d.collections}</td>
                 <td className="py-1 pr-4">{d.items}</td>
                 <td className="py-1 pr-4">{formatBytes(d.bytes)}</td>
-                <td className="py-1 pr-4">
-                  {d.generatedIdItems ? (
-                    <span className="text-amber-700">{d.generatedIdItems}</span>
-                  ) : (
-                    <span className="text-gray-400">0</span>
-                  )}
-                </td>
                 <td className="py-1 pr-4">
                   {/*
                     Absent, not zero, when the destination could not be
@@ -192,7 +200,11 @@ export const DiscoveryCounts: React.FC<{
         this whole change exists to prevent.
       */}
       {pending.length > 0 && (
-        <p className="mt-2 text-sm text-gray-500" role="status">
+        <p className="mt-2 flex items-center gap-2 text-sm text-gray-500" role="status">
+          {/* Moving, for the same reason as the scanning line above: a table
+              with three rows and a static sentence about a fourth is the
+              finished-looking page this whole component exists to prevent. */}
+          <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" aria-hidden="true" />
           {t(slow ? 'discovery.stillCounting.slow' : 'discovery.stillCounting', {
             domains: pending.map((d) => t(DOMAIN_KEY[d])).join(', '),
           })}
