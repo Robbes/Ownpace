@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 138 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 139 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -1390,6 +1390,10 @@ Reads:
 - `packages/shared/src/container-hash.unit.test.ts`
 - `packages/shared/src/fingerprint-scheme.ts`
 - `scripts/drive-export-members.ts`
+
+### [a-count-in-a-sentence-the-table-outgrew](../scripts/a-count-in-a-sentence-the-table-outgrew.unit.test.ts)
+
+A COUNT IN A SENTENCE IS A COPY OF THE TABLE, AND A COPY ROTS.
 
 ### [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts)
 

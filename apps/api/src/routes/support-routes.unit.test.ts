@@ -470,10 +470,16 @@ describe('the ways in that are refused before any database is touched', () => {
 });
 
 describe('the spec describes what these routes actually serve', () => {
-  it("documents the six failure categories the column can hold, and only those", () => {
+  it('documents every failure category the column can hold, and only those', () => {
     // The enum in `openapi.yaml` is a copy, and a copy rots. Asserted against
-    // the source so that adding a seventh category — or renaming one — fails
-    // here rather than in a client generated from a spec that is wrong.
+    // the source so that adding a category — or renaming one — fails here
+    // rather than in a client generated from a spec that is wrong.
+    //
+    // IT DID EXACTLY THAT, twice: `source_refused` and `format_refused` landed
+    // on 2026-09-17 and the spec followed. What did NOT follow was this test's
+    // own name, which stated a total and predicted that the next one added
+    // would fail here. It did. The name no longer counts anything, and
+    // `a-count-in-a-sentence-the-table-outgrew.unit.test.ts` holds the rest.
     const spec = parseYaml(
       readFileSync(join(import.meta.dirname, '../../docs/openapi.yaml'), 'utf-8'),
     ) as {

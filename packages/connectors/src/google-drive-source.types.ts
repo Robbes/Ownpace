@@ -285,11 +285,14 @@ export const EXPORT_STABILITY: Readonly<
     'application/vnd.google-apps.drawing': 'stable',
   },
   'export-pdf': {
-    // All three editor types, byte-identical over five draws each. A PDF is not
-    // a zip, so there is no container to normalise and no second chance: these
-    // are greens on the bytes themselves, which is the strongest shape a green
-    // in this table can have. The Slide is the one that matters — it is the
-    // only measured way to carry a deck at all.
+    // Byte-identical over five draws each. A PDF is not a zip, so there is no
+    // container to normalise and no second chance: these are greens on the
+    // bytes themselves, which is the strongest shape a green in this table can
+    // have. The Slide is the one that matters — it is the only measured way to
+    // carry a deck at all. (This comment used to open by counting the editor
+    // types it covered, and went on counting them after the Drawing was added
+    // below it. A count in a sentence is a copy of the table — see
+    // `scripts/a-count-in-a-sentence-the-table-outgrew.unit.test.ts`.)
     'application/vnd.google-apps.document': 'stable',
     'application/vnd.google-apps.spreadsheet': 'stable',
     'application/vnd.google-apps.presentation': 'stable',

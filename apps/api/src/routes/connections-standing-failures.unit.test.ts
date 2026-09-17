@@ -293,9 +293,14 @@ describe('GET /api/connections — what is standing against each connection (009
     expect(b.byId.has(SRC)).toBe(false);
   });
 
-  it('documents the field with the same six categories and five domains the code has', () => {
+  it('documents the field with the same failure categories and domains the code has', () => {
     // The enums in `openapi.yaml` are copies, and a copy rots. Asserted
     // against the single source, the way the support routes do.
+    //
+    // THE NAME USED TO COUNT THEM and the assertion below never did, so two
+    // more landed on 2026-09-17 and this line went on stating the old total
+    // while passing. A count in a sentence is a copy of the table too, and
+    // `a-count-in-a-sentence-the-table-outgrew.unit.test.ts` now holds it.
     const spec: unknown = parseYaml(
       readFileSync(join(import.meta.dirname, '../../docs/openapi.yaml'), 'utf-8'),
     );
