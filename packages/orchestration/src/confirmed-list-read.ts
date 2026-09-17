@@ -229,6 +229,11 @@ export async function readConfirmedList(
     verified: shaped.verified,
     total: shaped.total,
     rows: shaped.rows,
+    // Every state counted, so the screen can account for the items the
+    // headline does not claim — six thousand `yours` rows behind a headline of
+    // nought is what the owner met on 2026-09-17. From the shaper, never
+    // recomputed here: the arithmetic has one home.
+    byState: shaped.byState,
     ...(shaped.truncated ? { truncated: true } : {}),
     ...pass,
   };

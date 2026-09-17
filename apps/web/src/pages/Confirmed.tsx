@@ -54,6 +54,7 @@
 import React from 'react';
 import { useParams } from 'react-router';
 import { AlertCircle, Download, Loader2 } from 'lucide-react';
+import { ROW_STATES } from '@openmig/shared';
 import type {
   ClaimKind,
   ConfirmedListQueue,
@@ -135,6 +136,74 @@ const CLAIM: Readonly<Record<ClaimKind, StringKey>> = {
   'container-parts': 'confirmed.claim.containerParts',
   none: 'confirmed.claim.none',
 };
+
+/**
+ * THE ORDER THE REST OF THE ACCOUNT IS READ IN.
+ *
+ * Annotated as a total record over every state but `verified`, so a ninth state
+ * cannot be added without deciding where in this sentence it belongs — a state
+ * missing from the order would be items missing from the account.
+ *
+ * Ranked by what it asks of the reader, not by size: `missing` is the loudest
+ * row on the page and goes first however few there are, `yours` asks nothing
+ * and goes last however many. `verified` is absent because it IS the headline;
+ * repeating it here would invite adding the two together.
+ */
+const BREAKDOWN_RANK: Readonly<Record<Exclude<RowState, 'verified'>, number>> = {
+  missing: 1,
+  differs: 2,
+  'never-placed': 3,
+  unchecked: 4,
+  removed: 5,
+  present: 6,
+  yours: 7,
+};
+
+const BREAKDOWN_ORDER = ROW_STATES.filter((state) => state !== 'verified').sort(
+  (a, b) =>
+    BREAKDOWN_RANK[a as Exclude<RowState, 'verified'>] -
+    BREAKDOWN_RANK[b as Exclude<RowState, 'verified'>],
+);
+
+/**
+ * WHERE THE REST OF THE ACCOUNT STANDS (owner, 2026-09-17).
+ *
+ * The headline claims what was re-read and matched, and must not widen. This
+ * is everything else, counted: the owner's first real migration put roughly six
+ * thousand items on his destination as `yours` — his own copies, already there,
+ * never written by us — and read
+ *
+ *     0 of 7,480 items … verified by hash
+ *     Checking since 10:10 PM — 6,300 of 7,480 checked so far
+ *
+ * Both numbers true, and the page said nothing at all about the six thousand.
+ * The only other figure visible was progress, which read as a contradiction:
+ * *"this seems double."*
+ *
+ * Each state keeps the word and the hover sentence the table gives it, so the
+ * line teaches the same vocabulary rather than a second one. Nought is not
+ * printed: a row of seven zeroes hides the one number that is not.
+ */
+function Breakdown({ q }: { q: ConfirmedListQueue }): React.ReactElement | null {
+  const t = useT();
+  const { number } = useFormatters();
+  const shown = BREAKDOWN_ORDER.filter((state) => q.byState[state] > 0);
+  if (shown.length === 0) return null;
+  return (
+    <p className="mt-1 text-sm text-gray-700">
+      {t('confirmed.breakdown')}{' '}
+      {shown.map((state, i) => (
+        <span key={state}>
+          {i > 0 && <span className="text-gray-400"> · </span>}
+          <span className={STATE[state].className} title={t(STATE[state].helpKey)}>
+            {t(STATE[state].nameKey)}
+          </span>{' '}
+          <span className="tabular-nums">{number(q.byState[state])}</span>
+        </span>
+      ))}
+    </p>
+  );
+}
 
 function Row({ r }: { r: ConfirmedRowView }): React.ReactElement {
   const t = useT();
@@ -298,6 +367,7 @@ function Mapping({
           {t('confirmed.headline.of')} {number(q.total)} {t('confirmed.headline.rest')}
         </span>
       </p>
+      <Breakdown q={q} />
       <PassLine q={q} checked={checked} />
 
       {/*

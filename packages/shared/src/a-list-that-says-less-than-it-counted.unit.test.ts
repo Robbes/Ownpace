@@ -39,6 +39,7 @@ import {
   confirmedListCsv,
   confirmedListOf,
   countsAsVerified,
+  ROW_STATES,
   type ConfirmedRowView,
   type RowState,
 } from './confirmed-list.ts';
@@ -134,6 +135,90 @@ describe('the total is the account, not the part on screen', () => {
     const acc = confirmedListOf<ConfirmedRowView>({ limit: 3 });
     for (const r of rows) acc.add(r);
     expect(acc.result()).toEqual(confirmedList(rows, { limit: 3 }));
+  });
+});
+
+describe('the breakdown accounts for every item, not the claimable ones', () => {
+  /**
+   * Added after the owner's first real migration (2026-09-17). His destination
+   * already held a previous run's calendars, so most of the account came back
+   * `adopted` — `yours` here, and `yours` can never be `verified` — and the
+   * page led with a headline of nought over a progress line saying six
+   * thousand items had been checked. Both true; the six thousand were simply
+   * never mentioned. The headline may not widen, so the rest is counted.
+   *
+   * Which makes this tally a second set of numbers about somebody's data, and
+   * the two ways it can lie are pinned below: a state left out, and a tally
+   * that disagrees with the headline it sits under.
+   */
+  it('sums to the total, over states the caller never sees on screen', () => {
+    const list = confirmedList(
+      [
+        row('verified'),
+        row('verified'),
+        row('yours'),
+        row('yours'),
+        row('yours'),
+        row('unchecked'),
+        row('missing'),
+      ],
+      { limit: 1 },
+    );
+    const summed = ROW_STATES.reduce((n, state) => n + list.byState[state], 0);
+    expect(summed, 'every item is in exactly one state, so the tally is the account').toBe(
+      list.total,
+    );
+    expect(list.byState).toEqual({
+      verified: 2,
+      differs: 0,
+      present: 0,
+      yours: 3,
+      missing: 1,
+      'never-placed': 0,
+      removed: 0,
+      unchecked: 1,
+    });
+    // The bound trimmed the screen to one row and changed none of it.
+    expect(list.rows).toHaveLength(1);
+    expect(list.truncated).toBe(true);
+  });
+
+  it('agrees with the headline about the verified rows', () => {
+    // The tally counts a verified row BEFORE the early return that keeps it
+    // off the working list. Counting it after — the natural place to put the
+    // line — leaves `byState.verified` at nought beside a headline that says
+    // otherwise, and a reader adding the line to the headline undercounts
+    // their own account.
+    const list = confirmedList([row('verified'), row('verified'), row('yours')]);
+    expect(list.byState.verified).toBe(list.verified);
+    expect(list.byState.verified).toBe(2);
+  });
+
+  it('carries a state nothing is in, as nought rather than as absent', () => {
+    // A screen reading `byState[state] > 0` on a missing key gets `undefined`,
+    // and `undefined > 0` is false — so an absent state would hide items
+    // rather than show none. Every key, every time.
+    const list = confirmedList([row('verified')]);
+    for (const state of ROW_STATES) {
+      expect(typeof list.byState[state], `${state} must be counted, even as nought`).toBe('number');
+    }
+  });
+
+  it('names every state exactly once, in the order the union declares', () => {
+    // `ROW_STATES` is read by the screen to order its breakdown and by this
+    // file to sweep the tally. A duplicate would double-count a state on
+    // screen; a missing one would drop it from both.
+    expect(new Set(ROW_STATES).size).toBe(ROW_STATES.length);
+    expect([...ROW_STATES]).toEqual([
+      'verified',
+      'differs',
+      'present',
+      'yours',
+      'missing',
+      'never-placed',
+      'removed',
+      'unchecked',
+    ]);
   });
 });
 

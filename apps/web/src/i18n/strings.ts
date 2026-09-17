@@ -1276,7 +1276,14 @@ const en = {
   'confirmed.nothingYet': 'This migration has no items yet.',
   'confirmed.allVerified': 'Every item was re-read and matched. Nothing needs your attention.',
   'confirmed.headline.of': 'of',
-  'confirmed.headline.rest': 'items are in your new home, verified by hash.',
+  // WHAT THE NUMBER COUNTS, not where the items are (owner, 2026-09-17). It
+  // read "items are in your new home, verified by hash" — two claims in one
+  // sentence, and the first was wrong whenever the second was: six thousand of
+  // the owner's items WERE in his new home, as copies he already had, and the
+  // page led with a nought. The headline is the hash claim now, and
+  // `confirmed.breakdown` below says where everything else stands.
+  'confirmed.headline.rest': 'items in your new home are verified by hash.',
+  'confirmed.breakdown': 'The rest of the account:',
   // CHECKED, not verified: the pass has walked this many items, of which the
   // headline above claims only the ones the target confirmed. Two numbers
   // that differ on purpose, and a reader who is told which is which.
@@ -2919,7 +2926,8 @@ const nl: Record<keyof typeof en, string> = {
   'confirmed.nothingYet': 'Deze migratie heeft nog geen items.',
   'confirmed.allVerified': 'Elk item is teruggelezen en kwam overeen. Niets vraagt uw aandacht.',
   'confirmed.headline.of': 'van de',
-  'confirmed.headline.rest': 'items staan in uw nieuwe huis, geverifieerd met een hash.',
+  'confirmed.headline.rest': 'items in uw nieuwe huis zijn met een hash geverifieerd.',
+  'confirmed.breakdown': 'De rest van het overzicht:',
   'confirmed.checked.of': 'van de',
   'confirmed.checked.rest': 'tot nu toe gecontroleerd',
   'confirmed.truncated.a': 'De eerste',

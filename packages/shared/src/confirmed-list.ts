@@ -158,6 +158,37 @@ export type RowState =
    */
   | 'unchecked';
 
+/**
+ * Every state, with a count of nought — the shape a sweep starts from, and the
+ * one place the list of states is written down.
+ *
+ * Annotated rather than inferred, so a ninth `RowState` is a compile error in
+ * this literal. `ROW_STATES` below reads its keys, so a state cannot be known
+ * to one and not the other: a breakdown that silently omitted a state would
+ * subtract items from an account somebody is about to empty.
+ */
+const NO_ROWS_YET: Readonly<Record<RowState, number>> = {
+  verified: 0,
+  differs: 0,
+  present: 0,
+  yours: 0,
+  missing: 0,
+  'never-placed': 0,
+  removed: 0,
+  unchecked: 0,
+};
+
+/**
+ * All eight states, in the union's own order — for a caller that must sweep
+ * them (a breakdown line, a legend, a test that walks every one).
+ */
+export const ROW_STATES = Object.keys(NO_ROWS_YET) as ReadonlyArray<RowState>;
+
+/** A fresh tally, one per list. */
+function noRowsYet(): Record<RowState, number> {
+  return { ...NO_ROWS_YET };
+}
+
 /** One row, with its evidence named rather than implied. */
 export interface ConfirmedRow {
   readonly state: RowState;
@@ -428,6 +459,31 @@ export interface ConfirmedList<Row extends ConfirmedRow = ConfirmedRow> {
    * library is smaller than it is.
    */
   readonly truncated?: boolean;
+  /**
+   * HOW MANY ITEMS ARE IN EACH STATE — the account, whole (owner, 2026-09-17).
+   *
+   * THE DEFECT THIS EXISTS TO FIX. The owner's first real migration ran against
+   * a target that already held a previous test run's calendars, so roughly six
+   * thousand of his 7,480 items came back `adopted` — his own copy was already
+   * there and we never wrote those bytes. `adopted` is `yours`, `yours` is
+   * deliberately not `verified` (see `rowFor`), and the headline counts
+   * `verified` alone. So the page told him:
+   *
+   *     0 of 7,480 items are in your new home, verified by hash
+   *     Checking since 10:10 PM — 6,300 of 7,480 checked so far
+   *
+   * Every number there was right and the document was misleading. Six thousand
+   * items WERE in his new home; nothing on the page said so, and the only
+   * other number visible was progress, which read as a second, contradictory
+   * claim. His words: *"this seems double."*
+   *
+   * The headline must not widen — it is the sentence somebody empties a folder
+   * on, and `verified` is the only thing re-read and matched. So the rest of
+   * the account gets counted instead of implied. Counted HERE rather than from
+   * `rows`, because `rows` is bounded: a screen tallying what it was sent would
+   * describe the first two hundred rows as if they were the account.
+   */
+  readonly byState: Readonly<Record<RowState, number>>;
 }
 
 /**
@@ -459,12 +515,16 @@ export function confirmedListOf<Row extends ConfirmedRow>(options?: {
 } {
   const limit = options?.limit;
   const rows: Row[] = [];
+  const byState = noRowsYet();
   let verified = 0;
   let total = 0;
   let dropped = 0;
   return {
     add(row) {
       total += 1;
+      // Tallied before the early return below, so the breakdown covers the
+      // verified rows the screen never receives as well as the ones it does.
+      byState[row.state] += 1;
       if (countsAsVerified(row)) {
         verified += 1;
         return;
@@ -472,7 +532,13 @@ export function confirmedListOf<Row extends ConfirmedRow>(options?: {
       if (limit === undefined || rows.length < limit) rows.push(row);
       else dropped += 1;
     },
-    result: () => ({ verified, total, rows, ...(dropped > 0 ? { truncated: true } : {}) }),
+    result: () => ({
+      verified,
+      total,
+      rows,
+      byState,
+      ...(dropped > 0 ? { truncated: true } : {}),
+    }),
   };
 }
 
