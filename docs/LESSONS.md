@@ -644,6 +644,10 @@ reading a file drops off its entry by itself.
 
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
 
+### `docs/google-workspace-setup.md`
+
+- [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts) — A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
+
 ### `docs/managed-bring-up.md`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
@@ -1698,6 +1702,7 @@ A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT
 
 Reads:
 
+- `docs/google-workspace-setup.md`
 - `scripts/drive-export-stability.ts`
 
 ### [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts)

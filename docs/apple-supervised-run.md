@@ -2,10 +2,15 @@
 
 Workplans 0115 (the live account) and 0116 T3b (the Data & Privacy export).
 The owner has an Apple Account with real data in it; this is what to do with
-it. **Every Apple sentence in this repository today is reasoned from secondary
-sources** — `support.apple.com` is blocked by the agent's egress proxy, so
-Apple's own wording has never been read directly, and nothing has touched a
-live iCloud account. This document is how that stops being true.
+it. `support.apple.com` is still blocked by the agent's egress proxy, so
+nothing here is read by the agent directly — the owner reads it and it is
+written down with the URL and the day.
+
+**Two of the three parts are now done.** Part 0 was walked on 2026-09-04 and
+HT102208 with it; **Part 2's export arrived on 2026-09-13 and has been read**,
+and what was in it is in 0116 §"What one real export answered". Part 1 — the
+live account — is the one still open, and Part 3 is now a designed second
+export rather than an optional one.
 
 Findings land as dated rows in the two workplans the same day, with the URL and
 the day read, exactly as `PROVIDER_ENDPOINTS` does. **An answer that is not
@@ -185,16 +190,28 @@ Stop at Test. Reading is safe; a first real run against a personal Apple
 account is a separate, deliberate sitting with a scratch target, not a
 by-the-way at the end of a measurement.
 
-## Part 2 — when the export arrives (a week later)
+## Part 2 — done 2026-09-17, and three of five answered
 
-Five questions, and they are the whole of 0116 T3b. Everything else in that
-workplan is designed and blocked on these.
+The export was requested 8 September, arrived 13 September, and was read on the
+17th. **The answers are in `docs/workplans/0116-the-data-they-give-the-person-not-us.md`,
+§"What one real export answered"** — that is the record, not this file.
 
-**Two of the five are now half-answered** by the request flow itself (above):
-Photos and Drive are separate tick-boxes, so they are separate requests and
-almost certainly separate archives (Q3), and the parts are cut at a size the
-person chose rather than a fixed one (Q4) — what remains is whether those parts
-are independent zips or one archive split.
+The short version, because it changes Part 3:
+
+| | |
+|---|---|
+| **Q1 layout** | Answered. Two wrapper levels (`iCloud Drive/` → `Drive/`), then the person's own tree **intact**, Dutch folder names and all |
+| **Q2 sidecars** | Answered. None. One flat `Drive Details.csv` for the whole service, **inside** the data, with **no path column** |
+| **Q3 one archive or two** | Provisionally separate — the download was `iCloud Drive.zip`, named for the service. Only one service was requested, so this is not settled |
+| **Q4 how the parts relate** | **Not answered.** 51 MiB against a 1 GB part size: one part, nothing to relate |
+| **Q5 the export's own date** | **Not answered.** No date file was found; the only dates are the per-file ones in the CSV, and those are the upload day |
+| **Q0 masked addresses** | Not answered — no `.vcf` in a Drive-only export |
+
+**Q4 is the instruction in this document that failed**, and it is worth saying
+why rather than just repeating it: picking the smallest part size does nothing
+unless there is **more data than that size**. Part 3 fixes it by naming both.
+
+The original five questions, kept because Part 3 still has to answer two:
 
 0. **Are email addresses masked in the `.vcf` files?** Apple says it masks
    email addresses in the data it provides, as fraud protection. If that
@@ -225,14 +242,43 @@ A `find . -type f | head -200` with the leaf names redacted, plus one sidecar
 file if any exists (contents redacted, keys intact), answers 1–4. Question 5
 usually needs a look at the top-level files.
 
-## Part 3 — the second export (optional, another week)
+## Part 3 — the second export (no longer optional, and now specified)
 
-The fifth 0116 unknown — *what a re-request produces for a file that has not
-changed* — needs **two** exports about a week apart. It is the difference
-between an import that can be run twice safely and one that duplicates
-everything (0116 T6).
+Part 2 showed the archive IS readable, which was the condition. The owner has
+offered the second one: *"i uploaded the files right before i asked icloud for
+my datadownload, so we might need to do more research with a second test. I
+also need to add larger files to reach above the 1GB. Ill also add the other
+test-files you asked for, like comma and diacritics."*
 
-Only worth doing if Part 2 shows the archive is readable at all.
+**The full contents list, with what each item settles, is in 0116 §"What export
+#2 must contain".** It is kept in the workplan rather than here so it survives
+this runbook. The four that are easy to get wrong:
+
+1. **More than 1 GB of data, AND the part size set below it.** Either alone
+   answers nothing. This is Q4, unanswered from export #1 for exactly this
+   reason.
+2. **A file with a deliberately old modified time**, put into iCloud Drive by a
+   route that preserves it (a Finder drag on macOS, not the web uploader) —
+   and **write down the local modified time before you upload it**. This is the
+   only thing that separates "iCloud never held the date" from "the export
+   drops it", and export #1 cannot.
+3. **Tick two services in the one request** (iCloud Drive and iCloud Photos).
+   That settles Q3 for a checkbox.
+4. **An iWork document** — `.pages`, `.numbers` or `.key`. `Package Signature`
+   is a column in the CSV that was empty on all seven rows, and a package that
+   arrives as a DIRECTORY rather than a file is the single worst surprise a
+   file reader can meet.
+
+**And it cannot be started early:** HT102208 is explicit that a category cannot
+be re-requested while a request for it is in flight, so the second request
+begins only after the first is collected and off the page. The first export
+expires **26 September 2026**.
+
+Keeping the `voor-upload.csv` — name, size and locally computed SHA-256 for
+every file, recorded before upload — is what turns `Base Hash` from
+"SHA-256-sized" into "is or is not a SHA-256", and that one line decides
+whether 0116 T6's idempotency can run off the manifest instead of unpacking
+25 GB.
 
 **And it cannot be started early.** HT102208 is explicit: a second request for
 a category already requested waits until the first is complete *and* removed
@@ -249,4 +295,4 @@ is no way to run the two weeks concurrently.
 | Dashed vs dashless (1c) | 0115 status row; if dashless wins, a T5 follow-up that strips them |
 | Local part vs full address (1d) | `provider-endpoints.ts` comment, promoted from "not known" to measured |
 | The five face readings (1e) | 0115 T6 status row — the first real qualification |
-| The five archive answers (Part 2) | 0116 §"What is not known" replaced by what is |
+| The five archive answers (Part 2) | ✅ **2026-09-17** — 0116 §"What one real export answered", which replaced §"What is not known". Three of five; Part 3 owes the other two |

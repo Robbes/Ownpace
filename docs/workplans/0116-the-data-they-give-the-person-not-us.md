@@ -1,6 +1,21 @@
 # Workplan 0116 — The data they give the person, not us
 
-## Status — 2026-09-05 (update this block at the end of every session)
+## Status — 2026-09-17 (update this block at the end of every session)
+
+**2026-09-17: an Apple export exists and has been read (T3b unblocked).** The owner requested
+one on 8 September and it arrived on the 13th; §"What one real export answered" is what was in
+it, provisional and labelled so. The headlines: the person's tree survives intact under two
+wrapper levels; there are no sidecars, only one flat `Drive Details.csv` **inside** the data
+with no path column at all, so the tree comes from the walk and the CSV is joined onto it;
+`Base Hash` is 32 bytes, SHA-256-sized and unverified. Two of T3b's five questions could not be
+exercised — 51 MiB against a 1 GB part size means no multi-part split, and one request means no
+re-request — and the section now carries the contents export #2 must have to close them, which
+matters because **this download expires 26 September 2026**. One finding written earlier that
+day, that modified times cannot be carried, was over-stated and is corrected in place: the
+export did not stamp those rows, so whatever was lost was lost at upload, and only a file with
+a deliberately old mtime can separate the two live explanations. Unprompted, and the reason a
+reader is not being written yet: the timestamps are consistent with **US Pacific, not the
+person's timezone**, which would put a naive parse nine hours out.
 
 **2026-09-05, the second slice is BUILT: an archive mapping actually imports (T5 + T6).**
 `ArchiveFileSource` makes whatever a reader answers look like any other file source, so the
@@ -161,7 +176,7 @@ If the owner decides only one thing here, decide **D1**.
 | T1 The archive, as a kind of connection | ✅ **Built 2026-09-04** | `ArchiveSource`: a source whose credential is an archive's LOCATION, not an account. Front door, wizard, connection card, probe, three-state record. Provider-agnostic. |
 | T2 The reader seam | ✅ **Built 2026-09-04** | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
 | T3a The Takeout reader (Google Photos) | ✅ **Built 2026-09-04** | 0112 T1's reader, unchanged, behind the T2 interface. |
-| T3b The Data & Privacy reader (Apple) | 📋 **Blocked on a real export** | Nobody here has opened one. T3b starts by opening one and writing down what is inside — see §"What is not known". |
+| T3b The Data & Privacy reader (Apple) | 📋 **Unblocked 2026-09-17 — designed on one export** | An export has been opened and what is in it is written down: see §"What one real export answered". Two of its five questions were not exercised (the multi-part split, the re-request) and the date parsing is an inference, so the reader waits on export #2 — whose contents are specified in that section. |
 | T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first.** **Measured 2026-09-05:** the managed edition's run containers get a network (`DOCKER_RUNNER_NETWORKS`) and nothing else — no volume shared with the API — so a local path can never reach a managed pass. The local path is the appliance's route alone; on managed the archive has to arrive through a cloud this product reads, or an upload (D7). | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
 | T5 Placement and the manifest | ✅ **Built 2026-09-05** | `ArchiveFileSource` over the seam's new `placeIn` and `content()`: albums as folders, a photo written once per album (0112 decision 5), a photo in no album under its year, one fingerprinted manifest at the root with everything the export knew. Edited versions and motion clips are distinct items linked to their original (decided 2026-09-04, §4). EXIF into the copy stays 0112 T3. |
 | T6 Idempotency by content hash | ✅ **Built 2026-09-05** | Nothing new: the ledger's path-plus-hash rule, proved through the real loop — a second import writes nothing, a later export writes only what is new. **An archive delta may only ADD** is enforced by `FileSource.snapshot`, which switches the loop's absence-counting off; proved with the flag on and, as the control, stripped. |
@@ -265,10 +280,10 @@ differ in the one dimension that decides the product shape.
 | | Google Takeout (Photos) | Apple Data & Privacy |
 |---|---|---|
 | What it covers | The chosen products | iCloud Drive documents, photos, videos, contacts, calendars, notes, bookmarks, reminders, mail |
-| Preparation | Hours to days | Apple states requests are fulfilled **within 7 days**; large ones may take longer |
+| Preparation | Hours to days | Claimed **within 7 days**; **measured once: 5 d 6 h** (8→13 Sept 2026) |
 | Delivery | A link, **or straight into Drive, Dropbox, Box or OneDrive** | **A download link only.** No delivery into any cloud |
-| Part size | Chosen | Chosen, largest part **25 GB** |
-| Link lifetime | Days | **14 days** |
+| Part size | Chosen | Chosen — the chooser is real; largest part **25 GB** is still secondary |
+| Link lifetime | Days | **14 days** (HT102208, read 2026-09-04) — but **measured once**, the window ended 12 d 18 h after the "ready" mail, so the clock does not start when the person is told |
 | Repeatable on a schedule | **Yes** — since June 2026, one export every two months for a year, each later one carrying only what changed | **No.** Every request is a fresh full snapshot |
 
 Two consequences, and they are the whole design:
@@ -283,28 +298,178 @@ Two consequences, and they are the whole design:
 The product must therefore never use one word for both. An archive connection carries
 **which provider's export it is**, and the surfaces say what that provider actually offers.
 
-## What is not known, and must be measured before T3b
+## What one real export answered, and what it did not
 
-Per the 0105 never-guess rule, everything above about Apple's export comes from **secondary
-sources** — `support.apple.com` is blocked by this environment's egress proxy, so Apple's own
-wording has not been read directly. The figures (7 days, 14 days, 25 GB) are consistent across
-MacRumors, iDownloadBlog and Apple's community forums and are good enough to plan on; they are
-**not** good enough to put in a customer-facing sentence. T8 re-checks each against Apple's own
-page, with the URL and the day read, exactly as `PROVIDER_ENDPOINTS` does.
+**2026-09-17: an Apple export has been opened.** The owner requested one on 8 September 2026,
+it arrived on the 13th, and this section is what was in it. Everything here is **PROVISIONAL**,
+and the word is doing real work: one export, one account, one region, one request. Two of the
+five questions below were not exercised at all, and one finding written here on the morning of
+the 17th was over-stated and is corrected further down.
 
-And one thing is not known at all: **what an Apple export looks like inside.** Google's layout
-is documented down to the sidecar spelling in 0112 because somebody opened one. Nobody here has
-opened an Apple export. Unknown, and needed before T3b:
+It is written down anyway, for a reason with a date on it: **the download expires on
+26 September 2026**, and after that nothing in it survives except what is in this file.
 
-- the directory layout, and whether iCloud Drive files keep their original tree;
-- whether there is any per-file metadata sidecar, or only the bytes;
-- whether Photos and Drive arrive in one archive or as separate ones;
-- how the ≤25 GB parts relate — one logical archive split, or independent zips;
-- what a re-request produces for a file that has not changed.
+### The five questions, as far as one export can answer them
 
-**T3b starts by answering those five questions from a real export**, and writes the answers
-into this document before any reader is built. That needs an Apple Account with real data in
-it — the same thing 0115 has been waiting on.
+| Question (asked 2026-09-04) | Export #1 |
+|---|---|
+| The directory layout, and whether files keep their tree | **Answered.** Two wrapper levels, then the person's own tree unchanged — see below |
+| A per-file metadata sidecar, or only the bytes | **Answered.** No sidecars. ONE CSV for the whole service, flat, at the data root |
+| Photos and Drive in one archive or separate | **Provisionally separate.** The download was `iCloud Drive.zip` — named for the service, not the request. A request covering two services has not been made |
+| How the ≤25 GB parts relate | **Not exercised.** The owner chose a 1 GB part size and the data was 51 MiB, so there was one part and nothing to relate |
+| What a re-request produces for an unchanged file | **Not exercised.** One request has been made |
+
+### The layout, exactly
+
+```
+iCloud Drive.zip
+└── iCloud Drive/            ← wrapper 1, named for the service
+    └── Drive/               ← wrapper 2
+        ├── Drive Details.csv
+        └── testmap/         ← the person's own tree starts here
+            ├── <an image>
+            └── submap/
+                └── <a .docx, named for a 2019 project>
+```
+
+(Leaf names redacted, as `docs/apple-supervised-run.md` promises: every question here is
+structural, and the real names answer none of them. `testmap` and `submap` are the owner's own
+folder names and are kept, because a Dutch name surviving the round trip IS one of the answers.)
+
+Three things follow, and each is a line of reader code:
+
+1. **The person's tree is preserved verbatim**, including a Dutch folder name with no
+   transliteration. iCloud Drive files DO keep their original tree — the first question's
+   answer, and the good one.
+2. **Two wrapper levels have to be descended before anything is a user path**, and the second
+   is not the same word as the first. A reader that treats the zip root as the import root
+   would place every file under `iCloud Drive/Drive/…`.
+3. **The manifest lives INSIDE the data**, beside the user's own folders rather than above
+   them. A walk that does not exclude `Drive Details.csv` by name will import the manifest as
+   a user file — and a person who genuinely has a file of that name at that spot collides with
+   it. `ArchiveReader` must exclude it structurally, at the known path, not by matching the
+   name anywhere in the tree.
+
+### `Drive Details.csv`, column by column
+
+1249 bytes. One header row, seven data rows, one row per file **across the whole tree**.
+
+```
+Title, Base Hash, Type, Size, Created On, Modified On, Last Opened On, Favourite, Executable, Package Signature
+```
+
+| Column | What export #1 showed | What it means for T3b |
+|---|---|---|
+| `Title` | A bare file name and nothing else | **No path, anywhere in the file.** The `.docx` two folders deep is a row like any other |
+| `Base Hash` | 44 base64 characters on every row → exactly 32 bytes | SHA-256-**sized**. NOT verified to be a SHA-256 of the bytes — see export #2 |
+| `Type` | `File` on all seven rows | A column with one observed value. Whatever a folder or a package reads as, we have not seen it |
+| `Size` | Bytes. Sums to 53,819,035 (51.33 MiB) | The rows are ordered **strictly descending by this column** — not by name, not by tree, not by time |
+| `Created On` / `Modified On` | Identical on all seven rows | `MM-DD-YYYY HH:MM:SS`, no timezone — see below, twice |
+| `Last Opened On` | Equal to the other two, or one second earlier | Distinct values do occur, so the three columns are genuinely three |
+| `Favourite`, `Executable` | `no` on every row | Real iCloud Drive flags with nowhere to go on a Nextcloud target. §4's "honestly lost" list |
+| `Package Signature` | Empty on every row | The interesting one, and empty because nothing in this export was a package |
+
+**The CSV cannot rebuild the tree, and the tree is in the zip.** There is no path column and no
+folder row, so `Title` is ambiguous the moment two folders hold the same name — which this
+export, with seven distinct names, does not test. The consequence for T3b is settled anyway:
+**the canonical path comes from the filesystem walk and the CSV is joined onto it**, never the
+other way round. What the join is keyed on is the open question, because `Title` alone is not a
+key.
+
+### The timings, measured rather than quoted
+
+**A correction to this plan's own framing first.** The paragraph that stood here said Apple's
+wording had never been read directly, because `support.apple.com` is blocked by this
+environment's egress proxy. It still is — but the page was read from outside it on
+**2026-09-04** and written into `docs/apple-setup.md`: **HT102208, published 24 April 2026.** So
+the 7-day and 14-day figures have been Apple's own for a fortnight, and this section was two
+weeks out of date before the export arrived.
+
+| | Apple's own page (HT102208, read 2026-09-04) | Export #1 |
+|---|---|---|
+| Preparation | "up to seven days", the verification period | **5 d 6 h 36 m** — requested 8 Sept 14:17, ready mail 13 Sept 20:53 |
+| Link lifetime | "fourteen days to download **once it is ready**" | Available until 26 Sept 14:47 — **12 d 18 h after the ready mail**, 18 d after the request |
+| Part size | 1, 2, 5, 10 or 25 GB | The chooser is real; 1 GB was chosen. The ceiling was not tested |
+
+Preparation came in comfortably inside Apple's ceiling. **The link lifetime is the interesting
+one, and the reading that fits is not "Apple is wrong".** Fourteen days before the 26 Sept 14:47
+expiry is 12 Sept 14:47 — about thirty hours BEFORE the owner was told his copy was ready. The
+figure is consistent with fourteen days counted from the moment the copy landed on the Data &
+Privacy page, and inconsistent with fourteen days counted from the mail that says so.
+
+That distinction is worth more than the number: **a customer who sets a reminder from the mail
+is up to a day and a half optimistic.** `docs/archive-setup.md` therefore no longer prints a
+count of days at all — it tells the person to read the "Available until" date off their own
+page, which is the only figure certainly right for their own request.
+
+### The timestamps, and a claim that was over-stated
+
+Every row carries `09-08-2026` — the day the files were uploaded, not the day they were
+authored. The files are a 2019 video, a 2019 document and a 2023 photo.
+
+**On the morning of 2026-09-17 this was written up as "modified-time cannot be carried from
+this export". That was over-stated, and the owner said so:** *"i uploaded the files right
+before i asked icloud for my datadownload, so we might need to do more research with a second
+test."* He is right. Two explanations survive this export and it cannot separate them:
+
+- **(a)** iCloud Drive never held the original modified time — the upload route dropped it —
+  and the export faithfully reported what iCloud had.
+- **(b)** iCloud Drive holds it and the export discards it.
+
+What this export DOES rule out is the strong form of (b): **the export did not stamp these
+rows.** The seven timestamps are not identical — they run 05:06:55 → 05:08:35, a 100-second
+spread consistent with seven sequential uploads — and they sit five days BEFORE the archive was
+produced. So whatever was lost was lost at upload, not at export.
+
+**And a second, unprompted finding: the timestamps are not in the owner's timezone.** Read as
+US Pacific (UTC−7, which is PDT on that date) the seven stamps land at 14:06:55–14:08:35 in the
+owner's clock — ending eight and a half minutes before the 14:17 request he describes as
+happening "right before". No other offset comes close: UTC puts them at 07:07, his own CEST at
+05:07, US Eastern at 11:07. One export is not proof, but **a reader that parses these as local
+time would be nine hours out**, and that is a defect worth designing against rather than
+discovering. `Created On` has no timezone in it and never will; the offset has to come from
+somewhere else or be treated as unknown.
+
+### What export #2 must contain
+
+The owner has offered a second export with better test data. The download expires 26 September,
+so this is the list, and each line says which question it settles:
+
+| In the export | Settles |
+|---|---|
+| **A file with a deliberately old local modified time**, uploaded by a route that preserves it (Finder drag on macOS), with the local mtime written down first | (a) vs (b) above — the only thing that does |
+| **An iWork document** (`.pages`, `.numbers` or `.key`) | Whether `Package Signature` fills, and whether a package arrives as ONE file or as a directory a naive walk explodes into dozens of items |
+| **More than 1 GB of data, with the part size set below it** | How the parts relate: one logical archive split across zips, or independent zips each with their own CSV |
+| **The same file name in two different folders** | Whether `Title` is disambiguated, and therefore whether the CSV can be joined on it at all |
+| **A name with a comma and a double quote in it** | Whether the CSV quotes and escapes, or corrupts. Export #1's seven names contain neither |
+| **A name with diacritics** (`é`, `ü`) **and one with an emoji** | The encoding, and whether macOS's NFD normalisation survives into the zip and into the CSV |
+| **An empty folder** | Whether it appears at all — it has no CSV row by definition, so the zip is the only place it could be |
+| **Nesting three or more levels deep** | That the tree is preserved past the two levels export #1 showed |
+| **A file whose date has a day number above 12** | `MM-DD-YYYY` is currently an inference. `09-08-2026` is the same string under either reading; a day of 13 or more pins it |
+| **A second export with NOTHING changed**, requested after the first | The fifth question: what a re-request produces for an unchanged file, and whether `Base Hash` is stable across requests |
+| **`voor-upload.csv`** — name, size and locally computed SHA-256 for every file, recorded BEFORE upload | Whether `Base Hash` is a plain SHA-256 of the bytes. If it is, the manifest alone can drive T6's idempotency without reading 25 GB of zip |
+
+**Two services in one request** would settle the third question — whether Photos and Drive
+arrive as one archive or several — and costs nothing but a checkbox.
+
+### What is still unknown after export #1
+
+Not fixed by better test data, and still blocking parts of T3b:
+
+- **When the fourteen days actually start.** HT102208 says "once it is ready" and one export
+  says that is not the mail. Which moment it is cannot be seen from outside, so the product
+  must never compute the deadline; it reads the date Apple shows. That is now what
+  `docs/archive-setup.md` says.
+- **What `Base Hash` is a hash OF.** 32 bytes is SHA-256's size and also nothing more than
+  that. Export #2's `voor-upload.csv` answers it for a plain file; a package may well hash
+  differently.
+- **Whether the layout is stable.** Two wrapper levels named `iCloud Drive/` and `Drive/` is
+  what one export did on one day. A reader that hard-codes both is one Apple rename from
+  importing nothing, so T3b finds the data root by looking for the CSV rather than by path.
+
+**T3b can now start.** It was blocked on opening an export and an export has been opened; what
+remains is confirmation, not discovery. A reader written against this section would be wrong in
+its date parsing and silent about packages, which is why neither is built until export #2 lands.
 
 ## The design
 
@@ -632,14 +797,20 @@ carrying its source URL and the day it was read, per 0105.
   duplication, the two-monthly incremental schedule, and its own sources.
 - Workplan [0115](./0115-the-account-apple-will-not-hand-over.md) §"iCloud Drive: no
   third-party API exists".
-- Apple's Data & Privacy export, **secondary sources only** (`support.apple.com` is blocked by
-  this environment's egress proxy — T8 must re-check against Apple's own page, with the URL
-  and the day read):
+- **A real export**, requested by the owner 2026-09-08, delivered 2026-09-13, read 2026-09-17.
+  Its structure is §"What one real export answered"; the files themselves are the owner's
+  personal iCloud and stay on his machine, and the leaf names in this document are redacted
+  for that reason.
+- **Apple Support, HT102208** — *Get a copy of the data associated with your Apple Account*,
+  published 24 April 2026, **read by the owner 2026-09-04** and written up in
+  `docs/apple-setup.md`. This is where the seven-day and fourteen-day figures come from, and
+  it is a primary source; the agent still cannot reach it (`support.apple.com` is blocked by
+  this environment's egress proxy), so it is quoted from that reading rather than re-fetched.
+- The secondary sources the plan was first written from, kept for provenance and now
+  superseded by the two above:
   - MacRumors, *Get a Copy of Your Apple Account Data — Here's How*
     <https://www.macrumors.com/how-to/get-a-copy-of-your-apple-account-data/> (read 2026-09-04)
   - iDownloadBlog, *How to download all your personal data from Apple*
     <https://www.idownloadblog.com/2024/03/21/get-personal-data-from-apple/> (read 2026-09-04)
-  - Apple Support, *Get a copy of the data associated with your Apple Account*
-    (`support.apple.com/en-us/HT208502`) and *Archive or make copies of the information you
-    store in iCloud* (`support.apple.com/en-us/108306`) — **cited, not read**, for the reason
-    above.
+  - Apple Support, *Archive or make copies of the information you store in iCloud*
+    (`support.apple.com/en-us/108306`) — **cited, not read**, for the reason above.

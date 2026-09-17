@@ -95,15 +95,20 @@ breaks the number down so you can see exactly what the extra ones are.
    unless your connection is unreliable.
 5. Confirm. Apple shows a page thanking you and saying your data is being prepared.
 
-Apple says this takes **up to seven days**. In practice it depends on how much you have.
+Apple says this takes **up to seven days**. In practice it depends on how much you have: one
+real request, for a small iCloud Drive, took **five days and six hours** from asking to the
+"your data is ready" mail.
 
-### You get fourteen days to download it
+### Use the date Apple shows you, not a number of days
 
-Once Apple tells you the copy is ready, **the download stays available for fourteen days** and
-then it is deleted. That is a firm deadline, and if you miss it you request the whole thing
-again and wait another week.
+Your request page carries an **"Available until"** date. That date is the deadline, it is the
+only figure that is definitely right for your own request, and when it passes the copy is
+deleted — you then ask again from the start and wait another week.
 
-Set a reminder when you make the request. It is the single most common way this goes wrong.
+We used to say "fourteen days" here. It is a figure that circulates widely and **it did not
+match the one request we have actually watched**, whose window ran eighteen days from the ask.
+So we stopped repeating it: read your own page, write the date down, and set a reminder for a
+few days before it.
 
 ### Apple's other button, and why it is not this
 

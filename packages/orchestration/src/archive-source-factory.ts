@@ -46,12 +46,21 @@ export const ARCHIVE_CONNECTION_KIND = 'archive';
 /**
  * The readers, by export.
  *
- * `apple-privacy` is deliberately ABSENT rather than stubbed. Nobody here has
- * opened an Apple Data & Privacy export yet — 0116 T3b starts by opening one
- * and writing down what is inside — and a stub that answered "0 items" would
- * be indistinguishable, to the person looking at the screen, from an export
- * that really was empty. An absent reader says *we have not built this*; a
- * stub says *your export is empty*, and only one of those is true.
+ * `apple-privacy` is deliberately ABSENT rather than stubbed, and a stub would
+ * be worse than nothing: answering "0 items" is indistinguishable, to the
+ * person looking at the screen, from an export that really was empty. An
+ * absent reader says *we have not built this*; a stub says *your export is
+ * empty*, and only one of those is true.
+ *
+ * WHAT IS STILL MISSING, since 2026-09-17, when an export was finally opened
+ * (0116 §"What one real export answered" has it in full): the shape is known —
+ * two wrapper levels, the person's tree intact beneath them, no sidecars, one
+ * flat `Drive Details.csv` with no path column. What is NOT known is how a
+ * multi-part export splits, what a package (`.pages`, `.numbers`) arrives as,
+ * and which timezone `Created On` is in; the one export available read as US
+ * Pacific rather than the account holder's. A reader written today would parse
+ * dates nine hours out and explode an iWork document into its members, so it
+ * waits on the second export 0116 specifies rather than on a first one.
  */
 const READERS: Readonly<Partial<Record<ArchiveProvider, () => ArchiveReader>>> = {
   'google-takeout': createTakeoutArchiveReader,
