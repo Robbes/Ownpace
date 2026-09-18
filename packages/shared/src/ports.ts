@@ -850,6 +850,24 @@ export interface LedgerRecord {
    * same rule `collection` and `sourceRef` follow.
    */
   readonly naturalKey?: string;
+  /**
+   * The name a PERSON calls this item: an event's SUMMARY, a contact's FN.
+   *
+   * Beside `naturalKey`, never instead of it. The key is what the source calls
+   * the item and is unique; this is what its owner calls it and is not. Two
+   * people named Jan Jansen are two rows, keyed apart and labelled the same,
+   * and that is correct.
+   *
+   * Absent for a domain whose key is ALREADY the name (a file's path) and for
+   * one whose name this code cannot yet read (a mail Subject lives behind RFC
+   * 2047 encoded-words). See `displayNameForCalendar` in `hash.ts` for which
+   * domains fill it and why the other two do not.
+   *
+   * Optional and never blanked, the same rule `naturalKey` follows: a caller
+   * with nothing to say leaves the column alone rather than erasing what an
+   * earlier pass recorded.
+   */
+  readonly displayName?: string;
   readonly contentHash: string;
   readonly targetId: string;
   /** ISO 8601 timestamp the row was first recorded. */
@@ -1277,7 +1295,11 @@ export interface Ledger {
     tenantId: TenantId,
     mappingId: MappingId,
     action: FailureAction,
-    match: { readonly domain?: DiscoveryDomain; readonly errorContains?: string },
+    match: {
+      readonly domain?: DiscoveryDomain;
+      readonly category?: FailureCategory;
+      readonly errorContains?: string;
+    },
   ): Promise<number>;
   resolveFailure(
     tenantId: TenantId,
@@ -1673,6 +1695,50 @@ export interface ItemFailure {
    * response that may be logged or forwarded.
    */
   readonly naturalKeyHash: string;
+  /**
+   * The name a PERSON calls this item: an event's SUMMARY, a contact's FN.
+   *
+   * ## Why this sits beside a field whose comment says the opposite
+   *
+   * The paragraph above is still true of the KEY and nothing here changes it:
+   * the hash remains the handle for Retry and for Leave behind, and nothing
+   * keys, matches or decides on the value below.
+   *
+   * What the paragraph did not anticipate is that the queue would be unusable
+   * without a label. On 2026-09-13 two of the owner's contacts were refused by
+   * a live Nextcloud, five attempts each. This screen is where he was meant to
+   * act on them, and all it could say was a hash. Four days later, handed the
+   * UIDs from the database instead: *"I can not find these contacts, or atleast
+   * i do no know how."* The ledger's own `recordFailure` already carries a note
+   * saying the rows that most need a name were the only ones that could never
+   * get one.
+   *
+   * So this is the same §17 exception `ConfirmedRowView.naturalKey` is granted,
+   * and for the stronger version of its argument: a list that cannot say WHICH
+   * item is missing is not a list anybody can act on, and this is the list whose
+   * entire purpose is being acted on.
+   *
+   * ## What made it safe to add, checked rather than assumed
+   *
+   * `listFailures` has five kinds of caller, and only ONE renders an item:
+   *
+   *  - the owner's own Failures screen and its appliance twin — the reader
+   *    this field exists for;
+   *  - the 0122 progress VIEW LINK (`apps/api/src/routes/view.ts`), which maps
+   *    these rows through `buildDomainStatusReports` into per-domain counts; no
+   *    row reaches its response;
+   *  - both digest builders, which read `failures.filter(needsDecision).length`
+   *    and nothing else, so no name reaches an email;
+   *  - the Attention page, which derives counts per mapping.
+   *
+   * A future caller that forwards a whole row somewhere is the thing to watch,
+   * which is why this comment names the four rather than saying "it is fine".
+   *
+   * Absent for a file (whose key IS its name), for mail (whose Subject this
+   * codebase cannot decode yet), and on every row written before 2026-09-17.
+   * The screen then shows what it has always shown.
+   */
+  readonly displayName?: string;
   readonly collection?: string;
   readonly attempts: number;
   /** Verbatim, so the operator can tell a 507 from a 403 from a parse error. */

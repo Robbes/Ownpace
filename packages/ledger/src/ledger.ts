@@ -31,7 +31,7 @@ import * as schemaPg from './schema-pg.ts';
 function likeLiteral(needle: string): string {
   return needle.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
-import type { DiscoveryDomain } from '@openmig/shared';
+import type { DiscoveryDomain, FailureCategory } from '@openmig/shared';
 
 /**
  * SQL-backed idempotency ledger for PostgreSQL — workplan 0001, T0.
@@ -134,6 +134,12 @@ export class PgLedger implements Ledger {
         // cannot say WHICH item is missing is not a list anybody can act on" —
         // had a blank identifier on every line.
         naturalKey: record.naturalKey ?? '',
+        // The name a PERSON calls it (migration 0050), beside the key and never
+        // instead of it. `null` rather than `''` because this column is
+        // nullable and NULL is the honest value for a domain that has no name
+        // to give: a file, whose key IS its name, and mail, whose Subject this
+        // code cannot yet decode.
+        displayName: record.displayName ?? null,
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
@@ -222,6 +228,14 @@ export class PgLedger implements Ledger {
         // instead of carrying a blank column for the life of the mapping.
         ...(record.naturalKey !== undefined && record.naturalKey !== ''
           ? { naturalKey: record.naturalKey }
+          : {}),
+        // The name heals the same way and for the same reason: every row
+        // written before 2026-09-17 has none, no migration can invent one, and
+        // a pass that reads the item again is the only thing that can. A caller
+        // with nothing to say leaves the column alone rather than erasing a
+        // name an earlier pass recorded.
+        ...(record.displayName !== undefined && record.displayName !== ''
+          ? { displayName: record.displayName }
           : {}),
         lastSyncedAt: sql`now()`,
         updatedAt: sql`now()`,
@@ -329,6 +343,13 @@ export class PgLedger implements Ledger {
           ...(record.naturalKey !== undefined && record.naturalKey !== ''
             ? { naturalKey: record.naturalKey }
             : {}),
+          // And its name, by the same rule. This is the path that matters most
+          // for it: a failure is the row somebody has to act on, and the two
+          // contact 500s that prompted the name showed a UID on every screen
+          // that could have identified them.
+          ...(record.displayName !== undefined && record.displayName !== ''
+            ? { displayName: record.displayName }
+            : {}),
         })
         .where(
           and(
@@ -356,6 +377,12 @@ export class PgLedger implements Ledger {
         // act on. Two contact 500s on the live deployment were unidentifiable
         // on screen for exactly this reason.
         naturalKey: record.naturalKey ?? '',
+        // The name a PERSON calls it (migration 0050), beside the key and never
+        // instead of it. `null` rather than `''` because this column is
+        // nullable and NULL is the honest value for a domain that has no name
+        // to give: a file, whose key IS its name, and mail, whose Subject this
+        // code cannot yet decode.
+        displayName: record.displayName ?? null,
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
@@ -484,6 +511,11 @@ export class PgLedger implements Ledger {
     return rows.map((row) => ({
       domain: row.domain as ItemFailure['domain'],
       naturalKeyHash: row.naturalKeyHash,
+      // The name, when the row has one (migration 0050). The hash above is
+      // still the handle for both actions; this is the only thing on the row a
+      // person can recognise, and without it this queue asked the owner to act
+      // on `926caf98adce563`.
+      ...(row.displayName ? { displayName: row.displayName } : {}),
       ...(row.collection ? { collection: row.collection } : {}),
       attempts: row.attemptCount,
       lastError: row.lastError ?? '(no error recorded)',
@@ -564,7 +596,11 @@ export class PgLedger implements Ledger {
     tenantId: TenantId,
     mappingId: MappingId,
     action: FailureAction,
-    match: { readonly domain?: DiscoveryDomain; readonly errorContains?: string },
+    match: {
+      readonly domain?: DiscoveryDomain;
+      readonly category?: FailureCategory;
+      readonly errorContains?: string;
+    },
   ): Promise<number> {
     const rows = await this.db
       .update(schemaPg.item)
@@ -579,6 +615,12 @@ export class PgLedger implements Ledger {
           eq(schemaPg.item.mappingId, mappingId),
           eq(schemaPg.item.status, 'failed'),
           ...(match.domain ? [eq(schemaPg.item.domain, match.domain)] : []),
+          // EXACT, and only against a recorded value. `last_error_category` is
+          // NULL on every row written before migration 0049, and SQL equality
+          // never matches NULL — so an uncategorised row is reached by no
+          // category press, which is what the screen's own grouping relies on
+          // to keep its count honest.
+          ...(match.category ? [eq(schemaPg.item.lastErrorCategory, match.category)] : []),
           ...(match.errorContains
             ? [
                 // LITERAL, NOT A PATTERN. `%` and `_` are LIKE's own wildcards,
@@ -1530,6 +1572,9 @@ export class PgLedger implements Ledger {
       // make a caller's `record.naturalKey !== ''` heal check read a blank as a
       // value it had been given.
       ...(row.naturalKey ? { naturalKey: row.naturalKey } : {}),
+      // Same rule: absent stays absent, so a round-tripped record cannot blank
+      // a name the row already holds.
+      ...(row.displayName ? { displayName: row.displayName } : {}),
       // Left off entirely when there is none, so "not recorded" stays
       // distinguishable from "recorded as empty".
       ...(row.sourceRefHref ? { sourceRef: row.sourceRefHref } : {}),

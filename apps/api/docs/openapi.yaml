@@ -4836,12 +4836,23 @@ components:
       description: |
         WHICH failures the decision is for. Both fields are optional and both
         being absent is refused (see the route) — an unnarrowed press is
-        almost never what was meant.
+        almost never what was meant. `category` counts as narrowing too.
       properties:
         action:
           type: string
           enum: [retry, accept]
         domain: { $ref: '#/components/schemas/Domain' }
+        category:
+          type: string
+          enum: [auth_expired, rate_limited, quota_exceeded, source_refused, target_refused, format_refused, network, unknown]
+          description: |
+            The failure KIND, which is the product's own grouping vocabulary and
+            the one the Failures screen prints per row. Matched exactly, and
+            only against a recorded value: a row whose category is NULL — every
+            row written before migration 0049 — is reached by no category match
+            at all, so the screen offers no bulk press for that group rather
+            than widening one to the whole domain.
+          examples: ['target_refused']
         errorContains:
           type: string
           description: |

@@ -557,6 +557,7 @@ export async function decideFailureGroup(
   const body = {
     action,
     ...(match.domain ? { domain: match.domain } : {}),
+    ...(match.category ? { category: match.category } : {}),
     ...(match.errorContains ? { errorContains: match.errorContains } : {}),
   };
   try {

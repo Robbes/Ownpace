@@ -183,6 +183,116 @@ export function naturalKeyTextForFile(file: FileItem): string {
 }
 
 /**
+ * THE NAME A PERSON CALLS IT (the owner, 2026-09-17: *"Why not show calander
+ * item names and contact names?"*).
+ *
+ * ## The identifier is not a name
+ *
+ * `naturalKeyTextFor*` above solved half the problem: the confirmed list can
+ * say WHICH item a row is, in the source's own vocabulary. For a file that is a
+ * path and for mail a Message-ID, both of which a person can search their old
+ * account for. For a calendar event and a contact it is a UID, and a UID is not
+ * something anybody has ever seen.
+ *
+ * The cost was not theoretical. Two of the owner's contacts failed against a
+ * live Nextcloud, and every surface that could have told him which two printed
+ * `926caf98adce563`. His answer was *"I can not find these contacts, or atleast
+ * i do no know how"* — which is the correct answer, because there was nothing
+ * to find them by.
+ *
+ * ## Beside the key, never instead of it
+ *
+ * The key stays exactly as it is. A name is not unique, is not stable, and is
+ * not what anything looks a row up by; two people called Jan Jansen are two
+ * rows and must stay two rows. This is a LABEL, and the row it labels is still
+ * identified by its hash.
+ *
+ * ## Which domains, and why not the other two
+ *
+ * Calendar, tasks and contacts: each has a name the person wrote, sitting on
+ * the parsed item already (`CalendarEvent.summary`, `Contact.name`), so this is
+ * field selection and not a second parse of the body.
+ *
+ * FILES have nothing to add: their key IS the path, which is the name. A second
+ * copy of it on the same row would be noise.
+ *
+ * MAIL is not here, and that is a gap rather than a decision: the human label
+ * is the Subject, `MailItem` does not carry one, and it lives in the RFC 822
+ * bytes behind RFC 2047 encoded-words and header folding. Decoding that
+ * correctly is its own piece of work with its own way to be wrong, and half of
+ * it — a mojibake subject on the one document somebody empties their account on
+ * — is worse than the Message-ID it would replace.
+ *
+ * ## Whatever the source says, including its placeholder
+ *
+ * `CalendarEvent.summary` and `Contact.name` are required, and a source with no
+ * SUMMARY or no FN fills them with its own placeholder. That placeholder is
+ * stored too. It is what every other screen in the product already calls that
+ * item, and a row that disagreed with the rest of the product about what an
+ * item is called would be a worse problem than the one this solves.
+ */
+
+/**
+ * How much of a name is kept. Long enough for a real event title, short enough
+ * that a pathological one cannot make a ledger row expensive to read: this
+ * column is selected by the confirmed list for every row on the page.
+ */
+export const DISPLAY_NAME_LIMIT = 200;
+
+/**
+ * One name, bounded and on one line, or `undefined` when there is nothing to
+ * say.
+ *
+ * Whitespace is collapsed rather than preserved: a summary can arrive carrying
+ * the newline of a folded line the source un-folded badly, and a name that
+ * breaks a table row is a name that makes the table harder to read than the UID
+ * it replaced. `undefined` rather than `''` so a caller with nothing to say
+ * leaves the column alone, the same rule `naturalKey` follows.
+ */
+export function boundDisplayName(name: string | undefined): string | undefined {
+  if (name === undefined) return undefined;
+  const flat = name.replace(/\s+/gu, ' ').trim();
+  if (flat === '') return undefined;
+  // `Array.from` rather than `slice`: cutting a string at a code UNIT can split
+  // a surrogate pair and leave half a character, and an emoji in a calendar
+  // title is ordinary.
+  const points = Array.from(flat);
+  if (points.length <= DISPLAY_NAME_LIMIT) return flat;
+  return `${points.slice(0, DISPLAY_NAME_LIMIT).join('')}\u2026`;
+}
+
+/**
+ * READING A LABEL MUST NEVER THROW, which is why all three of these take an
+ * item that may be absent.
+ *
+ * `RawCalendarEvent.item` and `RawContact.item` are declared non-optional, and
+ * the DAV target writers do not need them: a writer takes its UID from the
+ * BODY, so a caller handing it bytes and nothing else has always been served.
+ * Twenty-four tests in `packages/engines` do exactly that.
+ *
+ * The first version of these read `event.summary` directly, and those callers
+ * stopped being served — a write path crashing on the way to fetching a LABEL.
+ * A name is the least important thing on the row and it must not be able to
+ * fail somebody's migration; if there is no item to name, there is no name, and
+ * the screen falls back to the identifier exactly as it does for a file.
+ */
+
+/** The event's SUMMARY — what the person typed in their calendar. */
+export function displayNameForCalendar(event: CalendarEvent | undefined): string | undefined {
+  return boundDisplayName(event?.summary);
+}
+
+/** The task's SUMMARY, by the same rule a calendar event follows. */
+export function displayNameForTask(task: CalendarEvent | undefined): string | undefined {
+  return boundDisplayName(task?.summary);
+}
+
+/** The card's FN — the person's full name as their address book holds it. */
+export function displayNameForContact(contact: Contact | undefined): string | undefined {
+  return boundDisplayName(contact?.name);
+}
+
+/**
  * Content hash over the raw RFC822 bytes, carried in the ledger to detect that an
  * already-migrated message changed. Bytes are hashed verbatim (no header
  * normalization) so byte-level fidelity is detectable. See ADR-0019 (to be written)

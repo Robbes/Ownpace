@@ -377,7 +377,7 @@ export type OperatingAction = 'keep' | 'apply' | 'retry' | 'accept';
  * 2026-09-11: 82 files behind one non-recursive MKCOL, and the only routes out
  * were 82 button presses or SQL against the ledger.
  *
- * Both fields are optional and the route refuses a request that sets NEITHER.
+ * Every field is optional and the route refuses a request that sets NONE.
  * The reason is not safety in the destructive sense — a retry writes nothing to
  * anybody's account — it is that the same queue holds policy refusals, which
  * re-park the moment they are seen again. "Retry everything" therefore costs a
@@ -389,6 +389,22 @@ export type OperatingAction = 'keep' | 'apply' | 'retry' | 'accept';
  */
 export interface FailureGroupMatch {
   readonly domain?: DiscoveryDomain;
+  /**
+   * The failure CATEGORY, which is the product's own grouping vocabulary.
+   *
+   * Added 2026-09-17 on the owner's ask: *"why now detail groups that share
+   * sumilarities and offer those to pick from to do bulk actions?"* Typing a
+   * substring is how a person describes a group they have already worked out
+   * for themselves; a category is one the rows announce. Every failed row has
+   * carried one since migration 0049, and the screen already prints its
+   * sentence per row, so grouping by it names something the reader can see.
+   *
+   * Matched EXACTLY, and only against a recorded value. A row whose category is
+   * NULL — every row written before 0049 — is reached by no category match at
+   * all, which is why the screen offers no bulk press for that group rather
+   * than quietly widening one to the whole domain.
+   */
+  readonly category?: FailureCategory;
   readonly errorContains?: string;
 }
 

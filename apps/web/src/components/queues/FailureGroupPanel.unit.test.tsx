@@ -19,7 +19,7 @@
  *     a 400; the panel refuses to send it for the same reason rather than a
  *     different one, and shows the server's sentence if it ever gets through.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -51,7 +51,7 @@ vi.mock('../../services/operating-service', () => ({
   DecisionRefusedError: FakeRefused,
 }));
 
-import { FailureGroupPanel, matchingFailures } from './FailureGroupPanel.tsx';
+import { FailureGroupPanel, failureGroups, matchingFailures } from './FailureGroupPanel.tsx';
 
 function failure(over: Partial<ItemFailure> = {}): ItemFailure {
   return {
@@ -221,5 +221,120 @@ describe('the press', () => {
     await waitFor(() => {
       expect(screen.getByText(/Send a domain, an errorContains substring/)).toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * THE GROUPS, OFFERED RATHER THAN TYPED (the owner, 2026-09-17: *"why now
+ * detail groups that share sumilarities and offer those to pick from to do
+ * bulk actions?"*).
+ *
+ * Typing a substring is how somebody describes a group they have already
+ * worked out. These are the ones the queue announces about itself, and the
+ * press has to send exactly the group it drew.
+ */
+describe('the groups are read off the rows', () => {
+  /** The owner's own queue: two refused contacts, a refused file, one nameless. */
+  const MIXED: readonly ItemFailure[] = [
+    failure({ naturalKeyHash: 'c1', domain: 'contact', category: 'target_refused' }),
+    failure({ naturalKeyHash: 'c2', domain: 'contact', category: 'target_refused' }),
+    failure({ naturalKeyHash: 'f1', domain: 'file', category: 'source_refused' }),
+    // No category: written before migration 0049 stored one.
+    failure({ naturalKeyHash: 'c3', domain: 'contact' }),
+  ];
+
+  it('crosses the kind with the category, biggest group first', () => {
+    expect(failureGroups(MIXED)).toEqual([
+      { domain: 'contact', category: 'target_refused', count: 2, pressable: true },
+      { domain: 'contact', count: 1, pressable: false },
+      { domain: 'file', category: 'source_refused', count: 1, pressable: true },
+    ]);
+  });
+
+  it('marks a group with NO category unpressable', () => {
+    // Its only description to the server would be its domain, which reaches
+    // every other category in that domain too — so the count beside a button
+    // would be a promise the press does not keep.
+    const nameless = failureGroups(MIXED).find((g) => g.category === undefined);
+    expect(nameless?.pressable).toBe(false);
+  });
+
+  it('accounts for every row exactly once', () => {
+    // A grouping that dropped or double-counted rows would put a number on
+    // screen that no press can reproduce.
+    const total = failureGroups(MIXED).reduce((n, g) => n + g.count, 0);
+    expect(total).toBe(MIXED.length);
+  });
+
+  it('matches a category exactly, and never reaches an uncategorised row', () => {
+    // The client's mirror of the SQL: `=` does not match NULL there, and
+    // `undefined` must not match here either, or the previewed count and the
+    // changed count come apart.
+    expect(matchingFailures(MIXED, { category: 'target_refused' }).map((f) => f.naturalKeyHash)).toEqual([
+      'c1',
+      'c2',
+    ]);
+    expect(matchingFailures(MIXED, { category: 'source_refused' })).toHaveLength(1);
+  });
+
+  it('shows each group with its count and its own sentence', async () => {
+    renderPanel(MIXED);
+    expect(await screen.findByText('Groups in this queue')).toBeInTheDocument();
+    expect(screen.getByText('2 items')).toBeInTheDocument();
+    // The same remedy sentence the row above the panel prints, from the same
+    // map: the group and its members have to be called one thing.
+    expect(screen.getAllByText(/The destination refused to accept this/).length).toBeGreaterThan(0);
+  });
+
+  it('presses the group it drew, kind and category together', async () => {
+    renderPanel(MIXED);
+    const list = within(await screen.findByRole('list'));
+    const retries = list.getAllByRole('button', { name: 'Try all of these again' });
+    // The first group is the biggest: the two refused contacts.
+    await userEvent.click(retries[0]!);
+    await waitFor(() =>
+      expect(decideFailureGroupMock).toHaveBeenCalledWith('m-1', 'retry', {
+        domain: 'contact',
+        category: 'target_refused',
+      }),
+    );
+  });
+
+  it('offers no button for the group that has no category', async () => {
+    // Scoped to the GROUP LIST. The folded match below keeps its own pair, and
+    // they are in the document whether the fold is open or not — counting the
+    // whole panel would pass on a list that had grown a third button.
+    renderPanel(MIXED);
+    const list = within(await screen.findByRole('list'));
+    expect(list.getAllByRole('button', { name: 'Try all of these again' })).toHaveLength(2);
+    expect(list.getAllByRole('button', { name: 'Migrate without all of these' })).toHaveLength(2);
+    // Three groups, two of them pressable.
+    expect(list.getAllByRole('listitem')).toHaveLength(3);
+  });
+
+  it('puts the outcome on the group that was pressed, not on all of them', async () => {
+    // One outcome shared across several buttons would report "3 items" under
+    // whichever group the reader looked at next, on a surface that decides
+    // what happens to somebody's data.
+    renderPanel(MIXED);
+    const list = within(await screen.findByRole('list'));
+    const accepts = list.getAllByRole('button', { name: 'Migrate without all of these' });
+    await userEvent.click(accepts[1]!);
+    await waitFor(() =>
+      expect(decideFailureGroupMock).toHaveBeenCalledWith('m-1', 'accept', {
+        domain: 'file',
+        category: 'source_refused',
+      }),
+    );
+    const shown = await screen.findAllByText(/Attempts reset on 3 item/);
+    expect(shown).toHaveLength(1);
+  });
+
+  it('folds the typed match away, keeping it for what the categories cannot split', async () => {
+    // One connector defect inside one category is the case this panel was
+    // built for. It stays; it is just no longer the first thing offered.
+    renderPanel(MIXED);
+    const fold = await screen.findByText('Match on the error text instead');
+    expect(fold.closest('details')?.open).toBe(false);
   });
 });

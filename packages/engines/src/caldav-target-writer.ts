@@ -28,6 +28,7 @@ import {
   naturalKeyTextForCalendar,
   naturalKeyTextForTask,
   calendarContentHash,
+  displayNameForCalendar,
   isOnTarget,
   neutraliseScheduling,
 } from '@openmig/shared';
@@ -237,6 +238,12 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // writer can win the `recordIfAbsent` race, and a field only the loser
     // passes is a field that never lands.
     const naturalKeyText = this.ledgerKeyTextFor(raw, uid);
+    // And the name a person calls it, for the same race and the same reason.
+    // `displayNameForCalendar` rather than a branch on `this.domain`: a task's
+    // name and an event's are both the SUMMARY, and the two shared helpers
+    // differ only in what they are called. The `todo:` distinction lives in the
+    // KEY, which is where it belongs.
+    const name = displayNameForCalendar(raw.item);
 
     // UPDATE PATH: the source event changed after we copied it, so rewrite it.
     //
@@ -336,6 +343,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         // not at all. Without it a removal report has no way back to the item.
         ...(options?.sourceRef !== undefined ? { sourceRef: options.sourceRef } : {}),
         naturalKey: naturalKeyText,
+        // The name, by the same race: a row this writer inserts is a row the
+        // loop's own `recordIfAbsent` will no-op on.
+        ...(name !== undefined ? { displayName: name } : {}),
       });
       return { targetId: existingId, created: false, adopted: true };
     }
@@ -373,6 +383,8 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // not at all. Without it a removal report has no way back to the item.
       ...(options?.sourceRef !== undefined ? { sourceRef: options.sourceRef } : {}),
       naturalKey: naturalKeyText,
+      // The name, by the same race as `naturalKey` above.
+      ...(name !== undefined ? { displayName: name } : {}),
       // NOT from the loop: only this writer saw the server's answer to the
       // PUT. Same race, opposite direction — recorded here or not at all.
       ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),

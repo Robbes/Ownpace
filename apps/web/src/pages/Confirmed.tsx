@@ -214,13 +214,29 @@ function Row({ r }: { r: ConfirmedRowView }): React.ReactElement {
       <td className="py-2 pr-3 text-gray-900">{t(DOMAIN_STRING_KEY[r.domain])}</td>
       <td className="py-2 pr-3 text-gray-600 break-all">{r.collection}</td>
       <td className="py-2 pr-3 break-all">
-        {r.naturalKey === '' ? (
+        {/* THE NAME, WHEN THERE IS ONE (the owner, 2026-09-17: *"Why not show
+            calander item names and contact names?"*).
+            The identifier moves to the hover rather than onto a second line.
+            It is what somebody searches their OLD account with, so it cannot
+            just be dropped — but for a calendar event and a contact it is a
+            UID, and a UID under every row is the wall of text the owner asked
+            us to compress out of this product on the same afternoon. The CSV
+            export carries both, in two columns, because a file being
+            reconciled offline has room for both and a table cell does not. */}
+        {r.displayName !== undefined ? (
+          <span className="text-gray-900" title={r.naturalKey === '' ? undefined : r.naturalKey}>
+            {r.displayName}
+          </span>
+        ) : r.naturalKey === '' ? (
           // Not "unknown item" — "we did not record the name". The difference
           // matters on this page more than anywhere else in the product.
           <span className="text-gray-500 italic" title={t('confirmed.noKey.hover')}>
             {t('confirmed.noKey')}
           </span>
         ) : (
+          // No name, but an identifier: a file's path, a Message-ID, or a row
+          // from before names were recorded. Exactly what this page showed
+          // before, which is why an old row loses nothing.
           <span className="text-gray-900">{r.naturalKey}</span>
         )}
       </td>

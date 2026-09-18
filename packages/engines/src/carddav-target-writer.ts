@@ -20,7 +20,12 @@ import type {
   TargetEntry,
   RemovalResult,
 } from '@openmig/shared';
-import { contactNaturalKeyHash, contactContentHash, isOnTarget } from '@openmig/shared';
+import {
+  contactNaturalKeyHash,
+  contactContentHash,
+  displayNameForContact,
+  isOnTarget,
+} from '@openmig/shared';
 import { carddavMatchAllFilter, carddavUidFilter, davRefusalBody } from '@openmig/shared';
 import { payloadDefectNote } from './dav-payload-defects.ts';
 import { collectionSlug } from './dav-collection-path.ts';
@@ -125,6 +130,10 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     const uid = this.extractUidFromVcard(raw.vcard);
     const naturalKey = uid;
     const naturalKeyHash = contactNaturalKeyHash(naturalKey);
+    // The card's FN. Recorded here as well as by the loop for the same reason
+    // `naturalKey` is: this writer can win the `recordIfAbsent` race, and a
+    // field only the loser passes is a field that never lands.
+    const name = displayNameForContact(raw.item);
 
     // UPDATE PATH: the source card changed after we copied it. See the same
     // branch in caldav-target-writer.ts for why this precedes the fast-path
@@ -209,6 +218,8 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         // The vCard UID, unhashed, so the confirmed list can name this card.
         // Recorded here as well as by the loop for the same race as above.
         naturalKey,
+        // And the person's name, which is the half a UID cannot give.
+        ...(name !== undefined ? { displayName: name } : {}),
       });
       return { targetId: existingId, created: false, adopted: true };
     }
@@ -246,6 +257,8 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       // The vCard UID, unhashed, so the confirmed list can name this card.
       // Recorded here as well as by the loop for the same race as above.
       naturalKey,
+      // And the person's name, which is the half a UID cannot give.
+      ...(name !== undefined ? { displayName: name } : {}),
       // NOT from the loop: only this writer saw the server's answer to the PUT.
       ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
     });

@@ -142,3 +142,47 @@ describe('both editions answer through the SAME read', () => {
     expect(startHandler).toContain('out[m.config.mappingId]');
   });
 });
+
+describe('both editions read the SAME three fields off a group press', () => {
+  /**
+   * The narrowing fields, not just the URL.
+   *
+   * The URL parity above catches a button that does nothing here. This catches
+   * the quieter version: a button that does something DIFFERENT. One web bundle
+   * serves both editions, so a field only the managed route reads is dropped by
+   * the appliance, its press widens to whatever is left of the match, and it
+   * changes more rows than the count on screen promised. `category` was added
+   * on 2026-09-17 and is exactly that shape of field.
+   */
+  const FIELDS = ['domain', 'category', 'errorContains'] as const;
+
+  it.each(FIELDS)('reads %s out of the request body', (field) => {
+    expect(
+      SOURCE,
+      `apps/selfhost does not read '${field}' from a group-decision body. The managed route ` +
+        'does, and one React bundle serves both editions — so the same press would narrow on ' +
+        'the managed side and silently widen here.',
+    ).toContain(`body.${field} === undefined`);
+  });
+
+  it('passes each of them into the ledger match', () => {
+    // Reading it and not forwarding it is the same defect one step along.
+    for (const field of FIELDS) {
+      expect(SOURCE, `'${field}' is read but never put in the match`).toMatch(
+        new RegExp(`\\.\\.\\.\\(${field} !== undefined`),
+      );
+    }
+  });
+
+  it('refuses a category it does not recognise', () => {
+    // An unknown word matches no row, so the press would report "nothing
+    // happened" instead of saying the request was wrong.
+    expect(SOURCE).toContain('isFailureCategory(category)');
+  });
+
+  it('counts a category ALONE as narrowing enough', () => {
+    // The whole point of offering a group: pressing one must not be refused
+    // for lack of a domain it already implies.
+    expect(SOURCE).toContain('category === undefined &&');
+  });
+});

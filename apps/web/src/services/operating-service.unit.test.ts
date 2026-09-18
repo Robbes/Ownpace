@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
+const { getMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn() }));
 
 vi.mock('axios', async (importOriginal) => {
   const actual = await importOriginal<typeof import('axios')>();
@@ -23,7 +23,7 @@ vi.mock('axios', async (importOriginal) => {
       ...actual.default,
       create: () => ({
         get: getMock,
-        post: vi.fn(),
+        post: postMock,
         put: vi.fn(),
         delete: vi.fn(),
         interceptors: {
@@ -35,7 +35,11 @@ vi.mock('axios', async (importOriginal) => {
   };
 });
 
-import { fetchPermissionReport, fetchGroupRunbook } from './operating-service.ts';
+import {
+  decideFailureGroup,
+  fetchGroupRunbook,
+  fetchPermissionReport,
+} from './operating-service.ts';
 
 /** An axios rejection as `responseType: 'text'` actually delivers it: the
  *  JSON error body is an UNPARSED STRING. `isAxiosError: true` is the flag
@@ -88,5 +92,48 @@ describe('fetchGroupRunbook has the same latent shape, fixed the same way', () =
     expect(
       (thrown as { response: { data: { message?: string } } }).response.data.message,
     ).toBe('No runbook yet.');
+  });
+});
+
+/**
+ * THE FIELDS A GROUP PRESS ACTUALLY SENDS.
+ *
+ * The panel's own tests mock this module, so a field dropped HERE is invisible
+ * to them: the panel would be proved to ask for a category that never leaves
+ * the browser, the server would see a domain-only press, and it would change
+ * every other category in that domain while the screen showed the group's own
+ * count. This is the only place that can catch it.
+ */
+describe('decideFailureGroup posts the whole match', () => {
+  beforeEach(() => {
+    postMock.mockReset();
+    postMock.mockResolvedValue({ data: { status: 'ok', action: 'retry', matched: 2, effect: 'x' } });
+  });
+
+  it('carries the category, the kind and the needle', async () => {
+    await decideFailureGroup('m-1', 'retry', {
+      domain: 'contact',
+      category: 'target_refused',
+      errorContains: 'TypeError',
+    });
+
+    expect(postMock).toHaveBeenCalledWith(expect.stringContaining('m-1'), {
+      action: 'retry',
+      domain: 'contact',
+      category: 'target_refused',
+      errorContains: 'TypeError',
+    });
+  });
+
+  it('sends only what the match actually narrows on', async () => {
+    // An absent field must not become a present empty one: the route reads an
+    // empty `errorContains` as "set but blank" when deciding whether the press
+    // narrows at all.
+    await decideFailureGroup('m-1', 'accept', { category: 'source_refused' });
+
+    expect(postMock).toHaveBeenCalledWith(expect.stringContaining('m-1'), {
+      action: 'accept',
+      category: 'source_refused',
+    });
   });
 });
