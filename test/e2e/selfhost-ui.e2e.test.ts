@@ -159,6 +159,22 @@ describe('the operating UI boots in a real browser', () => {
 
       const r = await open(screen);
       expectClean(r, screen);
+      // `networkidle` only means the network was briefly quiet — react-query's
+      // default retry-on-failure sits idle for ~1s between an initial fetch
+      // and its retry, which is enough for `page.goto` to resolve mid-gap and
+      // leave the screen showing "Loading…" here. Poll for the real content
+      // instead of trusting the one-shot read to land after it settles; the
+      // assertion below still produces the descriptive failure if it never
+      // does. A string function body, not a closure, so this file (which
+      // compiles under Node lib, not DOM — see test/ui/tsconfig.json for why
+      // that split exists) never has to name `document` where tsc can see it.
+      await r.page
+        .waitForFunction(
+          `document.body.textContent && document.body.textContent.includes(${JSON.stringify(sentence)})`,
+          undefined,
+          { timeout: 15_000 },
+        )
+        .catch(() => {});
       expect(await r.text(), `${screen} does not render the wire prose`).toContain(sentence);
       await r.page.close();
     }
