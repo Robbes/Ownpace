@@ -52,7 +52,7 @@ import { Hint } from '../Hint.tsx';
 import { ActionButton, Refused, Resolved } from './primitives.tsx';
 import { DecisionRefusedError, decideFailureGroup } from '../../services/operating-service.ts';
 import { DOMAIN_STRING_KEY } from '../../i18n/domain-words.ts';
-// The same eight sentences the row above prints, from the same map: the
+// The same nine sentences the row above prints, from the same map: the
 // group and its members have to be called one thing.
 import { FAILURE_KEY } from '../../i18n/failure-key.ts';
 
@@ -306,7 +306,7 @@ export const FailureGroupPanel: React.FC<{
 
       {/*
         The typed match, kept and folded. It is the answer for a wording the
-        eight categories cannot separate — one connector defect inside one
+        nine categories cannot separate — one connector defect inside one
         category, which is the case this panel was built for in the first
         place (82 files behind a non-recursive MKCOL).
       */}

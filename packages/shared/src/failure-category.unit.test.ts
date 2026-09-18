@@ -168,7 +168,7 @@ describe('unknown is an answer, not a gap', () => {
 });
 
 describe('the vocabulary itself', () => {
-  it('is exactly the eight the owner accepted', () => {
+  it('is exactly the nine the owner accepted', () => {
     // Adding one is a product decision, not a refactor: the test the owner set
     // was "does it change what you do next". This pin is how that stays true —
     // it went red when the two refusals below were added, which is the point.
@@ -183,13 +183,22 @@ describe('the vocabulary itself', () => {
     //   format_refused  the destination will not take this KIND of file, which
     //                   is not the same instruction as "free up space"
     //
-    // ORDER IS PART OF THE PIN. The two refusals sit together and in the
-    // order a reader meets them — source first, because the question is always
-    // "did it even get sent" before "was it accepted".
+    // The eight became nine on 2026-09-18, on the owner's choice, after thirty
+    // of his files failed under one category with two opposite remedies:
+    //
+    //   policy_refused  THIS MIGRATION declined it. The source would have
+    //                   handed it over, the destination was never asked, and a
+    //                   setting on the mapping is what changes the answer.
+    //
+    // ORDER IS PART OF THE PIN. The refusals sit together and in the order a
+    // reader meets them, which is the order the item travels: did we even ask
+    // for it, did the source hand it over, did the destination take it, did the
+    // destination take this KIND of it.
     expect([...FAILURE_CATEGORIES]).toEqual([
       'auth_expired',
       'rate_limited',
       'quota_exceeded',
+      'policy_refused',
       'source_refused',
       'target_refused',
       'format_refused',
@@ -205,8 +214,14 @@ describe('the vocabulary itself', () => {
     }
   });
 
-  it('every category except unknown is reachable from some message', () => {
+  it('every category except unknown is reachable, from a message or a statement', () => {
     // A category nothing can produce is a category that lies on the screen.
+    //
+    // `policy_refused` is reachable only the second way, and that is the point
+    // rather than a gap: nothing a provider can say means "this migration's own
+    // settings declined it", because no provider was involved. It arrives as a
+    // STATED category from the code that refused (workplan 0125 T4), which is
+    // why the classifier takes one at all.
     //
     // Each case is (message, side) since 2026-09-17, because two of the eight
     // are only reachable WITH a side: the same 403 is a source refusal or a
@@ -226,7 +241,11 @@ describe('the vocabulary itself', () => {
           ['415 unsupported media type', 'target'],
           ['ECONNREFUSED', undefined],
         ] as ReadonlyArray<readonly [string, FailureSide | undefined]>
-      ).map(([message, side]) => classifyFailure(message, side)),
+      )
+        .map(([message, side]) => classifyFailure(message, side))
+        // The stated route, with a message that matches NOTHING, so the only
+        // thing that can produce this answer is the statement itself.
+        .concat(classifyFailure('a Google Form has no file to copy', 'source', 'policy_refused')),
     );
     for (const c of FAILURE_CATEGORIES) {
       if (c === 'unknown') continue;

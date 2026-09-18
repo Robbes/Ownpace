@@ -11,14 +11,15 @@
  * able to see what they see in case I'm contacted."*
  *
  * A second copy of this map would make that false the first time one of the
- * eight sentences was edited — the customer reading one remedy while the person
+ * nine sentences was edited — the customer reading one remedy while the person
  * they phoned reads another is worse than the operator seeing nothing, because
  * both of them would believe they were looking at the same screen.
  *
- * Exhaustive by type, so a ninth category cannot reach either screen with
+ * Exhaustive by type, so a tenth category cannot reach either screen with
  * nothing to say. That is not decoration: adding `source_refused` and
- * `format_refused` on 2026-09-17 turned this file and its sibling red before a
- * line of UI was touched, which is the whole of how a new category gets a sentence.
+ * `format_refused` on 2026-09-17, and `policy_refused` on 2026-09-18, turned
+ * this file and its sibling red before a line of UI was touched, which is the
+ * whole of how a new category gets a sentence.
  */
 
 import type { FailureCategory, FailureSide } from '@openmig/shared';
@@ -28,6 +29,7 @@ export const FAILURE_KEY: Record<FailureCategory, StringKey> = {
   auth_expired: 'failure.authExpired',
   rate_limited: 'failure.rateLimited',
   quota_exceeded: 'failure.quotaExceeded',
+  policy_refused: 'failure.policyRefused',
   source_refused: 'failure.sourceRefused',
   target_refused: 'failure.targetRefused',
   format_refused: 'failure.formatRefused',

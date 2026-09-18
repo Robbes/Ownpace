@@ -286,7 +286,11 @@ export class PgLedger implements Ledger {
   async recordFailure(
     record: LedgerRecord,
     error: string,
-    options: { readonly park?: boolean; readonly side?: FailureSide } = {},
+    options: {
+      readonly park?: boolean;
+      readonly side?: FailureSide;
+      readonly category?: FailureCategory;
+    } = {},
   ): Promise<LedgerRecord> {
     // DERIVED HERE, in the same statement that writes the prose, for the reason
     // `markFailed` gives at the domain level: a category computed anywhere the
@@ -296,7 +300,13 @@ export class PgLedger implements Ledger {
     // `side` is what tells `source_refused` from `target_refused`, and it is
     // structural — the pass tags the closure that threw. No amount of matching
     // on the wording could do it: a 403 is a 403.
-    const category = classifyFailure(error, options.side);
+    //
+    // `category` is the third input and the only first-hand one (workplan 0125
+    // T4): what the THROW SITE said this was, when the thrower was our own code
+    // and already knew. It is still one derivation in one place — `classifyFailure`
+    // decides, here, with everything the pass could tell it — rather than a
+    // caller writing a column.
+    const category = classifyFailure(error, options.side, options.category);
     // THE COUNT COUNTS ATTEMPTS. Parking used to be written INTO it —
     // `GREATEST(count + 1, MAX_ITEM_ATTEMPTS)` — so an item parked on first
     // sight reported five attempts it never made, and a second park walked the

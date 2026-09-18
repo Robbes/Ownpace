@@ -44,6 +44,23 @@
  * `unknown` staying large is a signal the list needs work, not a reason to
  * guess harder.
  *
+ * ## And where matching is the wrong tool entirely (2026-09-18)
+ *
+ * All three arguments above are about OTHER PEOPLE'S errors. None of them
+ * covers an error this codebase built itself. `NativeFileRefused` branches on
+ * exactly why a Google file is not going — this migration's policy, a type
+ * Drive cannot render, a measured-unstable export — and then throws prose for
+ * this function to guess at; it guessed `unknown` on thirty of the owner's
+ * files, whose remedy is *"send it to us and we will look"* about a refusal we
+ * wrote one line earlier.
+ *
+ * So a category may also be STATED, by the code that threw
+ * (`stated-failure-category.ts`), and a stated one is preferred over a matched
+ * one. Migration 0048 made this same move for the side: carry what the throw
+ * site knew rather than write a better regex. Nothing infers a stated category
+ * from prose and nothing accepts one from outside this repository — that is
+ * what `RULES` is for, where the evidence can be read.
+ *
  * ## The one exception, and it is a real one (recorded 2026-09-17)
  *
  * This paragraph read *"no retry policy"* until today, and the codebase had
@@ -72,7 +89,7 @@
  */
 
 /**
- * The eight. Each earns its place by changing what the person does next — that
+ * The nine. Each earns its place by changing what the person does next — that
  * was the owner's test, and it is why there is no `provider_error` or
  * `internal`: neither tells anybody to do anything different.
  *
@@ -91,6 +108,20 @@
  * about that."* A destination that will not take a `.svg` is not a destination
  * that is full, and telling somebody to free up space is the same failure one
  * step along.
+ *
+ * ## The ninth is the one WE refused, and the owner chose it on 2026-09-18
+ *
+ * Thirty files sat `failed` on his live migration, all reading `unknown`, and
+ * they were not one group: nine are Google types Drive will not export in any
+ * format, and twenty-one were refused by this migration's own
+ * `nativeFilePolicy`. Opposite remedies — *accept leaving it behind* and
+ * *change a setting* — and the Failures page, which groups by kind × category
+ * and offers one press per group, had them under one button.
+ *
+ * He was asked whether one category for all thirty or a new one separating the
+ * twenty-one, and picked the second. `policy_refused` is the only category in
+ * this list whose cause is US: the source would have handed the item over and
+ * the destination was never asked.
  */
 export const FAILURE_CATEGORIES = [
   /** The credential no longer works. Reconnect. By far the most common. */
@@ -99,6 +130,16 @@ export const FAILURE_CATEGORIES = [
   'rate_limited',
   /** A daily ceiling is spent (Gmail's 2 500 MB/day). Resumes tomorrow. */
   'quota_exceeded',
+  /**
+   * THIS MIGRATION declined it. The source would have handed it over and the
+   * destination was never asked — a setting on the mapping is what changed
+   * the answer, and changing it back makes the item eligible again.
+   *
+   * Never matched from prose: it is STATED by the code that refused (see the
+   * module comment). Nothing a provider says can mean this, because no
+   * provider was involved.
+   */
+  'policy_refused',
   /**
    * The SOURCE would not hand the item over — so nothing was ever sent, and
    * the destination is not the thing to go and look at.
@@ -262,11 +303,28 @@ const RULES: ReadonlyArray<{
  * source and the target reading of the same signal: every other category
  * answers the same whoever sent it.
  *
+ * `stated` is the category the THROW SITE named, read off the error by
+ * `statedFailureCategoryOf` (workplan 0125 T4). It wins outright, including
+ * over `side`, and the reason is that it is not a hint: only code in this
+ * repository sets one, at a `throw` that constructed the error and had already
+ * branched on why. A regex over that same error's prose is a second, worse
+ * derivation of something already known — and `policy_refused` is reachable no
+ * other way, because nothing a provider says can mean *this migration's
+ * settings declined it*.
+ *
  * Never throws, for any input, including one that is not a string: this runs
  * where a failure is ALREADY being recorded, and a classifier that threw
  * would replace a useful error with a useless one.
  */
-export function classifyFailure(message: unknown, side?: FailureSide): FailureCategory {
+export function classifyFailure(
+  message: unknown,
+  side?: FailureSide,
+  stated?: FailureCategory,
+): FailureCategory {
+  // Checked rather than trusted: a tag written by an older or newer build is
+  // as unrenderable on a screen as a value read out of the table, and this
+  // function's contract is that it answers with one of `FAILURE_CATEGORIES`.
+  if (isFailureCategory(stated)) return stated;
   if (typeof message !== 'string' || message.trim() === '') return 'unknown';
   for (const rule of RULES) {
     if (!rule.test.test(message)) continue;

@@ -28,6 +28,7 @@ import {
   DELETION_CONFIRMATIONS,
   classifyFailure,
   type FailureSide,
+  type FailureCategory,
 } from '@openmig/shared';
 
 /** Seed shape for {@link MemorySource}. */
@@ -373,13 +374,18 @@ export class MemoryLedger implements Ledger {
   recordFailure(
     record: LedgerRecord,
     error: string,
-    options: { readonly park?: boolean; readonly side?: FailureSide } = {},
+    options: {
+      readonly park?: boolean;
+      readonly side?: FailureSide;
+      readonly category?: FailureCategory;
+    } = {},
   ): Promise<LedgerRecord> {
     // Mirrored from `PgLedger.recordFailure`, and mirrored rather than skipped
     // for the reason the long comment below gives one column over: a fake that
     // lagged the real store here would let a test assert a remedy the product
-    // never writes. Derived from the message AND the side, in one place.
-    const lastErrorCategory = classifyFailure(error, options.side);
+    // never writes. Derived from the message, the side AND what the throw site
+    // stated (workplan 0125 T4), in one place.
+    const lastErrorCategory = classifyFailure(error, options.side, options.category);
     const k = this.key(record);
     const existing = this.rows.get(k);
     // Mirrors PgLedger: the count counts ATTEMPTS, and parking is its own

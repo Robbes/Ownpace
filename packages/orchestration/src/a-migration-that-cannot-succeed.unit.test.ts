@@ -160,11 +160,20 @@ describe('only failures that cannot heal themselves', () => {
     // migration that keeps asking every fifteen minutes for one of them is
     // asking a question already answered. The only thing that needed changing
     // was this list, which is the guard working rather than the guard failing.
+    //
+    // AND AGAIN ON 2026-09-18. `policy_refused` joined the vocabulary and
+    // landed here, again with no edit to `failing-backoff.ts`, and again
+    // correctly: a migration whose own export policy declined an item will
+    // decline it identically on every pass until somebody changes the setting.
+    // It is the clearest case the complement has had — the answer is not
+    // merely unlikely to change on its own, it is a decision this product
+    // already made and is waiting to be told to unmake.
     const needsAPerson = FAILURE_CATEGORIES.filter(
       (c: FailureCategory) => !SELF_HEALING_CATEGORIES.has(c),
     );
     expect(needsAPerson).toEqual([
       'auth_expired',
+      'policy_refused',
       'source_refused',
       'target_refused',
       'format_refused',

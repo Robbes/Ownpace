@@ -46,7 +46,7 @@ import { FailureGroupPanel } from '../components/queues/FailureGroupPanel.tsx';
 import { useT } from '../i18n/index.tsx';
 // One map, shared with the domain strip and the operator's support screen
 // (0110 T4), so the person who phones and the person they phone read the same
-// sentence. An item's category is the same eight-way vocabulary.
+// sentence. An item's category is the same nine-way vocabulary.
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
 import { Hint } from '../components/Hint.tsx';
 

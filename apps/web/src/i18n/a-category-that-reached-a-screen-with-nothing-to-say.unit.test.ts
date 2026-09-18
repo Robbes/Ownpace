@@ -15,8 +15,10 @@
  * so it was checking the six it happened to know about rather than the ones the
  * product has. `VIEW_FAILURE_KEY` had no such test at all.
  *
- * Both are covered here, off the maps themselves, so a ninth category cannot
+ * Both are covered here, off the maps themselves, so a tenth category cannot
  * reach any of the three screens as a blank or as English on a Dutch page.
+ * `policy_refused` arrived on 2026-09-18 and this held: the compiler took both
+ * maps, and the `nl` sentence had to be written rather than pasted.
  */
 import { describe, it, expect } from 'vitest';
 import { FAILURE_CATEGORIES, FAILURE_SIDES } from '@openmig/shared';
@@ -31,7 +33,7 @@ import { VIEW_FAILURE_KEY, VIEW_SIDE_KEY } from './view-failure-key.ts';
  * name their members — so both come back `string | undefined`. Throwing with
  * the key in the message beats a `!`: the assertion that follows would say
  * "expected undefined to be truthy" and leave somebody grepping for which of
- * eight categories it was.
+ * nine categories it was.
  */
 function sentenceFor(locale: (typeof LOCALES)[number], stringKey: string, where: string): string {
   const sentence = (STRINGS[locale] as Record<string, string | undefined>)[stringKey];

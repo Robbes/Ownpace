@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * The same eight failure categories, in the migrated person's words (0122 T4).
+ * The same nine failure categories, in the migrated person's words (0122 T4).
  *
  * ## Why this is not `FAILURE_KEY`
  *
@@ -18,7 +18,7 @@
  * starts with the wrong question.
  *
  * So these say the same FACT and point at the right person. Exhaustive by type,
- * like the map they are not, so a ninth category cannot reach this page with
+ * like the map they are not, so a tenth category cannot reach this page with
  * nothing to say.
  *
  * The two refusals added on 2026-09-17 are the clearest case this file has for
@@ -35,6 +35,7 @@ export const VIEW_FAILURE_KEY: Record<FailureCategory, StringKey> = {
   auth_expired: 'view.failure.authExpired',
   rate_limited: 'view.failure.rateLimited',
   quota_exceeded: 'view.failure.quotaExceeded',
+  policy_refused: 'view.failure.policyRefused',
   source_refused: 'view.failure.sourceRefused',
   target_refused: 'view.failure.targetRefused',
   format_refused: 'view.failure.formatRefused',

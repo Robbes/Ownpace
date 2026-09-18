@@ -15,9 +15,13 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isDecisionError } from '@openmig/shared';
+import { isDecisionError, statedFailureCategoryOf, classifyFailure } from '@openmig/shared';
 import { NativeFileRefused, EXPORTABLE_NATIVE_TYPES, DRIVE_SHORTCUT_MIME } from './google-drive-source.ts';
-import { NATIVE_EXPORT_EXTENSIONS, NATIVE_EXPORT_TYPES } from './google-drive-source.types.ts';
+import {
+  NATIVE_EXPORT_EXTENSIONS,
+  NATIVE_EXPORT_TYPES,
+  stablePoliciesFor,
+} from './google-drive-source.types.ts';
 
 const G = 'application/vnd.google-apps.';
 
@@ -185,5 +189,109 @@ describe('the way out does not say the same policy twice', () => {
       '"export-odf" and "export-pdf" are measured stable for a Slides deck ' +
         '("export-pdf" is not editable afterwards)',
     );
+  });
+});
+
+/**
+ * AND IT SAYS IT TO THE LEDGER TOO, not only to the reader (workplan 0125 T4).
+ *
+ * Every assertion above is about the SENTENCE, and the sentence was the only
+ * thing this error produced until 2026-09-18. `classifyFailure` then read that
+ * sentence back, found no protocol vocabulary in it — correctly, there is none,
+ * it is our own prose — and answered `unknown`, whose remedy is "send it to us
+ * and we will look". Thirty of the owner's files reached his screen that way.
+ *
+ * So the branch that picks the sentence also states the category, and the two
+ * are read off the same condition. The split is WHETHER A SETTING WOULD CHANGE
+ * THE ANSWER, because the Failures page offers one press per group and a group
+ * whose remedy is "change the export policy" must not contain an item no policy
+ * can carry.
+ */
+describe('NativeFileRefused states which KIND of refusal this is', () => {
+  it('a Doc under refuse is policy_refused: a setting is the way out', () => {
+    // The owner's twenty-one. The source would have handed it over and the
+    // destination was never asked.
+    const e = new NativeFileRefused('Heen-en-Weer tas', `${G}document`);
+    expect(statedFailureCategoryOf(e)).toBe('policy_refused');
+  });
+
+  it.each(['form', 'map', 'site', 'script'])(
+    'a %s is source_refused: no setting changes what Drive will produce',
+    (kind) => {
+      // The owner's other nine. Grouping these with the twenty-one is the
+      // defect: one button, and the two remedies are opposites.
+      const e = new NativeFileRefused('Thema-avond', `${G}${kind}`);
+      expect(statedFailureCategoryOf(e)).toBe('source_refused');
+    },
+  );
+
+  it('a shortcut is source_refused: there is no content to have a policy about', () => {
+    const e = new NativeFileRefused('Process mining tools overview', DRIVE_SHORTCUT_MIME);
+    expect(statedFailureCategoryOf(e)).toBe('source_refused');
+  });
+
+  it('a measured-unstable export is policy_refused, because another policy carries it', () => {
+    // Drive CAN export this one; what this migration declined is what the
+    // export is worth. The sentence names the policies that are measured
+    // stable, and the category says the same thing to the ledger.
+    const e = new NativeFileRefused('Q3 report', `${G}document`, 'export-office', 'unstable');
+    expect(e.message).toContain('is measured stable for a Doc');
+    expect(statedFailureCategoryOf(e)).toBe('policy_refused');
+  });
+
+  it('a policy with no rendering is policy_refused: choose one that covers it', () => {
+    const e = new NativeFileRefused('Q3 report', `${G}document`, 'export-pdf');
+    expect(statedFailureCategoryOf(e)).toBe('policy_refused');
+  });
+
+  it.each([...EXPORTABLE_NATIVE_TYPES])(
+    'every policy in force on %s still leaves a stable one to switch TO',
+    (mimeType) => {
+      // THE GUARD THAT MAKES `policy_refused` HONEST, and it is over the
+      // measurement table rather than over the constructor.
+      //
+      // The category promises a person that changing a setting carries these
+      // items. That promise is true today for a reason nothing states: every
+      // exportable type has at least two policies measured stable, so whichever
+      // one is in force there is another to move to. Nothing enforced it, and
+      // the way it would break is ordinary — Google releases a type, somebody
+      // adds it to `EXPORTABLE_NATIVE_TYPES` so the refusal stops telling
+      // people it can never be exported, and nobody runs the instrument. Its
+      // refusals would then be filed under a press whose remedy names no
+      // format they can choose, which is the one-button-two-remedies defect
+      // this category was added to end, one size down.
+      //
+      // Conditioning the constructor on it instead was tried and removed: the
+      // branch cannot fire, so no test could prove it. This can, and it names
+      // the type.
+      for (const inForce of ['refuse', 'export-odf', 'export-office', 'export-pdf'] as const) {
+        const alternatives = stablePoliciesFor(mimeType).filter((p) => p !== inForce);
+        expect(
+          alternatives.length,
+          `under ${inForce} a refused ${mimeType} would be policy_refused with nowhere to go`,
+        ).toBeGreaterThan(0);
+      }
+    },
+  );
+
+  it('every refusal states SOMETHING, so none of them reaches a screen as unknown', () => {
+    // The class this closes. Any branch added to the constructor without a
+    // category fails here, rather than shipping and being discovered on
+    // somebody's live migration.
+    for (const mimeType of [
+      DRIVE_SHORTCUT_MIME,
+      `${G}form`,
+      ...EXPORTABLE_NATIVE_TYPES,
+    ]) {
+      for (const policy of ['refuse', 'export-odf', 'export-office', 'export-pdf'] as const) {
+        for (const stability of ['stable', 'unstable'] as const) {
+          const e = new NativeFileRefused('X', mimeType, policy, stability);
+          const stated = statedFailureCategoryOf(e);
+          expect(stated, `${mimeType} / ${policy} / ${stability}`).toBeDefined();
+          expect(classifyFailure(e.message, 'source', stated)).toBe(stated);
+          expect(classifyFailure(e.message, 'source', stated)).not.toBe('unknown');
+        }
+      }
+    }
   });
 });
