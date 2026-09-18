@@ -41,6 +41,48 @@
 // appliance's own JSON rather than importing `@openmig/shared`: the JSON is the
 // contract on the wire, and self-synchronising against it means a prose edit
 // cannot strand this test.
+//
+// ## A PAGE READ BEFORE IT ANSWERED (E2E self-hosted #215 and #216, red)
+//
+// Two consecutive scheduled runs failed here, each on a DIFFERENT queue screen
+// — #215 on `/ui/deletions`, #216 on `/ui/failures` — and both with the same
+// received text: the nav, the title, and `Loading…`. No console error, no
+// failed asset, no non-2xx: `expectClean` passed on both. The screen had simply
+// not been answered yet when its text was read.
+//
+// The cause is the wait, and it was always wrong: `waitUntil: 'networkidle'`
+// resolves after 500ms with no connections in flight, and a queue screen issues
+// its fetch from a React effect — AFTER the bundle is parsed, evaluated and
+// first-rendered. On a slow runner that gap exceeds 500ms, so `networkidle`
+// fires in the silence BEFORE the request, not after it. Nothing was broken;
+// the test was reading a page mid-load and calling it a contract violation.
+//
+// Reproduced with no appliance at all: a static page that issues its fetch from
+// a timer after the document settles, opened through the same
+// `waitUntil: 'networkidle'`. At a 900ms mount gap the one-shot read returns
+// `Loading…` and a waited read returns the prose; at 100ms both pass. The test
+// was green for two hundred runs because the runner was fast enough, and went
+// red on two slow ones.
+//
+// So every assertion about what a screen SHOWS now waits for it. The properties
+// are unchanged — the app must mount, the screen must render the wire prose —
+// and the failure messages are the same sentences with the same received text,
+// so a real regression reads exactly as it did. What is gone is the race. (The
+// queue-screen wait itself landed separately, in #1000, while this was being
+// written; what it left behind is corrected here — `expectClean` ran before the
+// wait, which is the same mistake one level down.)
+//
+// The same race ran the other way on the Verify screen, which is worse:
+// "loading the page fired no GET /verify" passes for free on a page that has
+// not finished loading — green for the wrong reason, on the one test standing
+// between opening a screen and minutes of target I/O. That one now waits for
+// the screen's own read to appear before concluding anything about what it did
+// not ask for.
+//
+// And the path it was watching had died under it: 0019 T6 removed the
+// synchronous `GET /verify` from the appliance, so the absence being asserted
+// was of a route the server no longer serves — a guard with nothing left to
+// catch. It names `/verify/start` now, which is what starts a scan today.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { existsSync } from 'node:fs';
@@ -131,8 +173,9 @@ describe('the operating UI boots in a real browser', () => {
     // leaves it empty with a 200 in the log.
     const r = await open('/');
     expect(r.page.url()).toContain('/ui/confirm');
-    const mounted = await r.page.locator('#root > *').count();
-    expect(mounted, 'the React app did not mount anything').toBeGreaterThan(0);
+    await expect
+      .poll(() => r.page.locator('#root > *').count(), { timeout: 30_000, interval: 250 })
+      .toBeGreaterThan(0);
     expectClean(r, '/');
     await r.page.close();
   }, 60_000);
@@ -158,14 +201,12 @@ describe('the operating UI boots in a real browser', () => {
       const sentence = prose!.split(/[.!]/)[0]!.trim();
 
       const r = await open(screen);
-      expectClean(r, screen);
-      // `networkidle` only means the network was briefly quiet — react-query's
-      // default retry-on-failure sits idle for ~1s between an initial fetch
-      // and its retry, which is enough for `page.goto` to resolve mid-gap and
-      // leave the screen showing "Loading…" here. Poll for the real content
-      // instead of trusting the one-shot read to land after it settles; the
-      // assertion below still produces the descriptive failure if it never
-      // does. A string function body, not a closure, so this file (which
+      // Waited for, not read once: see the header. The screen shows `Loading…`
+      // until its own fetch resolves, and `networkidle` can fire before that
+      // fetch has even been ISSUED — the silence is ahead of the first request,
+      // not between a failed one and its retry: a request that failed would
+      // have been recorded in `failedAssets`, and `expectClean` passed on both
+      // red runs. A string function body, not a closure, so this file (which
       // compiles under Node lib, not DOM — see test/ui/tsconfig.json for why
       // that split exists) never has to name `document` where tsc can see it.
       await r.page
@@ -175,6 +216,14 @@ describe('the operating UI boots in a real browser', () => {
           { timeout: 15_000 },
         )
         .catch(() => {});
+      // AFTER the wait, deliberately: the data fetch is part of the load, and a
+      // console error or a non-2xx raised BY it is invisible to a check that
+      // ran while the screen was still a spinner.
+      expectClean(r, screen);
+      // Unchanged, and still the one that speaks: a screen that genuinely never
+      // renders the wire prose fails here with this sentence and the last text
+      // it showed — the error panel's words when the read failed, `Loading…`
+      // when the appliance never answered at all.
       expect(await r.text(), `${screen} does not render the wire prose`).toContain(sentence);
       await r.page.close();
     }
@@ -185,23 +234,44 @@ describe('the operating UI boots in a real browser', () => {
     // the router actually recovering the route from the URL under /ui.
     const r = await open('/ui/failures');
     expect(r.page.url()).toContain('/ui/failures');
-    expect(await r.page.locator('#root > *').count()).toBeGreaterThan(0);
+    await expect
+      .poll(() => r.page.locator('#root > *').count(), { timeout: 30_000, interval: 250 })
+      .toBeGreaterThan(0);
     expectClean(r, '/ui/failures (direct)');
     await r.page.close();
   }, 60_000);
 
   it('opening the Verify screen does NOT start a verification', async () => {
-    // Verify.tsx's header rule: GET /verify counts and samples the TARGET for
-    // every domain, so navigating to the screen must never fire it — it is
-    // behind a button. Only a browser can prove this; every HTTP-level test
+    // Verify.tsx's header rule: a verification counts and samples the TARGET
+    // for every domain, so navigating to the screen must never start one — it
+    // is behind a button. Only a browser can prove this; every HTTP-level test
     // sees the endpoint, not the page's restraint. A regression here would put
     // minutes of target I/O behind opening a page.
     const r = await open('/ui/verify');
-    expectClean(r, '/ui/verify');
+    // FIRST wait for the screen to have done its own reading. `/verify/report`
+    // is the status read Verify.tsx fires on mount (it starts nothing, and its
+    // own unit test pins that), so its arrival is the proof that the page got
+    // far enough for "it started nothing" to mean anything. Without this the
+    // assertion below passes on a page that has not run yet — the loudest way
+    // to be green for the wrong reason, on the one test guarding minutes of
+    // target I/O.
+    await expect
+      .poll(() => r.requests.filter((p) => p === '/verify/report').length, {
+        timeout: 30_000,
+        interval: 250,
+      })
+      .toBeGreaterThan(0);
+    // `/verify/start` is what STARTS one today. `/verify` is the synchronous
+    // GET this test was written against, and 0019 T6 removed it from the
+    // appliance — so watching only that path has been guarding a route the
+    // server no longer has, which is a guard that cannot fail. Both are named:
+    // the live one because it is the live one, the dead one because its return
+    // would be the same regression wearing the old name.
     expect(
-      r.requests.filter((p) => p === '/verify'),
-      'loading the Verify screen fired GET /verify — the scan must be behind the button',
+      r.requests.filter((p) => p === '/verify/start' || p === '/verify'),
+      'loading the Verify screen started a verification — the scan must be behind the button',
     ).toEqual([]);
+    expectClean(r, '/ui/verify');
     await r.page.close();
   }, 60_000);
 
