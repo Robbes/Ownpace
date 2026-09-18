@@ -59,6 +59,9 @@ export function shareGrantRowFrom(grant: PermissionGrant): {
   raw: string;
   verdict: 'clean' | 'manual';
   verdictTarget: string;
+  itemKey?: string;
+  parentKey?: string;
+  isContainer?: boolean;
 } {
   const mapping = mapGrant(grant);
   return {
@@ -71,6 +74,17 @@ export function shareGrantRowFrom(grant: PermissionGrant): {
     raw: grant.raw,
     verdict: mapping.verdict,
     verdictTarget: mapping.note ? `${mapping.target} — ${mapping.note}` : mapping.target,
+    // Where the source says it sits (workplan 0123 T4), carried through
+    // UNCHANGED and never defaulted. A source that did not say leaves these
+    // absent all the way to the column, so the queue lists that row on its own
+    // instead of folding it under a container nobody reported.
+    //
+    // `isContainer` is compared to undefined rather than spread on truthiness:
+    // `false` is a source saying "not a folder", which must not be dropped as
+    // if it had said nothing.
+    ...(grant.itemKey !== undefined ? { itemKey: grant.itemKey } : {}),
+    ...(grant.parentKey !== undefined ? { parentKey: grant.parentKey } : {}),
+    ...(grant.isContainer !== undefined ? { isContainer: grant.isContainer } : {}),
   };
 }
 

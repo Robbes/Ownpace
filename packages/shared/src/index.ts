@@ -33,6 +33,7 @@ export * from './decisions.ts';
 export * from './permissions.ts';
 export * from './notifications.ts';
 export * from './share-announcement.ts';
+export * from './share-grouping.ts';
 export * from './scope-manifest.ts';
 export * from './keywords.ts';
 export * from './specialUse.ts';

@@ -2,6 +2,43 @@
 
 ## Status — 2026-09-18 (update this block at the end of every session)
 
+**2026-09-18, last: T4's server half is built — the queue can group, and the rule is one copy.**
+The design §5 settled (group by the container, compare grant sets, deviations listed separately)
+now has everything it needs below the screen:
+
+- **Migration 0053** adds `item_key`, `parent_key` and `is_container` to `share_grant`. All three
+  NULLABLE, and `is_container` nullable rather than `NOT NULL DEFAULT false` on purpose: `false`
+  is a source saying "not a folder" and NULL is a source saying nothing, and a default would have
+  made those the same answer on every row written before today. Not backfilled — rows group again
+  on the next scan, which is the thing that knows.
+- **`groupShareGrants`** in `@openmig/shared`: one rule, *a group is a container plus a grant
+  set*. The folder's contents collapse; a child whose grants differ in EITHER direction keeps its
+  own row. A row the source could not place is never folded, however well its grants happen to
+  match (hard rule 9).
+- **The Drive scan carries placement** — `parents` and `mimeType` added to the `files.list` the
+  scan already makes, which costs nothing. It deliberately does not read
+  `permissionDetails.inherited`: measured to arrive only on `permissions.list`, one request per
+  item, and without the `inheritedFrom` that would make it a grouping key at all.
+- **One copy of the comparison rule.** `scripts/drive-share-grouping.ts` now re-exports
+  `deviation` from shared rather than holding its own. A measurement that disagreed with the
+  shipped grouping would be measuring the wrong thing.
+
+**A bug this found in its own design, before any of it shipped.** Bucketing every item under its
+own `parentKey` puts a shared folder under ITS parent — beside its siblings — while its children
+sit in a group that merely borrows its name. The folder renders twice, and the second one reads
+as a share nobody has accounted for, which is worse than the wall of 482. A heading container is
+keyed by its own id instead, so it is a member of the group it heads. Reverting that one line
+reddens five tests.
+
+**Proved against a real Postgres, not only in CI** (`scripts/local-pg.sh`, four integration
+tests). The `false`/NULL distinction has exactly one honest test — ask a real database — and
+reading the column with truthiness instead of `!= null` reddens it. The fixture itself was
+corrected by that run: `mailbox_mapping` joins two `mailbox` ROWS, not two connections.
+
+**What is owed: the screen.** The rows carry their placement and the rule folds them; nothing
+renders differently yet. The Sharing page, the grouped shape over the wire and one press per
+group are the next slice.
+
 **2026-09-18, last: the measurement came back, and it picks §5's SECOND design — plus the
 instrument was overstating what it had measured.** Rob ran
 `scripts/drive-share-inheritance.ts` against his own Drive (folder "Foto shoot Emma", 10
@@ -96,7 +133,7 @@ it is a wall — and most of those rows are one shared folder counted once per f
 | T1 The press stops looking like a delete | ✅ Done — §2 | `ConfirmButton` splits the arming from the dressing; `DestructiveButton` stays as the destructive preset, so every caller that really destroys reads as it did. |
 | T2 The banner names every class nobody looked at | ✅ Done — §3 | `refreshShareGrants` now enforces the delegation section the way the report does, and the sentence is worded for the tenant's own source. |
 | T3 Done and Skip say what they mean | ✅ Done — §4 | The distinction is in `sharing.intro.more` and in a title on each button. |
-| T4 A folder is one row, not two hundred | ⬜ **measured; design settled, build owed** | Measured 2026-09-18 on the owner's Drive: `permissionDetails` yes (10/10 via `permissions.list`, 0/10 inline), `inheritedFrom` **no** (0/10). Drive says a grant is inherited, not what from — so §5's **fallback** is the design: group by `parents`, compare grant sets, deviations listed separately. Also the cheaper one (`parents` is free on the existing listing; the details cost one request per item). |
+| T4 A folder is one row, not two hundred | 🟡 **server half built; screen owed** | Measured 2026-09-18 on the owner's Drive: `permissionDetails` yes (10/10 via `permissions.list`, 0/10 inline), `inheritedFrom` **no** (0/10). Drive says a grant is inherited, not what from — so §5's **fallback** is the design: group by `parents`, compare grant sets, deviations listed separately. Also the cheaper one (`parents` is free on the existing listing; the details cost one request per item). **Built 2026-09-18:** migration 0053 carries the placement, `groupShareGrants` in `@openmig/shared` folds it, the Drive scan fills it. The Sharing page still renders flat — the screen is the remaining half. |
 
 ## 1. What the owner saw
 

@@ -74,24 +74,20 @@ export function grantSet(
 }
 
 /**
- * Whether a child's grants are exactly its folder's — §5's fallback rule for
- * presumed inheritance, and the rule that decides what gets its own row.
+ * Whether a child's grants are exactly its folder's — the rule that decides
+ * what gets its own row.
  *
- * EXACTLY, in both directions. A child MISSING one of the folder's grants is as
- * much a deviation as one carrying an extra: "this file inside a shared folder
- * is not actually shared with everyone the folder is" is a thing somebody needs
- * before a cutover, and a subset test would report it as inherited.
+ * RE-EXPORTED, NOT RE-IMPLEMENTED. This started life here because the
+ * measurement needed it before the product did. The product now has it, in
+ * `@openmig/shared`, where `groupShareGrants` folds a real sharing queue on
+ * exactly this comparison — and two copies of a rule about what may be hidden
+ * from somebody before a cutover is one copy too many. A measurement that
+ * disagreed with the shipped grouping would be measuring the wrong thing.
+ *
+ * EXACTLY, in both directions, and role included: see the shared module's own
+ * header for why a MISSING grant is as much a finding as an extra one.
  */
-export function deviation(
-  folderGrants: readonly string[],
-  childGrants: readonly string[],
-): { readonly deviates: boolean; readonly extra: string[]; readonly missing: string[] } {
-  const folder = new Set(folderGrants);
-  const child = new Set(childGrants);
-  const extra = [...child].filter((g) => !folder.has(g)).sort();
-  const missing = [...folder].filter((g) => !child.has(g)).sort();
-  return { deviates: extra.length > 0 || missing.length > 0, extra, missing };
-}
+export { deviation } from '@openmig/shared';
 
 export type InheritanceVerdict =
   | 'reported'

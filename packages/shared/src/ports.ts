@@ -1136,6 +1136,16 @@ export interface ShareGrantRow {
   readonly decidedBy?: string;
   readonly decidedAt?: string;
   readonly scannedAt: string;
+  /**
+   * Where the thing sits, in the SOURCE's own ids (workplan 0123 T4) — what
+   * `groupShareGrants` folds a folder's contents on. All three optional, and
+   * absent is a real answer: a row the source could not place is listed on its
+   * own, never folded under a container on a guess (hard rule 9). Rows scanned
+   * before migration 0053 have none of them and group again on the next scan.
+   */
+  readonly itemKey?: string;
+  readonly parentKey?: string;
+  readonly isContainer?: boolean;
 }
 
 /** Idempotency ledger. UNIQUE(tenantId, mappingId, itemType, naturalKeyHash). Non-destructive. */
@@ -1458,6 +1468,10 @@ export interface Ledger {
       readonly raw: string;
       readonly verdict: 'clean' | 'manual';
       readonly verdictTarget: string;
+      /** Where it sits, when the source can say (workplan 0123 T4). */
+      readonly itemKey?: string;
+      readonly parentKey?: string;
+      readonly isContainer?: boolean;
     }>,
   ): Promise<number>;
   /**

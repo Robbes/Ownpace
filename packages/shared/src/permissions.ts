@@ -50,6 +50,27 @@ export interface PermissionGrant {
    * on before cutover.
    */
   readonly viaLink?: boolean;
+  /**
+   * WHERE THE THING SITS, in the source's own ids (workplan 0123 T4).
+   *
+   * Optional, and absent is a real answer: a source that cannot cheaply say
+   * where an item lives leaves all three off, and the sharing queue then lists
+   * that row on its own rather than folding it under a container on a guess.
+   * Hard rule 9 — not knowing where something lives is not the same as knowing
+   * it lives with these others.
+   *
+   * `itemKey` is what a child's `parentKey` points AT. `isContainer` has three
+   * answers on purpose: true, false, and absent for "the source did not say".
+   *
+   * Drive fills these because `parents` and `mimeType` ride along on the
+   * `files.list` the scan already makes, for nothing. It deliberately does NOT
+   * use Drive's own `permissionDetails.inherited`: that was measured to arrive
+   * only on `permissions.list`, one request per item, and without the
+   * `inheritedFrom` that would make it a grouping key at all (2026-09-18).
+   */
+  readonly itemKey?: string;
+  readonly parentKey?: string;
+  readonly isContainer?: boolean;
 }
 
 /**

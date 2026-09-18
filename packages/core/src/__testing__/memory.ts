@@ -612,6 +612,9 @@ export class MemoryLedger implements Ledger {
       readonly raw: string;
       readonly verdict: 'clean' | 'manual';
       readonly verdictTarget: string;
+      readonly itemKey?: string;
+      readonly parentKey?: string;
+      readonly isContainer?: boolean;
     }>,
   ): Promise<number> {
     let open = 0;
@@ -621,8 +624,19 @@ export class MemoryLedger implements Ledger {
           r.tenantId === tenantId && r.mappingId === mappingId && r.grantHash === g.grantHash,
       );
       if (existing) {
-        // A rescan only refreshes the timestamp — never a decision (ADR-0032).
+        // A rescan refreshes the timestamp and where the thing SITS — never a
+        // decision (ADR-0032). A file dragged into another folder has a new
+        // home, and a queue still grouping it under the old one would be wrong
+        // on screen; `state`, `decidedBy` and `decidedAt` stay untouched, which
+        // is what "a rescan never reopens a settled row" actually means. The
+        // real ledger does the same in its `onConflictDoUpdate`.
         existing.scannedAt = new Date().toISOString();
+        delete existing.itemKey;
+        delete existing.parentKey;
+        delete existing.isContainer;
+        if (g.itemKey !== undefined) existing.itemKey = g.itemKey;
+        if (g.parentKey !== undefined) existing.parentKey = g.parentKey;
+        if (g.isContainer !== undefined) existing.isContainer = g.isContainer;
         if (existing.state === 'open') open += 1;
         continue;
       }
@@ -637,6 +651,9 @@ export class MemoryLedger implements Ledger {
         role: g.role,
         viaLink: g.viaLink,
         raw: g.raw,
+        ...(g.itemKey !== undefined ? { itemKey: g.itemKey } : {}),
+        ...(g.parentKey !== undefined ? { parentKey: g.parentKey } : {}),
+        ...(g.isContainer !== undefined ? { isContainer: g.isContainer } : {}),
         verdict: g.verdict,
         verdictTarget: g.verdictTarget,
         state: 'open',
