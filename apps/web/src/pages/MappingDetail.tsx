@@ -34,6 +34,7 @@ import { fetchStatus } from '../services/operating-service.ts';
 import { useT } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
+import ExportPolicyPanel from '../components/ExportPolicyPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import LiveProgress from '../components/LiveProgress.tsx';
 import StateChip from '../components/StateChip.tsx';
@@ -236,6 +237,25 @@ const MappingDetail: React.FC = () => {
           </li>
         ))}
       </ul>
+
+      {/* WHAT HAPPENS TO THIS MIGRATION'S GOOGLE DOCS (0125 T3).
+          The remedy on every `policy_refused` item says to set an export
+          policy on the mapping, and until now there was nowhere to do it:
+          `nativeFilePolicy` appeared in one file in the whole web app, the
+          creation wizard. Here because this is the page the failures screen
+          hangs off — the person reading that remedy is one link from this
+          panel. Renders nothing for a migration with no Google files to
+          decide about, and nothing at all until the detail read lands: a
+          chooser built on a policy we could not read would show `refuse`
+          about a migration that exports (hard rule 9). */}
+      {detail.data && (
+        <ExportPolicyPanel
+          mappingId={id}
+          sourceType={detail.data.sourceType}
+          domains={detail.data.syncConfig.domains}
+          current={detail.data.sourceConfig.nativeFilePolicy}
+        />
+      )}
 
       {/* Grant links (0108 T3) — how the person being migrated gives access to
           their own account. Above the run history because it is a thing to DO,

@@ -1,0 +1,289 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+/**
+ * THE SCREEN BEHIND THE REMEDY (workplan 0125 T3).
+ *
+ * Twenty-one of the owner's refused files carried, per item, by name:
+ *
+ * > *"…is not copied here because this migration is configured with
+ * > `nativeFilePolicy="refuse"`. Set an export policy on the mapping…"*
+ *
+ * There was nowhere to do it. `nativeFilePolicy` appeared in the whole web app
+ * in one file — the creation wizard — and the PUT route parsed a `sourceConfig`
+ * and dropped it. So these guards are about a remedy being CARRYABLE: the panel
+ * shows the policy actually in force, states what changing it does and does not
+ * do before the press, sends the change, and renders a refusal as a refusal.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
+import { AxiosError, AxiosHeaders } from 'axios';
+import { STRINGS } from '../i18n/strings.ts';
+
+const { setNativeFilePolicy } = vi.hoisted(() => ({ setNativeFilePolicy: vi.fn() }));
+vi.mock('../services/mapping-service', () => ({ mappingApi: { setNativeFilePolicy } }));
+
+import ExportPolicyPanel, { policyInForce } from './ExportPolicyPanel.tsx';
+
+const EN = STRINGS.en;
+
+/** An axios-shaped refusal, the way the real apiClient delivers one. */
+const axiosError = (status: number, data: unknown): AxiosError => {
+  const err = new AxiosError(`Request failed with status code ${status}`);
+  err.response = {
+    status,
+    statusText: 'Conflict',
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+    data,
+  };
+  return err;
+};
+
+function renderPanel(
+  props: Partial<React.ComponentProps<typeof ExportPolicyPanel>> = {},
+) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>
+        <ExportPolicyPanel
+          mappingId="m-1"
+          sourceType="google"
+          domains={['file', 'email']}
+          current={undefined}
+          {...props}
+        />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  setNativeFilePolicy.mockResolvedValue({
+    id: 'm-1',
+    sourceConfig: { nativeFilePolicy: 'export-pdf' },
+    updatedAt: '2026-09-18T20:00:00.000Z',
+  });
+});
+
+describe('whose migration the question belongs to', () => {
+  /**
+   * The SAME two conditions the wizard asks before offering the chooser. A
+   * migration from an IMAP mailbox has no Google Docs to decide about, and a
+   * settings panel offering a format for files it does not carry is a setting
+   * that changes nothing — which is the shape of remedy this whole plan is
+   * about.
+   */
+  it('renders nothing for a source with no Google files', () => {
+    const { container } = renderPanel({ sourceType: 'imap' });
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('renders nothing for a migration that carries no files', () => {
+    const { container } = renderPanel({ domains: ['email', 'calendar'] });
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it.each(['google', 'google-drive'])('renders for the %s source', (sourceType) => {
+    renderPanel({ sourceType });
+    expect(screen.getByText(EN['settings.exportPolicy'])).toBeInTheDocument();
+  });
+});
+
+describe('the policy in force', () => {
+  /**
+   * ABSENT IS `refuse`, AND SAYS SO. That is what the engine does with an
+   * absent value, and it is why thirty of the owner's files were refused by a
+   * setting he had never been offered. A blank select would read as "no answer
+   * yet" about a migration that has already acted on one.
+   */
+  it('reads an absent policy as refuse', () => {
+    expect(policyInForce(undefined)).toBe('refuse');
+    expect(policyInForce(null)).toBe('refuse');
+    expect(policyInForce('')).toBe('refuse');
+    // Not a value this product knows: still `refuse`, never rendered raw.
+    expect(policyInForce('export-wordperfect')).toBe('refuse');
+  });
+
+  it.each(['export-odf', 'export-office', 'export-pdf'] as const)(
+    'shows %s when that is what the mapping holds',
+    (policy) => {
+      renderPanel({ current: policy });
+      const select = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i);
+      expect((select as HTMLSelectElement).value).toBe(policy);
+    },
+  );
+});
+
+describe('before the press', () => {
+  /**
+   * NOTHING TO SAVE IS NOT A BUTTON TO PRESS. A save of the value already in
+   * force would write `updated_at` and send the person back to a screen that
+   * looks exactly the same.
+   */
+  it('cannot be pressed until the choice differs from what is in force', async () => {
+    renderPanel({ current: 'export-pdf' });
+    expect(screen.getByRole('button', { name: EN['settings.exportPolicy.save'] })).toBeDisabled();
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
+      'export-odf',
+    );
+    expect(
+      screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
+    ).toBeEnabled();
+  });
+
+  /**
+   * THE CONSEQUENCE IS STATED BEFORE THE PRESS, NOT AFTER.
+   *
+   * Items already copied keep the format they were copied in, because this
+   * product never overwrites what is on a target. Somebody should have that
+   * before they choose, not discover it about their own migration afterwards.
+   */
+  it('states what will NOT change, once a change is actually proposed', async () => {
+    renderPanel({ current: 'refuse' });
+    expect(screen.queryByText(EN['settings.exportPolicy.consequence'])).toBeNull();
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
+      'export-pdf',
+    );
+    expect(screen.getByText(EN['settings.exportPolicy.consequence'])).toBeInTheDocument();
+    // And it is there BEFORE anything is sent.
+    expect(setNativeFilePolicy).not.toHaveBeenCalled();
+  });
+});
+
+describe('the press', () => {
+  it('sends the chosen policy and says it landed', async () => {
+    renderPanel({ current: 'refuse' });
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
+      'export-pdf',
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
+    );
+    await waitFor(() => expect(setNativeFilePolicy).toHaveBeenCalledWith('m-1', 'export-pdf'));
+    expect(await screen.findByText(EN['settings.exportPolicy.saved'])).toBeInTheDocument();
+  });
+
+  /**
+   * AND WHAT THE SAVE DOES NOT DO (0125 T5, offered rather than automatic).
+   * The items refused under the old policy stay refused until somebody says to
+   * try them again: a settings save that silently reset a queue of recorded
+   * decisions would be the bulk mutation of the ledger this codebase
+   * consistently refuses to make. The Failures page already presses them as a
+   * group, so this is a link to it and not a second button.
+   */
+  it('points at the failures already recorded, rather than reopening them', async () => {
+    renderPanel({ current: 'refuse' });
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
+      'export-pdf',
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
+    );
+    expect(
+      await screen.findByText(EN['settings.exportPolicy.refusedBefore']),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: EN['settings.exportPolicy.toFailures'] }),
+    ).toHaveAttribute('href', '/mappings/m-1/failures');
+  });
+});
+
+describe('a refusal is a refusal', () => {
+  /**
+   * HARD RULE 9. The route answers 409 with every refused field and the reason
+   * `mayRevise` gave. This panel only ever proposes the export policy, which
+   * the table permits — so a 409 here means the rule changed under it, and the
+   * one thing that must not happen is for it to look like a save that worked.
+   */
+  it('renders every reason the server refused, and does not claim a save', async () => {
+    setNativeFilePolicy.mockRejectedValue(
+      axiosError(409, {
+        error: 'revision_refused',
+        message: 'Some of what was asked for cannot change.',
+        refused: [
+          { field: 'source.rootFolderId', reason: 'The folder this migration copies from…' },
+          { field: 'target.account', reason: 'The account this migration copies into…' },
+        ],
+      }),
+    );
+    renderPanel({ current: 'refuse' });
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
+      'export-pdf',
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
+    );
+    // EVERY one, never the first: somebody told about one fixes it and is
+    // refused again.
+    expect(
+      await screen.findByText('The folder this migration copies from…'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('The account this migration copies into…')).toBeInTheDocument();
+    // Neither the confirmation nor the retry pointer, which is what a reader
+    // acts on: a refused change that offers "go and retry your failures" sends
+    // somebody to press a button for a format that was never applied.
+    expect(screen.queryByText(EN['settings.exportPolicy.saved'])).toBeNull();
+    expect(screen.queryByText(EN['settings.exportPolicy.refusedBefore'])).toBeNull();
+  });
+
+  /**
+   * A REFUSAL DOES NOT SURVIVE THE PRESS THAT FIXES IT.
+   *
+   * The guard the panel actually leans on. "Saved" and a refusal are kept off
+   * the screen together by clearing what the last press said before this one
+   * speaks — not by a compound condition on each render, which with the reset
+   * in place nothing could ever reach. Drop the reset and this goes red with
+   * the old reasons still under a screen that says the save landed.
+   */
+  it('clears the last refusal when the next press succeeds', async () => {
+    setNativeFilePolicy.mockRejectedValueOnce(
+      axiosError(409, {
+        error: 'revision_refused',
+        refused: [{ field: 'source.type', reason: 'The system this migration copies FROM…' }],
+      }),
+    );
+    renderPanel({ current: 'refuse' });
+    const select = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i);
+    const press = () =>
+      userEvent.click(screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }));
+
+    await userEvent.selectOptions(select, 'export-pdf');
+    await press();
+    expect(await screen.findByText('The system this migration copies FROM…')).toBeInTheDocument();
+
+    await userEvent.selectOptions(select, 'export-odf');
+    await press();
+    expect(await screen.findByText(EN['settings.exportPolicy.saved'])).toBeInTheDocument();
+    expect(screen.queryByText('The system this migration copies FROM…')).toBeNull();
+  });
+
+  /**
+   * And anything else falls through to the SERVER'S OWN SENTENCE rather than
+   * axios's "Request failed with status code 400" — the wrapper is not the
+   * words the route wrote for this moment.
+   */
+  it('shows the server’s sentence for a refusal that is not a revision one', async () => {
+    setNativeFilePolicy.mockRejectedValue(
+      axiosError(400, { error: 'Validation error', message: 'nativeFilePolicy: unsupported' }),
+    );
+    renderPanel({ current: 'refuse' });
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
+      'export-pdf',
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
+    );
+    expect(await screen.findByText(/nativeFilePolicy: unsupported/)).toBeInTheDocument();
+    expect(screen.queryByText(EN['settings.exportPolicy.saved'])).toBeNull();
+  });
+});

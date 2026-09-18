@@ -1490,7 +1490,36 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
  *  Built from the BASE object because zod refuses .partial() on a schema
  *  carrying cross-field refinements — and the coherence checks read fields a
  *  partial body may legitimately omit. */
-export const UpdateMappingSchema = CreateMappingBase.partial();
+/**
+ * AND PARTIAL ALL THE WAY DOWN, which `.partial()` alone is not (0125 T3).
+ *
+ * `.partial()` is SHALLOW: it made `sourceConfig` optional and left the object
+ * inside it exactly as strict as create's, where `username` is required. So
+ * the only `sourceConfig` this route would accept was one carrying the account
+ * name — a field a revision never means to send, and one this route would
+ * refuse to act on if it did.
+ *
+ * That shut the door in front of everything #1004 built. A body proposing only
+ * an export policy was answered `400 Validation error: sourceConfig.username`,
+ * and a body proposing a new root folder got the same — so the refusal written
+ * to say *"items already copied would sit outside the new folder"* could not be
+ * reached through the route it guards. Hard rule 9 twice over: the caller is
+ * told the wrong reason, and a refusal that never fires cannot be trusted to
+ * fire.
+ *
+ * Widening what PARSES is not widening what is WRITTEN. The handler writes
+ * status, mode, pattern and the export policy; every other field goes through
+ * `mayRevise` first, which is the point of the table. The comment above says
+ * "a partial body may legitimately omit" fields — this makes that true of the
+ * nested objects too, which is what it always meant.
+ *
+ * `syncConfig` is deliberately left alone: this route does not write a schedule
+ * yet, and loosening a shape nothing reads would be a change with no caller.
+ */
+export const UpdateMappingSchema = CreateMappingBase.partial().extend({
+  sourceConfig: CreateMappingBase.shape.sourceConfig.partial().optional(),
+  targetConfig: CreateMappingBase.shape.targetConfig.partial().optional(),
+});
 
 /**
  * Prove a connection before creating anything (workplan 0046).
