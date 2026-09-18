@@ -1281,6 +1281,34 @@ export interface Ledger {
       deletionAppliedAt?: string;
     }>
   >;
+  /**
+   * HOW MANY ITEMS WE DELIBERATELY DID NOT WRITE, per domain (workplan 0124 T2).
+   *
+   * The migration page could report what was copied, what failed, what is
+   * retrying and what is waiting on a decision — and had no word at all for the
+   * items hard rule 2 left standing. Those are not failures and they are not
+   * copies, so every existing counter was the wrong place to put them, and a
+   * person reading a total that did not add up had nothing to read instead.
+   *
+   * ONE COUNT, AND IT MUST STAY ONE. Two different rows wear `status =
+   * 'adopted'` and `confirmed-list.ts` is emphatic that they are different
+   * things: an item the target already held under our natural key and we never
+   * wrote, and one we wrote once that the customer has since edited, where hard
+   * rule 2 leaves their edit standing. **The ledger cannot tell them apart
+   * after the fact** — the second is recorded by rewriting the first's status —
+   * so this returns a single number and the screen says a sentence true of
+   * both. Splitting it would be inventing a distinction the data cannot
+   * support, which is worse than the silence it replaces.
+   *
+   * A domain with no adopted rows is ABSENT from the map rather than zero, so a
+   * caller can tell "none" from "this domain was never counted" — the reports
+   * are built per status row, and a domain may have one without this query
+   * having run for it.
+   */
+  countAdoptedByDomain(
+    tenantId: TenantId,
+    mappingId: MappingId,
+  ): Promise<Readonly<Partial<Record<DiscoveryDomain, number>>>>;
   /** Unresolved failures for a domain, newest attempt first. */
   listFailures(
     tenantId: TenantId,

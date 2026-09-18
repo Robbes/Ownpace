@@ -236,6 +236,27 @@ export interface DomainStatusReport {
   readonly itemsRetrying: number;
   readonly itemsNeedingDecision: number;
   /**
+   * HOW MANY ITEMS WERE LEFT AS THEY ARE (workplan 0124 T2).
+   *
+   * Everything else on this report is something that happened TO an item: it
+   * was copied, it failed, it is being retried, it is waiting on a decision.
+   * There was no count for the items we deliberately did not write — the ones
+   * hard rule 2 protects — so a migration that adopted four hundred contacts
+   * reported four hundred fewer of everything and offered no word for the
+   * difference. A total that does not add up, with nothing to read instead.
+   *
+   * ONE COUNT, covering both rows that wear `status = 'adopted'`: an item the
+   * target already held under our natural key, and one we wrote that the
+   * customer has since edited. The ledger cannot tell those apart after the
+   * fact, so the screen must not claim to — see `countAdoptedByDomain`.
+   *
+   * OPTIONAL, and the optionality is the point. Absent means nobody counted,
+   * which is not zero: `buildDomainStatusReports` is called by five places and
+   * a caller that cannot supply the counts must produce a report that says
+   * nothing here rather than one claiming none were adopted (hard rule 9).
+   */
+  readonly itemsAdopted?: number;
+  /**
    * Why this domain stopped on purpose, when it did (migration 0041). Present
    * only while something is holding it up, and never for a failure — a paused
    * domain has nothing wrong with it, which is exactly why it needs saying.
@@ -280,9 +301,23 @@ export interface DomainStatusReport {
 export function buildDomainStatusReports(
   statuses: readonly MigrationStatus[],
   failures: readonly ItemFailure[],
+  /**
+   * What each domain adopted, from `countAdoptedByDomain` (0124 T2).
+   *
+   * A THIRD ARGUMENT rather than a field on `MigrationStatus`, because it is
+   * not something a pass records about itself — it is a count over the item
+   * table, true at read time, and a pass that adopted nothing this time round
+   * has not made the earlier adoptions untrue.
+   *
+   * Omitted entirely, or missing a domain, leaves `itemsAdopted` ABSENT on that
+   * row. Defaulting it to zero here would be this file inventing a measurement
+   * on behalf of a caller that never took one.
+   */
+  adopted?: Readonly<Partial<Record<DiscoveryDomain, number>>>,
 ): DomainStatusReport[] {
   return statuses.map((s) => {
     const mine = failures.filter((f) => f.domain === s.domain);
+    const adoptedHere = adopted?.[s.domain];
     return {
       domain: s.domain,
       state: s.state,
@@ -291,6 +326,7 @@ export function buildDomainStatusReports(
       bytesTransferred: s.bytesTransferred,
       itemsRetrying: mine.filter((f) => !f.needsDecision).length,
       itemsNeedingDecision: mine.filter((f) => f.needsDecision).length,
+      ...(adoptedHere !== undefined ? { itemsAdopted: adoptedHere } : {}),
       ...(s.completedAt ? { lastSyncedAt: s.completedAt } : {}),
       ...(s.lastError ? { lastError: s.lastError } : {}),
       ...(s.lastErrorCategory ? { lastErrorCategory: s.lastErrorCategory } : {}),

@@ -13,7 +13,12 @@
  * the types live.
  */
 
-import type { ItemFailure, MigrationStatus, MappingLifecycle } from '@openmig/shared';
+import type {
+  DiscoveryDomain,
+  ItemFailure,
+  MigrationStatus,
+  MappingLifecycle,
+} from '@openmig/shared';
 import type { DomainStatusReport, StatusReport, NotificationChannelReport } from '@openmig/shared';
 import { buildDomainStatusReports } from '@openmig/shared';
 
@@ -26,6 +31,15 @@ export interface MappingStatusInput {
   readonly statuses: readonly MigrationStatus[];
   /** Unresolved item failures for this mapping, from the ledger. */
   readonly failures?: readonly ItemFailure[];
+  /**
+   * How many items each domain left as they already were (0124 T2), from
+   * `countAdoptedByDomain`.
+   *
+   * Optional, and omitting it is not the same as passing an empty object: a
+   * caller that did not count produces rows with no `itemsAdopted` at all,
+   * which is what a screen needs in order to say nothing rather than "none".
+   */
+  readonly adopted?: Readonly<Partial<Record<DiscoveryDomain, number>>>;
 }
 
 /**
@@ -48,14 +62,14 @@ export function buildStatusReport(
   return {
     status: 'ok',
     ...(notifications ? { notifications } : {}),
-    mappings: inputs.map(({ mappingId, migrationStatus, statuses, failures = [] }) => ({
+    mappings: inputs.map(({ mappingId, migrationStatus, statuses, failures = [], adopted }) => ({
       mappingId,
       migrationStatus,
       // The row derivation moved to @openmig/shared (0033 T5) so the managed
       // GET /migrations/{id} serves the SAME shape — before that, its raw
       // MigrationStatus rows lacked itemsRetrying/itemsNeedingDecision and a
       // UI reading them saw undefined where this edition served numbers.
-      domains: buildDomainStatusReports(statuses, failures),
+      domains: buildDomainStatusReports(statuses, failures, adopted),
     })),
   };
 }

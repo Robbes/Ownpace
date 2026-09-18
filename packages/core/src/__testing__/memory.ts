@@ -1,6 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import type {
   CursorStore,
+  DiscoveryDomain,
   FailureAction,
   ItemFailure,
   ItemMove,
@@ -494,6 +495,29 @@ export class MemoryLedger implements Ledger {
       });
     }
     return Promise.resolve(out);
+  }
+
+  /**
+   * Mirrors `PgLedger.countAdoptedByDomain`, INCLUDING the absence (0124 T2).
+   *
+   * A domain with no adopted rows produces NO KEY here, not a zero — the real
+   * query groups, so a domain with nothing to count yields no row at all. A
+   * fake that returned zeros would let a screen pass its tests while showing
+   * "none were left as they are" about a domain nobody counted, which is the
+   * distinction the optional field exists to keep (hard rule 9).
+   */
+  countAdoptedByDomain(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+  ): Promise<Readonly<Partial<Record<DiscoveryDomain, number>>>> {
+    const counts: Partial<Record<DiscoveryDomain, number>> = {};
+    for (const r of this.rows.values()) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (r.status !== 'adopted') continue;
+      const d = r.itemType as DiscoveryDomain;
+      counts[d] = (counts[d] ?? 0) + 1;
+    }
+    return Promise.resolve(counts);
   }
 
   /**

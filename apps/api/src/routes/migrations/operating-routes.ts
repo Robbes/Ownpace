@@ -281,6 +281,10 @@ router.get(
         const ledger = new PgLedger(db);
         const statuses = await new PgMigrationStatusStore(db).getStatus(tenantId, mappingId);
         const failures = await ledger.listFailures(tenantId, mappingId);
+        // What was left as it already was (0124 T2): the completion report is the
+        // ONE document version of every number on the screens, so a count the
+        // migration page shows and this does not is the two disagreeing.
+        const adopted = await ledger.countAdoptedByDomain(tenantId, mappingId);
         const moves = await ledger.listMoves(tenantId, mappingId);
         const deletions = await ledger.listDeletions(tenantId, mappingId);
         const mappingRows = await db
@@ -307,6 +311,7 @@ router.get(
         return {
           statuses,
           failures,
+          adopted,
           moves,
           deletions,
           name: mappingRows[0]?.name ?? undefined,
@@ -323,7 +328,7 @@ router.get(
         targetType: gathered.targetType,
         lifecycle: s.lifecycle,
         generatedAt: new Date().toISOString(),
-        domains: buildDomainStatusReports(gathered.statuses, gathered.failures),
+        domains: buildDomainStatusReports(gathered.statuses, gathered.failures, gathered.adopted),
         moves: gathered.moves,
         deletions: gathered.deletions,
         failures: gathered.failures,

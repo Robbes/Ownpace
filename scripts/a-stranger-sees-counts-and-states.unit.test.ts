@@ -74,6 +74,7 @@ const EVERY_FIELD: Required<DomainStatusReport> = {
   bytesTransferred: 91_000_000,
   itemsRetrying: 2,
   itemsNeedingDecision: 1,
+  itemsAdopted: 17,
   lastSyncedAt: '2026-09-09T21:00:00.000Z',
   lastActiveAt: '2026-09-10T06:30:00.000Z',
   lastError: '550 5.7.1 rejected: /Documents/tax-return-2024.pdf',
@@ -110,6 +111,40 @@ describe('what a progress link may open', () => {
     const row = viewRowFor(EVERY_FIELD);
     expect(row.lastErrorCategory).toBe('target_refused');
     expect(row.failedSide).toBe('target');
+  });
+
+  /**
+   * THIS GUARD DOING ITS JOB, 2026-09-18 (workplan 0124 T2).
+   *
+   * `itemsAdopted` was added to `DomainStatusReport` by somebody thinking about
+   * the OWNER's progress board, and this file stopped compiling in all four
+   * `tsc` passes until a value was written for it — which is exactly the moment
+   * the header says the decision has to be made. It is recorded here and in
+   * `migration-view.ts`, not left to whoever reads the diff.
+   *
+   * **The answer is yes.** It is a count and not content: it carries no name,
+   * no key, no folder and no file. And this reader needs it MORE than the owner
+   * does, not less — without it the numbers on their page do not add up, and
+   * unlike the owner they have nowhere to go and ask why. Four hundred contacts
+   * that were already on the new system are four hundred the counters would
+   * otherwise simply lose.
+   */
+  it('carries how many were left as they already were — a count, not content', () => {
+    const row = viewRowFor(EVERY_FIELD);
+    expect(row.itemsAdopted).toBe(17);
+  });
+
+  /**
+   * A COUNTED ZERO IS AN ANSWER; an uncounted one is not (hard rule 9). The
+   * field is optional precisely so those stay apart, and `viewRowFor` tests it
+   * with `!== undefined` rather than truthiness — `0 ? … : {}` would drop a
+   * real "nothing was left behind" and make it look like nobody looked.
+   */
+  it('keeps a counted zero, and says nothing when nobody counted', () => {
+    expect(viewRowFor({ ...EVERY_FIELD, itemsAdopted: 0 }).itemsAdopted).toBe(0);
+    const { itemsAdopted: _omitted, ...uncounted } = EVERY_FIELD;
+    const row = viewRowFor(uncounted) as unknown as Record<string, unknown>;
+    expect('itemsAdopted' in row).toBe(false);
   });
 
   it('carries the pause reason, because a silent pause is worse for this reader', () => {
@@ -153,6 +188,9 @@ describe('what a progress link may open', () => {
     // count, which is the only part a type cannot check.
     const fields: readonly (keyof ViewDomainRow)[] = VIEW_ROW_FIELDS;
     expect(new Set(fields).size).toBe(fields.length);
-    expect(fields.length).toBe(12);
+    // 13 since 2026-09-18 (`itemsAdopted`, 0124 T2). This number is meant to be
+    // edited, and only ever alongside a deliberate answer to "may a stranger
+    // see it" — see the two tests above and `migration-view.ts`.
+    expect(fields.length).toBe(13);
   });
 });

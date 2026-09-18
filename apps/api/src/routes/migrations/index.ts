@@ -2207,7 +2207,8 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
     // Previously this handler returned hardcoded placeholder data (imap.example.com,
     // a fixed lastSyncAt, domains: ['email']) regardless of the mapping's actual
     // config or sync state — this is the real fix, not a Docker/environment issue.
-    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures } = await withTenantDb(
+    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted } =
+      await withTenantDb(
       tenantId,
       pool,
       async (db) => {
@@ -2243,7 +2244,8 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             .where(and(eq(schema.mailbox.id, mailboxId), eq(schema.mailbox.tenantId, tenantId)));
           return rows[0]?.connection ?? null;
         };
-        const [sourceConn, targetConn, scopeRows, domainStatus, failures] = await Promise.all([
+        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted] =
+          await Promise.all([
           connectionOf(mapping.sourceMailboxId),
           connectionOf(mapping.targetMailboxId),
           db
@@ -2261,6 +2263,10 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           // The failure queue feeds the attention counts — same derivation as
           // the appliance's /status (see buildDomainStatusReports).
           new PgLedger(db).listFailures(tenantId as TenantId, mappingId as MappingId),
+          // What each domain LEFT AS IT WAS (0124 T2) — the one thing that
+          // happened to an item that this page had no counter for, so its
+          // totals never added up and there was nothing to read instead.
+          new PgLedger(db).countAdoptedByDomain(tenantId as TenantId, mappingId as MappingId),
         ]);
 
         return {
@@ -2270,6 +2276,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           scopeRows,
           domainStatus,
           failures,
+          adopted,
         };
       },
     );
@@ -2367,7 +2374,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       // renamed lastSyncedAt. Raw MigrationStatus rows lacked both counts,
       // so the hub's progress strip would have silently never shown a
       // retrying count on this edition (0033 T5).
-      domainStatus: buildDomainStatusReports(domainStatus, failures),
+      domainStatus: buildDomainStatusReports(domainStatus, failures, adopted),
       lastSyncAt,
       createdAt: mapping.createdAt,
       updatedAt: mapping.updatedAt,

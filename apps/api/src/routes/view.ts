@@ -114,15 +114,20 @@ router.get(
         const mapping = rows[0];
         if (!mapping) return null;
 
-        const [domainStatus, failures] = await Promise.all([
+        const [domainStatus, failures, adopted] = await Promise.all([
           new PgMigrationStatusStore(db).getStatus(tenantId as TenantId, mappingId as MappingId),
           // The same two counts the owner's board derives, from the same queue
           // — `buildDomainStatusReports` is the ONE place that derivation lives
           // (0033 T5), so this page cannot come to disagree with the owner's
           // about how many items are waiting.
           new PgLedger(db).listFailures(tenantId as TenantId, mappingId as MappingId),
+          // And what was left as it already was (0124 T2). This reader needs it
+          // more than the owner does, not less: they cannot go and look
+          // anywhere else, so a total that does not add up is the end of the
+          // road rather than a question they can ask somebody.
+          new PgLedger(db).countAdoptedByDomain(tenantId as TenantId, mappingId as MappingId),
         ]);
-        return { mapping, domainStatus, failures };
+        return { mapping, domainStatus, failures, adopted };
       });
 
       if (!read) {
@@ -134,7 +139,7 @@ router.get(
         });
       }
 
-      const { mapping, domainStatus, failures } = read;
+      const { mapping, domainStatus, failures, adopted } = read;
       if (!MAPPING_LIFECYCLES.includes(mapping.status as MappingLifecycle)) {
         // Throw rather than coerce, the same as `operating-routes.ts` and the
         // appliance's `/status` (hard rule 9). A state the CHECK constraint
@@ -155,7 +160,7 @@ router.get(
         // five domains reading `0` would tell them it finished and moved
         // nothing. See `MigrationView.started`.
         started: domainStatus.length > 0,
-        domains: buildDomainStatusReports(domainStatus, failures).map(viewRowFor),
+        domains: buildDomainStatusReports(domainStatus, failures, adopted).map(viewRowFor),
         expiresAt: expiresAt.toISOString(),
       };
       res.json(body);

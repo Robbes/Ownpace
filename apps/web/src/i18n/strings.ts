@@ -1228,6 +1228,14 @@ const en = {
   'confirm.progress.synced': 'synced',
   'confirm.progress.failed': 'failed',
   'confirm.progress.retrying': 'retrying',
+  // LEFT ALONE IS NOT COPIED (0124 T2). Two different rows wear the ledger's
+  // `adopted` status — an item the target already held, and one we wrote that
+  // the customer has since edited — and the ledger cannot tell them apart after
+  // the fact. One sentence true of both; inventing the split would be a worse
+  // lie than the silence this replaces.
+  'confirm.progress.leftAsIs': 'left as they are',
+  'confirm.progress.leftAsIs.why':
+    'These were already on the new system, or have been changed there since, so they were left exactly as they are. Nothing was copied over them and nothing was lost: this tool never overwrites what it did not write. They are counted here rather than among the copies because nothing happened to them — which is the point.',
   // When a pass last touched this data type — NOT when it last finished.
   // A first copy that runs for two days used to show no time at all, because
   // every time on these screens came from a completion. A migration that is
@@ -2911,6 +2919,9 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.progress.synced': 'gesynchroniseerd',
   'confirm.progress.failed': 'mislukt',
   'confirm.progress.retrying': 'in nieuwe poging',
+  'confirm.progress.leftAsIs': 'ongemoeid gelaten',
+  'confirm.progress.leftAsIs.why':
+    'Deze stonden al op het nieuwe systeem, of zijn daar sindsdien gewijzigd, en zijn daarom precies gelaten zoals ze zijn. Er is niets overheen gekopieerd en er is niets verloren gegaan: dit gereedschap overschrijft nooit wat het niet zelf heeft geschreven. Ze staan hier apart van de kopieën omdat er niets met ze is gebeurd — en dat is precies het punt.',
   'confirm.progress.lastActive': 'laatst actief',
   'pause.label': 'Gepauzeerd',
   'pause.ceiling':

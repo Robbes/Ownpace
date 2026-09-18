@@ -511,6 +511,38 @@ export class PgLedger implements Ledger {
     }));
   }
 
+  async countAdoptedByDomain(
+    tenantId: TenantId,
+    mappingId: MappingId,
+  ): Promise<Readonly<Partial<Record<DiscoveryDomain, number>>>> {
+    // GROUPED, not five queries: the migration page asks for every domain at
+    // once and a per-domain call would put five round trips on a page load
+    // that already makes two.
+    const rows = await this.db
+      .select({
+        domain: schemaPg.item.domain,
+        count: sql`count(*)`.mapWith(Number),
+      })
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          // The ONE status, and both of the things that wear it — see the port.
+          eq(schemaPg.item.status, 'adopted'),
+        ),
+      )
+      .groupBy(schemaPg.item.domain);
+    const counts: Partial<Record<DiscoveryDomain, number>> = {};
+    for (const r of rows) {
+      // A zero cannot come out of `count(*)` with a GROUP BY — a domain with no
+      // adopted rows produces no row here at all, which is exactly the absence
+      // the caller needs to tell from a counted zero.
+      counts[r.domain as DiscoveryDomain] = r.count;
+    }
+    return counts;
+  }
+
   async listFailures(
     tenantId: TenantId,
     mappingId: MappingId,

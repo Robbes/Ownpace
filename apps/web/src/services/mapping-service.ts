@@ -137,6 +137,17 @@ export const MappingDomainStatusSchema = z.object({
   bytesTransferred: z.number(),
   itemsRetrying: z.number(),
   itemsNeedingDecision: z.number(),
+  /**
+   * How many this domain left as they already were (0124 T2).
+   *
+   * Optional, and the optionality carries a meaning the strip depends on:
+   * absent is "nobody counted", which an appliance older than this field
+   * serves and which must not render as "none were left behind". `z.object`
+   * strips what it does not name, so a field left out here is a field no
+   * screen can ever read — see `MaskedConfigSchema`, where exactly that
+   * happened to the export policy.
+   */
+  itemsAdopted: z.number().optional(),
   lastSyncedAt: z.string().optional(),
   lastError: z.string().optional(),
   /**
