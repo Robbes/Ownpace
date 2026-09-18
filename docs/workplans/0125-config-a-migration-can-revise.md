@@ -2,6 +2,23 @@
 
 ## Status — 2026-09-18 (update this block at the end of every session)
 
+**2026-09-18, later still: T1 and T3 built, and §5 was wrong about the cost.** It said managed's
+edit path meant "writing across `mailbox` / `connection` / `scope_selection` in one transaction".
+For the field this plan exists for, it does not. `nativeFilePolicy` is a PER-MAPPING override in
+`mailbox_mapping.source_config_override` — `sourceConfigOverride()` builds it at create, and the
+column's own comment says why it exists: *"a shared connection cannot answer something that is
+true of one mapping only."* So the PUT handler's note is true of a connection's server and
+credentials and false of the override fields, and changing the export policy is a merge into one
+jsonb column in the transaction that was already there. That also settles a question §3 left
+open: the override is per mapping, so a change cannot reach another migration sharing the same
+Google connection.
+
+T1's two "needs a decision" rows are both **refused**, and the asymmetry is the argument:
+permitting a change that orphans copied items is irreversible for the person it happens to, and
+loosening a rule later is a line in a table. Neither refusal claims the change is impossible —
+each says this product will not do it to a ledger that already holds items, and names the way
+round it. T2 is untouched and §4 needs a decision first (see there). T5 untouched.
+
 **2026-09-18, later: T4 built.** `policy_refused` is the ninth category, and the mechanism beside
 it is the half worth reading: an error may now STATE its category, and a stated one beats a
 matched one. §6 predicted both; one thing in it turned out to be wrong and the correction is
@@ -19,9 +36,9 @@ what hard rule 5 forbids about what a setting can *mean*.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 What may change, and what it costs | ⬜ | The shared rule: per field, may this be revised after creation, and what does it mean for what is already copied. §3 |
-| T2 The appliance honours it at load | ⬜ | The guard it has never had — today a hand-edited `mapping.json` may change anything at all. §4 |
-| T3 Managed's edit path | ⬜ | Built on T1's rule, not beside it. §5 |
+| T1 What may change, and what it costs | ✅ Done — §3 | `config-revision.ts` in `shared`, called by both editions. A verdict per field, each refusal naming what to do instead; the export policy carries its consequence rather than hiding it. |
+| T2 The appliance honours it at load | ⬜ | **Blocked on a decision, not on work.** The appliance keeps no copy of its previous config — `ensureMappingRecords` persists the tenant, the mapping id, source/target user and pattern, and nothing else — so there is nothing to compare a boot against. §4 |
+| T3 Managed's edit path | ✅ Done — §5 | The PUT route applies the export policy (merged over the stored override, validated by the shared parser) and REFUSES what T1 refuses, out loud and all at once, instead of dropping a `sourceConfig` in silence. The form is not built. |
 | T4 `policy_refused`, and an error that carries its own category | ✅ Done — §6 | Ninth category, migration 0051 (COMMENT only, as 0048 predicted). `NativeFileRefused` states its category; `classifyFailure` prefers a stated one. The owner's thirty split 21/9 the next time they are attempted. |
 | T5 What happens to items refused under the old policy | ⬜ | Offered, never silent. §7 |
 
@@ -111,13 +128,49 @@ records and refuses what T1 refuses, in the appliance's own vocabulary, at boot,
 runs. That is the guard it never had, and it is why this work is not "managed catches up":
 **both editions gain something neither had.**
 
+### And the thing that has to be decided before it can be built (2026-09-18)
+
+**There is nothing to compare against.** `ensureMappingRecords` persists the tenant, the mapping
+id, the source and target user and the pattern. Not the source type, not the target type, not the
+root folder, not the export policy. The mapping file IS the appliance's record of itself, so "the
+mapping it is loading" and "what it was last time" are the same string.
+
+Two ways, and the choice is the owner's:
+
+- **Persist the revision-relevant fields at boot** and compare on the next one. Honest, and the
+  only one that can see a `sourceType` change — the case §4 leads with. Costs a migration, and the
+  first boot after the upgrade has nothing stored, so it must record rather than refuse.
+- **Use only what already persists** (`mailbox.address`, for the source and target user). No
+  migration, and it cannot detect a source or target type change at all — it would guard the cheap
+  case and leave the dangerous one open, which is close to the shape this plan is about.
+
 ## 5. T3 — managed's edit path
 
 The same rule, a different arrival. A form and a route that change what T1 permits and refuse
 what it does not, writing across `mailbox` / `connection` / `scope_selection` in one transaction.
 
-The PUT handler's existing note stays true for everything T1 refuses — it is not being
-overruled, it is being given a reason per field instead of a blanket silence.
+**The note that stood in the way was half true, and the half that was false was load-bearing.**
+It said name, sourceType, targetType, sourceConfig, targetConfig and syncConfig *"would require
+updating related tables"*. True of a connection's SERVER and CREDENTIALS. Not true of the fields
+that say whose data this mapping moves: those are per-mapping and live in
+`source_config_override` on the row the route already updates. So what shipped is narrower than
+this section imagined and does more:
+
+- **The export policy is applied**, merged over whatever the override already holds — never
+  replaced. That column also carries a Box subject, a Drive root and an archive path, and a fresh
+  object would blank them and fall the next pass back to the connection's own subject, undoing
+  ADR-0033's one-subject-per-mapping rule with a settings save. It is validated through
+  `parseGoogleDriveSource`, so a value the appliance's mapping file refuses is not one this route
+  stores.
+- **A refused field is refused out loud**, 409, every one of them at once, each with T1's reason.
+  Dropping it silently is what the route did, and it is the failure hard rule 9 is about: a caller
+  who changed the root folder and got 200 back has been told the change landed.
+- **`name` and `schedule` are permitted by the table and not written here.** This route does not
+  have them yet, and collecting them into the refusal check would put them through a test they
+  pass and change nothing — which reads like support they do not have.
+
+Not built: the FORM. The route is what a form would call, and the remedy sentence
+`policy_refused` shows still names a setting with no screen behind it in managed.
 
 ## 6. T4 — `policy_refused`, and an error that carries its own category
 

@@ -72,6 +72,8 @@ import {
   resolveDropboxClient,
   parseGoogleDriveSource,
   carriesGoogleNativeFiles,
+  refusalsFor,
+  type RevisableField,
   ConfigError,
   describeCronScheduleProblem,
   credentialFieldsFor,
@@ -590,6 +592,36 @@ export function sourceConfigOverride(
       // imap and oauth2: the server is the connection's, the mailbox is ours.
       return keep({ user: cfg.username });
   }
+}
+
+/**
+ * WHICH REVISABLE FIELDS A PATCH BODY PROPOSES (workplan 0125 T3).
+ *
+ * Exported and pure so the mapping from this route's vocabulary onto the
+ * shared rule's can be read and tested without a server — which is the half
+ * that goes wrong. The rule itself decides nothing here; it decides in
+ * `shared`, where both editions call it.
+ *
+ * ONLY the fields this route can act on. `name` and `schedule` are permitted
+ * by the table and are not collected, because this route does not write them
+ * yet: collecting them would put them through a refusal check they pass and
+ * change nothing, which reads like support they do not have.
+ *
+ * A field is proposed when it is PRESENT, not when it differs from what is
+ * stored. "May this change at all" is a property of the field, so a body
+ * restating the stored value is still asking for a write this route will not
+ * make — and comparing first would mean reading the row to decide whether to
+ * refuse, which is a second answer to a question the table already answers.
+ */
+export function proposedRevisions(
+  body: Pick<z.infer<typeof UpdateMappingSchema>, 'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig'>,
+): readonly RevisableField[] {
+  const proposed: RevisableField[] = [];
+  if (body.sourceType !== undefined) proposed.push('source.type');
+  if (body.targetType !== undefined) proposed.push('target.type');
+  if (body.sourceConfig?.rootFolderId !== undefined) proposed.push('source.rootFolderId');
+  if (body.targetConfig?.username !== undefined) proposed.push('target.account');
+  return proposed;
 }
 
 /** The target half of the same split: the account, never the server. */
@@ -2339,9 +2371,69 @@ router.put(
       if ('pattern' in body && body.pattern) {
         updateData.pattern = body.pattern as 'shared_s' | 'distribution_d' | undefined;
       }
-      // Note: name, sourceType, targetType, sourceConfig, targetConfig, syncConfig
-      // are not direct fields of mailbox_mapping - they would require updating
-      // related tables (mailbox, connection, scope_selection, collection_mapping)
+
+      /**
+       * WHAT A LIVE MIGRATION MAY CHANGE ABOUT ITSELF (workplan 0125 T1/T3).
+       *
+       * The note that stood here said name, sourceType, targetType,
+       * sourceConfig, targetConfig and syncConfig "are not direct fields of
+       * mailbox_mapping — they would require updating related tables". That is
+       * true of a connection's SERVER and CREDENTIALS, and it was read as
+       * covering everything: a `sourceConfig` arriving here was parsed and
+       * then dropped, in silence.
+       *
+       * It is not true of the fields that say "whose data, and where". Those
+       * are per-mapping and live in `source_config_override` on THIS row —
+       * `sourceConfigOverride()` builds it at create, and the schema says why
+       * the column exists: *"a shared connection cannot answer something that
+       * is true of one mapping only."* So the export policy is a merge into
+       * one jsonb column, in the transaction below, and it does not reach any
+       * other migration sharing the same Google connection.
+       *
+       * The owner found the gap the hard way: twenty-one of his files were
+       * refused with a sentence telling him to set an export policy on the
+       * mapping, and the product had nowhere to do it.
+       *
+       * WHAT MAY CHANGE IS NOT DECIDED HERE. `mayRevise` is in `shared` and is
+       * called by both editions, for the reason `parseGoogleDriveSource` is:
+       * hard rule 5 says they do not differ in behaviour, and a revision the
+       * appliance refuses must not be one this route quietly performs.
+       *
+       * AND A REFUSED FIELD IS REFUSED OUT LOUD. Dropping it silently is what
+       * this route did, and it is the failure hard rule 9 is about: a caller
+       * who changed the root folder and got 200 back has been told the change
+       * landed. Every refused field at once, never the first — somebody who
+       * changed three and is told about one fixes it and is refused again.
+       */
+      const refused = refusalsFor(proposedRevisions(body));
+      if (refused.length > 0) {
+        res.status(409).json({
+          error: 'revision_refused',
+          message:
+            'Some of what was asked for cannot change on a migration that already exists.',
+          refused: refused.map((r) => ({ field: r.field, reason: r.reason })),
+        });
+        return;
+      }
+
+      /**
+       * The export policy, merged over whatever the row already holds.
+       *
+       * MERGED, not replaced: `source_config_override` also carries the fields
+       * that say whose data this mapping moves (a Box subject, a Drive root,
+       * an archive path), and writing a fresh object here would blank them and
+       * silently fall the next pass back to the connection's own — which is
+       * precisely the defect ADR-0033's one-subject-per-mapping rule exists to
+       * prevent.
+       *
+       * Validated through the SAME parser a mapping file goes through, so a
+       * value the appliance refuses is not one this route stores.
+       */
+      const nativeFilePolicy = body.sourceConfig?.nativeFilePolicy;
+      const revisedPolicy =
+        nativeFilePolicy === undefined || nativeFilePolicy === ''
+          ? undefined
+          : parseGoogleDriveSource({ nativeFilePolicy }).nativeFilePolicy;
 
       const [updated] = await withTenantDb(tenantId, pool, async (db) => {
         // The status this mapping holds BEFORE the write, read inside the same
@@ -2361,13 +2453,36 @@ router.put(
                 )
             )[0]?.status
           : undefined;
+        // Read inside the same transaction, for the same reason the status is:
+        // a merge built from a value read outside it can be written over a row
+        // that moved in between.
+        const currentOverride =
+          revisedPolicy === undefined
+            ? undefined
+            : ((
+                await db
+                  .select({ o: schema.mailboxMapping.sourceConfigOverride })
+                  .from(schema.mailboxMapping)
+                  .where(
+                    and(
+                      eq(schema.mailboxMapping.id, mappingId),
+                      eq(schema.mailboxMapping.tenantId, tenantId),
+                    ),
+                  )
+              )[0]?.o as Record<string, unknown> | null | undefined);
         const [row] = await db
           .update(schema.mailboxMapping)
           // Stamped LAST so it cannot be spread away by a field above, and
           // unconditionally: this route is how a mapping reaches `paused`,
           // `cutover` and `done`, so three of the four lifecycle transitions
           // ran through here leaving no timestamp at all (workplan 0109 T1).
-          .set({ ...updateData, updatedAt: new Date() })
+          .set({
+            ...updateData,
+            ...(revisedPolicy === undefined
+              ? {}
+              : { sourceConfigOverride: { ...(currentOverride ?? {}), nativeFilePolicy: revisedPolicy } }),
+            updatedAt: new Date(),
+          })
           .where(
             and(
               eq(schema.mailboxMapping.id, mappingId),
