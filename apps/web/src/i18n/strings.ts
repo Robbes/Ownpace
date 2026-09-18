@@ -456,6 +456,29 @@ const en = {
     'Each one is reported by name, with a reason, for you to decide.',
   'wizard.nativePolicy.unmeasured.why':
     'Nothing is copied and nothing is lost: each Doc, Sheet, Slide and Drawing appears in the failure queue with its name, and you accept or retry them one at a time or all at once. Forms, My Maps, Sites and Apps Scripts always land here — Google can export those in no format at all.',
+  // THE SETTINGS PANEL ON A RUNNING MIGRATION (0125 T3) — the screen behind the
+  // remedy `policy_refused` prints per item: *"set an export policy on the
+  // mapping"*. It named an action the product did not have; these are the words
+  // of the one it has now. The chooser's own labels are the wizard's, above,
+  // because it is the same control asked in a second place.
+  'settings.exportPolicy': 'Export format for Google files',
+  'settings.exportPolicy.save': 'Save this format',
+  'settings.exportPolicy.saving': 'Saving…',
+  'settings.exportPolicy.saved': 'Saved. The next pass uses it.',
+  // What changing it does NOT do, before the press rather than after. Items
+  // already copied keep the format they arrived in: this tool never overwrites
+  // what is on the new system (hard rule 2), so the new format applies from
+  // here on.
+  'settings.exportPolicy.consequence': 'Files already copied keep the format they arrived in.',
+  'settings.exportPolicy.consequence.why':
+    'Nothing on the new system is rewritten — this tool never overwrites what it did not write, so a file copied as a .pdf stays a .pdf. The new format applies to files copied from now on, including any you send back through. Comparing the two is safe: each copy records which format it was made under, so a later pass reads a format change as a format change and never as a file that was edited.',
+  // WHAT A SAVE DOES NOT DO BY ITSELF (0125 T5, offered rather than automatic).
+  'settings.exportPolicy.refusedBefore': 'Files already refused stay refused until you retry them.',
+  'settings.exportPolicy.refusedBefore.why':
+    'Changing this setting does not reopen decisions that were already recorded — a settings save that silently emptied a queue would be a change to your ledger that nobody asked for. The Failures screen groups them by reason, so the ones left behind by the old format are one group with one button: retry all of them, and the next pass copies them in the format you just chose.',
+  'settings.exportPolicy.toFailures': 'Go to Failures to retry them',
+  'settings.exportPolicy.refused': 'This could not be changed:',
+  'settings.exportPolicy.failed': 'That did not save:',
   'wizard.step.migration': 'Migration',
   'wizard.testConnections.reused': 'Already saved; this only checks it still works.',
   'wizard.connectionName': 'Connection name',
@@ -2327,6 +2350,21 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.targetPrefix.hint': 'Alles komt onder deze map terecht; leeg voegt samen in het account.',
   'wizard.targetPrefix.why':
     'Handig wanneer meerdere bronnen één doel delen en u per bron een submap wilt, zoals "Gmail". Leeg is de standaard: één account, één plek om te werken. Onder een map komen Verzonden en Concepten als gewone mappen daarbinnen terecht, in plaats van de Verzonden en Concepten van het account zelf te worden; een mailprogramma kan er maar één van elk hebben.',
+  'settings.exportPolicy': 'Exportformaat voor Google-bestanden',
+  'settings.exportPolicy.save': 'Dit formaat opslaan',
+  'settings.exportPolicy.saving': 'Opslaan…',
+  'settings.exportPolicy.saved': 'Opgeslagen. De volgende ronde gebruikt het.',
+  'settings.exportPolicy.consequence':
+    'Al gekopieerde bestanden houden het formaat waarin ze aankwamen.',
+  'settings.exportPolicy.consequence.why':
+    'Op het nieuwe systeem wordt niets herschreven — dit gereedschap overschrijft nooit wat het niet zelf heeft geschreven, dus een bestand dat als .pdf is aangekomen blijft een .pdf. Het nieuwe formaat geldt voor bestanden die vanaf nu worden gekopieerd, ook voor bestanden die u opnieuw laat proberen. Vergelijken blijft veilig: bij elke kopie staat onder welk formaat die is gemaakt, dus een latere ronde leest een formaatwijziging als een formaatwijziging en nooit als een bewerkt bestand.',
+  'settings.exportPolicy.refusedBefore':
+    'Al geweigerde bestanden blijven geweigerd tot u ze opnieuw laat proberen.',
+  'settings.exportPolicy.refusedBefore.why':
+    'Deze instelling wijzigen heropent geen beslissingen die al zijn vastgelegd — een opgeslagen instelling die stilletjes een wachtrij leegmaakt, is een wijziging in uw administratie waar niemand om heeft gevraagd. Het scherm Mislukkingen groepeert ze op reden, dus de bestanden die het oude formaat heeft laten liggen vormen één groep met één knop: laat ze allemaal opnieuw proberen, dan kopieert de volgende ronde ze in het formaat dat u zojuist hebt gekozen.',
+  'settings.exportPolicy.toFailures': 'Naar Mislukkingen om ze opnieuw te proberen',
+  'settings.exportPolicy.refused': 'Dit kon niet worden gewijzigd:',
+  'settings.exportPolicy.failed': 'Dat is niet opgeslagen:',
   'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
   'wizard.serviceAccountKey': 'Serviceaccount-sleutel',
   'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand',

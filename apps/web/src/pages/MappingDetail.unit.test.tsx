@@ -40,6 +40,32 @@ vi.mock('../services/operating-service', () => ({
 
 import MappingDetail from './MappingDetail.tsx';
 
+/**
+ * A detail payload the way the route actually answers one.
+ *
+ * The fixtures here were minimal — `{name, status}` and whatever the test under
+ * it looked at — which was fine while the page read only those. It stopped
+ * being fine when the page grew the export-policy panel (0125 T3): that asks
+ * what the migration CARRIES, and `syncConfig` is a field `MappingSchema`
+ * requires, so no real payload can arrive without it. A double thinner than the
+ * schema is the test's defect and not the page's, and it shows up as a crash in
+ * a screen that works.
+ */
+function aMapping(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'acme-mail',
+    name: 'Acme mail',
+    status: 'active',
+    sourceType: 'imap',
+    targetType: 'jmap',
+    sourceConfig: {},
+    targetConfig: {},
+    syncConfig: { domains: ['email'] },
+    domainStatus: [],
+    ...overrides,
+  };
+}
+
 function renderHub(id = 'acme-mail') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -56,7 +82,7 @@ function renderHub(id = 'acme-mail') {
 beforeEach(() => {
   vi.clearAllMocks();
   editionFlag.selfhost = false;
-  mappingApiGet.mockResolvedValue({ name: 'Acme mail', status: 'active' });
+  mappingApiGet.mockResolvedValue(aMapping());
   fetchStatusMock.mockResolvedValue({ status: 'ok', mappings: [] });
 });
 
@@ -117,16 +143,16 @@ describe('whose account, on each side (owner, 2026-09-17)', () => {
    * to. It was already on the wire and no screen printed it.
    */
   it('prints the connection name AND the account beside it', async () => {
-    mappingApiGet.mockResolvedValue({
-      name: 'Acme mail',
-      status: 'active',
-      sourceType: 'google',
-      targetType: 'nextcloud',
-      sourceConnection: { id: 'c1', name: 'Acme Google', kind: 'google' },
-      targetConnection: { id: 'c2', name: 'Anna’s Nextcloud', kind: 'nextcloud' },
-      sourceConfig: { username: 'owner@acme.example' },
-      targetConfig: { username: 'anna@nc.example' },
-    });
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        sourceType: 'google',
+        targetType: 'nextcloud',
+        sourceConnection: { id: 'c1', name: 'Acme Google', kind: 'google' },
+        targetConnection: { id: 'c2', name: 'Anna’s Nextcloud', kind: 'nextcloud' },
+        sourceConfig: { username: 'owner@acme.example' },
+        targetConfig: { username: 'anna@nc.example' },
+      }),
+    );
     renderHub();
     expect(
       await screen.findByText(
@@ -138,18 +164,49 @@ describe('whose account, on each side (owner, 2026-09-17)', () => {
   it('prints no empty brackets where the account is not known', async () => {
     // An older row, or a kind that stores neither. "Acme Google ()" would read
     // as a connection with no account rather than a page that cannot say.
-    mappingApiGet.mockResolvedValue({
-      name: 'Acme mail',
-      status: 'active',
-      sourceType: 'google',
-      targetType: 'nextcloud',
-      sourceConnection: { id: 'c1', name: 'Acme Google', kind: 'google' },
-      sourceConfig: {},
-      targetConfig: {},
-    });
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        sourceType: 'google',
+        targetType: 'nextcloud',
+        sourceConnection: { id: 'c1', name: 'Acme Google', kind: 'google' },
+      }),
+    );
     renderHub();
     expect(await screen.findByText(/From Acme Google to nextcloud/)).toBeInTheDocument();
     expect(screen.queryByText(/\(\)/)).toBeNull();
+  });
+});
+
+/**
+ * THE SCREEN BEHIND THE REMEDY IS ON THIS PAGE (0125 T3).
+ *
+ * The panel has its own tests; this one is about the wiring, which is the half
+ * that was missing for a month: `nativeFilePolicy` existed, the engine read it,
+ * the create door stored it — and the only screen that could set it was the
+ * creation wizard. A component nobody renders is the same defect one file
+ * along, so the page asserts it renders one, with the policy the mapping holds.
+ */
+describe('the export-policy panel', () => {
+  it('shows the policy this migration is running under', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        sourceType: 'google',
+        syncConfig: { domains: ['file', 'email'] },
+        sourceConfig: { username: 'owner@acme.test', nativeFilePolicy: 'export-pdf' },
+      }),
+    );
+    renderHub();
+    const select = await screen.findByLabelText(/Google Docs, Sheets, Slides and Drawings/i);
+    expect((select as HTMLSelectElement).value).toBe('export-pdf');
+  });
+
+  it('is absent from a migration with no Google files to decide about', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ sourceType: 'imap' }));
+    renderHub();
+    // The hub's own content still arrives, so this is "the panel is not here"
+    // rather than "nothing rendered".
+    expect(await screen.findByText(/cutover order/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Google Docs, Sheets, Slides and Drawings/i)).toBeNull();
   });
 });
 
@@ -167,11 +224,7 @@ describe('the live progress strip', () => {
   };
 
   it('managed: renders the strip from the detail payload, retrying count included', async () => {
-    mappingApiGet.mockResolvedValue({
-      name: 'Acme mail',
-      status: 'active',
-      domainStatus: [emailDomain],
-    });
+    mappingApiGet.mockResolvedValue(aMapping({ domainStatus: [emailDomain] }));
     renderHub();
 
     expect(await screen.findByText('42 synced')).toBeInTheDocument();

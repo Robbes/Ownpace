@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useT, useLocale } from '../i18n/index.tsx';
 import { Hint, whyKeyOf } from '../components/Hint.tsx';
+import { NativeFilePolicyChooser } from '../components/NativeFilePolicyChooser.tsx';
 import {
   measuredText,
   probeText,
@@ -40,11 +41,8 @@ import {
   providerDefaultsProvenance,
   type CredentialField,
   credentialFieldRequired,
-  policyLeavesBehind,
   carriesGoogleNativeFiles,
-  type GoogleNativeFilePolicy,
 } from '@openmig/shared';
-import { nativeKindKey } from '../i18n/native-kind-key.ts';
 import {
   connectionsApi,
   mappingApi,
@@ -1569,89 +1567,13 @@ const CreateMapping: React.FC = () => {
    * Sat beside the root-folder field rather than on a later step, because it
    * is the same question as "which folder": what, of this Drive, comes across.
    *
-   * The lossy sentence is not a warning to click past. An export is a
-   * RENDERING — nobody gets a Google Doc back out of an .odt — and an owner
-   * who learns that after cutover learns it too late.
+   * THE CONTROL ITSELF MOVED OUT (0125 T3). The migration's own settings ask
+   * the same question after it is running — the remedy on a `policy_refused`
+   * item says to go and change this — and a second `<select>` built over there
+   * would be the very defect 0125 exists to fix, one level up: two choosers
+   * saying different things about somebody's Docs. One component, two
+   * arrivals; what is left here is where it sits on this step.
    */
-  /**
-   * WHICH OF THEIR FILES THIS FORMAT WILL ACTUALLY LEAVE BEHIND.
-   *
-   * The line that used to sit here said an export is a rendering rather than
-   * the original — true of all three formats, and silent about the one
-   * difference between them that decides whether a file moves at all:
-   * OpenDocument leaves every Google Doc behind and Microsoft Office leaves
-   * every Slides deck behind, measured (0042 T3). A person picking
-   * "OpenDocument — .odt, .ods, .odp" was choosing, unknowingly, to drop the
-   * kind of file that label starts with.
-   *
-   * They did find out — at discovery, and per file in the failures queue. Both
-   * are after the choice, and the second is after the run.
-   *
-   * Read off `NATIVE_POLICY_COVERAGE`, which a guard holds equal to the
-   * measurements, so a cell that changes colour changes this sentence and
-   * nobody has to remember to.
-   */
-  const renderPolicyCoverage = (policy: Exclude<GoogleNativeFilePolicy, 'refuse'>) => {
-    const dropped = policyLeavesBehind(policy);
-    if (dropped.length === 0) {
-      return (
-        <Hint
-          text={t('wizard.nativePolicy.carriesAll')}
-          why={t('wizard.nativePolicy.carriesAll.why')}
-        />
-      );
-    }
-    return (
-      <Hint
-        // `caution`, like the other line somebody must read before typing: this
-        // one says files will not move, and it is the last screen where that is
-        // still a choice.
-        tone="caution"
-        text={t('wizard.nativePolicy.drops', {
-          kinds: dropped.map((kind) => t(nativeKindKey(kind))).join(', '),
-        })}
-        why={t('wizard.nativePolicy.drops.why')}
-      />
-    );
-  };
-
-  const renderNativeFilePolicy = () => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700" htmlFor="native-file-policy">
-        {t('wizard.nativePolicy')}
-      </label>
-      {/* One line, the rest folded (0118 T1). Three thoughts belong here —
-          what these are, what an export costs, what happens if you decline —
-          and showing all three at once is the thing that rule exists to
-          stop. */}
-      <Hint text={t('wizard.nativePolicy.hint')} why={t('wizard.nativePolicy.hint.why')} />
-      <select
-        id="native-file-policy"
-        className="input w-full mt-2"
-        value={formData.sourceNativeFilePolicy}
-        onChange={(e) => updateField('sourceNativeFilePolicy', e.target.value)}
-      >
-        {/* `refuse` first and selected: of the two ways this can disappoint
-            somebody — "your Docs did not migrate, and here is why" and "your
-            Docs arrived as something you cannot edit" — only the first is one
-            they can still act on. */}
-        <option value="refuse">{t('wizard.nativePolicy.refuse')}</option>
-        <option value="export-odf">{t('wizard.nativePolicy.odf')}</option>
-        <option value="export-office">{t('wizard.nativePolicy.office')}</option>
-        <option value="export-pdf">{t('wizard.nativePolicy.pdf')}</option>
-      </select>
-      {formData.sourceNativeFilePolicy === 'refuse' ? (
-        <Hint
-          text={t('wizard.nativePolicy.unmeasured')}
-          why={t('wizard.nativePolicy.unmeasured.why')}
-        />
-      ) : (
-        renderPolicyCoverage(
-          formData.sourceNativeFilePolicy as Exclude<GoogleNativeFilePolicy, 'refuse'>,
-        )
-      )}
-    </div>
-  );
 
   /** Dropbox's shared-folder browse (0055 follow-up), likewise. */
   const renderDropboxBrowse = () => (
@@ -1905,7 +1827,12 @@ const CreateMapping: React.FC = () => {
             kind". At the foot of the fields it is the same place on the Drive
             source, whose root folder is its last field, and it is now also a
             place the account kind has. */}
-        {isSource && nativePolicyApplies && renderNativeFilePolicy()}
+        {isSource && nativePolicyApplies && (
+          <NativeFilePolicyChooser
+            value={formData.sourceNativeFilePolicy}
+            onChange={(next) => updateField('sourceNativeFilePolicy', next)}
+          />
+        )}
         {/* What happens to these secrets — one sentence, at the foot of the
             fields it is about rather than in a panel of its own. */}
         {!chosen && <p className="text-sm text-blue-900">{t('wizard.credentials.storage')}</p>}

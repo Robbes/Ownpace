@@ -2,6 +2,41 @@
 
 ## Status — 2026-09-18 (update this block at the end of every session)
 
+**2026-09-18, last: T3's FORM is built, and the door in front of the whole plan was shut.**
+The panel is on the migration's own page: the policy in force, the wizard's chooser, T1's
+consequence before the press, and a 409 rendered as the reasons it carries. Three things were
+found on the way, and the first is the one worth reading:
+
+**`UpdateMappingSchema` was `CreateMappingBase.partial()`, and `.partial()` is SHALLOW.**
+`sourceConfig` became optional; the object inside it stayed as strict as create's, where
+`username` is required. So a body proposing only an export policy — the thing twenty-one of the
+owner's files tell him to go and set — was answered `400 Validation error: sourceConfig.username`,
+and so was a body proposing a new root folder. **Everything T1 and T3 shipped sat behind that
+400**: the refusal written to say *"items already copied would sit outside the new folder"* had
+never once fired for the case it exists to catch, and could not. Hard rule 9 twice over — the
+caller is told the wrong reason, and a refusal nothing can reach is not a refusal anybody should
+trust. Its own comment said a partial body "may legitimately omit" fields; that is now true of
+the nested objects too, which is what it always meant. Create is untouched and guarded.
+
+**`MaskedConfigSchema` did not name `nativeFilePolicy`, and `z.object` strips what it does not
+name.** #1005 changed the detail route to answer the mapping's own merged override *"precisely so
+a screen could show the current value"* — and the client threw it away one line after it arrived.
+From a component's side that is indistinguishable from a migration with no policy at all: the
+wire was right, the schema was silent, and nothing was red. It surfaces only when somebody
+finally builds the screen.
+
+**The chooser moved out of the wizard rather than being copied into the panel.** Two `<select>`s
+saying different things about somebody's Docs is this plan's own defect one level up, so there is
+one `NativeFilePolicyChooser` and both arrivals render it, with guards holding its options against
+the measured coverage table and against the parser both editions validate with.
+
+**And one guard of mine was vacuous, twice over.** The panel asserted a 409 does not also claim a
+save; the mutation passed, because `saved` is only set after a successful await and a compound
+render condition guarded it as well. The condition was unreachable — a branch nothing can execute
+is a branch nothing can prove, the same finding as T4's `hasAWayOut` — so it is gone, and the claim
+is held by the sequence that actually happens instead: a refusal, then a press that fixes it, and
+the old reasons must not still be on screen under a line saying it saved.
+
 **2026-09-18, later still: T1 and T3 built, and §5 was wrong about the cost.** It said managed's
 edit path meant "writing across `mailbox` / `connection` / `scope_selection` in one transaction".
 For the field this plan exists for, it does not. `nativeFilePolicy` is a PER-MAPPING override in
@@ -38,9 +73,9 @@ what hard rule 5 forbids about what a setting can *mean*.
 |---|---|---|
 | T1 What may change, and what it costs | ✅ Done — §3 | `config-revision.ts` in `shared`, called by both editions. A verdict per field, each refusal naming what to do instead; the export policy carries its consequence rather than hiding it. |
 | T2 The appliance honours it at load | ⬜ | **Blocked on a decision, not on work.** The appliance keeps no copy of its previous config — `ensureMappingRecords` persists the tenant, the mapping id, source/target user and pattern, and nothing else — so there is nothing to compare a boot against. §4 |
-| T3 Managed's edit path | ✅ Done — §5 | The PUT route applies the export policy (merged over the stored override, validated by the shared parser) and REFUSES what T1 refuses, out loud and all at once, instead of dropping a `sourceConfig` in silence. The form is not built. |
+| T3 Managed's edit path | ✅ Done — §5 | The route applies the export policy and refuses what T1 refuses, all at once; **the form is on the migration's page**, and the update body is partial all the way down so a revision can reach the rule at all. |
 | T4 `policy_refused`, and an error that carries its own category | ✅ Done — §6 | Ninth category, migration 0051 (COMMENT only, as 0048 predicted). `NativeFileRefused` states its category; `classifyFailure` prefers a stated one. The owner's thirty split 21/9 the next time they are attempted. |
-| T5 What happens to items refused under the old policy | ⬜ | Offered, never silent. §7 |
+| T5 What happens to items refused under the old policy | 🟨 Half — §7 | **Offered**: a save says the already-refused stay refused and links to the group press, which `resolveFailureGroup` already clears `parkedAt` for. The COUNT is not there — see §7. |
 
 ## 1. What the owner found
 
@@ -169,8 +204,39 @@ this section imagined and does more:
   have them yet, and collecting them into the refusal check would put them through a test they
   pass and change nothing — which reads like support they do not have.
 
-Not built: the FORM. The route is what a form would call, and the remedy sentence
-`policy_refused` shows still names a setting with no screen behind it in managed.
+### The form, and the door that was shut in front of it
+
+**The panel is on the migration's own page**, which is where the person reading a
+`policy_refused` remedy already is — the failures screen hangs off it. It shows the policy in
+force, offers the wizard's chooser, states T1's consequence before the press, and renders a 409 as
+the reasons it carries. It asks `mayRevise` rather than knowing the answer: refuse this field in
+the table and the panel stops offering the press and says why, with no second copy of the rule.
+
+**ONE chooser, not two.** The wizard's `<select>` moved into `NativeFilePolicyChooser` and both
+screens render it. Building a second one for the panel would have been this plan's own defect a
+level up — two controls drifting, and a person told different things about their Docs depending on
+which screen they read. Guards hold its options against `NATIVE_POLICY_COVERAGE` (a measured policy
+that reaches no screen goes red, naming it) and against `parseGoogleDriveSource` (an option the
+parser would refuse is a menu entry that saves as a 400).
+
+**And the thing that made all of the above unreachable.** `UpdateMappingSchema` was
+`CreateMappingBase.partial()`, and `.partial()` is SHALLOW: `sourceConfig` became optional and the
+object inside it stayed as strict as create's, where `username` is required. So a policy-only body
+was answered `400 Validation error: sourceConfig.username` — and so was a body proposing a new root
+folder, which means the refusal above had never fired for the case it exists to catch and could
+not. Every bullet in this section shipped behind that 400.
+
+Widening what PARSES is not widening what is WRITTEN: the handler writes status, mode, pattern and
+the export policy, and every other field goes through `mayRevise` first — which is the point of the
+table. Create is untouched, and a guard says so. `syncConfig` is deliberately left strict: this
+route does not write a schedule yet, and loosening a shape nothing reads is a change with no
+caller.
+
+**One more, on the client side.** `MaskedConfigSchema` did not name `nativeFilePolicy` and
+`z.object` strips what it does not name — so the value #1005 put on the wire *"precisely so a
+screen could show the current value"* was discarded one line after arriving, and from a
+component's side that is indistinguishable from a migration with no policy at all. Nothing was red;
+it surfaces only when somebody finally builds the screen.
 
 ## 6. T4 — `policy_refused`, and an error that carries its own category
 
@@ -247,6 +313,30 @@ strong preference:
 Offered. And one thing this task must establish rather than assume: whether a
 `markNeedsDecision` item is retryable by that press at all. If it is not, that is part of this
 work — a decision recorded is not a decision that can never be revisited.
+
+### What is built, and the half that is not (2026-09-18)
+
+**The question is answered: a parked item IS retryable by that press.** `resolveFailureGroup` sets
+`attemptCount: 0, parkedAt: null` over every row matching the selection, scoped to
+`status='failed'` — so a `markNeedsDecision` item is not a decision that can never be revisited,
+and nothing had to be built for it.
+
+**The OFFER is built**, in T3's panel: a save says the files already refused stay refused until
+somebody retries them, and links to the Failures screen, where `policy_refused` from T4 is exactly
+the group the bulk press selects. Automatic was never a candidate — a settings save that silently
+emptied a queue of recorded decisions is the bulk mutation of the ledger this codebase refuses to
+make, and it is the one thing a person could not undo.
+
+**The COUNT is not built.** This section says the change should report *"21 items were refused
+under the old policy"*, and the panel says the sentence without the number. Nothing on the detail
+payload carries failures by category — the Failures screen counts them itself, from its own read —
+so the number needs either a count on the detail route or a second request from this panel, and
+either is a piece of work rather than a line. Said plainly here rather than left looking done: the
+person is pointed at the right screen, and that screen shows them the number.
+
+**And the practical note for the owner's own thirty** (from T4): rows keep the category they were
+given, so his existing thirty still read `unknown` until they are next attempted. His FIRST press
+is the coarse one — retry all thirty matching `unknown` — and they split 21/9 from then on.
 
 ## 8. Gates
 

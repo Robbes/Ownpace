@@ -257,4 +257,38 @@ export function duplicateMapping(err: unknown): { id: string; name: string | nul
   };
 }
 
+/**
+ * Every field a `revision_refused` names, with the reason — or null when the
+ * error is not one (workplan 0125 T3).
+ *
+ * The same split as the neighbours above: the FIELDS and their reasons are the
+ * server's finding and render verbatim, because they come from `mayRevise` in
+ * `shared` — one table, called by both editions, whose whole point is that
+ * there is no second copy of it to keep in step. A client-side translation of
+ * those sentences would be exactly that second copy, and it would be the one
+ * that goes stale.
+ *
+ * ALL of them, never the first, because the route answers all of them: somebody
+ * who changed three forbidden fields and is told about one will fix it and be
+ * refused again, twice.
+ */
+export function revisionRefusals(
+  err: unknown,
+): ReadonlyArray<{ field: string; reason: string }> | null {
+  if (!axios.isAxiosError(err)) return null;
+  const data = err.response?.data as { error?: unknown; refused?: unknown } | undefined;
+  if (!data || data.error !== 'revision_refused' || !Array.isArray(data.refused)) return null;
+  const rows = data.refused
+    .map((r) => (r && typeof r === 'object' ? (r as { field?: unknown; reason?: unknown }) : {}))
+    .filter(
+      (r): r is { field: string; reason: string } =>
+        typeof r.field === 'string' && r.field !== '' &&
+        typeof r.reason === 'string' && r.reason !== '',
+    )
+    .map((r) => ({ field: r.field, reason: r.reason }));
+  // A refusal that named nothing readable is still a refusal, and saying so
+  // beats rendering an empty list under "this could not change" (hard rule 9).
+  return rows;
+}
+
 export default apiClient;

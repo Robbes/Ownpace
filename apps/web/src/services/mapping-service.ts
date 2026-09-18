@@ -185,6 +185,21 @@ const MaskedConfigSchema = z.object({
   username: z.string().optional(),
   password: z.string().optional(),
   useSsl: z.boolean().optional(),
+  /**
+   * WHAT HAPPENS TO THIS MIGRATION'S GOOGLE DOCS (workplan 0125 T3).
+   *
+   * Absent from this schema until the settings panel needed it, and absent is
+   * not harmless: `z.object` STRIPS what it does not name. #1005 made the
+   * detail route answer the mapping's own `source_config_override` merged over
+   * its connection's config, precisely so a screen could show the policy in
+   * force — and this parse threw that field away one line later, so the value
+   * reached the browser and no component could ever have read it.
+   *
+   * The kind of defect that only shows up when somebody finally builds the
+   * screen: the wire was right, the schema was silent, and "silent" and
+   * "absent" look identical from the component's side (hard rule 9).
+   */
+  nativeFilePolicy: z.string().optional(),
 });
 
 const ConnectionRefSchema = z.object({
@@ -844,6 +859,39 @@ export const mappingApi = {
    * schema mirrors what PUT actually answers — `{ id, ...body, updatedAt }` —
    * which is why this is not the retired `update` (see the note above).
    */
+  /**
+   * CHANGE THE EXPORT POLICY ON A MIGRATION THAT IS ALREADY RUNNING
+   * (workplan 0125 T3).
+   *
+   * The call behind the remedy twenty-one of the owner's refused files carry:
+   * *"set an export policy on the mapping"*. Until #1004 this route parsed a
+   * `sourceConfig` and dropped it, so the sentence named an action the product
+   * did not have.
+   *
+   * Sends ONLY the policy. `UpdateMappingSchema` is a partial, and the route
+   * refuses every field `mayRevise` refuses — all of them at once, with the
+   * reason each — so a body carrying a `sourceConfig` this panel did not mean
+   * to change is a body that gets refused for the wrong reason. The narrowest
+   * request that says what was meant.
+   *
+   * The response schema mirrors what PUT actually answers — `{id, ...body,
+   * updatedAt}` — which is why this is not the retired `update` (see the note
+   * below). `sourceConfig` comes back because it was sent, not because the
+   * route read it from anywhere.
+   */
+  setNativeFilePolicy: async (mappingId: string, nativeFilePolicy: string) => {
+    const response = await apiClient.put(`/migrations/${mappingId}`, {
+      sourceConfig: { nativeFilePolicy },
+    });
+    return z
+      .object({
+        id: z.string(),
+        sourceConfig: z.object({ nativeFilePolicy: z.string() }),
+        updatedAt: z.string(),
+      })
+      .parse(response.data);
+  },
+
   pause: async (mappingId: string) => {
     const response = await apiClient.put(`/migrations/${mappingId}`, { status: 'paused' });
     return z
