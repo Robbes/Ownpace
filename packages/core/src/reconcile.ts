@@ -1,6 +1,7 @@
 // Copyright 2026 OpenHands Agent (Apache-2.0)
 import { applyTargetFolderPrefix,
   contentHash,
+  displayNameForMessage,
   ensureMessageId,
   naturalKeyHash,
   normalizeMessageId,
@@ -195,6 +196,13 @@ export const runShadowPass: RunShadowPass = async (deps) => {
         : (item as MailItem).messageId
           ? normalizeMessageId((item as MailItem).messageId)
           : undefined,
+    // The SUBJECT, which is what a person recognises the message by — and the
+    // only name mail has. Only from `raw`: the listing carries a Message-ID, a
+    // folder and a size, and nothing a human would read. A message not yet
+    // fetched therefore has no name and the screen shows its identifier, the
+    // same fallback every domain had before #995.
+    displayName: (_item, raw) =>
+      raw === undefined ? undefined : displayNameForMessage((raw as RawMessage).rfc822),
     contentHash: (raw) => contentHash((raw as RawMessage).rfc822),
     ensureCollection: (folder) =>
       target.ensureMailbox(

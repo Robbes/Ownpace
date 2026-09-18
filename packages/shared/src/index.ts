@@ -17,6 +17,8 @@ export * from './dav-canonical.ts';
 export * from './carddav-query.ts';
 export * from './caldav-query.ts';
 export * from './generated-message-id.ts';
+export * from './mail-headers.ts';
+export * from './mail-subject.ts';
 export * from './ports.ts';
 export * from './operating-contract.ts';
 // Workplan 0122 T1 — what a progress-link holder may see. Beside the

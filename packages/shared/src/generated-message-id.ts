@@ -31,6 +31,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { headerValue } from './mail-headers.ts';
 
 /**
  * Domain for generated ids. Not a resolvable host, and namespaced so an
@@ -38,15 +39,16 @@ import { createHash } from 'node:crypto';
  */
 export const GENERATED_MESSAGE_ID_DOMAIN = 'generated.openmigrate.invalid';
 
-/** Does this raw message already carry a usable Message-ID header? */
+/**
+ * Does this raw message already carry a usable Message-ID header?
+ *
+ * Through `headerValue` since a second caller needed the same read (the
+ * Subject, for the name a person recognises their mail by). The unfolding,
+ * the case-insensitive match and the bound at the blank line all live there
+ * now — one parser, so the two cannot disagree about where a header ends.
+ */
 export function readMessageId(rfc822: Uint8Array): string | undefined {
-  const header = decodeHeaderSection(rfc822);
-  // Unfold first (RFC 5322 §2.2.3): a long Message-ID may be split across
-  // lines, and reading only the first physical line would truncate it.
-  const unfolded = header.replace(/\r?\n[ \t]+/g, ' ');
-  const match = /^message-id[ \t]*:(.*)$/im.exec(unfolded);
-  const value = match?.[1]?.trim();
-  return value && value.length > 0 ? value : undefined;
+  return headerValue(rfc822, 'Message-ID');
 }
 
 /**
@@ -115,34 +117,4 @@ function usesCrLf(rfc822: Uint8Array): boolean {
   }
   // No line break at all: assume the RFC-correct CRLF.
   return true;
-}
-
-/**
- * Decode just the header section as latin1.
- *
- * Headers are ASCII by spec (non-ASCII is encoded per RFC 2047), and latin1
- * maps every byte to exactly one character — so a UTF-8 body cannot corrupt the
- * scan or shift offsets, unlike a UTF-8 decode of the whole message.
- */
-function decodeHeaderSection(rfc822: Uint8Array): string {
-  const end = findHeaderEnd(rfc822);
-  return Buffer.from(rfc822.subarray(0, end)).toString('latin1');
-}
-
-/** Offset of the blank line separating headers from body, or the whole length. */
-function findHeaderEnd(rfc822: Uint8Array): number {
-  for (let i = 0; i + 1 < rfc822.length; i++) {
-    // CRLFCRLF
-    if (
-      rfc822[i] === 0x0d &&
-      rfc822[i + 1] === 0x0a &&
-      rfc822[i + 2] === 0x0d &&
-      rfc822[i + 3] === 0x0a
-    ) {
-      return i;
-    }
-    // LFLF (bare-LF messages, which real servers do produce)
-    if (rfc822[i] === 0x0a && rfc822[i + 1] === 0x0a) return i;
-  }
-  return rfc822.length;
 }

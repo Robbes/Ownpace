@@ -491,15 +491,15 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * not, so nothing keys, matches or decides on it — it is read by the
    * confirmed list and its export, and by nothing else.
    *
-   * Called with `raw` in hand for the same reason `naturalKeyText` is, though
-   * no domain needs it yet: every name this loop can record sits on the parsed
-   * item already.
+   * Called TWICE: once from the listing, and again once `raw` is in hand, with
+   * the second answer winning where it has one. Mail is why — its name is the
+   * Subject, which is in the RFC 822 bytes and behind RFC 2047 encoded-words
+   * (`mail-subject.ts`), so it cannot be known until the message is read.
    *
    * Absent for a domain with no name to give. A file's key IS its name, and a
-   * second copy of it on the row would be noise; mail's name is its Subject,
-   * which lives in the RFC 822 bytes behind encoded-words and is not decoded
-   * anywhere in this codebase yet. Both leave the column NULL, and the screen
-   * falls back to the identifier — which is exactly what it showed before.
+   * second copy of it on the row would be noise, so the file descriptor has
+   * none: the column stays NULL and the screen falls back to the identifier,
+   * which is exactly what it showed before.
    */
   readonly displayName?: (item: Item, raw?: unknown) => string | undefined;
   /**
@@ -1334,6 +1334,23 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // Fetch raw data
         const { raw, sizeBytes } = await timed(phases, 'fetchMs', () => fetchRaw(item));
 
+        // THE NAME, NOW THE BYTES ARE HERE — for every item, not only the ones
+        // that had no key.
+        //
+        // This line used to sit inside the `naturalKeyHash === undefined`
+        // branch below, beside the natural-key text it was copied from, and
+        // that was wrong in a way nothing could catch: the branch is taken
+        // ONLY for a message the listing could not key, which for mail means
+        // one with no Message-ID. So a mail descriptor reading its Subject out
+        // of `raw` would have named the handful of messages that arrive
+        // without an id and none of the millions that do — a feature that
+        // works on the rarest input and no other.
+        //
+        // Safe for every existing descriptor: a `displayName` that ignores
+        // `raw` returns what it returned above, and `?? itemName` keeps the
+        // earlier answer when this one has nothing to say.
+        itemName = displayName?.(item, raw) ?? itemName;
+
         if (naturalKeyHash === undefined) {
           // The key could not be known from the listing, so derive it now.
           // Mail with no Message-ID is keyed by a hash of its own bytes; that
@@ -1348,7 +1365,6 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // The text follows the key: for these items the identifier itself is
           // only knowable once the body has been read.
           naturalKeyPlain = naturalKeyText?.(item, raw) ?? naturalKeyPlain;
-          itemName = displayName?.(item, raw) ?? itemName;
 
           // Second fast-path check, now that we have a key. This is what keeps
           // these items idempotent: a re-run pays the fetch again (unavoidable
