@@ -101,16 +101,52 @@ const times = (n: number): string => (n === 2 ? 'twice' : `${n} times`);
  * `split('\n')` scan goes wrong — a parameter pushed onto a continuation line
  * would be invisible to it, which is the case most worth catching.
  */
-function logicalLines(body: string): ReadonlyArray<{ readonly at: number; readonly text: string }> {
-  const out: Array<{ at: number; text: string }> = [];
+interface LogicalLine {
+  readonly at: number;
+  readonly text: string;
+  /**
+   * `offsets[i]` is where `text[i]` lives in the ORIGINAL body.
+   *
+   * Carried because a REPAIR may not rebuild the body from these lines: folding
+   * is lossy the other way round — the same logical line can be folded at any
+   * column, and re-emitting it would rewrite line breaks in a card nobody asked
+   * us to touch. Guard rail 2 says a card with nothing matching goes through
+   * byte-identical, and the only way to keep that is to change the individual
+   * CHARACTERS that are wrong and nothing else. This map is how a position in
+   * the unfolded line becomes a position in the bytes.
+   *
+   * The reader ignores it. One unfolder, so the line the diagnosis describes
+   * and the line the repair edits are the same line.
+   */
+  readonly offsets: readonly number[];
+}
+
+function logicalLines(body: string): ReadonlyArray<LogicalLine> {
+  const out: Array<{ at: number; text: string; offsets: number[] }> = [];
+  let base = 0;
   const physical = body.split(/\r\n|\n|\r/);
   for (let i = 0; i < physical.length; i += 1) {
     const line = physical[i] ?? '';
-    if ((line.startsWith(' ') || line.startsWith('\t')) && out.length > 0) {
-      out[out.length - 1]!.text += line.slice(1);
+    // Where this physical line starts in `body`. Recomputed from the running
+    // base plus the separator actually used, because the split accepts three
+    // and a fixed +1 would drift by one per CRLF — on a vCard, which RFC 6350
+    // §3.2 says SHOULD use CRLF, that is every line.
+    const start = base;
+    base += line.length;
+    if (body.startsWith('\r\n', base)) base += 2;
+    else if (base < body.length) base += 1;
+
+    const folded = (line.startsWith(' ') || line.startsWith('\t')) && out.length > 0;
+    const from = folded ? 1 : 0;
+    const offsets: number[] = [];
+    for (let c = from; c < line.length; c += 1) offsets.push(start + c);
+    if (folded) {
+      const prev = out[out.length - 1]!;
+      prev.text += line.slice(1);
+      prev.offsets.push(...offsets);
       continue;
     }
-    out.push({ at: i + 1, text: line });
+    out.push({ at: i + 1, text: line, offsets });
   }
   return out;
 }
@@ -341,4 +377,170 @@ export function payloadDefectNote(body: string): string {
     (rest > 0 ? `; and ${rest} more` : '') +
     `. ${why.join(' ')}`
   );
+}
+
+/**
+ * THE REPAIR (workplan 0124 T1, the owner's word 2026-09-18).
+ *
+ * `payloadDefectNote` above makes a refusal name this shape; everything below
+ * corrects it before the PUT, which the owner asked for and gave the reason
+ * for:
+ *
+ *   *"the contact just is in my Google contact-list. Other people will also
+ *   have such data. Can you fix it in transit, would you recommend me that?"*
+ *
+ * An Apple-written card synced into Google is an extremely ordinary shape, and
+ * "ask every customer to hand-edit their own cards" is not a product. He chose
+ * to repair on the way out rather than only after a refusal, because we already
+ * know it will not land: *"we already now it needs repairing, because else it
+ * will not land in the target."*
+ *
+ * ## Why this is not a change to somebody's content
+ *
+ * `;` separates vCard PARAMETERS. `,` separates VALUES inside one parameter.
+ *
+ *   BDAY;VALUE=DATE,X-APPLE-OMIT-YEAR=1604:...
+ *
+ * `VALUE` is not holding two value types here. It is holding `DATE` and an
+ * entire second parameter, folded into its value list by a `,` standing where a
+ * `;` belongs — and the array Sabre builds from it is the proof. That is
+ * malformed by the grammar, not a stylistic choice, which is what makes
+ * restoring the separator different in kind from rewriting somebody's data.
+ * **The date itself is never touched.** The same two parameters go out, parsed
+ * as two parameters.
+ *
+ * ## Three guard rails, each with a test proved by breaking it
+ *
+ * 1. **One shape only.** It fires exactly where `swallowedParameter` fires —
+ *    the reader's own judgement, not a second opinion. A value list that is
+ *    legal (`TYPE=work,home`, `PID=1.1,2.2`) never contains a name followed by
+ *    `=`, which is the condition that keeps this off ordinary cards.
+ * 2. **It splits, and does nothing else.** One `,` becomes one `;`. No
+ *    reordering, no case changes, no quoting changes, no other property, no
+ *    re-folding. A card with nothing matching comes back the SAME STRING — not
+ *    an equivalent one — and that is the test that matters most.
+ * 3. **It is recorded, never silent.** The corrections come back with the body
+ *    and the writer puts them on the item's row. This is the rail that makes
+ *    the other two safe to have: if the rule ever fires where it should not,
+ *    the evidence is on the item, not in a log nobody reads.
+ *
+ * Quoted values are the trap, and the reason this lives here: a `,` INSIDE
+ * quotes separates nothing, and `SORT-AS="Public, John"` is one value. The scan
+ * below is quote-aware for the same reason `head`, `segments` and `values` are,
+ * and it is the same code reading the same lines.
+ *
+ * ## What is reported, and what never is
+ *
+ * The line, the property and the CONTAINING parameter — the reader's own
+ * vocabulary, word for word, so a correction and a diagnosis describe the same
+ * event in the same terms. Never a value: that is the personal data, and it is
+ * as unwelcome on an item row as it is in a server log.
+ */
+export interface PayloadRepair {
+  /** The body to send. The SAME STRING when nothing matched. */
+  readonly body: string;
+  /**
+   * What was corrected, one sentence each, empty when nothing was.
+   *
+   * Empty is the ordinary answer: it means the card was well-formed, and a
+   * caller records nothing rather than recording that nothing happened.
+   */
+  readonly corrections: readonly string[];
+}
+
+/**
+ * Where the commas that should be semicolons are, as offsets into `body`.
+ *
+ * Positional rather than reusing `segments`/`values`, which answer what the
+ * pieces ARE and not where they were — and a repair that cannot say where may
+ * only rebuild, which guard rail 2 forbids.
+ */
+function separatorFaults(
+  line: LogicalLine,
+): ReadonlyArray<{ readonly offset: number; readonly property: string; readonly parameter: string }> {
+  const faults: Array<{ offset: number; property: string; parameter: string }> = [];
+  const h = head(line.text);
+  if (h === undefined) return faults;
+
+  const property = (segments(h)[0] ?? '').trim().toUpperCase();
+  if (property === '') return faults;
+
+  let quoted = false;
+  // Where the current parameter starts, where its `=` was, and where the
+  // current value-list entry starts. `-1` means "not in one yet".
+  let paramStart = -1;
+  let eq = -1;
+  let entryStart = -1;
+  let entryComma = -1;
+
+  /** Close the entry that ends at `end`, recording a fault if it is one. */
+  const closeEntry = (end: number): void => {
+    if (paramStart < 0 || eq < 0 || entryComma < 0) return;
+    const entry = line.text.slice(entryStart, end);
+    if (!swallowedParameter(entry)) return;
+    const parameter = line.text.slice(paramStart, eq).trim().toUpperCase();
+    faults.push({ offset: line.offsets[entryComma]!, property, parameter });
+  };
+
+  for (let i = 0; i < h.length; i += 1) {
+    const c = h[i];
+    if (c === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (quoted) continue;
+    if (c === ';') {
+      closeEntry(i);
+      paramStart = i + 1;
+      eq = -1;
+      entryStart = -1;
+      entryComma = -1;
+    } else if (c === '=' && paramStart >= 0 && eq < 0) {
+      eq = i;
+      entryStart = i + 1;
+      // The FIRST entry has no comma before it, so it can never be a fault:
+      // `VALUE=DATE` is the parameter being written, not one swallowed into it.
+      entryComma = -1;
+    } else if (c === ',' && eq >= 0) {
+      closeEntry(i);
+      entryStart = i + 1;
+      entryComma = i;
+    }
+  }
+  closeEntry(h.length);
+  return faults;
+}
+
+/**
+ * Correct the `,`-for-`;` separator in a vCard or iCalendar body we are about
+ * to send, and say what was corrected.
+ *
+ * Returns the body UNCHANGED — the same string, by identity — when there is
+ * nothing to correct, which is almost every card. Never throws: this runs on
+ * the write path, and a repair that threw would fail an item it was there to
+ * rescue.
+ */
+export function repairPayload(body: string): PayloadRepair {
+  const faults: Array<{ offset: number; property: string; parameter: string }> = [];
+  const sentences: string[] = [];
+  for (const line of logicalLines(body)) {
+    if (line.text === '') continue;
+    for (const fault of separatorFaults(line)) {
+      faults.push(fault);
+      sentences.push(
+        `line ${line.at}: property ${fault.property} carried the parameter ` +
+          `${fault.parameter} with a "," where a ";" belongs; the separator was ` +
+          'corrected so the next parameter is a parameter again',
+      );
+    }
+  }
+  if (faults.length === 0) return { body, corrections: [] };
+
+  // ONE CHARACTER EACH, in place. Built by walking the offsets in order rather
+  // than by `replace`, because there is no pattern here that is safe to match
+  // globally — the same `,` in a different parameter is a legal list.
+  const at = new Set(faults.map((f) => f.offset));
+  let out = '';
+  for (let i = 0; i < body.length; i += 1) out += at.has(i) ? ';' : body[i];
+  return { body: out, corrections: sentences };
 }

@@ -2,6 +2,27 @@
 
 ## Status — 2026-09-18 (update this block at the end of every session)
 
+**2026-09-18, later: T1 built.** The owner chose to repair on the way out rather than only after a
+refusal, and gave the reason: *"i pick a, since we already now it needs repairing, because else it
+will not land in the target. So we can do that already when recognizing in transit."* Three things
+the plan did not have:
+
+- **Byte-identity is the hard rail, and it decided the shape.** §2 said a card with nothing
+  matching goes through byte-identical, and the reader works on UNFOLDED lines — so rebuilding from
+  those would re-fold, normalise line endings and drop a trailing newline on every card in an
+  account. The repair instead edits the individual CHARACTERS that are wrong: the unfolder now
+  carries a per-character offset map, and a fault becomes one `,`→`;` at one offset in the original
+  body. Nothing else moves.
+- **It has to run before the content hash.** Not stated anywhere, and the quiet one: hashing the
+  unrepaired bytes stores the hash of something we never sent, so every later pass sees a change
+  nobody made and rewrites the card — nightly, silently.
+- **Two of the four mutations passed first time**, which means two guards were asserting nothing. A
+  CRLF-only fixture cannot tell a rebuilt body from an untouched one (`toBe` on strings is equality,
+  not identity), and the mutation aimed at the quoting rule hit a branch that returns earlier. Both
+  tests were replaced, and both now go red.
+
+T2 is untouched.
+
 **2026-09-18: opened, both halves decided by the owner.** Two findings from his live run, with
 one principle between them: **a pass must never quietly do something to a customer's data, and
 never quietly decline to.** A repair nobody records is a silent rewrite; an item left alone
@@ -9,7 +30,7 @@ that nothing reports is a silent skip. Both are the same failure wearing opposit
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 The comma where a semicolon belongs, repaired | ⬜ | Owner: *"Contact cards — yes, repair in transit."* Narrow rule, three guard rails, and the row says we did it. §2 |
+| T1 The comma where a semicolon belongs, repaired | ✅ Done — §2 | `repairPayload` beside the reader that diagnoses the same shape; one `,`→`;` per fault, at an offset in the original body. Migration 0052 records it on the item. |
 | T2 Left alone is not copied | ⬜ | Owner chose **option (a)**: say it on the migration page. The per-item surface exists; the per-domain count does not. §3 |
 
 ## 1. The two findings
@@ -78,7 +99,31 @@ point of putting it there.
 **Where it sits.** In the payload path, not in the connector: `carddav-source.ts` handing over
 what the source served is correct and stays correct. The repair belongs beside the reader that
 diagnoses the same defect, so the sentence a failure produces and the correction a pass applies
-can never drift into describing different shapes.
+can never drift into describing different shapes — and it is in the SAME FILE, which is the
+strongest form of that. A test asserts the two agree about which cards are wrong.
+
+### What building it added to this section
+
+**Byte-identity decided the implementation.** Rail 2 cannot be kept by rebuilding: the reader works
+on unfolded lines, and a body re-emitted from those has been re-folded, its line endings
+normalised, and its trailing newline decided by us — on every card in somebody's account, including
+the ones with nothing wrong. So `logicalLines` now carries a per-character offset map, and the
+repair replaces individual characters in the ORIGINAL body. A card with nothing matching is
+returned as the same value it came in as.
+
+**It runs first, before the content hash** — the rail nobody wrote down. `contactContentHash` of
+the unrepaired bytes is the hash of something we never sent, so every later pass would compare the
+source against a description of a card that is not on the target, find a change nobody made, and
+rewrite it nightly with nothing in any report saying so. The repaired body is what goes out, what
+is hashed and what is measured, or the three disagree. A guard asserts the order.
+
+**Recorded on the SUCCESS path only, and that is a stated boundary.** `item.repaired` (migration
+0052) is written by both `recordIfAbsent` calls in the writer — including the adopted one, where
+nothing was written but the repair still happened to the bytes we hashed. `recordFailure` does not
+carry it: a card repaired and then still refused would be worth saying, but the repair happens
+inside the writer and the failure is recorded by the sync loop from a thrown message, so plumbing
+it there means carrying it on the throw for a case no refusal has yet produced. It arrives as a
+refusal first.
 
 ## 3. T2 — left alone is not copied
 

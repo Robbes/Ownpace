@@ -27,7 +27,7 @@ import {
   isOnTarget,
 } from '@openmig/shared';
 import { carddavMatchAllFilter, carddavUidFilter, davRefusalBody } from '@openmig/shared';
-import { payloadDefectNote } from './dav-payload-defects.ts';
+import { payloadDefectNote, repairPayload } from './dav-payload-defects.ts';
 import { collectionSlug } from './dav-collection-path.ts';
 import {
   parseMultiStatus,
@@ -123,9 +123,39 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
    */
   async upsertContact(
     folderId: string,
-    raw: RawContact,
+    rawIn: RawContact,
     options?: UpsertOptions,
   ): Promise<UpsertResult> {
+    /**
+     * THE REPAIR, FIRST — before anything reads the bytes (workplan 0124 T1).
+     *
+     * A `,` standing where a `;` belongs folds the next parameter into the
+     * previous one's value list, and a spec-compliant parser is entitled to
+     * refuse the card. Two of the owner's 1,400 contacts carried it and were
+     * refused five times each. He chose to correct it on the way out rather
+     * than only after a refusal: *"we already now it needs repairing, because
+     * else it will not land in the target."*
+     *
+     * FIRST is not a style choice. `contactContentHash` runs below, and hashing
+     * the UNREPAIRED bytes would store the hash of something we never sent —
+     * so every later pass would compare the source against a hash that does not
+     * describe what is on the target, see a change nobody made, and rewrite the
+     * card nightly. The repaired body is what goes out, what is hashed, and
+     * what is measured, or the three disagree.
+     *
+     * Deterministic, so this is stable across passes: the same source card
+     * yields the same repaired bytes and therefore the same hash. And the
+     * repair is idempotent, so a card that needed nothing — almost all of them
+     * — comes back as the SAME STRING and everything below is untouched.
+     */
+    const repair = repairPayload(rawIn.vcard);
+    const raw: RawContact =
+      repair.corrections.length === 0 ? rawIn : { ...rawIn, vcard: repair.body };
+    // Joined once and passed to whichever `recordIfAbsent` wins the race below.
+    // `undefined` for a well-formed card, which leaves the column NULL — the
+    // honest value for "nothing was corrected".
+    const repaired = repair.corrections.length > 0 ? repair.corrections.join('; ') : undefined;
+
     // Extract UID from vCard data
     const uid = this.extractUidFromVcard(raw.vcard);
     const naturalKey = uid;
@@ -220,6 +250,12 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         naturalKey,
         // And the person's name, which is the half a UID cannot give.
         ...(name !== undefined ? { displayName: name } : {}),
+        // Carried even on the ADOPTED path, where nothing was written. The
+        // repair still happened — to the bytes we hashed and compared against
+        // the destination's copy — so a row that says we corrected something is
+        // telling the truth about what this pass did, and one that stayed
+        // silent would not.
+        ...(repaired !== undefined ? { repaired } : {}),
       });
       return { targetId: existingId, created: false, adopted: true };
     }
@@ -261,6 +297,10 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       ...(name !== undefined ? { displayName: name } : {}),
       // NOT from the loop: only this writer saw the server's answer to the PUT.
       ...(written.etag !== undefined ? { targetVersion: written.etag } : {}),
+      // What we corrected in the bytes we just PUT (workplan 0124 T1). Only
+      // this writer knows — the loop never sees the payload — so it is recorded
+      // here or nowhere.
+      ...(repaired !== undefined ? { repaired } : {}),
     });
 
     return {

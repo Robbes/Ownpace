@@ -140,6 +140,17 @@ export class PgLedger implements Ledger {
         // to give: a file, whose key IS its name, and mail, whose Subject this
         // code cannot yet decode.
         displayName: record.displayName ?? null,
+        // WHAT WE CORRECTED IN THE BYTES before sending them (migration 0052).
+        // NULL for a card that needed nothing, which is almost all of them.
+        //
+        // THE SUCCESS PATH ONLY, and deliberately. `recordFailure` below does
+        // not carry this: a card that was repaired and then still refused would
+        // be worth saying, but the repair happens inside the writer and the
+        // failure is recorded by the sync loop from a thrown message — so
+        // plumbing it there means carrying it on the throw, for a case no
+        // refusal has yet produced. It arrives as a refusal first, and gets
+        // the plumbing then.
+        repaired: record.repaired ?? null,
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
