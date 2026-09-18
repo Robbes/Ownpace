@@ -25,13 +25,9 @@
 import React from 'react';
 import { useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CircleDashed, Link2, SkipForward, Loader2 } from 'lucide-react';
+import { Check, CircleDashed, Link2, SkipForward, Loader2, UserPlus } from 'lucide-react';
 import type { ShareGrantRow } from '@openmig/shared';
-import {
-  ActionButton,
-  DestructiveButton,
-  Refused,
-} from '../components/queues/primitives.tsx';
+import { ActionButton, ConfirmButton, Refused } from '../components/queues/primitives.tsx';
 import {
   DecisionRefusedError,
   decideSharing,
@@ -151,18 +147,36 @@ const Row: React.FC<{
                 }}
                 className="input text-sm py-1 w-56"
               />
-              <DestructiveButton
+              {/* Two presses, because the new system emails a real person the
+                  moment this lands and that cannot be unsent — but NOT the
+                  destructive dressing: this creates access, it removes
+                  nothing. See ConfirmButton's header. */}
+              <ConfirmButton
                 pending={false}
+                tone="outward"
+                icon={<UserPlus className="w-3 h-3" />}
                 label={t('sharing.apply')}
                 armedLabel={t('sharing.applyArmed')}
                 onClick={() => onDecide(row, 'apply', grantee.trim() || undefined)}
               />
             </>
           )}
-          <ActionButton pending={false} onClick={() => onDecide(row, 'done')}>
+          {/* Both settle the row; they record DIFFERENT things, and after a
+              cutover "we rebuilt it" and "we decided to drop it" are
+              different answers to why somebody can no longer open this. The
+              titles say which is which, because the labels cannot. */}
+          <ActionButton
+            pending={false}
+            title={t('sharing.done.why')}
+            onClick={() => onDecide(row, 'done')}
+          >
             {t('sharing.done')}
           </ActionButton>
-          <ActionButton pending={false} onClick={() => onDecide(row, 'skip')}>
+          <ActionButton
+            pending={false}
+            title={t('sharing.skip.why')}
+            onClick={() => onDecide(row, 'skip')}
+          >
             {t('sharing.skip')}
           </ActionButton>
         </div>

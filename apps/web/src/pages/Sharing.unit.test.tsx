@@ -104,7 +104,7 @@ describe('the checklist', () => {
     const input = (await screen.findByDisplayValue('anna@old.example.nl')) as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'anna@new.example.nl' } });
     // Two-step: the first click arms, the second fires.
-    const applyButton = screen.getByText('Create share on new system');
+    const applyButton = screen.getByText('Apply Share on the new system');
     fireEvent.click(applyButton);
     fireEvent.click(screen.getByText('Click again — this shares AND invites'));
 
@@ -128,7 +128,7 @@ describe('the checklist', () => {
     const inputs = await screen.findAllByDisplayValue('anna@old.example.nl');
     expect(inputs).toHaveLength(2);
     fireEvent.change(inputs[0]!, { target: { value: 'anna@new.example.nl' } });
-    const applyButtons = screen.getAllByText('Create share on new system');
+    const applyButtons = screen.getAllByText('Apply Share on the new system');
     fireEvent.click(applyButtons[0]!);
     fireEvent.click(screen.getByText('Click again — this shares AND invites'));
     await waitFor(() => expect(decideSharing).toHaveBeenCalled());
@@ -138,6 +138,50 @@ describe('the checklist', () => {
     await waitFor(() =>
       expect(screen.getByDisplayValue('anna@new.example.nl')).toBeInTheDocument(),
     );
+  });
+
+  it('the apply press is armed, but not dressed as a delete', async () => {
+    // THE OWNER, ON SIGHT: "why is it red and has a trashcan icon on it?"
+    // It was reaching for `DestructiveButton`, which hardcodes red styling
+    // and a Trash2 glyph. The ceremony is owed — this shares AND emails a
+    // real person, and that cannot be unsent — but the signifier said the
+    // opposite of what the press does.
+    fetchSharing.mockResolvedValue({
+      migrationStatus: 'done',
+      summary: { total: 1, open: 1, applied: 0, doneManual: 0, skipped: 0, openManual: 0 },
+      grants: [row({ id: 'g1' })],
+    });
+    renderScreen();
+
+    const press = (await screen.findByText('Apply Share on the new system')).closest('button')!;
+    expect(press.className).not.toMatch(/red/);
+    // No bin, in either state. `lucide-react` renders its name into the
+    // class, so this catches the icon coming back by any route.
+    expect(press.querySelector('svg')?.getAttribute('class') ?? '').not.toMatch(/trash/i);
+
+    // And the two presses survive: still armed, still not fired on one click.
+    fireEvent.click(press);
+    expect(screen.getByText('Click again — this shares AND invites')).toBeInTheDocument();
+    expect(decideSharing).not.toHaveBeenCalled();
+  });
+
+  it('Done and Skip say which is which, because the labels cannot', async () => {
+    // They settle a row the same way and record DIFFERENT things. After a
+    // cutover, "we rebuilt it by hand" and "we decided to drop it" are
+    // different answers to why somebody can no longer open something — and
+    // nothing on the screen said so.
+    fetchSharing.mockResolvedValue({
+      migrationStatus: 'done',
+      summary: { total: 1, open: 1, applied: 0, doneManual: 0, skipped: 0, openManual: 0 },
+      grants: [row({ id: 'g1' })],
+    });
+    renderScreen();
+
+    const done = (await screen.findByText('Mark done')).closest('button')!;
+    const skip = screen.getByText('Skip').closest('button')!;
+    expect(done.getAttribute('title')).toContain('re-established by hand');
+    expect(skip.getAttribute('title')).toContain('not carried across');
+    expect(done.getAttribute('title')).not.toBe(skip.getAttribute('title'));
   });
 
   it("a refusal renders the server's words verbatim and the row stays actionable", async () => {
@@ -154,7 +198,7 @@ describe('the checklist', () => {
     );
     renderScreen();
 
-    fireEvent.click(await screen.findByText('Create share on new system'));
+    fireEvent.click(await screen.findByText('Apply Share on the new system'));
     fireEvent.click(screen.getByText('Click again — this shares AND invites'));
 
     expect(

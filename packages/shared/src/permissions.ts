@@ -72,3 +72,28 @@ export function permissionsNotDiscoverable(reason: string): string {
     `cutover without warning.`
   );
 }
+
+/**
+ * Mailbox delegation, unread, in GOOGLE's words.
+ *
+ * The pair to `mailboxDelegations()` in the Graph connector, and it exists for
+ * the reason two other branches in this codebase already exist: a Google
+ * tenant handed an Exchange Online PowerShell instruction is being sent on a
+ * *wrong errand* — `Get-MailboxPermission` will never run against their
+ * account, so a reader who follows it learns nothing and concludes the tool
+ * is broken rather than that the rights are unread.
+ *
+ * Deliberately no API claim. Gmail does expose delegation and send-as
+ * settings to some callers, and this tool does not read them; saying "cannot
+ * be read" would be a stronger statement than the evidence supports. What it
+ * says is where a person can look, which is what the sentence is for.
+ */
+export function googleMailboxDelegationNotRead(): string {
+  return permissionsNotDiscoverable(
+    'Gmail delegation and send-as are not read by this tool. Find them in Gmail under ' +
+      'Settings → See all settings → Accounts and Import — "Grant access to your account" ' +
+      'and "Send mail as" — and, for a Workspace account, in the Admin console under the ' +
+      'user\'s Gmail settings. Record them by hand before cutover, because they will stop ' +
+      'working the moment the mailbox moves',
+  );
+}

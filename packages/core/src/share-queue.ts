@@ -87,6 +87,21 @@ export interface RefreshShareGrantsDeps {
     | { readonly kind: 'listed'; readonly grants: readonly PermissionGrant[] }
     | { readonly kind: 'not_discoverable'; readonly reason: string }
   >>;
+  /**
+   * Why mailbox delegation could not be inventoried, in the source's words.
+   *
+   * REQUIRED, and not one of `scans`, for the same reason
+   * `runPermissionInventory` refuses to make it a dep: no connector emits a
+   * `mailbox` grant on any provider, so this section is always true and the
+   * way it would get lost is the way sections always get lost — a caller that
+   * forgot to pass one. The report has enforced that since 0029 T1; this
+   * queue did not, and the two surfaces answering the same question
+   * differently is what the owner found on his first live run: the report
+   * named mailbox delegation, and the checklist beside it said nothing, so
+   * "nobody looked" read as "nothing to find" on the screen built to keep
+   * those apart (hard rule 9).
+   */
+  readonly delegationReason: string;
 }
 
 export interface RefreshShareGrantsResult {
@@ -104,7 +119,8 @@ export async function refreshShareGrants(
   deps: RefreshShareGrantsDeps,
 ): Promise<RefreshShareGrantsResult> {
   const rows: Array<ReturnType<typeof shareGrantRowFrom>> = [];
-  const blindSpots: string[] = [];
+  // First and always, whatever the caller passed. See `delegationReason`.
+  const blindSpots: string[] = [deps.delegationReason];
   for (const scan of deps.scans) {
     const listing = await scan();
     if (listing.kind === 'listed') rows.push(...listing.grants.map(shareGrantRowFrom));
