@@ -41,6 +41,31 @@
 // appliance's own JSON rather than importing `@openmig/shared`: the JSON is the
 // contract on the wire, and self-synchronising against it means a prose edit
 // cannot strand this test.
+//
+// ## A PAGE READ BEFORE IT ANSWERED (E2E self-hosted #215 and #216, red)
+//
+// Two consecutive scheduled runs failed here, each on a DIFFERENT queue screen
+// — #215 on `/ui/deletions`, #216 on `/ui/failures` — and both with the same
+// received text: the nav, the title, and `Loading…`. No console error, no
+// failed asset, no non-2xx: `expectClean` passed on both. The screen had simply
+// not been answered yet when its text was read.
+//
+// The cause is the wait, and it was always wrong: `waitUntil: 'networkidle'`
+// resolves after 500ms with no connections in flight, and a queue screen issues
+// its fetch from a React effect — AFTER the bundle is parsed, evaluated and
+// first-rendered. On a slow runner that gap exceeds 500ms, so `networkidle`
+// fires in the silence BEFORE the request, not after it. Nothing was broken;
+// the test was reading a page mid-load and calling it a contract violation.
+//
+// So the content assertions POLL. The property is unchanged — the screen must
+// render the wire prose — and the failure message is the same sentence with the
+// same received text, so a real regression reads exactly as it did. What is
+// gone is the race.
+//
+// The same race ran the other way on the Verify screen, which is worse:
+// "loading the page fired no GET /verify" passes for free on a page that has
+// not finished loading. That one now waits for the screen's own read to appear
+// before concluding anything about what it did not ask for.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { existsSync } from 'node:fs';
@@ -131,8 +156,9 @@ describe('the operating UI boots in a real browser', () => {
     // leaves it empty with a 200 in the log.
     const r = await open('/');
     expect(r.page.url()).toContain('/ui/confirm');
-    const mounted = await r.page.locator('#root > *').count();
-    expect(mounted, 'the React app did not mount anything').toBeGreaterThan(0);
+    await expect
+      .poll(() => r.page.locator('#root > *').count(), { timeout: 30_000, interval: 250 })
+      .toBeGreaterThan(0);
     expectClean(r, '/');
     await r.page.close();
   }, 60_000);
@@ -158,8 +184,19 @@ describe('the operating UI boots in a real browser', () => {
       const sentence = prose!.split(/[.!]/)[0]!.trim();
 
       const r = await open(screen);
+      // Polled, not read once: see the header. The screen renders `Loading…`
+      // until its own fetch resolves, and `networkidle` can fire before that
+      // fetch is even issued. A screen that genuinely never renders the prose
+      // still fails, with this message and the last text it showed — which is
+      // the error panel's words when the read failed, and `Loading…` when the
+      // appliance never answered at all.
+      await expect
+        .poll(() => r.text(), { timeout: 30_000, interval: 250 })
+        .toContain(sentence);
+      // AFTER the wait, deliberately: the data fetch is part of the load, and
+      // a console error or a 500 raised by it is invisible to a check that ran
+      // while the screen was still a spinner.
       expectClean(r, screen);
-      expect(await r.text(), `${screen} does not render the wire prose`).toContain(sentence);
       await r.page.close();
     }
   }, 120_000);
@@ -169,7 +206,9 @@ describe('the operating UI boots in a real browser', () => {
     // the router actually recovering the route from the URL under /ui.
     const r = await open('/ui/failures');
     expect(r.page.url()).toContain('/ui/failures');
-    expect(await r.page.locator('#root > *').count()).toBeGreaterThan(0);
+    await expect
+      .poll(() => r.page.locator('#root > *').count(), { timeout: 30_000, interval: 250 })
+      .toBeGreaterThan(0);
     expectClean(r, '/ui/failures (direct)');
     await r.page.close();
   }, 60_000);
@@ -181,11 +220,23 @@ describe('the operating UI boots in a real browser', () => {
     // sees the endpoint, not the page's restraint. A regression here would put
     // minutes of target I/O behind opening a page.
     const r = await open('/ui/verify');
-    expectClean(r, '/ui/verify');
+    // FIRST wait for the screen to have done its own reading. `/verify/report`
+    // is the status read Verify.tsx fires on mount (it starts nothing), so its
+    // arrival is the proof that the page got far enough for "it never asked for
+    // /verify" to mean anything. Without this the assertion below passes on a
+    // page that has not run yet — the loudest way to be green for the wrong
+    // reason, on the one test guarding minutes of target I/O.
+    await expect
+      .poll(() => r.requests.filter((p) => p === '/verify/report').length, {
+        timeout: 30_000,
+        interval: 250,
+      })
+      .toBeGreaterThan(0);
     expect(
       r.requests.filter((p) => p === '/verify'),
       'loading the Verify screen fired GET /verify — the scan must be behind the button',
     ).toEqual([]);
+    expectClean(r, '/ui/verify');
     await r.page.close();
   }, 60_000);
 
