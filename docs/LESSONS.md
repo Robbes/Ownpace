@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 140 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 141 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -1141,6 +1141,10 @@ reading a file drops off its entry by itself.
 - [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts) — THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
 - [two-draws-that-could-agree-by-accident](../scripts/two-draws-that-could-agree-by-accident.unit.test.ts) — TWO DRAWS OF A ONE-BYTE WOBBLE CAN AGREE, AND THE SCRIPT WOULD HAVE CALLED THAT STABLE.
 
+### `scripts/drive-share-inheritance.ts`
+
+- [a-folder-that-is-one-row-not-two-hundred](../scripts/a-folder-that-is-one-row-not-two-hundred.unit.test.ts) — A MEASUREMENT THAT CANNOT TELL A REFUSAL FROM AN ABSENCE PICKS A DESIGN ON THE STRENGTH OF ITS OWN BUG.
+
 ### `scripts/every-service-somebody-starts.unit.test.ts`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -1575,6 +1579,14 @@ A hook that builds a database gets more than ten seconds to do it.
 Reads:
 
 - `scripts/runs-without-a-transpiler.unit.test.ts`
+
+### [a-folder-that-is-one-row-not-two-hundred](../scripts/a-folder-that-is-one-row-not-two-hundred.unit.test.ts)
+
+A MEASUREMENT THAT CANNOT TELL A REFUSAL FROM AN ABSENCE PICKS A DESIGN ON THE STRENGTH OF ITS OWN BUG.
+
+Reads:
+
+- `scripts/drive-share-inheritance.ts`
 
 ### [a-full-sync-that-only-did-the-mail](../scripts/a-full-sync-that-only-did-the-mail.unit.test.ts)
 
