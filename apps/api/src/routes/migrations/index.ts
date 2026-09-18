@@ -2286,13 +2286,42 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       targetConnection: targetConn
         ? { id: targetConn.id, name: targetConn.displayName, kind: targetConn.kind }
         : null,
+      /**
+       * THE CONFIG THIS MIGRATION ACTUALLY RUNS UNDER, which until 2026-09-18
+       * was not what this said.
+       *
+       * It spread the CONNECTION's config alone. A connection is shared, and
+       * the fields that say whose data a mapping moves — a Box subject, a
+       * Drive root folder, a Dropbox root path, the Google export policy —
+       * are the MAPPING's, in `source_config_override`. So a page reading this
+       * was shown the connection's answer for every one of them, which for a
+       * mapping that overrides any of them is somebody else's setting.
+       *
+       * It matters more now than it did: 0125 T3 made the export policy
+       * changeable, and a chooser showing the wrong current value is worse
+       * than no chooser — it would read as "this migration exports to PDF"
+       * about one that refuses, and a press to "change" it would be a change
+       * away from something it never had.
+       *
+       * Merged exactly as a sync pass merges it (`build-deps-from-mapping`):
+       * override over connection, KEY BY KEY, so an absent key keeps the
+       * connection's value and a mapping with no override reads exactly as it
+       * did before. One merge rule, so what a screen shows and what a pass
+       * runs cannot disagree.
+       *
+       * `username` and `password` are stamped after, deliberately: the account
+       * comes from `accountOnConnection`, which knows where each provider kind
+       * keeps it, and the password is masked whatever either object held.
+       */
       sourceConfig: {
         ...(sourceConn?.config as Record<string, unknown> ?? {}),
+        ...((mapping.sourceConfigOverride as Record<string, unknown> | null) ?? {}),
         username: usernameFor(sourceConn),
         password: '***',
       },
       targetConfig: {
         ...(targetConn?.config as Record<string, unknown> ?? {}),
+        ...((mapping.targetConfigOverride as Record<string, unknown> | null) ?? {}),
         username: usernameFor(targetConn),
         password: '***',
       },
