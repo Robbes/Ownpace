@@ -2,6 +2,44 @@
 
 ## Status — 2026-09-18 (update this block at the end of every session)
 
+**2026-09-18, last: the measurement came back, and it picks §5's SECOND design — plus the
+instrument was overstating what it had measured.** Rob ran
+`scripts/drive-share-inheritance.ts` against his own Drive (folder "Foto shoot Emma", 10
+children). Drive answered, so this is not a refusal and not an absence. But the answer is
+narrower than the old two-way verdict could express:
+
+```
+  inline: 0/10     permissions.list: 10/10     with inheritedFrom: 0/10
+```
+
+`permissionDetails` comes back, carrying `inherited` as a boolean (`inherited=true, inherited=true,
+inherited=false` on every child). **`inheritedFrom` never came back** — on any of the thirty
+detail entries — though `DETAIL_FIELDS` names it explicitly. So Drive will say a grant *is*
+handed down and will not say *what from*.
+
+That matters because §5's first design is "group children under the folder **they inherit
+from**". The field naming that folder is the one Drive withheld. The first design is therefore
+**not open**, and the old `inheritanceVerdict` said it was — it returned `reported` on
+`permissionDetails` being present, never checking whether the grouping KEY had come back. It
+recommended a design whose key it had just watched Drive decline to supply, in the same breath as
+reporting the fact. Fixed: the verdict is now four-way, `reported-without-source` is its own
+answer, and a mutation collapsing it back into `reported` goes red.
+
+**The second finding is the cost, and it points the same way.** `inline: 0/10` means the details
+are on `permissions.list` only — **one request per item**. On the owner's 482 rows that is 482
+extra Drive calls per scan, against the 0090 byte-and-request budget. `parents` rides along on the
+`files.list` the scan already makes, for nothing (`listOrphanedFiles` asks for exactly that field
+today). So the fallback is both the design the data allows and the cheaper one.
+
+**T4's design is settled: group by `parents`, compare grant sets, list deviations separately.**
+`inherited` stays worth reading as CONFIRMATION of a grouping made on parents — never as the
+grouping itself. What is owed is the build.
+
+**One thing the transcript settles in passing:** every child carried a permission with
+`inherited=false` — its own owner row. So "has a non-inherited permission" must never be read as
+"is directly shared"; the owner is not a share, which `listOwnedShareGrants` already knows
+(`p.role !== 'owner'`) and the grouping must keep knowing.
+
 **2026-09-18, last: T4's measurement is now one command away, and nothing about the design has
 been decided.** §5 says the My Drive inheritance behaviour *"must be checked against the live API
 (the owner's account, read-only) rather than assumed"*, and that is still true — reading Google's
@@ -58,7 +96,7 @@ it is a wall — and most of those rows are one shared folder counted once per f
 | T1 The press stops looking like a delete | ✅ Done — §2 | `ConfirmButton` splits the arming from the dressing; `DestructiveButton` stays as the destructive preset, so every caller that really destroys reads as it did. |
 | T2 The banner names every class nobody looked at | ✅ Done — §3 | `refreshShareGrants` now enforces the delegation section the way the report does, and the sentence is worded for the tenant's own source. |
 | T3 Done and Skip say what they mean | ✅ Done — §4 | The distinction is in `sharing.intro.more` and in a title on each button. |
-| T4 A folder is one row, not two hundred | ⬜ **measurement ready** | The scan cannot tell an inherited grant from a direct one. §5's check is now `scripts/drive-share-inheritance.ts` — read-only, three-way, no addresses in its output. **Owner runs it; the verdict picks the design.** |
+| T4 A folder is one row, not two hundred | ⬜ **measured; design settled, build owed** | Measured 2026-09-18 on the owner's Drive: `permissionDetails` yes (10/10 via `permissions.list`, 0/10 inline), `inheritedFrom` **no** (0/10). Drive says a grant is inherited, not what from — so §5's **fallback** is the design: group by `parents`, compare grant sets, deviations listed separately. Also the cheaper one (`parents` is free on the existing listing; the details cost one request per item). |
 
 ## 1. What the owner saw
 
@@ -207,8 +245,10 @@ And we cannot currently collapse them, because we do not ask for the fields that
 no `parents`, and nothing from `permissionDetails`. Today an inherited grant and a direct one
 are indistinguishable in what we hold.
 
-**Before building, verify — this is the task's first step, not a detail.** The instrument for it
-is `scripts/drive-share-inheritance.ts` (2026-09-18):
+**The verification is DONE — 2026-09-18, on the owner's own Drive.** It was the task's first
+step, and it changed the answer, so it is recorded here rather than summarised. The instrument is
+`scripts/drive-share-inheritance.ts` (read-only, `drive.readonly`, no grantee addresses in its
+output):
 
 ```
 pnpm exec tsx scripts/drive-share-inheritance.ts
@@ -216,20 +256,49 @@ pnpm exec tsx scripts/drive-share-inheritance.ts
 
 Same environment as `drive-export-stability.ts`; optionally `DRIVE_SHARE_FOLDER_ID` to name a
 folder rather than let it find one, and `DRIVE_SHARE_CHILDREN` to cap how many children it reads
-(default 10 — the answer needs a handful, and a whole folder is somebody's quota). It prints
-`REPORTED` / `ABSENT` / `NOT REQUESTABLE` and says which design each picks.
- Google documents
-`permissions.permissionDetails[].inherited` / `inheritedFrom` for items in *shared drives*. What
-it reports for **My Drive** items is what decides the design, and it must be checked against the
-live API (the owner's account, read-only) rather than assumed:
+(default 10 — the answer needs a handful, and a whole folder is somebody's quota).
 
-- **If inheritance is reported** — group children under the folder they inherit from, render one
-  row per folder with its grantee set and a count of what it covers, and offer one press.
-- **If it is not** — fall back to grouping by `parents` and comparing grant sets: a child whose
-  grants match its parent's exactly is presumed inherited; anything else is a deviation.
+**What it measured** (folder "Foto shoot Emma", 10 children, grantees pseudonymised):
 
-Either way the owner's second question gets a first-class answer: **deviations are listed
-separately**, never folded into the folder's row. A file inside a shared folder that carries a
+```
+  inline: 0/10     permissions.list: 10/10     with inheritedFrom: 0/10
+
+  - "IMG20230122103618.jpg"
+      grants          person-1:writer, person-2:owner
+      same as folder  yes
+      inline details  absent
+      permissions.list inherited=true, inherited=true, inherited=false
+```
+
+Three facts, and each one moves the design:
+
+1. **`permissionDetails` IS returned for My Drive items** — so this is neither an absence nor a
+   refusal. Drive knows about inheritance here and will talk about it.
+2. **`inheritedFrom` is NOT returned.** Zero of thirty detail entries carried it, though the
+   request names it. Drive will say a grant *is* handed down; it will not say *what from*.
+3. **The details are on `permissions.list` only, never inline.** `files.list` returned
+   `permissionDetails` on 0/10, so reading `inherited` at all costs **one request per item** —
+   482 extra Drive calls on the owner's Drive, per scan, against the 0090 budget.
+
+**So the design is the second one, and fact 2 is why.** "Group children under the folder they
+inherit from" needs the folder's identity, which is exactly what Drive withheld. Fact 3 says the
+same thing from the cost side: `parents` rides along on the `files.list` the scan already makes,
+for nothing — `listOrphanedFiles` asks for that very field today — so the fallback is also the
+cheaper design rather than a consolation.
+
+- **CHOSEN — group by `parents`, compare grant sets.** A child whose grants match its parent's
+  exactly is presumed inherited and folds into the folder's row; anything else is a deviation.
+- **NOT AVAILABLE — group by reported inheritance.** Needs `inheritedFrom`; measured absent.
+  `inherited` remains worth reading as *confirmation* of a grouping made on parents, if a later
+  task wants to pay the per-item request for it. It is never the grouping itself.
+
+**And one thing the transcript settles in passing:** every child carried a permission with
+`inherited=false` — its own owner row. "Carries a direct grant" must therefore never be read as
+"is directly shared". `listOwnedShareGrants` already drops `p.role !== 'owner'`; the grouping has
+to keep doing it, or every file in a shared folder becomes its own deviation.
+
+The owner's second question keeps its first-class answer, and the chosen design is the one that
+has to carry it: **deviations are listed separately**, never folded into the folder's row. A file inside a shared folder that carries a
 grant the folder does not — or is missing one the folder has — is precisely the finding somebody
 needs before a cutover, and a grouping that hid it would be worse than the wall of 482.
 

@@ -201,6 +201,7 @@ async function permissionsVia(fileId: string): Promise<{
   readonly status: number;
   readonly permissions: readonly Permission[];
   readonly sawDetails: boolean;
+  readonly sawSource: boolean;
   readonly error?: string;
 }> {
   const fields =
@@ -218,6 +219,7 @@ async function permissionsVia(fileId: string): Promise<{
       status,
       permissions: [],
       sawDetails: false,
+      sawSource: false,
       error: message,
     };
   }
@@ -228,6 +230,12 @@ async function permissionsVia(fileId: string): Promise<{
     status,
     permissions,
     sawDetails: permissions.some((p) => p.permissionDetails !== undefined),
+    // The GROUPING KEY, counted on its own. `inherited` is a boolean and
+    // answers "is this handed down"; only `inheritedFrom` answers "from
+    // what", which is the field §5's first design would group on.
+    sawSource: permissions.some((p) =>
+      (p.permissionDetails ?? []).some((d) => (d.inheritedFrom ?? '').trim() !== ''),
+    ),
   };
 }
 
@@ -292,6 +300,7 @@ async function main(): Promise<void> {
 
   let inlineDetails = 0;
   let endpointDetails = 0;
+  let sourcedDetails = 0;
   let endpointRefused: string | undefined;
   let sameGrants = 0;
 
@@ -305,6 +314,10 @@ async function main(): Promise<void> {
     const via = await permissionsVia(child.id);
     if (!via.ok) endpointRefused ??= `HTTP ${via.status}: ${via.error ?? 'no message'}`;
     if (via.sawDetails) endpointDetails += 1;
+    const inlineSource = (child.permissions ?? []).some((p) =>
+      (p.permissionDetails ?? []).some((d) => (d.inheritedFrom ?? '').trim() !== ''),
+    );
+    if (via.sawSource || inlineSource) sourcedDetails += 1;
 
     const detail = via.permissions.flatMap((p) => p.permissionDetails ?? []);
     const inheritedFlags = detail
@@ -338,14 +351,32 @@ async function main(): Promise<void> {
   const verdict = inheritanceVerdict({
     inlineDetails,
     endpointDetails,
+    sourcedDetails,
     endpointRefused: endpointRefused !== undefined,
   });
+  const counts =
+    `             inline: ${inlineDetails}/${children.length},` +
+    ` permissions.list: ${endpointDetails}/${children.length},` +
+    ` with inheritedFrom: ${sourcedDetails}/${children.length}`;
   if (verdict === 'reported') {
-    console.log('  REPORTED — Drive returns permissionDetails on these My Drive items.');
-    console.log(`             inline: ${inlineDetails}/${children.length},` +
-      ` permissions.list: ${endpointDetails}/${children.length}`);
+    console.log('  REPORTED — Drive returns permissionDetails AND says what each grant');
+    console.log('             is inherited from.');
+    console.log(counts);
     console.log('  → §5 first design: group children under the folder they inherit from,');
     console.log('    one row per folder with its grantee set and a count, one press.');
+  } else if (verdict === 'reported-without-source') {
+    console.log('  REPORTED WITHOUT A SOURCE — Drive says a grant IS inherited and will');
+    console.log('             not say what from. `inheritedFrom` was requested and did not');
+    console.log('             come back, so there is no key to group on.');
+    console.log(counts);
+    console.log('  → §5 FALLBACK, not the first design: group by `parents` and compare');
+    console.log('    grant sets. `inherited` is still worth reading as CONFIRMATION of a');
+    console.log('    grouping made on parents — never as the grouping itself.');
+    if (inlineDetails === 0 && endpointDetails > 0) {
+      console.log('  → and note the split above: the details are on permissions.list only,');
+      console.log('    which is ONE REQUEST PER ITEM. `parents` rides along on the listing');
+      console.log('    the scan already makes, so the fallback is also the cheaper design.');
+    }
   } else if (verdict === 'not-requestable') {
     console.log('  NOT REQUESTABLE — the request naming permissionDetails was refused:');
     console.log(`             ${endpointRefused}`);
