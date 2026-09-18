@@ -60,9 +60,20 @@ const Row: React.FC<{
   <ItemRow>
     <DomainTag domain={f.domain} />
     <div className="flex-1 min-w-0">
-      {f.collection && (
-        <div className="text-gray-900 truncate" title={f.collection}>
-          {f.collection}
+      {/* WHOSE CARD, WHICH APPOINTMENT (the owner, 2026-09-17). This row used
+          to lead with the collection and identify the item by a hash chip, so
+          the queue whose whole purpose is being acted on could not say what it
+          was asking about. The name leads now; the collection follows it in
+          small type on the same line, so the row is no taller than it was. */}
+      {(f.displayName ?? f.collection) !== undefined && (
+        <div
+          className="text-gray-900 truncate"
+          title={[f.displayName, f.collection].filter(Boolean).join(' \u2014 ')}
+        >
+          {f.displayName ?? f.collection}
+          {f.displayName !== undefined && f.collection !== undefined && (
+            <span className="ml-2 text-xs text-gray-500">{f.collection}</span>
+          )}
         </div>
       )}
       {f.category && (
