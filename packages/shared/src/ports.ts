@@ -868,6 +868,20 @@ export interface LedgerRecord {
    * earlier pass recorded.
    */
   readonly displayName?: string;
+  /**
+   * WHAT WE CORRECTED IN THIS ITEM'S BYTES ON THE WAY OUT (workplan 0124 T1).
+   *
+   * One sentence per correction, joined — naming the line, the property and the
+   * parameter, and never a value. Absent is the ordinary answer and means
+   * nothing was corrected; it is NOT the same as "we did not look", because the
+   * repair runs on every card and answers empty for a well-formed one.
+   *
+   * This is the guard rail that makes repairing somebody's content acceptable
+   * at all. A pass must never quietly do something to a customer's data — so
+   * the change lives on the row they can read, not in a log nobody does. If the
+   * rule ever fires where it should not, this is where the evidence is.
+   */
+  readonly repaired?: string;
   readonly contentHash: string;
   readonly targetId: string;
   /** ISO 8601 timestamp the row was first recorded. */

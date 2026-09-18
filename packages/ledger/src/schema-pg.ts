@@ -564,6 +564,26 @@ export const item = pgTable(
      * second park walk past the ceiling into a number that counted nothing.
      */
     parkedAt: timestamp('parked_at', { withTimezone: true }),
+    /**
+     * What this pass CORRECTED in the item's own bytes before sending it
+     * (migration 0052, workplan 0124 T1).
+     *
+     * The only column in this table that records something we did TO a
+     * customer's content rather than about it, and it exists so that doing so
+     * is never silent. The owner's word, 2026-09-18, on a `,` standing where a
+     * `;` belongs in two of his 1,400 contacts: *"we already now it needs
+     * repairing, because else it will not land in the target."*
+     *
+     * NULL means nothing was corrected — which is every row ever written before
+     * this column, and almost every row after it. Not backfilled: a row written
+     * before today was sent verbatim, and saying otherwise would be a claim
+     * about bytes nobody re-read.
+     *
+     * Safe for an operator to read: the sentences name a line, a property and a
+     * parameter, never a value. That boundary is `dav-payload-defects.ts`'s and
+     * is pinned by its own test.
+     */
+    repaired: text('repaired'),
     lastError: text('last_error'),
     /**
      * What KIND of failure `last_error` was — the same vocabulary the domain
