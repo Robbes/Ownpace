@@ -1723,6 +1723,20 @@ paths:
     put:
       tags: [Migrations]
       summary: Update a migration
+      description: |
+        What a live migration may change about itself (workplan 0125).
+
+        The lifecycle fields (status, mode, pattern) and the Google export
+        policy (sourceConfig.nativeFilePolicy) are applied. The policy is
+        merged into THIS mapping's own source_config_override, so it reaches no
+        other migration sharing the same connection, and it is validated by the
+        same parser the appliance's mapping file goes through.
+
+        Fields that cannot change on a migration that already holds items are
+        REFUSED rather than dropped: the source or target system, the source
+        root folder, and the destination account. Reconnecting the same account
+        with a new password or a renewed sign-in is a different act and is done
+        on the connections routes.
       requestBody:
         required: true
         content:
@@ -1737,6 +1751,27 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            One or more fields cannot be revised on a migration that already
+            exists. Every refused field is listed, each with a reason that
+            names what to do instead.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string, enum: [revision_refused] }
+                  message: { type: string }
+                  refused:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          enum: [source.type, target.type, source.rootFolderId, target.account]
+                        reason: { type: string }
     delete:
       tags: [Migrations]
       summary: Delete a migration
