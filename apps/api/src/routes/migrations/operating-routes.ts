@@ -513,6 +513,10 @@ router.post(
           mappingId: s.mappingId as MappingId,
           ledger: l,
           scans: [scans.scanCalendars, scans.scanDrive],
+          // Always, and not one of `scans`: no connector emits a mailbox
+          // grant on any provider, so the checklist must say so itself or the
+          // silence reads as "nothing to find". See `RefreshShareGrantsDeps`.
+          delegationReason: scans.delegationReason,
         }),
       );
       res.json(result);

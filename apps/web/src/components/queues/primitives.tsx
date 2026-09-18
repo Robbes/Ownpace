@@ -169,15 +169,28 @@ export const ActionButton: React.FC<{
  *
  * Two-step by construction: the first click arms it and the second does it.
  * Not a modal, because a modal trains people to click through — this makes the
- * destructive word appear only after somebody has already chosen once, in the
- * place their cursor already is, and it disarms itself if they walk away.
+ * consequence appear only after somebody has already chosen once, in the place
+ * their cursor already is, and it disarms itself if they walk away.
+ *
+ * THE ARMING AND THE DRESSING ARE DIFFERENT QUESTIONS, and conflating them
+ * put a red button with a **trash can on it** under "create a share" — which
+ * the owner read, correctly, as a delete. The ceremony is owed by anything
+ * hard to take back; the red and the bin are owed only by what destroys. A
+ * share is outward-facing and cannot be unsent, so it keeps the two presses
+ * and loses the funeral.
+ *
+ * `tone` picks the dressing, `icon` the glyph. `DestructiveButton` below is
+ * the destructive preset, so every caller that really does destroy something
+ * reads exactly as it did.
  */
-export const DestructiveButton: React.FC<{
+export const ConfirmButton: React.FC<{
   onClick: () => void;
   pending?: boolean;
   label: string;
   armedLabel: string;
-}> = ({ onClick, pending, label, armedLabel }) => {
+  tone?: 'destructive' | 'outward';
+  icon?: React.ReactNode;
+}> = ({ onClick, pending, label, armedLabel, tone = 'destructive', icon }) => {
   const [armed, setArmed] = React.useState(false);
 
   React.useEffect(() => {
@@ -186,22 +199,39 @@ export const DestructiveButton: React.FC<{
     return () => clearTimeout(t);
   }, [armed]);
 
+  const dressing =
+    tone === 'destructive'
+      ? armed
+        ? 'border-red-600 bg-red-600 text-white hover:bg-red-700'
+        : 'border-red-300 text-red-700 hover:bg-red-50'
+      : armed
+        ? 'border-sky-700 bg-sky-700 text-white hover:bg-sky-800'
+        : 'border-sky-300 text-sky-800 hover:bg-sky-50';
+
   return (
     <button
       onClick={() => (armed ? onClick() : setArmed(true))}
       onBlur={() => setArmed(false)}
       disabled={pending}
-      className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border disabled:opacity-50 ${
-        armed
-          ? 'border-red-600 bg-red-600 text-white hover:bg-red-700'
-          : 'border-red-300 text-red-700 hover:bg-red-50'
-      }`}
+      className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border disabled:opacity-50 ${dressing}`}
     >
-      {pending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+      {pending ? (
+        <Loader2 className="w-3 h-3 animate-spin" />
+      ) : (
+        (icon ?? <Trash2 className="w-3 h-3" />)
+      )}
       {armed ? armedLabel : label}
     </button>
   );
 };
+
+/** The destructive preset: red, a bin, and two presses. */
+export const DestructiveButton: React.FC<{
+  onClick: () => void;
+  pending?: boolean;
+  label: string;
+  armedLabel: string;
+}> = (props) => <ConfirmButton {...props} tone="destructive" />;
 
 /** A decision that went through, shown where the buttons were. */
 export const Resolved: React.FC<{ effect: string }> = ({ effect }) => (

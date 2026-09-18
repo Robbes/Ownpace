@@ -40,7 +40,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
+import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -1663,6 +1663,18 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           return async () => (await provider.getToken()).accessToken;
         };
         return {
+          // A Google appliance gets Google's sentence. `mailboxDelegations()`
+          // names Exchange Online PowerShell cmdlets that will never run
+          // against a Gmail account — the same wrong errand the calendar
+          // branch below already avoids.
+          delegationReason: hasGoogleDriveSource && !graphSource
+            ? googleMailboxDelegationNotRead()
+            : (() => {
+                const d = mailboxDelegations();
+                // Always `not_discoverable`; the narrowing is the type
+                // system's, not a runtime possibility.
+                return d.kind === 'not_discoverable' ? d.reason : 'not inventoried';
+              })(),
           scanCalendars: async (): Promise<PermissionListing> =>
             available.ok
               ? scanCalendarPermissions(mailbox, graphToken(), detectorHttpClient, scanOptions)
@@ -1920,6 +1932,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           mappingId: m.mailboxMappingId as MappingId,
           ledger,
           scans: [scans.scanCalendars, scans.scanDrive],
+          // Always, and not one of `scans`: no connector emits a mailbox
+          // grant on any provider, so the checklist must say so itself or the
+          // silence reads as "nothing to find". See `RefreshShareGrantsDeps`.
+          delegationReason: scans.delegationReason,
         });
         return sendJson(res, 200, result);
       }
@@ -2164,7 +2180,6 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
               '(or ?mappingId=… to resolve it from a migration)',
           });
         }
-        const delegation = mailboxDelegations();
         const scans = inventoryScansFor(mailbox);
 
         // The target's side of the story (0105 T0): the first mapping with a
@@ -2200,8 +2215,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const markdown = await runPermissionInventory({
           mappingLabel: mailbox,
           generatedOn: new Date().toISOString().slice(0, 10),
-          delegationReason:
-            delegation.kind === 'not_discoverable' ? delegation.reason : 'not inventoried',
+          // Always in the report, and now worded for this appliance's own
+          // source — see the scans object above.
+          delegationReason: scans.delegationReason,
           // Both scans always passed, never omitted: an absent dep falls back
           // to the pass's generic "no reader is configured", and neither of
           // these is unconfigured — each has its own reason, and they differ.

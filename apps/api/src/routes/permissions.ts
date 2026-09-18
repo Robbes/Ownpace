@@ -32,6 +32,7 @@ import type { Response } from 'express';
 import { authenticate } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import {
+  googleMailboxDelegationNotRead,
   log,
   permissionsNotDiscoverable,
   resolveGoogleClient,
@@ -128,9 +129,6 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
 
     const scans = await tenantInventoryScans(tenantId, mailbox);
 
-    // The delegation sentence is always in the report; the scans are only
-    // attempted when the connection can actually make them.
-    const delegation = mailboxDelegations();
 
     // The target's side of the story (0105 T0): measured live at report
     // time, same derive-on-every-read philosophy as the scans. Undefined for
@@ -140,10 +138,9 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     const markdown = await runPermissionInventory({
       mappingLabel: mailbox,
       generatedOn: new Date().toISOString().slice(0, 10),
-      // `mailboxDelegations()` is always `not_discoverable`; the narrowing is
-      // the type system's, not a runtime possibility.
-      delegationReason:
-        delegation.kind === 'not_discoverable' ? delegation.reason : 'not inventoried',
+      // Always in the report, and now worded for the tenant's own source —
+      // see `tenantInventoryScans`.
+      delegationReason: scans.delegationReason,
       // BOTH scans are always passed, even when nothing can be read. An
       // omitted dep falls back to the pass's generic "no reader is
       // configured", and these two are not unconfigured — each has a specific
@@ -252,6 +249,12 @@ export async function tenantInventoryScans(
 ): Promise<{
   scanCalendars: () => Promise<PermissionListing>;
   scanDrive: () => Promise<PermissionListing>;
+  /**
+   * Mailbox delegation, unread, worded for THIS tenant's source. Carried here
+   * rather than called inline by each consumer so the report and the sharing
+   * checklist cannot say different things about the same account.
+   */
+  delegationReason: string;
 }> {
   const { rows } = await pool().query<{ config: unknown }>(
     `SELECT config FROM connection
@@ -303,6 +306,19 @@ export async function tenantInventoryScans(
   const davSourceConnection = davRows[0];
 
   return {
+    // A Google tenant gets Google's sentence. `mailboxDelegations()` names
+    // `Get-MailboxPermission` and `Get-RecipientPermission`, which are
+    // Exchange Online PowerShell and will never run against a Gmail account —
+    // the same wrong errand the calendar branch below already avoids.
+    delegationReason:
+      googleDriveConnection && !graphTenantId
+        ? googleMailboxDelegationNotRead()
+        : (() => {
+            const d = mailboxDelegations();
+            // `mailboxDelegations()` is always `not_discoverable`; the
+            // narrowing is the type system's, not a runtime possibility.
+            return d.kind === 'not_discoverable' ? d.reason : 'not inventoried';
+          })(),
     scanCalendars: async () =>
       available.ok
         ? scanCalendarPermissions(

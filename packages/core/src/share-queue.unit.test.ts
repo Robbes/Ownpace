@@ -30,6 +30,9 @@ import {
 const TENANT = 'tenant-1' as TenantId;
 const MAPPING = 'mapping-1' as MappingId;
 
+/** The one blind spot every source has, in this fixture's words. */
+const DELEGATION = 'mailbox delegation was not read';
+
 const PERSON_GRANT: PermissionGrant = {
   subject: 'drive_item',
   on: 'Projects/budget.xlsx',
@@ -55,6 +58,7 @@ async function refreshed(ledger: MemoryLedger, grants: PermissionGrant[] = [PERS
     tenantId: TENANT,
     mappingId: MAPPING,
     ledger,
+    delegationReason: DELEGATION,
     scans: [async () => ({ kind: 'listed' as const, grants })],
   });
 }
@@ -66,6 +70,7 @@ describe('refreshShareGrants', () => {
       tenantId: TENANT,
       mappingId: MAPPING,
       ledger,
+      delegationReason: DELEGATION,
       scans: [
         async () => ({ kind: 'listed' as const, grants: [PERSON_GRANT, LINK_GRANT] }),
         async () => ({ kind: 'not_discoverable' as const, reason: 'nothing was looked at' }),
@@ -73,13 +78,47 @@ describe('refreshShareGrants', () => {
     });
 
     expect(result.open).toBe(2);
-    expect(result.blindSpots).toEqual(['nothing was looked at']);
+    // Delegation first and always, then what the scans could not read.
+    expect(result.blindSpots).toEqual([DELEGATION, 'nothing was looked at']);
     const rows = await ledger.listShareGrants(TENANT, MAPPING);
     expect(rows).toHaveLength(2);
     // A per-person file share maps clean; a link is a decision, not a
     // translation (0029 T2) — the queue inherits exactly those verdicts.
     expect(rows.find((r) => r.grantee === 'anna@example.nl')!.verdict).toBe('clean');
     expect(rows.find((r) => r.viaLink)!.verdict).toBe('manual');
+  });
+
+  it('says mailbox delegation was not read even when every scan listed cleanly', async () => {
+    // THE CASE THE OWNER FOUND. Both scans succeed, so nothing was
+    // `not_discoverable` and the old code produced an EMPTY blind-spot list —
+    // on a checklist whose whole job is telling "nobody looked" apart from
+    // "nothing to find". No connector emits a `mailbox` grant on any
+    // provider, so a clean scan is exactly when the sentence matters most.
+    const ledger = new MemoryLedger();
+    const result = await refreshShareGrants({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      ledger,
+      delegationReason: DELEGATION,
+      scans: [async () => ({ kind: 'listed' as const, grants: [PERSON_GRANT] })],
+    });
+
+    expect(result.open).toBe(1);
+    expect(result.blindSpots).toEqual([DELEGATION]);
+  });
+
+  it('says it with no scans at all, which is the emptiest a checklist gets', async () => {
+    const ledger = new MemoryLedger();
+    const result = await refreshShareGrants({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      ledger,
+      delegationReason: DELEGATION,
+      scans: [],
+    });
+
+    expect(result.open).toBe(0);
+    expect(result.blindSpots).toEqual([DELEGATION]);
   });
 
   it('a rescan never resets a decision — the ticked item stays ticked', async () => {
@@ -166,6 +205,7 @@ describe('applyShareGrant — every gate answers with its own sentence', () => {
       tenantId: TENANT,
       mappingId: MAPPING,
       ledger,
+      delegationReason: DELEGATION,
       scans: [
         async () => ({
           kind: 'listed' as const,
