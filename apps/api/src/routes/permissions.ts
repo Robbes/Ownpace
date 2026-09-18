@@ -31,7 +31,12 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { authenticate } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
-import { log, permissionsNotDiscoverable, type PermissionListing } from '@openmig/shared';
+import {
+  log,
+  permissionsNotDiscoverable,
+  resolveGoogleClient,
+  type PermissionListing,
+} from '@openmig/shared';
 import {
   createTokenProvider,
   directoryAvailability,
@@ -49,6 +54,7 @@ import {
   buildGoogleDriveSourceFrom,
   STORED_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
+import { connectionKindsWithFace } from '@openmig/orchestration/source-face-builders';
 import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
 import {
   qualificationReportLines,
@@ -259,10 +265,30 @@ export async function tenantInventoryScans(
   // whether or not the connection could have made the request anyway.
   const drive = driveSharingAvailability(process.env);
 
+  // EVERY STORED KIND WHOSE FILE FACE IS THE DRIVE CONNECTOR — asked of the
+  // table that decides it, because the literal this line used to carry was
+  // not a `connection.kind` at all.
+  //
+  // THE DEFECT (the owner, 2026-09-17: the Sharing page found no Google
+  // sharings on a live migration full of them). This query read
+  // `kind = 'google-drive'`, and that value cannot appear in the column: the
+  // CHECK constraint migration 0008 added spells it `google_drive`, and the
+  // hyphen is the WIZARD's word for the same provider. So the lookup matched
+  // nothing for anybody, ever — not the `google` ACCOUNT kind the owner was
+  // running, and not the legacy Drive connection it was written for. The scan
+  // below never ran, and the page printed a not-discoverable sentence written
+  // for a different source, which reads as "nothing is shared". Hard rule 9
+  // forbids a blind spot to look like a finding, and this one did.
+  //
+  // Both halves are fixed by asking the right question: `connectionKindsWithFace`
+  // reads `ACCOUNT_FACE_BUILDERS` and `SINGLE_PURPOSE_FACES`, which is where
+  // `google` (the account kind, whose file face IS `google-drive`) and
+  // `google_drive` (the single-purpose row) are already written down. A kind
+  // that gains a Drive face is in this answer the day the table says so.
   const { rows: driveRows } = await pool().query<{ secret_ref: string | null; config: unknown }>(
     `SELECT secret_ref, config FROM connection
-      WHERE tenant_id = $1 AND role = 'source' AND kind = 'google-drive' LIMIT 1`,
-    [tenantId],
+      WHERE tenant_id = $1 AND role = 'source' AND kind = ANY($2::text[]) LIMIT 1`,
+    [tenantId, [...connectionKindsWithFace('file', 'google-drive')]],
   );
   const googleDriveConnection = driveRows[0];
 
@@ -315,9 +341,26 @@ export async function tenantInventoryScans(
           const creds = googleDriveConnection.secret_ref
             ? SecretStore.decryptCredentials(googleDriveConnection.secret_ref)
             : (config.credentials ?? {});
+          // THE DEPLOYMENT MAY CARRY THE CLIENT (ADR-0041). An account
+          // connection made through Connect with Google stores the refresh
+          // token and, when the deployment has its own application, no client
+          // pair at all — so handing these credentials straight to the builder
+          // would refuse for a missing clientId on a connection that is
+          // perfectly usable. The same resolver every other Google door uses
+          // decides, and its refusal is a sentence rather than a throw.
+          const client = resolveGoogleClient({
+            clientId: creds['clientId'],
+            clientSecret: creds['clientSecret'],
+          });
+          if (!client.ok) {
+            return {
+              kind: 'not_discoverable' as const,
+              reason: permissionsNotDiscoverable(client.reason),
+            };
+          }
           const source = buildGoogleDriveSourceFrom(
             {},
-            creds,
+            { ...creds, clientId: client.clientId, clientSecret: client.clientSecret },
             STORED_GOOGLE_CREDENTIAL_NAMES,
           ) as unknown as {
             listOwnedShareGrants(): Promise<PermissionListing>;

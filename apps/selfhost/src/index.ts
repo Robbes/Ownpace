@@ -40,7 +40,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
+import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, carriesGoogleNativeFiles, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -1626,7 +1626,21 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         // A Google Drive mapping (workplan 0029, the Google half): its
         // outbound shares are readable with the scope the pass already uses —
         // same env credential names, no extra consent decision.
-        const hasGoogleDriveSource = mappings.some((m) => m.config.source.type === 'google-drive');
+        // THE SAME WIDENING THE MANAGED ROUTE GOT, and for the same reason: a
+        // `google` account source carries Drive files, and asking only for the
+        // legacy type string made its shares a blind spot on this edition too.
+        // `carriesGoogleNativeFiles` is the one list, guarded in shared.
+        //
+        // What this does NOT claim is that the appliance MIGRATES files from a
+        // `google` mapping file: `build-deps.ts` still branches on
+        // `google-drive` for the file face, which #988 recorded as an open
+        // edition gap. Reading the account's outbound shares needs only the
+        // Drive credentials this deployment already holds in its environment,
+        // so the scan is answerable whether or not that gap is closed — and a
+        // blind spot nobody asked for is worse than a section that is right.
+        const hasGoogleDriveSource = mappings.some((m) =>
+          carriesGoogleNativeFiles(m.config.source.type),
+        );
         // A Nextcloud/WebDAV files source: its outbound shares are one OCS
         // GET away (0104 T2) — before this, a DAV appliance's sharing was a
         // blind spot wearing a Graph-worded reason.

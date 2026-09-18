@@ -199,6 +199,49 @@ export function sourceFaceBuilder(kind: string, domain: DiscoveryDomain): Source
 }
 
 /**
+ * THE OTHER DIRECTION: every stored `connection.kind` whose face in this
+ * domain is built by this builder.
+ *
+ * ## The defect that asked for it (the owner's live run, 2026-09-17)
+ *
+ * The Sharing page found no Google sharings on a migration full of them. The
+ * managed report's lookup read
+ *
+ *     WHERE role = 'source' AND kind = 'google-drive'
+ *
+ * and `google-drive` is not a `connection.kind` at all — it is the WIZARD's
+ * word. The column's value is `google_drive`, underscored, CHECK-constrained
+ * by migration 0008, which is precisely what `GOOGLE_DRIVE_CONNECTION_KIND`
+ * says in its own header: *"this constant exists to keep the managed
+ * comparison from being a bare string literal somebody 'corrects' to the other
+ * spelling."* Somebody did. So that query matched nothing for anybody, ever —
+ * not the account kind the owner was running, and not the legacy Drive
+ * connection it was written for. A scan that never ran, printing a sentence
+ * written for a source that could not be read, which an operator reads as
+ * "nothing is shared".
+ *
+ * ## Why derived rather than listed
+ *
+ * A literal list has to be widened by hand when a kind gains a face, and the
+ * widening is invisible until somebody runs a migration on the new kind. The
+ * tables above already say which builder speaks for which face; this reads
+ * them. A provider account that gains a Drive file face is in this answer on
+ * the day the table says so.
+ *
+ * Asking for a PROTOCOL default (`dav`, `imap`) answers with every kind that
+ * claims no builder of its own for that domain, which is true but rarely the
+ * question: those rows are not identified by kind in the first place.
+ */
+export function connectionKindsWithFace(
+  domain: DiscoveryDomain,
+  builder: SourceFaceBuilder,
+): ReadonlyArray<string> {
+  return [...Object.keys(ACCOUNT_FACE_BUILDERS), ...Object.keys(SINGLE_PURPOSE_FACES)]
+    .filter((kind) => sourceFaceBuilder(kind, domain) === builder)
+    .sort();
+}
+
+/**
  * Every face a provider account kind can EVER claim — the guard's question.
  *
  * Reads the ceiling tables rather than a deployment's environment on purpose:
