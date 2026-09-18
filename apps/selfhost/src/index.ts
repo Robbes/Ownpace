@@ -40,7 +40,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
+import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -2669,6 +2669,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const body = ((await readJson(req).catch(() => ({}))) ?? {}) as {
           action?: unknown;
           domain?: unknown;
+          category?: unknown;
           errorContains?: unknown;
         };
         const raw = String(body.action ?? '');
@@ -2686,22 +2687,40 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             hint: `One of ${DISCOVERY_DOMAINS.join(', ')}.`,
           });
         }
+        // THE SAME THIRD FIELD THE MANAGED ROUTE TAKES. One web bundle serves
+        // both editions (ADR-0026), so a field only one of them reads is a
+        // button that does something different depending on who deployed it:
+        // the appliance would drop the category, widen the press to the whole
+        // domain, and change more rows than the count on screen promised.
+        const category = body.category === undefined ? undefined : String(body.category);
+        if (category !== undefined && !isFailureCategory(category)) {
+          return sendJson(res, 400, {
+            error: `unknown category '${category}'`,
+            hint: `One of ${FAILURE_CATEGORIES.join(', ')}.`,
+          });
+        }
         const errorContains =
           body.errorContains === undefined ? undefined : String(body.errorContains);
         // Narrowing required, for the managed route's reason verbatim: this
         // queue holds refusals that re-park on sight, so "all of them" costs a
         // refetch each and changes nothing about them.
-        if (domain === undefined && (errorContains === undefined || errorContains === '')) {
+        if (
+          domain === undefined &&
+          category === undefined &&
+          (errorContains === undefined || errorContains === '')
+        ) {
           return sendJson(res, 400, {
             error: 'a group decision has to say WHICH failures it is for',
             hint:
-              'Send a domain, an errorContains substring, or both. The queue holds refusals ' +
-              'that will not change on a retry, so "all of them" is almost never the intent.',
+              'Send a domain, a category, an errorContains substring, or any combination. The ' +
+              'queue holds refusals that will not change on a retry, so "all of them" is almost ' +
+              'never the intent.',
           });
         }
 
         const match = {
           ...(domain !== undefined ? { domain: domain as DiscoveryDomain } : {}),
+          ...(category !== undefined ? { category } : {}),
           ...(errorContains !== undefined ? { errorContains } : {}),
         };
         const matched = await ledger.resolveFailureGroup(
