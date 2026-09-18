@@ -31,6 +31,57 @@ const row = (over: Partial<LiveProgressRow> = {}): LiveProgressRow => ({
   ...over,
 });
 
+/**
+ * LEFT ALONE IS NOT COPIED (workplan 0124 T2).
+ *
+ * Every other number on this strip is something that HAPPENED to an item. The
+ * items hard rule 2 protects had nothing happen to them and no counter at all,
+ * so a migration that adopted four hundred contacts showed four hundred fewer
+ * of everything with no word for the gap.
+ */
+describe('what the strip says about items nothing happened to', () => {
+  it('counts them, beside what was copied', () => {
+    render(<LiveProgress domains={[row({ itemsAdopted: 402 })]} />);
+    expect(screen.getByText(/402 left as they are/i)).toBeTruthy();
+  });
+
+  /**
+   * SILENCE, NOT "NONE". An appliance older than this field serves no count,
+   * and a strip that answered "0 left as they are" would be reporting a
+   * measurement nobody took (hard rule 9).
+   */
+  it('says nothing at all when nobody counted', () => {
+    render(<LiveProgress domains={[row()]} />);
+    expect(screen.queryByText(/left as they are/i)).toBeNull();
+  });
+
+  /**
+   * And nothing for a counted zero either — the count was taken and there is
+   * nothing to report, so a line saying "0" would be noise on a strip whose
+   * whole rule is one thing per line. The DISTINCTION still has to survive the
+   * wire (the report and the view row both keep a counted zero); it is this
+   * screen that decides a zero is not worth a line.
+   */
+  it('renders no line for a counted zero', () => {
+    render(<LiveProgress domains={[row({ itemsAdopted: 0 })]} />);
+    expect(screen.queryByText(/left as they are/i)).toBeNull();
+  });
+
+  /**
+   * ONE SENTENCE FOR BOTH KINDS. The ledger records "already there" and "you
+   * edited our copy" under one status and cannot tell them apart afterwards, so
+   * the fold must claim neither — it says what is true of both.
+   */
+  it('explains it without inventing a split the ledger cannot support', () => {
+    render(<LiveProgress domains={[row({ itemsAdopted: 3 })]} />);
+    const why = STRINGS.en['confirm.progress.leftAsIs.why'];
+    expect(why).toMatch(/already on the new system/i);
+    expect(why).toMatch(/changed there since/i);
+    // And it never promises which of the two any particular item was.
+    expect(screen.getByTitle(why)).toBeTruthy();
+  });
+});
+
 describe('a failed domain says what to do about it', () => {
   it('renders the remedy sentence, not the category name', () => {
     render(

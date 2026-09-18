@@ -1305,11 +1305,20 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
+          // What each domain LEFT AS IT WAS (0124 T2), for the same reason the
+          // failures are counted here: a migration that adopted four hundred
+          // contacts reported four hundred fewer of everything else, and had no
+          // word for the difference.
+          const adopted = await ledger.countAdoptedByDomain(
+            m.config.tenantId as TenantId,
+            m.mailboxMappingId as MappingId,
+          );
           inputs.push({
             mappingId: m.config.mappingId,
             migrationStatus: await mappingStatus(m),
             statuses,
             failures,
+            adopted,
           });
         }
         // The channel's state travels with the status an owner already polls.
@@ -2415,13 +2424,14 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const mId = m.mailboxMappingId as MappingId;
         const statuses = await statusStore.getStatus(tId, mId);
         const failures = await ledger.listFailures(tId, mId);
+        const adopted = await ledger.countAdoptedByDomain(tId, mId);
         const report = buildCompletionReport({
           mappingId: m.config.mappingId,
           sourceType: m.config.source.type,
           targetType: m.config.target.type,
           lifecycle: await mappingStatus(m),
           generatedAt: new Date().toISOString(),
-          domains: buildDomainStatusReports(statuses, failures),
+          domains: buildDomainStatusReports(statuses, failures, adopted),
           moves: await ledger.listMoves(tId, mId),
           deletions: await ledger.listDeletions(tId, mId),
           failures,

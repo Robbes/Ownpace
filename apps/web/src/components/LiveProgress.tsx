@@ -54,6 +54,15 @@ export interface LiveProgressRow {
   readonly itemsSynced: number;
   readonly itemsFailed: number;
   readonly itemsRetrying: number;
+  /**
+   * How many were LEFT AS THEY ALREADY WERE (workplan 0124 T2).
+   *
+   * Absent means nobody counted, and the strip then says nothing — which is
+   * not the same as saying none, and is why this is optional rather than
+   * defaulted to zero (hard rule 9). A counted zero renders, because "nothing
+   * was already there" is a real answer to the question the line raises.
+   */
+  readonly itemsAdopted?: number;
   readonly lastSyncedAt?: string;
   readonly lastError?: string;
   readonly lastErrorCategory?: FailureCategory;
@@ -97,6 +106,23 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
             {d.itemsRetrying > 0 && (
               <span className="text-amber-700">
                 {formatNumber(d.itemsRetrying, locale)} {t('confirm.progress.retrying')}
+              </span>
+            )}
+            {d.itemsAdopted !== undefined && d.itemsAdopted > 0 && (
+              // LEFT ALONE IS NOT COPIED, and until this line the strip had no
+              // word for it: everything else here is something that HAPPENED to
+              // an item, and these are the ones hard rule 2 protected by doing
+              // nothing. A migration that adopted four hundred contacts showed
+              // four hundred fewer of everything and offered no explanation for
+              // the gap.
+              //
+              // Grey, beside the synced count rather than under the failures:
+              // it is neither a problem nor something to act on. One sentence
+              // for both kinds of adoption — already there, or changed there
+              // since — because the ledger cannot tell them apart and this must
+              // not pretend it can.
+              <span className="text-gray-600" title={t('confirm.progress.leftAsIs.why')}>
+                {formatNumber(d.itemsAdopted, locale)} {t('confirm.progress.leftAsIs')}
               </span>
             )}
             {d.lastSyncedAt && (

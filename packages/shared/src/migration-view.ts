@@ -49,6 +49,22 @@ export interface ViewDomainRow {
   readonly bytesTransferred: number;
   readonly itemsRetrying: number;
   readonly itemsNeedingDecision: number;
+  /**
+   * How many were left as they already were (0124 T2), when anybody counted.
+   *
+   * 0122 T1 made this a DECISION rather than a default: `viewRowFor` is an
+   * explicit construction and the guard below holds the row's own keys, so a
+   * new field on `DomainStatusReport` is a typecheck failure until somebody
+   * says whether a stranger may see it. The answer here is yes. It is a count
+   * and not content — it carries no name, no key and no folder — and a person
+   * watching their own migration has more right to "eleven were already there"
+   * than to almost anything else on this page: without it the totals they are
+   * reading do not add up, and they have nowhere to go and ask why.
+   *
+   * Absent when the count was not taken, exactly as on the report it comes
+   * from. Never a zero standing in for a question nobody asked.
+   */
+  readonly itemsAdopted?: number;
   /** The last COMPLETION — the only honest source for "up to date as of". */
   readonly lastSyncedAt?: string;
   /** When a pass last touched this domain, completed or not. */
@@ -135,6 +151,10 @@ export function viewRowFor(report: DomainStatusReport): ViewDomainRow {
     bytesTransferred: report.bytesTransferred,
     itemsRetrying: report.itemsRetrying,
     itemsNeedingDecision: report.itemsNeedingDecision,
+    // `!== undefined`, not truthiness: a counted ZERO is a real answer here —
+    // "nothing was left behind" — and `0 ? … : {}` would drop it and make it
+    // look like nobody counted.
+    ...(report.itemsAdopted !== undefined ? { itemsAdopted: report.itemsAdopted } : {}),
     ...(report.lastSyncedAt ? { lastSyncedAt: report.lastSyncedAt } : {}),
     ...(report.lastActiveAt ? { lastActiveAt: report.lastActiveAt } : {}),
     ...(report.pausedReason ? { pausedReason: report.pausedReason } : {}),
@@ -158,6 +178,7 @@ export const VIEW_ROW_FIELDS: readonly (keyof ViewDomainRow)[] = [
   'bytesTransferred',
   'itemsRetrying',
   'itemsNeedingDecision',
+  'itemsAdopted',
   'lastSyncedAt',
   'lastActiveAt',
   'pausedReason',

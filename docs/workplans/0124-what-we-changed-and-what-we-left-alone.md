@@ -2,6 +2,28 @@
 
 ## Status — 2026-09-18 (update this block at the end of every session)
 
+**2026-09-18, last: T2 built — both halves of this plan are done.** The count exists, it reaches
+the migration page, and it reaches the progress link too. Three things worth reading:
+
+- **`.partial()` on a count is the same defect as a zero.** The field is OPTIONAL on
+  `DomainStatusReport`, and the optionality is load-bearing: absent means nobody counted, and five
+  places build these reports. A caller that cannot supply the counts must produce a row that says
+  nothing rather than one claiming none were adopted — so the query returns NO KEY for a domain with
+  no adopted rows (the `GROUP BY` produces the absence) and the builder omits rather than defaults.
+  Both directions are proved by breaking: zero-fill the query, or zero-fill the builder, and the
+  guards go red.
+- **The 0122 T1 guard fired, and that is the whole reason it exists.** Adding a field to
+  `DomainStatusReport` stopped `a-stranger-sees-counts-and-states.unit.test.ts` compiling in all four
+  `tsc` passes — the fixture is `Required<DomainStatusReport>` precisely so a new field is a
+  decision rather than an omission. The answer is recorded there and in `migration-view.ts`: **yes**,
+  a link holder may see it. It is a count and not content, and that reader needs it more than the
+  owner does — without it their totals do not add up, and unlike the owner they have nowhere to ask.
+- **A defect found by running the guard against a real Postgres rather than shipping it to CI.**
+  `mailbox_mapping` is unique on `(source_mailbox_id, target_mailbox_id, COALESCE(prefix, ''))`, so
+  the integration test's second mapping could not reuse the first's mailboxes. It would have failed
+  in CI and looked like a product bug. It carries its own prefix now, and the constraint is written
+  down where the next person will meet it.
+
 **2026-09-18, later: T1 built.** The owner chose to repair on the way out rather than only after a
 refusal, and gave the reason: *"i pick a, since we already now it needs repairing, because else it
 will not land in the target. So we can do that already when recognizing in transit."* Three things
@@ -21,7 +43,7 @@ the plan did not have:
   not identity), and the mutation aimed at the quoting rule hit a branch that returns earlier. Both
   tests were replaced, and both now go red.
 
-T2 is untouched.
+T2 is done too; see the block above.
 
 **2026-09-18: opened, both halves decided by the owner.** Two findings from his live run, with
 one principle between them: **a pass must never quietly do something to a customer's data, and
@@ -31,7 +53,7 @@ that nothing reports is a silent skip. Both are the same failure wearing opposit
 | Task | Status | Notes |
 |---|---|---|
 | T1 The comma where a semicolon belongs, repaired | ✅ Done — §2 | `repairPayload` beside the reader that diagnoses the same shape; one `,`→`;` per fault, at an offset in the original body. Migration 0052 records it on the item. |
-| T2 Left alone is not copied | ⬜ | Owner chose **option (a)**: say it on the migration page. The per-item surface exists; the per-domain count does not. §3 |
+| T2 Left alone is not copied | ✅ Done — §3 | `countAdoptedByDomain` in the ledger, an optional `itemsAdopted` on the report (absent ≠ zero), the line on the migration page, and the same count on the progress link — the 0122 T1 contract question answered **yes**. |
 
 ## 1. The two findings
 
@@ -156,6 +178,19 @@ than almost anything else on that page.
 **Not an overwrite press.** The owner chose option (a) and explicitly not (b). Writing over data
 we did not write is what hard rule 2 exists to forbid, and the asymmetry decided it: (b) can be
 built on top of (a) later, but it cannot be taken back once somebody has pressed it.
+
+### What was built (2026-09-18)
+
+`Ledger.countAdoptedByDomain` — one grouped query, called by all five places that build these
+reports (the appliance's `/status` and completion report, the managed detail route, the completion
+report and the progress-link page). `itemsAdopted` is optional on `DomainStatusReport` and on
+`ViewDomainRow`, and the strip renders a line only when there is a count AND it is above zero: the
+distinction between "nobody counted" and "counted, none" survives the wire, and the screen's own
+rule that a line must earn itself decides that a zero does not get one.
+
+**The sentence covers both kinds and names neither**, as this section required: *"These were
+already on the new system, or have been changed there since, so they were left exactly as they
+are."* A guard reads the string and fails if it stops saying both.
 
 ## 4. Gates
 
