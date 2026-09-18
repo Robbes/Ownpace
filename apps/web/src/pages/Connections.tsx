@@ -120,9 +120,22 @@ const usePlaceholderFor = () => {
 /**
  * The categories where the CONNECTION is the thing to act on (workplan 0094
  * T5), so the standing line invites a Test to tell which of a migration's two
- * connections failed. The other three resolve on their own and their
- * sentence says "no action needed" — a tail inviting a Test would contradict
- * it. Exhaustive by construction: every category is in exactly one set.
+ * connections failed.
+ *
+ * EVERY OTHER CATEGORY IS LEFT OUT FOR ITS OWN REASON, and this comment said
+ * "the other three resolve on their own" until 2026-09-18 — true of the six,
+ * and quietly false from the moment there were eight. Three kinds of absence,
+ * and none of them wants a Test:
+ *
+ *  - `rate_limited`, `quota_exceeded`, `network` resolve on their own, and
+ *    their sentence says "no action needed"; a tail inviting a Test would
+ *    contradict it.
+ *  - `source_refused` and `format_refused` DO need a person, but not here —
+ *    the thing to change is a file's sharing setting or the mapping's export
+ *    format, and the connection is fine.
+ *  - `policy_refused` is this migration's own decision (0125 T4). Testing a
+ *    connection over it would be the wrong errand in the purest form: nothing
+ *    about either account is in question.
  */
 const ASK_TEST: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
   'auth_expired',

@@ -49,6 +49,11 @@ const ALLOWED_OVER: Readonly<Record<string, string>> = {
   // theirs say the fact in fifteen words and stop.
   'failure.sourceRefused': 'remedy sentence, verbatim by owner decision',
   'failure.formatRefused': 'remedy sentence, verbatim by owner decision',
+  // The ninth, 2026-09-18, under the same rule. Longer still, because it is
+  // the only remedy that names a SETTING the reader has to go and find: "change
+  // the policy" without naming the field is the instruction the owner already
+  // could not carry out, which is what put this category in the product.
+  'failure.policyRefused': 'remedy sentence, verbatim by owner decision',
   // The consent page (0089): what the person being migrated reads before
   // granting. Consent sentences stay verbatim — owner, 2026-09-05.
   'grant.asking': 'consent sentence, verbatim by owner decision',

@@ -13,6 +13,7 @@ import {
   mapWithConcurrency,
   MAX_ITEM_ATTEMPTS,
   isDecisionError,
+  statedFailureCategoryOf,
   type Ledger,
   type LedgerRecord,
   type ItemFailure,
@@ -1629,6 +1630,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // Read once, here, from the thrown value — not from `reason`, which is
         // its message and has already lost the tag.
         const itemSide = failureSideOf(err);
+        // And the CATEGORY, when the throw site named one (workplan 0125 T4).
+        // Same line, same reason, same one chance: `recordFailure` is handed a
+        // string, so anything the error itself knows has to be read while the
+        // error still exists. `NativeFileRefused` is the only thing that states
+        // one today, and it is why `policy_refused` can be told from
+        // `source_refused` at all — the prose is ours, so no regex over it is
+        // better than the branch that wrote it.
+        const itemCategory = statedFailureCategoryOf(err);
 
         // `recordFailure`, not `recordIfAbsent`: the attempt COUNT is what
         // eventually stops the retrying and hands the item to a person, and
@@ -1694,6 +1703,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               // which is a real answer ("neither, or unknown") and is passed
               // through as such rather than defaulted to a side.
               ...(itemSide !== undefined ? { side: itemSide } : {}),
+              // `undefined` for every error that states nothing, which is
+              // almost all of them, and the ledger then classifies the message
+              // exactly as it did before this existed.
+              ...(itemCategory !== undefined ? { category: itemCategory } : {}),
             },
           ),
         );

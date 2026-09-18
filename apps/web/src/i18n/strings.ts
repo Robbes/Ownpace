@@ -832,6 +832,8 @@ const en = {
   'view.failure.authExpired': 'The connection to your account needs renewing. Whoever set this up can do it.',
   'view.failure.rateLimited': 'Your provider asked us to slow down. This carries on by itself.',
   'view.failure.quotaExceeded': 'A daily limit was reached. Copying resumes tomorrow on its own.',
+  'view.failure.policyRefused':
+    'Some items were left out by this migration\u2019s own settings, not by either account.',
   'view.failure.sourceRefused':
     'Your old account would not release some items. Nothing was sent to your new account.',
   'view.failure.targetRefused': 'Your new account would not accept some items.',
@@ -1028,6 +1030,12 @@ const en = {
     'The provider asked us to slow down. Nothing is wrong: this pauses and resumes on its own.',
   'failure.quotaExceeded':
     'This account has reached what its provider allows for one day. It resumes tomorrow on its own \u2014 no action needed.',
+  // The ninth category (0125 T4). The ONLY remedy on this screen that names
+  // something the reader owns: their own migration's settings. It says which
+  // setting, because "change the policy" without naming the field is the
+  // remedy the owner already could not carry out.
+  'failure.policyRefused':
+    'This migration declined to copy this. The old account would have handed it over and the new one was never asked \u2014 the mapping\u2019s export format for Google documents is set to refuse them, or to a format this file has none. Change that setting and press Retry, or leave these items behind.',
   'failure.sourceRefused':
     'The source would not hand this over, so nothing was sent to the destination \u2014 there is nothing to check there. Common causes are a file whose owner turned off downloading or copying, a share that was withdrawn, and an item this account may open but not export.',
   // The last clause was added on 2026-09-17, when two contacts were refused
@@ -1905,6 +1913,8 @@ const nl: Record<keyof typeof en, string> = {
     'De provider vroeg ons om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
   'failure.quotaExceeded':
     'Dit account heeft bereikt wat de provider per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
+  'failure.policyRefused':
+    'Deze migratie heeft dit zelf niet overgezet. Het oude account had het gewoon afgegeven en het nieuwe is er nooit om gevraagd \u2014 het exportformaat voor Google-documenten staat op weigeren, of op een formaat dat dit bestand niet kent. Pas die instelling aan en klik op Opnieuw proberen, of laat deze items achter.',
   'failure.sourceRefused':
     'De bron wilde dit niet afgeven, dus er is niets naar de bestemming gestuurd \u2014 daar valt niets te controleren. Veelvoorkomende oorzaken: een bestand waarvan de eigenaar downloaden of kopi\u00EBren heeft uitgezet, een ingetrokken deling, en een item dat dit account wel mag openen maar niet exporteren.',
   'failure.targetRefused':
@@ -2676,6 +2686,8 @@ const nl: Record<keyof typeof en, string> = {
   'view.failure.authExpired': 'De koppeling met uw account moet vernieuwd worden. Wie dit heeft ingesteld kan dat.',
   'view.failure.rateLimited': 'Uw provider vroeg ons rustiger aan te doen. Dit gaat vanzelf verder.',
   'view.failure.quotaExceeded': 'Een daglimiet is bereikt. Morgen gaat het kopiëren vanzelf verder.',
+  'view.failure.policyRefused':
+    'Sommige items bleven liggen door de instellingen van deze migratie, niet door uw accounts.',
   'view.failure.sourceRefused':
     'Uw oude account gaf sommige items niet vrij. Er ging niets naar uw nieuwe account.',
   'view.failure.targetRefused': 'Uw nieuwe account wilde sommige items niet aannemen.',

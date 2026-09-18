@@ -44,6 +44,8 @@
 import {
   permissionsNotDiscoverable,
   markNeedsDecision,
+  withFailureCategory,
+  type FailureCategory,
   type FileSource,
   type FileFolder,
   type FileItem,
@@ -187,18 +189,56 @@ export class NativeFileRefused extends Error {
     // The word a person uses, not the MIME suffix. The LEDGER key stays the
     // suffix (see `nativeFileWord`); this is only the sentence.
     const kind = nativeFileWord(mimeType);
+    // WHICH KIND OF REFUSAL THIS IS, decided in the same branch that writes
+    // the sentence (workplan 0125 T4).
+    //
+    // Both values already existed; what did not is any way for them to leave
+    // this constructor. `classifyFailure` reads message text, so it was handed
+    // prose about a `nativeFilePolicy` and answered `unknown` — thirty of the
+    // owner's files, whose remedy then read "send it to us and we will look"
+    // about a refusal written here. The category is stated instead, beside the
+    // decision marker it already carried, and travels the same way.
+    //
+    // The line is WHETHER A SETTING WOULD CHANGE THE ANSWER, because that is
+    // what the Failures page offers a press for:
+    //
+    //  - `source_refused` — nothing we could configure makes Drive produce a
+    //    file. A Form, a My Map, a Site, a shortcut with no content of its own.
+    //  - `policy_refused`  — the source would have handed it over and the
+    //    destination was never asked; this migration's own policy declined.
+    //
+    // THE SPLIT IS THE EXPORTABLE/NOT-EXPORTABLE ONE, and nothing finer. A
+    // first draft made `policy_refused` conditional on another policy being
+    // measured stable for the type, so a group whose remedy is "change the
+    // export policy" could never hold an item no policy carries. The condition
+    // cannot fire: the three branches that could reach it are all below the
+    // `EXPORTABLE_NATIVE_TYPES` guard, and every exportable type has at least
+    // two stable policies. A branch nothing can execute is a branch no test can
+    // prove, so it is not here.
+    //
+    // WHAT HOLDS THE CLAIM INSTEAD is a guard over the measurement table
+    // itself, in `a-policy-offered-for-a-form-that-cannot-be-exported`: every
+    // exportable type must keep a stable policy to switch TO, whichever one is
+    // in force. Add a Google type with nothing measured and that goes red,
+    // naming the type — rather than this shipping a `policy_refused` whose
+    // remedy names no format, which is the one-button-two-remedies defect the
+    // category was added to end, reappearing one size down.
+    let category: FailureCategory;
     let message: string;
     if (mimeType === DRIVE_SHORTCUT_MIME) {
+      category = 'source_refused';
       message =
         `"${name}" is a Google Drive shortcut: a pointer to an item that lives elsewhere, not ` +
         'a file of its own, so there is nothing to copy. If the item it points to is in scope ' +
         'it is copied under its own path; otherwise accept leaving the shortcut behind.';
     } else if (!EXPORTABLE_NATIVE_TYPES.has(mimeType)) {
+      category = 'source_refused';
       message =
         `"${name}" is a Google ${kind} and has no file to copy. Drive cannot export a ${kind} in ` +
         'any format, so no export policy would change this — the only way to keep it is to open ' +
         'it in Drive and share or download it there. Accept leaving it behind here.';
     } else if (policy === 'refuse') {
+      category = 'policy_refused';
       message =
         `"${name}" is a Google ${kind} and has no file to copy. Migrating it means asking Drive ` +
         'to EXPORT a rendering (.docx, .pdf, …), which is lossy — the original is not ' +
@@ -207,6 +247,7 @@ export class NativeFileRefused extends Error {
         '"export-odf" (.odt/.ods/.odp), "export-office" (.docx/.xlsx/.pptx) or "export-pdf" — ' +
         'to migrate these, or move them out of scope.';
     } else if (stability === 'unstable') {
+      category = 'policy_refused';
       // MEASURED, not suspected. Drive CAN export this one — the refusal is
       // about what the export is worth, which is a harder thing to explain and
       // a worse thing to get wrong. If this file were copied, every later pass
@@ -220,6 +261,7 @@ export class NativeFileRefused extends Error {
         `change that did not happen and re-copy it, nightly, forever. ${wayOutFor(kind, mimeType, policy)} ` +
         'This is a measurement, not a guess — see workplan 0042 T3.';
     } else {
+      category = 'policy_refused';
       message =
         `"${name}" is a Google ${kind}, and the mapping's export policy (${policy}) has no ` +
         `rendering for a ${kind}. Choose a policy that covers it, or accept leaving it behind.`;
@@ -227,6 +269,7 @@ export class NativeFileRefused extends Error {
     super(message);
     this.name = 'NativeFileRefused';
     markNeedsDecision(this);
+    withFailureCategory(category, this);
   }
 }
 

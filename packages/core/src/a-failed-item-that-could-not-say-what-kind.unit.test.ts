@@ -44,6 +44,8 @@ import {
   setLogLevel,
   resetLogLevel,
   FAILURE_CATEGORIES,
+  markNeedsDecision,
+  withFailureCategory,
   type UpsertResult,
 } from '@openmig/shared';
 
@@ -90,6 +92,34 @@ function onePass(ledger: MemoryLedger, fails: 'source' | 'target') {
       if (fails === 'target') throw new Error(REFUSAL);
       return { targetId: 't', created: true };
     },
+    naturalKey: (i) => keyOf(i.id),
+    contentHash: (raw) => `h:${raw as string}`,
+    ensureCollection: async (f) => f.path,
+  });
+}
+
+/**
+ * The same pass, failing on the SOURCE with a thrown value the caller supplies.
+ *
+ * Separate from `onePass` because that one owns its error on purpose — the
+ * headline above depends on both sides throwing one identical string, and a
+ * parameter there would let a later edit weaken it without anybody noticing.
+ */
+function passRefusing(ledger: MemoryLedger, thrown: unknown) {
+  return runDomainSync<unknown, unknown, Item, { path: string }>({
+    sourceIsAuthorityOnExistence: true,
+    tenantId: TENANT,
+    mappingId: MAPPING,
+    domain: 'contact',
+    source: {},
+    target: {},
+    ledger,
+    listFolders: async () => [{ path: 'Contacts' }],
+    listSince: async () => ({ items: [CARD], nextCursor: { value: '1' } }),
+    fetchRaw: async () => {
+      throw thrown;
+    },
+    upsert: async (): Promise<UpsertResult> => ({ targetId: 't', created: true }),
     naturalKey: (i) => keyOf(i.id),
     contentHash: (raw) => `h:${raw as string}`,
     ensureCollection: async (f) => f.path,
@@ -196,5 +226,67 @@ describe('a row with no category says so, rather than claiming one', () => {
     expect(older?.lastError).toContain('pre-0049');
     expect(older?.category).toBeUndefined();
     expect('category' in (older ?? {})).toBe(false);
+  });
+});
+
+/**
+ * AND WHEN THE THROWER KNOWS BETTER THAN THE CLASSIFIER (workplan 0125 T4).
+ *
+ * Everything above is about reading a failure somebody else produced, where the
+ * side is the only structural fact available. Some failures are OURS:
+ * `NativeFileRefused` decides why a Google file is not going and then writes a
+ * paragraph about it, and a regex over that paragraph is this codebase guessing
+ * at its own output — which it did, answering `unknown` for thirty of the
+ * owner's files on 2026-09-18.
+ *
+ * The category is stated at the throw and travels the same way the side does.
+ * This is the wiring, which is the part that can silently not happen:
+ * `recordFailure` takes a STRING, so anything the error itself knows has to be
+ * read at the one point where the error still exists.
+ */
+describe('a category the throw site stated', () => {
+  /** An error that names its own category, as `NativeFileRefused` does. */
+  const declined = () =>
+    withFailureCategory(
+      'policy_refused',
+      markNeedsDecision(
+        new Error('"Heen-en-Weer tas" is a Google Doc and has no file to copy.'),
+      ),
+    );
+
+  it('reaches the row, rather than being re-guessed from the prose', async () => {
+    // THE WIRING. The message says nothing a rule matches — it is our own
+    // sentence — so this row reads `unknown` the moment the pass stops reading
+    // the tag off the thrown value.
+    const ledger = new MemoryLedger();
+    await passRefusing(ledger, declined());
+    const failure = await onlyFailure(ledger);
+    expect(failure.category).toBe('policy_refused');
+    expect(FAILURE_CATEGORIES).toContain(failure.category);
+  });
+
+  it('keeps the prose verbatim beside it, like every other category', async () => {
+    const ledger = new MemoryLedger();
+    await passRefusing(ledger, declined());
+    expect((await onlyFailure(ledger)).lastError).toContain('has no file to copy');
+  });
+
+  it('beats the side, which for this one would have been the wrong answer', async () => {
+    // The refusal is raised inside the SOURCE closure, so `failureSideOf` says
+    // `source` and the classifier's own reading of a refusal from that side is
+    // `source_refused` — the category whose remedy is "accept leaving it
+    // behind". For a file a setting WOULD carry, that is the wrong instruction,
+    // and it is the one the owner was given.
+    const ledger = new MemoryLedger();
+    await passRefusing(ledger, withFailureCategory('policy_refused', new Error('403 Forbidden')));
+    expect((await onlyFailure(ledger)).category).toBe('policy_refused');
+  });
+
+  it('leaves an error that states nothing exactly as it was', async () => {
+    // The regression this must not cause: every provider failure in the
+    // product takes the old path, and the old path is unchanged.
+    const ledger = new MemoryLedger();
+    await passRefusing(ledger, new Error(REFUSAL));
+    expect((await onlyFailure(ledger)).category).toBe('source_refused');
   });
 });

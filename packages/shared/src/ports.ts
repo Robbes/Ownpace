@@ -1188,6 +1188,21 @@ export interface Ledger {
        * and `undefined` is a real answer there rather than a guess.
        */
       readonly side?: FailureSide;
+      /**
+       * The category the THROW SITE named, when it named one (workplan 0125
+       * T4) — read off the thrown value by `statedFailureCategoryOf`, on the
+       * same line that reads the side, and never parsed out of `error`.
+       *
+       * Set only by errors this codebase builds itself, which already know
+       * what they are: `NativeFileRefused` branches on whether a setting would
+       * change the answer before it writes a word of prose, and a regex over
+       * that prose is a second, worse derivation of what it knew. It wins over
+       * both the message and the side, because it is first-hand.
+       *
+       * `undefined` is the normal case — a provider's error states nothing —
+       * and means the message is read exactly as it always was.
+       */
+      readonly category?: FailureCategory;
     },
   ): Promise<LedgerRecord>;
   /**
@@ -1744,7 +1759,7 @@ export interface ItemFailure {
   /** Verbatim, so the operator can tell a 507 from a 403 from a parse error. */
   readonly lastError: string;
   /**
-   * What KIND of failure `lastError` was, in the same eight values the domain
+   * What KIND of failure `lastError` was, in the same nine values the domain
    * level uses — so the screen can show a remedy in the reader's language
    * beside prose that is always the provider's English (migration 0049).
    *

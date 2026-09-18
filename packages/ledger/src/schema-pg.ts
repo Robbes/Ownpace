@@ -568,7 +568,7 @@ export const item = pgTable(
     /**
      * What KIND of failure `last_error` was — the same vocabulary the domain
      * level uses (`migration_status.last_error_category`, migration 0033,
-     * extended by 0048). Added to the ITEM by migration 0049.
+     * extended by 0048 and 0051). Added to the ITEM by migration 0049.
      *
      * THE GAP IT CLOSES. A domain-level failure has said "this is an expired
      * credential, reconnect the account" in the customer's own language since
@@ -585,6 +585,13 @@ export const item = pgTable(
      * There is deliberately no `failed_side` column here: at the item level the
      * side IS the category, said in the vocabulary the screen speaks, and a
      * column repeating it would be a second copy that can drift.
+     *
+     * `policy_refused` (migration 0051) is not matched from wording at all.
+     * It is STATED by the code that refused, because that code is ours and
+     * already knew: the item was declined by THIS MIGRATION's export policy
+     * while the source would have handed it over, so a setting is the remedy
+     * and the item becomes eligible again when it changes. The only category
+     * here whose cause is us.
      *
      * NULL on every row written before 0049, and not backfilled: classifying
      * old prose without its side is the exact mistake 0048 exists to undo.
@@ -1173,10 +1180,10 @@ export const migrationStatus = pgTable(
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastError: text('last_error'),
     /**
-     * What KIND of failure `last_error` was — one of eight (workplan 0110 T3,
-     * migration 0033; two refusals added by migration 0048). Beside the prose,
-     * never instead of it: `last_error` stays verbatim because it is the
-     * precise answer, and this is the ACTIONABLE one, for the customer first.
+     * What KIND of failure `last_error` was — one of nine (workplan 0110 T3,
+     * migration 0033; two refusals added by 0048 and a third by 0051). Beside
+     * the prose, never instead of it: `last_error` stays verbatim because it is
+     * the precise answer, and this is the ACTIONABLE one, for the customer first.
      *
      * Safe where `last_error` is not. This carries no address, no folder name
      * and no subject, which is what lets 0110's metadata-only operator views
@@ -1186,15 +1193,17 @@ export const migrationStatus = pgTable(
      * not classify it. A screen must not conflate those.
      *
      * `text` WITH NO CHECK, on purpose — see migration 0033. The vocabulary is
-     * a product decision expected to be revisited, and 0048 is the proof it
-     * was worth it: adding `source_refused` and `format_refused` took no lock
-     * and no column change, only a comment that had gone out of date.
+     * a product decision expected to be revisited, and 0048 and 0051 are the
+     * proof it was worth it: three values have been added since, each taking no
+     * lock and no column change, only a comment that had gone out of date.
      * `isFailureCategory` is the guard on the way back in.
      *
-     * READ IT WITH `failed_side` BELOW. The two refusals are told apart by the
-     * side the pass recorded, never by the wording — a source refusal and a
+     * READ IT WITH `failed_side` BELOW. The PROVIDER refusals are told apart by
+     * the side the pass recorded, never by the wording — a source refusal and a
      * target one read identically. Both are written in one statement from one
-     * call, so they cannot disagree.
+     * call, so they cannot disagree. `policy_refused` needs neither: no
+     * provider was involved, and the code that declined the item says so
+     * itself (migration 0051).
      */
     lastErrorCategory: text('last_error_category'),
     /**

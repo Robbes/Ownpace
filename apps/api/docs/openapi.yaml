@@ -1380,7 +1380,7 @@ paths:
                                   migration's connections.
                               category:
                                 type: string
-                                enum: [auth_expired, rate_limited, quota_exceeded, source_refused, target_refused, format_refused, network, unknown]
+                                enum: [auth_expired, rate_limited, quota_exceeded, policy_refused, source_refused, target_refused, format_refused, network, unknown]
                               domains:
                                 type: array
                                 description: The domains this category stands on.
@@ -4346,7 +4346,7 @@ components:
           # to eight on 2026-09-17 and that assertion is what said so: the two
           # refusals split by `failed_side` below, which the pass records at
           # the closure that threw rather than reading it out of the prose.
-          enum: [auth_expired, rate_limited, quota_exceeded, source_refused, target_refused, format_refused, network, unknown]
+          enum: [auth_expired, rate_limited, quota_exceeded, policy_refused, source_refused, target_refused, format_refused, network, unknown]
         failed_side:
           type: string
           nullable: true
@@ -4844,7 +4844,7 @@ components:
         domain: { $ref: '#/components/schemas/Domain' }
         category:
           type: string
-          enum: [auth_expired, rate_limited, quota_exceeded, source_refused, target_refused, format_refused, network, unknown]
+          enum: [auth_expired, rate_limited, quota_exceeded, policy_refused, source_refused, target_refused, format_refused, network, unknown]
           description: |
             The failure KIND, which is the product's own grouping vocabulary and
             the one the Failures screen prints per row. Matched exactly, and
