@@ -846,7 +846,9 @@ router.post('/:mappingId/failures', authenticate, async (req: AuthenticatedReque
     }
     // THE PRODUCT'S OWN GROUPING VOCABULARY (the owner, 2026-09-17: *"why now
     // detail groups that share sumilarities and offer those to pick from to do
-    // bulk actions?"*). Validated against the eight rather than passed through:
+    // bulk actions?"*). Validated against the vocabulary rather than passed
+    // through — named, not counted, because this sentence said "the eight" and
+    // went on saying it when there were nine:
     // an unknown word would match no row, and a press that silently changes
     // nothing is how somebody concludes the screen is broken.
     const category = body.category === undefined ? undefined : String(body.category);
