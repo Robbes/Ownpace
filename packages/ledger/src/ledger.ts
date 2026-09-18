@@ -134,6 +134,12 @@ export class PgLedger implements Ledger {
         // cannot say WHICH item is missing is not a list anybody can act on" —
         // had a blank identifier on every line.
         naturalKey: record.naturalKey ?? '',
+        // The name a PERSON calls it (migration 0050), beside the key and never
+        // instead of it. `null` rather than `''` because this column is
+        // nullable and NULL is the honest value for a domain that has no name
+        // to give: a file, whose key IS its name, and mail, whose Subject this
+        // code cannot yet decode.
+        displayName: record.displayName ?? null,
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
@@ -222,6 +228,14 @@ export class PgLedger implements Ledger {
         // instead of carrying a blank column for the life of the mapping.
         ...(record.naturalKey !== undefined && record.naturalKey !== ''
           ? { naturalKey: record.naturalKey }
+          : {}),
+        // The name heals the same way and for the same reason: every row
+        // written before 2026-09-17 has none, no migration can invent one, and
+        // a pass that reads the item again is the only thing that can. A caller
+        // with nothing to say leaves the column alone rather than erasing a
+        // name an earlier pass recorded.
+        ...(record.displayName !== undefined && record.displayName !== ''
+          ? { displayName: record.displayName }
           : {}),
         lastSyncedAt: sql`now()`,
         updatedAt: sql`now()`,
@@ -329,6 +343,13 @@ export class PgLedger implements Ledger {
           ...(record.naturalKey !== undefined && record.naturalKey !== ''
             ? { naturalKey: record.naturalKey }
             : {}),
+          // And its name, by the same rule. This is the path that matters most
+          // for it: a failure is the row somebody has to act on, and the two
+          // contact 500s that prompted the name showed a UID on every screen
+          // that could have identified them.
+          ...(record.displayName !== undefined && record.displayName !== ''
+            ? { displayName: record.displayName }
+            : {}),
         })
         .where(
           and(
@@ -356,6 +377,12 @@ export class PgLedger implements Ledger {
         // act on. Two contact 500s on the live deployment were unidentifiable
         // on screen for exactly this reason.
         naturalKey: record.naturalKey ?? '',
+        // The name a PERSON calls it (migration 0050), beside the key and never
+        // instead of it. `null` rather than `''` because this column is
+        // nullable and NULL is the honest value for a domain that has no name
+        // to give: a file, whose key IS its name, and mail, whose Subject this
+        // code cannot yet decode.
+        displayName: record.displayName ?? null,
         naturalKeyHash: record.naturalKeyHash,
         contentHash: record.contentHash,
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
@@ -1530,6 +1557,9 @@ export class PgLedger implements Ledger {
       // make a caller's `record.naturalKey !== ''` heal check read a blank as a
       // value it had been given.
       ...(row.naturalKey ? { naturalKey: row.naturalKey } : {}),
+      // Same rule: absent stays absent, so a round-tripped record cannot blank
+      // a name the row already holds.
+      ...(row.displayName ? { displayName: row.displayName } : {}),
       // Left off entirely when there is none, so "not recorded" stays
       // distinguishable from "recorded as empty".
       ...(row.sourceRefHref ? { sourceRef: row.sourceRefHref } : {}),

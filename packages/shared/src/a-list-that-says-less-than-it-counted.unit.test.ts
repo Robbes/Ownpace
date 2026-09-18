@@ -239,7 +239,7 @@ describe('the export is the whole account', () => {
 
   it('names its columns once, from the same renderer that fills them', () => {
     expect(lines(confirmedListCsv([]))).toEqual([
-      'domain,collection,item,state,claim,checked_at',
+      'domain,collection,item,name,state,claim,checked_at',
     ]);
   });
 
@@ -249,6 +249,36 @@ describe('the export is the whole account', () => {
     const csv = confirmedListCsv([row('unchecked', { confirmedAt: null })]);
     expect(lines(csv)[1]!.endsWith(',')).toBe(true);
     expect(csv).not.toContain('null');
+  });
+
+  it('carries the NAME beside the identifier, not instead of it', () => {
+    // The screen has one column and falls back from one to the other; a file
+    // being reconciled offline has room for both, and the person doing the
+    // reconciling needs the identifier to search their old account with AND the
+    // name to recognise.
+    const csv = confirmedListCsv([
+      row('missing', { naturalKey: 'urn:uuid:8f2b', displayName: 'Tandarts' }),
+    ]);
+    expect(lines(csv)[1]).toContain('urn:uuid:8f2b');
+    expect(lines(csv)[1]).toContain('Tandarts');
+  });
+
+  it('writes an empty name cell for a row that has none', () => {
+    // Every file row and every mail row, plus every row written before names
+    // were recorded. An echo of the identifier here would make the column
+    // useless for telling which rows actually have a name.
+    const csv = confirmedListCsv([row('missing', { naturalKey: '/Documents/tax.pdf' })]);
+    expect(lines(csv)[1]).toContain('/Documents/tax.pdf,,');
+  });
+
+  it('de-fangs a NAME that a spreadsheet would run as a formula', () => {
+    // A SUMMARY is written by whoever wrote it, and an event genuinely called
+    // `=SUM(A1:A9) review` is a cell Excel evaluates. The same rule the
+    // identifier column has carried since it existed.
+    const csv = confirmedListCsv([
+      row('missing', { naturalKey: 'urn:uuid:9', displayName: '=HYPERLINK("http://x")' }),
+    ]);
+    expect(csv).toContain("'=HYPERLINK");
   });
 
   it('keeps a subject with a comma, a quote or a newline on ONE row', () => {

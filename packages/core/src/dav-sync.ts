@@ -31,6 +31,9 @@ import { applyTargetFolderPrefix,
   naturalKeyForTask,
   naturalKeyTextForCalendar,
   naturalKeyTextForTask,
+  displayNameForCalendar,
+  displayNameForTask,
+  displayNameForContact,
   calendarContentHash,
   contactNaturalKeyHash,
   contactContentHash,
@@ -106,6 +109,10 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     naturalKey: (item) => naturalKeyForCalendar(item.item),
     // The same UID, unhashed, so the confirmed list can name the event.
     naturalKeyText: (item) => naturalKeyTextForCalendar(item.item),
+    // And what the person actually called it. A UID identifies the event; the
+    // SUMMARY is the only part of it anybody has ever seen (the owner, on
+    // sight: *"Why not show calander item names and contact names?"*).
+    displayName: (item) => displayNameForCalendar(item.item),
     // The CalDAV ETag, when the server sent one. Undefined keeps the old
     // skip-anything-seen behaviour rather than guessing at change.
     sourceVersion: (item) => item.item.etag,
@@ -207,6 +214,9 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     // The UID again — a task's TEXT is not prefixed, only its hash is. The
     // row's `domain` column is what says this is a task. See `hash.ts`.
     naturalKeyText: (item) => naturalKeyTextForTask(item.item),
+    // The SUMMARY, exactly as a calendar event's: a to-do's UID is no more
+    // readable than an appointment's.
+    displayName: (item) => displayNameForTask(item.item),
     sourceVersion: (item) => item.item.etag,
     sourceRef: (item) => item.item.sourcePath,
     contentHash: (raw) => calendarContentHash((raw as RawCalendarEvent).icalendar),
@@ -268,6 +278,10 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
       target.upsertContact(folderId, raw as RawContact, options),
     naturalKey: (item) => contactNaturalKeyHash(item.item.uid),
     naturalKeyText: (item) => item.item.uid,
+    // The card's FN. This is the domain the owner met the problem in: two of
+    // his contacts failed and every screen that could have told him which two
+    // printed `926caf98adce563`.
+    displayName: (item) => displayNameForContact(item.item),
     sourceVersion: (item) => item.item.etag,
     // The DAV href, for the same reason as calendar above.
     sourceRef: (item) => item.item.sourcePath,
@@ -369,6 +383,10 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     naturalKey: (item) => fileNaturalKeyHash(item.item.path),
     // The path, which is what a person searches their old account for.
     naturalKeyText: (item) => item.item.path,
+    // NO `displayName`, deliberately: the key above IS the name. A second copy
+    // of the path on the same row would be noise, and the screen already falls
+    // back to the identifier when there is no name.
+
     // Only when the source can answer it cheaply. Without it the loop can spot
     // a moved file only on a cursor-less pass, which in production is the first
     // one and none after — a detector that cannot fire when it matters. Hashed

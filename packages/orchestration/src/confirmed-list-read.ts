@@ -124,6 +124,10 @@ export async function walkConfirmedRows(
         domain: row.domain,
         collection: row.collection,
         naturalKey: row.naturalKey,
+        // Left OFF when there is none rather than sent as null: the view's
+        // field is optional, and a screen asking `?? naturalKey` must see
+        // undefined for the fall-back to fire.
+        ...(row.displayName ? { displayName: row.displayName } : {}),
         confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
       });
     }

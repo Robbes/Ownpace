@@ -585,6 +585,22 @@ export interface ConfirmedRowView extends ConfirmedRow {
   readonly collection: string;
   /** The item's own identifier: a Message-ID, a file path, a UID. */
   readonly naturalKey: string;
+  /**
+   * The name a PERSON calls it: an event's SUMMARY, a contact's FN.
+   *
+   * Absent for a file, whose `naturalKey` IS its name; absent for mail, whose
+   * Subject this codebase cannot decode yet; and absent on every row written
+   * before 2026-09-17. A reader falls back to `naturalKey`, which is exactly
+   * what this list showed before the name existed — so an old row loses
+   * nothing and a new one gains the half a UID could never give.
+   *
+   * Under the SAME §17 exception argued above, and for the stronger version of
+   * the same reason: a UID is at least an identifier somebody could paste into
+   * a search box, and `926caf98adce563` was what the owner was shown when two
+   * of his contacts failed. *"I can not find these contacts, or atleast i do no
+   * know how."*
+   */
+  readonly displayName?: string;
   /** When the target was asked, ISO-8601. `null` = never — the row is `unchecked`. */
   readonly confirmedAt: string | null;
 }
@@ -618,11 +634,27 @@ export interface ConfirmedRowView extends ConfirmedRow {
  * silently changes the count somebody is reconciling.
  */
 export function confirmedListCsv(rows: readonly ConfirmedRowView[]): string {
-  const header = ['domain', 'collection', 'item', 'state', 'claim', 'checked_at'];
+  // `name` BESIDE `item`, not instead of it. The screen may fall back from one
+  // to the other because it has one column; a file being reconciled offline has
+  // room for both, and the person doing the reconciling needs the identifier to
+  // search their old account with AND the name to recognise. Dropping either
+  // would make this document worse than the screen it is exported from.
+  const header = ['domain', 'collection', 'item', 'name', 'state', 'claim', 'checked_at'];
   const lines = [header.map(csvField).join(',')];
   for (const r of rows) {
     lines.push(
-      [r.domain, r.collection, r.naturalKey, r.state, r.claim, r.confirmedAt ?? '']
+      [
+        r.domain,
+        r.collection,
+        r.naturalKey,
+        // A SUMMARY and an FN are written by whoever wrote them, so this field
+        // goes through `csvField` like every other — see the formula note
+        // above, which named calendar summaries before one could reach here.
+        r.displayName ?? '',
+        r.state,
+        r.claim,
+        r.confirmedAt ?? '',
+      ]
         .map(csvField)
         .join(','),
     );
