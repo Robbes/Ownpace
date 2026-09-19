@@ -23,6 +23,19 @@
  *     0053 has no placement on ANY row, and "the old system did not say where
  *     this sits" is worth printing when the absence is selective and is noise
  *     when it is universal — the very wall this task removes.
+ *
+ * And the three the owner found on the live page once the fold worked
+ * (2026-09-19) — a fold that is READ wrongly has not finished the job:
+ *
+ *  5. **The comparison key on screen.** `grantee:role` is machinery. Printed
+ *     beside a folder called `2017 Q2` it reads as an email address with a
+ *     month stuck on the end, which is exactly how the owner read it.
+ *  6. **Five folders with one name.** A container we never listed gets no name
+ *     invented for it — and five rows of `One folder (not itself shared)`
+ *     identify none of them. A sample of what is inside does.
+ *  7. **A sentence between the tiles.** The reason a row stands apart sat
+ *     ABOVE the card it was about, so it pointed at nothing. It belongs in the
+ *     card, on the row it explains, once.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -168,7 +181,7 @@ describe('what the lid never covers', () => {
     // The grantee appears on the row too, so assert the DEVIATION line's own
     // wording: what this file carries that its folder does not.
     expect(
-      screen.getByText(/extra: stranger@example\.test:writer/),
+      screen.getByText(/extra: stranger@example\.test \(writer\)/),
     ).toBeInTheDocument();
   });
 
@@ -232,5 +245,122 @@ describe('a mapping scanned before folders could be grouped', () => {
     for (const label of ['One.pdf', 'Two.pdf', 'Three.pdf']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
+  });
+});
+
+describe('words, not the key the fold compares on', () => {
+  it('names who the folder is shared with, and never shows the key', async () => {
+    answerWith(folderWithChildren(3));
+    renderScreen();
+
+    expect(await screen.findByText('Foto shoot Emma')).toBeInTheDocument();
+    expect(screen.getByText(/anna@example\.test \(writer\)/)).toBeInTheDocument();
+    // `grantee:role` is what two items are COMPARED on. It is not language.
+    expect(screen.queryByText(/anna@example\.test:writer/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the folder name and who it is shared with apart', async () => {
+    // The owner read `2017 Q2  b.berentsen@gmail.com:writer` as one string and
+    // asked why an email address had grown a month on the end of it. They are
+    // two facts and they get two lines, each labelled.
+    answerWith(folderWithChildren(3));
+    renderScreen();
+
+    const label = await screen.findByText('Shared with');
+    expect(label).toBeInTheDocument();
+    expect(screen.getByText('Foto shoot Emma').closest('p')).not.toBe(label.closest('p'));
+  });
+
+  it('says a link grant in words too', async () => {
+    answerWith([
+      row({
+        id: 'link-folder',
+        itemKey: 'F',
+        parentKey: 'root',
+        isContainer: true,
+        onLabel: 'Public',
+        grantee: undefined,
+        viaLink: true,
+        role: 'reader',
+      }),
+      row({
+        id: 'link-child',
+        itemKey: 'c0',
+        parentKey: 'F',
+        onLabel: 'Poster.pdf',
+        grantee: undefined,
+        viaLink: true,
+        role: 'reader',
+      }),
+    ]);
+    renderScreen();
+
+    expect(await screen.findByText(/anyone with the link \(reader\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/\(link\):reader/)).not.toBeInTheDocument();
+  });
+});
+
+describe('two folders we could not name are not the same line', () => {
+  /**
+   * A container is named only when it is ITSELF shared — a folder can hold
+   * shared files without being shared, and naming one we never listed would be
+   * a claim about a folder nobody read. So five of the owner's groups read
+   * `One folder (not itself shared)`, identically, and one of them was the
+   * Drive root. A SAMPLE of what is inside tells them apart without claiming
+   * anything at all about the container.
+   */
+  it('identifies each by something demonstrably inside it', async () => {
+    answerWith([
+      row({ id: 'a1', itemKey: 'i1', parentKey: 'FA', onLabel: '2017 Q2' }),
+      row({ id: 'a2', itemKey: 'i2', parentKey: 'FA', onLabel: '2017 Q3' }),
+      row({ id: 'b1', itemKey: 'i3', parentKey: 'FB', onLabel: 'Taxes.pdf' }),
+      row({ id: 'b2', itemKey: 'i4', parentKey: 'FB', onLabel: 'Ute.pdf' }),
+    ]);
+    renderScreen();
+
+    expect(await screen.findAllByText('One folder (not itself shared)')).toHaveLength(2);
+    expect(screen.getByText(/holds 2017 Q2/)).toBeInTheDocument();
+    expect(screen.getByText(/holds Taxes\.pdf/)).toBeInTheDocument();
+  });
+
+  it('never points at the folder itself when the folder has a name', async () => {
+    answerWith(folderWithChildren(3));
+    renderScreen();
+
+    expect(await screen.findByText('Foto shoot Emma')).toBeInTheDocument();
+    expect(screen.queryByText(/holds/)).not.toBeInTheDocument();
+  });
+});
+
+describe('the reason a row stands apart is in the row', () => {
+  /** One item, three people, three rows — and ONE reason it is not folded. */
+  const onePlaceless = (): ShareGrantRow[] => [
+    ...folderWithChildren(2),
+    row({ id: 'l1', itemKey: 'loose', onLabel: 'Somewhere.pdf', grantee: 'anna@example.test' }),
+    row({ id: 'l2', itemKey: 'loose', onLabel: 'Somewhere.pdf', grantee: 'bob@example.test' }),
+    row({ id: 'l3', itemKey: 'loose', onLabel: 'Somewhere.pdf', grantee: 'cara@example.test' }),
+  ];
+
+  it('sits inside the card it is about, not between the cards', async () => {
+    answerWith(onePlaceless());
+    renderScreen();
+
+    const note = await screen.findByText(/did not say where this sits/);
+    // The folder is shut, so every `Mark done` on screen belongs to one of the
+    // three loose rows. The sentence must live in the same tile as the presses
+    // it explains — it used to sit above the tile, pointing at nothing.
+    const cards = screen.getAllByText('Mark done').map((b) => b.closest('li'));
+    expect(cards).toHaveLength(3);
+    expect(note.closest('li')).toBe(cards[0]);
+  });
+
+  it('is said once over the item, not once per grant', async () => {
+    answerWith(onePlaceless());
+    renderScreen();
+
+    await screen.findByText(/did not say where this sits/);
+    expect(screen.getAllByText(/did not say where this sits/)).toHaveLength(1);
+    // Every row is still there — one explanation, three rows to act on.
+    expect(screen.getAllByText('Somewhere.pdf')).toHaveLength(3);
   });
 });

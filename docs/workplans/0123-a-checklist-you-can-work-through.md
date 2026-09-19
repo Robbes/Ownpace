@@ -1,6 +1,37 @@
 # Workplan 0123 — A checklist you can work through
 
-## Status — 2026-09-18 (update this block at the end of every session)
+## Status — 2026-09-19 (update this block at the end of every session)
+
+**2026-09-19, last: the fold WORKS and could not be READ — three defects the owner found on his
+own data.** 482 rows folded to about twenty on the live Sharing page, and the deviations landed
+above the fold exactly as designed (`iCloud Photos.zip` carrying an extra writer and missing its
+link grant; `MyTagTV.com` with two grantees its siblings do not have). A fold nobody can read has
+not finished the job, though, and all three of these were mine:
+
+- **The comparison key reached the screen.** `grantSet` builds `grantee:role` so two items can be
+  checked for carrying exactly the same rights; the group header printed it raw, beside the folder
+  name, on one line. The owner read `b.berentsen@gmail.com:writer` next to a folder called
+  `2017 Q2` and asked why an email address had grown a month on the end of it. Fixed with
+  `readGrant` — the builder's own inverse, living beside it in `@openmig/shared` so the words on
+  screen cannot drift from the key underneath — and the folder's NAME and who it is shared WITH
+  now get a line each, the second one labelled. The ROLE stays the source's own word, as on every
+  row below it.
+- **Five folders with one name.** A container is named only when it is ITSELF shared, because a
+  folder can hold shared files without being shared and naming one we never listed would be a
+  claim about a folder nobody read. That reasoning is unchanged — but it left five rows all
+  reading `One folder (not itself shared)`, identifying none of them, and one of them was the
+  Drive root. `ShareGroup` now carries a `sample`: the alphabetically first member, never the
+  container itself, so the row reads `holds 2017 Q2` and says which folder this is by something
+  demonstrably IN it. No extra Drive call — the labels are already on the rows.
+- **A sentence between the tiles.** The reason a row would not fold sat ABOVE the card it was
+  about, a loose line between two tiles, pointing at nothing. The owner asked whether that was
+  meant to be there. It was not: it is inside the card now, and on the FIRST of an item's rows
+  only — an item shared with three people is three rows and one reason it stands apart, and once
+  per row is the wall again in a smaller font.
+
+Each fix is proved by mutation: reverting any one of them reddens between one and two of the
+guards in `a-wall-of-four-hundred-and-eighty-two-rows.unit.test.tsx` and
+`a-folder-that-was-four-hundred-and-eighty-two-rows.unit.test.ts`.
 
 **2026-09-18, last: T4 is done — the folder is one row on the screen.** The fold is a
 PRESENTATION over the rows the page already fetches: `groupShareGrants` runs client-side, so
@@ -163,7 +194,7 @@ it is a wall — and most of those rows are one shared folder counted once per f
 | T1 The press stops looking like a delete | ✅ Done — §2 | `ConfirmButton` splits the arming from the dressing; `DestructiveButton` stays as the destructive preset, so every caller that really destroys reads as it did. |
 | T2 The banner names every class nobody looked at | ✅ Done — §3 | `refreshShareGrants` now enforces the delegation section the way the report does, and the sentence is worded for the tenant's own source. |
 | T3 Done and Skip say what they mean | ✅ Done — §4 | The distinction is in `sharing.intro.more` and in a title on each button. |
-| T4 A folder is one row, not two hundred | ✅ **done** | Measured 2026-09-18 on the owner's Drive: `permissionDetails` yes (10/10 via `permissions.list`, 0/10 inline), `inheritedFrom` **no** (0/10). Drive says a grant is inherited, not what from — so §5's **fallback** is the design: group by `parents`, compare grant sets, deviations listed separately. Also the cheaper one (`parents` is free on the existing listing; the details cost one request per item). **Built 2026-09-18:** migration 0053 carries the placement, `groupShareGrants` in `@openmig/shared` folds it, the Drive scan fills it, and the Sharing page renders folders as one row with deviations kept above the fold. One press over a folder is `done`/`skip` only — `apply` invites a real person, so it stays per-row (owner's call to widen). |
+| T4 A folder is one row, not two hundred | ✅ **done** | Measured 2026-09-18 on the owner's Drive: `permissionDetails` yes (10/10 via `permissions.list`, 0/10 inline), `inheritedFrom` **no** (0/10). Drive says a grant is inherited, not what from — so §5's **fallback** is the design: group by `parents`, compare grant sets, deviations listed separately. Also the cheaper one (`parents` is free on the existing listing; the details cost one request per item). **Built 2026-09-18:** migration 0053 carries the placement, `groupShareGrants` in `@openmig/shared` folds it, the Drive scan fills it, and the Sharing page renders folders as one row with deviations kept above the fold. One press over a folder is `done`/`skip` only — `apply` invites a real person, so it stays per-row (owner's call to widen). **Read on the owner's live data 2026-09-19** (482 → ~20 rows, deviations above the fold) and three presentation defects fixed: the comparison key `grantee:role` no longer reaches the screen (`readGrant` is `grantSet`'s inverse), an unnamed container is identified by a sample of what is inside it, and the reason a row stands apart is inside that row's card, once. |
 
 ## 1. What the owner saw
 
