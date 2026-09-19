@@ -80,12 +80,21 @@ describe('Cutover State Machine', () => {
       expect(canRollback('GRACE_PERIOD')).toBe(true);
     });
 
-    it('should not allow rollback from other states', () => {
+    it('allows rollback from FAILED and APPROVED too — the states the machine admits it from', () => {
+      // This test used to assert FAILED -> false, pinning a predicate that
+      // disagreed with VALID_TRANSITIONS above (FAILED: [..., 'ROLLED_BACK'])
+      // and with the CLI, which lands a propagation timeout in FAILED and
+      // prints "Consider rollback." — a test that guarded the inconsistency
+      // rather than the rule (ADR-0047).
+      expect(canRollback('FAILED')).toBe(true);
+      expect(canRollback('APPROVED')).toBe(true);
+    });
+
+    it('should not allow rollback from the states the machine does not', () => {
       expect(canRollback('PREPARING')).toBe(false);
       expect(canRollback('READY_FOR_CUTOVER')).toBe(false);
       expect(canRollback('COMPLETED')).toBe(false);
       expect(canRollback('ROLLED_BACK')).toBe(false);
-      expect(canRollback('FAILED')).toBe(false);
     });
   });
 
@@ -280,5 +289,40 @@ describe('VALID_TRANSITIONS Table Snapshot', () => {
     }
 
     expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// canRollback is the state machine, not a second list (ADR-0047)
+//
+// It said CUTOVER_IN_PROGRESS or GRACE_PERIOD while VALID_TRANSITIONS also
+// admits ROLLED_BACK from APPROVED and FAILED. Two answers to "can this roll
+// back" is how `rollbackAvailable` came to read false in the exact state
+// `execute` leaves a propagation timeout in — beside its own "Consider
+// rollback." — and this pins the predicate to the machine so it cannot drift
+// off it again.
+// ---------------------------------------------------------------------------
+
+describe('canRollback derives from the state machine', () => {
+  const ALL: CutoverState[] = [
+    'PREPARING', 'READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS',
+    'GRACE_PERIOD', 'COMPLETED', 'ROLLED_BACK', 'FAILED',
+  ];
+
+  it('agrees with isValidTransition(state, ROLLED_BACK) for every state', () => {
+    for (const state of ALL) {
+      expect(canRollback(state), state).toBe(isValidTransition(state, 'ROLLED_BACK'));
+    }
+  });
+
+  it('is true in FAILED — where execute lands a propagation timeout and says "Consider rollback"', () => {
+    expect(canRollback('FAILED')).toBe(true);
+  });
+
+  it('is false in the terminal states, and before anything was approved', () => {
+    expect(canRollback('COMPLETED')).toBe(false);
+    expect(canRollback('ROLLED_BACK')).toBe(false);
+    expect(canRollback('PREPARING')).toBe(false);
+    expect(canRollback('READY_FOR_CUTOVER')).toBe(false);
   });
 });

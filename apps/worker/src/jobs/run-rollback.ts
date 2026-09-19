@@ -1,28 +1,20 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * Rollback Job
+ * Rollback Job — a caller of `performRollback` (ADR-0047), nothing more.
  *
- * Reverts a migration to its previous state: reactivates the mapping so
- * shadow sync resumes with the original source authoritative, and marks the
- * cutover ROLLED_BACK. DNS restore is deferred (verify-only DNS — the
- * operator reverts MX manually).
- *
- * WHAT A ROLLBACK IS, decided by the owner 2026-08-23 and written here because
- * this file is where somebody would otherwise build the other thing:
+ * WHAT A ROLLBACK IS, decided by the owner 2026-08-23:
  *
  *   A rollback is a SETBACK. It puts the migration back to syncing, with the
- *   original source live again, and that is all of it.
+ *   original source live again, and that is all of it. It NEVER swaps source
+ *   and target. It NEVER salvages from the target — mail delivered there while
+ *   MX pointed at it stays there, because pulling it back would mean writing
+ *   to a source this product only ever reads.
  *
- *   It NEVER swaps source and target. The mapping's direction is untouched —
- *   after a rollback the sync runs source -> target exactly as before, because
- *   the source is authoritative again and the target is once more the copy.
- *
- *   It NEVER salvages from the target. Anything delivered to the target while
- *   MX pointed there stays on the target. Pulling it back would mean writing to
- *   a source this product only ever reads, and a migration tool that writes to
- *   somebody's live source on an emergency path is not one to trust with the
- *   emergency. The operator is TOLD about that mail rather than surprised by it
- *   (see the notice below); recovering it is theirs to decide.
+ * For a month this file was one of two rollbacks: it reactivated the mapping
+ * and marked the ledger, and nothing called it; the operator CLI marked the
+ * ledger and left the mapping stopped. The setback now lives once, in
+ * `@openmig/core`, and this job hands it a store, the mapping port, and —
+ * when asked — a notification. Nothing here decides anything.
  *
  * `notifyUsers` is REAL as of workplan 0030 T4: when SMTP is configured, it
  * sends the rollback notice through the same channel every other event uses.
@@ -31,12 +23,17 @@
  * tell people and being told nothing happened is recoverable; believing they
  * were told when the channel was never configured is not (hard rule 9).
  *
- * Trigger: Manual (user-initiated)
+ * DNS restore is deferred (verify-only DNS — the operator reverts MX by hand).
+ *
+ * Trigger: Manual (user-initiated) — the Trigger.dev dashboard. No API route
+ * enqueues it, on purpose: the API is prepare-only for cutovers, and nothing
+ * there executes one either (workplan 0101 T5).
  */
 
 import { z } from 'zod';
 import { schemaTask, logger } from '@trigger.dev/sdk';
-import { CutoverStore } from '@openmig/ledger';
+import { CutoverStore, mappingLifecyclePort } from '@openmig/ledger';
+import { performRollback, RollbackRefused } from '@openmig/core';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
 import { Pool } from 'pg';
@@ -73,7 +70,7 @@ export const runRollback = schemaTask({
   run: async (payload: unknown) => {
     const typedPayload = payload as RollbackJobPayload;
     const { tenantId, mappingId, reason, options } = typedPayload;
-    
+
     // Built here, before any rollback action, for one reason: if the channel
     // is not configured, the caller finds out while everything is still
     // untouched and can resubmit without the flag. Discovering it AFTER the
@@ -105,112 +102,66 @@ export const runRollback = schemaTask({
     const cutoverPersistence = new CutoverStore(db);
 
     try {
-      // Step 0: Load current cutover state
-      const state = await cutoverPersistence.loadCutoverState(asTenantId(tenantId), asMappingId(mappingId));
-      if (!state) {
-        throw new Error('No cutover state found - nothing to rollback');
-      }
-      
-      // `logger` from the SDK, not `ctx.logger`: Trigger.dev v4's TaskRunContext
-      // carries run metadata only and has no logger, so this line used to throw
-      // "Cannot read properties of undefined (reading 'log')" — the first thing
-      // the job did after loading state, on every run.
-      logger.info(`Rolling back cutover from state: ${state.currentState || state.state}`);
-      logger.info(`Reason: ${reason}`);
-
-      // Step 1: DNS is DEFERRED by owner decision (verify-only DNS, 2026-07-16 —
-      // deSEC provider writes not implemented). Do not claim a restore that did
-      // not happen; the operator reverts the MX record manually.
+      // DNS is DEFERRED by owner decision (verify-only DNS, 2026-07-16). Do
+      // not claim a restore that did not happen; the operator reverts the MX
+      // record manually.
       if (options.restoreDns && options.dnsDomain) {
         logger.warn(
           `DNS restore for ${options.dnsDomain} is DEFERRED (verify-only DNS) — revert the MX record manually.`,
         );
       }
 
-      // Step 2: Reactivate the mapping so shadow sync resumes with the original
-      // source authoritative again (the real, in-scope rollback action).
-      log.info('Reactivating mapping (status → active)');
-      logger.info('Reactivating mapping so shadow sync resumes...');
-      await db
-        .update(schemaPg.mailboxMapping)
-        .set({ status: 'active', updatedAt: new Date() })
-        .where(
-          and(
-            eq(schemaPg.mailboxMapping.id, mappingId),
-            eq(schemaPg.mailboxMapping.tenantId, tenantId),
-          ),
-        );
-
-      // Step 3: Update cutover status to ROLLED_BACK
-      log.info('Marking cutover as rolled back');
-      await cutoverPersistence.transitionState(asTenantId(tenantId), asMappingId(mappingId), 'ROLLED_BACK', {
-        rolledBackAt: new Date().toISOString(),
+      const outcome = await performRollback({
+        tenantId: asTenantId(tenantId),
+        mappingId: asMappingId(mappingId),
+        cutoverStore: cutoverPersistence,
+        mapping: mappingLifecyclePort(pool, tenantId, mappingId, 'trigger-job'),
         rolledBackBy: 'trigger-job',
-        rollbackReason: reason,
+        reason,
+        // `logger` from the SDK, not `ctx.logger`: Trigger.dev v4's
+        // TaskRunContext carries run metadata only and has no logger.
+        log: (message) => logger.info(message),
+        ...(options.notifyUsers
+          ? {
+              notify: async () => {
+                // What the customer called it, read at send time. They know
+                // this migration as "Gmail to Nextcloud"; the UUID appears on
+                // no screen they have ever seen (owner report, 2026-09-14).
+                // `name` is nullable and `mappingLabel` falls back to the id,
+                // so a migration nobody named still sends.
+                const [row] = await db
+                  .select({ name: schemaPg.mailboxMapping.name })
+                  .from(schemaPg.mailboxMapping)
+                  .where(
+                    and(
+                      eq(schemaPg.mailboxMapping.id, mappingId),
+                      eq(schemaPg.mailboxMapping.tenantId, tenantId),
+                    ),
+                  )
+                  .limit(1);
+                await channel.notifier.notify(
+                  renderEvent(
+                    { kind: 'rollback_finished', mapping: { id: mappingId, name: row?.name }, reason },
+                    channel.locale,
+                  ),
+                );
+              },
+            }
+          : {}),
       });
-      logger.info('Cutover marked as rolled back');
 
-      // THE ONE THING A ROLLBACK CANNOT GIVE BACK, said out loud rather than
-      // left for somebody to discover from a customer. While MX pointed at the
-      // target, mail was delivered THERE. The sync that just resumed runs
-      // source -> target, so it will never carry those messages back, and by
-      // the decision in this file's header it is not going to try. An operator
-      // who is not told this believes a rollback restored a state it did not.
-      logger.warn(
-        'Mail delivered to the TARGET while MX pointed at it stays on the target. ' +
-          'The resumed sync runs source -> target and will not bring it back. ' +
-          'Recover it from the target by hand if you need it.',
-      );
-
-      // Tell people, if asked to (workplan 0030 T4). AFTER the rollback, so
-      // the mail only ever describes something that actually happened, and
-      // guarded, so a mail server that is down cannot undo a rollback that
-      // succeeded: the failed SEND is logged loudly and the job still
-      // reports success, because the rollback IS complete. A thrown error
-      // here would tell the operator their rollback failed when it did not.
-      if (options.notifyUsers) {
-        try {
-          // What the customer called it, read at send time from the row this
-          // job has just written. They know this migration as "Gmail to
-          // Nextcloud"; the UUID appears on no screen they have ever seen, so
-          // a mail carrying only that told them a rollback happened without
-          // telling them to WHAT (owner report, 2026-09-14). `name` is
-          // nullable and `mappingLabel` falls back to the id, so a migration
-          // nobody named still sends — the mail is not worth losing over a
-          // missing label.
-          const [row] = await db
-            .select({ name: schemaPg.mailboxMapping.name })
-            .from(schemaPg.mailboxMapping)
-            .where(
-              and(
-                eq(schemaPg.mailboxMapping.id, mappingId),
-                eq(schemaPg.mailboxMapping.tenantId, tenantId),
-              ),
-            )
-            .limit(1);
-          await channel.notifier.notify(
-            renderEvent(
-              { kind: 'rollback_finished', mapping: { id: mappingId, name: row?.name }, reason },
-              channel.locale,
-            ),
-          );
-          logger.info('Rollback notification sent');
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          log.error('Rollback notification FAILED to send', { error: message });
-          logger.error(
-            `The rollback succeeded but its notification did not send: ${message}. ` +
-              'Nobody has been told — tell them by hand.',
-          );
-        }
+      // The notification ran AFTER the rollback and inside a guard, so a mail
+      // server that is down cannot undo a rollback that succeeded. But nobody
+      // has been told — say so loudly rather than let "success" imply it.
+      if (typeof outcome.notified === 'object') {
+        log.error('Rollback notification FAILED to send', { error: outcome.notified.failed });
+        logger.error(
+          `The rollback succeeded but its notification did not send: ${outcome.notified.failed}. ` +
+            'Nobody has been told — tell them by hand.',
+        );
+      } else if (outcome.notified === 'sent') {
+        logger.info('Rollback notification sent');
       }
-
-      // There is deliberately no "cancel the pending grace-period task" step.
-      // It used to call `ctx.cancel({ id: 'grace-period-<mapping>' })` — two
-      // things wrong with that: TaskRunContext has no `cancel`, and the task it
-      // claimed to cancel (`run-grace-period-end`, scheduled by the old cutover
-      // job) does not exist anywhere in this repo. Grace-period monitoring is
-      // not implemented, so there is nothing pending to cancel.
 
       log.info('Rollback completed successfully');
       logger.info('Rollback completed successfully');
@@ -221,8 +172,18 @@ export const runRollback = schemaTask({
         mappingId,
         reason,
         rolledBackAt: new Date().toISOString(),
+        from: outcome.from,
+        mapping: outcome.mapping,
       };
     } catch (error) {
+      if (error instanceof RollbackRefused) {
+        // Nothing was written. A refused rollback is not a failed cutover,
+        // and marking it FAILED would turn "we did not do this" into "we
+        // tried and broke it" in the event trail.
+        logger.error(`Rollback refused: ${error.message}${error.hint ? ` ${error.hint}` : ''}`);
+        throw error;
+      }
+
       const err = error as Error;
       log.error('Rollback failed', { error: err.message });
       logger.error(`Rollback failed: ${err.message}`);

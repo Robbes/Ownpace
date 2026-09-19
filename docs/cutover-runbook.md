@@ -169,10 +169,15 @@ pnpm exec tsx apps/worker/src/cli/index.ts rollback \
   --yes
 ```
 
-Marks the cutover `ROLLED_BACK` in the ledger — and that is all it does to
-DNS: **nothing**. Reverting the MX record is your manual step, and no user
-notification is sent. The full honest list of what rollback does and does
-not do is in [`rollback-mechanisms.md`](./rollback-mechanisms.md).
+A rollback is a **setback** ([ADR-0047](./adr/0047-a-rollback-is-a-setback.md)):
+the cutover goes to `ROLLED_BACK` in the ledger, and a mapping that was
+`cutover` (or `continuous`) goes back to `active` so the shadow sync resumes
+with the source authoritative again. Without `--yes` it prints what it would
+do to *this* mapping and exits; add `--reason "…"` to record why. What it does
+to DNS is **nothing** — reverting the MX record is your manual step — and mail
+already delivered to the target stays there. No notification is sent from the
+CLI. The full honest list of what rollback does and does not do is in
+[`rollback-mechanisms.md`](./rollback-mechanisms.md).
 
 ### Check status
 

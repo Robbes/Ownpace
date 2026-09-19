@@ -129,6 +129,85 @@ export function sourceAuthorityFor(status: string): SourceAuthority {
   return { sourceIsAuthorityOnExistence: !isAfterCutover(status) };
 }
 
+/**
+ * What a ROLLBACK does to the mapping — the setback's mapping half.
+ *
+ * ADR-0047, owner 2026-08-23: *"A rollback is a setback. It puts the migration
+ * back to syncing, with the original source live again, and that is all of
+ * it."* The cutover ledger's half is the state machine in `@openmig/core`;
+ * THIS is the other half, and it is here for the reason `startTransition` and
+ * `finishTransition` are: both editions must answer it identically, and for a
+ * while neither answered it at all — the reachable rollback wrote the ledger
+ * and left the mapping where it was, so an operator who rolled back had a
+ * migration marked rolled back and a sync that never resumed.
+ *
+ * The table, read with `isAfterCutover` and `runsPasses` beside it:
+ *
+ *   | from         | to       | why                                                   |
+ *   |--------------|----------|-------------------------------------------------------|
+ *   | `cutover`    | `active` | stopped for the cutover; the cutover is over          |
+ *   | `continuous` | `active` | still copying, but with the source NOT the authority  |
+ *   |              |          | (no deletion mirroring, 0117 D4). After a rollback the|
+ *   |              |          | source IS the authority again, and `active` is the    |
+ *   |              |          | state that says so — the lane's detector-less phase   |
+ *   |              |          | ends with the cutover it belonged to                  |
+ *   | `active`     | —        | never stopped. The CLI-driven cutover does not touch  |
+ *   |              |          | the mapping at all, so this is the common case there  |
+ *   | `paused`     | —        | an operator stopped it; a rollback ends the cutover,  |
+ *   |              |          | it does not start what somebody stopped               |
+ *   | `done`       | REFUSE   | finishing is the end of the shadow sync, and it is    |
+ *   |              |          | terminal for the same reason `startTransition`        |
+ *   |              |          | refuses it. A rollback that quietly un-finished would  |
+ *   |              |          | be a second rule for leaving `done`                   |
+ *
+ * A refusal means NOTHING is written — not the ledger either. Half a rollback
+ * is the defect this function exists to end.
+ */
+export type RollbackTransition =
+  | { readonly reactivate: true; readonly from: string; readonly to: 'active' }
+  | { readonly reactivate: false; readonly from: string; readonly reason: string }
+  | { readonly refuse: string; readonly hint: string };
+
+/** Decide what a rollback does to a mapping currently in `status`. */
+export function rollbackTransition(status: string): RollbackTransition {
+  switch (status) {
+    case 'cutover':
+    case 'continuous':
+      return { reactivate: true, from: status, to: 'active' };
+    case 'active':
+      return {
+        reactivate: false,
+        from: status,
+        reason: 'it is already syncing — the cutover never stopped it',
+      };
+    case 'paused':
+      return {
+        reactivate: false,
+        from: status,
+        reason:
+          'an operator paused it; a rollback ends the cutover, it does not start what ' +
+          'somebody stopped. Start it when you are ready.',
+      };
+    case 'done':
+      return {
+        refuse: "This migration was finished ('done'); a rollback does not undo a finish.",
+        hint:
+          "Nothing was changed. 'done' is terminal for the lifecycle — the same reason Start " +
+          'refuses it. If the source must be live again, revert the MX record by hand; ' +
+          "resuming the copy into this target would need the lifecycle to allow leaving 'done', " +
+          'which it does not today.',
+      };
+    default:
+      // Hard rule 9: a state this product does not know is not "one of the
+      // ones that stays put". The CHECK constraint should make this
+      // unreachable; if it is reached, say so rather than guess.
+      return {
+        refuse: `'${status}' is not a mapping lifecycle this product knows.`,
+        hint: 'Nothing was changed. The database CHECK constraint should make this unreachable.',
+      };
+  }
+}
+
 export type StartTransition = { readonly activate: boolean } | { readonly conflict: string };
 
 /** Decide what "Start migration" does for a mapping currently in `status`. */

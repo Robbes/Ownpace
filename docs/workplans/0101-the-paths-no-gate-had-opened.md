@@ -1,6 +1,6 @@
 # 0101 — The paths no gate had opened
 
-## Status — 2026-08-23 (update this block at the end of every session)
+## Status — 2026-09-19 (update this block at the end of every session)
 
 | Task | Status | Evidence |
 |---|---|---|
@@ -8,7 +8,17 @@
 | T2 Ask for the reports | ✅ **Done 2026-08-23** | New `reports` phase in `smoke-managed.sh`: readiness (`.database` pinned to `up`), shared addresses, the group runbook, the permission report, billing usage, invoices. Asserted on SHAPE — a 200 that dropped a key fails, and markdown is checked for its heading rather than its length. |
 | T3 Exercise offboarding where it can be undone | ✅ **Done 2026-08-23** | `close` then `reopen` on T1, the throwaway tenant the invitation phase creates and deletes. The closure ROW is asserted, not the response; the window is checked to be a window (`purge_after > closed_at`); reopen must clear the row. |
 | T4 Stop the coverage list from going stale | ✅ **Done 2026-08-23** | `scripts/gate-coverage.unit.test.ts` — 12 cases. The route families are DERIVED from `index.ts`; each must be requested by the smoke or carry a written reason. Both directions checked: an undecided family fails, and a reason that outlived its route fails. |
-| T5 Rollback | ⛔ **Cannot be gated — it exists twice, and the two do different things** | **What a rollback IS was decided 2026-08-23: a setback, never a reversal, never a salvage.** An operator CLI (`apps/worker/src/cli/cutover-commands.ts`) drives the whole state machine including `rollback`, and a Trigger.dev job (`apps/worker/src/jobs/run-rollback.ts`) does a *different* rollback that nothing calls. Neither is reachable from the API or the UI, which is why no gate can drive one. See below. |
+| T5 Rollback | ✅ **Done 2026-09-19 — it exists once, and it is gated** | **What a rollback IS was decided 2026-08-23: a setback, never a reversal, never a salvage** — now [ADR-0047](../adr/0047-a-rollback-is-a-setback.md). `performRollback` in `@openmig/core` is the one implementation; the CLI and the `run-rollback` job call it, in the same order (mapping first, ledger second, refusals before either). The mapping half is `rollbackTransition` in `shared` (`cutover`/`continuous` → `active`; `done` refused). `canRollback` derives from the state machine and `rollbackAvailable` on a read is no longer a constant. The worker's mapping write is audited like the API's. **Gate:** `run-rollback.integration.test.ts` over the real state machine and the real ledger port — not the E2E smoke, which cannot reach GRACE_PERIOD without real DNS. No API route, deliberately: the API is prepare-only for cutovers. See below. |
+
+**2026-09-19: T5 closed.** Read again with a month's distance, the finding was three
+inconsistencies, not two: the two implementations, `rollbackAvailable` hardcoded `false` on every
+read, and `canRollback` naming two states while the machine admitted `ROLLED_BACK` from four —
+including `FAILED`, where `execute` lands a propagation timeout beside its own *"Consider
+rollback."* All three are one rule now. What was NOT touched, and is recorded in ADR-0047's
+consequences: the cutover flow itself never writes `cutover` onto `mailbox_mapping` — neither the
+CLI's `execute` nor `run-cutover` does — so in a CLI-driven cutover the mapping is `active`
+throughout and the rollback's mapping half is a no-op that says so. That belongs to whichever plan
+next touches execution.
 
 ## What the grep found
 
@@ -45,7 +55,7 @@ is unreachable from inside the API container until `ZITADEL_EXTERNALDOMAIN`
 names an address both a browser and that container resolve, the identity phase
 already says so precisely, and a second report of the same outage is noise.
 
-## T5: rollback exists twice, and the two do different things
+## T5: rollback exists twice, and the two do different things — RESOLVED 2026-09-19, see ADR-0047
 
 **Two earlier drafts of this section were wrong** — first "no route, no
 handler", then "nothing reaches `CUTOVER_IN_PROGRESS` or `GRACE_PERIOD`". Both
