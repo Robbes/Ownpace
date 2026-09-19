@@ -93,22 +93,51 @@ export function deviation(
   return { deviates: extra.length > 0 || missing.length > 0, extra, missing };
 }
 
-export type InheritanceVerdict = 'reported' | 'absent' | 'not-requestable';
+export type InheritanceVerdict =
+  | 'reported'
+  | 'reported-without-source'
+  | 'absent'
+  | 'not-requestable';
 
 /**
- * What this run learned, in the three answers §5 needs told apart.
+ * What this run learned, in the answers §5 needs told apart.
  *
- * A REFUSAL WINS over an absence, and the order matters: a run where the
- * endpoint refused AND nothing came back inline has not established that Drive
- * has no answer — it has established that we asked wrongly. Reading that as
- * `absent` would pick §5's fallback design on the strength of our own bug.
+ * A VERDICT THAT CHECKED THE WRONG FIELD. This returned `reported` — the
+ * answer that picks §5's first design, "group children under the folder they
+ * inherit FROM" — on nothing more than `permissionDetails` being present. That
+ * is the wrong evidence for that design: `inherited` is a BOOLEAN, and the
+ * field naming the folder is `inheritedFrom`. Drive can answer the first and
+ * withhold the second, and on the owner's Drive (2026-09-18, 10 children of a
+ * shared folder) it did exactly that — 10/10 carried `permissionDetails`, and
+ * not one carried `inheritedFrom`, though the request named it. So the
+ * measurement recommended a design whose grouping key it had just watched Drive
+ * decline to supply, and said so in the same sentence it reported the fact in.
+ *
+ * Hence the split. Knowing a grant is inherited is worth having — it confirms a
+ * grouping. It is not the same capability as knowing what it is inherited from,
+ * which is the one that would let inheritance BE the grouping, and only the
+ * second opens the first design.
+ *
+ * A REFUSAL STILL WINS over an absence, and the order still matters: a run
+ * where the endpoint refused AND nothing came back inline has not established
+ * that Drive has no answer — it has established that we asked wrongly. Reading
+ * that as `absent` would pick a design on the strength of our own bug.
  */
 export function inheritanceVerdict(observed: {
   readonly inlineDetails: number;
   readonly endpointDetails: number;
+  /**
+   * How many items carried a usable `inheritedFrom`. Counted SEPARATELY from
+   * the details above, because that is the whole point: the two numbers
+   * disagreeing is the finding, and one field standing in for the other is the
+   * defect this parameter exists to make impossible.
+   */
+  readonly sourcedDetails: number;
   readonly endpointRefused: boolean;
 }): InheritanceVerdict {
-  if (observed.inlineDetails > 0 || observed.endpointDetails > 0) return 'reported';
+  if (observed.inlineDetails > 0 || observed.endpointDetails > 0) {
+    return observed.sourcedDetails > 0 ? 'reported' : 'reported-without-source';
+  }
   if (observed.endpointRefused) return 'not-requestable';
   return 'absent';
 }

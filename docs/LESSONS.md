@@ -1143,7 +1143,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/drive-share-inheritance.ts`
 
-- [a-folder-that-is-one-row-not-two-hundred](../scripts/a-folder-that-is-one-row-not-two-hundred.unit.test.ts) — A MEASUREMENT THAT CANNOT TELL A REFUSAL FROM AN ABSENCE PICKS A DESIGN ON THE STRENGTH OF ITS OWN BUG.
+- [a-folder-that-is-one-row-not-two-hundred](../scripts/a-folder-that-is-one-row-not-two-hundred.unit.test.ts) — A MEASUREMENT THAT ACCEPTS ONE FIELD AS EVIDENCE FOR ANOTHER RECOMMENDS A DESIGN ON A CAPABILITY IT NEVER MEASURED.
 
 ### `scripts/every-service-somebody-starts.unit.test.ts`
 
@@ -1582,7 +1582,7 @@ Reads:
 
 ### [a-folder-that-is-one-row-not-two-hundred](../scripts/a-folder-that-is-one-row-not-two-hundred.unit.test.ts)
 
-A MEASUREMENT THAT CANNOT TELL A REFUSAL FROM AN ABSENCE PICKS A DESIGN ON THE STRENGTH OF ITS OWN BUG.
+A MEASUREMENT THAT ACCEPTS ONE FIELD AS EVIDENCE FOR ANOTHER RECOMMENDS A DESIGN ON A CAPABILITY IT NEVER MEASURED.
 
 Reads:
 

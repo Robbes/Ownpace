@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * A MEASUREMENT THAT CANNOT TELL A REFUSAL FROM AN ABSENCE PICKS A DESIGN ON
- * THE STRENGTH OF ITS OWN BUG.
+ * A MEASUREMENT THAT ACCEPTS ONE FIELD AS EVIDENCE FOR ANOTHER RECOMMENDS A
+ * DESIGN ON A CAPABILITY IT NEVER MEASURED.
  *
  * The owner's Sharing page showed 482 rows for a handful of shared folders,
  * because Drive populates `permissions` on every child of a shared folder as
@@ -9,10 +9,28 @@
  * which one is right depends on whether Drive reports inheritance for My Drive
  * items, and that the answer **must be measured rather than assumed**.
  *
- * `drive-share-inheritance.ts` takes that measurement and cannot be tested —
- * Google Drive cannot be containerised. These are the two decisions over data
- * that can be, and both are load-bearing: one is hard rule 9, the other is the
- * finding §5 says must never be folded away.
+ * `drive-share-inheritance.ts` took that measurement on 2026-09-18 and got a
+ * real answer — and the verdict function read it wrong. The first design groups
+ * children under the folder they inherit FROM, which needs `inheritedFrom`. The
+ * verdict checked `permissionDetails !== undefined`, which is a different
+ * field answering a different question. Drive returned the details on 10 of 10
+ * children and `inheritedFrom` on none of them, so the run reported the design
+ * open while holding the evidence that it was shut.
+ *
+ * Both halves of that are guarded here, because both are ways of picking a
+ * design on something other than what was measured:
+ *
+ *  1. **One field is not another.** `sourcedDetails` is counted apart from the
+ *     details, and `reported-without-source` is its own answer. Collapsing the
+ *     two back together goes red.
+ *  2. **Hard rule 9, the original reason this is not a boolean.** A refusal and
+ *     an absence mean opposite things — the first is our bug and picks nothing,
+ *     the second is an answer that picks the fallback. A refusal read as an
+ *     absence goes red.
+ *
+ * And the third decision, which is over data rather than about the instrument:
+ * what counts as a deviation. That one is the finding §5 says must never be
+ * folded away.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -29,25 +47,74 @@ const person = (emailAddress: string, role: string): SharePermission => ({
   emailAddress,
 });
 
-describe('the three answers, told apart', () => {
+describe('the four answers, told apart', () => {
   /**
-   * HARD RULE 9, and the reason this is three-way and not a boolean. Drive
-   * documents `permissionDetails` for shared-drive items; on a My Drive item
-   * the field coming back empty and the request being REFUSED for naming it
-   * mean opposite things, and only one of them is an answer.
+   * HARD RULE 9, and the reason this is not a boolean. Drive documents
+   * `permissionDetails` for shared-drive items; on a My Drive item the field
+   * coming back empty and the request being REFUSED for naming it mean
+   * opposite things, and only one of them is an answer.
    */
-  it('reports inheritance when either call carried the details', () => {
+  it('reports inheritance when either call carried the details AND their source', () => {
     expect(
-      inheritanceVerdict({ inlineDetails: 3, endpointDetails: 0, endpointRefused: false }),
+      inheritanceVerdict({
+        inlineDetails: 3,
+        endpointDetails: 0,
+        sourcedDetails: 3,
+        endpointRefused: false,
+      }),
     ).toBe('reported');
     expect(
-      inheritanceVerdict({ inlineDetails: 0, endpointDetails: 3, endpointRefused: false }),
+      inheritanceVerdict({
+        inlineDetails: 0,
+        endpointDetails: 3,
+        sourcedDetails: 3,
+        endpointRefused: false,
+      }),
+    ).toBe('reported');
+  });
+
+  /**
+   * THE MEASUREMENT THIS WAS WRONG ABOUT, 2026-09-18. On the owner's Drive all
+   * ten children came back with `permissionDetails` and not one came back with
+   * `inheritedFrom`, though the request named it. The old two-way split read
+   * that as `reported` and recommended grouping children under "the folder they
+   * inherit from" — using a key Drive had just declined to supply.
+   *
+   * Set `sourcedDetails` to 3 and this test goes green while saying the
+   * opposite thing, which is the point: the two fields are different
+   * capabilities and the verdict must not accept one as the other.
+   */
+  it('details without a source do NOT open the design that groups by source', () => {
+    expect(
+      inheritanceVerdict({
+        inlineDetails: 0,
+        endpointDetails: 10,
+        sourcedDetails: 0,
+        endpointRefused: false,
+      }),
+    ).toBe('reported-without-source');
+  });
+
+  /** One item answering with a source is enough to make the key usable. */
+  it('a single sourced item is still a source', () => {
+    expect(
+      inheritanceVerdict({
+        inlineDetails: 0,
+        endpointDetails: 10,
+        sourcedDetails: 1,
+        endpointRefused: false,
+      }),
     ).toBe('reported');
   });
 
   it('calls it absent only when Drive actually answered', () => {
     expect(
-      inheritanceVerdict({ inlineDetails: 0, endpointDetails: 0, endpointRefused: false }),
+      inheritanceVerdict({
+        inlineDetails: 0,
+        endpointDetails: 0,
+        sourcedDetails: 0,
+        endpointRefused: false,
+      }),
     ).toBe('absent');
   });
 
@@ -59,15 +126,41 @@ describe('the three answers, told apart', () => {
    */
   it('a refusal is never an absence', () => {
     expect(
-      inheritanceVerdict({ inlineDetails: 0, endpointDetails: 0, endpointRefused: true }),
+      inheritanceVerdict({
+        inlineDetails: 0,
+        endpointDetails: 0,
+        sourcedDetails: 0,
+        endpointRefused: true,
+      }),
     ).toBe('not-requestable');
   });
 
   /** And details that DID come back outrank a refusal on some other child. */
   it('prefers what was observed over what was refused', () => {
     expect(
-      inheritanceVerdict({ inlineDetails: 1, endpointDetails: 0, endpointRefused: true }),
+      inheritanceVerdict({
+        inlineDetails: 1,
+        endpointDetails: 0,
+        sourcedDetails: 1,
+        endpointRefused: true,
+      }),
     ).toBe('reported');
+  });
+
+  /**
+   * A source cannot be conjured out of a refusal either: nothing observed and
+   * a refusal outstanding is still `not-requestable`, whatever `sourcedDetails`
+   * claims. Guards the ordering, not the counting.
+   */
+  it('a source count cannot promote a run that observed nothing', () => {
+    expect(
+      inheritanceVerdict({
+        inlineDetails: 0,
+        endpointDetails: 0,
+        sourcedDetails: 5,
+        endpointRefused: true,
+      }),
+    ).toBe('not-requestable');
   });
 });
 
