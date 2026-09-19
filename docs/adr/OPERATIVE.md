@@ -765,3 +765,29 @@ Nothing in this amendment is built. It records the decision the three tasks in
   Sheet**: the same, all ten members. A **`.pptx` from a Slide**: NOT only the container —
   five members change content and the length oscillates by one byte. A **`.odt`** varies
   `settings.xml`. A **`.pdf`** was byte-identical over five draws.
+
+## [ADR-0047: A rollback is a setback](./0047-a-rollback-is-a-setback.md)
+
+- A rollback is a **setback**: the cutover ledger goes to `ROLLED_BACK`, and the mapping goes back
+  to `active` when it was `cutover` or `continuous`. That is the whole of it. It never swaps
+  source and target, never writes to the source, never removes or copies anything on the target,
+  and never writes DNS (verify-only, owner 2026-07-16 — reverting the MX record is the operator's
+  hand).
+- **One implementation**: `performRollback` in `@openmig/core` (`cutover-rollback.ts`). The
+  operator CLI (`rollback --yes`) and the `run-rollback` Trigger.dev job are callers that gate,
+  print and notify; neither decides anything. Guards: `cutover-rollback.unit.test.ts`,
+  `cutover-commands.unit.test.ts`, `run-rollback.integration.test.ts`.
+- **Mapping first, ledger second, and every refusal before either write.** `ROLLED_BACK` is
+  terminal, so the write that can be retried goes first. Half a rollback is the defect this ADR
+  ends.
+- The mapping half is decided by `rollbackTransition` in `@openmig/shared` (`lifecycle.ts`):
+  `cutover` and `continuous` → `active`; `active` and `paused` are left alone and the outcome says
+  why; `done` is **refused** — finishing is not undone by a rollback, for the same reason
+  `startTransition` refuses `done`. Guard: `a-rollback-is-a-setback.unit.test.ts`.
+- Which cutover states may roll back is the state machine's `isValidTransition(state,
+  'ROLLED_BACK')` — APPROVED, CUTOVER_IN_PROGRESS, GRACE_PERIOD and FAILED. `canRollback` derives
+  from it, and `rollbackAvailable` on a read is that predicate, never a constant. Guard:
+  `cutover-state.unit.test.ts`.
+- Every mapping status change a rollback makes is recorded in `audit_log` as `mapping.status`
+  with `via: 'rollback'`, in the same transaction as the row (`mappingLifecyclePort` in
+  `@openmig/ledger`) — the record every other lifecycle write has left since workplan 0109.

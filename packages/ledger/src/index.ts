@@ -13,6 +13,8 @@ export * from './pglite-driver.ts';
 export * from './db-types.ts';
 export * from './schema-pg.ts';
 export * from './cutover-store.ts';
+// A mapping's status changes are recorded; moved here from the API for the worker's rollback (ADR-0047).
+export * from './mapping-status-audit.ts';
 export * from './verification-queries.ts';
 export * from './migration-status-store.ts';
 export * from './path-lifecycle-store.ts';

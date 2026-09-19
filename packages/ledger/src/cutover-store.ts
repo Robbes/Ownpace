@@ -22,6 +22,10 @@ import type {
   CutoverStatus,
   CutoverEvent,
 } from '@openmig/core/cutover-state';
+// A value import of a leaf module with no runtime imports of its own — it
+// cannot cycle back here. `rollbackAvailable` on a read is the state
+// machine's answer, never a constant (ADR-0047).
+import { canRollback } from '@openmig/core/cutover-state';
 
 /**
  * Port interface for cutover state persistence.
@@ -113,7 +117,7 @@ export class CutoverStore implements CutoverStateStore {
       totalItemsMigrated: 0,
       itemsVerified: 0,
       discrepanciesFound: 0,
-      rollbackAvailable: false,
+      rollbackAvailable: canRollback('PREPARING'),
       currentState: 'PREPARING',
       targetMailServer: params.targetMailServer,
       startedBy: params.startedBy,
@@ -457,7 +461,12 @@ export class CutoverStore implements CutoverStateStore {
       totalItemsMigrated: 0,
       itemsVerified: 0,
       discrepanciesFound: 0,
-      rollbackAvailable: false,
+      // It was hardcoded `false` here while `updateCutoverStatus` computed it
+      // on every transition — so the flag was right in memory for the length
+      // of one call and wrong on every read after (workplan 0101 T5's third
+      // finding). In GRACE_PERIOD, where rolling back is exactly what the
+      // operator is being invited to consider, this said it was unavailable.
+      rollbackAvailable: canRollback(row.state),
       currentState: row.state,
       targetMailServer: row.targetMailServer ?? undefined,
       metadata: metadata as Record<string, unknown>,

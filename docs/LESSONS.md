@@ -138,10 +138,6 @@ reading a file drops off its entry by itself.
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
-### `apps/api/src/routes/migrations/mapping-status-audit.ts`
-
-- [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
-
 ### `apps/api/src/routes/migrations/microsoft-consent.ts`
 
 - [a-consent-that-asks-for-a-different-scope](../scripts/a-consent-that-asks-for-a-different-scope.unit.test.ts) — A CONSENT AND A TOKEN REQUEST THAT DISAGREE FAIL HOURS APART.
@@ -802,6 +798,10 @@ reading a file drops off its entry by itself.
 ### `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
 
 - [a-fifth-domain-the-database-would-refuse](../scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts) — No domain the product knows may be one the database refuses (workplan 0113 T2).
+
+### `packages/ledger/src/mapping-status-audit.ts`
+
+- [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
 ### `packages/ledger/src/retention.ts`
 
@@ -2019,13 +2019,13 @@ A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1;
 Reads:
 
 - `apps/api/src/routes/migrations/index.ts`
-- `apps/api/src/routes/migrations/mapping-status-audit.ts`
 - `apps/api/src/routes/migrations/operating-routes.ts`
 - `apps/selfhost/src/index.ts`
 - `apps/web/src/components/StateChip.tsx`
 - `apps/web/src/i18n/strings.ts`
 - `apps/web/src/pages/Finish.tsx`
 - `docs/adr/0014-cost-recovery-billing.md`
+- `packages/ledger/src/mapping-status-audit.ts`
 - `site/pages/en/pricing.md`
 
 ### [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts)

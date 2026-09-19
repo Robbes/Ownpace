@@ -124,7 +124,11 @@ describe('the lane exists in every vocabulary that decides something about it', 
   });
 
   it('the audit log can name a transition into it', () => {
-    const audit = read('apps/api/src/routes/migrations/mapping-status-audit.ts');
+    // The union moved from apps/api to the ledger on 2026-09-19 (ADR-0047):
+    // the rollback, which lives in core and is reached from the worker,
+    // needed the same audit write the routes had, so the write now lives
+    // where the table does. The api file re-exports it.
+    const audit = read('packages/ledger/src/mapping-status-audit.ts');
     const union = /export type MappingStatus =([^;]*);/.exec(audit);
     expect(union, 'MappingStatus moved or was renamed').not.toBeNull();
     expect(union![1]).toContain(`'${LANE}'`);

@@ -19,7 +19,7 @@
  *   check-access   Prove the O365 consent runbook actually worked
  */
 
-import { CutoverStore, createLedgerVerificationReader } from '@openmig/ledger';
+import { CutoverStore, createLedgerVerificationReader, mappingLifecyclePort } from '@openmig/ledger';
 import { asTenantId, asMappingId, type TenantId, type MappingId } from '@openmig/shared';
 import { runVerification, createRealVerificationDeps, reindexFromTarget } from '@openmig/core';
 import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
@@ -44,6 +44,7 @@ function parseArgs(): {
   targetIp?: string;
   mailbox?: string;
   assumeYes: boolean;
+  reason?: string;
 } {
   const args = process.argv.slice(2);
   let command: string | undefined;
@@ -55,6 +56,7 @@ function parseArgs(): {
   let targetIp: string | undefined;
   let mailbox: string | undefined;
   let assumeYes = false;
+  let reason: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -76,6 +78,8 @@ function parseArgs(): {
       mailbox = args[++i];
     } else if (arg === '--yes' || arg === '-y') {
       assumeYes = true;
+    } else if (arg === '--reason') {
+      reason = args[++i];
     } else if (arg === '--help' || arg === '-h') {
       log.info(`
 Cutover CLI - Manage migration cutover lifecycle
@@ -89,7 +93,9 @@ Commands:
   approve          Approve cutover for execution
   execute          Execute the cutover (DNS switch is YOUR manual step; lands in GRACE_PERIOD)
   complete         Close out the grace period (GRACE_PERIOD -> COMPLETED, terminal)
-  rollback         Rollback cutover to previous state
+  rollback         Roll the cutover back: ledger ROLLED_BACK, and the mapping back
+                   to syncing with the source authoritative (ADR-0047). DNS is
+                   YOUR manual step; mail already on the target stays there.
   status           Show current cutover status
   runbook          Generate the guided DNS migration runbook (Markdown, no DB required)
   reindex          Rebuild the ledger FROM the target (ADR-0020 lost-ledger
@@ -115,6 +121,8 @@ Options:
                             Access Policy's group. Without it the two
                             mailbox-scoped permissions are reported as NOT
                             tested, which is not the same as passing.
+  --reason <text>           For rollback: why, recorded in the cutover's event
+                            trail and the audit log (default: a fixed sentence).
   --yes, -y                 Confirm a state-changing command. REQUIRED by
                             approve, execute, complete and rollback — without
                             it they print what they would do and exit non-zero.
@@ -143,7 +151,8 @@ Examples:
 
   # Rollback cutover (state-changing -> needs --yes)
   pnpm exec tsx apps/worker/src/cli/index.ts rollback \\
-    --tenant tenant123 --mapping mapping456 --domain example.com --yes
+    --tenant tenant123 --mapping mapping456 --domain example.com --yes \\
+    --reason "mail bouncing at the new server"
 
   # Show status
   pnpm exec tsx apps/worker/src/cli/index.ts status \\
@@ -191,12 +200,12 @@ Environment Variables:
   }
 
   // domain is '' only for reindex, which never touches DNS.
-  return { command, tenantId: tenantId ?? '', mappingId: mappingId ?? '', domain: domain ?? '', targetMailServer, dkimSelector, targetIp, mailbox, assumeYes };
+  return { command, tenantId: tenantId ?? '', mappingId: mappingId ?? '', domain: domain ?? '', targetMailServer, dkimSelector, targetIp, mailbox, assumeYes, reason };
 }
 
 /** Main entry point. */
 async function main() {
-  const { command, tenantId, mappingId, domain, targetMailServer, dkimSelector, targetIp, mailbox, assumeYes } = parseArgs();
+  const { command, tenantId, mappingId, domain, targetMailServer, dkimSelector, targetIp, mailbox, assumeYes, reason } = parseArgs();
 
   // "runbook" is a pure local computation — generate and print without touching the DB.
   if (command === 'runbook') {
@@ -277,6 +286,9 @@ async function main() {
     dkimSelector,
     targetIp,
     assumeYes,
+    // The mapping half of a rollback (ADR-0047): the row and its audit record.
+    mappingLifecycle: mappingLifecyclePort(pool, tenantId, mappingId, 'cli'),
+    ...(reason ? { rollbackReason: reason } : {}),
     // The real §20 gate. A closure so nothing connects to the source/target
     // unless `verify` actually asks for it.
     runDataVerification: async () => {

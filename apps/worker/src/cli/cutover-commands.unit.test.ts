@@ -10,7 +10,6 @@
 // rather than re-documented.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { asTenantId, asMappingId } from '@openmig/shared';
 import type { VerificationResult } from '@openmig/core';
 import * as core from '@openmig/core';
@@ -34,11 +33,30 @@ function makeStore(currentState = 'GRACE_PERIOD') {
   };
 }
 
-function makeDeps(store: ReturnType<typeof makeStore>, assumeYes?: boolean): CutoverCliDeps {
+/**
+ * The mapping's lifecycle as a rollback sees it (ADR-0047): what it is now,
+ * and a recorder for what the command set it to — and WHEN, relative to the
+ * ledger write, because the order is part of the contract.
+ */
+function makeMapping(status = 'cutover', order: string[] = []) {
+  return {
+    readStatus: vi.fn().mockResolvedValue(status),
+    setStatus: vi.fn(async (c: { from: string; to: string }) => {
+      order.push(`mapping:${c.from}->${c.to}`);
+    }),
+  };
+}
+
+function makeDeps(
+  store: ReturnType<typeof makeStore>,
+  assumeYes?: boolean,
+  mapping: ReturnType<typeof makeMapping> = makeMapping(),
+): CutoverCliDeps {
   return {
     tenantId: TENANT,
     mappingId: MAPPING,
     cutoverPersistence: store as unknown as CutoverCliDeps['cutoverPersistence'],
+    mappingLifecycle: mapping,
     dnsDomain: 'example.com',
     targetMailServer: 'mail.example.com',
     ...(assumeYes === undefined ? {} : { assumeYes }),
@@ -96,13 +114,15 @@ describe('rollbackCutover() approval gate', () => {
     vi.restoreAllMocks();
   });
 
-  it('does NOT transition state when --yes is missing', async () => {
+  it('does NOT transition state when --yes is missing — neither the ledger nor the mapping', async () => {
     const store = makeStore();
+    const mapping = makeMapping();
 
-    await expect(rollbackCutover(makeDeps(store))).rejects.toThrow('process.exit(1)');
+    await expect(rollbackCutover(makeDeps(store, undefined, mapping))).rejects.toThrow('process.exit(1)');
 
-    // The actual regression guard: the ledger was never mutated.
+    // The actual regression guard: nothing was mutated.
     expect(store.transitionState).not.toHaveBeenCalled();
+    expect(mapping.setStatus).not.toHaveBeenCalled();
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
@@ -120,37 +140,61 @@ describe('rollbackCutover() approval gate', () => {
     );
   });
 
-  it('says it leaves the sync STOPPED, which is the half it does not do', async () => {
-    // A rollback exists to set the migration BACK to syncing (owner,
-    // 2026-08-23). This command writes the ledger and never touches
-    // `mailbox_mapping`, so it delivers the label and not the thing. An
-    // operator who runs it and walks away believes their sync is running.
-    // Until the two are reconciled, saying so is the minimum.
+  it('reactivates the mapping — the half this command never did — and does it BEFORE the ledger', async () => {
+    // ADR-0047. Until 2026-09-19 this command wrote the ledger and left
+    // `mailbox_mapping` where it was, so an operator who ran it and walked
+    // away believed their sync was running again when it was not. The order
+    // matters too: ROLLED_BACK is terminal, so the retryable write goes first.
+    const order: string[] = [];
+    const store = {
+      ...makeStore(),
+      transitionState: vi.fn(async (_t: unknown, _m: unknown, to: string) => {
+        order.push(`ledger:${to}`);
+        return { currentState: to };
+      }),
+    };
+    const mapping = makeMapping('cutover', order);
+
+    await rollbackCutover(makeDeps(store, true, mapping));
+
+    expect(mapping.setStatus).toHaveBeenCalledWith({ from: 'cutover', to: 'active' });
+    expect(order).toEqual(['mapping:cutover->active', 'ledger:ROLLED_BACK']);
+  });
+
+  it("refuses a finished ('done') mapping before writing anything, and says nothing changed", async () => {
+    const logged: string[] = [];
+    vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    const store = makeStore();
+    const mapping = makeMapping('done');
+
+    await expect(rollbackCutover(makeDeps(store, true, mapping))).rejects.toThrow('process.exit(1)');
+
+    expect(store.transitionState).not.toHaveBeenCalled();
+    expect(mapping.setStatus).not.toHaveBeenCalled();
+    const output = logged.join('\n');
+    expect(output).toContain('finished');
+    expect(output).toContain('Nothing was changed');
+  });
+
+  it('tells the person approving what will happen to THIS mapping, not a generic sentence', async () => {
+    // The consequence list is printed only when --yes is absent, which is the
+    // one moment somebody is reading it to decide. It has to be true for the
+    // mapping in front of them: an active one is left alone and the list must
+    // say so, rather than promise a reactivation that will not happen.
     const logged: string[] = [];
     vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
       logged.push(args.join(' '));
     });
 
-    await rollbackCutover(makeDeps(makeStore(), true));
+    await expect(rollbackCutover(makeDeps(makeStore(), undefined, makeMapping('active')))).rejects.toThrow(
+      'process.exit(1)',
+    );
 
     const output = logged.join('\n');
-    expect(output).toContain('sync does NOT resume');
-    expect(output, 'and it must name what does').toContain('run-rollback');
-  });
-
-  it('prints that warning on the --yes path, where an operator will actually be', () => {
-    // `confirmed()` returns early on --yes and never prints its consequence
-    // bullets. A warning that lives only there is invisible to everybody who
-    // performs a rollback rather than being refused one.
-    const source = readFileSync(
-      new URL('./cutover-commands.ts', import.meta.url),
-      'utf8',
-    );
-    const after = source.slice(source.indexOf("CutoverCliOutput.success('Cutover marked as rolled back')"));
-    expect(
-      after.slice(0, after.indexOf('} catch')),
-      'the sync warning must sit after the transition, not in the consequence list',
-    ).toContain('sync does NOT resume');
+    expect(output).toContain('already syncing');
+    expect(output).not.toContain("back to 'active'");
   });
 
   it('does not claim DNS was restored — it names the manual step instead', async () => {
@@ -166,6 +210,19 @@ describe('rollbackCutover() approval gate', () => {
     expect(output).toContain('example.com');
     // The old wording implied an automatic restore that never happened.
     expect(output).not.toContain('DNS records should be restored');
+  });
+
+  it('says on the --yes path that mail on the target stays there', async () => {
+    // `confirmed()` returns early on --yes and never prints its consequence
+    // bullets, so anything an operator must hear has to print AFTER the action.
+    const logged: string[] = [];
+    vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+
+    await rollbackCutover(makeDeps(makeStore(), true));
+
+    expect(logged.join('\n')).toContain('stays on the target');
   });
 });
 
@@ -230,6 +287,7 @@ describe('verifyCutover() data gate', () => {
       tenantId: TENANT,
       mappingId: MAPPING,
       cutoverPersistence: store as unknown as CutoverCliDeps['cutoverPersistence'],
+      mappingLifecycle: makeMapping(),
       dnsDomain: 'example.com',
       targetMailServer: 'mail.example.com',
       ...(runDataVerification ? { runDataVerification } : {}),

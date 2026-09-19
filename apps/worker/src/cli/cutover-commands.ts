@@ -8,7 +8,7 @@
  * - approve: Approve cutover after verification
  * - execute: Execute the actual cutover (lands in GRACE_PERIOD)
  * - complete: Close out the grace period (GRACE_PERIOD -> COMPLETED)
- * - rollback: Rollback cutover if needed
+ * - rollback: the setback — ledger ROLLED_BACK and the mapping back to syncing (ADR-0047)
  * - status: Show current cutover status
  * 
  * See docs/architecture/solution-architecture.md §11 (DNS switch procedure)
@@ -20,9 +20,13 @@ import {
   verifyAllDns,
   checkPropagation,
   generateDnsRunbook,
+  performRollback,
+  RollbackRefused,
+  TARGET_MAIL_STAYS,
+  type MappingLifecyclePort,
   type VerificationResult,
 } from '@openmig/core';
-import { log } from '@openmig/shared';
+import { log, rollbackTransition } from '@openmig/shared';
 
 /** CLI dependencies */
 export interface CutoverCliDeps {
@@ -54,6 +58,15 @@ export interface CutoverCliDeps {
    * shows up in shell history and audit logs.
    */
   assumeYes?: boolean;
+  /**
+   * The mapping's lifecycle — the half of a rollback this CLI never performed
+   * until ADR-0047. `mappingLifecyclePort` in `@openmig/ledger` is the real
+   * one (the row plus its `mapping.status` audit record); the tests hand in a
+   * fake that records what was written.
+   */
+  mappingLifecycle: MappingLifecyclePort;
+  /** `--reason`: why the cutover is being rolled back, for its event trail. */
+  rollbackReason?: string;
 }
 
 /** CLI output formatter */
@@ -518,14 +531,20 @@ export async function completeCutover(deps: CutoverCliDeps): Promise<void> {
 }
 
 /**
- * Rollback cutover
+ * Rollback cutover — the setback, performed by `performRollback` (ADR-0047).
+ *
+ * This command gates and prints; it decides nothing. It used to write the
+ * cutover ledger and stop there, leaving `mailbox_mapping` where it was — the
+ * label without the thing — while the job that did resume the sync was one
+ * nothing called. Both now call the same function, in the same order: the
+ * mapping first, then the ledger, and a refusal before either.
  */
 export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.section('Rolling Back Cutover');
 
   try {
     const state = await deps.cutoverPersistence.loadCutoverState(deps.tenantId, deps.mappingId);
-    
+
     if (!state) {
       CutoverCliOutput.error('No cutover state found.');
       process.exit(1);
@@ -533,47 +552,56 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
 
     CutoverCliOutput.warning(`Current state: ${state.currentState}`);
 
+    // Read the mapping so the consequence list is TRUE for this mapping rather
+    // than generic. `performRollback` reads it again and decides for itself;
+    // this read is for the person being asked to approve.
+    const mappingStatus = await deps.mappingLifecycle.readStatus();
+    const decision = rollbackTransition(mappingStatus);
+    if ('refuse' in decision) {
+      CutoverCliOutput.error(decision.refuse);
+      CutoverCliOutput.info(decision.hint);
+      process.exit(1);
+    }
+    const mappingLine = decision.reactivate
+      ? `Set mapping ${deps.mappingId} back to '${decision.to}' (from '${decision.from}') — ` +
+        'the sync resumes with the source authoritative.'
+      : `Leave mapping ${deps.mappingId} '${decision.from}': ${decision.reason}`;
+
     if (
       !confirmed(deps, 'roll this cutover back', [
-        `Mark mapping ${deps.mappingId} ROLLED_BACK in the cutover ledger.`,
+        `Mark the cutover ROLLED_BACK in the ledger (from ${state.currentState}).`,
+        mappingLine,
         'Leave DNS untouched — reverting the MX record is a MANUAL step (verify-only DNS).',
-        // THE DIFFERENCE BETWEEN THIS COMMAND AND THE JOB, and it is the whole
-        // point of a rollback. A rollback exists to set the migration BACK to
-        // syncing (owner, 2026-08-23). This command does not do that half: it
-        // writes the ledger and never touches `mailbox_mapping`, so the
-        // migration stays stopped. An operator who runs this and walks away
-        // believes their sync is running again when it is not.
-        'Leave the mapping STOPPED — the sync does NOT resume. Run the run-rollback job for that.',
-        // The channel exists (0030 T4) — this command does not use it. Said
-        // as a property of THIS command, not of the product, so nobody reads
-        // it as "notifications do not work" and nobody expects mail from here.
-        'Send no user notification — run the rollback job with notifyUsers for that.',
+        'Leave mail delivered to the TARGET where it is — a rollback never salvages from the target.',
+        // The channel exists (0030 T4); this command does not use it. Said as
+        // a property of THIS command, so nobody expects mail from here.
+        'Send no notification from here — the run-rollback job with notifyUsers does that.',
       ])
     ) {
       process.exit(1);
     }
 
-    await deps.cutoverPersistence.transitionState(
-      deps.tenantId,
-      deps.mappingId,
-      'ROLLED_BACK',
-      { rolledBackAt: new Date().toISOString(), rolledBackBy: 'cli' }
-    );
+    const outcome = await performRollback({
+      tenantId: deps.tenantId,
+      mappingId: deps.mappingId,
+      cutoverStore: deps.cutoverPersistence,
+      mapping: deps.mappingLifecycle,
+      rolledBackBy: 'cli',
+      reason: deps.rollbackReason ?? 'Rolled back from the operator CLI',
+      log: (message) => CutoverCliOutput.info(message),
+    });
 
-    CutoverCliOutput.success('Cutover marked as rolled back');
-    // AFTER THE ACTION, not in the consequence list, and the difference
-    // matters: `confirmed()` returns early on `--yes` and never prints those
-    // bullets, so anything said only there is invisible to every operator who
-    // actually performs a rollback. This prints on the path that runs.
-    //
-    // A rollback exists to set the migration BACK to syncing (owner,
-    // 2026-08-23). This command does not do that half — it writes the ledger
-    // and never touches `mailbox_mapping` — so an operator who runs it and
-    // walks away believes their sync is running again when it is not.
-    CutoverCliOutput.warning(
-      'The mapping is UNCHANGED: the sync does NOT resume from here. ' +
-        'Run the run-rollback job to reactivate it.',
-    );
+    CutoverCliOutput.success(`Cutover rolled back (from ${outcome.from}).`);
+    if (outcome.mapping.changed) {
+      CutoverCliOutput.success(
+        `Mapping ${outcome.mapping.from} -> ${outcome.mapping.to}: the sync resumes with the source authoritative.`,
+      );
+    } else {
+      CutoverCliOutput.warning(`Mapping left '${outcome.mapping.from}': ${outcome.mapping.note ?? ''}`);
+    }
+    // Said after the action, on the path that runs: `confirmed()` returns
+    // early on `--yes` and never prints its consequence bullets.
+    CutoverCliOutput.warning(TARGET_MAIL_STAYS);
     // Do not imply DNS was restored — it was not. Verify-only DNS (owner
     // decision 2026-07-16); the operator reverts the MX record by hand.
     CutoverCliOutput.warning(
@@ -581,6 +609,13 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
     );
     CutoverCliOutput.info('Then re-check it with: verify (or regenerate the runbook with: runbook)');
   } catch (error) {
+    if (error instanceof RollbackRefused) {
+      // Nothing was written. Said so, because "failed" would read as half done.
+      CutoverCliOutput.error(`Rollback refused: ${error.message}`);
+      if (error.hint) CutoverCliOutput.info(error.hint);
+      CutoverCliOutput.info('Nothing was changed.');
+      process.exit(1);
+    }
     const err = error as Error;
     CutoverCliOutput.error(`Rollback failed: ${err.message}`);
     process.exit(1);

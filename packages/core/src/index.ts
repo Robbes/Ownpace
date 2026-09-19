@@ -5,6 +5,8 @@ export const packageName = '@openmig/core';
 export * from './reconcile.ts';
 export * from './reindex.ts';
 export * from './cutover-state.ts';
+// A rollback is a setback, performed once (ADR-0047); the CLI and the job call this.
+export * from './cutover-rollback.ts';
 export * from './verification.ts';
 // Workplan 0117 T2 — the confirmation pass, beside the verification it is not.
 // §20 verification samples for the OPERATOR; this confirms every item for the

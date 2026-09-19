@@ -204,10 +204,19 @@ export function getStatePhase(state: CutoverState): CutoverPhase {
 }
 
 /**
- * Check if the cutover can be rolled back from current state
+ * Can the cutover be rolled back from this state?
+ *
+ * DERIVED from the state machine, not a second list (ADR-0047). It was
+ * `CUTOVER_IN_PROGRESS || GRACE_PERIOD`, while `VALID_TRANSITIONS` above also
+ * admits ROLLED_BACK from APPROVED and from FAILED — and FAILED is precisely
+ * where `execute` lands on a propagation timeout, printing "Consider
+ * rollback." So the predicate said no where the machine said yes and the CLI
+ * said please, and `rollbackAvailable` on a read (which the store computes
+ * from this) told anyone asking that the one thing they were being invited to
+ * do was unavailable. One rule; this is a view of it.
  */
 export function canRollback(state: CutoverState): boolean {
-  return state === 'CUTOVER_IN_PROGRESS' || state === 'GRACE_PERIOD';
+  return isValidTransition(state, 'ROLLED_BACK');
 }
 
 /**

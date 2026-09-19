@@ -72,6 +72,7 @@ first.
 | [0044](./0044-the-books-are-not-ours.md) | The books are not ours — an external bookkeeping system is the record for invoices | Accepted 2026-08-28 |
 | [0045](./0045-migrations-are-hand-written-sql.md) | Migrations are hand-written SQL, applied by our own runner | Accepted 2026-09-09 — supersedes 0017's authoring-and-applying half, which credited a tool this repository has never used for it |
 | [0046](./0046-a-rendering-is-compared-by-its-parts.md) | A rendering is compared by its parts, not by its bytes | Accepted 2026-09-16 — rests on the 0042 T3 measurement that `export-office` is byte-unstable only in its zip container. **Decided, not yet built**: the tree still hashes every file whole; 0042 T7 is the build |
+| [0047](./0047-a-rollback-is-a-setback.md) | A rollback is a setback — one implementation, both callers, and the mapping resumes | Accepted 2026-08-23 (the owner's definition); built 2026-09-19 — `performRollback` in core, the CLI and the job over it, gated against a real ledger |
 
 ## Reading the statuses
 

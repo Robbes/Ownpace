@@ -41,6 +41,7 @@ export const aliases = {
   '@openmig/core/secret-store': resolve(rootDir, 'packages/core/src/secret-store.ts'),
   '@openmig/core/secrets': resolve(rootDir, 'packages/core/src/secrets.ts'),
   '@openmig/core/archive-reader': resolve(rootDir, 'packages/core/src/archive-reader.ts'),
+  '@openmig/core/cutover-rollback': resolve(rootDir, 'packages/core/src/cutover-rollback.ts'),
   '@openmig/ledger/schema-pg': resolve(rootDir, 'packages/ledger/src/schema-pg.ts'),
   '@openmig/ledger/db': resolve(rootDir, 'packages/ledger/src/db.ts'),
   '@openmig/managed/schema-managed': resolve(rootDir, 'packages/managed/src/schema-managed.ts'),
