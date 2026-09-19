@@ -25,8 +25,23 @@
 import React from 'react';
 import { useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CircleDashed, Link2, SkipForward, Loader2, UserPlus } from 'lucide-react';
-import type { ShareGrantRow } from '@openmig/shared';
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  CircleDashed,
+  Folder,
+  Link2,
+  SkipForward,
+  Loader2,
+  UserPlus,
+} from 'lucide-react';
+import {
+  groupShareGrants,
+  type ShareGrantRow,
+  type ShareGroup,
+  type ShareStandalone,
+} from '@openmig/shared';
 import { ActionButton, ConfirmButton, Refused } from '../components/queues/primitives.tsx';
 import {
   DecisionRefusedError,
@@ -193,11 +208,119 @@ const Row: React.FC<{
   );
 };
 
+/**
+ * One folder's worth of shares, as one row the owner can read (0123 T4).
+ *
+ * THE COMPLAINT THIS ANSWERS. The owner's Sharing page showed 482 rows for a
+ * handful of shared folders, because Drive populates `permissions` on every
+ * child of a shared folder as well as on the folder. Every row was true. The
+ * wall of them was unreadable — and an unreadable list is where a forgotten
+ * "anyone with the link" survives a cutover.
+ *
+ * NOTHING IS HIDDEN, only folded. The group opens to the very same `Row`s,
+ * with the very same presses; the summary is a lid, not a replacement. A
+ * deviation never gets under the lid at all (see the page below).
+ *
+ * WHY THE GROUP PRESS IS `done` AND `skip` AND NOT `apply`. Those two RECORD a
+ * decision and reach nobody. `apply` re-creates the share on the target, which
+ * emails a real person the moment it lands — which is why it carries the
+ * arm-then-confirm ceremony and an editable address per row (ADR-0032 §6). One
+ * press that sent eleven invitations would be a different decision about blast
+ * radius than the one that ceremony was designed around, so `apply` stays
+ * exactly where it is: inside the group, one row at a time.
+ */
+const GroupCard: React.FC<{
+  group: ShareGroup;
+  rows: ReadonlyArray<ShareGrantRow>;
+  busy: boolean;
+  onDecideMany: (rows: ReadonlyArray<ShareGrantRow>, action: 'done' | 'skip') => void;
+  children: React.ReactNode;
+}> = ({ group, rows, busy, onDecideMany, children }) => {
+  const t = useT();
+  const [open, setOpen] = React.useState(false);
+  const openRows = rows.filter((r) => r.state === 'open');
+
+  return (
+    <li className="bg-white border border-gray-200 rounded-lg">
+      <div className="p-3 flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2 min-w-0 text-left"
+          aria-expanded={open}
+        >
+          {open ? (
+            <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          )}
+          <Folder className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <span className="truncate font-medium text-gray-900">
+            {/* A container we never listed has no name we may print: a folder
+                can hold shared files without being shared itself, and inventing
+                one would be a claim about a folder nobody read. */}
+            {group.label ?? t('sharing.group.unnamedFolder')}
+          </span>
+        </button>
+        <span className="text-sm text-gray-700 truncate">{group.grants.join(', ')}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-gray-500 flex-shrink-0">
+            {group.items} {t('sharing.group.items')}
+          </span>
+          {busy && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+        </div>
+      </div>
+      {openRows.length > 0 && !busy && (
+        <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
+          <ActionButton
+            pending={false}
+            title={t('sharing.done.why')}
+            onClick={() => onDecideMany(openRows, 'done')}
+          >
+            {t('sharing.group.doneAll')} ({openRows.length})
+          </ActionButton>
+          <ActionButton
+            pending={false}
+            title={t('sharing.skip.why')}
+            onClick={() => onDecideMany(openRows, 'skip')}
+          >
+            {t('sharing.group.skipAll')} ({openRows.length})
+          </ActionButton>
+          <span className="text-xs text-gray-400">{t('sharing.group.applyInside')}</span>
+        </div>
+      )}
+      {open && <ul className="px-3 pb-3 space-y-2">{children}</ul>}
+    </li>
+  );
+};
+
+/** Why a row refused to fold — printed beside it, never instead of it. */
+const WhyAlone: React.FC<{ row: ShareStandalone }> = ({ row }) => {
+  const t = useT();
+  if (row.reason === 'unplaced') {
+    return <p className="text-xs text-gray-500">{t('sharing.alone.unplaced')}</p>;
+  }
+  const against =
+    row.comparedWith === 'folder'
+      ? t('sharing.alone.vsFolder')
+      : t('sharing.alone.vsSiblings');
+  return (
+    <p className="text-xs text-amber-800">
+      {against}
+      {row.extra && row.extra.length > 0 ? ` · ${t('sharing.alone.extra')} ${row.extra.join(', ')}` : ''}
+      {row.missing && row.missing.length > 0
+        ? ` · ${t('sharing.alone.missing')} ${row.missing.join(', ')}`
+        : ''}
+    </p>
+  );
+};
+
 const Sharing: React.FC = () => {
   const { mappingId } = useParams<{ mappingId: string }>();
   const t = useT();
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = React.useState<string | null>(null);
+  const [busyGroup, setBusyGroup] = React.useState<string | null>(null);
   const [refusals, setRefusals] = React.useState<Record<string, string>>({});
   // Confirm-once address mapping (ADR-0032 §6): a corrected address, applied
   // successfully, prefills the same grantee's other rows this session. Never
@@ -245,6 +368,39 @@ const Sharing: React.FC = () => {
       .finally(() => setBusyId(null));
   };
 
+  /**
+   * One press over a whole folder (0123 T4). `done` and `skip` only — see
+   * GroupCard's header for why `apply` is not offered here.
+   *
+   * Sequential, not Promise.all: each one is a write the server records, and a
+   * burst of eleven would race the same mapping's rows through the decision
+   * gate for no benefit a person can perceive. A refusal on any row is shown
+   * against THAT row, and the rest still go — settling ten of eleven is a
+   * better outcome than abandoning the press because one was already decided.
+   */
+  const onDecideMany = (rows: ReadonlyArray<ShareGrantRow>, action: 'done' | 'skip') => {
+    const key = rows.map((r) => r.id).join(',');
+    setBusyGroup(key);
+    void (async () => {
+      const failures: Record<string, string> = {};
+      for (const row of rows) {
+        try {
+          await decideSharing(mappingId, row.id, { action });
+        } catch (err: unknown) {
+          failures[row.id] =
+            err instanceof DecisionRefusedError
+              ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
+              : err instanceof Error
+                ? err.message
+                : t('common.requestFailed');
+        }
+      }
+      setRefusals((r) => ({ ...r, ...failures }));
+      setBusyGroup(null);
+      refresh();
+    })();
+  };
+
   const rescan = () => {
     setRescanning(true);
     rescanSharing(mappingId)
@@ -258,6 +414,40 @@ const Sharing: React.FC = () => {
 
   const summary = data?.summary;
   const settledCount = summary ? summary.total - summary.open : 0;
+
+  // The fold is a PRESENTATION over the rows this page already has — no second
+  // request, and the same pure rule `@openmig/shared` gives the appliance's
+  // own report, so the two surfaces cannot disagree about what a folder covers.
+  const grants = data?.grants ?? [];
+  const grouped = groupShareGrants(grants);
+  // EVERY ROW UNPLACED IS NOT THE SAME FINDING AS ONE ROW UNPLACED.
+  //
+  // A mapping last scanned before migration 0053 carries no placement at all,
+  // so every row comes back `unplaced` and is correct to list on its own. What
+  // would NOT be correct is printing "the old system did not say where this
+  // sits" 482 times: that sentence earns its place when the absence is
+  // SELECTIVE — these rows placed, that one not — and degenerates into noise
+  // when it is universal, which is the wall this task exists to remove.
+  //
+  // So when nothing at all is placed, the page says it once at the top, names
+  // the remedy, and renders exactly as it did before this feature existed.
+  const nothingPlaced =
+    grants.length > 0 &&
+    grouped.groups.length === 0 &&
+    grouped.standalone.every((a) => a.reason === 'unplaced');
+  const byId = new Map(grants.map((r) => [r.id, r]));
+  const rowById = (id: string): ShareGrantRow | undefined => byId.get(id);
+  const isRow = (r: ShareGrantRow | undefined): r is ShareGrantRow => r !== undefined;
+  const renderRow = (row: ShareGrantRow) => (
+    <Row
+      key={row.id}
+      row={row}
+      busy={busyId === row.id}
+      onDecide={onDecide}
+      refusal={refusals[row.id] || undefined}
+      confirmedGrantee={row.grantee ? confirmedPairs[row.grantee] : undefined}
+    />
+  );
 
   return (
     <div>
@@ -308,17 +498,31 @@ const Sharing: React.FC = () => {
       {data && data.grants.length === 0 && (
         <p className="mt-6 text-sm text-gray-500">{t('sharing.empty')}</p>
       )}
+      {nothingPlaced && (
+        <p className="mt-3 text-sm text-gray-500">{t('sharing.notPlacedYet')}</p>
+      )}
       {data && data.grants.length > 0 && (
         <ul className="mt-4 space-y-2">
-          {data.grants.map((row) => (
-            <Row
-              key={row.id}
-              row={row}
-              busy={busyId === row.id}
-              onDecide={onDecide}
-              refusal={refusals[row.id] || undefined}
-              confirmedGrantee={row.grantee ? confirmedPairs[row.grantee] : undefined}
-            />
+          {/* Folded folders first, then everything that refused to fold. The
+              order is the point: a deviation must never end up below three
+              screens of collapsed folders, because it is the row somebody
+              actually has to look at before a cutover. */}
+          {grouped.groups.map((g) => (
+            <GroupCard
+              key={`${g.parentKey}\u0000${g.grants.join(',')}`}
+              group={g}
+              rows={g.rowIds.map(rowById).filter(isRow)}
+              busy={busyGroup === g.rowIds.filter((id) => rowById(id)?.state === 'open').join(',')}
+              onDecideMany={onDecideMany}
+            >
+              {g.rowIds.map(rowById).filter(isRow).map(renderRow)}
+            </GroupCard>
+          ))}
+          {grouped.standalone.map((alone) => (
+            <li key={alone.rowIds.join(',')} className="space-y-1">
+              {!nothingPlaced && <WhyAlone row={alone} />}
+              <ul className="space-y-2">{alone.rowIds.map(rowById).filter(isRow).map(renderRow)}</ul>
+            </li>
           ))}
         </ul>
       )}

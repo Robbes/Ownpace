@@ -745,6 +745,22 @@ const en = {
   'sharing.state.doneManual': 'done by hand',
   'sharing.state.skipped': 'skipped',
   'sharing.loadFailed': 'The sharing checklist could not be read.',
+  // 0123 T4 — a folder is one row, not two hundred. The fold is a lid, never a
+  // replacement: opening a folder shows the very same rows with the very same
+  // presses, and anything that differs from its folder never goes under a lid
+  // at all.
+  'sharing.group.items': 'items',
+  'sharing.group.unnamedFolder': 'One folder (not itself shared)',
+  'sharing.group.doneAll': 'Mark all done',
+  'sharing.group.skipAll': 'Skip all',
+  'sharing.group.applyInside': 'Open the folder to share items on the new system.',
+  'sharing.alone.unplaced': 'The old system did not say where this sits, so it is on its own.',
+  'sharing.alone.vsFolder': 'Shared differently from its folder',
+  'sharing.alone.vsSiblings': 'Shared differently from the other items here',
+  'sharing.alone.extra': 'extra:',
+  'sharing.alone.missing': 'missing:',
+  'sharing.notPlacedYet':
+    'Found before this tool could group by folder. Refresh from the source to fold them.',
   'hub.check.name': 'Check',
   'hub.check.blurb':
     'Compare the two systems and sample the contents, behind one button.',
@@ -2634,6 +2650,18 @@ const nl: Record<keyof typeof en, string> = {
   'sharing.state.doneManual': 'handmatig gedaan',
   'sharing.state.skipped': 'overgeslagen',
   'sharing.loadFailed': 'De deel-checklist kon niet worden gelezen.',
+  'sharing.group.items': 'items',
+  'sharing.group.unnamedFolder': 'Eén map (zelf niet gedeeld)',
+  'sharing.group.doneAll': 'Alles op gedaan zetten',
+  'sharing.group.skipAll': 'Alles overslaan',
+  'sharing.group.applyInside': 'Open de map om items op het nieuwe systeem te delen.',
+  'sharing.alone.unplaced': 'Het oude systeem gaf niet aan waar dit staat, dus het staat apart.',
+  'sharing.alone.vsFolder': 'Anders gedeeld dan de map zelf',
+  'sharing.alone.vsSiblings': 'Anders gedeeld dan de andere items hier',
+  'sharing.alone.extra': 'extra:',
+  'sharing.alone.missing': 'ontbreekt:',
+  'sharing.notPlacedYet':
+    'Gevonden voordat groeperen per map bestond. Ververs vanaf de bron om te vouwen.',
   'hub.check.name': 'Verificatie',
   'hub.check.blurb':
     'Vergelijk de twee systemen en controleer steekproeven van de inhoud, achter één knop.',

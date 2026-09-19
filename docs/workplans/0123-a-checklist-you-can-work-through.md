@@ -2,6 +2,36 @@
 
 ## Status — 2026-09-18 (update this block at the end of every session)
 
+**2026-09-18, last: T4 is done — the folder is one row on the screen.** The fold is a
+PRESENTATION over the rows the page already fetches: `groupShareGrants` runs client-side, so
+there is no second request and no new endpoint, and the appliance's own report can call the same
+pure function rather than growing a second idea of what a folder covers.
+
+- **A folder is one row**, with its grantee set and a count of what it covers. Opening it shows
+  the very same `Row`s with the very same presses — the summary is a lid, not a replacement.
+- **Deviations are never under the lid.** A file shared differently from its folder renders
+  above the fold with a line naming what is extra and what is missing, and saying whether it was
+  compared with the folder's own grants or with its siblings. A grouping that hid that finding
+  would be worse than the wall of 482.
+- **One press over a folder is `done` and `skip` ONLY.** Those record a decision and reach
+  nobody. `apply` re-creates the share on the target, which emails a real person the moment it
+  lands — which is why it carries arm-then-confirm and an editable address per row (ADR-0032 §6).
+  One press that sent eleven invitations is a different decision about blast radius than that
+  ceremony was designed around, so `apply` stays inside the folder, one row at a time. **This is
+  the one place the build stops short of §5's "one press", deliberately, and it is the owner's
+  call to widen.**
+
+**A UX defect this found in itself, before it shipped.** A mapping last scanned before migration
+0053 carries no placement on ANY row, so every row is correctly "on its own" — and the first cut
+printed *"the old system did not say where this sits"* against each of them. That rebuilds the
+wall in a new font. The sentence earns its place when the absence is SELECTIVE and is noise when
+it is universal, so when nothing at all is placed the page says it once at the top, names the
+remedy (refresh from the source), and renders exactly as it did before this feature existed.
+Dropping that suppression reddens its test.
+
+**What Rob will see on his own stack before a rescan:** the flat list plus that one line. The
+482 rows fold on the next Refresh from the source, because the scan is what learns the placement.
+
 **2026-09-18, last: T4's server half is built — the queue can group, and the rule is one copy.**
 The design §5 settled (group by the container, compare grant sets, deviations listed separately)
 now has everything it needs below the screen:
@@ -133,7 +163,7 @@ it is a wall — and most of those rows are one shared folder counted once per f
 | T1 The press stops looking like a delete | ✅ Done — §2 | `ConfirmButton` splits the arming from the dressing; `DestructiveButton` stays as the destructive preset, so every caller that really destroys reads as it did. |
 | T2 The banner names every class nobody looked at | ✅ Done — §3 | `refreshShareGrants` now enforces the delegation section the way the report does, and the sentence is worded for the tenant's own source. |
 | T3 Done and Skip say what they mean | ✅ Done — §4 | The distinction is in `sharing.intro.more` and in a title on each button. |
-| T4 A folder is one row, not two hundred | 🟡 **server half built; screen owed** | Measured 2026-09-18 on the owner's Drive: `permissionDetails` yes (10/10 via `permissions.list`, 0/10 inline), `inheritedFrom` **no** (0/10). Drive says a grant is inherited, not what from — so §5's **fallback** is the design: group by `parents`, compare grant sets, deviations listed separately. Also the cheaper one (`parents` is free on the existing listing; the details cost one request per item). **Built 2026-09-18:** migration 0053 carries the placement, `groupShareGrants` in `@openmig/shared` folds it, the Drive scan fills it. The Sharing page still renders flat — the screen is the remaining half. |
+| T4 A folder is one row, not two hundred | ✅ **done** | Measured 2026-09-18 on the owner's Drive: `permissionDetails` yes (10/10 via `permissions.list`, 0/10 inline), `inheritedFrom` **no** (0/10). Drive says a grant is inherited, not what from — so §5's **fallback** is the design: group by `parents`, compare grant sets, deviations listed separately. Also the cheaper one (`parents` is free on the existing listing; the details cost one request per item). **Built 2026-09-18:** migration 0053 carries the placement, `groupShareGrants` in `@openmig/shared` folds it, the Drive scan fills it, and the Sharing page renders folders as one row with deviations kept above the fold. One press over a folder is `done`/`skip` only — `apply` invites a real person, so it stays per-row (owner's call to widen). |
 
 ## 1. What the owner saw
 
