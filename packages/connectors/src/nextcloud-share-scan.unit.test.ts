@@ -13,7 +13,12 @@
 
 import { describe, it, expect } from 'vitest';
 import type { HttpClient, HttpRequestOptions } from './dav-http.types.ts';
-import { roleFromPermissionBits, scanNextcloudShares } from './nextcloud-share-scan.ts';
+import {
+  ACCOUNT_ROOT,
+  roleFromPermissionBits,
+  scanNextcloudShares,
+} from './nextcloud-share-scan.ts';
+import { groupShareGrants } from '@openmig/shared';
 
 function fakeHttp(status: number, body: string) {
   const calls: HttpRequestOptions[] = [];
@@ -106,5 +111,114 @@ describe('roleFromPermissionBits', () => {
     expect(roleFromPermissionBits(15)).toBe('writer');
     expect(roleFromPermissionBits(3)).toBe('writer');
     expect(roleFromPermissionBits(undefined)).toBe('reader');
+  });
+});
+
+/**
+ * WHERE THE THING SITS — the two fields this scan was already being handed
+ * and was throwing away (2026-09-19).
+ *
+ * The fold (workplan 0123 T4) turns a shared folder and its contents into one
+ * row. It was built for Google Drive and had never worked on a Nextcloud
+ * source at all: every row came back unplaced, so every row was listed on its
+ * own and a folder press had no folder to press. OCS answers `path` and
+ * `item_type` in the response the scan already makes.
+ *
+ * The last test here is the one that matters: it runs the REAL grouping rule
+ * over what this scan produces, because "the fields are populated" and "a
+ * folder folds" are different claims, and only the second is the feature.
+ */
+describe('where a shared thing sits', () => {
+  const folderShare = {
+    share_type: 4,
+    share_with: 'anna@example.test',
+    path: '/Photos',
+    item_type: 'folder',
+    permissions: 1,
+  };
+  const childShare = {
+    share_type: 4,
+    share_with: 'anna@example.test',
+    path: '/Photos/IMG_1.jpg',
+    item_type: 'file',
+    permissions: 1,
+  };
+
+  it('reads the container out of the path, and the root for a top-level share', async () => {
+    const { httpClient } = fakeHttp(200, envelope([folderShare, childShare]));
+    const listing = await scanNextcloudShares(OPTIONS(httpClient));
+
+    expect(listing.kind).toBe('listed');
+    if (listing.kind !== 'listed') return;
+    expect(listing.grants[0]).toMatchObject({
+      itemKey: 'Photos',
+      parentKey: ACCOUNT_ROOT,
+      isContainer: true,
+    });
+    expect(listing.grants[1]).toMatchObject({
+      itemKey: 'Photos/IMG_1.jpg',
+      parentKey: 'Photos',
+      isContainer: false,
+    });
+  });
+
+  it('says NOTHING about a share whose item_type OCS did not give', async () => {
+    // `false` is the claim "this is not a folder", and the fold treats a
+    // container differently from a thing inside one. Hard rule 9: an OCS that
+    // did not say must not be read as one that said no.
+    const { httpClient } = fakeHttp(
+      200,
+      envelope([{ share_type: 0, share_with: 'bram', path: '/Notes.txt', permissions: 1 }]),
+    );
+    const listing = await scanNextcloudShares(OPTIONS(httpClient));
+
+    expect(listing.kind).toBe('listed');
+    if (listing.kind !== 'listed') return;
+    expect(listing.grants[0]).toMatchObject({ itemKey: 'Notes.txt', parentKey: ACCOUNT_ROOT });
+    expect(listing.grants[0]).not.toHaveProperty('isContainer');
+  });
+
+  it('places a share with no path NOWHERE, rather than at the root', async () => {
+    // The root is a real answer. "OCS gave us no path" is a different one, and
+    // a row placed at the root on the strength of a missing field would fold
+    // in beside shares it may have nothing to do with.
+    const { httpClient } = fakeHttp(200, envelope([{ share_type: 3, permissions: 1 }]));
+    const listing = await scanNextcloudShares(OPTIONS(httpClient));
+
+    expect(listing.kind).toBe('listed');
+    if (listing.kind !== 'listed') return;
+    expect(listing.grants[0]).not.toHaveProperty('itemKey');
+    expect(listing.grants[0]).not.toHaveProperty('parentKey');
+  });
+
+  it('FOLDS: the real grouping rule turns the folder and its child into one group', async () => {
+    // The claim the whole change exists for, checked against the rule itself
+    // rather than against the shape of the fields. Before this, both rows came
+    // back unplaced and `groups` was empty — which is what a folder press
+    // answers `no_such_folder` to.
+    const { httpClient } = fakeHttp(200, envelope([folderShare, childShare]));
+    const listing = await scanNextcloudShares(OPTIONS(httpClient));
+    if (listing.kind !== 'listed') throw new Error('the scan did not list');
+
+    const grouped = groupShareGrants(
+      listing.grants.map((g, i) => ({
+        id: `row-${i}`,
+        onLabel: g.on,
+        role: g.role,
+        ...(g.grantee ? { grantee: g.grantee } : {}),
+        ...(g.itemKey ? { itemKey: g.itemKey } : {}),
+        ...(g.parentKey ? { parentKey: g.parentKey } : {}),
+        ...(g.isContainer !== undefined ? { isContainer: g.isContainer } : {}),
+      })),
+    );
+
+    expect(grouped.groups).toHaveLength(1);
+    expect(grouped.groups[0]).toMatchObject({
+      parentKey: 'Photos',
+      label: 'Photos',
+      items: 2,
+      containerShared: true,
+    });
+    expect(grouped.standalone).toEqual([]);
   });
 });

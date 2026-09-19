@@ -4787,6 +4787,97 @@ if [ -n "$BALANCE_TAG" ]; then
   else
     prior_status="$(q "SELECT status FROM mailbox_mapping WHERE id='$APPLY_MAPPING'")"
     q "UPDATE mailbox_mapping SET status='done' WHERE id='$APPLY_MAPPING'" >/dev/null
+
+    # ---------- one press over one folder, confirm-first (2026-09-19) ----------
+    # The seed shares a folder AND a file inside it, to one address, at one
+    # level — the shape `groupShareGrants` folds into a single row. This runs
+    # BEFORE apply-all, because apply-all settles every open clean row and
+    # would leave the folder press nothing to press.
+    #
+    # WHAT IS ACTUALLY PROVED HERE, in order:
+    #   1. the scan said WHERE things sit. Without placement nothing folds and
+    #      the press answers 404 — which for months it would have, because
+    #      `scanNextcloudShares` threw `path` and `item_type` away.
+    #   2. the GATE holds on the real stack: a press with no confirmed address
+    #      is refused, names the grantee, and sends NOTHING. That last clause
+    #      is the one worth the round trip — a gate that refuses after the
+    #      invitations have left is not a gate.
+    #   3. the press then works, and the TARGET's own mail carries its note.
+    folder_parent="openmig-shared-${BALANCE_TAG}"
+    folder_addr="openmig-folder-${BALANCE_TAG}@example.invalid"
+    folder_note="Folder moved for run ${BALANCE_TAG}."
+    placed="$(q "SELECT count(*) FROM share_grant WHERE mapping_id='$APPLY_MAPPING' AND parent_key='${folder_parent}'")"
+    if [ "${placed:-0}" -lt 1 ]; then
+      echo "the rescan recorded no row sitting inside ${folder_parent} — the source scan"
+      echo "did not say where its shares sit, so nothing folds and a folder press has no"
+      echo "folder to press (scanNextcloudShares: path + item_type)."
+      fail_at
+    else
+      echo "the scan placed ${placed} row(s) inside ${folder_parent} — the fold has a folder"
+      # THE GATE, FIRST. An empty `confirmed` must be refused by NAME.
+      ungated="$(curl -sS -X POST -H "Authorization: Bearer $APPLY_TOKEN" -H 'Content-Type: application/json' \
+        -d "{\"parentKey\":\"${folder_parent}\",\"confirmed\":{},\"note\":\"${folder_note}\"}" \
+        -w $'\n%{http_code}' \
+        "$API/api/migrations/$APPLY_MAPPING/sharing/apply-folder")"
+      ungated_code="${ungated##*$'\n'}"
+      ungated_body="${ungated%$'\n'*}"
+      ungated_error="$(jq -r '.error // empty' <<<"$ungated_body" 2>/dev/null || true)"
+      if [ "$ungated_code" != "409" ] || [ "$ungated_error" != "unconfirmed_grantees" ]; then
+        echo "an UNCONFIRMED folder press was not refused: HTTP ${ungated_code} ${ungated_error:-(no error)}"
+        echo "  ADR-0032 §6 at folder scale — every address the press would reach is"
+        echo "  confirmed by a person first, or nothing is sent."
+        fail_at
+      elif ! grep -q "$folder_addr" <<<"$ungated_body"; then
+        echo "the refusal did not NAME the grantee it is waiting on:"
+        jq -r '.reason // .' <<<"$ungated_body" 2>/dev/null | awk 'NR<=4 {print "    " $0}'
+        echo "  \"some address is unconfirmed\" is not something anybody can act on."
+        fail_at
+      else
+        # AND IT SENT NOTHING. Checked before the real press, so the note can
+        # only have come from the refusal — which must never have reached the
+        # target at all.
+        leaked="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
+          --data-urlencode "query=\"${folder_note}\"" | jq -r '.messages_count // 0')"
+        if [ "${leaked:-0}" -gt 0 ]; then
+          echo "the REFUSED press still sent ${leaked} message(s) — it invited people and"
+          echo "then said no. The gate must refuse before the first invitation leaves."
+          fail_at
+        else
+          echo "unconfirmed press refused, ${folder_addr} named, nothing sent"
+        fi
+      fi
+      # NOW WITH THE CONFIRMATION. The address repeats what the source
+      # recorded, which §6 permits: it asks for a person's judgement on the
+      # address, not for the address to be different.
+      fpress_out="$(curl -sS -X POST -H "Authorization: Bearer $APPLY_TOKEN" -H 'Content-Type: application/json' \
+        -d "{\"parentKey\":\"${folder_parent}\",\"confirmed\":{\"${folder_addr}\":\"${folder_addr}\"},\"note\":\"${folder_note}\"}" \
+        -w $'\n%{http_code}' \
+        "$API/api/migrations/$APPLY_MAPPING/sharing/apply-folder")"
+      echo "folder press: HTTP ${fpress_out##*$'\n'}"
+      fpress_applied="$(jq -r '.applied | length' <<<"${fpress_out%$'\n'*}" 2>/dev/null || echo 0)"
+      if [ "${fpress_applied:-0}" -lt 2 ]; then
+        echo "the folder press applied ${fpress_applied:-0} row(s), expected the folder AND"
+        echo "the file inside it — the two the seed shared at the same level:"
+        jq -r '.refused // .reason // .' <<<"${fpress_out%$'\n'*}" 2>/dev/null | awk 'NR<=6 {print "    " $0}'
+        fail_at
+      else
+        echo "folder press applied ${fpress_applied} grant(s) in one action"
+        fpress_mail=0
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+          fpress_mail="$(curl -fsS --get "${MAILPIT}/api/v1/search" \
+            --data-urlencode "query=\"${folder_note}\"" | jq -r '.messages_count // 0')"
+          [ "${fpress_mail:-0}" -ge 1 ] && break
+          sleep 3
+        done
+        if [ "${fpress_mail:-0}" -ge 1 ]; then
+          echo "the folder's announcement arrived: the target's own mail carries its note"
+        else
+          echo "the folder press applied but its mail never reached the catcher."
+          fail_at
+        fi
+      fi
+    fi
+
     press_out="$(curl -sS -X POST -H "Authorization: Bearer $APPLY_TOKEN" -H 'Content-Type: application/json' \
       -d "{\"note\":\"Everything moved for run ${BALANCE_TAG}.\"}" -w $'\n%{http_code}' \
       "$API/api/migrations/$APPLY_MAPPING/sharing/apply-all")"

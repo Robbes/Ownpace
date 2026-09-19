@@ -19,6 +19,20 @@
  * A link (3) has no grantee — `viaLink`, the queue's manual lane. Groups and
  * federated shares carry `share_with` and travel as grantees; `mapGrant`
  * decides what the target can honour.
+ *
+ * ## WHERE THE THING SITS, for free (2026-09-19)
+ *
+ * The fold (workplan 0123 T4) turns a shared folder and its contents into one
+ * row, keyed on the container each item sits in. It was built for Google
+ * Drive, which answers `parents` on the listing the scan already makes — and
+ * it had never worked on a Nextcloud source at all, because this scan said
+ * nothing about placement. Every row came back unplaced, so every row was
+ * listed on its own and a folder press had no folder to press.
+ *
+ * OCS already answers both facts in the response above: `path` carries the
+ * hierarchy in plain sight, and `item_type` says whether the subject is a
+ * folder. No second request, no new permission — the scan was simply not
+ * reading two fields it was already being handed.
  */
 
 import { ocsOriginFrom, type NextcloudShareOptions } from './nextcloud-ocs.ts';
@@ -31,7 +45,27 @@ export interface ScannedGrant {
   readonly role: string;
   readonly viaLink?: boolean;
   readonly raw: string;
+  /** The path itself: unique within an account, and what a child points at. */
+  readonly itemKey?: string;
+  /** The path up to the last slash — `ACCOUNT_ROOT` for a top-level share. */
+  readonly parentKey?: string;
+  /** From `item_type`. ABSENT when OCS did not say, never guessed `false`. */
+  readonly isContainer?: boolean;
 }
+
+/**
+ * What a top-level share sits in.
+ *
+ * A path cannot BE `/` — Nextcloud will not share an account root — so this
+ * cannot collide with a real subject, and a slash is what the account root is
+ * called everywhere else in this protocol.
+ *
+ * It has to be a value rather than an absence, because the container of a
+ * shared top-level FOLDER is exactly as real as the folder: leaving it out
+ * would make the folder itself unplaced while its children grouped under it,
+ * and the fold would render the folder loose beside the group it heads.
+ */
+export const ACCOUNT_ROOT = '/';
 
 export type NextcloudShareListing =
   | { readonly kind: 'listed'; readonly grants: readonly ScannedGrant[] }
@@ -42,6 +76,8 @@ interface OcsShareItem {
   readonly share_with?: string;
   readonly path?: string;
   readonly permissions?: number;
+  /** `file` or `folder`. Absent on an OCS that does not say — see below. */
+  readonly item_type?: string;
 }
 
 /**
@@ -102,6 +138,7 @@ export async function scanNextcloudShares(
   const grants: ScannedGrant[] = data.map((item) => {
     const path = (item.path ?? '').replace(/^\//, '');
     const viaLink = item.share_type === 3;
+    const cut = path.lastIndexOf('/');
     return {
       subject: 'drive_item' as const,
       on: path,
@@ -111,6 +148,23 @@ export async function scanNextcloudShares(
       // The grant verbatim, in the source's own words — evidence, never parsed
       // downstream (the queue stores it; `shareGrantHash` does not include it).
       raw: JSON.stringify(item),
+      // WHERE IT SITS, from what OCS already said. A share with no path at all
+      // is placed nowhere rather than at the root: hard rule 9 — the answer to
+      // "where is this" was missing, and the root is a real answer.
+      ...(path
+        ? {
+            itemKey: path,
+            parentKey: cut < 0 ? ACCOUNT_ROOT : path.slice(0, cut),
+          }
+        : {}),
+      // Three answers, deliberately. An OCS that did not say leaves this
+      // ABSENT, because `false` is the claim "this is not a folder" and the
+      // fold treats a container differently from a thing inside one.
+      ...(item.item_type === 'folder'
+        ? { isContainer: true }
+        : item.item_type === 'file'
+          ? { isContainer: false }
+          : {}),
     };
   });
   return { kind: 'listed', grants };

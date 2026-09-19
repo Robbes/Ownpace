@@ -197,6 +197,25 @@ even when §6's confirmation had redirected the invitation somewhere else. The a
 carries `sentTo` when the two differ. A record of an outward-facing act that names the wrong
 recipient is worse than one that names none.
 
+## Build record (2026-09-19, later: pressed on a real Nextcloud)
+
+Workplan 0052 deferred "a real-Nextcloud integration proof". The managed gate now carries it for
+the folder press: the seed shares a folder **and a file inside it** to one address at one level,
+and the smoke presses `apply-folder` over that folder *before* `apply-all` — which settles every
+open clean row and would otherwise leave the press nothing to press. It asserts §6's gate against
+the live stack in the order that makes it a proof: the unconfirmed press is refused, it **names**
+the grantee it is waiting on, and the mail catcher confirms **nothing was sent** — a gate that
+refuses after the invitations have left is not a gate. Only then does the confirmed press run, and
+the target's own announcement has to arrive carrying the note only that press writes.
+
+Building the seed found the hole underneath it. The fold this ADR's folder scope is derived from
+(workplan 0123 T4) was measured and built on Google Drive, where placement rides free on the
+listing the scan already makes. The Nextcloud source arm had never been asked the question:
+`scanNextcloudShares` discarded the `path` and `item_type` that OCS hands it in the response it
+was already parsing, so every row came back unplaced, nothing folded, and a folder press on the
+one platform this gate runs against would have answered `no_such_folder` forever. Reading the two
+fields costs no extra request and no new permission.
+
 ## What this ADR does not decide
 
 Group shares (needs the target's group model — Pattern D covers discovery), DAV ACLs

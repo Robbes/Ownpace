@@ -418,7 +418,14 @@ if [ "$REMOVE_ONLY" = "1" ]; then
     # the thing it measures, which is the whole reason `--remove` exists.
     big_spec=""
     [ "$n" = "1" ] && [ -n "$BIG_FILE_NAME" ] && big_spec="${FILES}${BIG_FILE_NAME}"
+    # The shared folder (2026-09-19), seeded once per set like the big file.
+    # DELETING THE COLLECTION takes the file inside it AND both shares with it
+    # — Nextcloud removes a share with its subject — so the take-back needs no
+    # OCS verb, exactly as the single-file share above needs none.
+    dir_spec=""
+    [ "$n" = "1" ] && dir_spec="${FILES}openmig-shared-${TAG}"
     for spec in "${CAL}openmig-demo-event-${SUFFIX}${n}.ics" \
+                ${dir_spec:+"$dir_spec"} \
                 ${task_spec:+"$task_spec"} \
                 "${ABK}openmig-demo-contact-${SUFFIX}${n}.vcf" \
                 "${FILES}openmig-demo-file-${SUFFIX}${n}.txt" \
@@ -433,11 +440,14 @@ if [ "$REMOVE_ONLY" = "1" ]; then
   echo "[seed-dav] removed (or already absent): ${gone} resources under tag ${TAG}"
 
   # And PROVE it, rather than trusting six status codes — the same distinction
-  # the verification below was written for.
+  # the verification below was written for. The shared COLLECTION is counted
+  # here too: its DELETE is the one that takes a whole subtree, so "204" is the
+  # weakest evidence in this list and the one most worth not trusting.
   left=$(( $(count "$CAL" "openmig-demo-event-${SUFFIX}") \
          + $(count "$ABK" "openmig-demo-contact-${SUFFIX}") \
          + $(count "$FILES" "openmig-demo-file-${SUFFIX}") \
-         + $(count "$FILES" "openmig-demo-bigfile-${SUFFIX}") ))
+         + $(count "$FILES" "openmig-demo-bigfile-${SUFFIX}") \
+         + $(count "$FILES" "openmig-shared-${TAG}") ))
   [ -n "$TASKS" ] && left=$(( left + $(count "$TASKS" "openmig-demo-task-${SUFFIX}") ))
   [ "$left" = "0" ] || fail "${left} resource(s) tagged ${TAG} are still present after removal"
   echo "[seed-dav] source is clean of tag ${TAG}"
@@ -597,6 +607,48 @@ END:VCARD")
       else
         fail "source share for ${SUFFIX}1 was refused: $(head -c 200 <<<"$share_body")"
       fi
+
+      # THE FOLDER THE FOLD IS ABOUT (2026-09-19). The share above is ONE
+      # file, and one file never folds — so the gate could press apply-all and
+      # had nothing at all to press `apply-folder` on. This seeds the shape the
+      # fold exists for: a shared folder with a shared file inside it, both to
+      # the same address at the same level, which is exactly what
+      # `groupShareGrants` collapses into one row.
+      #
+      # `permissions=1` on BOTH, explicitly. Nextcloud's default for a folder
+      # mail-share is not its default for a file, and a folder that came back
+      # 'writer' beside a child that came back 'reader' is a DEVIATION — the
+      # child would leave the group and the press would cover one row, which
+      # is a weaker gate that still passes. The grant sets have to match for
+      # this to be testing what it says it tests.
+      #
+      # A second grantee, not the one above: the folder press runs BEFORE
+      # apply-all in the smoke, and sharing the same address twice would make
+      # "whose mail is this" a guess.
+      share_dir="openmig-shared-${TAG}"
+      folder_addr="openmig-folder-${TAG}@example.invalid"
+      mkcol_code=$(dav MKCOL "${FILES}${share_dir}")
+      # 405 is "it is already there", which for a seed is success (hard rule 1).
+      case "$mkcol_code" in
+        201|405) ;;
+        *) fail "MKCOL ${share_dir} returned ${mkcol_code} — the folder press has no folder" ;;
+      esac
+      inner_code=$(dav PUT "${FILES}${share_dir}/openmig-demo-folder-file-${TAG}.txt" 'text/plain' \
+        "the file inside the shared folder for tag ${TAG}")
+      case "$inner_code" in
+        201|204) ;;
+        *) fail "PUT inside ${share_dir} returned ${inner_code} — the folder would hold nothing" ;;
+      esac
+      for share_path in "/${share_dir}" "/${share_dir}/openmig-demo-folder-file-${TAG}.txt"; do
+        folder_body="$(ocs POST shares \
+          "path=${share_path}" \
+          "shareType=4" \
+          "permissions=1" \
+          "shareWith=${folder_addr}")"
+        grep -q '"status":"ok"' <<<"$folder_body" \
+          || fail "folder share for ${share_path} was refused: $(head -c 200 <<<"$folder_body")"
+      done
+      echo "[seed-dav] folder share ${share_dir} (+1 file inside) -> ${folder_addr} (by mail, read-only)"
     fi
   done
 fi
