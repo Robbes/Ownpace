@@ -72,16 +72,21 @@ describe('route registration', () => {
         'POST /:mappingId/finish',
         'POST /:mappingId/moves/:hash/apply',
         'POST /:mappingId/moves/:hash/keep',
-        // The sharing checklist (ADR-0032, workplan 0052) — same five
+        // The sharing checklist (ADR-0032, workplan 0052) — same six
         // verbs on both editions: read the queue, rescan the inventory,
         // settle one row (apply / done-by-hand / skip), the one-go press
         // (0104 T1) that applies every open clean row at the chosen moment,
-        // and the fallback announcement (0104 T3) for the rows no platform
-        // could announce.
+        // the FOLDER press (2026-09-19) that applies one container's worth
+        // behind a confirm-first gate, and the fallback announcement
+        // (0104 T3) for the rows no platform could announce.
+        //
+        // `apply-folder` is three segments, like its two siblings, so it can
+        // never shadow the four-segment per-row decision below it.
         'GET /:mappingId/sharing',
         'POST /:mappingId/sharing/:grantId/decision',
         'POST /:mappingId/sharing/announce',
         'POST /:mappingId/sharing/apply-all',
+        'POST /:mappingId/sharing/apply-folder',
         'POST /:mappingId/sharing/rescan',
         'POST /:mappingId/verify/start',
         // THE CONFIRMATION SURFACE, served by BOTH editions since 2026-09-11.
@@ -123,12 +128,14 @@ describe('route registration', () => {
       'PATCH /:mappingId/apply-deletions',
       'POST /:mappingId/deletions/:hash/apply',
       'POST /:mappingId/moves/:hash/apply',
-      // The sharing press (0104 T1) DESTROYS nothing — it CREATES shares,
-      // the same synchronous OCS call the per-row decision route has made
-      // since 0052, bounded by the checklist a human curates. If checklists
-      // ever reach worker scale, this is the route that moves behind
-      // Trigger.dev — deliberately, not by a test quietly widening.
+      // The sharing presses (0104 T1, and the folder press 2026-09-19)
+      // DESTROY nothing — they CREATE shares, the same synchronous OCS call
+      // the per-row decision route has made since 0052, bounded by the
+      // checklist a human curates. If checklists ever reach worker scale,
+      // these are the routes that move behind Trigger.dev — deliberately,
+      // not by a test quietly widening.
       'POST /:mappingId/sharing/apply-all',
+      'POST /:mappingId/sharing/apply-folder',
     ]);
   });
 

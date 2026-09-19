@@ -46,6 +46,7 @@ import {
 import { ActionButton, ConfirmButton, Refused } from '../components/queues/primitives.tsx';
 import {
   DecisionRefusedError,
+  applyShareFolder,
   decideSharing,
   fetchSharing,
   rescanSharing,
@@ -268,13 +269,43 @@ const GroupCard: React.FC<{
   rows: ReadonlyArray<ShareGrantRow>;
   busy: boolean;
   onDecideMany: (rows: ReadonlyArray<ShareGrantRow>, action: 'done' | 'skip') => void;
+  /** Addresses a person has confirmed this session, by the source's grantee. */
+  confirmed: Readonly<Record<string, string>>;
+  onConfirm: (grantee: string, address: string) => void;
+  onApplyFolder: (group: ShareGroup, grantees: readonly string[]) => void;
+  /** The server's own words when a folder press was refused. */
+  refusal?: string;
   children: React.ReactNode;
-}> = ({ group, rows, busy, onDecideMany, children }) => {
+}> = ({ group, rows, busy, onDecideMany, confirmed, onConfirm, onApplyFolder, refusal, children }) => {
   const t = useT();
   const grantText = useGrantText();
   const [open, setOpen] = React.useState(false);
+  const [asking, setAsking] = React.useState(false);
+  const [drafts, setDrafts] = React.useState<Record<string, string>>({});
   const openRows = rows.filter((r) => r.state === 'open');
   const sharedWith = group.grants.map((g) => grantText(g)).join(', ');
+
+  // EVERYONE ONE PRESS OVER THIS FOLDER WOULD INVITE. A link has no
+  // addressable audience and a manual verdict has no clean equivalent the tool
+  // may create, so neither is in the press — and neither is somebody to ask
+  // about. A folder holding only those has nobody to confirm, and offering a
+  // press there would be offering to do nothing.
+  const grantees = [
+    ...new Set(
+      openRows
+        .filter((r) => !r.viaLink && r.verdict === 'clean' && r.grantee)
+        .map((r) => r.grantee!),
+    ),
+  ].sort();
+  const draftFor = (g: string): string => drafts[g] ?? confirmed[g] ?? g;
+  const unconfirmed = grantees.filter((g) => !confirmed[g]);
+  // An empty box is not a confirmation, here or at the server. Recording
+  // nothing keeps the address in `unconfirmed`, so the line below still
+  // counts it and the press stays shut.
+  const confirmOne = (g: string) => {
+    const address = draftFor(g).trim();
+    if (address) onConfirm(g, address);
+  };
 
   return (
     <li className="bg-white border border-gray-200 rounded-lg">
@@ -337,7 +368,77 @@ const GroupCard: React.FC<{
           >
             {t('sharing.group.skipAll')} ({openRows.length})
           </ActionButton>
-          <span className="text-xs text-gray-400">{t('sharing.group.applyInside')}</span>
+          {/* THE FOLDER PRESS IS NOT BESIDE THE OTHER TWO AS AN EQUAL. `done`
+              and `skip` record a decision and reach nobody; this one invites
+              every person in the folder the moment it lands. So it opens a
+              panel rather than acting, and the panel is the ceremony: one
+              address per grantee, each shown and editable, each confirmed
+              (ADR-0032 §6), and only then a two-step press. */}
+          {grantees.length > 0 && !asking && (
+            <ActionButton pending={false} onClick={() => setAsking(true)}>
+              {t('sharing.group.applyFolder')}
+            </ActionButton>
+          )}
+          {/* Nothing here is addressable — links and manual verdicts only. The
+              rows are still the checklist's to settle, one at a time. */}
+          {grantees.length === 0 && (
+            <span className="text-xs text-gray-400">{t('sharing.group.applyInside')}</span>
+          )}
+        </div>
+      )}
+      {asking && grantees.length > 0 && !busy && (
+        <div className="px-3 pb-3 space-y-2">
+          <Hint
+            tone="caution"
+            className="mt-0"
+            text={t('sharing.group.confirmFirst')}
+            why={t('sharing.group.confirmFirst.why')}
+          />
+          <ul className="space-y-1">
+            {grantees.map((g) => (
+              <li key={g} className="flex items-center gap-2 flex-wrap">
+                <label htmlFor={`${group.parentKey}-${g}`} className="text-xs text-gray-500">
+                  {t('sharing.group.addressLabel')}
+                </label>
+                <input
+                  id={`${group.parentKey}-${g}`}
+                  type="text"
+                  value={draftFor(g)}
+                  onChange={(e) => setDrafts((d) => ({ ...d, [g]: e.target.value }))}
+                  className="input text-sm py-1 w-56"
+                />
+                {confirmed[g] ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
+                    <Check className="w-3 h-3" />
+                    {t('sharing.group.confirmed')}
+                  </span>
+                ) : (
+                  <ActionButton pending={false} onClick={() => confirmOne(g)}>
+                    {t('sharing.group.confirmOne')}
+                  </ActionButton>
+                )}
+              </li>
+            ))}
+          </ul>
+          {unconfirmed.length > 0 ? (
+            <p className="text-xs text-amber-800">
+              {t('sharing.group.stillToConfirm', { count: String(unconfirmed.length) })}
+            </p>
+          ) : (
+            <ConfirmButton
+              pending={false}
+              tone="outward"
+              icon={<UserPlus className="w-3 h-3" />}
+              label={`${t('sharing.group.applyFolder')} (${grantees.length})`}
+              armedLabel={t('sharing.group.applyFolderArmed')}
+              onClick={() => onApplyFolder(group, grantees)}
+            />
+          )}
+        </div>
+      )}
+      {refusal && (
+        <div className="px-3 pb-3">
+          <Refused text={refusal} />
         </div>
       )}
       {open && <ul className="px-3 pb-3 space-y-2">{children}</ul>}
@@ -383,6 +484,10 @@ const Sharing: React.FC = () => {
   // successfully, prefills the same grantee's other rows this session. Never
   // stored server-side — each apply still sends its address explicitly.
   const [confirmedPairs, setConfirmedPairs] = React.useState<Record<string, string>>({});
+  // A folder press is refused as a whole, so its reason belongs to the folder
+  // and not to any row in it. Keyed by container, cleared before each press.
+  const [folderRefusals, setFolderRefusals] = React.useState<Record<string, string>>({});
+  const [busyFolder, setBusyFolder] = React.useState<string | null>(null);
   const [rescanning, setRescanning] = React.useState(false);
   const [blindSpots, setBlindSpots] = React.useState<ReadonlyArray<string>>([]);
 
@@ -404,9 +509,12 @@ const Sharing: React.FC = () => {
     setRefusals((r) => ({ ...r, [row.id]: '' }));
     decideSharing(mappingId, row.id, { action, ...(grantee ? { grantee } : {}) })
       .then(() => {
-        // A successful apply with a corrected address IS the confirmation —
-        // remember the pair for this grantee's remaining rows.
-        if (action === 'apply' && grantee && row.grantee && grantee !== row.grantee) {
+        // A successful apply IS a confirmation of the address it used —
+        // remember the pair for this grantee's remaining rows (ADR-0032 §6).
+        // Recorded even when the address was left unchanged: §6 asks for a
+        // person's judgement on the address, not for it to be different, and
+        // the folder press below needs to know the judgement was made.
+        if (action === 'apply' && grantee && row.grantee) {
           setConfirmedPairs((p) => ({ ...p, [row.grantee!]: grantee }));
         }
         refresh();
@@ -456,6 +564,43 @@ const Sharing: React.FC = () => {
       setBusyGroup(null);
       refresh();
     })();
+  };
+
+  /**
+   * ONE PRESS OVER ONE FOLDER (owner's call 2026-09-19), confirm-first.
+   *
+   * Every address it will reach has been shown, edited if needed, and
+   * confirmed before this runs — and the request carries them, so the server
+   * gate and the screen are checking the same thing rather than the screen
+   * vouching for itself. A refusal lands against the FOLDER, in the server's
+   * own words: a press refused as a whole did not half-happen.
+   */
+  const onApplyFolder = (group: ShareGroup, grantees: readonly string[]) => {
+    setBusyFolder(group.parentKey);
+    setFolderRefusals((r) => ({ ...r, [group.parentKey]: '' }));
+    // ONLY THIS FOLDER'S PEOPLE. The session may hold confirmations for
+    // grantees in other folders; sending those would put addresses on the wire
+    // that this press has no business with (§17, least disclosure) — and would
+    // quietly let a press carry a confirmation the screen never showed for it.
+    const confirmed: Record<string, string> = {};
+    for (const grantee of grantees) {
+      const address = confirmedPairs[grantee];
+      if (address) confirmed[grantee] = address;
+    }
+    applyShareFolder(mappingId, group.parentKey, confirmed)
+      .then(() => refresh())
+      .catch((err: unknown) => {
+        setFolderRefusals((r) => ({
+          ...r,
+          [group.parentKey]:
+            err instanceof DecisionRefusedError
+              ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
+              : err instanceof Error
+                ? err.message
+                : t('common.requestFailed'),
+        }));
+      })
+      .finally(() => setBusyFolder(null));
   };
 
   const rescan = () => {
@@ -570,8 +715,17 @@ const Sharing: React.FC = () => {
               key={`${g.parentKey}\u0000${g.grants.join(',')}`}
               group={g}
               rows={g.rowIds.map(rowById).filter(isRow)}
-              busy={busyGroup === g.rowIds.filter((id) => rowById(id)?.state === 'open').join(',')}
+              busy={
+                busyFolder === g.parentKey ||
+                busyGroup === g.rowIds.filter((id) => rowById(id)?.state === 'open').join(',')
+              }
               onDecideMany={onDecideMany}
+              confirmed={confirmedPairs}
+              onConfirm={(grantee, address) =>
+                setConfirmedPairs((p) => ({ ...p, [grantee]: address }))
+              }
+              onApplyFolder={onApplyFolder}
+              refusal={folderRefusals[g.parentKey] || undefined}
             >
               {g.rowIds.map(rowById).filter(isRow).map((r) => renderRow(r))}
             </GroupCard>
