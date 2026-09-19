@@ -993,6 +993,13 @@ export const shareGrant = pgTable(
     decidedBy: text('decided_by'),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     scannedAt: timestamp('scanned_at', { withTimezone: true }).notNull().defaultNow(),
+    // Where the thing sits, in the SOURCE's own ids (migration 0053, workplan
+    // 0123 T4). All three nullable, and `isContainer` nullable rather than
+    // `.default(false)` on purpose: a source that cannot say leaves them
+    // unset, and that must stay tellable from a source that said "no".
+    itemKey: text('item_key'),
+    parentKey: text('parent_key'),
+    isContainer: boolean('is_container'),
   },
   (t) => [uniqueIndex('uk_share_grant_identity').on(t.tenantId, t.mappingId, t.grantHash)],
 );

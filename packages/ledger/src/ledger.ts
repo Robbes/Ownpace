@@ -775,6 +775,9 @@ export class PgLedger implements Ledger {
       readonly raw: string;
       readonly verdict: 'clean' | 'manual';
       readonly verdictTarget: string;
+      readonly itemKey?: string;
+      readonly parentKey?: string;
+      readonly isContainer?: boolean;
     }>,
   ): Promise<number> {
     let created = 0;
@@ -798,6 +801,12 @@ export class PgLedger implements Ledger {
           raw: g.raw,
           verdict: g.verdict,
           verdictTarget: g.verdictTarget,
+          // Absent stays NULL rather than becoming a value: a source that
+          // could not place this row must not be recorded as having placed it
+          // at the root (workplan 0123 T4).
+          ...(g.itemKey !== undefined ? { itemKey: g.itemKey } : {}),
+          ...(g.parentKey !== undefined ? { parentKey: g.parentKey } : {}),
+          ...(g.isContainer !== undefined ? { isContainer: g.isContainer } : {}),
         })
         .onConflictDoUpdate({
           target: [
@@ -805,7 +814,19 @@ export class PgLedger implements Ledger {
             schemaPg.shareGrant.mappingId,
             schemaPg.shareGrant.grantHash,
           ],
-          set: { scannedAt: new Date() },
+          // Placement is refreshed on a rescan, and that is NOT the thing
+          // ADR-0032 forbids resetting. A decision is an owner's answer and is
+          // never touched here; where a file SITS is a fact about the source
+          // that changes when somebody drags it into another folder, and a
+          // queue still grouping it under last week's folder would be wrong on
+          // screen. `state`, `decidedBy` and `decidedAt` are untouched, which
+          // is what "a rescan never reopens a settled row" means.
+          set: {
+            scannedAt: new Date(),
+            itemKey: g.itemKey ?? null,
+            parentKey: g.parentKey ?? null,
+            isContainer: g.isContainer ?? null,
+          },
         })
         .returning({ state: schemaPg.shareGrant.state, decidedAt: schemaPg.shareGrant.decidedAt });
       if (inserted[0] && inserted[0].state === 'open' && inserted[0].decidedAt === null) {
@@ -920,6 +941,12 @@ export class PgLedger implements Ledger {
       ...(r.decidedBy ? { decidedBy: r.decidedBy } : {}),
       ...(r.decidedAt ? { decidedAt: r.decidedAt.toISOString() } : {}),
       scannedAt: r.scannedAt.toISOString(),
+      // `!= null` and not truthiness: `isContainer: false` is a source SAYING
+      // "not a folder", which is a different answer from NULL's "did not say"
+      // and the whole reason migration 0053 left the column nullable.
+      ...(r.itemKey != null ? { itemKey: r.itemKey } : {}),
+      ...(r.parentKey != null ? { parentKey: r.parentKey } : {}),
+      ...(r.isContainer != null ? { isContainer: r.isContainer } : {}),
     }));
   }
 

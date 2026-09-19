@@ -728,8 +728,15 @@ export class GoogleDriveSource implements FileSource {
   async listOwnedShareGrants(options?: { maxSharedItems?: number }): Promise<PermissionListing> {
     const maxItems = options?.maxSharedItems ?? 500;
     const q = `'me' in owners and trashed=false`;
+    // `parents` and `mimeType` ride along on THIS call, for nothing — which is
+    // the whole reason the sharing queue groups on the container rather than
+    // on Drive's own inheritance reporting. `permissionDetails.inherited` was
+    // measured (2026-09-18, the owner's Drive) to arrive only on
+    // `permissions.list`, one request per item — 482 extra calls on his Drive
+    // per scan — and to arrive WITHOUT `inheritedFrom`, so it could not have
+    // been the grouping key even at that price. See workplan 0123 §5.
     const fields =
-      'nextPageToken,files(id,name,shared,permissions(id,type,role,emailAddress,domain,displayName,allowFileDiscovery))';
+      'nextPageToken,files(id,name,shared,mimeType,parents,permissions(id,type,role,emailAddress,domain,displayName,allowFileDiscovery))';
 
     const grants: PermissionGrant[] = [];
     let sharedItems = 0;
@@ -755,6 +762,8 @@ export class GoogleDriveSource implements FileSource {
             id: string;
             name: string;
             shared?: boolean;
+            mimeType?: string;
+            parents?: string[];
             permissions?: Array<{
               type?: string;
               role?: string;
@@ -791,6 +800,19 @@ export class GoogleDriveSource implements FileSource {
               ...(grantee ? { grantee } : {}),
               ...(perm.type === 'anyone' ? { viaLink: true } : {}),
               raw: JSON.stringify({ fileId: file.id, ...perm }),
+              // Where it sits (workplan 0123 T4). Only the FIRST parent is
+              // carried: Drive's `parents` is an array for historical reasons
+              // (multi-parenting was removed in 2020 and the field kept its
+              // shape), so a second entry is not a second home to group under.
+              // A file with NO parents is Drive's "unorganized" — genuinely
+              // placeless, which `listOrphanedFiles` reports as its own
+              // finding — and it correctly leaves `parentKey` unset here, so
+              // the queue lists it alone rather than inventing a folder.
+              itemKey: file.id,
+              ...(file.parents?.[0] ? { parentKey: file.parents[0] } : {}),
+              ...(file.mimeType !== undefined
+                ? { isContainer: file.mimeType === DRIVE_FOLDER_MIME }
+                : {}),
             });
           }
         }
