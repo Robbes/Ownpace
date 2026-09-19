@@ -24,6 +24,21 @@ thing inside one (hard rule 9). Same for placement: a share with no `path` at al
 *nowhere* rather than at the account root — the root is a real answer, and a row put there on the
 strength of a missing field would fold in beside shares it has nothing to do with.
 
+**Run #189 said it worked, and named what it still could not say.** Against run #188 on main —
+same smoke, one fewer seeded file — the tagged ledger went `copied 8` → `copied 9`, the source
+take-back 9 → 10 resources and the target's 7 → 8, and the press went from `applied 1` to a folder
+press applying **2** before apply-all ran at all. So the file inside the folder really syncs, and
+both ends really take the folder back.
+
+What that run could NOT distinguish is whether the target **mirrors** the folder or **flattens**
+it, and the take-back's proof had the same blind spot: its needle was the collection's name. A
+flattened copy would sit at the root as `openmig-demo-folder-file-<tag>.txt`, the collection
+DELETE would answer 404 — which this script accepts, and must, for idempotency — and the count
+would find nothing. One file left behind per run, on a long-lived demo account, reported clean.
+So the re-read now also counts that name at the root, where only a flattened copy can be: the two
+needles cannot both match, because a Depth-1 listing never shows what is inside a collection.
+"I looked and there is nothing" is worth nothing when the looking was in the wrong place.
+
 What the gate asserts, in order, because the order is the proof: the rescan **placed** rows inside
 the folder (without that, a 404 from the press would read as "the press is broken"); an
 unconfirmed press is refused `409 unconfirmed_grantees`, **names** the grantee it waits on, and —

@@ -311,6 +311,23 @@ describe('--remove takes one --fresh set back (0100)', () => {
     expect(r.stderr).toContain('1 resource(s) tagged tag-3 are still present');
   });
 
+  it('refuses when a FLATTENED copy of the shared file is left at the root', () => {
+    // The two folder needles cannot both match, which is why both are needed.
+    // At Depth 1 the root listing shows the collection and never what is
+    // inside it, so on an account that mirrors the structure this file is
+    // invisible and the collection needle is the one that speaks.
+    //
+    // A target that FLATTENED instead would leave the copy at the ROOT, under
+    // a name the collection needle does not cover — and the collection DELETE
+    // would answer 404, which this script accepts. So without this needle the
+    // take-back would report clean while the demo target grew by one file a
+    // night: the failure `--remove` exists to prevent, said by a check that
+    // was looking in the wrong place.
+    const r = run({ VERIFY_ANSWER: 'openmig-demo-folder-file-tag-4' }, ['--remove', 'tag-4']);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('1 resource(s) tagged tag-4 are still present');
+  });
+
   it('converges when the set is already gone (404 is the outcome we wanted)', () => {
     // Idempotency, hard rule 1: a re-run, or a seed that half-failed, has to
     // finish rather than refuse. 404 means the resource is not there, which is

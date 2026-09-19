@@ -443,11 +443,24 @@ if [ "$REMOVE_ONLY" = "1" ]; then
   # the verification below was written for. The shared COLLECTION is counted
   # here too: its DELETE is the one that takes a whole subtree, so "204" is the
   # weakest evidence in this list and the one most worth not trusting.
+  #
+  # AND THE FILE INSIDE IT, BY ITS OWN NAME — which is not redundant, because
+  # the two needles cannot both match. At Depth 1 this lists the collection and
+  # its siblings, never what is inside it, so on an account that holds the
+  # folder the inner file is invisible here and this counts 0. It can only
+  # match a copy sitting at the ROOT — which is what a target that FLATTENED
+  # the structure instead of mirroring it would leave behind, under a name the
+  # collection needle does not cover. Without this, such a copy would survive
+  # every take-back: the collection DELETE answers 404 (accepted, hard rule 1),
+  # the collection needle finds nothing, and the demo target grows by one file
+  # a night while the gate reports it clean — "I looked and there is nothing"
+  # said by a check that was looking in the wrong place.
   left=$(( $(count "$CAL" "openmig-demo-event-${SUFFIX}") \
          + $(count "$ABK" "openmig-demo-contact-${SUFFIX}") \
          + $(count "$FILES" "openmig-demo-file-${SUFFIX}") \
          + $(count "$FILES" "openmig-demo-bigfile-${SUFFIX}") \
-         + $(count "$FILES" "openmig-shared-${TAG}") ))
+         + $(count "$FILES" "openmig-shared-${TAG}") \
+         + $(count "$FILES" "openmig-demo-folder-file-${TAG}") ))
   [ -n "$TASKS" ] && left=$(( left + $(count "$TASKS" "openmig-demo-task-${SUFFIX}") ))
   [ "$left" = "0" ] || fail "${left} resource(s) tagged ${TAG} are still present after removal"
   echo "[seed-dav] source is clean of tag ${TAG}"
