@@ -474,6 +474,10 @@ const en = {
     'Nothing on the new system is rewritten — this tool never overwrites what it did not write, so a file copied as a .pdf stays a .pdf. The new format applies to files copied from now on, including any you send back through. Comparing the two is safe: each copy records which format it was made under, so a later pass reads a format change as a format change and never as a file that was edited.',
   // WHAT A SAVE DOES NOT DO BY ITSELF (0125 T5, offered rather than automatic).
   'settings.exportPolicy.refusedBefore': 'Files already refused stay refused until you retry them.',
+  // The same sentence with the count, used only when the count is KNOWN and
+  // above zero: a queue we could not read must not read as a queue of none.
+  'settings.exportPolicy.refusedBefore.count':
+    '{count} file(s) already refused stay refused until you retry them.',
   'settings.exportPolicy.refusedBefore.why':
     'Changing this setting does not reopen decisions that were already recorded — a settings save that silently emptied a queue would be a change to your ledger that nobody asked for. The Failures screen groups them by reason, so the ones left behind by the old format are one group with one button: retry all of them, and the next pass copies them in the format you just chose.',
   'settings.exportPolicy.toFailures': 'Go to Failures to retry them',
@@ -2387,6 +2391,8 @@ const nl: Record<keyof typeof en, string> = {
   'settings.exportPolicy.refusedBefore.why':
     'Deze instelling wijzigen heropent geen beslissingen die al zijn vastgelegd — een opgeslagen instelling die stilletjes een wachtrij leegmaakt, is een wijziging in uw administratie waar niemand om heeft gevraagd. Het scherm Mislukkingen groepeert ze op reden, dus de bestanden die het oude formaat heeft laten liggen vormen één groep met één knop: laat ze allemaal opnieuw proberen, dan kopieert de volgende ronde ze in het formaat dat u zojuist hebt gekozen.',
   'settings.exportPolicy.toFailures': 'Naar Mislukkingen om ze opnieuw te proberen',
+  'settings.exportPolicy.refusedBefore.count':
+    '{count} al geweigerde bestand(en) blijven geweigerd totdat u ze opnieuw probeert.',
   'settings.exportPolicy.refused': 'Dit kon niet worden gewijzigd:',
   'settings.exportPolicy.failed': 'Dat is niet opgeslagen:',
   'hub.completionReport': 'Download het opleveringsrapport (Markdown)',

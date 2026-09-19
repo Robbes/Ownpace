@@ -12,6 +12,13 @@
  * and dropped it. So these guards are about a remedy being CARRYABLE: the panel
  * shows the policy actually in force, states what changing it does and does not
  * do before the press, sends the change, and renders a refusal as a refusal.
+ *
+ * And, since 0125 T5, HOW MANY it does not do it to. §7 asks the change to
+ * report *"21 items were refused under the old policy"*; the sentence shipped
+ * without the number. The guards below hold the number to hard rule 9: it
+ * appears when the queue was read and had some, and the sentence keeps its
+ * number-free wording both when the queue could not be read and when it had
+ * none — a count nobody took must never read as a count of nothing.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -19,12 +26,35 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
+import { FAILURE_GUIDANCE, type FailuresResponse, type ItemFailure } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
 
 const { setNativeFilePolicy } = vi.hoisted(() => ({ setNativeFilePolicy: vi.fn() }));
 vi.mock('../services/mapping-service', () => ({ mappingApi: { setNativeFilePolicy } }));
 
-import ExportPolicyPanel, { policyInForce } from './ExportPolicyPanel.tsx';
+const { fetchFailures } = vi.hoisted(() => ({ fetchFailures: vi.fn() }));
+vi.mock('../services/operating-service', () => ({ fetchFailures }));
+
+import ExportPolicyPanel, { policyInForce, refusedByPolicy } from './ExportPolicyPanel.tsx';
+
+/** One failure row, with the field the count reads and enough to be a row. */
+const failure = (over: Partial<ItemFailure> & { naturalKeyHash: string }): ItemFailure => ({
+  domain: 'file',
+  attempts: 1,
+  lastError: 'a Google native file, refused by this migration\u2019s export policy',
+  needsDecision: true,
+  ...over,
+});
+
+/** The queue endpoint's answer for one mapping, split the way the route splits it. */
+const queueOf = (failures: ItemFailure[]): FailuresResponse => ({
+  'm-1': {
+    migrationStatus: 'active',
+    needsDecision: failures.filter((f) => f.needsDecision),
+    retrying: failures.filter((f) => !f.needsDecision),
+    howToResolve: FAILURE_GUIDANCE,
+  },
+});
 
 const EN = STRINGS.en;
 
@@ -45,29 +75,51 @@ function renderPanel(
   props: Partial<React.ComponentProps<typeof ExportPolicyPanel>> = {},
 ) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={qc}>
-      <MemoryRouter>
-        <ExportPolicyPanel
-          mappingId="m-1"
-          sourceType="google"
-          domains={['file', 'email']}
-          current={undefined}
-          {...props}
-        />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  return {
+    // Handed back so a test can wait for the failures query to have SETTLED.
+    // Without it, asserting that a sentence stayed number-free races the
+    // request: the number-free wording is also what is on screen while the
+    // count is still in flight, so the assertion would pass before the answer
+    // arrived and would keep passing if the answer were rendered wrongly.
+    qc,
+    ...render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <ExportPolicyPanel
+            mappingId="m-1"
+            sourceType="google"
+            domains={['file', 'email']}
+            current={undefined}
+            {...props}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The default for every test that is not about the count: the queue is not
+  // readable, so the sentence keeps its number-free wording.
+  fetchFailures.mockRejectedValue(new Error('no queue in this test'));
   setNativeFilePolicy.mockResolvedValue({
     id: 'm-1',
     sourceConfig: { nativeFilePolicy: 'export-pdf' },
     updatedAt: '2026-09-18T20:00:00.000Z',
   });
 });
+
+/** Choose a policy and press save — the two steps every count test needs. */
+async function saveExportPdf() {
+  await userEvent.selectOptions(
+    screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
+    'export-pdf',
+  );
+  await userEvent.click(
+    screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
+  );
+}
 
 describe('whose migration the question belongs to', () => {
   /**
@@ -285,5 +337,109 @@ describe('a refusal is a refusal', () => {
     );
     expect(await screen.findByText(/nativeFilePolicy: unsupported/)).toBeInTheDocument();
     expect(screen.queryByText(EN['settings.exportPolicy.saved'])).toBeNull();
+  });
+});
+
+describe('how many were refused by the format it had (0125 T5)', () => {
+  /**
+   * THE DISTINCTION THE WHOLE SECTION TURNS ON. `undefined` is "we did not
+   * ask, or could not"; `0` is "we asked and there are none". A count that
+   * defaulted a missing queue to zero would tell somebody their migration
+   * refused nothing on the strength of a request that never came back.
+   */
+  it('answers undefined for a queue it never read, and 0 for one that was empty', () => {
+    expect(refusedByPolicy(undefined)).toBeUndefined();
+    expect(refusedByPolicy(queueOf([])['m-1'])).toBe(0);
+  });
+
+  it('counts only the rows refused by the policy, in both halves of the queue', () => {
+    const counted = refusedByPolicy(
+      queueOf([
+        failure({ naturalKeyHash: 'a', category: 'policy_refused' }),
+        failure({ naturalKeyHash: 'b', category: 'policy_refused', needsDecision: false }),
+        failure({ naturalKeyHash: 'c', category: 'target_refused' }),
+        // No category at all — a row written before migration 0049. Absent is
+        // not `policy_refused`, and counting it would put a number under a
+        // failure nobody classified.
+        failure({ naturalKeyHash: 'd' }),
+      ])['m-1'],
+    );
+    expect(counted).toBe(2);
+  });
+
+  it('says the number once a save has landed', async () => {
+    fetchFailures.mockResolvedValue(
+      queueOf([
+        failure({ naturalKeyHash: 'a', category: 'policy_refused' }),
+        failure({ naturalKeyHash: 'b', category: 'policy_refused' }),
+        failure({ naturalKeyHash: 'c', category: 'policy_refused' }),
+        failure({ naturalKeyHash: 'd', category: 'quota_exceeded' }),
+      ]),
+    );
+    renderPanel({ current: 'refuse' });
+    await saveExportPdf();
+
+    expect(
+      await screen.findByText(
+        EN['settings.exportPolicy.refusedBefore.count'].replace('{count}', '3'),
+      ),
+    ).toBeInTheDocument();
+    expect(fetchFailures).toHaveBeenCalledWith('m-1');
+  });
+
+  /**
+   * HARD RULE 9. The queue could not be read, so there is no number to say —
+   * and the sentence that was always there says what it always said. What must
+   * never happen is a zero appearing where a failed request was.
+   */
+  it('keeps the number-free sentence when the queue could not be read', async () => {
+    fetchFailures.mockRejectedValue(new Error('the queue did not answer'));
+    const { qc } = renderPanel({ current: 'refuse' });
+    await saveExportPdf();
+
+    // Settled in FAILURE, so there is nothing to count and never will be.
+    await waitFor(() =>
+      expect(qc.getQueryState(['failures', 'm-1'])?.status).toBe('error'),
+    );
+    expect(screen.getByText(EN['settings.exportPolicy.refusedBefore'])).toBeInTheDocument();
+    expect(screen.queryByText(/file\(s\) already refused/)).toBeNull();
+  });
+
+  /**
+   * AND WHEN THE ANSWER IS GENUINELY NONE. "0 files already refused" is a
+   * sentence about nothing, and the link below still leads somewhere worth
+   * looking: the owner's own thirty read `unknown` until they are next
+   * attempted (§7), so a zero here is not a promise that nothing is waiting.
+   */
+  it('keeps the number-free sentence, and the link, when the count is zero', async () => {
+    fetchFailures.mockResolvedValue(queueOf([failure({ naturalKeyHash: 'a', category: 'unknown' })]));
+    const { qc } = renderPanel({ current: 'refuse' });
+    await saveExportPdf();
+
+    // The queue ARRIVED and held none. Waiting for that is the whole point:
+    // "0 file(s) already refused" is a sentence about nothing, and the
+    // number-free wording is also what is on screen while the count is in
+    // flight — so an assertion that did not wait would pass either way.
+    await waitFor(() => expect(qc.getQueryData(['failures', 'm-1'])).toBeDefined());
+    expect(screen.getByText(EN['settings.exportPolicy.refusedBefore'])).toBeInTheDocument();
+    expect(screen.queryByText(/file\(s\) already refused/)).toBeNull();
+    expect(
+      screen.getByRole('link', { name: EN['settings.exportPolicy.toFailures'] }),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * THE QUEUE IS NOT READ ON A NORMAL PAGE LOAD. The number is part of what a
+   * SAVE reports; counting it every time somebody opens the migration page
+   * would be a request for a line nobody has asked for yet.
+   */
+  it('asks for nothing until a save has landed', async () => {
+    fetchFailures.mockResolvedValue(queueOf([]));
+    renderPanel({ current: 'refuse' });
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
+      'export-pdf',
+    );
+    expect(fetchFailures).not.toHaveBeenCalled();
   });
 });

@@ -45,17 +45,34 @@
  * means the rule changed under it, and hard rule 9 says that must not look like
  * a save that worked. The server's own sentences are rendered rather than a
  * client-side guess at what it must have meant.
+ *
+ * ## And how many were refused under the format it had (0125 T5)
+ *
+ * §7 asks the change to REPORT *"21 items were refused under the old policy"*.
+ * The sentence shipped without the number, because nothing on the detail
+ * payload carries failures by category. It is counted here instead, from the
+ * failures queue the Failures screen already reads — and only once a save has
+ * landed, because a count taken on every load of the migration page would be a
+ * request for a line nobody has asked for yet.
+ *
+ * A count nobody managed to take reads as no count, never as a count of
+ * nothing: `refusedByPolicy` answers `undefined` for "we did not ask or could
+ * not", `0` for "we asked and there are none", and the sentence keeps its
+ * number-free wording for both. Hard rule 9, in the one place on this panel
+ * where a silence could be mistaken for an all-clear.
  */
 import React from 'react';
 import { Link } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Settings2 } from 'lucide-react';
 import {
   carriesGoogleNativeFiles,
   mayRevise,
+  type FailuresQueue,
   type GoogleNativeFilePolicy,
 } from '@openmig/shared';
 import { mappingApi } from '../services/mapping-service.ts';
+import { fetchFailures } from '../services/operating-service.ts';
 import { revisionRefusals, serverMessage } from '../services/api.ts';
 import { useT } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
@@ -74,6 +91,27 @@ export function policyInForce(value: unknown): GoogleNativeFilePolicy {
   return value === 'export-odf' || value === 'export-office' || value === 'export-pdf'
     ? value
     : 'refuse';
+}
+
+/**
+ * How many of this mapping's failures were refused by its export policy.
+ *
+ * `undefined` means the queue was not read — not in flight, refused, or simply
+ * never asked for. `0` means it WAS read and none were. The screen must be
+ * able to tell those apart, which is the whole reason this returns a union
+ * rather than defaulting a missing queue to zero.
+ *
+ * Both halves of the queue are counted. A policy refusal is recorded as a
+ * decision and so normally waits in `needsDecision`, but "refused by the
+ * format you had" is true of the row wherever it currently sits, and a count
+ * that depended on which bucket the queue happened to file it under would be
+ * a fact about our plumbing rather than about the migration.
+ */
+export function refusedByPolicy(queue: FailuresQueue | undefined): number | undefined {
+  if (queue === undefined) return undefined;
+  return [...queue.needsDecision, ...queue.retrying].filter(
+    (f) => f.category === 'policy_refused',
+  ).length;
 }
 
 const ExportPolicyPanel: React.FC<{
@@ -95,6 +133,18 @@ const ExportPolicyPanel: React.FC<{
     ReadonlyArray<{ field: string; reason: string }>
   >([]);
   const [failed, setFailed] = React.useState<string | null>(null);
+
+  // The same key the Failures screen uses, so the two share one cache rather
+  // than each holding its own idea of the queue. `enabled` keeps this off the
+  // migration page's normal load entirely: the number is part of what a SAVE
+  // reports, and until one lands there is nothing to say it about.
+  const { data: queues } = useQuery({
+    queryKey: ['failures', mappingId],
+    queryFn: () => fetchFailures(mappingId),
+    enabled: saved !== null,
+    staleTime: 30_000,
+  });
+  const refusedCount = refusedByPolicy(queues?.[mappingId]);
 
   // What the mapping holds is the source of truth, and it changes under this
   // panel every time a save lands and the query refetches. Without this, a
@@ -190,7 +240,19 @@ const ExportPolicyPanel: React.FC<{
           {saved !== null && (
             <Hint
               className="mt-2"
-              text={t('settings.exportPolicy.refusedBefore')}
+              // The number when we have one, and the same sentence without it
+              // when we do not. `refusedCount === 0` takes the number-free
+              // wording too: "0 files already refused" is a sentence about
+              // nothing, and the link below still leads somewhere worth
+              // looking if the rows have not been categorised yet — the
+              // owner's own thirty read `unknown` until next attempted (§7).
+              text={
+                refusedCount !== undefined && refusedCount > 0
+                  ? t('settings.exportPolicy.refusedBefore.count', {
+                      count: String(refusedCount),
+                    })
+                  : t('settings.exportPolicy.refusedBefore')
+              }
               why={t('settings.exportPolicy.refusedBefore.why')}
             />
           )}

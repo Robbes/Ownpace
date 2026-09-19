@@ -1,6 +1,28 @@
 # Workplan 0125 — Config a migration can revise
 
-## Status — 2026-09-18 (update this block at the end of every session)
+## Status — 2026-09-19 (update this block at the end of every session)
+
+**2026-09-19, last: T5 is whole — the save says how many, or says nothing about how many.**
+§7 asked the change to report *"21 items were refused under the old policy"* and the panel shipped
+that sentence without its number, because nothing on the detail payload carries failures by
+category. It is counted from the failures queue instead — the same one the Failures screen reads,
+under the same query key, so the two share a cache rather than each holding their own idea of it.
+
+Three things this had to get right, and each is a guard:
+
+- **It is not read on a normal page load.** The number is part of what a SAVE reports, so the
+  query is enabled only once one has landed. Opening the migration page costs nothing.
+- **A count nobody took never reads as a count of nothing.** `refusedByPolicy` answers `undefined`
+  for "did not ask, or could not" and `0` for "asked, and there are none"; the sentence keeps its
+  number-free wording for both, and only a KNOWN count above zero puts a number on screen. Hard
+  rule 9, in the one spot on this panel where a silence could pass for an all-clear.
+- **Zero is not an all-clear either.** The link to Failures stays whatever the count says,
+  because the owner's own thirty read `unknown` until they are next attempted (the practical note
+  below) — a zero here would be a true count of a category, not a promise that nothing is waiting.
+
+Proved by mutation: defaulting a missing queue to zero, printing the number at zero, counting only
+the rows waiting on a decision, reading the queue on every load, and dropping the counted wording
+each redden a guard.
 
 **2026-09-18, last: T3's FORM is built, and the door in front of the whole plan was shut.**
 The panel is on the migration's own page: the policy in force, the wizard's chooser, T1's
@@ -75,7 +97,7 @@ what hard rule 5 forbids about what a setting can *mean*.
 | T2 The appliance honours it at load | ⬜ | **Blocked on a decision, not on work.** The appliance keeps no copy of its previous config — `ensureMappingRecords` persists the tenant, the mapping id, source/target user and pattern, and nothing else — so there is nothing to compare a boot against. §4 |
 | T3 Managed's edit path | ✅ Done — §5 | The route applies the export policy and refuses what T1 refuses, all at once; **the form is on the migration's page**, and the update body is partial all the way down so a revision can reach the rule at all. |
 | T4 `policy_refused`, and an error that carries its own category | ✅ Done — §6 | Ninth category, migration 0051 (COMMENT only, as 0048 predicted). `NativeFileRefused` states its category; `classifyFailure` prefers a stated one. The owner's thirty split 21/9 the next time they are attempted. |
-| T5 What happens to items refused under the old policy | 🟨 Half — §7 | **Offered**: a save says the already-refused stay refused and links to the group press, which `resolveFailureGroup` already clears `parkedAt` for. The COUNT is not there — see §7. |
+| T5 What happens to items refused under the old policy | ✅ Done — §7 | **Offered**, never automatic: a save says the already-refused stay refused and links to the group press, which `resolveFailureGroup` already clears `parkedAt` for. **The count landed 2026-09-19**, read from the failures queue only once a save has landed, and shown only when it is known and above zero — `undefined` (could not ask) and `0` (asked, none) both keep the number-free sentence and the link. |
 
 ## 1. What the owner found
 
@@ -327,12 +349,22 @@ the group the bulk press selects. Automatic was never a candidate — a settings
 emptied a queue of recorded decisions is the bulk mutation of the ledger this codebase refuses to
 make, and it is the one thing a person could not undo.
 
-**The COUNT is not built.** This section says the change should report *"21 items were refused
-under the old policy"*, and the panel says the sentence without the number. Nothing on the detail
-payload carries failures by category — the Failures screen counts them itself, from its own read —
-so the number needs either a count on the detail route or a second request from this panel, and
-either is a piece of work rather than a line. Said plainly here rather than left looking done: the
-person is pointed at the right screen, and that screen shows them the number.
+**The COUNT landed 2026-09-19.** It is the second of the two routes this section weighed — a
+request from the panel, not a field on the detail payload — and the reason is cost: a count on
+the detail route runs on every load of the migration page, and the number is part of what a SAVE
+reports. So the panel reads the failures queue under the SAME query key the Failures screen uses
+(one cache, not two ideas of the queue), `enabled` only once a save has landed, and counts the
+rows whose category is `policy_refused` across both halves of it — a policy refusal is recorded as
+a decision and normally waits in `needsDecision`, but "refused by the format you had" is true of
+the row wherever the queue files it, and a count that depended on the bucket would be a fact about
+our plumbing.
+
+**And what the number does when there is no number.** `refusedByPolicy` returns `undefined` for a
+queue that was not read and `0` for one that was read and held none; the sentence takes its
+number-free wording for BOTH, and only a known count above zero prints one. Zero does not remove
+the link either, and that is not timidity: it is the practical note below. The owner's thirty
+still read `unknown`, so a zero here is a true count of a category and not a promise that nothing
+is waiting.
 
 **And the practical note for the owner's own thirty** (from T4): rows keep the category they were
 given, so his existing thirty still read `unknown` until they are next attempted. His FIRST press
