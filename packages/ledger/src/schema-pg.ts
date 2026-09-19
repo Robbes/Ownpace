@@ -229,6 +229,21 @@ export const mailboxMapping = pgTable(
     // 2026-08-16). See migration 0011 and MappingConfig.targetFolderPrefix.
     targetFolderPrefix: text('target_folder_prefix'),
     /**
+     * WHAT THIS MIGRATION SAID IT WAS, last time it was loaded (migration
+     * 0054, workplan 0125 T2).
+     *
+     * Keyed by the dotted paths `mayRevise` speaks (`source.type`,
+     * `target.account`, …), so the snapshot and the rule that judges it are
+     * one vocabulary. The appliance writes it at boot and compares the next
+     * boot against it — the guard managed gets for free from having an edit
+     * route and a database, which a config file on somebody's disk does not.
+     *
+     * NULL is "no snapshot yet", never "nothing changed". The first boot after
+     * this column shipped RECORDS and refuses nothing: a comparison that was
+     * never made must not strand a migration that has done nothing wrong.
+     */
+    revisionState: jsonb('revision_state'),
+    /**
      * Per-mapping overrides of a SHARED connection's config (migration 0021).
      *
      * The connection answers "as whom do we sign in"; the mapping answers

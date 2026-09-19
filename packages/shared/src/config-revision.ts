@@ -253,3 +253,124 @@ export function refusalsFor(
   }
   return refused;
 }
+
+/**
+ * WHAT A MIGRATION SAID IT WAS, keyed by the paths this rule already speaks
+ * (workplan 0125 T2).
+ *
+ * The same dotted keys as `RevisableField`, for the reason those exist at all:
+ * a snapshot spelled in one edition's own words would have to be translated —
+ * badly — before this table could judge it.
+ *
+ * A field ABSENT from the snapshot means the config did not declare it, which
+ * is itself a value worth comparing: dropping `source.rootFolderId` widens the
+ * scope to the whole account, and that is exactly the change the rule refuses.
+ * So absent-to-present and present-to-absent both count as a change.
+ *
+ * Callers pass EFFECTIVE values, not raw ones. `nativeFilePolicy` absent means
+ * `refuse` to the engine, and a snapshot that recorded the literal absence
+ * would report a change the first time somebody wrote the default down.
+ */
+export type RevisionSnapshot = Readonly<Partial<Record<RevisableField, string>>>;
+
+export interface RevisionComparison {
+  /**
+   * Nothing was recorded before this, so there is nothing to compare against.
+   *
+   * NOT "nothing changed" — hard rule 9, at the one moment it decides whether
+   * a running migration keeps running. An appliance upgrading into this has a
+   * live migration and no snapshot, and refusing it on a comparison that was
+   * never made would strand it for something nobody can show it did.
+   */
+  readonly firstRecord: boolean;
+  /** Every field whose effective value differs, refused or not. */
+  readonly changed: ReadonlyArray<RevisableField>;
+  /** The changed fields this rule refuses, each with what it was and is. */
+  readonly refusals: ReadonlyArray<{
+    readonly field: RevisableField;
+    readonly from: string;
+    readonly to: string;
+    readonly reason: string;
+  }>;
+}
+
+/** How an absent value reads in a refusal, so "gone" never prints as nothing. */
+const NOT_DECLARED = '(not set)';
+
+/**
+ * Compare what a migration declares NOW against what it declared last time.
+ *
+ * The half the appliance never had. Managed enforces `mayRevise` at its edit
+ * route, where a change arrives as a request with the old values in the
+ * database beside it. The appliance's config is a file its operator owns, so
+ * there was no request and nothing to compare against — this is the
+ * comparison, and `RevisionSnapshot` is the thing it compares against.
+ *
+ * Refuses NOTHING on a first record, by construction rather than by a caller
+ * remembering to check: `previous === undefined` returns no refusals whatever
+ * the current values are.
+ */
+export function compareRevision(
+  previous: RevisionSnapshot | undefined,
+  current: RevisionSnapshot,
+): RevisionComparison {
+  if (previous === undefined) return { firstRecord: true, changed: [], refusals: [] };
+  const changed = REVISABLE_FIELDS.filter((f) => previous[f] !== current[f]);
+  return {
+    firstRecord: false,
+    changed,
+    // `refusalsFor` is the one place that decides WHICH changes are refused;
+    // this only adds what each one was and is, so an operator reading the
+    // refusal does not have to go and diff the file themselves.
+    refusals: refusalsFor(changed).map((r) => ({
+      field: r.field,
+      from: previous[r.field] ?? NOT_DECLARED,
+      to: current[r.field] ?? NOT_DECLARED,
+      reason: r.reason,
+    })),
+  };
+}
+
+/**
+ * What a mapping FILE declares, as the snapshot this rule compares.
+ *
+ * Only the appliance needs this: managed's mapping is rows in a database and
+ * its edit route already has the old values beside the new ones. Here the
+ * config file IS the record, so the fields have to be lifted out of it into
+ * the rule's own vocabulary before anything can be compared.
+ *
+ * Typed against the config unions rather than a loose bag, so a source that
+ * grows a root folder or a target that grows an account cannot quietly stop
+ * being snapshotted: `in` narrows the union member, and a member without the
+ * field contributes nothing rather than `undefined`.
+ *
+ * `source.nativeFilePolicy` is recorded EFFECTIVE — absent means `refuse` to
+ * the engine, and a snapshot of the literal absence would report a change the
+ * first time somebody wrote the default down in their own file.
+ */
+export function revisionSnapshotOf(config: {
+  readonly source: {
+    readonly type: string;
+    readonly rootFolderId?: unknown;
+    readonly nativeFilePolicy?: unknown;
+  };
+  readonly target: { readonly type: string; readonly user?: unknown };
+}): RevisionSnapshot {
+  // Declared optional-and-`unknown` rather than narrowed here: every config
+  // union member satisfies it (a member without the field simply has it
+  // absent), so the call site needs no cast and a source that GROWS a root
+  // folder is snapshotted the day it does.
+  const { source, target } = config;
+  return {
+    'source.type': source.type,
+    'target.type': target.type,
+    ...('rootFolderId' in source && typeof source.rootFolderId === 'string'
+      ? { 'source.rootFolderId': source.rootFolderId }
+      : {}),
+    ...('user' in target && typeof target.user === 'string'
+      ? { 'target.account': target.user }
+      : {}),
+    'source.nativeFilePolicy':
+      typeof source.nativeFilePolicy === 'string' ? source.nativeFilePolicy : 'refuse',
+  };
+}

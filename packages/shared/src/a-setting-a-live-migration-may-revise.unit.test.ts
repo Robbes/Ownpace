@@ -18,10 +18,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   REVISABLE_FIELDS,
+  compareRevision,
   isRevisableField,
   mayRevise,
   refusalsFor,
+  revisionSnapshotOf,
   type RevisableField,
+  type RevisionSnapshot,
 } from './config-revision.ts';
 
 describe('the table answers for every field it names', () => {
@@ -134,5 +137,149 @@ describe('refusalsFor', () => {
     // that needs to tell them apart knows what it passed in; this function
     // deliberately does not invent a third answer.
     expect(refusalsFor([])).toEqual([]);
+  });
+});
+
+/**
+ * WHAT A MIGRATION SAID IT WAS, AND WHAT IT SAYS NOW (workplan 0125 T2).
+ *
+ * The table above answers "may this field change". It could only be ASKED on
+ * the managed edition, where a change arrives as a request with the old values
+ * in the database beside it. The appliance's config is a file its operator
+ * owns: no request, and — until migration 0054 — nothing recorded to compare
+ * against, so the most dangerous row in the table (`source.type`, under a
+ * ledger full of items keyed to the old provider) went entirely unguarded.
+ *
+ * These hold the comparison, and the one thing about it that decides whether a
+ * running migration keeps running:
+ *
+ *  1. **A first record refuses nothing.** An appliance upgrading into the
+ *     column has a live migration and no snapshot. Refusing it on a comparison
+ *     that was never made is hard rule 9's exact confusion — "I could not
+ *     look" read as "something is wrong".
+ *  2. **Absent is a value.** Dropping `source.rootFolderId` widens the scope
+ *     to the whole account, which is the change the rule refuses; a comparison
+ *     that only looked at fields present in both would miss it.
+ *  3. **The refusal names both values**, because an operator reading it should
+ *     not have to go and diff their own file to find out what they did.
+ */
+describe('comparing what a migration says now against what it said', () => {
+  const WAS: RevisionSnapshot = {
+    'source.type': 'google-drive',
+    'target.type': 'webdav',
+    'source.rootFolderId': 'FOLDER-A',
+    'target.account': 'rob',
+    'source.nativeFilePolicy': 'refuse',
+  };
+
+  it('refuses nothing on a first record, whatever the config says', () => {
+    const verdict = compareRevision(undefined, { ...WAS, 'source.type': 'dropbox' });
+    expect(verdict.firstRecord).toBe(true);
+    expect(verdict.refusals).toEqual([]);
+    // And claims no change either: nothing was compared.
+    expect(verdict.changed).toEqual([]);
+  });
+
+  it('says nothing changed when nothing changed', () => {
+    expect(compareRevision(WAS, { ...WAS })).toEqual({
+      firstRecord: false,
+      changed: [],
+      refusals: [],
+    });
+  });
+
+  it('refuses a source the ledger is keyed against, naming both values', () => {
+    const verdict = compareRevision(WAS, { ...WAS, 'source.type': 'dropbox' });
+    expect(verdict.firstRecord).toBe(false);
+    expect(verdict.changed).toEqual(['source.type']);
+    expect(verdict.refusals).toHaveLength(1);
+    expect(verdict.refusals[0]).toMatchObject({
+      field: 'source.type',
+      from: 'google-drive',
+      to: 'dropbox',
+    });
+    // The table's own sentence, not a second copy of it.
+    const rule = mayRevise('source.type');
+    expect(rule.allowed).toBe(false);
+    if (!rule.allowed) expect(verdict.refusals[0]!.reason).toBe(rule.reason);
+  });
+
+  it('treats a field the config DROPPED as a change, and names it as gone', () => {
+    // Removing the root folder widens the scope to the whole account. A
+    // comparison that only looked at what is present in both would let the
+    // most consequential edit through as an absence.
+    const now: Record<string, string> = { ...WAS };
+    delete now['source.rootFolderId'];
+    const verdict = compareRevision(WAS, now as RevisionSnapshot);
+    expect(verdict.changed).toEqual(['source.rootFolderId']);
+    expect(verdict.refusals[0]).toMatchObject({
+      field: 'source.rootFolderId',
+      from: 'FOLDER-A',
+      to: '(not set)',
+    });
+  });
+
+  it('permits what the table permits, and still reports it as changed', () => {
+    const verdict = compareRevision(WAS, { ...WAS, 'source.nativeFilePolicy': 'export-pdf' });
+    expect(verdict.changed).toEqual(['source.nativeFilePolicy']);
+    expect(verdict.refusals).toEqual([]);
+  });
+
+  it('reports EVERY refusal, never the first', () => {
+    // Somebody who changed three forbidden fields and is told about one will
+    // fix it and be refused again, twice.
+    const verdict = compareRevision(WAS, {
+      ...WAS,
+      'source.type': 'dropbox',
+      'target.type': 'jmap',
+      'target.account': 'someone-else',
+    });
+    expect(verdict.refusals.map((r) => r.field).sort()).toEqual([
+      'source.type',
+      'target.account',
+      'target.type',
+    ]);
+  });
+});
+
+describe('lifting a mapping file into the snapshot', () => {
+  it('records the types, and the optional fields only when declared', () => {
+    expect(
+      revisionSnapshotOf({
+        source: { type: 'google-drive', rootFolderId: 'FOLDER-A' },
+        target: { type: 'webdav', user: 'rob' },
+      }),
+    ).toEqual({
+      'source.type': 'google-drive',
+      'target.type': 'webdav',
+      'source.rootFolderId': 'FOLDER-A',
+      'target.account': 'rob',
+      'source.nativeFilePolicy': 'refuse',
+    });
+  });
+
+  it('omits what the config did not declare rather than recording undefined', () => {
+    // A key present with `undefined` and a key absent are the same to a
+    // reader and different to `!==`, which is what the comparison runs on.
+    const snapshot = revisionSnapshotOf({
+      source: { type: 'imap-oauth2' },
+      target: { type: 'jmap' },
+    });
+    expect(Object.keys(snapshot).sort()).toEqual([
+      'source.nativeFilePolicy',
+      'source.type',
+      'target.type',
+    ]);
+  });
+
+  it('records the export policy EFFECTIVE, so writing the default down is not a change', () => {
+    // Absent means `refuse` to the engine. A snapshot of the literal absence
+    // would report a change the first time somebody spelled the default out.
+    const implied = revisionSnapshotOf({ source: { type: 'google-drive' }, target: { type: 'webdav' } });
+    const spelled = revisionSnapshotOf({
+      source: { type: 'google-drive', nativeFilePolicy: 'refuse' },
+      target: { type: 'webdav' },
+    });
+    expect(compareRevision(implied, spelled).changed).toEqual([]);
   });
 });

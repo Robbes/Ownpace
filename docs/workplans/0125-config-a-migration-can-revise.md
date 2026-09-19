@@ -2,6 +2,37 @@
 
 ## Status — 2026-09-19 (update this block at the end of every session)
 
+**2026-09-19, later: T2 is built — the appliance now has something to compare against.**
+The owner picked **A** (2026-09-19): persist the revision-relevant fields at boot and compare on
+the next one. The cheaper option needs no migration and cannot see a source or target TYPE change
+at all — it would guard the cheap case and leave the dangerous one open, which is close to the
+shape this plan is about.
+
+- **Migration 0054** adds `mailbox_mapping.revision_state`, one jsonb keyed by the dotted paths
+  `mayRevise` already speaks, so the snapshot and the rule that judges it are one vocabulary and
+  cannot drift into needing a translation. A column rather than a table: this IS a fact about the
+  mapping, it is one row per mapping either way.
+- **`compareRevision` and `revisionSnapshotOf` in `shared`**, called by the appliance. Hard rule
+  5: a refusal the appliance invents is one that can disagree with managed's, and the way that
+  happens is a second table.
+- **NULL means the first boot since this shipped, and it RECORDS.** Not "nothing changed" — an
+  appliance upgrading into the column has a live migration and no snapshot, and refusing it on a
+  comparison that was never made is hard rule 9's exact confusion. `compareRevision` answers
+  `firstRecord` and refuses nothing *by construction*, not by a caller remembering to check.
+- **Absent is a value.** Dropping `source.rootFolderId` widens the scope to the whole account —
+  the change T1 refuses — so present→absent and absent→present both count. The export policy is
+  snapshotted EFFECTIVE (absent means `refuse` to the engine), or the first operator to spell the
+  default out in their own file would be told their config changed.
+- **It throws at boot**, like `assertMappingPattern` beside it: the appliance's own vocabulary for
+  "this config cannot run". Starting anyway with that one mapping skipped is how somebody ends up
+  with half a migration and no idea which half. The message carries T1's reason verbatim, both
+  values, and the two ways out.
+
+The guard order matters and is pinned: the check runs after the row exists and **before** anything
+is discovered or scheduled, and the snapshot is written **after** the refusal check — writing
+first would overwrite the evidence with the values being refused, and the next boot would find
+them agreeing with themselves. Six mutations, each reverting one of those decisions, each red.
+
 **2026-09-19, last: T5 is whole — the save says how many, or says nothing about how many.**
 §7 asked the change to report *"21 items were refused under the old policy"* and the panel shipped
 that sentence without its number, because nothing on the detail payload carries failures by
@@ -94,7 +125,7 @@ what hard rule 5 forbids about what a setting can *mean*.
 | Task | Status | Notes |
 |---|---|---|
 | T1 What may change, and what it costs | ✅ Done — §3 | `config-revision.ts` in `shared`, called by both editions. A verdict per field, each refusal naming what to do instead; the export policy carries its consequence rather than hiding it. |
-| T2 The appliance honours it at load | ⬜ | **Blocked on a decision, not on work.** The appliance keeps no copy of its previous config — `ensureMappingRecords` persists the tenant, the mapping id, source/target user and pattern, and nothing else — so there is nothing to compare a boot against. §4 |
+| T2 The appliance honours it at load | ✅ Done — §4 | **Owner picked A, 2026-09-19**: migration 0054's `revision_state` snapshot, `compareRevision` in `shared` called by the appliance at boot, refusing what T1 refuses before anything is discovered or scheduled. NULL = first boot, which RECORDS rather than refuses. Was: **Blocked on a decision, not on work.** The appliance keeps no copy of its previous config — `ensureMappingRecords` persists the tenant, the mapping id, source/target user and pattern, and nothing else — so there is nothing to compare a boot against. §4 |
 | T3 Managed's edit path | ✅ Done — §5 | The route applies the export policy and refuses what T1 refuses, all at once; **the form is on the migration's page**, and the update body is partial all the way down so a revision can reach the rule at all. |
 | T4 `policy_refused`, and an error that carries its own category | ✅ Done — §6 | Ninth category, migration 0051 (COMMENT only, as 0048 predicted). `NativeFileRefused` states its category; `classifyFailure` prefers a stated one. The owner's thirty split 21/9 the next time they are attempted. |
 | T5 What happens to items refused under the old policy | ✅ Done — §7 | **Offered**, never automatic: a save says the already-refused stay refused and links to the group press, which `resolveFailureGroup` already clears `parkedAt` for. **The count landed 2026-09-19**, read from the failures queue only once a save has landed, and shown only when it is known and above zero — `undefined` (could not ask) and `0` (asked, none) both keep the number-free sentence and the link. |
