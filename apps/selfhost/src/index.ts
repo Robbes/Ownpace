@@ -150,6 +150,7 @@ import {
   buildIdentity,
   NOT_CUT_OVER_REASON,
   applyAllOpenShareGrants,
+  applyShareGrantsInFolder,
   applyShareGrant,
   markShareGrant,
   refreshShareGrants,
@@ -1851,8 +1852,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const passwordFromEnv = (t.auth as { passwordFromEnv?: string } | undefined)
           ?.passwordFromEnv;
         const password = passwordFromEnv ? (process.env[passwordFromEnv] ?? '') : '';
-        return async (row: ShareGrantRow) => {
-          const shareWith = granteeOverride ?? row.grantee;
+        return async (row: ShareGrantRow, confirmed?: string) => {
+          // Per row first (a folder press confirms one address per grantee),
+          // then the request-wide override, then what the source recorded.
+          const shareWith = confirmed ?? granteeOverride ?? row.grantee;
           if (!shareWith) {
             return {
               ok: false as const,
@@ -2126,6 +2129,66 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           return sendJson(res, 409, { error: outcome.code, reason: outcome.reason });
         }
         return sendJson(res, 200, { status: 'ok', pressedBy: 'operator', ...outcome });
+      }
+      // ONE PRESS OVER ONE FOLDER (owner's call 2026-09-19) — same verb as
+      // managed (ADR-0026), same gate. Not apply-all with a filter: every
+      // distinct grantee the press would reach carries an address a person
+      // confirmed, or nothing is sent (ADR-0032 §6 at folder scale). The
+      // folder is derived from the shared grouping rule, never from the
+      // caller's list, so the screen and the press cannot disagree.
+      const sharingApplyFolderMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/sharing\/apply-folder$/.exec(req.url)
+          : null;
+      if (sharingApplyFolderMatch) {
+        const id = decodeURIComponent(sharingApplyFolderMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const body = ((await readJson(req).catch(() => ({}))) ?? {}) as {
+          parentKey?: unknown;
+          confirmed?: unknown;
+          note?: unknown;
+        };
+        const parentKey = typeof body.parentKey === 'string' ? body.parentKey.trim() : '';
+        if (!parentKey) {
+          return sendJson(res, 400, {
+            error: 'parent_key_required',
+            hint: 'Name the container to apply, as `parentKey` — the id the sharing rows carry.',
+          });
+        }
+        const confirmed: Record<string, string> = {};
+        if (body.confirmed !== null && typeof body.confirmed === 'object') {
+          for (const [grantee, address] of Object.entries(body.confirmed as object)) {
+            if (typeof address === 'string' && address.trim()) confirmed[grantee] = address.trim();
+          }
+        }
+        const note =
+          typeof body.note === 'string' && body.note.trim()
+            ? body.note.trim().slice(0, 500)
+            : undefined;
+        const lifecycle = await mappingStatus(m);
+        const createShare = nextcloudCapabilityFor(m, undefined, note);
+        const outcome = await applyShareGrantsInFolder(
+          {
+            tenantId: m.config.tenantId as TenantId,
+            mappingId: m.mailboxMappingId as MappingId,
+            ledger,
+            decidedBy: 'operator',
+            onError: (msg: string, err: unknown) => log.error(msg, err),
+            lifecycleDone: lifecycle === 'done',
+            confirmed,
+            ...(createShare ? { createShare } : {}),
+          },
+          parentKey,
+        );
+        if (!outcome.ok) {
+          return sendJson(res, outcome.code === 'no_such_folder' ? 404 : 409, {
+            error: outcome.code,
+            reason: outcome.reason,
+            ...(outcome.code === 'unconfirmed_grantees' ? { grantees: outcome.grantees } : {}),
+          });
+        }
+        return sendJson(res, 200, { status: 'ok', pressedBy: 'operator', parentKey, ...outcome });
       }
       // THE ANNOUNCEMENT THE PLATFORM CANNOT MAKE (0104 T3) — same verb as
       // managed: one press mails a Template-6 digest to each grantee of a

@@ -173,6 +173,30 @@ enumerate). Deferred within the decision, recorded in workplan 0052: the digest'
 sharing counts, the completion report's "access carried over" section, the
 confirm-once-apply-to-all-rows address flow, and a real-Nextcloud integration proof.
 
+## Build record (2026-09-19, the folder press)
+
+The owner's call, after the sharing page learned to fold a folder into one row (workplan 0123
+T4): **`apply` over a folder scope, behind a confirm-first gate.** §2's per-grant owner decision
+is not weakened — what is batched is the pressing, and the thing that keeps it a decision rather
+than a volume discount is §6, applied to the whole folder at once:
+
+> Every distinct grantee the press would reach must carry an address a person confirmed, or
+> nothing is sent, and the refusal names exactly who is missing.
+
+`applyShareGrantsInFolder` (core) holds that gate for both editions; the screen shows each address
+editable with its own Confirm, and the request carries them, so the browser is not vouching for
+itself. The folder's membership is derived from the shared grouping rule rather than taken from
+the caller, so a press cannot reach rows the screen did not fold — and a row that DEVIATES from
+its container is never in the press, which is the reason the fold surfaces it separately.
+
+§7 is untouched: link rows have no addressable audience, so a folder holding only those has
+nobody to confirm; the press applies nothing there and counts them for the checklist.
+
+**And §8 gained a field.** An applied share recorded `grantee` — the address the SOURCE named —
+even when §6's confirmation had redirected the invitation somewhere else. The audit row now also
+carries `sentTo` when the two differ. A record of an outward-facing act that names the wrong
+recipient is worse than one that names none.
+
 ## What this ADR does not decide
 
 Group shares (needs the target's group model — Pattern D covers discovery), DAV ACLs

@@ -571,6 +571,44 @@ export async function decideFailureGroup(
   }
 }
 
+/**
+ * ONE PRESS OVER ONE FOLDER (2026-09-19), every address confirmed first.
+ *
+ * Not `apply-all` with a filter. The one-go press is the cutover moment —
+ * everything, deliberately; this reaches one folder's worth of people, so it
+ * carries ADR-0032 §6 at folder scale: `confirmed` must hold an address a
+ * person checked for EVERY distinct grantee the press would invite, or the
+ * server sends nothing and answers 409 with exactly who is missing.
+ *
+ * The folder is named by `parentKey` alone. Which rows are in it is the
+ * server's answer, from the same grouping rule the screen folds with — a
+ * caller cannot widen a press by listing rows, and the two surfaces cannot
+ * drift about what a folder covers.
+ *
+ * A refusal arrives as `DecisionRefusedError`, like every other refusal on
+ * this surface, so the screen renders the server's sentence rather than a
+ * client-side guess at what it must have meant.
+ */
+export async function applyShareFolder(
+  mappingId: string,
+  parentKey: string,
+  confirmed: Readonly<Record<string, string>>,
+  note?: string,
+): Promise<{ status: string; applied: unknown[]; refused: unknown[] }> {
+  try {
+    return (
+      await client.post<{ status: string; applied: unknown[]; refused: unknown[] }>(
+        `${mappingPath(mappingId)}/sharing/apply-folder`,
+        { parentKey, confirmed, ...(note ? { note } : {}) },
+      )
+    ).data;
+  } catch (err) {
+    const res = (err as { response?: { status: number; data?: DecisionRefused } }).response;
+    if (res?.data?.error) throw new DecisionRefusedError(res.data, res.status);
+    throw err;
+  }
+}
+
 export async function fetchStatus(): Promise<StatusReport> {
   return (await client.get<StatusReport>('/status')).data;
 }

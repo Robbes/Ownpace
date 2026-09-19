@@ -60,6 +60,32 @@ describe('the appliance answers the confirmation surface too', () => {
  * assertion: the substring checks above would not see it, and "the appliance
  * answers the same paths" is only true of the paths somebody listed.
  */
+describe('the appliance answers one press over a folder of shares', () => {
+  /**
+   * THE OUTWARD-FACING ONE. A folder press invites every person in that
+   * folder at once, so an edition that had the fold on screen and no press
+   * behind it would offer a button that silently did nothing — and this is
+   * the button where "nothing happened" and "eleven people were emailed" are
+   * the two possible readings of the same silence.
+   */
+  it('handles POST /mappings/:id/sharing/apply-folder', () => {
+    expect(
+      SOURCE,
+      'apps/selfhost does not match POST /mappings/:id/sharing/apply-folder. The managed API ' +
+        'does (operating-routes.unit.test.ts pins it), and the UI is one React app.',
+    ).toContain(String.raw`/^\/mappings\/([^/]+)\/sharing\/apply-folder$/`);
+  });
+
+  it('gates it on confirmed addresses, in the shared rule and not here', () => {
+    // The gate lives in `applyShareGrantsInFolder` so both editions carry the
+    // same one (hard rule 5). What the appliance must do is HAND IT the
+    // confirmations — a route that dropped the body would refuse every press
+    // instead, which reads as a broken button rather than as a gate.
+    expect(SOURCE).toContain('applyShareGrantsInFolder');
+    expect(SOURCE).toContain('confirmed,');
+  });
+});
+
 describe('the appliance answers one decision over a group of failures', () => {
   it('handles POST /mappings/:id/failures', () => {
     expect(

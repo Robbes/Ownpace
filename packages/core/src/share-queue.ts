@@ -29,6 +29,7 @@
 
 import { createHash } from 'node:crypto';
 import type { Ledger, MappingId, PermissionGrant, ShareGrantRow, TenantId } from '@openmig/shared';
+import { groupShareGrants } from '@openmig/shared';
 import { mapGrant } from './permission-map.ts';
 
 /**
@@ -199,6 +200,13 @@ export interface ApplyShareDeps extends ShareQueueDeps {
    */
   readonly createShare?: (
     row: ShareGrantRow,
+    /**
+     * Where to actually send it, when a person confirmed an address that is
+     * not the one the source recorded (ADR-0032 §6). Absent means the row's
+     * own grantee — the implementation decides, so a target with no notion of
+     * an address override is not obliged to grow one.
+     */
+    shareWith?: string,
   ) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }>;
 }
 
@@ -233,6 +241,8 @@ async function audit(
   deps: ShareQueueDeps,
   action: string,
   row: ShareGrantRow,
+  /** Where it actually went, when that is not the address the source named. */
+  sentTo?: string,
 ): Promise<void> {
   try {
     await deps.ledger.recordAuditEvent(deps.tenantId, {
@@ -244,6 +254,11 @@ async function audit(
         grantId: row.id,
         on: row.onLabel,
         ...(row.grantee ? { grantee: row.grantee } : {}),
+        // THE RECORD SAYS WHERE IT WENT, not only where the source pointed.
+        // A corrected address (§6) used to leave `grantee: anna@old` in the
+        // log while the invitation landed at anna@new — a record of an act
+        // that names the wrong recipient is worse than one that names none.
+        ...(sentTo && sentTo !== row.grantee ? { sentTo } : {}),
         role: row.role,
       },
     });
@@ -287,6 +302,12 @@ export const NOT_CUT_OVER_REASON =
 export async function applyShareGrant(
   deps: ApplyShareDeps,
   grantId: string,
+  /**
+   * The address a person confirmed for this row's grantee (ADR-0032 §6).
+   * Absent means the source's own address is used, unchanged — the caller
+   * that has no confirmation passes nothing rather than guessing one.
+   */
+  shareWith?: string,
 ): Promise<ShareActionOutcome> {
   const found = await findOpenRow(deps, grantId);
   if (!found.ok) return found;
@@ -326,7 +347,7 @@ export async function applyShareGrant(
 
   let created: { readonly ok: true } | { readonly ok: false; readonly reason: string };
   try {
-    created = await deps.createShare(row);
+    created = await deps.createShare(row, shareWith);
   } catch (err) {
     created = { ok: false, reason: err instanceof Error ? err.message : String(err) };
   }
@@ -347,7 +368,7 @@ export async function applyShareGrant(
       reason: 'This row was settled by someone else while the share was being created.',
     };
   }
-  await audit(deps, 'share.applied', settled);
+  await audit(deps, 'share.applied', settled, shareWith);
   return { ok: true, row: settled };
 }
 
@@ -440,6 +461,174 @@ export async function applyAllOpenShareGrants(deps: ApplyShareDeps): Promise<
     });
   } catch (err) {
     deps.onError?.('recording the apply-all press failed (the shares themselves stand)', err);
+  }
+
+  return { ok: true, applied, refused, leftForChecklist: { links, manual } };
+}
+
+/** Where to send, per grantee the SOURCE named — one address a person confirmed. */
+export type ConfirmedGrantees = Readonly<Record<string, string>>;
+
+export interface ApplyFolderDeps extends ApplyShareDeps {
+  /**
+   * The address a person confirmed for each grantee in this folder.
+   *
+   * ADR-0032 §6 confirms once PER GRANTEE — the machine proposes, a person
+   * confirms or corrects, and the confirmed pair applies to that grantee's
+   * other rows. This is that rule carried to folder scale: one press over
+   * eleven files is still one invitation per person, and the person who
+   * pressed has seen every address it will reach.
+   *
+   * An entry may repeat the source's own address unchanged. That is still a
+   * confirmation — §6 asks for a person's judgement on the address, not for
+   * the address to be different.
+   */
+  readonly confirmed: ConfirmedGrantees;
+}
+
+export type ApplyFolderRefusal =
+  | { readonly ok: false; readonly code: 'not_cut_over'; readonly reason: string }
+  | { readonly ok: false; readonly code: 'no_such_folder'; readonly reason: string }
+  | {
+      readonly ok: false;
+      readonly code: 'unconfirmed_grantees';
+      readonly reason: string;
+      /** Exactly who has not been confirmed, so the screen can ask for them. */
+      readonly grantees: readonly string[];
+    };
+
+/**
+ * ONE PRESS OVER ONE FOLDER, and not one address further (owner's call,
+ * 2026-09-19: "folder-scope with a confirm-first gate").
+ *
+ * ## Why a folder press exists at all
+ *
+ * The fold (workplan 0123 T4) turned 482 rows into about twenty on the
+ * owner's live page. Working them is now readable and still per-row: a folder
+ * shared with one person is one line on screen and eleven presses underneath.
+ * This is the press that matches what the screen shows.
+ *
+ * ## Why it is NOT the one-go press with a filter
+ *
+ * `applyAllOpenShareGrants` is the cutover moment — every remaining share, one
+ * wave, deliberately. A folder press is a different decision about blast
+ * radius, so it gets a different gate rather than a narrower argument:
+ *
+ * **Every distinct grantee in the folder must carry a confirmed address, or
+ * nothing is sent.** Not one row, not the ones we happen to have — all of
+ * them, checked before the first invitation leaves. §6's confirmation is per
+ * grantee and this press is per folder, so the only honest join is "every
+ * grantee this press would reach". The refusal names exactly who is missing,
+ * because "some address is unconfirmed" is not something a person can act on.
+ *
+ * ## Which rows are IN the folder is not the caller's claim
+ *
+ * The group is derived here, from `groupShareGrants` in `@openmig/shared` —
+ * the same pure rule the screen folds with. A press that took a list of row
+ * ids would be acting on the caller's idea of the folder, and the two would
+ * drift the first time the grouping rule changed. A container heads at most
+ * one group (a bucket that deviates from its container leaves the group and
+ * becomes its own row), so `parentKey` names it exactly.
+ *
+ * Deviating rows are therefore NOT in this press, which is the point of
+ * surfacing them above the fold in the first place: the file shared with
+ * somebody its siblings are not is the one a person must decide about alone.
+ *
+ * Links and manual verdicts are counted and left, exactly as the one-go press
+ * leaves them — they are the fallback digest's audience (0104 T3).
+ */
+export async function applyShareGrantsInFolder(
+  deps: ApplyFolderDeps,
+  parentKey: string,
+): Promise<ApplyAllOutcome | ApplyFolderRefusal> {
+  if (!deps.lifecycleDone) {
+    return { ok: false, code: 'not_cut_over', reason: NOT_CUT_OVER_REASON };
+  }
+
+  const rows = await deps.ledger.listShareGrants(deps.tenantId, deps.mappingId);
+  const group = groupShareGrants(rows).groups.find((g) => g.parentKey === parentKey);
+  if (!group) {
+    return {
+      ok: false,
+      code: 'no_such_folder',
+      reason:
+        'This migration has no folder group under that container. It may have been settled, ' +
+        'or a rescan may have regrouped it — reload the checklist and press again.',
+    };
+  }
+
+  const inFolder = new Set(group.rowIds);
+  const open = rows.filter((r) => inFolder.has(r.id) && r.state === 'open');
+  const links = open.filter((r) => r.viaLink).length;
+  const manual = open.filter((r) => !r.viaLink && r.verdict !== 'clean').length;
+  const candidates = open.filter((r) => !r.viaLink && r.verdict === 'clean');
+
+  // THE GATE. Every grantee this press would reach, checked BEFORE the first
+  // invitation leaves — an all-or-nothing check, because a press that sent
+  // eight of eleven and then refused would have already done the thing the
+  // gate exists to prevent. A row with no grantee at all (a domain share) is
+  // not checked here: there is nobody to confirm, and the target's own
+  // refusal says so per row, in its words.
+  const needed = [...new Set(candidates.map((r) => r.grantee).filter((g): g is string => !!g))];
+  const unconfirmed = needed.filter((g) => !(deps.confirmed[g] ?? '').trim()).sort();
+  if (unconfirmed.length > 0) {
+    return {
+      ok: false,
+      code: 'unconfirmed_grantees',
+      grantees: unconfirmed,
+      reason:
+        'Applying a whole folder invites every one of these people at once, so each address ' +
+        `is confirmed first and ${unconfirmed.length} ${
+          unconfirmed.length === 1 ? 'has' : 'have'
+        } not been: ${unconfirmed.join(', ')}. Check each one, then press again.`,
+    };
+  }
+
+  const applied: ShareGrantRow[] = [];
+  const refused: Array<{
+    id: string;
+    on: string;
+    grantee?: string;
+    code: string;
+    reason: string;
+  }> = [];
+  for (const row of candidates) {
+    const confirmed = row.grantee ? deps.confirmed[row.grantee]?.trim() : undefined;
+    const outcome = await applyShareGrant(deps, row.id, confirmed || undefined);
+    if (outcome.ok) {
+      applied.push(outcome.row);
+    } else {
+      refused.push({
+        id: row.id,
+        on: row.onLabel,
+        ...(row.grantee ? { grantee: row.grantee } : {}),
+        code: outcome.code,
+        reason: outcome.reason,
+      });
+    }
+  }
+
+  // The press is its own event beside the per-row entries. It records WHICH
+  // folder and how many people, never the addresses: the per-row rows already
+  // carry those, and §17 asks a summary to narrate counts.
+  try {
+    await deps.ledger.recordAuditEvent(deps.tenantId, {
+      actor: deps.decidedBy,
+      action: 'share.apply_folder',
+      entity: 'share_grant',
+      detail: {
+        mappingId: deps.mappingId,
+        parentKey,
+        ...(group.label ? { folder: group.label } : {}),
+        attempted: candidates.length,
+        applied: applied.length,
+        refused: refused.length,
+        grantees: needed.length,
+        leftForChecklist: { links, manual },
+      },
+    });
+  } catch (err) {
+    deps.onError?.('recording the folder press failed (the shares themselves stand)', err);
   }
 
   return { ok: true, applied, refused, leftForChecklist: { links, manual } };
