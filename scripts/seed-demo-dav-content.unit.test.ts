@@ -250,12 +250,19 @@ describe('--remove takes one --fresh set back (0100)', () => {
     }
   };
 
-  it('deletes exactly the nine paths --fresh writes, and nothing else', () => {
+  it('deletes exactly the ten paths --fresh writes, and nothing else', () => {
     // NINE since 0120 T6 added the one file above the streaming threshold.
     // It is in this list for a reason larger than arithmetic: `--fresh` runs
     // whenever the gate finds nothing eligible, and that file is tens of
     // megabytes, so a set nothing takes away grows the demo source without
     // bound — the measurement changing the thing it measures.
+    //
+    // TEN since 2026-09-19 added the shared folder the fold is about. It is
+    // the only COLLECTION in the list, so its DELETE takes a subtree — the
+    // file inside it, and both OCS shares, which Nextcloud removes with their
+    // subject. That is also why the file inside it is not listed separately:
+    // deleting a child after its parent is gone answers 404, which this
+    // script reads as success and would hide a folder that never went.
     const r = run({ VERIFY_ANSWER: '' }, ['--remove', 'tag-1']);
     expect(r.status).toBe(0);
     const paths = deleted().map((u) => u.replace(/^.*remote\.php\/dav\//, ''));
@@ -273,6 +280,10 @@ describe('--remove takes one --fresh set back (0100)', () => {
         'files/tenant-b-source/openmig-demo-bigfile-tag-1-1.bin',
         'files/tenant-b-source/openmig-demo-file-tag-1-1.txt',
         'files/tenant-b-source/openmig-demo-file-tag-1-2.txt',
+        // The shared folder, by TAG and not by SUFFIX — one per set, like the
+        // big file, because what the fold needs is one folder holding more
+        // than one thing, not one folder per seeded pair.
+        'files/tenant-b-source/openmig-shared-tag-1',
       ].sort(),
     );
   });
@@ -283,9 +294,21 @@ describe('--remove takes one --fresh set back (0100)', () => {
     // the other three domains are still taken back, and nothing is created.
     const r = run({ VERIFY_ANSWER: '', TASK_LIST_ANSWER: '404' }, ['--remove', 'tag-9']);
     expect(r.status).toBe(0);
-    expect(deleted()).toHaveLength(7);
+    expect(deleted()).toHaveLength(8);
     expect(deleted().join('\n')).not.toContain('openmig-demo-task-');
     expect(existsSync(join(dir, 'mkcalendar.txt'))).toBe(false);
+  });
+
+  it('refuses when the shared COLLECTION survived its own DELETE', () => {
+    // The folder is the only spec in that list whose DELETE takes a SUBTREE,
+    // which makes 204 the weakest evidence in it: a server that answered it
+    // and kept the collection would leave the file inside AND both OCS shares
+    // standing, and the next run would fold a second folder in beside the
+    // first. So the re-read counts the collection too — "removed" is a fact
+    // this script establishes, never one it infers from a status code.
+    const r = run({ VERIFY_ANSWER: 'openmig-shared-tag-3' }, ['--remove', 'tag-3']);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('1 resource(s) tagged tag-3 are still present');
   });
 
   it('converges when the set is already gone (404 is the outcome we wanted)', () => {
@@ -325,6 +348,12 @@ describe('--remove takes one --fresh set back (0100)', () => {
   it('cleans the TARGET account when pointed at it', () => {
     // The sync copies the seeded set into tenant B's target, under the same
     // names — the natural key IS the name. One script, both ends.
+    //
+    // The shared folder included: the file sync's `ensureCollection` calls
+    // `ensureDirectory` with the folder's own path, so the collection is
+    // mirrored rather than flattened, and one spec takes it back on either
+    // side. A target that flattened it would leave the copy behind under a
+    // name no spec in this list names.
     const r = run(
       {
         VERIFY_ANSWER: '',
@@ -336,7 +365,7 @@ describe('--remove takes one --fresh set back (0100)', () => {
     );
     expect(r.status).toBe(0);
     expect(deleted().every((u) => u.includes('tenant-b-target'))).toBe(true);
-    expect(deleted()).toHaveLength(9);
+    expect(deleted()).toHaveLength(10);
   });
 });
 

@@ -2,6 +2,35 @@
 
 ## Status — 2026-09-19 (update this block at the end of every session)
 
+**2026-09-19, last: the folder press is pressed on the real stack — and the fold had never
+worked there at all.** The press shipped with its rule unit-tested and its behaviour against a
+real Nextcloud unproven, so the managed gate now presses it: the seed shares a folder **and a
+file inside it**, to one address at one level (the shape `groupShareGrants` collapses), and the
+smoke presses that folder before `apply-all`, which settles every open clean row and would
+otherwise leave the press nothing to press.
+
+Writing the seed is what surfaced the real finding. **`scanNextcloudShares` said nothing about
+where anything sits**, so on the one source this gate runs against every row came back unplaced,
+nothing folded, and `apply-folder` would have answered `no_such_folder` forever. T4 was measured
+and built on Google Drive, where `parents` rides free on the listing the scan already makes; the
+Nextcloud arm was never asked the question. OCS answers it twice over in the response that was
+already being parsed — `path` carries the hierarchy and `item_type` says whether the subject is a
+folder — so the fix costs no extra request and no new permission. The scan was throwing away two
+fields it was being handed.
+
+Three answers, not two, on `isContainer`: an OCS that did not say leaves it **absent**, because
+`false` is the claim "this is not a folder" and the fold treats a container differently from a
+thing inside one (hard rule 9). Same for placement: a share with no `path` at all is placed
+*nowhere* rather than at the account root — the root is a real answer, and a row put there on the
+strength of a missing field would fold in beside shares it has nothing to do with.
+
+What the gate asserts, in order, because the order is the proof: the rescan **placed** rows inside
+the folder (without that, a 404 from the press would read as "the press is broken"); an
+unconfirmed press is refused `409 unconfirmed_grantees`, **names** the grantee it waits on, and —
+checked against the catcher — **sent nothing**, which is the clause worth the round trip, since a
+gate that refuses after the invitations have left is not a gate; and only then the confirmed press
+applies **both** rows and the target's own mail arrives carrying the note only that press writes.
+
 **2026-09-19, later: the owner widened the press, and named the gate.** T4 shipped `done` and
 `skip` over a folder and deliberately stopped short of `apply`, recording that widening it was the
 owner's call. He made it: **folder scope, confirm-first** (2026-09-19).
@@ -226,7 +255,7 @@ it is a wall — and most of those rows are one shared folder counted once per f
 | T1 The press stops looking like a delete | ✅ Done — §2 | `ConfirmButton` splits the arming from the dressing; `DestructiveButton` stays as the destructive preset, so every caller that really destroys reads as it did. |
 | T2 The banner names every class nobody looked at | ✅ Done — §3 | `refreshShareGrants` now enforces the delegation section the way the report does, and the sentence is worded for the tenant's own source. |
 | T3 Done and Skip say what they mean | ✅ Done — §4 | The distinction is in `sharing.intro.more` and in a title on each button. |
-| T4 A folder is one row, not two hundred | ✅ **done** | Measured 2026-09-18 on the owner's Drive: `permissionDetails` yes (10/10 via `permissions.list`, 0/10 inline), `inheritedFrom` **no** (0/10). Drive says a grant is inherited, not what from — so §5's **fallback** is the design: group by `parents`, compare grant sets, deviations listed separately. Also the cheaper one (`parents` is free on the existing listing; the details cost one request per item). **Built 2026-09-18:** migration 0053 carries the placement, `groupShareGrants` in `@openmig/shared` folds it, the Drive scan fills it, and the Sharing page renders folders as one row with deviations kept above the fold. One press over a folder is `done`/`skip` only — `apply` invites a real person, so it stays per-row (owner's call to widen). **Read on the owner's live data 2026-09-19** (482 → ~20 rows, deviations above the fold) and three presentation defects fixed: the comparison key `grantee:role` no longer reaches the screen (`readGrant` is `grantSet`'s inverse), an unnamed container is identified by a sample of what is inside it, and the reason a row stands apart is inside that row's card, once. |
+| T4 A folder is one row, not two hundred | ✅ **done** | Measured 2026-09-18 on the owner's Drive: `permissionDetails` yes (10/10 via `permissions.list`, 0/10 inline), `inheritedFrom` **no** (0/10). Drive says a grant is inherited, not what from — so §5's **fallback** is the design: group by `parents`, compare grant sets, deviations listed separately. Also the cheaper one (`parents` is free on the existing listing; the details cost one request per item). **Built 2026-09-18:** migration 0053 carries the placement, `groupShareGrants` in `@openmig/shared` folds it, the Drive scan fills it, and the Sharing page renders folders as one row with deviations kept above the fold. One press over a folder is `done`/`skip` only — `apply` invites a real person, so it stays per-row (owner's call to widen). **Read on the owner's live data 2026-09-19** (482 → ~20 rows, deviations above the fold) and three presentation defects fixed: the comparison key `grantee:role` no longer reaches the screen (`readGrant` is `grantSet`'s inverse), an unnamed container is identified by a sample of what is inside it, and the reason a row stands apart is inside that row's card, once. **Pressed on the real stack 2026-09-19:** the managed gate seeds a shared folder with a shared file inside it and presses `apply-folder` over it before `apply-all` — and building that seed found the fold had never worked on a Nextcloud source at all, because `scanNextcloudShares` discarded the `path` and `item_type` OCS already hands it, so every row came back unplaced and a folder press had no folder. |
 
 ## 1. What the owner saw
 

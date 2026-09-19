@@ -268,6 +268,13 @@ case "$method" in
   POST)
     printf '%s%s\\n' "$url" "$fields" >> "$CAP/ocs-posts.txt"
     printf '{"ocs":{"meta":{"status":"ok","statuscode":200}}}' ;;
+  # MKCOL, for the shared folder the fold is about (2026-09-19). 201 is
+  # "created"; the seeder also accepts 405 ("already there"), but a stub
+  # answering 405 would be standing in for a server where a previous run had
+  # left the collection behind — not the story these fixtures tell.
+  MKCOL)
+    printf '%s\\n' "$path" >> "$CAP/mkcols.txt"
+    printf 201 ;;
   DELETE) printf 204 ;;
   PROPFIND)
     if [ "$wantscode" = 1 ]; then printf 207; else cat "$CAP/manifest.txt" 2>/dev/null || true; fi ;;
