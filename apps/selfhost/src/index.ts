@@ -40,7 +40,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -661,6 +661,88 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     });
   };
 
+  /**
+   * WHAT THIS MIGRATION SAID IT WAS, checked before a pass runs (0125 T2).
+   *
+   * ## The guard this edition never had
+   *
+   * T1 gave both editions a rule about what a live migration may change about
+   * itself. Managed enforces it at its edit route, where a change arrives as a
+   * REQUEST with the old values in the database beside it. Here the config is
+   * a FILE the operator owns: there is no request, and until migration 0054
+   * there was nothing to compare against either — the file was the appliance's
+   * only record of itself, so "what it is" and "what it was" were one string.
+   *
+   * Change `source.type` on a live migration, restart, and nothing stopped it.
+   * The next pass would compare what a different provider says against natural
+   * keys the old one produced, recognise nothing, and copy the whole account
+   * again beside the first copy.
+   *
+   * ## It THROWS, like `assertMappingPattern` above
+   *
+   * The appliance's own vocabulary for "this config cannot run" is: do not
+   * start, and say why. A mapping whose scope or provider changed under a
+   * ledger full of items is exactly that class — and starting anyway, with
+   * that one mapping quietly skipped, is how somebody ends up with half a
+   * migration and no idea which half. The message carries T1's reason
+   * verbatim, both values, and the two ways out.
+   *
+   * ## The first boot RECORDS, and refuses nothing
+   *
+   * `compareRevision` answers `firstRecord` for a NULL snapshot and refuses
+   * nothing whatever the config says. An appliance upgrading into 0054 has a
+   * running migration and no snapshot; stranding it on a comparison that was
+   * never made is precisely the hard-rule-9 confusion the column exists to
+   * avoid.
+   */
+  const assertMappingRevision = async (m: LoadedMapping): Promise<void> => {
+    const current = revisionSnapshotOf(m.config);
+    await withTenantContext(m.config.tenantId as string, async (client) => {
+      const { rows } = await client.query(
+        `SELECT revision_state FROM mailbox_mapping WHERE id = $1`,
+        [m.mailboxMappingId],
+      );
+      const stored = (rows[0] as { revision_state?: unknown } | undefined)?.revision_state;
+      // `null` is the column's own "nothing recorded", and `typeof null` is
+      // 'object' — so the null check is not redundant, it is the whole
+      // distinction between a first boot and a snapshot of nothing.
+      const previous =
+        stored !== null && typeof stored === 'object' ? (stored as RevisionSnapshot) : undefined;
+      const verdict = compareRevision(previous, current);
+
+      if (verdict.refusals.length > 0) {
+        throw new Error(
+          `[selfhost] ${m.config.mappingId}: this mapping file changes something a migration ` +
+            `that has already copied items may not change.\n` +
+            verdict.refusals
+              .map((r) => `  - ${r.field}: ${r.from} -> ${r.to}\n      ${r.reason}`)
+              .join('\n') +
+            `\n  Put those values back to start the appliance again, or give the new ones ` +
+            `their own mapping file with a new mappingId — what this migration has already ` +
+            `copied stays exactly where it is either way.`,
+        );
+      }
+      if (verdict.firstRecord) {
+        log.info(
+          `[selfhost] ${m.config.mappingId}: recording what this migration says it is — ` +
+            `nothing to compare against yet, so nothing is refused.`,
+        );
+      } else if (verdict.changed.length > 0) {
+        // Allowed, and worth saying: the operator changed something and the
+        // next pass behaves differently because of it.
+        log.info(
+          `[selfhost] ${m.config.mappingId}: config changed since the last boot — ` +
+            `${verdict.changed.join(', ')}. Permitted; the next pass uses the new values.`,
+        );
+      }
+
+      await client.query(`UPDATE mailbox_mapping SET revision_state = $2 WHERE id = $1`, [
+        m.mailboxMappingId,
+        JSON.stringify(current),
+      ]);
+    });
+  };
+
   // Read the current mailbox_mapping status.
   //
   // Narrowed to `MappingLifecycle` rather than returned as a bare string,
@@ -866,6 +948,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // to confirm on the page (0013 T7).
   for (const m of mappings) {
     await ensureRecordsFor(m);
+    // 0125 T2, and before anything is discovered or scheduled: the row has to
+    // exist first (this writes to it), and a mapping whose scope or provider
+    // changed under a ledger full of items must not reach a pass at all.
+    await assertMappingRevision(m);
 
     const configWithCorrectMappingId = { ...m.config, mappingId: m.mailboxMappingId };
     // Best-effort, non-blocking: discovery counts populate as the source is scanned.
