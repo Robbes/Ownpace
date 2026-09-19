@@ -44,7 +44,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { ShareGrantRow } from '@openmig/shared';
 
-const { fetchSharing, decideSharing, rescanSharing, DecisionRefusedError } = vi.hoisted(() => {
+const { fetchSharing, decideSharing, rescanSharing, applyShareFolder, DecisionRefusedError } =
+  vi.hoisted(() => {
   class DecisionRefusedError extends Error {
     constructor(
       readonly refusal: { error: string; reason?: string; hint?: string },
@@ -54,18 +55,20 @@ const { fetchSharing, decideSharing, rescanSharing, DecisionRefusedError } = vi.
       this.name = 'DecisionRefusedError';
     }
   }
-  return {
-    fetchSharing: vi.fn(),
-    decideSharing: vi.fn(),
-    rescanSharing: vi.fn(),
-    DecisionRefusedError,
-  };
-});
+    return {
+      fetchSharing: vi.fn(),
+      decideSharing: vi.fn(),
+      rescanSharing: vi.fn(),
+      applyShareFolder: vi.fn(),
+      DecisionRefusedError,
+    };
+  });
 
 vi.mock('../services/operating-service', () => ({
   fetchSharing,
   decideSharing,
   rescanSharing,
+  applyShareFolder,
   DecisionRefusedError,
 }));
 
@@ -362,5 +365,136 @@ describe('the reason a row stands apart is in the row', () => {
     expect(screen.getAllByText(/did not say where this sits/)).toHaveLength(1);
     // Every row is still there — one explanation, three rows to act on.
     expect(screen.getAllByText('Somewhere.pdf')).toHaveLength(3);
+  });
+});
+
+/**
+ * ONE PRESS OVER ONE FOLDER, and not one address further (owner's call,
+ * 2026-09-19: "folder-level with a confirm-first gate").
+ *
+ * `done` and `skip` record a decision and reach nobody, which is why they have
+ * always been offered over a whole folder. This one INVITES every person in
+ * the folder the moment it lands, and cannot be unsent — so ADR-0032 §6's
+ * confirm-per-grantee is what stands in front of it, at folder scale.
+ *
+ * The server holds the same gate (`applyShareGrantsInFolder`), so what is
+ * guarded here is the screen's half: that nobody reaches the press without
+ * having seen every address it will use, and that the addresses it sends are
+ * the ones a person confirmed.
+ */
+describe('one press over one folder', () => {
+  const openPanel = async () => {
+    fireEvent.click(await screen.findByText('Share this folder on the new system'));
+  };
+
+  it('offers the press as a panel to open, never as a button that acts', async () => {
+    answerWith(folderWithChildren(3));
+    renderScreen();
+
+    expect(await screen.findByText('Share this folder on the new system')).toBeInTheDocument();
+    // Nothing about addresses until somebody asks for it: twenty folders each
+    // showing their grantees would be the wall again.
+    expect(screen.queryByLabelText('send to')).toBeNull();
+    expect(applyShareFolder).not.toHaveBeenCalled();
+  });
+
+  it('will not offer the press until every address in the folder is confirmed', async () => {
+    answerWith(folderWithChildren(3));
+    renderScreen();
+    await openPanel();
+
+    expect(screen.getByLabelText('send to')).toBeInTheDocument();
+    expect(screen.getByText(/1 address\(es\) still to check/)).toBeInTheDocument();
+    // The outward-facing press is not on screen at all yet.
+    expect(screen.queryByText(/Share this folder on the new system \(1\)/)).toBeNull();
+
+    fireEvent.click(screen.getByText('Confirm'));
+    expect(screen.getByText('confirmed')).toBeInTheDocument();
+    expect(screen.queryByText(/still to check/)).toBeNull();
+    expect(
+      screen.getByText('Share this folder on the new system (1)'),
+    ).toBeInTheDocument();
+  });
+
+  it('sends where the person said, not where the source pointed', async () => {
+    answerWith(folderWithChildren(3));
+    applyShareFolder.mockResolvedValue({ status: 'ok', applied: [], refused: [] });
+    renderScreen();
+    await openPanel();
+
+    fireEvent.change(screen.getByLabelText('send to'), {
+      target: { value: 'anna@new-domain.test' },
+    });
+    fireEvent.click(screen.getByText('Confirm'));
+
+    const press = screen.getByText('Share this folder on the new system (1)');
+    // TWO PRESSES, because the invitations cannot be unsent. The first arms.
+    fireEvent.click(press);
+    expect(applyShareFolder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Press again to invite them all'));
+
+    await waitFor(() =>
+      expect(applyShareFolder).toHaveBeenCalledWith('m1', 'F', {
+        'anna@example.test': 'anna@new-domain.test',
+      }),
+    );
+  });
+
+  it('never offers the press on a folder with nobody to confirm', async () => {
+    // A link has no addressable audience, so there is no address to check and
+    // nothing for this press to do. Offering it would be offering to do
+    // nothing; the rows stay the checklist's, one at a time.
+    answerWith([
+      row({
+        id: 'link-folder',
+        itemKey: 'F',
+        parentKey: 'root',
+        isContainer: true,
+        onLabel: 'Public',
+        grantee: undefined,
+        viaLink: true,
+        verdict: 'manual',
+        role: 'reader',
+      }),
+      row({
+        id: 'link-child',
+        itemKey: 'c0',
+        parentKey: 'F',
+        onLabel: 'Poster.pdf',
+        grantee: undefined,
+        viaLink: true,
+        verdict: 'manual',
+        role: 'reader',
+      }),
+    ]);
+    renderScreen();
+
+    expect(await screen.findByText('Public')).toBeInTheDocument();
+    expect(screen.queryByText('Share this folder on the new system')).toBeNull();
+    expect(
+      screen.getByText('Open the folder to share items on the new system.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a refusal against the FOLDER, in the server\u2019s own words', async () => {
+    answerWith(folderWithChildren(3));
+    applyShareFolder.mockRejectedValue(
+      new DecisionRefusedError(
+        {
+          error: 'not_cut_over',
+          reason: 'Shares are applied at or after cutover, not before.',
+        },
+        409,
+      ),
+    );
+    renderScreen();
+    await openPanel();
+    fireEvent.click(screen.getByText('Confirm'));
+    fireEvent.click(screen.getByText('Share this folder on the new system (1)'));
+    fireEvent.click(screen.getByText('Press again to invite them all'));
+
+    expect(
+      await screen.findByText(/Shares are applied at or after cutover/),
+    ).toBeInTheDocument();
   });
 });

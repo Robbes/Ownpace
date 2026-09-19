@@ -765,6 +765,19 @@ const en = {
   'sharing.group.doneAll': 'Mark all done',
   'sharing.group.skipAll': 'Skip all',
   'sharing.group.applyInside': 'Open the folder to share items on the new system.',
+  // ONE PRESS OVER ONE FOLDER (2026-09-19), confirm-first. `done` and `skip`
+  // record a decision and reach nobody; this one invites every person in the
+  // folder the moment it lands, so every address is shown, editable and
+  // confirmed before it is offered at all (ADR-0032 §6, at folder scale).
+  'sharing.group.applyFolder': 'Share this folder on the new system',
+  'sharing.group.applyFolderArmed': 'Press again to invite them all',
+  'sharing.group.confirmFirst': 'Check each address before one press invites them all.',
+  'sharing.group.confirmFirst.why':
+    'The new system sends the invitation itself, the moment the share is created — so a press over a whole folder is a wave of real mail to real people, and it cannot be unsent. That is why each address is shown here and each one is confirmed on its own: the tool proposes the address the old system recorded, and a person decides whether that is still where this person should be invited. An address you confirm here is remembered for that person\u2019s other rows in this migration, so nobody retypes the same correction twice.',
+  'sharing.group.addressLabel': 'send to',
+  'sharing.group.confirmOne': 'Confirm',
+  'sharing.group.confirmed': 'confirmed',
+  'sharing.group.stillToConfirm': '{count} address(es) still to check.',
   'sharing.alone.unplaced': 'The old system did not say where this sits, so it is on its own.',
   'sharing.alone.vsFolder': 'Shared differently from its folder',
   'sharing.alone.vsSiblings': 'Shared differently from the other items here',
@@ -2671,6 +2684,15 @@ const nl: Record<keyof typeof en, string> = {
   'sharing.group.doneAll': 'Alles op gedaan zetten',
   'sharing.group.skipAll': 'Alles overslaan',
   'sharing.group.applyInside': 'Open de map om items op het nieuwe systeem te delen.',
+  'sharing.group.applyFolder': 'Deze map delen op het nieuwe systeem',
+  'sharing.group.applyFolderArmed': 'Druk nogmaals om ze allemaal uit te nodigen',
+  'sharing.group.confirmFirst': 'Controleer elk adres voordat \u00e9\u00e9n druk ze allemaal uitnodigt.',
+  'sharing.group.confirmFirst.why':
+    'Het nieuwe systeem stuurt de uitnodiging zelf, zodra het delen is aangemaakt \u2014 een druk over een hele map is dus een golf echte mail naar echte mensen, en dat is niet terug te draaien. Daarom staat elk adres hier apart en bevestigt u ze stuk voor stuk: de tool stelt het adres voor dat het oude systeem vastlegde, en een mens beslist of deze persoon daar nog uitgenodigd moet worden. Een adres dat u hier bevestigt, onthouden we voor de andere regels van die persoon in deze migratie, zodat niemand dezelfde correctie twee keer typt.',
+  'sharing.group.addressLabel': 'sturen naar',
+  'sharing.group.confirmOne': 'Bevestigen',
+  'sharing.group.confirmed': 'bevestigd',
+  'sharing.group.stillToConfirm': 'Nog {count} adres(sen) te controleren.',
   'sharing.alone.unplaced': 'Het oude systeem gaf niet aan waar dit staat, dus het staat apart.',
   'sharing.alone.vsFolder': 'Anders gedeeld dan de map zelf',
   'sharing.alone.vsSiblings': 'Anders gedeeld dan de andere items hier',

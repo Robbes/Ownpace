@@ -97,6 +97,7 @@ import {
   NOT_CUT_OVER_REASON,
   applyAllOpenShareGrants,
   applyShareGrant,
+  applyShareGrantsInFolder,
   evaluateApplyDeletion,
   evaluateApplyRelocation,
   markShareGrant,
@@ -401,7 +402,14 @@ async function nextcloudCapabilityFor(
   s: Scoped,
   granteeOverride: string | undefined,
   note?: string,
-): Promise<((row: ShareGrantRow) => Promise<{ ok: true } | { ok: false; reason: string }>) | undefined> {
+): Promise<
+  | ((
+      row: ShareGrantRow,
+      /** Where a person confirmed it should go (ADR-0032 §6), when they did. */
+      confirmed?: string,
+    ) => Promise<{ ok: true } | { ok: false; reason: string }>)
+  | undefined
+> {
   const rows = await withTenantDb(s.tenantId, pool(), (db) =>
     db
       .select({
@@ -441,8 +449,12 @@ async function nextcloudCapabilityFor(
     config.baseUrl ??
     `${config.useSsl === false ? 'http' : 'https'}://${config.host}${config.port ? `:${config.port}` : ''}`;
 
-  return async (row) => {
-    const shareWith = granteeOverride ?? row.grantee;
+  return async (row, confirmed) => {
+    // Per row first (a folder press confirms one address per grantee), then
+    // the request-wide override (the single-row apply's edited field), then
+    // what the source recorded. Narrowest wins, because the narrowest is the
+    // one a person looked at most recently.
+    const shareWith = confirmed ?? granteeOverride ?? row.grantee;
     if (!shareWith) {
       return {
         ok: false,
@@ -628,6 +640,84 @@ router.post(
       res.json({ status: 'ok', pressedBy: decidedBy, ...outcome });
     } catch (error) {
       serverError(res, 'sharing_apply_all_failed', 'applying the sharing queue in one go', error);
+    }
+  },
+);
+
+/**
+ * ONE PRESS OVER ONE FOLDER (owner's call 2026-09-19), confirm-first.
+ *
+ * The fold folded 482 rows into about twenty; this is the press that matches
+ * what the screen now shows. It is NOT apply-all with a filter — it carries
+ * its own gate, and the gate is ADR-0032 §6 at folder scale: every distinct
+ * grantee this press would reach must carry an address a person confirmed, or
+ * nothing is sent and the refusal names who is missing.
+ *
+ * The folder itself is derived server-side from the same `groupShareGrants`
+ * the screen folds with, so a press cannot act on a caller's idea of what a
+ * folder covers. Deviating rows are not in it — being outside the fold is the
+ * whole point of surfacing them.
+ */
+router.post(
+  '/:mappingId/sharing/apply-folder',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const s = await scope(req, res);
+      if (!s) return;
+      const body = (req.body ?? {}) as {
+        parentKey?: unknown;
+        confirmed?: unknown;
+        note?: unknown;
+      };
+      const parentKey = typeof body.parentKey === 'string' ? body.parentKey.trim() : '';
+      if (!parentKey) {
+        return void res.status(400).json({
+          error: 'parent_key_required',
+          hint: 'Name the container to apply, as `parentKey` — the id the sharing rows carry.',
+        });
+      }
+      // Strings only, trimmed, and an empty one is not a confirmation. A
+      // caller that sent `{"anna@old": ""}` has confirmed nothing, and the
+      // gate must say so rather than send to an empty address.
+      const confirmed: Record<string, string> = {};
+      if (body.confirmed !== null && typeof body.confirmed === 'object') {
+        for (const [grantee, address] of Object.entries(body.confirmed as object)) {
+          if (typeof address === 'string' && address.trim()) confirmed[grantee] = address.trim();
+        }
+      }
+      const note = typeof body.note === 'string' ? body.note.trim().slice(0, 500) : undefined;
+      const decidedBy = req.userId ?? 'unknown';
+
+      const outcome = await withLedger(s.tenantId, async (l) => {
+        const createShare = await nextcloudCapabilityFor(s, undefined, note);
+        return applyShareGrantsInFolder(
+          {
+            tenantId: s.tenantId as TenantId,
+            mappingId: s.mappingId as MappingId,
+            ledger: l,
+            decidedBy,
+            onError: (m: string, err: unknown) => log.error(m, err),
+            lifecycleDone: s.lifecycle === 'done',
+            confirmed,
+            ...(createShare ? { createShare } : {}),
+          },
+          parentKey,
+        );
+      });
+
+      if (!outcome.ok) {
+        return void res
+          .status(outcome.code === 'no_such_folder' ? 404 : 409)
+          .json({
+            error: outcome.code,
+            reason: outcome.reason,
+            ...(outcome.code === 'unconfirmed_grantees' ? { grantees: outcome.grantees } : {}),
+          });
+      }
+      res.json({ status: 'ok', pressedBy: decidedBy, parentKey, ...outcome });
+    } catch (error) {
+      serverError(res, 'sharing_apply_folder_failed', 'applying this folder', error);
     }
   },
 );

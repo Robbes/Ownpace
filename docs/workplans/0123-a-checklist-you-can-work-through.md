@@ -2,6 +2,36 @@
 
 ## Status — 2026-09-19 (update this block at the end of every session)
 
+**2026-09-19, later: the owner widened the press, and named the gate.** T4 shipped `done` and
+`skip` over a folder and deliberately stopped short of `apply`, recording that widening it was the
+owner's call. He made it: **folder scope, confirm-first** (2026-09-19).
+
+`applyShareGrantsInFolder` in `@openmig/core`, a route in BOTH editions, and the panel on the
+card. What makes it a different decision from the one-go press rather than a narrower argument:
+
+- **Every distinct grantee the press would reach carries an address a person confirmed, or
+  nothing is sent.** All of them, checked before the first invitation — a press that sent eight of
+  eleven and then refused would already have done the thing the gate exists to prevent. The
+  refusal names exactly who is missing, because "some address is unconfirmed" is not actionable.
+  ADR-0032 §6 confirms once per grantee; this press is per folder; the only honest join is every
+  grantee in the folder.
+- **The gate is in `core`, not in the browser.** The screen shows each address, editable, with its
+  own Confirm — but the request carries those addresses and the server checks them, so the screen
+  is not vouching for itself.
+- **Which rows are in the folder is not the caller's claim.** The group is derived server-side
+  from the same `groupShareGrants` the screen folds with, keyed by `parentKey` alone (a container
+  heads at most one group). A press cannot be widened by listing rows, and a **deviating row is
+  never in it** — being outside the fold is the whole point of surfacing it.
+- **A folder with nobody to confirm still presses.** All-link, all-manual: there is no address to
+  ask about, so the press applies nothing and reports the links. Refusing there would read as a
+  broken button rather than as a gate.
+
+Found while building it, and fixed with it: **a corrected address left the old one in the audit
+log.** `share.applied` recorded `grantee` (what the source said) and nothing else, so an
+invitation the owner redirected to `anna@new` was recorded against `anna@old`. The row now carries
+`sentTo` when the two differ — a record of an act that names the wrong recipient is worse than one
+that names none.
+
 **2026-09-19, last: the fold WORKS and could not be READ — three defects the owner found on his
 own data.** 482 rows folded to about twenty on the live Sharing page, and the deviations landed
 above the fold exactly as designed (`iCloud Photos.zip` carrying an extra writer and missing its
@@ -50,7 +80,9 @@ pure function rather than growing a second idea of what a folder covers.
   One press that sent eleven invitations is a different decision about blast radius than that
   ceremony was designed around, so `apply` stays inside the folder, one row at a time. **This is
   the one place the build stops short of §5's "one press", deliberately, and it is the owner's
-  call to widen.**
+  call to widen.** — *Widened 2026-09-19, with the gate the ceremony needed: see the block at the
+  top. The blast-radius reasoning here is unchanged; what changed is that a press over a folder
+  now has to show and have confirmed every address it would reach before it is offered at all.*
 
 **A UX defect this found in itself, before it shipped.** A mapping last scanned before migration
 0053 carries no placement on ANY row, so every row is correctly "on its own" — and the first cut

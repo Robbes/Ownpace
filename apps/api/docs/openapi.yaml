@@ -2494,6 +2494,89 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown mapping. }
         '409': { description: Not cut over yet — the press refuses with the reason. }
+  /api/migrations/{mappingId}/sharing/apply-folder:
+    post:
+      tags: [Migrations]
+      summary: Apply one folder's worth of sharing rows, every address confirmed first
+      description: |
+        The folder press (2026-09-19). The sharing page folds a container and
+        the items inside it into one row; this applies that row's open, clean,
+        addressable grants through the target's share API, in one recorded
+        action, at or after cutover.
+
+        It is not the one-go press with a filter — it carries its own gate.
+        ADR-0032 §6 has a person confirm or correct each grantee's address
+        once, and a folder press reaches every grantee in the folder at once,
+        so **every distinct grantee must appear in `confirmed` with a non-empty
+        address, or nothing is sent**: the 409 names exactly who is missing. An
+        entry may repeat the source's own address unchanged; §6 asks for a
+        person's judgement on the address, not for it to be different.
+
+        Which rows are in the folder is derived server-side with the same
+        grouping rule the screen folds with, from `parentKey` alone — a caller
+        cannot widen a press by listing rows. Rows that deviate from their
+        container are not in the group and so are never part of this press,
+        which is the point of surfacing them above the fold. Link shares and
+        manual verdicts are counted and left, as the one-go press leaves them.
+      parameters:
+        - { name: mappingId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [parentKey]
+              properties:
+                parentKey: { type: string, description: The container to apply, in the source's own ids — the `parent_key` the sharing rows carry. }
+                confirmed:
+                  type: object
+                  additionalProperties: { type: string }
+                  description: Where to send, per grantee the SOURCE named — one address a person confirmed or corrected (ADR-0032 §6). An empty value is not a confirmation.
+                note: { type: string, maxLength: 500, description: The owner's context, carried inside the platform's own notification where the API supports it. }
+      responses:
+        '200':
+          description: What the press did, row by row.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  pressedBy: { type: string }
+                  parentKey: { type: string }
+                  applied: { type: array, items: { type: object } }
+                  refused:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        on: { type: string }
+                        grantee: { type: string }
+                        code: { type: string }
+                        reason: { type: string }
+                  leftForChecklist:
+                    type: object
+                    properties:
+                      links: { type: integer }
+                      manual: { type: integer }
+        '400': { description: No `parentKey` was named. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Unknown mapping, or no folder group under that container. }
+        '409':
+          description: |
+            Not cut over yet, or a grantee in this folder has no confirmed
+            address. The latter carries `grantees` — exactly who is missing —
+            so the screen can ask for them rather than saying "some address".
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  reason: { type: string }
+                  grantees: { type: array, items: { type: string } }
   /api/migrations/{mappingId}/sharing/rescan:
     post:
       tags: [Migrations]

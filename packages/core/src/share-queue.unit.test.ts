@@ -21,6 +21,7 @@ import {
   NOT_CUT_OVER_REASON,
   applyAllOpenShareGrants,
   applyShareGrant,
+  applyShareGrantsInFolder,
   markShareGrant,
   refreshShareGrants,
   shareGrantHash,
@@ -464,6 +465,246 @@ describe('applyAllOpenShareGrants — the one-go press (0104 T1)', () => {
         refused: 0,
         leftForChecklist: { links: 1, manual: 1 },
       },
+    });
+  });
+});
+
+/**
+ * ONE PRESS OVER ONE FOLDER, and not one address further (owner's call,
+ * 2026-09-19: "folder-level with a confirm-first gate").
+ *
+ * The fold (0123 T4) turned 482 rows into about twenty on the owner's live
+ * page, which made a per-folder press the one that matches what the screen
+ * shows. It is NOT the one-go press with a filter: the one-go press is the
+ * cutover moment, deliberately everything; this reaches one folder's worth of
+ * people, so it carries ADR-0032 §6 at folder scale.
+ *
+ * What these hold, in the order it would cost somebody:
+ *
+ *  1. **Nothing is sent until every grantee is confirmed.** All of them,
+ *     before the first invitation — a press that sent eight of eleven and then
+ *     refused would already have done the thing the gate exists to prevent.
+ *  2. **It sends where a person said, not where the source pointed.** The
+ *     confirmed address is what reaches the target, and the audit records it.
+ *  3. **A deviating row is never in the press.** It left the fold precisely
+ *     because it is shared with somebody its siblings are not.
+ *  4. **A folder with nobody to confirm still presses.** A folder shared only
+ *     by link has no grantee to ask about; refusing it would read as a broken
+ *     button rather than a gate.
+ */
+describe('applyShareGrantsInFolder — one press over one folder (2026-09-19)', () => {
+  const inFolder = (over: Partial<PermissionGrant> & { on: string }): PermissionGrant => ({
+    subject: 'drive_item',
+    grantee: 'anna@example.nl',
+    role: 'writer',
+    raw: '{"type":"user","role":"writer","emailAddress":"anna@example.nl"}',
+    parentKey: 'F',
+    isContainer: false,
+    ...over,
+  });
+
+  /** A shared folder, two children that agree with it, one that does not. */
+  const FOLDER: PermissionGrant[] = [
+    inFolder({ on: 'Foto shoot Emma', itemKey: 'F', parentKey: 'root', isContainer: true }),
+    inFolder({ on: 'IMG_1.jpg', itemKey: 'c1' }),
+    inFolder({ on: 'IMG_2.jpg', itemKey: 'c2' }),
+    // Shared with somebody the folder is not, so it deviates, sits above the
+    // fold, and is NOT what this press is for.
+    inFolder({ on: 'Contract.pdf', itemKey: 'c9' }),
+    inFolder({
+      on: 'Contract.pdf',
+      itemKey: 'c9',
+      grantee: 'bram@example.nl',
+      role: 'reader',
+      raw: '{"type":"user","role":"reader","emailAddress":"bram@example.nl"}',
+    }),
+  ];
+
+  const CONFIRMED = { 'anna@example.nl': 'anna@new-domain.nl' };
+
+  it('applies the folder, to the address a person confirmed', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, FOLDER);
+    const sentTo: string[] = [];
+
+    const press = await applyShareGrantsInFolder(
+      {
+        ...deps(ledger),
+        lifecycleDone: true,
+        confirmed: CONFIRMED,
+        createShare: async (_row, shareWith) => {
+          sentTo.push(shareWith ?? '(the source\u2019s own)');
+          return { ok: true };
+        },
+      },
+      'F',
+    );
+
+    expect(press.ok).toBe(true);
+    if (!press.ok) return;
+    // The folder itself and the two children that agree with it.
+    expect(press.applied).toHaveLength(3);
+    expect(sentTo).toEqual([
+      'anna@new-domain.nl',
+      'anna@new-domain.nl',
+      'anna@new-domain.nl',
+    ]);
+
+    // AND THE DEVIATION IS UNTOUCHED. It is the row somebody has to look at.
+    const rows = await ledger.listShareGrants(TENANT, MAPPING);
+    expect(rows.filter((r) => r.onLabel === 'Contract.pdf').every((r) => r.state === 'open')).toBe(
+      true,
+    );
+  });
+
+  it('sends NOTHING until every grantee in the folder is confirmed, and names who is not', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, FOLDER);
+    let asked = 0;
+
+    const press = await applyShareGrantsInFolder(
+      {
+        ...deps(ledger),
+        lifecycleDone: true,
+        confirmed: {},
+        createShare: async () => {
+          asked += 1;
+          return { ok: true };
+        },
+      },
+      'F',
+    );
+
+    expect(press).toMatchObject({ ok: false, code: 'unconfirmed_grantees' });
+    if (press.ok || press.code !== 'unconfirmed_grantees') return;
+    expect(press.grantees).toEqual(['anna@example.nl']);
+    expect(press.reason).toContain('anna@example.nl');
+    // All-or-nothing: the target was never asked, so nobody was invited.
+    expect(asked).toBe(0);
+    const rows = await ledger.listShareGrants(TENANT, MAPPING);
+    expect(rows.every((r) => r.state === 'open')).toBe(true);
+  });
+
+  it('treats an empty address as no confirmation at all', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, FOLDER);
+
+    const press = await applyShareGrantsInFolder(
+      {
+        ...deps(ledger),
+        lifecycleDone: true,
+        confirmed: { 'anna@example.nl': '   ' },
+        createShare: async () => ({ ok: true }),
+      },
+      'F',
+    );
+
+    expect(press).toMatchObject({ ok: false, code: 'unconfirmed_grantees' });
+  });
+
+  it('refuses before cutover with the SAME sentence the per-row apply uses', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, FOLDER);
+
+    const press = await applyShareGrantsInFolder(
+      {
+        ...deps(ledger),
+        lifecycleDone: false,
+        confirmed: CONFIRMED,
+        createShare: async () => ({ ok: true }),
+      },
+      'F',
+    );
+
+    expect(press).toMatchObject({ ok: false, code: 'not_cut_over', reason: NOT_CUT_OVER_REASON });
+  });
+
+  it('refuses a container that heads no group, rather than pressing nothing quietly', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, FOLDER);
+
+    const press = await applyShareGrantsInFolder(
+      {
+        ...deps(ledger),
+        lifecycleDone: true,
+        confirmed: CONFIRMED,
+        createShare: async () => ({ ok: true }),
+      },
+      'a-folder-that-is-not-in-this-migration',
+    );
+
+    expect(press).toMatchObject({ ok: false, code: 'no_such_folder' });
+  });
+
+  it('presses a folder with nobody to confirm, applies nothing, and counts the links', async () => {
+    // A LINK HAS NO ADDRESSABLE AUDIENCE, so there is nobody to ask about —
+    // and a gate that refused for want of a confirmation it could never
+    // obtain would read as a broken button rather than as a gate.
+    const ledger = new MemoryLedger();
+    const byLink = (on: string, itemKey: string, over: Partial<PermissionGrant> = {}) => ({
+      subject: 'drive_item' as const,
+      on,
+      role: 'reader',
+      viaLink: true,
+      raw: '{"type":"anyone","role":"reader"}',
+      itemKey,
+      parentKey: 'P',
+      isContainer: false,
+      ...over,
+    });
+    await refreshed(ledger, [
+      byLink('Public', 'P', { parentKey: 'root', isContainer: true }),
+      byLink('Poster.pdf', 'p1'),
+    ]);
+
+    const press = await applyShareGrantsInFolder(
+      {
+        ...deps(ledger),
+        lifecycleDone: true,
+        confirmed: {},
+        createShare: async () => ({ ok: true }),
+      },
+      'P',
+    );
+
+    expect(press.ok).toBe(true);
+    if (!press.ok) return;
+    expect(press.applied).toHaveLength(0);
+    expect(press.leftForChecklist).toEqual({ links: 2, manual: 0 });
+  });
+
+  it('records the press against the folder, and each row against where it went', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, FOLDER);
+
+    await applyShareGrantsInFolder(
+      {
+        ...deps(ledger),
+        lifecycleDone: true,
+        confirmed: CONFIRMED,
+        createShare: async () => ({ ok: true }),
+      },
+      'F',
+    );
+
+    const press = ledger.auditEvents.find((e) => e.action === 'share.apply_folder');
+    expect(press?.detail).toMatchObject({
+      parentKey: 'F',
+      folder: 'Foto shoot Emma',
+      attempted: 3,
+      applied: 3,
+      refused: 0,
+      grantees: 1,
+    });
+
+    // A CORRECTED ADDRESS USED TO LEAVE THE OLD ONE IN THE LOG. The invitation
+    // landed at anna@new-domain.nl and the record said anna@example.nl — a
+    // record of an act that names the wrong recipient is worse than one that
+    // names none.
+    const row = ledger.auditEvents.find((e) => e.action === 'share.applied');
+    expect(row?.detail).toMatchObject({
+      grantee: 'anna@example.nl',
+      sentTo: 'anna@new-domain.nl',
     });
   });
 });
