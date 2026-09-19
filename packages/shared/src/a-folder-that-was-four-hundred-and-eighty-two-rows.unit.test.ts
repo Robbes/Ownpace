@@ -23,12 +23,26 @@
  *  4. **A comparison that cannot name its own basis.** A deviation measured
  *     against sibling files is a weaker claim than one measured against the
  *     folder's own grants, and the two must not read the same.
+ *
+ * And two ways the FOLD ITSELF can be unreadable, found by the owner on the
+ * live page once it worked (2026-09-19):
+ *
+ *  5. **A comparison key shown to a person.** `grantee:role` exists so two
+ *     items can be checked for carrying the same rights. Printed beside a
+ *     folder called `2017 Q2` it read as an email address with a month stuck
+ *     on the end. `readGrant` is the builder's inverse, and the two are a pair
+ *     that must stay one format.
+ *  6. **Five folders with the same name.** A container we never listed has no
+ *     name we may print — so all five read `One folder (not itself shared)`
+ *     and identified none of them. A SAMPLE of what is inside says which is
+ *     which without claiming anything about the folder we did not read.
  */
 import { describe, it, expect } from 'vitest';
 import {
   deviation,
   grantSet,
   groupShareGrants,
+  readGrant,
   type GroupableGrant,
 } from './share-grouping.ts';
 
@@ -298,6 +312,46 @@ describe('a comparison names its own basis', () => {
   });
 });
 
+describe('a container we could not name, told apart by what is in it', () => {
+  it('names it by something demonstrably inside, alphabetically so it holds still', () => {
+    const { groups } = groupShareGrants([
+      grant({ id: 'z', itemKey: 'c1', parentKey: 'F-unknown', onLabel: 'Zeta.jpg', grantee: 'a@e.test' }),
+      grant({ id: 'a', itemKey: 'c2', parentKey: 'F-unknown', onLabel: 'Alpha.jpg', grantee: 'a@e.test' }),
+    ]);
+    expect(groups[0]!.label).toBeUndefined();
+    expect(groups[0]!.sample).toBe('Alpha.jpg');
+  });
+
+  it('never samples the container itself — a folder named after itself names nothing', () => {
+    // `Foto shoot Emma` sorts BEFORE `IMG_0.jpg`, so a sample that forgot to
+    // exclude the heading container would pick the folder's own name.
+    const { groups } = groupShareGrants(folderWithChildren(2));
+    expect(groups[0]!.label).toBe('Foto shoot Emma');
+    expect(groups[0]!.sample).toBe('IMG_0.jpg');
+  });
+
+  it('has no sample when the group is its container and nothing else', () => {
+    // The one child deviates, so it leaves the folder's bucket entirely and
+    // there is nothing inside left to point at. Absent, not invented.
+    const { groups, standalone } = groupShareGrants([
+      grant({
+        id: 'f',
+        itemKey: 'F',
+        parentKey: 'root',
+        isContainer: true,
+        onLabel: 'Contracts',
+        grantee: 'anna@example.test',
+      }),
+      grant({ id: 'c-anna', itemKey: 'c0', parentKey: 'F', onLabel: 'Deal.pdf', grantee: 'anna@example.test' }),
+      grant({ id: 'c-bob', itemKey: 'c0', parentKey: 'F', onLabel: 'Deal.pdf', grantee: 'bob@example.test' }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.items).toBe(1);
+    expect(groups[0]!.sample).toBeUndefined();
+    expect(standalone[0]!.label).toBe('Deal.pdf');
+  });
+});
+
 describe('the shape a screen can rely on', () => {
   it('orders groups by what they cover, largest first', () => {
     const rows = [
@@ -350,5 +404,49 @@ describe('the primitives the rule is built from', () => {
 
   it('identical sets do not deviate', () => {
     expect(deviation(['a:r'], ['a:r']).deviates).toBe(false);
+  });
+});
+
+/**
+ * `grantSet` and `readGrant` are ONE format in two directions. A screen that
+ * printed the comparison key is what put this block here; a builder and an
+ * inverse that drift apart would put it back.
+ */
+describe('reading a grant key back into words', () => {
+  it('gives back who and what', () => {
+    expect(readGrant('anna@example.test:writer')).toEqual({
+      grantee: 'anna@example.test',
+      role: 'writer',
+      viaLink: false,
+    });
+  });
+
+  it('gives back a link grant as a link, with no grantee at all', () => {
+    expect(readGrant('(link):reader')).toEqual({ role: 'reader', viaLink: true });
+  });
+
+  it('round-trips every key grantSet builds', () => {
+    const keys = grantSet([
+      grant({ id: 'a', grantee: 'anna@example.test', role: 'writer' }),
+      grant({ id: 'b', role: 'reader' }),
+      grant({ id: 'c', grantee: 'bob@example.test', role: 'commenter' }),
+    ]);
+    expect(keys).toHaveLength(3);
+    for (const key of keys) {
+      const g = readGrant(key);
+      expect(`${g.viaLink ? '(link)' : g.grantee}:${g.role}`).toBe(key);
+    }
+  });
+
+  it('splits on the LAST colon, so an address carrying one survives', () => {
+    expect(readGrant('odd:name@example.test:reader')).toEqual({
+      grantee: 'odd:name@example.test',
+      role: 'reader',
+      viaLink: false,
+    });
+  });
+
+  it('hands back a string it did not write whole, and invents no role for it', () => {
+    expect(readGrant('mystery')).toEqual({ grantee: 'mystery', role: '', viaLink: false });
   });
 });

@@ -81,6 +81,9 @@ export interface GroupableGrant {
   readonly role: string;
 }
 
+/** What stands in a grant key where a grantee would be, for a link grant. */
+const LINK_GRANTEE = '(link)';
+
 /**
  * One item's grants as the sorted strings the comparison is done on.
  *
@@ -89,7 +92,44 @@ export interface GroupableGrant {
  * grantee can never collide with a person called nothing.
  */
 export function grantSet(grants: readonly GroupableGrant[]): string[] {
-  return [...new Set(grants.map((g) => `${g.grantee ?? '(link)'}:${g.role}`))].sort();
+  return [...new Set(grants.map((g) => `${g.grantee ?? LINK_GRANTEE}:${g.role}`))].sort();
+}
+
+/** A grant key, in the halves a screen needs to say it in words. */
+export interface GrantParts {
+  /** Who holds it. Absent for a link grant. */
+  readonly grantee?: string;
+  /** What they may do, in the SOURCE's word — `writer`, `reader`, never ours. */
+  readonly role: string;
+  /** Whether the right is held by anyone holding a link rather than a person. */
+  readonly viaLink: boolean;
+}
+
+/**
+ * Read a grant key back into its halves — the inverse of `grantSet`.
+ *
+ * WHY THIS EXISTS. `grantSet` builds `grantee:role` for COMPARISON, and that
+ * string is the wrong thing to put in front of a person: the owner read
+ * `b.berentsen@gmail.com:writer` glued to a folder called `2017 Q2` and asked
+ * why an email address had grown a month on the end of it. A comparison key
+ * is machinery; a screen shows words. The two functions are a PAIR and change
+ * together, which is why the inverse lives here beside the builder rather than
+ * in whichever page happened to need it.
+ *
+ * Split on the LAST colon: a role never contains one, an address might.
+ *
+ * A string that is not a key we wrote (no colon at all) comes back whole as
+ * the grantee, with no role. Hard rule 9 — printing it verbatim says what we
+ * have; inventing a role we never read would say more than we know.
+ */
+export function readGrant(key: string): GrantParts {
+  const cut = key.lastIndexOf(':');
+  if (cut < 0) return { grantee: key, role: '', viaLink: false };
+  const who = key.slice(0, cut);
+  const role = key.slice(cut + 1);
+  return who === LINK_GRANTEE
+    ? { role, viaLink: true }
+    : { grantee: who, role, viaLink: false };
 }
 
 /**
@@ -122,6 +162,20 @@ export interface ShareGroup {
   readonly label?: string;
   /** The grants every item here carries, sorted. */
   readonly grants: readonly string[];
+  /**
+   * One item inside, by name, so two containers we could not name are not the
+   * same line on screen.
+   *
+   * WHY. `label` is present only when the container is itself shared, so five
+   * unnamed folders all read `One folder (not itself shared)` and the owner
+   * cannot tell which is which — one of them was the Drive root. A sample says
+   * which folder this is by something that is demonstrably IN it.
+   *
+   * It is a sample and claims nothing more: the alphabetically first member,
+   * picked so the row does not reshuffle on a re-render, and never the
+   * container itself. Absent when the group holds nothing but its container.
+   */
+  readonly sample?: string;
   /** How many distinct ITEMS fold in — the count the folder's row shows. */
   readonly items: number;
   /** Every grant row folded in, so one press can act on all of them. */
@@ -275,9 +329,17 @@ export function groupShareGrants(rows: readonly GroupableGrant[]): ShareGrouping
     // the deviation — "three files carry an extra grant" is three findings.
     if (!diff || !diff.deviates) {
       const rowIds = bucket.items.flatMap((i) => i.rowIds).sort();
+      // Something demonstrably inside, for a container we have no name for.
+      // The container's own row is excluded: naming a folder after itself
+      // identifies nothing, and the alphabetical pick keeps the row stable.
+      const sample = bucket.items
+        .filter((i) => i.itemKey !== bucket.parentKey)
+        .map((i) => i.label)
+        .sort()[0];
       groups.push({
         parentKey: bucket.parentKey,
         ...(folder ? { label: folder.label } : {}),
+        ...(sample !== undefined ? { sample } : {}),
         grants: bucket.grants,
         items: bucket.items.length,
         rowIds,

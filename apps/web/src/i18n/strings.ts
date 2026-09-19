@@ -751,6 +751,13 @@ const en = {
   // at all.
   'sharing.group.items': 'items',
   'sharing.group.unnamedFolder': 'One folder (not itself shared)',
+  // A folder we have no name for is identified by something inside it, and the
+  // grant set is said in WORDS: `grantee:role` is the comparison key, and the
+  // owner read one of those glued to a folder called `2017 Q2` and asked why an
+  // email address had grown a month on the end of it.
+  'sharing.group.holds': 'holds',
+  'sharing.group.sharedWith': 'Shared with',
+  'sharing.grant.link': 'anyone with the link',
   'sharing.group.doneAll': 'Mark all done',
   'sharing.group.skipAll': 'Skip all',
   'sharing.group.applyInside': 'Open the folder to share items on the new system.',
@@ -2652,6 +2659,9 @@ const nl: Record<keyof typeof en, string> = {
   'sharing.loadFailed': 'De deel-checklist kon niet worden gelezen.',
   'sharing.group.items': 'items',
   'sharing.group.unnamedFolder': 'Eén map (zelf niet gedeeld)',
+  'sharing.group.holds': 'bevat',
+  'sharing.group.sharedWith': 'Gedeeld met',
+  'sharing.grant.link': 'iedereen met de link',
   'sharing.group.doneAll': 'Alles op gedaan zetten',
   'sharing.group.skipAll': 'Alles overslaan',
   'sharing.group.applyInside': 'Open de map om items op het nieuwe systeem te delen.',

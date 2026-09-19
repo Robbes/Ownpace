@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import {
   groupShareGrants,
+  readGrant,
   type ShareGrantRow,
   type ShareGroup,
   type ShareStandalone,
@@ -53,6 +54,29 @@ import MappingHubLink from '../components/MappingHubLink.tsx';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 import { Hint } from '../components/Hint.tsx';
+
+/**
+ * A grant, as copy — never as the key it is compared on.
+ *
+ * `grantSet` builds `grantee:role` so two items can be checked for carrying
+ * exactly the same rights. That string reached the screen: the owner read
+ * `b.berentsen@gmail.com:writer` beside a folder called `2017 Q2` and asked why
+ * an email address had grown a month on the end of it. A comparison key is
+ * machinery; a screen shows words.
+ *
+ * `readGrant` is the builder's own inverse and lives beside it in
+ * `@openmig/shared`, so the words here cannot drift from the key there. The
+ * ROLE stays the source's own word, exactly as it is on every row below — ours
+ * would be a translation of a claim we did not make.
+ */
+const useGrantText = (): ((key: string) => string) => {
+  const t = useT();
+  return (key: string): string => {
+    const g = readGrant(key);
+    const who = g.viaLink ? t('sharing.grant.link') : (g.grantee ?? '');
+    return g.role ? `${who} (${g.role})` : who;
+  };
+};
 
 const StateBadge: React.FC<{ row: ShareGrantRow }> = ({ row }) => {
   const t = useT();
@@ -86,7 +110,16 @@ const Row: React.FC<{
   refusal?: string;
   /** A pair the owner already confirmed on another row of the same grantee. */
   confirmedGrantee?: string;
-}> = ({ row, busy, onDecide, refusal, confirmedGrantee }) => {
+  /**
+   * Why this row is not under a folder's lid — rendered INSIDE this card.
+   *
+   * It used to sit above the card, a loose line between two tiles, and the
+   * owner asked whether the sentences outside the tiles were meant to be
+   * there. They were not: a sentence about a row belongs to the row it is
+   * about, or the reader has to guess which one it points at.
+   */
+  note?: React.ReactNode;
+}> = ({ row, busy, onDecide, refusal, confirmedGrantee, note }) => {
   // The grantee box and its label are joined by id (0067 T7 (a)); one Row per share.
   const granteeId = React.useId();
   const t = useT();
@@ -142,6 +175,7 @@ const Row: React.FC<{
           {busy && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
         </div>
       </div>
+      {note}
       {/* The mapping table's verdict, verbatim: what this right corresponds
           to on the target, or what to do instead (0029 T2). */}
       <p className="mt-1 text-xs text-gray-500">{row.verdictTarget}</p>
@@ -237,38 +271,55 @@ const GroupCard: React.FC<{
   children: React.ReactNode;
 }> = ({ group, rows, busy, onDecideMany, children }) => {
   const t = useT();
+  const grantText = useGrantText();
   const [open, setOpen] = React.useState(false);
   const openRows = rows.filter((r) => r.state === 'open');
+  const sharedWith = group.grants.map((g) => grantText(g)).join(', ');
 
   return (
     <li className="bg-white border border-gray-200 rounded-lg">
-      <div className="p-3 flex items-center gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-2 min-w-0 text-left"
-          aria-expanded={open}
-        >
-          {open ? (
-            <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+      <div className="p-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="flex items-center gap-2 min-w-0 text-left"
+            aria-expanded={open}
+          >
+            {open ? (
+              <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            )}
+            <Folder className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <span className="truncate font-medium text-gray-900">
+              {/* A container we never listed has no name we may print: a folder
+                  can hold shared files without being shared itself, and
+                  inventing one would be a claim about a folder nobody read. */}
+              {group.label ?? t('sharing.group.unnamedFolder')}
+            </span>
+          </button>
+          {/* ...so it is identified by something demonstrably INSIDE it. Five
+              folders all reading "one folder (not itself shared)" identify
+              none of them, and one of the owner's five was the Drive root. */}
+          {group.label === undefined && group.sample !== undefined && (
+            <span className="text-xs text-gray-500 truncate">
+              {t('sharing.group.holds')} {group.sample}
+            </span>
           )}
-          <Folder className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <span className="truncate font-medium text-gray-900">
-            {/* A container we never listed has no name we may print: a folder
-                can hold shared files without being shared itself, and inventing
-                one would be a claim about a folder nobody read. */}
-            {group.label ?? t('sharing.group.unnamedFolder')}
-          </span>
-        </button>
-        <span className="text-sm text-gray-700 truncate">{group.grants.join(', ')}</span>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-gray-500 flex-shrink-0">
-            {group.items} {t('sharing.group.items')}
-          </span>
-          {busy && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-gray-500 flex-shrink-0">
+              {group.items} {t('sharing.group.items')}
+            </span>
+            {busy && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+          </div>
         </div>
+        {/* Who it is shared with, on a line of its own. The folder's NAME and
+            its grants are two different facts, and run together on one line
+            they read as one — which is exactly how the owner read them. */}
+        <p className="mt-1 text-sm text-gray-700 truncate" title={sharedWith}>
+          <span className="text-gray-500">{t('sharing.group.sharedWith')}</span> {sharedWith}
+        </p>
       </div>
       {openRows.length > 0 && !busy && (
         <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
@@ -294,22 +345,28 @@ const GroupCard: React.FC<{
   );
 };
 
-/** Why a row refused to fold — printed beside it, never instead of it. */
+/** Why a row refused to fold — printed inside it, never instead of it. */
 const WhyAlone: React.FC<{ row: ShareStandalone }> = ({ row }) => {
   const t = useT();
+  const grantText = useGrantText();
   if (row.reason === 'unplaced') {
-    return <p className="text-xs text-gray-500">{t('sharing.alone.unplaced')}</p>;
+    return <p className="mt-1 text-xs text-gray-500">{t('sharing.alone.unplaced')}</p>;
   }
   const against =
     row.comparedWith === 'folder'
       ? t('sharing.alone.vsFolder')
       : t('sharing.alone.vsSiblings');
+  // What it carries that its folder does not, and what its folder has that it
+  // lacks — both in words, for the same reason the group header is.
+  const list = (keys: readonly string[]): string => keys.map((k) => grantText(k)).join(', ');
   return (
-    <p className="text-xs text-amber-800">
+    <p className="mt-1 text-xs text-amber-800">
       {against}
-      {row.extra && row.extra.length > 0 ? ` · ${t('sharing.alone.extra')} ${row.extra.join(', ')}` : ''}
+      {row.extra && row.extra.length > 0
+        ? ` · ${t('sharing.alone.extra')} ${list(row.extra)}`
+        : ''}
       {row.missing && row.missing.length > 0
-        ? ` · ${t('sharing.alone.missing')} ${row.missing.join(', ')}`
+        ? ` · ${t('sharing.alone.missing')} ${list(row.missing)}`
         : ''}
     </p>
   );
@@ -438,7 +495,7 @@ const Sharing: React.FC = () => {
   const byId = new Map(grants.map((r) => [r.id, r]));
   const rowById = (id: string): ShareGrantRow | undefined => byId.get(id);
   const isRow = (r: ShareGrantRow | undefined): r is ShareGrantRow => r !== undefined;
-  const renderRow = (row: ShareGrantRow) => (
+  const renderRow = (row: ShareGrantRow, note?: React.ReactNode) => (
     <Row
       key={row.id}
       row={row}
@@ -446,6 +503,7 @@ const Sharing: React.FC = () => {
       onDecide={onDecide}
       refusal={refusals[row.id] || undefined}
       confirmedGrantee={row.grantee ? confirmedPairs[row.grantee] : undefined}
+      note={note}
     />
   );
 
@@ -515,15 +573,23 @@ const Sharing: React.FC = () => {
               busy={busyGroup === g.rowIds.filter((id) => rowById(id)?.state === 'open').join(',')}
               onDecideMany={onDecideMany}
             >
-              {g.rowIds.map(rowById).filter(isRow).map(renderRow)}
+              {g.rowIds.map(rowById).filter(isRow).map((r) => renderRow(r))}
             </GroupCard>
           ))}
-          {grouped.standalone.map((alone) => (
-            <li key={alone.rowIds.join(',')} className="space-y-1">
-              {!nothingPlaced && <WhyAlone row={alone} />}
-              <ul className="space-y-2">{alone.rowIds.map(rowById).filter(isRow).map(renderRow)}</ul>
-            </li>
-          ))}
+          {grouped.standalone.map((alone) => {
+            // ONE explanation, on the FIRST of this item's rows. An item shared
+            // with three people is three rows and a single reason it stands
+            // apart; against each of them it is the wall again, in a smaller
+            // font. Each card carries its own, so none of them is a line
+            // floating between two tiles with nothing saying which it means.
+            const aloneRows = alone.rowIds.map(rowById).filter(isRow);
+            const why = nothingPlaced ? undefined : <WhyAlone row={alone} />;
+            return (
+              <React.Fragment key={alone.rowIds.join(',')}>
+                {aloneRows.map((r, i) => renderRow(r, i === 0 ? why : undefined))}
+              </React.Fragment>
+            );
+          })}
         </ul>
       )}
     </div>
