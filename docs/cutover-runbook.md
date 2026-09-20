@@ -290,6 +290,14 @@ If issues are detected during cutover or the grace period:
    (until 2026-09-20 nothing did — `verify` only advances from `PREPARING`),
    then `verify`, `approve --yes`, `execute --yes`.
 
+   The managed preparation job (`POST /api/migrations/{id}/cutover`, the
+   Trigger.dev task `run-cutover`) converges on its own: on `FAILED` or
+   `READY_FOR_CUTOVER` it records the way back to `PREPARING` (`retriedBy`,
+   attempt number) and runs the final sync and the gate again; on a cutover
+   under way or a closed ledger it refuses and writes nothing. A gate FAIL is
+   recorded once and not retried. Until 2026-09-20 a second run on a ready
+   cutover marked it `FAILED`, and from `FAILED` the job could not run at all.
+
 ### Verification failed
 
 **Symptoms**: `verify` reports FAIL and exits non-zero.

@@ -810,10 +810,16 @@ export function lifecycleLine(status: string): string {
   return `${status} — stopped by an operator, before any cutover; Start resumes it`;
 }
 
-/** Who did a thing, from the event's own metadata when the door recorded it, else the ledger's coarse actor. */
+/**
+ * Who did a thing, from the event's own metadata when the door recorded it,
+ * else the ledger's coarse actor. `retriedBy` and `verifiedBy` are what the
+ * managed prepare job writes on its way back to PREPARING and into
+ * READY_FOR_CUTOVER; without them its events read "by cli", because the store
+ * calls every object-metadata transition that.
+ */
 function who(event: { triggeredBy: string; metadata?: Record<string, unknown> }): string {
   const m = event.metadata ?? {};
-  for (const key of ['rolledBackBy', 'completedBy', 'approvedBy', 'startedBy']) {
+  for (const key of ['rolledBackBy', 'completedBy', 'approvedBy', 'startedBy', 'retriedBy', 'verifiedBy']) {
     const v = m[key];
     if (typeof v === 'string' && v) return v;
   }

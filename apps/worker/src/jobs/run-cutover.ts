@@ -20,17 +20,37 @@
  * succeeded — it would have run the delta sync and verification, then failed and
  * marked the cutover FAILED.
  *
+ * It also used to fail its own second run. `initializeCutover` returns the
+ * existing row untouched, and the job then wrote READY_FOR_CUTOVER
+ * unconditionally — an edge the machine does not have out of
+ * READY_FOR_CUTOVER. So the second press of "prepare" on a cutover that was
+ * ready threw, the catch below marked it FAILED (that edge exists), and every
+ * one of Trigger.dev's default three attempts then found FAILED, where the
+ * same write is invalid too: a ready cutover, prepared twice, was a failed
+ * one that nothing could retry. Now the job reads the ledger first and follows
+ * `prepareTransition` (`@openmig/core`, a view of the state machine): no
+ * ledger → create it; PREPARING or APPROVED → prepare (an approval is revoked
+ * at the end, as the recorded APPROVED → READY_FOR_CUTOVER it always was);
+ * READY_FOR_CUTOVER or FAILED → record the way back to PREPARING first, then
+ * prepare, so the trail shows the second attempt; a cutover under way or a
+ * closed ledger → refuse, and write nothing. A refusal is not a failed
+ * cutover and a gate verdict is not a fault, so neither is retried
+ * (`preparationFailurePolicy`).
+ *
  * Trigger: Manual (user-initiated)
  */
 
 import { z } from 'zod';
 import { asTenantId, asMappingId } from '@openmig/shared';
-import { schemaTask, logger } from '@trigger.dev/sdk';
+import { AbortTaskRunError, schemaTask, logger } from '@trigger.dev/sdk';
 import { CutoverStore, createLedgerVerificationReader } from '@openmig/ledger';
 import {
+  CutoverRefused,
+  prepareTransition,
   runShadowPass,
   runVerification,
   createRealVerificationDeps,
+  type CutoverState,
   type VerificationResult,
 } from '@openmig/core';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -60,6 +80,14 @@ export interface CutoverPreparationResult {
   ready: boolean;
   /** The cutover state after this run. */
   state: string;
+  /** The cutover state this run found — undefined when it created the ledger. */
+  from?: CutoverState;
+  /**
+   * How many times the ledger has entered PREPARING, counted from the trail
+   * after this run's own reset (if any) — the same count the CLI's
+   * `start-cutover` reports as "attempt N". 1 for a first preparation.
+   */
+  attempt: number;
   finalSync?: { created: number; skipped: number };
   verification?: Pick<VerificationResult, 'overallStatus' | 'score' | 'totalDiscrepancies'>;
 }
@@ -72,7 +100,10 @@ export interface CutoverPreparationResult {
 export interface CutoverPreparationDeps {
   tenantId: string;
   mappingId: string;
-  cutoverStore: Pick<CutoverStore, 'initializeCutover' | 'loadCutoverState' | 'transitionState'>;
+  cutoverStore: Pick<
+    CutoverStore,
+    'initializeCutover' | 'loadCutoverState' | 'transitionState' | 'getEventHistory'
+  >;
   /** Where progress goes. The Trigger.dev task passes the SDK's `logger`. */
   log: (message: string) => void;
   /** Final delta sync. Omit (or pass undefined) to skip it. */
@@ -82,10 +113,47 @@ export interface CutoverPreparationDeps {
 }
 
 /**
+ * The §20 gate said no. A verdict, not a fault: the task records FAILED and
+ * does not try again — three attempts would run three final syncs and three
+ * verifications to be told the same thing, and leave three FAILED entries.
+ */
+export class CutoverGateFailed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CutoverGateFailed';
+  }
+}
+
+/**
+ * What the task does with an error thrown by `prepareCutover`. Pure, so the
+ * catch block's three answers are pinned without a Trigger.dev runtime.
+ *
+ * - A refusal (`CutoverRefused`) prepared nothing and wrote nothing: not a
+ *   failed cutover, so it is not recorded as one, and not worth another
+ *   attempt — the ledger would say the same thing.
+ * - A gate verdict (`CutoverGateFailed`) is recorded as FAILED, once.
+ * - Anything else — the source unreachable mid-sync, the ledger away — is
+ *   recorded as FAILED and retried; the retry finds FAILED and
+ *   `prepareTransition` takes it back to PREPARING, so the retry converges.
+ */
+export function preparationFailurePolicy(error: unknown): {
+  readonly recordFailed: boolean;
+  readonly retry: boolean;
+} {
+  if (error instanceof CutoverRefused) return { recordFailed: false, retry: false };
+  if (error instanceof CutoverGateFailed) return { recordFailed: true, retry: false };
+  return { recordFailed: true, retry: true };
+}
+
+/**
  * Prepare a cutover: final sync, verification gate, stop at READY_FOR_CUTOVER.
  *
- * Throws on a failed gate — the caller marks the cutover FAILED. Never
- * transitions past READY_FOR_CUTOVER.
+ * Reads the ledger first and follows `prepareTransition`, so a second run
+ * converges: a ready cutover is re-verified and ready again, a failed attempt
+ * is retried, and a cutover under way or a closed ledger is refused with
+ * nothing written. Throws `CutoverGateFailed` on a failed gate (the task
+ * records FAILED) and `CutoverRefused` when there is nothing to prepare (the
+ * task records nothing). Never transitions past READY_FOR_CUTOVER.
  */
 export async function prepareCutover(
   deps: CutoverPreparationDeps,
@@ -93,14 +161,51 @@ export async function prepareCutover(
   const tenantId = asTenantId(deps.tenantId);
   const mappingId = asMappingId(deps.mappingId);
 
-  deps.log('Initializing cutover...');
-  await deps.cutoverStore.initializeCutover({
-    tenantId,
-    mappingId,
-    startedBy: 'trigger-job',
-  });
+  // Read before anything is written, and decide from what is there.
+  const existing = await deps.cutoverStore.loadCutoverState(tenantId, mappingId);
+  const decision = prepareTransition(existing ? (existing.currentState ?? existing.state) : undefined);
 
-  const result: CutoverPreparationResult = { ready: false, state: 'PREPARING' };
+  if ('refuse' in decision) {
+    deps.log(`${decision.refuse} ${decision.hint}`);
+    throw new CutoverRefused(decision.refuse, decision.hint);
+  }
+
+  let attempt = 1;
+  let from: CutoverState | undefined;
+  if ('initialize' in decision) {
+    deps.log('Initializing cutover...');
+    await deps.cutoverStore.initializeCutover({
+      tenantId,
+      mappingId,
+      startedBy: 'trigger-job',
+    });
+  } else {
+    from = decision.from;
+    // Counted from the trail, the way start-cutover counts it: every entry
+    // into PREPARING is an attempt at preparation.
+    const events = await deps.cutoverStore.getEventHistory(tenantId, mappingId);
+    const entries = events.filter((e) => e.toState === 'PREPARING').length;
+    if (decision.resetFirst) {
+      attempt = entries + 1;
+      const reason =
+        decision.from === 'FAILED'
+          ? `Retrying the preparation after a failed attempt (attempt ${attempt})`
+          : 'Re-preparing: the final sync and the gate run again, so the earlier ready ' +
+            `verdict no longer describes the data (attempt ${attempt})`;
+      await deps.cutoverStore.transitionState(tenantId, mappingId, 'PREPARING', {
+        retriedBy: 'trigger-job',
+        retriedAt: new Date().toISOString(),
+        attempt,
+        reason,
+      });
+      deps.log(`Cutover ${decision.from} -> PREPARING (attempt ${attempt}): ${reason}.`);
+    } else {
+      attempt = Math.max(entries, 1);
+      deps.log(`Cutover ledger exists (${decision.from}); preparing (attempt ${attempt}).`);
+    }
+  }
+
+  const result: CutoverPreparationResult = { ready: false, state: 'PREPARING', from, attempt };
 
   if (deps.runFinalSync) {
     deps.log('Running final delta sync...');
@@ -126,8 +231,8 @@ export async function prepareCutover(
     );
 
     if (verification.overallStatus === 'FAIL' || !verification.canProceedToCutover) {
-      // Surface the failure verbatim; the caller marks the cutover FAILED.
-      throw new Error(
+      // Surface the failure verbatim; the task marks the cutover FAILED, once.
+      throw new CutoverGateFailed(
         `Cutover verification failed: status=${verification.overallStatus}, ` +
           `score=${verification.score.toFixed(3)}, discrepancies=${verification.totalDiscrepancies}. ` +
           verification.recommendations.join('; '),
@@ -140,8 +245,13 @@ export async function prepareCutover(
     );
   }
 
+  // Valid from PREPARING and from APPROVED — the two states a `prepare`
+  // decision leaves the ledger in — so no state check is needed here: the
+  // decision above already made this edge exist.
   const ready = await deps.cutoverStore.transitionState(tenantId, mappingId, 'READY_FOR_CUTOVER', {
     readyAt: new Date().toISOString(),
+    verifiedBy: 'trigger-job',
+    attempt,
   });
   result.ready = true;
   result.state = ready.currentState ?? ready.state;
@@ -238,6 +348,16 @@ export const runCutover = schemaTask({
       });
     } catch (error) {
       const err = error as Error;
+      const policy = preparationFailurePolicy(error);
+
+      if (!policy.recordFailed) {
+        // Nothing was prepared and nothing was written — see the policy.
+        const hint = error instanceof CutoverRefused && error.hint ? ` ${error.hint}` : '';
+        appLog.warn('Cutover preparation refused', { tenantId, mappingId, reason: err.message });
+        logger.warn(`Cutover preparation refused: ${err.message}${hint}`);
+        throw new AbortTaskRunError(err.message);
+      }
+
       appLog.error('Cutover preparation failed', { error: err.message });
       logger.error(`Cutover preparation failed: ${err.message}`);
 
@@ -253,6 +373,9 @@ export const runCutover = schemaTask({
         appLog.error('Could not mark cutover FAILED', { error: transitionErr });
       }
 
+      // A verdict is an answer; a fault is worth another go (and the retry
+      // converges: it finds FAILED and takes it back to PREPARING).
+      if (!policy.retry) throw new AbortTaskRunError(err.message);
       throw error;
     } finally {
       // Always release the Postgres pool (never leak it across job runs).
