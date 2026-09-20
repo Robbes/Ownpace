@@ -125,6 +125,29 @@ export function runRetentionDaysFromEnv(raw: string | undefined): number {
 }
 
 /**
+ * How long a free preflight's counts survive for somebody who never becomes a
+ * customer. Seven days (owner, 2026-09-20: "7 days is fine"; workplan 0088 T6).
+ *
+ * This number is a PROMISE before it is a setting: the privacy text states it
+ * to the person whose mailbox was counted, in both languages. It used to say
+ * thirty days while nothing deleted anything — a retention policy nobody had
+ * decided, cited as though somebody had. The default here is what the text
+ * says, and the text is what a visitor reads; change one, change the other.
+ */
+export const DEFAULT_PREFLIGHT_RETENTION_DAYS = 7;
+
+/**
+ * The operator's override for the preflight window, from
+ * `PREFLIGHT_RETENTION_DAYS`. Same parser, same refusal, as the other two.
+ *
+ * An operator who lengthens this is lengthening a published promise, and
+ * should change the privacy text with it.
+ */
+export function preflightRetentionDaysFromEnv(raw: string | undefined): number {
+  return parseRetentionDays(raw, 'PREFLIGHT_RETENTION_DAYS', DEFAULT_PREFLIGHT_RETENTION_DAYS);
+}
+
+/**
  * One parser behind both, so the refusal cannot drift between them.
  *
  * Hard rule 5: a managed operator and an appliance owner setting `45` must get
@@ -341,4 +364,83 @@ export async function pruneRuns(
     if (rows < batchSize) return { deleted, cutoff, moreRemaining: false, clampedBySafety };
   }
   return { deleted, cutoff, moreRemaining: true, clampedBySafety };
+}
+
+/** What decides whether a preflight's counts belong to a customer. */
+export interface PrunePreflightCountsOptions extends PruneOptions {
+  /**
+   * Tenants the CALLER knows to be customers, whatever the ledger says.
+   *
+   * The ledger's own test is "has a pass ever run for this tenant" — a `run`
+   * row is the moment a preflight became a migration, and runs are only ever
+   * pruned for tenants with an issued invoice, so a tenant with none keeps
+   * every run it has and the test stays true. What the ledger cannot see is
+   * the invoice itself: `invoice` is a managed-edition table, and a customer
+   * whose runs were pruned to an invoice is exactly a customer. So the managed
+   * job passes the invoiced tenants here, and a tenant on this list keeps its
+   * counts however old they are. The appliance, which bills nobody, passes
+   * nothing — and it does not run this prune at all, because the person whose
+   * counts sit on their own machine is not a stranger to it.
+   */
+  readonly customerTenantIds?: readonly string[];
+}
+
+/**
+ * Delete the discovery counts of people who never became customers, once
+ * they are older than the window (workplan 0088 T6, owner 2026-09-20).
+ *
+ * "Never became a customer" is three conditions, each one necessary:
+ *
+ *  - the mapping the counts belong to is still `paused` — the wizard loads a
+ *    mapping paused until the owner green-lights it (0013 T7), and green-lit
+ *    is the moment the counts stop being a stranger's and become the first
+ *    page of a migration's ledger, kept until the migration is deleted;
+ *  - no pass has ever run for the tenant — a mapping paused LATER (0110's
+ *    "paused, and why") has a tenant with runs, and is not this;
+ *  - the caller did not name the tenant as a customer (see the option).
+ *
+ * A `run` row is never touched here; neither is anything but
+ * `migration_discovery`, whose rows are a point-in-time snapshot the Confirm
+ * screen shows before a green light and that nothing reads after one.
+ */
+export async function prunePreflightCounts(
+  db: PgDatabase,
+  now: Date,
+  options: PrunePreflightCountsOptions = {},
+): Promise<PruneResult> {
+  const days = options.olderThanDays ?? DEFAULT_PREFLIGHT_RETENTION_DAYS;
+  const batchSize = options.batchSize ?? DEFAULT_RETENTION_BATCH;
+  const maxBatches = options.maxBatches ?? DEFAULT_MAX_BATCHES;
+  if (days < 1) throw new Error(`Retention window must be at least one day, got ${days}`);
+
+  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const customers = options.customerTenantIds ?? [];
+  // An empty list must exclude nobody, and `NOT IN ()` is not SQL — so the
+  // clause exists only when there is somebody to name.
+  const keep = customers.length
+    ? sql`AND d.tenant_id NOT IN (${sql.join(customers.map((id) => sql`${id}::uuid`), sql`, `)})`
+    : sql``;
+
+  let deleted = 0;
+  let moreRemaining = false;
+  for (let batch = 0; batch < maxBatches; batch++) {
+    const result = await db.execute(sql`
+      DELETE FROM migration_discovery
+       WHERE ctid IN (
+         SELECT d.ctid
+           FROM migration_discovery d
+           JOIN mailbox_mapping m ON m.id = d.mapping_id
+          WHERE d.discovered_at < ${cutoff}
+            AND m.status = 'paused'
+            AND NOT EXISTS (SELECT 1 FROM run r WHERE r.tenant_id = d.tenant_id)
+            ${keep}
+          LIMIT ${batchSize}
+       )
+    `);
+    const rows = rowCount(result);
+    deleted += rows;
+    if (rows < batchSize) return { deleted, cutoff, moreRemaining: false };
+    moreRemaining = true;
+  }
+  return { deleted, cutoff, moreRemaining };
 }

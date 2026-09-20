@@ -788,6 +788,7 @@ function calculatorPage(locale) {
   return `
 <h1>${esc(c.title)}</h1>
 <p class="lede">${esc(c.lede)}</p>
+<p class="hint">${esc(c.kept)}</p>
 
 <div id="calc" class="calc">
   <fieldset><legend>${esc(c.whoLegend)}</legend>

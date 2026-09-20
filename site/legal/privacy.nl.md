@@ -98,7 +98,8 @@ afgeleid — en dat zeggen we liever ronduit dan het te omschrijven als "technis
 
 Een gratis preflight leest uw bron om te tellen wat er staat. Daarvan worden **aantallen,
 omvang en totalen per map** bewaard — geen inventaris van afzonderlijke items. Kenmerken van
-items komen pas in het register terecht wanneer een echte verhuizing begint.
+items komen pas in het register terecht wanneer een echte verhuizing begint. Wordt u geen
+klant, dan worden die tellingen na zeven dagen automatisch verwijderd (§9).
 
 ### 4.4 Uw account en facturatie
 
@@ -200,7 +201,7 @@ hebt opgedragen. We laten u het doel zien voordat er iets wordt weggeschreven.
 |---|---|
 | Toegangsgegevens | Tot de verhuizing eindigt of u hem verwijdert — dan vernietigd, en de toegang ingetrokken waar de aanbieder dat ondersteunt |
 | Het verhuisregister | Tot u de verhuizing verwijdert; dan volledig mee verwijderd |
-| Preflight-tellingen, als u geen klant wordt | **30 dagen**, daarna automatisch verwijderd |
+| Preflight-tellingen, als u geen klant wordt | **7 dagen**, daarna automatisch verwijderd |
 | Account- en inloggegevens | Zolang uw account bestaat, daarna 30 dagen |
 | Facturen en de gebruikscijfers eronder | **7 jaar**, omdat de Nederlandse belastingwet dat vereist |
 | Operationele logs | «LOG_RETENTION» |
