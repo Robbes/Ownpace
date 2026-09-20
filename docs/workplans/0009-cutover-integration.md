@@ -18,6 +18,7 @@
 | T5 rollback path integration test | ✅ Done | PR #31 merged (56f4a50); commit 35956b0 "Add cutover integration tests (Steps 8-10)"; `packages/core/src/rollback.integration.test.ts` tests gate-fail and grace-window rollback paths |
 | T6 cutover runbook + user comms templates | ✅ Done | PR #31 merged (56f4a50); commit c96ae51 "Add cutover runbook and communication templates (Steps 11-12)"; `docs/cutover-runbook.md` (283 lines) + `docs/cutover-communication-templates.md` (368 lines) contain runbook + comms templates |
 | T7 `status` tells the truth | ✅ **Done 2026-09-20** | Found after ADR-0047/0048 changed what the ledger and the mapping mean: `status` printed rows the read path never fills — `mapRowToStatus` maps no `startedBy`, `rolledBackAt`, `failedAt` or `failureReason`, and `complete` writes `completedAt` metadata the row does not persist — so "Started By" was always N/A and Rolled Back / Failed / Completed never printed, while its "Recent Events" were the OLDEST five (`getEventHistory` orders ascending and limits), which on any cutover past its fifth event dropped the rollback or the failure. And it never showed the mapping's lifecycle, the half that says whether anything still runs. Now the state row carries the event that entered it (when, by whom from the door's own metadata, why); rollback availability is printed as the machine decides it; the mapping lifecycle is one row with what it means for the passes (`lifecycleLine`, derived from `runsPasses`/`isAfterCutover`); a mapping row that cannot be read is said so; the trail is listed newest first. Seven unit tests in `cutover-commands.unit.test.ts`, proved by mutation. |
+| T8 A second attempt after a rollback | 📋 **Owner's call** — the half that needs no decision is done 2026-09-20 | `cutover_state` is one row per mapping, `initializeCutover` returns the existing row, and the machine admits nothing out of `ROLLED_BACK`. So `start-cutover` printed "Cutover initialized: ROLLED_BACK" for a row it merely read back, `verify` advanced nothing, and the runbook's retry from `FAILED` named a transition no command performed. **Done:** `start-cutover` reads the ledger first — none: initialise; `FAILED`: retry (`FAILED → PREPARING`, the edge the machine always had, recorded with `retriedBy` and the attempt number, the failed attempt kept in the trail); `COMPLETED`/`ROLLED_BACK`: refuse out loud; anything else: name the state and the next step. **The decision:** whether a cutover may be attempted again after a rollback — see the section below. |
 
 > Read `AGENTS.md`, the arch doc (§11 shadow & cutover, §20 verification & rollback) and
 > workplan 0004 first. **Depends on:** 0007 (verification should count all domains, but a
@@ -27,6 +28,28 @@
 > **unit-tested against fakes only** (its "Phase 4: Integration & Testing" was never started,
 > and its Status header contradicts its body; see 0006-C). Nothing persists state, nothing is
 > reachable from the worker/API, and no DNS record is ever actually read or written.
+
+## T8: a second attempt after a rollback — the owner's call
+
+ADR-0047 made a rollback the *recoverable* outcome of a cutover: a setback, the migration back to
+syncing, the source live again. The state machine, written before that decision, makes it the one
+outcome with no way forward: `FAILED` may go back to `PREPARING` (and `start-cutover` now does
+that), but `ROLLED_BACK` admits nothing, and there is one cutover ledger per mapping. So the
+operator who rolled back because the MX change went wrong, fixed it, and wants to try again has
+exactly one option today: delete the `cutover_state` row by hand. That is the asymmetry: the
+outcome the product makes safe to reach is the one it cannot leave.
+
+Two ways to close it, and neither is a programmer's to pick:
+
+1. **Allow `ROLLED_BACK → PREPARING`** in `VALID_TRANSITIONS`, as `FAILED → PREPARING` already is,
+   and let `start-cutover` retry from it the way it now retries from `FAILED`. The trail keeps the
+   first attempt (events are append-only); `isTerminalState` and the runbook's diagram change;
+   four pinned tests move. Cheapest, and consistent with what a rollback now IS.
+2. **A new attempt is a new ledger row** — drop the `(tenant_id, mapping_id)` uniqueness, add an
+   attempt number, make every reader pick the latest. Keeps `ROLLED_BACK` terminal per attempt,
+   costs a migration and a pass over every `cutover_state` reader.
+
+Until decided, `start-cutover` on a `ROLLED_BACK` ledger says so and names this row.
 
 ## Definition of Done (the gate)
 A complete cutover lifecycle runs against the dev stack, driven through the worker: shadow →

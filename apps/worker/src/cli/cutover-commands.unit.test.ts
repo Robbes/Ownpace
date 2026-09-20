@@ -19,6 +19,7 @@ import {
   verifyCutover,
   executeCutover,
   completeCutover,
+  startCutover,
   showStatus,
   lifecycleLine,
   type CutoverCliDeps,
@@ -716,5 +717,99 @@ describe('lifecycleLine()', () => {
     expect(lifecycleLine('continuous')).toContain('passes run after the cutover');
     expect(lifecycleLine('continuous')).toContain('deletions at the source are not mirrored');
     expect(lifecycleLine('done')).toContain('finished');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// start-cutover: what already exists, said truthfully
+//
+// One ledger per mapping, and `initializeCutover` returns the existing row.
+// `startCutover()` printed "Cutover initialized: ROLLED_BACK" for a row it had
+// merely read back; `verify` then advanced nothing, and the runbook's retry
+// from FAILED named a transition no command performed.
+// ---------------------------------------------------------------------------
+
+describe('startCutover()', () => {
+  let logged: string[];
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+
+  function startStore(existing: string | undefined, events: Array<{ toState: string }> = []) {
+    return {
+      loadCutoverState: vi.fn().mockResolvedValue(existing ? { currentState: existing, state: existing } : undefined),
+      initializeCutover: vi.fn().mockResolvedValue({ currentState: 'PREPARING', state: 'PREPARING' }),
+      transitionState: vi.fn().mockResolvedValue({ currentState: 'PREPARING' }),
+      getEventHistory: vi.fn().mockResolvedValue(events),
+    };
+  }
+
+  beforeEach(() => {
+    logged = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('initialises a ledger where there is none', async () => {
+    const store = startStore(undefined);
+
+    await startCutover(makeDeps(store as unknown as ReturnType<typeof makeStore>, true));
+
+    expect(store.initializeCutover).toHaveBeenCalledTimes(1);
+    expect(store.transitionState).not.toHaveBeenCalled();
+    expect(logged.join('\n')).toContain('Cutover initialized: PREPARING');
+  });
+
+  it('says a ledger already exists, names its state and the next step, and initialises nothing', async () => {
+    const store = startStore('GRACE_PERIOD');
+
+    await startCutover(makeDeps(store as unknown as ReturnType<typeof makeStore>, true));
+
+    expect(store.initializeCutover).not.toHaveBeenCalled();
+    expect(store.transitionState).not.toHaveBeenCalled();
+    const out = logged.join('\n');
+    expect(out).toContain('already exists for this mapping: GRACE_PERIOD');
+    expect(out).toContain('complete --yes');
+    expect(out).not.toContain('initialized');
+  });
+
+  it('retries from FAILED — the FAILED -> PREPARING edge the machine always had — recorded as attempt N', async () => {
+    // Two PREPARING entries in the trail already (the first start and one
+    // earlier retry), so this is the third attempt.
+    const store = startStore('FAILED', [{ toState: 'PREPARING' }, { toState: 'READY_FOR_CUTOVER' }, { toState: 'FAILED' }, { toState: 'PREPARING' }, { toState: 'FAILED' }]);
+
+    await startCutover(makeDeps(store as unknown as ReturnType<typeof makeStore>, true));
+
+    expect(store.initializeCutover).not.toHaveBeenCalled();
+    expect(store.transitionState).toHaveBeenCalledWith(TENANT, MAPPING, 'PREPARING', expect.objectContaining({ retriedBy: 'cli', attempt: 3 }));
+    expect(logged.join('\n')).toContain('Cutover retried: FAILED -> PREPARING (attempt 3)');
+  });
+
+  it.each(['ROLLED_BACK', 'COMPLETED'])('refuses a %s ledger out loud: terminal, one ledger per mapping, nothing changed', async (terminal) => {
+    const store = startStore(terminal);
+
+    await expect(startCutover(makeDeps(store as unknown as ReturnType<typeof makeStore>, true))).rejects.toThrow('process.exit(1)');
+
+    expect(store.initializeCutover).not.toHaveBeenCalled();
+    expect(store.transitionState).not.toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const out = logged.join('\n');
+    expect(out).toContain(`${terminal} — terminal`);
+    expect(out).toContain('Nothing was changed');
+    expect(out).not.toContain('initialized');
+  });
+
+  it("names the owner's call for a second attempt after a rollback", async () => {
+    const store = startStore('ROLLED_BACK');
+
+    await expect(startCutover(makeDeps(store as unknown as ReturnType<typeof makeStore>, true))).rejects.toThrow('process.exit(1)');
+
+    expect(logged.join('\n')).toContain('0009 T8');
   });
 });
