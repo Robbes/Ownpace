@@ -201,7 +201,11 @@ pnpm exec tsx apps/worker/src/cli/index.ts status \
   --domain example.com
 ```
 
-Read-only: current state, timestamps, and the append-only event trail.
+Read-only. Both halves, from the records that hold them: the ledger state with
+the event that entered it (when, by whom, why), whether a rollback is admitted
+from there, the **mapping's lifecycle** with what it means for the passes
+(`cutover — stopped for the cutover; no pass runs …`, ADR-0048), when it
+started and by whom, and the append-only event trail newest first.
 
 ## Pre-cutover checklist (24 hours before)
 

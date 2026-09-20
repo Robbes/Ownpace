@@ -1,6 +1,6 @@
 # Workplan 0009 — Cutover made real: verification gate, DNS, rollback — integrated & tested
 
-## Status — 2026-07-27 (update this block at the end of every session)
+## Status — 2026-09-20 (update this block at the end of every session)
 
 > **Done.** T1/T2/T3/T5/T6 all done and tested. A doc audit on 2026-07-27 found T2's `--yes`
 > approval gate had been marked done while absent; it is now genuinely implemented and unit-tested
@@ -17,6 +17,7 @@
 | T4 DNS provider adapter (one real provider) | ⏸️ **Deferred by owner (2026-07-16)** | Owner decided: **keep verify-only, defer automated DNS writes**. `packages/core/src/dns-provider-desec.ts` (deSEC adapter) **stays as an unwired template only** — leave it commented out in `run-cutover.ts`/`run-rollback.ts`; do **not** wire any provider write-path. Cutover DNS remains guided/manual via the runbook (T6) + verify checks (T3). Revisit provider automation in a later slice if demanded. |
 | T5 rollback path integration test | ✅ Done | PR #31 merged (56f4a50); commit 35956b0 "Add cutover integration tests (Steps 8-10)"; `packages/core/src/rollback.integration.test.ts` tests gate-fail and grace-window rollback paths |
 | T6 cutover runbook + user comms templates | ✅ Done | PR #31 merged (56f4a50); commit c96ae51 "Add cutover runbook and communication templates (Steps 11-12)"; `docs/cutover-runbook.md` (283 lines) + `docs/cutover-communication-templates.md` (368 lines) contain runbook + comms templates |
+| T7 `status` tells the truth | ✅ **Done 2026-09-20** | Found after ADR-0047/0048 changed what the ledger and the mapping mean: `status` printed rows the read path never fills — `mapRowToStatus` maps no `startedBy`, `rolledBackAt`, `failedAt` or `failureReason`, and `complete` writes `completedAt` metadata the row does not persist — so "Started By" was always N/A and Rolled Back / Failed / Completed never printed, while its "Recent Events" were the OLDEST five (`getEventHistory` orders ascending and limits), which on any cutover past its fifth event dropped the rollback or the failure. And it never showed the mapping's lifecycle, the half that says whether anything still runs. Now the state row carries the event that entered it (when, by whom from the door's own metadata, why); rollback availability is printed as the machine decides it; the mapping lifecycle is one row with what it means for the passes (`lifecycleLine`, derived from `runsPasses`/`isAfterCutover`); a mapping row that cannot be read is said so; the trail is listed newest first. Seven unit tests in `cutover-commands.unit.test.ts`, proved by mutation. |
 
 > Read `AGENTS.md`, the arch doc (§11 shadow & cutover, §20 verification & rollback) and
 > workplan 0004 first. **Depends on:** 0007 (verification should count all domains, but a
