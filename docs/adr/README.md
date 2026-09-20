@@ -74,6 +74,7 @@ first.
 | [0046](./0046-a-rendering-is-compared-by-its-parts.md) | A rendering is compared by its parts, not by its bytes | Accepted 2026-09-16 — rests on the 0042 T3 measurement that `export-office` is byte-unstable only in its zip container. **Decided, not yet built**: the tree still hashes every file whole; 0042 T7 is the build |
 | [0047](./0047-a-rollback-is-a-setback.md) | A rollback is a setback — one implementation, both callers, and the mapping resumes | Accepted 2026-08-23 (the owner's definition); built 2026-09-19 — `performRollback` in core, the CLI and the job over it, gated against a real ledger |
 | [0048](./0048-the-mapping-hears-the-cutover.md) | The mapping hears the cutover — `execute` and `complete` write the lifecycle they change | Accepted 2026-09-19 (the owner's pick after ADR-0047 recorded the gap); built 2026-09-20 — `enterCutover` / `closeCutover` in core, the CLI over them, gated against a real ledger; what a cutover stops, a rollback resumes |
+| [0049](./0049-a-door-that-asked-nobody.md) | A door that asked nobody — the mapping update route consults the lifecycle | Accepted 2026-09-20 — `updateTransition` in shared (twenty-five cells, agreeing with the four doors beside it), `PUT /api/migrations/:id` answers 409 `lifecycle_refused` before any write; and the Finish page's lane switch sends the verb the route serves |
 
 ## Reading the statuses
 

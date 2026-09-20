@@ -109,6 +109,10 @@ the way to a terminal state rather than left running behind it forever. Both liv
 - The appliance is unaffected: it has no cutover state machine (ADR-0047), and the operator CLI
   is the one executor for both editions — which is why the decision sits in `shared` and the
   write in `core`, not in either app.
+- **Correction, 2026-09-20:** this ADR and ADR-0047 called the lifecycle `PATCH` "the Finish
+  page's own declaration" of `cutover`. Nothing in the web writes `cutover`: the Finish page
+  reads it. The writers are the operator CLI (this ADR) and a raw `PUT /api/migrations/:id` —
+  which, the same night, turned out to ask nobody at all: [ADR-0049](./0049-a-door-that-asked-nobody.md).
 - Not done here, on purpose: **`done` at `complete`.** Finishing has a rule (unresolved failures
   block it, `force` overrides knowingly) and one door; a cutover command that finished the
   migration would be a second door with fewer rules — the objection ADR-0047 raised against

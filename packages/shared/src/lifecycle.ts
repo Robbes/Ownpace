@@ -17,6 +17,8 @@
  * `active`.
  */
 
+import { MAPPING_LIFECYCLES } from './operating-contract.ts';
+
 /**
  * After cutover, the source is no longer the authority on what exists.
  *
@@ -294,6 +296,120 @@ export function cutoverTransition(status: string): CutoverTransition {
         hint: 'Nothing was changed. The database CHECK constraint should make this unreachable.',
       };
   }
+}
+
+/**
+ * What a STATUS UPDATE may do — the `PUT /api/migrations/:id` door, asked
+ * (ADR-0049).
+ *
+ * The route admitted every status its schema named and asked nobody: `cutover`
+ * → `active` went through, and so did `done` → `paused` and `active` →
+ * `continuous`, while `/start`, `/finish`, the appliance, the rollback and the
+ * cutover each refuse exactly those. Two doors to one state, one guarded, is
+ * the shape every lifecycle defect in this repository has had, and this table
+ * closes the second door with the rules the first ones already hold:
+ *
+ *   - AFTER CUTOVER STAYS AFTER CUTOVER. `cutover`, `done` and `continuous` do
+ *     not go back to `active` or `paused` by an update: the source is no
+ *     longer the authority on what exists (0117 D4), and the only thing that
+ *     makes it the authority again is a rollback (ADR-0047), which is recorded
+ *     as one. `startTransition` refuses the same states.
+ *   - `done` IS TERMINAL, with one exit: the continuous lane (0117 T1), which
+ *     is entered from `done` or `cutover` and nowhere else.
+ *   - A TRANSITION WITH ITS OWN DOOR IS REFUSED HERE AND SENT THERE. Starting
+ *     is `/start` (it refuses a grant still being waited on and runs the first
+ *     pass); finishing is `/finish` (it refuses over unresolved failures unless
+ *     forced). An update that reached the same state would skip both rules.
+ *   - THE LANE IS AFTER CUTOVER BY DEFINITION. `continuous` from `active` or
+ *     `paused` would run with the deletion detectors absent while the source
+ *     still IS the authority — declare the cutover first.
+ *
+ * The table, FROM down and TO across (· = nothing to do, same state):
+ *
+ *   |              | active   | paused   | cutover  | done     | continuous |
+ *   |--------------|----------|----------|----------|----------|------------|
+ *   | `active`     | ·        | pause    | declare  | own door | not yet    |
+ *   | `paused`     | own door | ·        | declare  | own door | not yet    |
+ *   | `cutover`    | after    | after    | ·        | own door | enter      |
+ *   | `done`       | finished | finished | finished | ·        | enter      |
+ *   | `continuous` | after    | after    | stop     | own door | ·          |
+ *
+ * Six moves, five no-ops, fourteen refusals — each refusal with a stable code
+ * a screen can branch on, and a hint naming the door that does what was asked.
+ * A refusal means NOTHING is written.
+ */
+export type UpdateRefuseCode = 'own_door' | 'after_cutover' | 'finished' | 'before_cutover' | 'unknown';
+
+export type UpdateTransition =
+  | { readonly apply: true; readonly from: string; readonly to: string }
+  /** Restating the status a mapping already has: a request, not a transition. */
+  | { readonly apply: false; readonly from: string; readonly alreadySo: true }
+  | { readonly refuse: string; readonly hint: string; readonly code: UpdateRefuseCode };
+
+/** Decide what a status update from `from` to `to` may do. */
+export function updateTransition(from: string, to: string): UpdateTransition {
+  const known = (s: string): boolean => (MAPPING_LIFECYCLES as readonly string[]).includes(s);
+  if (!known(from) || !known(to)) {
+    // Hard rule 9, as in the other decisions: a state this product does not
+    // know is not one that "goes through".
+    const which = known(from) ? to : from;
+    return {
+      refuse: `'${which}' is not a mapping lifecycle this product knows.`,
+      hint: 'Nothing was changed. The schema and the database CHECK constraint should make this unreachable.',
+      code: 'unknown',
+    };
+  }
+  if (from === to) return { apply: false, from, alreadySo: true };
+
+  if (from === 'done' && to !== 'continuous') {
+    return {
+      refuse: "This migration was finished ('done'), and 'done' is terminal.",
+      hint:
+        "The one thing that follows a finish is the continuous lane ('continuous'), which keeps " +
+        'copying after cutover and deletes nothing. Nothing was changed.',
+      code: 'finished',
+    };
+  }
+  if (isAfterCutover(from) && !isAfterCutover(to)) {
+    return {
+      refuse:
+        `This migration is after its cutover ('${from}'); the source is no longer the authority ` +
+        'on what exists, and a status update does not bring it back before the cutover.',
+      hint: "Only a rollback does that, recorded as one: the operator CLI's 'rollback'. Nothing was changed.",
+      code: 'after_cutover',
+    };
+  }
+  if (to === 'active') {
+    return {
+      refuse: "Starting is its own door, not a status update.",
+      hint:
+        'Use Start (POST /api/migrations/{id}/start): it also refuses a grant still being waited on ' +
+        'and runs the first pass, which a status update would skip. Nothing was changed.',
+      code: 'own_door',
+    };
+  }
+  if (to === 'done') {
+    return {
+      refuse: 'Finishing is its own door, not a status update.',
+      hint:
+        'Use Finish (POST /api/migrations/{id}/finish): it refuses over unresolved failures unless ' +
+        'you force it, which a status update would skip. Nothing was changed.',
+      code: 'own_door',
+    };
+  }
+  if (to === 'continuous' && !isAfterCutover(from)) {
+    return {
+      refuse:
+        `The continuous lane is entered after a cutover — from 'cutover' or 'done' — and this ` +
+        `migration is '${from}'.`,
+      hint:
+        'In the lane the source is no longer the authority and deletions there are not mirrored; ' +
+        "that is not yet true of a migration still syncing. Declare the cutover first (status " +
+        "'cutover'), or finish. Nothing was changed.",
+      code: 'before_cutover',
+    };
+  }
+  return { apply: true, from, to };
 }
 
 export type StartTransition = { readonly activate: boolean } | { readonly conflict: string };

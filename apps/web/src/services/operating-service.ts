@@ -797,10 +797,16 @@ export async function finishMigration(
 /**
  * Enter the continuous lane: keep copying after cutover, delete nothing.
  *
- * A PATCH rather than its own verb, because entering the lane IS a change of
- * the mapping's lifecycle and nothing else — no new object, no job to enqueue,
- * and the appliance's own `runsPasses` picks the mapping up on the next tick
- * (0117 T1 slice 2).
+ * A status update rather than its own verb, because entering the lane IS a
+ * change of the mapping's lifecycle and nothing else — no new object, no job
+ * to enqueue, and the appliance's own `runsPasses` picks the mapping up on the
+ * next tick (0117 T1 slice 2).
+ *
+ * A PUT, because that is the verb the API serves on this path — `PUT
+ * /api/migrations/:id`, the same call `pause` makes. From 2026-09-10 to
+ * 2026-09-20 this was a PATCH, which no route answered: the lane could be
+ * entered from a curl and never from the Finish page, and the page's own
+ * "failed" state was all anybody saw. `a-verb-no-route-answered` pins the verb.
  *
  * The price is the reason this has a screen rather than being a toggle: a
  * continuous path holds its capacity slot (ADR-0014, amended 2026-09-10), so
@@ -809,5 +815,5 @@ export async function finishMigration(
  * bill". This function is the last step of that telling, not the whole of it.
  */
 export async function keepCopyingAfterCutover(mappingId: string): Promise<void> {
-  await client.patch(mappingPath(mappingId), { status: 'continuous' });
+  await client.put(mappingPath(mappingId), { status: 'continuous' });
 }
