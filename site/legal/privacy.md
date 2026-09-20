@@ -140,8 +140,8 @@ and we would rather say that plainly than describe it as "technical data".
 
 A free preflight reads your source to count what is there. It stores **counts, sizes and
 per-folder aggregates** — not an inventory of individual items. Item identifiers reach the
-ledger only when a real migration starts. If you never become a customer, those counts are
-deleted automatically after seven days (§9).
+ledger only when a real migration starts. The counts belong to the migration they were counted
+for: kept with it, and gone when you delete it or close your account (§9).
 
 ### 4.4 Your account and billing
 
@@ -239,7 +239,7 @@ We show you the target before anything is written.
 |---|---|
 | Credentials | Until the migration ends or you delete it — then destroyed, and the grant revoked where the provider supports it |
 | The migration ledger | Until you delete the migration; deleted with it, in full |
-| Preflight counts, if you never become a customer | **7 days**, then deleted automatically |
+| Preflight counts | With the migration they were counted for — until you delete it, or your account closes |
 | Account and sign-in data | While your account exists, then 30 days |
 | Invoices and their underlying usage figures | **7 years**, because Dutch tax law requires it |
 | Operational logs | «LOG_RETENTION» |

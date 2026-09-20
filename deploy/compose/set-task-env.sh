@@ -26,7 +26,7 @@
 #                        task container has no credentials at all — the same
 #                        trap the SMTP values fell into.
 #   SMTP_* / NOTIFY_*  — the notification channel (workplan 0030), OPTIONAL.
-#   LEDGER_RETENTION_DAYS, LEDGER_RUN_RETENTION_DAYS, PREFLIGHT_RETENTION_DAYS,
+#   LEDGER_RETENTION_DAYS, LEDGER_RUN_RETENTION_DAYS,
 #   TRIGGER_API_URL_IN_NETWORK, LOG_LEVEL — OPTIONAL
 #                        knobs the tasks read and nothing used to upload, so
 #                        setting them in .env did nothing at all.
@@ -202,7 +202,6 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   NOTIFY_LOCALE="${NOTIFY_LOCALE:-}" \
   LEDGER_RETENTION_DAYS="${LEDGER_RETENTION_DAYS:-}" \
   LEDGER_RUN_RETENTION_DAYS="${LEDGER_RUN_RETENTION_DAYS:-}" \
-  PREFLIGHT_RETENTION_DAYS="${PREFLIGHT_RETENTION_DAYS:-}" \
   TRIGGER_API_URL_IN_NETWORK="${TRIGGER_API_URL_IN_NETWORK:-}" \
   LOG_LEVEL="${LOG_LEVEL:-}" \
   FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
@@ -258,10 +257,6 @@ const { envvars } = require("@trigger.dev/sdk");
     "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD",
     "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
     "LEDGER_RETENTION_DAYS", "LEDGER_RUN_RETENTION_DAYS",
-    // And the window the preflight counts of somebody who never became a
-    // customer live for (0088 T6, owner 2026-09-20: seven days). A published
-    // promise before it is a knob.
-    "PREFLIGHT_RETENTION_DAYS",
     "TRIGGER_API_URL_IN_NETWORK", "LOG_LEVEL",
   ]) {
     const value = process.env[name];
