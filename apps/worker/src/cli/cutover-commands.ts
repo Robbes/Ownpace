@@ -167,8 +167,33 @@ export function generateRunbook(
   return generateDnsRunbook(params.dnsDomain, params.targetMailServer, params.targetIp, params.dkimSelector);
 }
 
+/** The subcommand that moves a ledger on from each non-terminal state — for "already exists" messages. */
+const NEXT_STEP: Record<string, string> = {
+  PREPARING: 'run verification checks with "verify"',
+  READY_FOR_CUTOVER: 'approve it with "approve --yes"',
+  APPROVED: 'execute it with "execute --yes"',
+  CUTOVER_IN_PROGRESS: 'wait for propagation, or "rollback --yes"',
+  GRACE_PERIOD: 'close it out with "complete --yes", or "rollback --yes"',
+};
+
 /**
- * Start a new cutover
+ * Start a cutover — or say, truthfully, what already exists.
+ *
+ * There is ONE cutover ledger per mapping (`cutover_state` is unique on
+ * tenant + mapping) and `initializeCutover` returns the existing row rather
+ * than resetting it. This used to print "Cutover initialized: ROLLED_BACK"
+ * for a row it had merely read back, after which `verify` — which only
+ * advances PREPARING — silently did nothing, and the runbook's "a FAILED
+ * cutover transitions back to PREPARING — re-run" named a transition no
+ * command performed.
+ *
+ * Now: no ledger → initialise it. FAILED → retry, the FAILED → PREPARING edge
+ * the state machine has always had, recorded with who and which attempt; the
+ * trail keeps the failed attempt (append-only). COMPLETED and ROLLED_BACK →
+ * refuse out loud: the machine admits nothing out of either, and a second
+ * attempt after a rollback — the outcome ADR-0047 made recoverable — is the
+ * owner's call (workplan 0009 T8), not something to bury under "initialized".
+ * Anything else → it already exists, and here is the next step.
  */
 export async function startCutover(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.section('Starting Cutover');
@@ -177,15 +202,54 @@ export async function startCutover(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.info(`Domain: ${deps.dnsDomain}`);
 
   try {
-    const state = await deps.cutoverPersistence.initializeCutover({
-      tenantId: deps.tenantId,
-      mappingId: deps.mappingId,
-      targetMailServer: deps.targetMailServer,
-      startedBy: 'cli',
-    });
+    const existing = await deps.cutoverPersistence.loadCutoverState(deps.tenantId, deps.mappingId);
 
-    CutoverCliOutput.success(`Cutover initialized: ${state.currentState}`);
-    CutoverCliOutput.info('Next step: Run verification checks with "verify" command');
+    if (!existing) {
+      const state = await deps.cutoverPersistence.initializeCutover({
+        tenantId: deps.tenantId,
+        mappingId: deps.mappingId,
+        targetMailServer: deps.targetMailServer,
+        startedBy: 'cli',
+      });
+      CutoverCliOutput.success(`Cutover initialized: ${state.currentState}`);
+      CutoverCliOutput.info('Next step: Run verification checks with "verify" command');
+      return;
+    }
+
+    const current = existing.currentState || existing.state;
+
+    if (current === 'FAILED') {
+      // Which attempt this is, counted from the trail rather than guessed.
+      const events = await deps.cutoverPersistence.getEventHistory(deps.tenantId, deps.mappingId);
+      const attempt = events.filter((e) => e.toState === 'PREPARING').length + 1;
+      await deps.cutoverPersistence.transitionState(deps.tenantId, deps.mappingId, 'PREPARING', {
+        retriedBy: 'cli',
+        retriedAt: new Date().toISOString(),
+        attempt,
+      });
+      CutoverCliOutput.success(`Cutover retried: FAILED -> PREPARING (attempt ${attempt}).`);
+      CutoverCliOutput.info('The failed attempt stays in the event trail. Next step: "verify".');
+      return;
+    }
+
+    if (current === 'COMPLETED' || current === 'ROLLED_BACK') {
+      CutoverCliOutput.error(`A cutover ledger already exists for this mapping, and it is ${current} — terminal.`);
+      CutoverCliOutput.info(
+        'The state machine admits no transition out of it, and there is one cutover ledger per ' +
+          'mapping, so a second attempt is not possible today. Nothing was changed.',
+      );
+      if (current === 'ROLLED_BACK') {
+        CutoverCliOutput.info(
+          'A cutover attempted again after a rollback is workplan 0009 T8 — the owner\'s call. ' +
+            'Until then: "status" shows the trail; the mapping itself is syncing again if the ' +
+            'rollback resumed it.',
+        );
+      }
+      process.exit(1);
+    }
+
+    CutoverCliOutput.warning(`A cutover ledger already exists for this mapping: ${current}. Nothing was changed.`);
+    CutoverCliOutput.info(`Next step: ${NEXT_STEP[current] ?? 'see "status"'}.`);
   } catch (error) {
     const err = error as Error;
     CutoverCliOutput.error(`Failed to start cutover: ${err.message}`);

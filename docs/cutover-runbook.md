@@ -54,7 +54,9 @@ PREPARING → READY_FOR_CUTOVER → APPROVED → CUTOVER_IN_PROGRESS → GRACE_P
 - **COMPLETED** — terminal. Closed out with `complete --yes`; `rollback` is
   no longer accepted from here
 - **ROLLED_BACK** — terminal; reached from `CUTOVER_IN_PROGRESS` or
-  `GRACE_PERIOD` (and from `APPROVED`/`FAILED`)
+  `GRACE_PERIOD` (and from `APPROVED`/`FAILED`). One ledger per mapping and no
+  transition out, so **a second attempt after a rollback is not possible today**
+  — workplan 0009 T8, the owner's call
 - **FAILED** — e.g. DNS propagation timeout; retry (back to PREPARING) or
   roll back
 
@@ -87,8 +89,11 @@ pnpm exec tsx apps/worker/src/cli/index.ts start-cutover \
   --target mail.example.com
 ```
 
-Idempotent: re-running against an existing cutover returns its state
-unchanged rather than resetting it.
+Idempotent, and it says what it found: on a ledger that already exists it
+names the state and the next step and changes nothing; on `FAILED` it retries
+(`FAILED → PREPARING`, recorded with the attempt number; the failed attempt
+stays in the trail); on `COMPLETED` or `ROLLED_BACK` it refuses out loud —
+terminal, one ledger per mapping (0009 T8).
 
 ### Run verification
 
@@ -265,8 +270,9 @@ If issues are detected during cutover or the grace period:
    server — the CLI prints this reminder and does not do it for you.
 4. **Verify:** `dig MX example.com`; confirm mail flow on the original
    server.
-5. Document the root cause; plan remediation and retry (a `FAILED` cutover
-   can restart from `PREPARING`).
+5. Document the root cause; plan remediation. A `FAILED` cutover can be
+   restarted with `start-cutover` (`FAILED → PREPARING`); a `ROLLED_BACK` one
+   cannot be attempted again today (0009 T8).
 
 ## Troubleshooting
 
@@ -280,8 +286,9 @@ If issues are detected during cutover or the grace period:
 2. Check the record manually: `dig MX example.com` (against your provider's
    nameserver too: `dig MX example.com @ns1.provider.example`).
 3. TTL still high? Wait it out or lower it and re-apply.
-4. Retry: a `FAILED` cutover transitions back to `PREPARING` — re-run
-   `verify`, `approve --yes`, `execute --yes`.
+4. Retry: `start-cutover` moves a `FAILED` cutover back to `PREPARING`
+   (until 2026-09-20 nothing did — `verify` only advances from `PREPARING`),
+   then `verify`, `approve --yes`, `execute --yes`.
 
 ### Verification failed
 
