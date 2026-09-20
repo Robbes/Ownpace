@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 141 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 142 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -1416,6 +1416,10 @@ Reads:
 ### [a-count-in-a-sentence-the-table-outgrew](../scripts/a-count-in-a-sentence-the-table-outgrew.unit.test.ts)
 
 A COUNT IN A SENTENCE IS A COPY OF THE TABLE, AND A COPY ROTS.
+
+### [a-cutover-the-gate-never-pressed](../scripts/a-cutover-the-gate-never-pressed.unit.test.ts)
+
+A cutover the gate never pressed.
 
 ### [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts)
 

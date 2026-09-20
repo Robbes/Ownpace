@@ -5185,6 +5185,188 @@ case "$idp_lamp" in
     ;;
 esac
 
+# ---------- the cutover door, and the job behind it (0009 T9-T12) ----------
+#
+# Nothing in either gate had ever pressed the cutover. The appliance has no
+# door for it by design (ADR-0026 — the Finish page is a checklist, not a
+# button — and the CLI wants a Postgres URL the appliance does not have), so
+# the managed stack is the one place the whole chain runs for real: the door
+# (POST /api/migrations/{id}/cutover) asks the ledger before it enqueues
+# (#1026), the Trigger.dev job prepares — a final delta pass, then the §20
+# gate — and lands READY_FOR_CUTOVER, and a second press on a ready cutover
+# converges instead of failing it (#1024). The two ledger tables carry the
+# tenant policies since migration 0055 (#1027); that is asserted here on a
+# real app_user, not on PGlite. (The job itself connects as the owner, a
+# superuser on this stack, whom row security never binds — so the job landing
+# READY says nothing about the policies, and the SET ROLE below is the proof.)
+#
+# ON THE MAIL MAPPING, deliberately. The VERIFY half above says why: the demo
+# mail mapping verifies WARN at score 1 and may proceed to cutover; the DAV
+# mapping verifies FAIL on this long-lived stack (191 source items against 75
+# on the night this was written), and a preparation there lands FAILED by the
+# job's own rule. This proves the chain on a mapping that can pass it; the DAV
+# drift is the VERIFY half's to say, not this section's to hide behind.
+#
+# THE REFUSALS ARE FIXTURES. CUTOVER_IN_PROGRESS and COMPLETED are entered by
+# the operator's `execute --yes` and `complete --yes` — a DNS switch and a
+# grace period no gate can walk — so those two states are SET in the ledger by
+# hand, and only the door's READING of them is asserted: 409, the stable code,
+# no run. The transitions into them belong to the CLI's own integration tests.
+#
+# NET ZERO. One ledger per mapping (uk_cutover_state_mapping) on a stack that
+# lives from night to night: a row left behind tonight is tomorrow's "ledger
+# already exists". So the ledger is taken back at the end, and a leftover from
+# an aborted run is cleared at the start rather than read as a fact.
+note "the cutover door — the ledger it asks, the job that converges, the rows app_user cannot see"
+
+CUTOVER_URL="$API/api/migrations/$VERIFY_MAPPING/cutover"
+CUTOVER_WHERE="tenant_id='$VERIFY_TENANT' AND mapping_id='$VERIFY_MAPPING'"
+ledger_state() { q "SELECT state FROM cutover_state WHERE $CUTOVER_WHERE"; }
+ledger_events() { # ledger_events <to_state> — entries into that state, on the trail
+  q "SELECT count(*) FROM cutover_event WHERE $CUTOVER_WHERE AND to_state='$1'"
+}
+ledger_trail() { # the trail, oldest first — printed whenever the ledger did not do what was expected
+  q "SELECT to_char(timestamp,'HH24:MI:SS')||' '||coalesce(from_state,'-')||' -> '||to_state||' by '||triggered_by||': '||coalesce(reason,'')||' '||metadata::text FROM cutover_event WHERE $CUTOVER_WHERE ORDER BY timestamp"
+}
+ledger_take_back() {
+  q "DELETE FROM cutover_event WHERE $CUTOVER_WHERE" >/dev/null
+  q "DELETE FROM cutover_state WHERE $CUTOVER_WHERE" >/dev/null
+}
+# cutover_press <label> — one press on the door; sets CUT_CODE and CUT_BODY
+cutover_press() {
+  read -r CUT_CODE CUT_BODY <<<"$(http POST "$CUTOVER_URL" "$VERIFY_TOKEN" '{}')"
+  echo "cutover press ($1): HTTP $CUT_CODE"
+  echo "$CUT_BODY"
+}
+
+leftover="$(ledger_state)"
+if [ -n "$leftover" ]; then
+  echo "a cutover ledger already exists for the demo mail mapping (state '$leftover') — a leftover of an aborted run, taken back before anything is read from it"
+  ledger_take_back
+fi
+
+# 1. No ledger: the door says so, enqueues the preparation, and the job lands READY.
+cutover_press "no ledger yet"
+CUTOVER_READY=0
+if [ "$CUT_CODE" != "202" ]; then
+  fail_at "the first press on a mapping with no ledger must be a 202, got $CUT_CODE"
+else
+  prep="$(jq -r '"\(.enqueued) \(.preparation.from) \(.preparation.resetsToPreparing) \(.preparation.revokesApproval)"' <<<"$CUT_BODY" 2>/dev/null || echo unparsable)"
+  [ "$prep" = "cutover-preparation null false false" ] \
+    || fail_at "the 202 must say what it enqueued and that no ledger existed: got '$prep'"
+  [ -n "$(jq -r '.runId // empty' <<<"$CUT_BODY" 2>/dev/null)" ] \
+    || fail_at "the 202 carried no runId — the door enqueued nothing it can name"
+  i=0; st=""
+  while [ $i -lt "$SYNC_POLLS" ]; do
+    st="$(ledger_state)"
+    case "$st" in READY_FOR_CUTOVER|FAILED) break ;; esac
+    i=$((i + 1)); sleep "$POLL_SLEEP"
+  done
+  echo "cutover (no ledger yet): the ledger reads '${st:-<no row>}' after $((i * POLL_SLEEP))s"
+  case "$st" in
+    READY_FOR_CUTOVER)
+      CUTOVER_READY=1
+      # The trail after a first preparation: one entry into PREPARING (the
+      # initialisation) and one into READY_FOR_CUTOVER, verified by the job.
+      verified="$(q "SELECT count(*) FROM cutover_event WHERE $CUTOVER_WHERE AND to_state='READY_FOR_CUTOVER' AND metadata->>'verifiedBy'='trigger-job'")"
+      [ "$(ledger_events PREPARING)" = "1" ] && [ "$verified" = "1" ] \
+        || { ledger_trail; fail_at "a first preparation must leave exactly one entry into PREPARING and one READY_FOR_CUTOVER verified by the job"; }
+      ;;
+    FAILED)
+      ledger_trail
+      fail_at "the preparation FAILED on the demo mail mapping — the job's reason is in the trail above (the VERIFY half found this mapping fit to cut over)"
+      ;;
+    *)
+      ledger_trail
+      fail_at "the preparation never landed: the ledger reads '${st:-<no row>}' after $((SYNC_POLLS * POLL_SLEEP))s — the run-cutover task did not run, or ran and wrote nothing"
+      ;;
+  esac
+fi
+
+# 2. A second press on a ready cutover: an honest 202 that says the ledger
+#    goes back to PREPARING first, and a job that converges on READY again
+#    (attempt 2, recorded on the trail) instead of failing a ready cutover.
+if [ "$CUTOVER_READY" = "1" ]; then
+  cutover_press "second press, on READY_FOR_CUTOVER"
+  if [ "$CUT_CODE" != "202" ]; then
+    fail_at "a second press on a ready cutover must be a 202 (#1024, #1026), got $CUT_CODE"
+  else
+    prep="$(jq -r '"\(.preparation.from) \(.preparation.resetsToPreparing) \(.preparation.revokesApproval)"' <<<"$CUT_BODY" 2>/dev/null || echo unparsable)"
+    [ "$prep" = "READY_FOR_CUTOVER true false" ] \
+      || fail_at "the second 202 must say the ledger was READY_FOR_CUTOVER and resets to PREPARING first: got '$prep'"
+    i=0; st=""; ready_entries=""
+    while [ $i -lt "$SYNC_POLLS" ]; do
+      st="$(ledger_state)"
+      ready_entries="$(ledger_events READY_FOR_CUTOVER)"
+      [ "$ready_entries" = "2" ] && break
+      [ "$st" = "FAILED" ] && break
+      i=$((i + 1)); sleep "$POLL_SLEEP"
+    done
+    echo "cutover (second press): the ledger reads '${st:-<no row>}' with $ready_entries entr(y|ies) into READY_FOR_CUTOVER after $((i * POLL_SLEEP))s"
+    reset="$(q "SELECT count(*) FROM cutover_event WHERE $CUTOVER_WHERE AND from_state='READY_FOR_CUTOVER' AND to_state='PREPARING' AND metadata->>'retriedBy'='trigger-job' AND metadata->>'attempt'='2'")"
+    again="$(q "SELECT count(*) FROM cutover_event WHERE $CUTOVER_WHERE AND to_state='READY_FOR_CUTOVER' AND metadata->>'attempt'='2'")"
+    if [ "$st" = "READY_FOR_CUTOVER" ] && [ "$ready_entries" = "2" ] && [ "$reset" = "1" ] && [ "$again" = "1" ]; then
+      echo "cutover (second press): converged — READY_FOR_CUTOVER -> PREPARING (attempt 2, by the job) -> READY_FOR_CUTOVER, the first attempt kept on the trail"
+    else
+      ledger_trail
+      fail_at "a second press must converge on READY_FOR_CUTOVER as attempt 2: state '$st', READY entries $ready_entries, reset-by-job entries $reset, ready-as-attempt-2 entries $again"
+    fi
+  fi
+fi
+
+# 3. The two tables the policies missed (migration 0055): as app_user, with no
+#    tenant context, the ledger is EMPTY; with the tenant's context it is the
+#    tenant's; the owner sees it regardless. Asked of the real Postgres, in
+#    one transaction each, the way withTenant() sets the context.
+if [ "$CUTOVER_READY" = "1" ]; then
+  owner_sees="$(q "SELECT count(*) FROM cutover_state WHERE mapping_id='$VERIFY_MAPPING'")"
+  blind_state="$(q "SET ROLE app_user; SELECT count(*) FROM cutover_state" | tail -n1)"
+  blind_events="$(q "SET ROLE app_user; SELECT count(*) FROM cutover_event" | tail -n1)"
+  scoped_state="$(q "SET ROLE app_user; SELECT set_config('app.current_tenant','$VERIFY_TENANT',true); SELECT count(*) FROM cutover_state WHERE mapping_id='$VERIFY_MAPPING'" | tail -n1)"
+  echo "cutover ledger as seen by: owner=$owner_sees  app_user(no context)=$blind_state state/$blind_events events  app_user(tenant context)=$scoped_state"
+  [ "$owner_sees" = "1" ] || fail_at "the owner must see the one ledger row it just watched being written, saw $owner_sees"
+  [ "$blind_state" = "0" ] && [ "$blind_events" = "0" ] \
+    || fail_at "app_user with no tenant context must see NOTHING in cutover_state/cutover_event (0055: ENABLE + FORCE, fail-closed) — saw $blind_state/$blind_events"
+  [ "$scoped_state" = "1" ] \
+    || fail_at "app_user under the tenant's context must see the tenant's ledger row, saw $scoped_state"
+fi
+
+# 4. The refusals, on fixture states (see the header): 409, the stable code,
+#    the state named, no run — and a ledger the press left exactly as it was.
+if [ "$CUTOVER_READY" = "1" ]; then
+  for fixture in "CUTOVER_IN_PROGRESS under_way" "COMPLETED closed"; do
+    fx_state="${fixture% *}"; fx_code="${fixture#* }"
+    q "UPDATE cutover_state SET state='$fx_state' WHERE $CUTOVER_WHERE" >/dev/null
+    before="$(q "SELECT count(*) FROM cutover_event WHERE $CUTOVER_WHERE")"
+    cutover_press "fixture $fx_state"
+    if [ "$CUT_CODE" != "409" ]; then
+      fail_at "a press on $fx_state must be refused 409 (#1026), got $CUT_CODE"
+    else
+      got="$(jq -r '"\(.error) \(.code) \(.state) \(.runId // "no-run")"' <<<"$CUT_BODY" 2>/dev/null || echo unparsable)"
+      [ "$got" = "cutover_refused $fx_code $fx_state no-run" ] \
+        || fail_at "the 409 must carry cutover_refused, code $fx_code, state $fx_state and no runId: got '$got'"
+    fi
+    # The door refused before enqueueing; had it enqueued anyway, the job would
+    # refuse the same state and write nothing (#1024) — so the ledger is the
+    # observable here, and a short wait gives a wrongly-enqueued run time to show.
+    sleep 5
+    after="$(q "SELECT count(*) FROM cutover_event WHERE $CUTOVER_WHERE")"
+    st="$(ledger_state)"
+    [ "$after" = "$before" ] && [ "$st" = "$fx_state" ] \
+      || fail_at "a refused press must leave the ledger alone: events $before -> $after, state '$st' (fixture was $fx_state)"
+  done
+fi
+
+# 5. Taken back, and proved gone (see NET ZERO in the header).
+ledger_take_back
+left_state="$(q "SELECT count(*) FROM cutover_state WHERE $CUTOVER_WHERE")"
+left_events="$(q "SELECT count(*) FROM cutover_event WHERE $CUTOVER_WHERE")"
+if [ "$left_state" = "0" ] && [ "$left_events" = "0" ]; then
+  echo "cutover: ledger taken back — the demo mail mapping has no cutover again"
+else
+  fail_at "the cutover ledger was not taken back: $left_state state row(s) and $left_events event(s) remain on the demo mail mapping"
+fi
+
 # ---------- verdict ----------
 note "verdict"
 echo "verify: $VERIFY_RESULT   apply: $APPLY_RESULT"

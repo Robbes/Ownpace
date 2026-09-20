@@ -303,6 +303,41 @@ refused with.
 
 ---
 
+## Stage 7 — the cutover gate on real data (workplan 0009, ~10 min, the Spark)
+
+The cutover's state machine is proved on Postgres and, since 0009 T12, pressed
+nightly on the managed stack. What no gate can prove is the one thing that
+depends on YOUR data: whether the §20 completeness gate PASSES over a real
+mapping — a domain that cannot be read reports `NOT_VERIFIABLE` and blocks,
+and that has never been asked of real volumes.
+
+**This touches no DNS and stops nothing.** `start-cutover` opens a ledger and
+`verify` reads; the sync keeps running; only `execute --yes` (not run here)
+stops the passes and asks for the MX switch, and Ownpace never switches it
+itself (owner decision 2026-07-16: verify-only DNS). The runbook the operator
+follows for the switch is `runbook`'s output; that is the manual, not this.
+
+```sh
+# from the repo root on the Spark, DATABASE_URL pointing at the managed Postgres
+pnpm exec tsx apps/worker/src/cli/index.ts start-cutover \
+  --tenant <tenant-id> --mapping <mapping-id> \
+  --domain <your-domain> --target <the target's mail host>
+pnpm exec tsx apps/worker/src/cli/index.ts verify \
+  --tenant <tenant-id> --mapping <mapping-id> --domain <your-domain>
+pnpm exec tsx apps/worker/src/cli/index.ts status \
+  --tenant <tenant-id> --mapping <mapping-id> --domain <your-domain>
+```
+
+Before the switch, `verify`'s DNS leg only checks that the domain HAS MX
+records (SPF/DKIM/DMARC are warnings), so it does not block on DNS; the data
+leg is the real question. On a green run the ledger advances to
+`READY_FOR_CUTOVER` by itself; leave it there — a real cutover later
+re-prepares from it (0009 T9), and nothing else reads it.
+
+**Send back:** the full `verify` output — every domain's line, especially any
+`NOT_VERIFIABLE` — and the `status` output. Nothing else is yours here: the
+door, the job and the rollback are the managed gate's.
+
 ## The safety rails, all in one place
 
 - **Scope Drive testing to a dedicated test folder** via `rootFolderId` — not
