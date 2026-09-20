@@ -1,6 +1,26 @@
 # Workplan 0116 — The data they give the person, not us
 
-## Status — 2026-09-17 (update this block at the end of every session)
+## Status — 2026-09-20 (update this block at the end of every session)
+
+**2026-09-20: D7 decided — C, our own reader — and its first slice built.** The owner, asked
+to choose between the reader and a library: *"C or D, because I don't want to keep someone
+depending on other US cloud SaaS."* C over D because a custody product should not add a
+dependency to read what it already understands, this repository already held two in-memory
+zip readers (the export-members script and the container hash) that only lacked random
+access and zip64, and we only ever READ — a parser that is wrong fails to produce a member,
+loudly. The first slice is `packages/connectors/src/zip-archive.ts`: a zip read **where it
+lies**, through a random-access source (a file today; whatever answers a byte range on the
+managed edition), end record from the tail, central directory from where it points, one
+member at a time inflated as a stream and checked against the CRC-32 and size the directory
+recorded; zip64 records read; **a spanned set refused with a sentence from the end record's
+own disk fields**, so the parts question below is answered by the product on the first real
+export rather than by a guess. Proved against archives a test-side writer builds shape by
+shape, and by breaking it four ways. Not yet in this slice: the Takeout reader over a zip
+(it still reads an extracted tree), and the managed transport — where a customer's archive
+sits — which waits on the owner's answer to *two-step* (they upload it into their own
+target, we read it there by byte range), *relay* (a resumable upload through Ownpace
+straight into the target, nothing stored) or *store* (an upload we hold, against the
+custody promise).
 
 **2026-09-17: an Apple export exists and has been read (T3b unblocked).** The owner requested
 one on 8 September and it arrived on the 13th; §"What one real export answered" is what was in
@@ -88,7 +108,7 @@ as `name`, and a mapping added later cannot walk off with another's history). Pi
 the real appliance on PGlite: two mappings in one tenant have two rows, and an upgraded
 appliance boots into its old row active rather than a fresh one paused.
 
-**What is left.** T3b still waits on an Apple export; T4's managed half on D7; T9 on T4.
+**What is left.** T3b still waits on an Apple export; T4's managed half on D7's transport question (D7 itself decided 2026-09-20, the reader built); T9 on T4.
 
 ### Earlier — 2026-09-04
 
@@ -722,6 +742,19 @@ domain on one side and a one-shot on the other.
   appliance route has carried a real archive, because the measurement may change what is
   wanted, and nothing before T4 is blocked. §"What D7 is actually choosing between" below
   lays out the three options and the one measurement that should precede the decision.
+  **✅ DECIDED 2026-09-20: option 3, our own reader** (owner: "C or D, because I don't want to
+  keep someone depending on other US cloud SaaS"; C chosen over D for the reasons in the status
+  block). Built as `packages/connectors/src/zip-archive.ts` the same day: random access, zip64,
+  streaming inflate, CRC-checked members, a spanned set refused with a sentence — so the
+  measurement this section asked for (independent parts or one archive split across files)
+  is taken by the product on the first real multi-part export, not guessed. The two in-memory
+  readers already in the repository stay as they are: the container hash is a pinned scheme,
+  and the export-members script reads an index. What the decision did NOT settle is where a
+  managed customer's archive sits, which is T4's managed half: *two-step* (the person uploads
+  the export into their own target, and Ownpace reads it there by byte range — no storage on
+  our side, no US cloud), *relay* (a resumable upload through Ownpace streamed straight into
+  the target, nothing stored) or *store* (an object store on our stack, against the custody
+  promise). Put to the owner on 2026-09-20; recommendation two-step first, relay when asked.
 - **D6 — ✅ DECIDED: "Import an export", with the provider's own words beneath.** Not "sync", for Apple. Recommendation: *"Import an
   export"* as the family, and per provider *"Google Takeout archive"* / *"Apple Data & Privacy
   export"* — the provider's own words, so a search engine and a support conversation match.
