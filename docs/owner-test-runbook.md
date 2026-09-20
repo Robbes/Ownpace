@@ -286,6 +286,14 @@ account as Stage 5:
    `GOOGLE_CONTACTS_REFRESH_TOKEN` + a calendar/contacts domain naming
    `"type": "google-calendar"` / `"google-contacts"`; managed: the two wizard
    cards).
+   **Question zero, added 2026-09-20 — the narrower calendar scope.** The
+   console lists `.../auth/calendar.readonly` *under the CalDAV API*, which
+   suggests Google's CalDAV endpoint accepts it; this product never writes a
+   source, so read-only is the scope it should ask for if it works. Mint the
+   calendar token with `https://www.googleapis.com/auth/calendar.readonly`
+   first. If discovery (question one) answers, that is the scope we ship and
+   the code narrows; if it refuses, mint again with the full scope, and send
+   back the refusal sentence — it is worth as much as a pass.
 2. **Question one — discovery**: does the first pass list your calendars /
    address book? A failure here is Google's principal URL not answering the
    PROPFIND walk — send back the error verbatim, it names the URL it tried.
