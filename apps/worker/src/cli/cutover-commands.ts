@@ -15,7 +15,7 @@
  */
 
 import type { TenantId, MappingId } from '@openmig/shared';
-import { CutoverStore } from '@openmig/ledger';
+import type { CutoverStateStore } from '@openmig/ledger';
 import {
   verifyAllDns,
   checkPropagation,
@@ -42,7 +42,7 @@ import {
 export interface CutoverCliDeps {
   tenantId: TenantId;
   mappingId: MappingId;
-  cutoverPersistence: CutoverStore;
+  cutoverPersistence: CutoverStateStore;
   dnsDomain: string;
   targetMailServer: string;
   /**

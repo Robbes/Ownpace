@@ -43,7 +43,7 @@
 import { z } from 'zod';
 import { asTenantId, asMappingId } from '@openmig/shared';
 import { AbortTaskRunError, schemaTask, logger } from '@trigger.dev/sdk';
-import { CutoverStore, createLedgerVerificationReader } from '@openmig/ledger';
+import { tenantCutoverStore, createLedgerVerificationReader, type CutoverStateStore } from '@openmig/ledger';
 import {
   CutoverRefused,
   prepareTransition,
@@ -53,9 +53,7 @@ import {
   type CutoverState,
   type VerificationResult,
 } from '@openmig/core';
-import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import * as schemaPg from '@openmig/ledger/schema-pg';
 import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 import { log as appLog } from '@openmig/shared';
@@ -101,7 +99,7 @@ export interface CutoverPreparationDeps {
   tenantId: string;
   mappingId: string;
   cutoverStore: Pick<
-    CutoverStore,
+    CutoverStateStore,
     'initializeCutover' | 'loadCutoverState' | 'transitionState' | 'getEventHistory'
   >;
   /** Where progress goes. The Trigger.dev task passes the SDK's `logger`. */
@@ -281,8 +279,13 @@ export const runCutover = schemaTask({
       throw new Error('DATABASE_URL environment variable required');
     }
     const pool = new Pool({ connectionString: dbUrl });
-    const db = drizzle(pool, { schema: schemaPg });
-    const cutoverStore = new CutoverStore(db);
+    // Every ledger call inside `withTenant`: cutover_state and cutover_event
+    // are row-secured since migration 0055, and a session that is not a
+    // superuser sees them only with the tenant context set. A bare
+    // `drizzle(pool)` store worked here only because the bundled deployments
+    // connect as a superuser; on an operator's own Postgres it would read
+    // nothing (docs/rls-guide.md).
+    const cutoverStore = tenantCutoverStore(pool, asTenantId(tenantId));
 
     try {
       return await prepareCutover({

@@ -32,7 +32,7 @@
 
 import { z } from 'zod';
 import { schemaTask, logger } from '@trigger.dev/sdk';
-import { CutoverStore, mappingLifecyclePort } from '@openmig/ledger';
+import { tenantCutoverStore, mappingLifecyclePort } from '@openmig/ledger';
 import { performRollback, RollbackRefused } from '@openmig/core';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
@@ -99,7 +99,9 @@ export const runRollback = schemaTask({
     }
     const pool = new Pool({ connectionString: dbUrl });
     const db = drizzle(pool, { schema: schemaPg });
-    const cutoverPersistence = new CutoverStore(db);
+    // The cutover ledger is row-secured since migration 0055: every call
+    // inside `withTenant`, or a non-superuser session reads nothing.
+    const cutoverPersistence = tenantCutoverStore(pool, asTenantId(tenantId));
 
     try {
       // DNS is DEFERRED by owner decision (verify-only DNS, 2026-07-16). Do

@@ -19,7 +19,7 @@
  *   check-access   Prove the O365 consent runbook actually worked
  */
 
-import { CutoverStore, createLedgerVerificationReader, mappingLifecyclePort } from '@openmig/ledger';
+import { tenantCutoverStore, createLedgerVerificationReader, mappingLifecyclePort } from '@openmig/ledger';
 import { asTenantId, asMappingId, type TenantId, type MappingId } from '@openmig/shared';
 import { runVerification, createRealVerificationDeps, reindexFromTarget } from '@openmig/core';
 import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
@@ -267,15 +267,15 @@ async function main() {
     process.exit(1);
   }
 
-  const { drizzle } = await import('drizzle-orm/node-postgres');
   const { Pool } = await import('pg');
   const pool = new Pool({ connectionString: dbUrl });
 
-  // Import all schema tables individually and create schema object
-  const schemaPg = await import('@openmig/ledger/schema-pg');
-  const db = drizzle(pool, { schema: schemaPg });
-
-  const cutoverPersistence = new CutoverStore(db);
+  // The cutover ledger is row-secured since migration 0055 (FORCEd, like every
+  // tenant table): a session that is not a superuser sees it only with the
+  // tenant context set. This is the self-host door — hard rule 5's operator
+  // on their own Postgres with an ordinary owner — so every ledger call goes
+  // inside `withTenant`, bound to the tenant this command was given.
+  const cutoverPersistence = tenantCutoverStore(pool, tenantId as TenantId);
 
   const deps: cutoverCli.CutoverCliDeps = {
     tenantId: tenantId as TenantId,

@@ -32,7 +32,10 @@ closed it:
 `0002_force_row_security_stragglers.sql` closes the two that had `ENABLE`
 without `FORCE` (`migration_discovery`, `migration_status`); migrations
 `0003`/`0004` FORCE their new tables (`verification_run`, `apply_receipt`) on
-creation. FORCE means even the table's **owner** is subject to the policies —
+creation; `0055_the_two_tables_the_policies_missed.sql` brings in the two the
+baseline never secured at all — `cutover_state` and `cutover_event`, which had
+a `tenant_id` and grants and no policy, unnoticed because every reader was a
+superuser until the API's cutover door read them as `app_user` (2026-09-20). FORCE means even the table's **owner** is subject to the policies —
 which matters because hard rule 5's operator points the appliance at their own
 Postgres with an ordinary owner account.
 
@@ -109,7 +112,7 @@ tenant_id = current_setting('app.current_tenant')::uuid
 
 No context set → the predicate fails → zero rows (fail-closed), not an error.
 
-## The RLS tables (26, all FORCEd)
+## The RLS tables (all FORCEd)
 
 From migrations `0001`–`0004`:
 
@@ -120,10 +123,24 @@ From migrations `0001`–`0004`:
 `scope_selection`, `sync_checkpoint`, `tenant`, `tenant_member`,
 `usage_metric`, `verification`, `verification_run`.
 
+Since: `path_lifecycle` (`0035`), and `cutover_state` and `cutover_event`
+(`0055`). The cutover job, the rollback job and the operator CLI read those two
+through `tenantCutoverStore` (`packages/ledger/src/cutover-store.ts`), which
+runs every call inside `withTenant`; the API's cutover door reads them through
+`withTenantDb`.
+
 A future migration that adds an RLS table and forgets `FORCE` fails
 `force-rls.unit.test.ts` **by name** — the test reads
 `pg_class.relforcerowsecurity` for every RLS table rather than keeping its
-own list.
+own list. The same file asks the question that check could not: **which table
+with a `tenant_id` column has no row security at all** (`pg_class.relrowsecurity`
+joined to `pg_attribute`). That is the question `cutover_state` and
+`cutover_event` were the answer to for the whole life of the baseline. Two
+tables answer it on purpose — `rate_budget` (`0024`) and `byte_budget`
+(`0030`): system-level code consults them with no tenant context, they carry no
+personal data, and a cross-tenant read reveals nothing. Their migrations say
+`NO ROW-LEVEL SECURITY, deliberately`, and that sentence, in the file that
+creates the table, is the only exemption the guard accepts.
 
 ## Beyond the row filter: the membership gate
 

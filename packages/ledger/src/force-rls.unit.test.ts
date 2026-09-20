@@ -27,6 +27,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { pgliteDriver } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import { withTenant } from './db.ts';
@@ -36,6 +38,24 @@ const TENANT_A = '5d3b0000-e29b-41d4-a716-446655441501';
 const TENANT_B = '5d3b0000-e29b-41d4-a716-446655441502';
 
 let driver: LedgerDriver;
+
+const MIGRATIONS = join(import.meta.dirname, '..', 'migrations');
+const EXEMPTION = 'NO ROW-LEVEL SECURITY, deliberately';
+
+/**
+ * True when the migration that creates `table` declares, in its own words,
+ * that the table has no row security on purpose. The declaration is the
+ * sentence `rate_budget` and `byte_budget` already carry; nothing else counts.
+ */
+function exemptedByItsMigration(table: string): boolean {
+  const creates = new RegExp(`CREATE TABLE(?: IF NOT EXISTS)? public\\.${table}\\b`);
+  return readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith('.sql'))
+    .some((f) => {
+      const sql = readFileSync(join(MIGRATIONS, f), 'utf-8');
+      return creates.test(sql) && sql.includes(EXEMPTION);
+    });
+}
 
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
@@ -54,6 +74,53 @@ describe('the migration chain with 0002 applied', () => {
     await runMigrations({ driver, logger: (m: string) => applied.push(m) });
     expect(applied.join('\n')).toContain('up to date');
   }, 60_000);
+
+  it('leaves NO table with a tenant_id column without row security, unless the migration that created it says so — the question the FORCE check could not ask', async () => {
+    // "Which RLS tables are not FORCEd" is a question a table with NO row
+    // security never appears in. `cutover_state` and `cutover_event` had a
+    // tenant_id, grants to app_user, and no policy, from the baseline until
+    // migration 0055 — invisible to the assertion below because they were not
+    // RLS tables, and invisible in production because every reader was a
+    // superuser. So ask the catalogs the other question too.
+    //
+    // Two tables answer it on purpose: `rate_budget` (0024) and `byte_budget`
+    // (0030) are consulted by system-level code with no tenant context, carry
+    // no personal data, and reveal nothing across tenants — and their
+    // migrations say so, in as many words. That sentence is the exemption,
+    // read from the file that created the table: a table that lacks row
+    // security without it is a table the policies missed.
+    const conn = await driver.acquire();
+    try {
+      const { rows } = await conn.query<{ relname: string }>(
+        `SELECT c.relname
+           FROM pg_class c
+           JOIN pg_namespace n ON n.oid = c.relnamespace
+           JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped
+          WHERE n.nspname = 'public'
+            AND c.relkind = 'r'
+            AND NOT c.relrowsecurity
+          ORDER BY c.relname`,
+      );
+      const missed = rows.map((r) => r.relname).filter((table) => !exemptedByItsMigration(table));
+      // Before 0055 this returned exactly [cutover_event, cutover_state].
+      expect(
+        missed,
+        'these tables carry a tenant_id but no row security, and no migration says that is deliberate — ' +
+          'add ENABLE, FORCE and the four tenant policies in a migration, or record the exemption where the table is created',
+      ).toEqual([]);
+      // And the exemption is not vacuous: the two deliberate ones are found,
+      // the sentence is read from the file that creates the table, and a
+      // table without it is not exempt.
+      expect(rows.map((r) => r.relname)).toEqual(['byte_budget', 'rate_budget']);
+      expect(exemptedByItsMigration('rate_budget')).toBe(true);
+      expect(exemptedByItsMigration('byte_budget')).toBe(true);
+      expect(exemptedByItsMigration('cutover_state')).toBe(false);
+      expect(exemptedByItsMigration('cutover_event')).toBe(false);
+      expect(exemptedByItsMigration('no_such_table')).toBe(false);
+    } finally {
+      conn.release();
+    }
+  }, 30_000);
 
   it('leaves NO RLS-enabled table without FORCE — asked of the catalogs, not a list', async () => {
     const conn = await driver.acquire();
