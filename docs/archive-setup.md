@@ -21,7 +21,7 @@ Two things, and neither of them is a password:
 | | |
 |---|---|
 | **Which export** | Google Takeout, or Apple Data & Privacy. This tells us how to read it — the two are laid out completely differently inside, and there is no way to tell from the files themselves. |
-| **Where it is** | The folder you extracted the download into. Not the `.zip` file itself. |
+| **Where it is** | The `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all. |
 
 That is the whole connection. We never sign in anywhere on your behalf for this, so there is
 no account to link and nothing to revoke afterwards.
@@ -56,9 +56,15 @@ arrives rather than when you next have time.
 
 ### Getting it ready for us
 
-If it arrived as several `.zip` files, **extract them all into the same folder**. You should
-end up with a folder containing a `Takeout` folder, and inside that a `Google Photos` folder.
-That outer folder is the one to point us at.
+Nothing, usually: point us at the `.zip` as it was downloaded, and we read it where it lies.
+If it arrived as several `.zip` files, **keep them together in one folder and point us at any
+one of them** — we read them all, and if a part in the middle of the sequence is missing we
+say which. A part missing from the *end* of the sequence leaves no gap we can see, so compare
+the number of files you have with the number Google's download page lists before you start.
+
+If you would rather extract it, extract every part into the same folder. You should end up
+with a folder containing a `Takeout` folder, and inside that a `Google Photos` folder. That
+outer folder is the one to point us at. Both ways give exactly the same result.
 
 ### What is inside, and what we do with it
 
@@ -142,9 +148,11 @@ Testing does not move anything. It opens the archive and tells you what is in it
   export you think it is.
 
 If we cannot open it, we say so and why — most often because the download is incomplete, or
-one part never finished, or the folder given is the `.zip` rather than what was extracted from
-it. **We will never tell you an archive is empty when what really happened is that we could
-not read it.** Those are different answers and you deserve the true one.
+one part never finished, or a part is missing from the sequence, or the file is a `.tgz`
+rather than a `.zip` (we read `.zip`; ask Google for that format, or extract the `.tgz` and
+point us at the folder). **We will never tell you an archive is empty when what really
+happened is that we could not read it.** Those are different answers and you deserve the true
+one.
 
 ---
 
@@ -205,11 +213,15 @@ No, and neither can anyone else. Google closed the way programs used to read a p
 library, so an export is the only complete route. iCloud Drive has never had one at all.
 
 **Do I have to unzip it?**
-Yes, for now. Point us at the extracted folder rather than the `.zip`.
+No. Point us at the `.zip` itself and we read it where it lies; nothing is extracted and
+nothing is written beside it. If you already unzipped it, point us at the folder instead —
+both give exactly the same result.
 
 **My export came in twelve parts. Is that a problem?**
-No, as long as you extract them all into the same folder before pointing us at it. A missing
-part is the usual reason an archive will not open, and we name that as the likely cause.
+No. Keep the twelve files together in one folder and point us at any one of them; we read them
+all. If one never finished downloading and the sequence has a gap, we say which part is
+missing rather than importing eleven twelfths of your photos. A part missing from the end
+leaves no gap we can see, so count the files against Google's download page before you start.
 
 **Will this duplicate my photos?**
 No. A photo that Takeout wrote four times is carried once. The larger number you see on screen

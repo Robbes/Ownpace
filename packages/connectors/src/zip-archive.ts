@@ -71,28 +71,43 @@ export interface RandomAccessSource {
   close(): Promise<void>;
 }
 
-/** A file on disk as a random-access source (the appliance route). */
+/**
+ * A file on disk as a random-access source (the appliance route).
+ *
+ * HOLDS NOTHING BETWEEN READS: every read opens the file, reads and closes
+ * it. A `FileSource` has no close hook — a pass's deps close the ledger's
+ * pool and nothing else (`deps-lifecycle.ts`) — so a source that kept a
+ * descriptor open for the archive's lifetime would leak one per pass until
+ * the source was garbage-collected, with Node's warning about it each time.
+ * Three more syscalls per megabyte is the price, and it is nothing next to
+ * inflating the megabyte; it also makes this source behave exactly as the
+ * managed edition's will, where every read is a range request anyway.
+ */
 export async function openFileSource(path: string): Promise<RandomAccessSource> {
   const info = await stat(path);
   if (!info.isFile()) throw new ZipUnreadable(`${path} is not a file.`);
-  const handle = await openFile(path, 'r');
   return {
     size: info.size,
     async read(offset, length) {
-      const buffer = new Uint8Array(length);
-      let filled = 0;
-      while (filled < length) {
-        const { bytesRead } = await handle.read(buffer, filled, length - filled, offset + filled);
-        if (bytesRead === 0) {
-          throw new ZipUnreadable(
-            `The archive ended ${length - filled} byte(s) short of what its own directory promised at offset ${offset + filled}.`,
-          );
+      const handle = await openFile(path, 'r');
+      try {
+        const buffer = new Uint8Array(length);
+        let filled = 0;
+        while (filled < length) {
+          const { bytesRead } = await handle.read(buffer, filled, length - filled, offset + filled);
+          if (bytesRead === 0) {
+            throw new ZipUnreadable(
+              `The archive ended ${length - filled} byte(s) short of what its own directory promised at offset ${offset + filled}.`,
+            );
+          }
+          filled += bytesRead;
         }
-        filled += bytesRead;
+        return buffer;
+      } finally {
+        await handle.close();
       }
-      return buffer;
     },
-    close: () => handle.close(),
+    async close() {},
   };
 }
 

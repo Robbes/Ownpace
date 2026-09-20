@@ -1,10 +1,8 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import { createHash } from 'node:crypto';
-import { readdir, readFile, stat } from 'node:fs/promises';
-import { createReadStream } from 'node:fs';
-import { Readable } from 'node:stream';
-import { basename, join } from 'node:path';
+import { readdir, stat } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import {
   ARCHIVE_ITEM_KINDS,
   ArchiveUnreadable,
@@ -15,16 +13,20 @@ import {
   type ArchiveReader,
   type ArchiveSummary,
 } from '@openmig/core/archive-reader';
+import { openFolderTree, openZipTree, type ArchiveTree } from './archive-tree.ts';
+import { ZipUnreadable } from './zip-archive.ts';
 
 /**
  * The Google Takeout reader (workplan 0116 T3a, implementing 0112 T1).
  *
- * Reads an **extracted** Takeout tree — a directory, not the `.zip`. That is a
- * deliberate limit and not an oversight: this repository carries no archive
- * dependency, adding one is a supply-chain decision nobody has taken, and
- * unzipping belongs to T4's placement (on the appliance the person already has
- * the folder; in a Drive the file arrives whole). The reader's job is the
- * archive's INSIDE.
+ * Reads a Takeout as the person has it: the folder they extracted, or the
+ * `.zip` download itself — one part, or every part of a multi-part download
+ * from any one of them. Until 2026-09-20 this read an extracted tree only,
+ * because the repository carried no zip reader and taking one on was a
+ * supply-chain decision (0116 D7); the owner decided on a reader of our own,
+ * `zip-archive.ts`, and the tree seam in `archive-tree.ts` is what lets this
+ * file not know which container it is reading. The reader's job is the
+ * archive's INSIDE; the container is the tree's.
  *
  * ## What Takeout actually looks like, and why each quirk is here
  *
@@ -53,8 +55,8 @@ import {
  * worse answer than carrying it plainly.
  */
 
-/** The path inside an extracted Takeout where the photo tree lives. */
-const PHOTOS_ROOT = join('Takeout', 'Google Photos');
+/** The path inside a Takeout where the photo tree lives — `/`-separated, the tree's spelling. */
+const PHOTOS_ROOT = 'Takeout/Google Photos';
 
 /** `Photos from 2019` is a YEAR folder; anything else under the root is an album. */
 const YEAR_FOLDER = /^Photos from (\d{4})$/;
@@ -177,7 +179,8 @@ interface Sidecar {
 }
 
 interface Found {
-  readonly absolutePath: string;
+  /** Where in the tree, `/`-separated. */
+  readonly treePath: string;
   readonly folder: string;
   readonly isYearFolder: boolean;
   readonly mediaName: string;
@@ -186,12 +189,13 @@ interface Found {
 /** One walk of the tree, and everything the walk learned. */
 interface Collapsed {
   readonly items: ReadonlyArray<ArchiveItem>;
-  /** Content hash → the absolute path of ONE copy of those bytes. */
+  /** Content hash → the tree path of ONE copy of those bytes. */
   readonly whereabouts: ReadonlyMap<string, string>;
 }
 
 interface TakeoutHandle extends ArchiveHandle {
-  readonly root: string;
+  /** The folder or the zip(s), behind the seam. Closed with the handle. */
+  readonly tree: ArchiveTree;
   /**
    * The collapse, ONCE per open handle (workplan 0116 T5). `summary()` and
    * `items()` used to walk and hash the whole tree each on their own, which
@@ -202,34 +206,184 @@ interface TakeoutHandle extends ArchiveHandle {
   collapsed?: Promise<Collapsed>;
 }
 
-async function listFolders(photosRoot: string): Promise<string[]> {
-  const entries = await readdir(photosRoot, { withFileTypes: true });
-  return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+/**
+ * Folders and files SORTED, whatever order the tree lists them in. A folder
+ * on disk and a zip of the same export list their entries in each one's own
+ * order, and the reader's `folders`, `placeIn` and `metadata.albums` follow
+ * the order the copies were met — so without this the same export answered
+ * differently depending on whether the person had pressed "extract", and the
+ * manifest's bytes with it. Caught by the four-layout test, not by reasoning.
+ */
+const byName = (a: { readonly name: string }, b: { readonly name: string }): number =>
+  a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+
+async function listFolders(tree: ArchiveTree): Promise<string[]> {
+  return (await tree.list(PHOTOS_ROOT))
+    .filter((e) => e.isDirectory)
+    .sort(byName)
+    .map((e) => e.name);
 }
 
-async function findMedia(photosRoot: string): Promise<Found[]> {
+async function findMedia(tree: ArchiveTree): Promise<Found[]> {
   const out: Found[] = [];
-  for (const folder of await listFolders(photosRoot)) {
+  for (const folder of await listFolders(tree)) {
     const isYearFolder = YEAR_FOLDER.test(folder);
-    const dir = join(photosRoot, folder);
-    for (const entry of await readdir(dir, { withFileTypes: true })) {
-      if (!entry.isFile() || NOT_AN_ITEM.test(entry.name)) continue;
-      out.push({ absolutePath: join(dir, entry.name), folder, isYearFolder, mediaName: entry.name });
+    const dir = `${PHOTOS_ROOT}/${folder}`;
+    for (const entry of [...(await tree.list(dir))].sort(byName)) {
+      if (entry.isDirectory || NOT_AN_ITEM.test(entry.name)) continue;
+      out.push({ treePath: `${dir}/${entry.name}`, folder, isYearFolder, mediaName: entry.name });
     }
   }
   return out;
 }
 
-async function readSidecar(dir: string, mediaName: string): Promise<Sidecar | undefined> {
+const utf8 = new TextDecoder();
+
+async function readSidecar(tree: ArchiveTree, dir: string, mediaName: string): Promise<Sidecar | undefined> {
   for (const name of sidecarNamesFor(mediaName)) {
     try {
-      return JSON.parse(await readFile(join(dir, name), 'utf8')) as Sidecar;
+      return JSON.parse(utf8.decode(await tree.read(`${dir}/${name}`))) as Sidecar;
     } catch {
       // Missing, or not JSON. Try the next spelling; an absent sidecar is a
       // legitimate state and the loop falling through is how that is said.
     }
   }
   return undefined;
+}
+
+/**
+ * SHA-256 and size of one file, STREAMED (0116 T2 rule 2; 0120 T5).
+ *
+ * Streamed rather than read whole, on both trees: a video in a photo library
+ * is routinely larger than the two gigabytes `readFile` will return, and the
+ * zip tree inflates as it goes — so the walk that opens an archive holds one
+ * chunk at a time whatever the item weighs. The hash is the same one the file
+ * domain computes over the same bytes, whichever door they came through.
+ */
+async function fingerprint(tree: ArchiveTree, path: string): Promise<{ hash: string; sizeBytes: number }> {
+  const digest = createHash('sha256');
+  let sizeBytes = 0;
+  const stream = await tree.stream(path);
+  for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
+    digest.update(chunk);
+    sizeBytes += chunk.byteLength;
+  }
+  return { hash: digest.digest('hex'), sizeBytes };
+}
+
+/**
+ * The zip reader's refusal, said as the archive's.
+ *
+ * `ZipUnreadable` is about a container and `ArchiveUnreadable` about the
+ * export, and the surfaces render only the second as "we could not open
+ * this" with the reason (0116 §1). A member whose bytes fail their CRC-32
+ * check half-way through the walk is exactly that case: a corrupt download,
+ * never a smaller library. Anything that is neither is a programming error
+ * and passes through untouched.
+ */
+function asArchiveError(err: unknown): unknown {
+  if (err instanceof ZipUnreadable) {
+    return new ArchiveUnreadable(`This archive could not be read — ${err.reason}`, { cause: err });
+  }
+  return err;
+}
+
+/** `takeout-20240506T070810Z-003.zip` → stem `takeout-20240506T070810Z`, index `003`. */
+const PART_NAME = /^(.+)-(\d+)\.zip$/i;
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Every part of a multi-part download, from any one of its parts.
+ *
+ * Google numbers the parts `-001`, `-002`, … after one stamp, so the set is
+ * "the same name with another number" in the same folder, in number order.
+ * A name whose number has no leading zero (`photos-2024.zip`) is not read as
+ * a part: that is a file somebody named, and it is opened alone.
+ *
+ * A GAP IN THE NUMBERING IS REFUSED, with the missing parts named. The photos
+ * in a part that never finished downloading would otherwise simply be absent
+ * — an import that carries most of a library and says nothing about the
+ * rest, the silent kind of wrong 0116 §1 exists to prevent. Only a gap can be
+ * seen: a LAST part that never arrived leaves no hole in the numbering, and
+ * the guide says so.
+ */
+export async function takeoutPartsBeside(zipPath: string): Promise<string[]> {
+  const match = PART_NAME.exec(basename(zipPath));
+  if (!match || !match[2]!.startsWith('0')) return [zipPath];
+  const stem = match[1]!;
+  const width = match[2]!.length;
+  const sibling = new RegExp(`^${escapeRegExp(stem)}-(\\d+)\\.zip$`, 'i');
+  const folder = dirname(zipPath);
+  const parts: Array<{ readonly path: string; readonly number: number }> = [];
+  for (const name of await readdir(folder)) {
+    const found = sibling.exec(name);
+    if (found) parts.push({ path: join(folder, name), number: Number(found[1]) });
+  }
+  parts.sort((a, b) => a.number - b.number);
+  const have = new Set(parts.map((p) => p.number));
+  const last = parts[parts.length - 1]?.number ?? 0;
+  const missing: string[] = [];
+  for (let n = 1; n <= last; n += 1) {
+    if (!have.has(n)) missing.push(`${stem}-${String(n).padStart(width, '0')}.zip`);
+  }
+  if (missing.length > 0) {
+    throw new ArchiveUnreadable(
+      `This archive could not be opened — ${missing.length === 1 ? 'a part is' : `${missing.length} parts are`} ` +
+        `missing beside ${basename(zipPath)}: ${missing.join(', ')}. A download that never finished looks ` +
+        'like this; fetch the missing part into the same folder, or extract every part into one folder and point at that.',
+    );
+  }
+  return parts.map((p) => p.path);
+}
+
+const TARBALL = /\.(tgz|tar\.gz|tar)$/i;
+const ZIP = /\.zip$/i;
+
+/**
+ * The tree behind a location: the folder the person extracted, or the
+ * download itself. Everything refused here is refused with the sentence the
+ * surfaces show, because every case is one the person can act on — and none
+ * of them may read as an empty library.
+ */
+async function openTakeoutTree(path: string): Promise<ArchiveTree> {
+  let info;
+  try {
+    info = await stat(path);
+  } catch (cause) {
+    throw new ArchiveUnreadable(
+      `This archive could not be opened — nothing is at ${path}. If the download is still running, ` +
+        'or was saved somewhere else, it will look like this.',
+      { cause },
+    );
+  }
+  if (info.isDirectory()) return openFolderTree(path);
+  const name = basename(path);
+  if (TARBALL.test(name)) {
+    throw new ArchiveUnreadable(
+      `This archive could not be opened — ${name} is a tar archive, and we read .zip downloads and ` +
+        'extracted folders. Google offers .zip when the export is requested; or extract this one and point at the folder.',
+    );
+  }
+  if (!ZIP.test(name)) {
+    throw new ArchiveUnreadable(`This archive could not be opened — ${name} is a file, not a folder or a .zip download.`);
+  }
+  try {
+    return await openZipTree(await takeoutPartsBeside(path));
+  } catch (err) {
+    if (err instanceof ArchiveUnreadable) throw err;
+    // The zip reader's sentence names what it found (a spanned set, a
+    // directory beyond the end of the file, a member cut short); ours adds
+    // what most often causes it.
+    const reason = err instanceof ZipUnreadable ? err.reason : err instanceof Error ? err.message : String(err);
+    throw new ArchiveUnreadable(
+      `This archive could not be opened — ${reason} If the download is still running, or only some parts ` +
+        'arrived, it will look like this.',
+      { cause: err },
+    );
+  }
 }
 
 /** `photoTakenTime.timestamp` is seconds since the epoch, as a STRING. */
@@ -241,21 +395,26 @@ function takenAt(sidecar: Sidecar | undefined): string | undefined {
 
 export function createTakeoutArchiveReader(): ArchiveReader {
   const collapse = async (handle: TakeoutHandle): Promise<Collapsed> => {
-    const photosRoot = join(handle.root, PHOTOS_ROOT);
-    const found = await findMedia(photosRoot);
+    try {
+      return await walk(handle.tree);
+    } catch (err) {
+      throw asArchiveError(err);
+    }
+  };
+  const walk = async (tree: ArchiveTree): Promise<Collapsed> => {
+    const found = await findMedia(tree);
 
     // Keyed by content hash: the same bytes under three albums and a year are
     // ONE item that four folders knew about (0116 T2, rule 1).
     const byHash = new Map<string, { copies: Found[]; sizeBytes: number }>();
     for (const item of found) {
-      const bytes = await readFile(item.absolutePath);
-      const hash = createHash('sha256').update(bytes).digest('hex');
+      const { hash, sizeBytes } = await fingerprint(tree, item.treePath);
       const seen = byHash.get(hash);
       if (seen) {
         seen.copies.push(item);
         continue;
       }
-      byHash.set(hash, { copies: [item], sizeBytes: bytes.byteLength });
+      byHash.set(hash, { copies: [item], sizeBytes });
     }
 
     // Built from EVERY media name in the archive, before anything is
@@ -268,7 +427,7 @@ export function createTakeoutArchiveReader(): ArchiveReader {
     const whereabouts = new Map<string, string>();
     for (const [contentHash, { copies, sizeBytes }] of byHash) {
       const first = copies[0]!;
-      whereabouts.set(contentHash, first.absolutePath);
+      whereabouts.set(contentHash, first.treePath);
       const folders = copies.map((c) => c.folder);
       const albums = folders.filter((f) => !YEAR_FOLDER.test(f));
       // EVERY copy is asked, not just the first one met. Takeout writes the
@@ -279,7 +438,7 @@ export function createTakeoutArchiveReader(): ArchiveReader {
       // descriptions. Caught by the fixture rather than by reasoning.
       let sidecar: Sidecar | undefined;
       for (const copy of copies) {
-        sidecar = await readSidecar(join(photosRoot, copy.folder), copy.mediaName);
+        sidecar = await readSidecar(tree, `${PHOTOS_ROOT}/${copy.folder}`, copy.mediaName);
         if (sidecar) break;
       }
       const createdAt = takenAt(sidecar);
@@ -346,22 +505,20 @@ export function createTakeoutArchiveReader(): ArchiveReader {
           `This reader opens Google Takeout archives, and this one is a ${location.provider} export.`,
         );
       }
-      const photosRoot = join(location.path, PHOTOS_ROOT);
-      try {
-        const info = await stat(photosRoot);
-        if (!info.isDirectory()) throw new Error('not a directory');
-      } catch (cause) {
+      const tree = await openTakeoutTree(location.path);
+      if (!(await tree.isDirectory(PHOTOS_ROOT))) {
+        await tree.close().catch(() => {});
         // The common case, and it must read as "we could not open this" rather
         // than as an empty library: an unfinished download, a part never
-        // fetched, or a folder that is not a Takeout at all.
+        // fetched, or a folder — or a zip — that is not a Takeout at all.
         throw new ArchiveUnreadable(
           `This archive could not be opened — no “${PHOTOS_ROOT}” folder was found in ` +
             `${basename(location.path) || location.path}. If the download is still ` +
             'running, or only some parts arrived, it will look like this.',
-          { cause },
         );
       }
-      return { provider: 'google-takeout', root: location.path, close: async () => {} } as TakeoutHandle;
+      const handle: TakeoutHandle = { provider: 'google-takeout', tree, close: () => tree.close() };
+      return handle;
     },
 
     async *items(handle: ArchiveHandle): AsyncIterable<ArchiveItem> {
@@ -369,22 +526,32 @@ export function createTakeoutArchiveReader(): ArchiveReader {
     },
 
     async content(handle: ArchiveHandle, item: ArchiveItem): Promise<Uint8Array> {
-      return new Uint8Array(await readFile(await locate(handle, item)));
+      const at = await locate(handle, item);
+      try {
+        return await (handle as TakeoutHandle).tree.read(at);
+      } catch (err) {
+        throw asArchiveError(err);
+      }
     },
 
     /**
      * The same file, as a stream (0120 T5).
      *
-     * Cheap here in a way it is not for any other connector: this reader takes
-     * an EXTRACTED tree, so an item is a file on disk and re-opening is one
-     * more `createReadStream` — no second pass over an archive, no re-issued
-     * request, no signed URL to expire. It resolves the path through the SAME
-     * `locate` the buffered read uses, so the two cannot come to disagree
-     * about which of Takeout's four copies is the item.
+     * Cheap here in a way it is not for any other connector: an item is a
+     * file in a folder, or one member of a zip read by byte range, and
+     * re-opening is one more read from its first byte — no second pass over
+     * the archive, no re-issued request, no signed URL to expire. It resolves
+     * the path through the SAME `locate` the buffered read uses, so the two
+     * cannot come to disagree about which of Takeout's four copies is the
+     * item.
      */
     async contentStream(handle: ArchiveHandle, item: ArchiveItem): Promise<ReadableStream<Uint8Array>> {
       const at = await locate(handle, item);
-      return Readable.toWeb(createReadStream(at)) as ReadableStream<Uint8Array>;
+      try {
+        return await (handle as TakeoutHandle).tree.stream(at);
+      } catch (err) {
+        throw asArchiveError(err);
+      }
     },
 
     async summary(handle: ArchiveHandle): Promise<ArchiveSummary> {
