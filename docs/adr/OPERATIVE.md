@@ -814,3 +814,23 @@ Nothing in this amendment is built. It records the decision the three tasks in
   sync.
 - The `run-cutover` job is prepare-only (it stops at READY_FOR_CUTOVER) and writes no lifecycle;
   the API executes no cutover. The operator CLI is the only executor, for both editions.
+
+## [ADR-0049: A door that asked nobody](./0049-a-door-that-asked-nobody.md)
+
+- **`PUT /api/migrations/:id` asks `updateTransition` in `@openmig/shared` before it writes a
+  status**, on the status read inside its own transaction, and answers **409 `lifecycle_refused`**
+  — with a stable `code`, a `hint` naming the right door, and nothing written — when the move is
+  one the lifecycle does not make through this door.
+- **After cutover stays after cutover.** `cutover`, `done` and `continuous` do not go back to
+  `active` or `paused` by an update (`after_cutover`). Only a rollback does that, recorded as one.
+- **`done` is terminal** with one exit, the continuous lane (`finished` for everything else).
+- **A transition with its own door is refused here and sent there** (`own_door`): `active` is
+  `POST …/start` (it refuses a grant still being waited on and runs the first pass); `done` is
+  `POST …/finish` (it refuses over unresolved failures unless forced).
+- **The lane is entered after cutover** — from `cutover` or `done` — and from nowhere else
+  (`before_cutover`).
+- What the door still does: `active`/`paused` → `cutover` (the declaration), `active` → `paused`
+  (pause), `cutover` ↔ `continuous` and `done` → `continuous` (the lane and its stop). Restating
+  the status a mapping already has is a request, not a transition: 200, nothing recorded.
+- **The Finish page's lane switch sends `PUT`**, the verb this path is served by. A web test pins
+  the verb.

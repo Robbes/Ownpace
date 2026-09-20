@@ -10,6 +10,7 @@
 | T4 Stop the coverage list from going stale | ✅ **Done 2026-08-23** | `scripts/gate-coverage.unit.test.ts` — 12 cases. The route families are DERIVED from `index.ts`; each must be requested by the smoke or carry a written reason. Both directions checked: an undecided family fails, and a reason that outlived its route fails. |
 | T5 Rollback | ✅ **Done 2026-09-19 — it exists once, and it is gated** | **What a rollback IS was decided 2026-08-23: a setback, never a reversal, never a salvage** — now [ADR-0047](../adr/0047-a-rollback-is-a-setback.md). `performRollback` in `@openmig/core` is the one implementation; the CLI and the `run-rollback` job call it, in the same order (mapping first, ledger second, refusals before either). The mapping half is `rollbackTransition` in `shared` (`cutover`/`continuous` → `active`; `done` refused). `canRollback` derives from the state machine and `rollbackAvailable` on a read is no longer a constant. The worker's mapping write is audited like the API's. **Gate:** `run-rollback.integration.test.ts` over the real state machine and the real ledger port — not the E2E smoke, which cannot reach GRACE_PERIOD without real DNS. No API route, deliberately: the API is prepare-only for cutovers. See below. |
 | T6 The cutover the mapping never heard of | ✅ **Done 2026-09-20 — [ADR-0048](../adr/0048-the-mapping-hears-the-cutover.md)** | Found while building T5: the CLI's `execute` and `complete` moved the cutover ledger and never `mailbox_mapping.status`, so a CLI-driven cutover ran with the mapping `active` — passes scheduled, deletion detectors present, a source that had just stopped being the authority (0117 D4) still mirrored — and the rollback's mapping half had nothing to resume. Now `enterCutover` / `closeCutover` in `@openmig/core` write the mapping first (`active`/`paused` → `cutover`; `cutover`/`continuous`/`done` left alone, `done` with a warning) and the ledger second, decided by `cutoverTransition` in `shared` beside `rollbackTransition` — the two agree row by row. Recorded in `audit_log` with `via: 'cutover'`. `complete` closes the ledger, not the migration. **Gate:** `cutover-lifecycle.integration.test.ts` on the real ledger, including the round trip: the cutover stops it, the rollback resumes it, two audit rows. See below. |
+| T7 A door that asked nobody | ✅ **Done 2026-09-20 — [ADR-0049](../adr/0049-a-door-that-asked-nobody.md)** | Found while reading the API for T6: `PUT /api/migrations/:id` wrote whatever status its schema admitted — `cutover` → `active` while `/start` refused it, `done` → `paused` while everything else treats `done` as terminal, `active` → `done` past the unresolved-failures rule, `paused` → `active` past Start's grant check and first pass, `active` → `continuous` before any cutover. Now `updateTransition` in `shared` (25 cells, agreeing with the four doors beside it) is asked inside the transaction; a refusal is 409 `lifecycle_refused` with a stable `code` and the door named, nothing written. **Also found:** the Finish page's lane switch sent `PATCH` to a path served by `PUT` — the continuous lane had never been enterable from its own screen. **Gate:** the real route on Postgres through the whole reachable table, plus the verb pinned in the web. See below. |
 
 **2026-09-19: T5 closed.** Read again with a month's distance, the finding was three
 inconsistencies, not two: the two implementations, `rollbackAvailable` hardcoded `false` on every
@@ -205,6 +206,56 @@ left `active` by an older cutover and writes no row for one already `cutover`; a
 | the audit row says `via: 'rollback'` | the `setStatus` shape (core, CLI) and the row itself (integration) |
 | the confirmation drops the mapping line | "tells the person approving what will happen to THIS mapping" |
 | the `done` warning dropped | "WARNS that a rollback will be refused" (shared, core, CLI) |
+
+## T7: a door that asked nobody — RESOLVED 2026-09-20, see ADR-0049
+
+**Found while reading the API for T6.** Every lifecycle door decides through `shared` first —
+Start, Finish, the rollback (T5), the cutover (T6), the appliance — except one. `PUT
+/api/migrations/:id` admitted every status its schema named and wrote it, audited and with the
+paths moved, decided by nobody:
+
+| Sent | What happened | Which door refuses it |
+|---|---|---|
+| `cutover` → `active` | written | `/start` and the appliance (`isAfterCutover`); D4's accident, one PUT away |
+| `done` → `paused` / `active` / `cutover` | written | the rollback, the finish, Start — `done` is terminal everywhere else |
+| `active` → `done` | written | `/finish` — the unresolved-failures rule, skipped |
+| `paused` → `active` | written | `/start` — the awaiting-grant refusal and the first pass, skipped |
+| `active` → `continuous` | written | 0117 T1: the lane is entered from `cutover` or `done` |
+
+**And the same door had a second finding.** The Finish page's "keep copying after cutover" press
+(0117 T1 slice 3) sent `PATCH` to this path; the API serves it with `PUT` and has no PATCH
+handler there. For ten days the lane could be entered from a curl and never from the screen built
+for it, and nothing was red — the page's tests mock the whole service, and the spec guard checks
+routes against the spec, not against callers.
+
+### What was built
+
+- **`updateTransition(from, to)` in `@openmig/shared`**: six moves, five no-ops, fourteen
+  refusals, each refusal with a stable code (`own_door`, `after_cutover`, `finished`,
+  `before_cutover`) and a hint naming the door that does what was asked. The shared test pins all
+  twenty-five cells and that the table agrees with the four decisions beside it.
+- **The route asks it inside its transaction**, on the status it read there, and returns before
+  the write: 409 `lifecycle_refused` with `code`, `hint`, `from`, `to`. A source-level guard pins
+  that the question is asked and asked before the write. OpenAPI documents the second 409.
+- **The web PUTs.** `keepCopyingAfterCutover` sends the verb the route serves, and
+  `a-verb-no-route-answered.unit.test.ts` mocks the axios instance without a `patch` at all.
+
+### Gate
+
+`a-door-that-asked-nobody.integration.test.ts` drives the real route on Postgres: a mapping
+created paused; `active`, `done` and `continuous` refused with their codes and nothing written;
+`cutover` declared and recorded `via: 'update'`; restating it records nothing; `active` and
+`paused` refused from `cutover` with the rollback named; the lane entered and stopped, both
+recorded; a finish through its own door; `done` refused for everything but the lane. And PATCH
+on this path answers 404 — pinned where it was found.
+
+| Break | Case that fails |
+|---|---|
+| `cutover → active` allowed again | the table cell (shared); "refuses the way back" (integration) |
+| `done → paused` allowed | the `done` row (shared); "'done' is terminal here" (integration) |
+| `to: 'done'` allowed | "never reaches 'done'" (shared); "refuses 'done'" (integration) |
+| the route stops asking | the source-level guard; every refusal case in the integration test |
+| the web PATCHes again | `a-verb-no-route-answered`: `patch is not a function` |
 
 ## What is still not covered, and why
 

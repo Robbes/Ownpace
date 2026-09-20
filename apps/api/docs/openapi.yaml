@@ -1753,16 +1753,33 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
           description: |
-            One or more fields cannot be revised on a migration that already
-            exists. Every refused field is listed, each with a reason that
-            names what to do instead.
+            Two refusals, told apart by `error`.
+
+            `revision_refused`: one or more fields cannot be revised on a
+            migration that already exists. Every refused field is listed, each
+            with a reason that names what to do instead.
+
+            `lifecycle_refused` (ADR-0049): the status move is one the
+            lifecycle does not make through this door. `code` is the stable
+            part: `own_door` (starting is POST …/start, finishing is POST
+            …/finish — each applies a rule an update would skip),
+            `after_cutover` (cutover, done and continuous do not go back to
+            active or paused; only a rollback does that), `finished` (done is
+            terminal; its one exit is the continuous lane), `before_cutover`
+            (the lane is entered from cutover or done). Nothing was written.
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  error: { type: string, enum: [revision_refused] }
+                  error: { type: string, enum: [revision_refused, lifecycle_refused] }
                   message: { type: string }
+                  hint: { type: string }
+                  code:
+                    type: string
+                    enum: [own_door, after_cutover, finished, before_cutover, unknown]
+                  from: { type: string }
+                  to: { type: string }
                   refused:
                     type: array
                     items:

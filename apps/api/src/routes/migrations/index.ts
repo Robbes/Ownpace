@@ -79,6 +79,7 @@ import {
   credentialFieldsFor,
   measuredNoRefusal,
   isAfterCutover,
+  updateTransition,
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
 
@@ -2500,7 +2501,7 @@ router.put(
           ? undefined
           : parseGoogleDriveSource({ nativeFilePolicy }).nativeFilePolicy;
 
-      const [updated] = await withTenantDb(tenantId, pool, async (db) => {
+      const outcome = await withTenantDb(tenantId, pool, async (db) => {
         // The status this mapping holds BEFORE the write, read inside the same
         // transaction so nothing can move it in between. Only needed when the
         // body actually carries a status — otherwise this is not a lifecycle
@@ -2518,6 +2519,23 @@ router.put(
                 )
             )[0]?.status
           : undefined;
+        // THE LIFECYCLE IS ASKED BEFORE THE ROW IS WRITTEN (ADR-0049). Until
+        // 2026-09-20 this route wrote whatever status its schema admitted:
+        // `cutover` -> `active` went through here while `/start` refused it,
+        // `done` -> `paused` went through while nothing else leaves `done`,
+        // and `active` -> `done` skipped the unresolved-failures rule that
+        // `/finish` exists to apply. Two doors to one state, one guarded. The
+        // decision is `shared`'s, like every other door's, and it runs on the
+        // status read inside THIS transaction so nothing can move in between.
+        if (updateData.status && previousStatus) {
+          const transition = updateTransition(previousStatus, updateData.status);
+          if ('refuse' in transition) {
+            // A literal discriminant, not `'refused' in outcome`: TS normalises the
+            // two return shapes into one union with the other's keys optional,
+            // and `in` cannot tell an absent key from an optional one.
+            return { kind: 'refused', refused: transition, from: previousStatus, to: updateData.status } as const;
+          }
+        }
         // Read inside the same transaction, for the same reason the status is:
         // a merge built from a value read outside it can be written over a row
         // that moved in between.
@@ -2573,8 +2591,25 @@ router.put(
             await movePathsWithMapping(db, tenantId, mappingId, updateData.status);
           }
         }
-        return [row];
+        return { kind: 'updated', row } as const;
       });
+
+      if (outcome.kind === 'refused') {
+        // 409, not 400: the body is well-formed and understood. What refuses
+        // it is the lifecycle of the migration it names — and `code` is the
+        // stable part, so a screen can offer the right door without matching
+        // sentence text (the `finishTransition` precedent, 0038 T1).
+        res.status(409).json({
+          error: 'lifecycle_refused',
+          message: outcome.refused.refuse,
+          hint: outcome.refused.hint,
+          code: outcome.refused.code,
+          from: outcome.from,
+          to: outcome.to,
+        });
+        return;
+      }
+      const updated = outcome.row;
 
       if (!updated) {
         res.status(404).json({
