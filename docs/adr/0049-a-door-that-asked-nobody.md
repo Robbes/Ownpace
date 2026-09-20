@@ -110,6 +110,15 @@ the axios instance without a `patch` at all, so a regression fails as a missing 
   table allows. If a pause inside the lane is wanted, that is a lifecycle decision for the owner —
   a sixth word, or `paused` made phase-aware — and not one to take by loosening a refusal.
 
+- **The cutover door asks too (2026-09-20, workplan 0009 T10).** `POST …/cutover` enqueued the
+  preparation without reading the cutover ledger, so a press on a cutover under way or a finished
+  ledger was answered 202 and refused minutes later inside a Trigger.dev run, and a press on an
+  `APPROVED` cutover revoked the approval behind a 202 that said nothing. It now asks
+  `prepareTransition` — the rule the job itself follows — before it enqueues: 409
+  `cutover_refused` with the reason and a stable `code`, or a 202 that says what the job will do.
+  The same shape as this ADR's decision, one door further along: the decision function is shared
+  with the worker, the door only relays it, and the job re-reads and stays the authority.
+
 ## Alternatives considered
 
 - **Add a `PATCH` handler on the mapping path** rather than change the web's verb. Rejected: the

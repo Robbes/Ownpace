@@ -297,7 +297,11 @@ If issues are detected during cutover or the grace period:
    Trigger.dev task `run-cutover`) converges on its own: on `FAILED`,
    `ROLLED_BACK` or `READY_FOR_CUTOVER` it records the way back to `PREPARING`
    (`retriedBy`, attempt number) and runs the final sync and the gate again;
-   on a cutover under way or a completed ledger it refuses and writes nothing. A gate FAIL is
+   on a cutover under way or a completed ledger it refuses and writes nothing.
+   The API door asks the same rule before it enqueues: a press that the job
+   would refuse is answered 409 `cutover_refused` on the spot, and a 202
+   says what the job will do (`preparation.from`, `resetsToPreparing`,
+   `revokesApproval`). A gate FAIL is
    recorded once and not retried. Until 2026-09-20 a second run on a ready
    cutover marked it `FAILED`, and from `FAILED` the job could not run at all.
 

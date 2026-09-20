@@ -1866,6 +1866,14 @@ paths:
         Prepares and verifies, then stops at `READY_FOR_CUTOVER`. It does not
         execute a cutover: moving mail delivery is an MX/DNS change outside
         this product, and the one step nobody here can perform for you.
+
+        The door asks the cutover ledger first, with the same rule the job
+        follows. No ledger yet: one is created. `PREPARING` or `APPROVED`:
+        prepared (an approval is revoked by the re-preparation, and the 202
+        says so). `READY_FOR_CUTOVER`, `FAILED` or `ROLLED_BACK`: taken back
+        to `PREPARING` first, then prepared, so the trail shows the second
+        attempt. A cutover under way or a finished ledger is refused with 409
+        and nothing is enqueued.
       requestBody:
         required: false
         content:
@@ -1877,12 +1885,49 @@ paths:
                 skipVerification: { type: boolean }
       responses:
         '202':
-          description: Enqueued.
+          description: |
+            Enqueued. `preparation` says what the job will do with this
+            press: the ledger state it found (`null` when it creates the
+            ledger), whether it first records the way back to `PREPARING`,
+            and whether an earlier approval is revoked.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/EnqueuedRun' }
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/EnqueuedRun'
+                  - type: object
+                    properties:
+                      enqueued: { type: string, enum: [cutover-preparation] }
+                      nextStep: { type: string }
+                      preparation:
+                        type: object
+                        properties:
+                          from:
+                            type: string
+                            nullable: true
+                            enum: [PREPARING, READY_FOR_CUTOVER, APPROVED, FAILED, ROLLED_BACK, null]
+                          resetsToPreparing: { type: boolean }
+                          revokesApproval: { type: boolean }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `cutover_refused`: there is nothing to prepare, and nothing was
+            enqueued. `code` is the stable part: `under_way` (the cutover is
+            in `CUTOVER_IN_PROGRESS` or `GRACE_PERIOD` — let it finish, or roll
+            it back), `closed` (the ledger is `COMPLETED`; one cutover ledger
+            per mapping, and this one is finished). `state` names the ledger
+            state that refused.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string, enum: [cutover_refused] }
+                  message: { type: string }
+                  hint: { type: string }
+                  code: { type: string, enum: [under_way, closed] }
+                  state: { type: string, enum: [CUTOVER_IN_PROGRESS, GRACE_PERIOD, COMPLETED] }
 
   /api/migrations/{mappingId}/runs:
     parameters:
