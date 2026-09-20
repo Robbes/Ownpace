@@ -207,20 +207,22 @@ describe('prepareCutover (integration)', () => {
     return events.map((e) => `${e.fromState ?? 'init'}->${e.toState}`);
   }
 
+  /** The machine's own edges from a fresh ledger to each state. */
+  const PATH_TO: Record<CutoverState, readonly CutoverState[]> = {
+    PREPARING: [],
+    READY_FOR_CUTOVER: ['READY_FOR_CUTOVER'],
+    APPROVED: ['READY_FOR_CUTOVER', 'APPROVED'],
+    CUTOVER_IN_PROGRESS: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS'],
+    GRACE_PERIOD: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS', 'GRACE_PERIOD'],
+    COMPLETED: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS', 'GRACE_PERIOD', 'COMPLETED'],
+    ROLLED_BACK: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS', 'ROLLED_BACK'],
+    FAILED: ['FAILED'],
+  };
+
   /** Walk the ledger to `target` through the machine's own edges. */
   async function driveTo(target: CutoverState): Promise<void> {
-    const path: CutoverState[] = {
-      PREPARING: [],
-      READY_FOR_CUTOVER: ['READY_FOR_CUTOVER'],
-      APPROVED: ['READY_FOR_CUTOVER', 'APPROVED'],
-      CUTOVER_IN_PROGRESS: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS'],
-      GRACE_PERIOD: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS', 'GRACE_PERIOD'],
-      COMPLETED: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS', 'GRACE_PERIOD', 'COMPLETED'],
-      ROLLED_BACK: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS', 'ROLLED_BACK'],
-      FAILED: ['FAILED'],
-    }[target];
     await cutoverStore.initializeCutover({ tenantId: TENANT as never, mappingId: MAPPING as never, startedBy: 'test' });
-    for (const to of path) {
+    for (const to of PATH_TO[target]) {
       await cutoverStore.transitionState(TENANT as never, MAPPING as never, to, { by: 'test' });
     }
   }
