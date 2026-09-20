@@ -15,11 +15,13 @@ import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgMigrationStatusStore, PgLedger, RunStore } from '@openmig/ledger';
+import { PgMigrationStatusStore, PgLedger, RunStore, CutoverStore } from '@openmig/ledger';
 import {
   ARCHIVE_PROVIDERS,
   ARCHIVE_PROVIDER_ORIGINS,
   archiveProviderName,
+  asMappingId,
+  asTenantId,
   buildDomainStatusReports,
   DISCOVERY_DOMAINS,
   discoveryForSelection,
@@ -29,6 +31,7 @@ import {
   parseArchiveSource,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
+import { prepareTransition } from '@openmig/core/cutover-state';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { resolveSyncJob, resolveCutoverJob, resolveDiscoveryJob } from './job-resolution.ts';
@@ -2782,8 +2785,19 @@ router.post(
 
 /**
  * POST /api/mappings/:mappingId/cutover
- * 
- * Trigger cutover for a mapping
+ *
+ * Enqueue the cutover PREPARATION (final delta sync + the §20 gate, stopping
+ * at READY_FOR_CUTOVER) — after asking the ledger.
+ *
+ * This door used to enqueue without looking. A press on a cutover under way
+ * or on a finished ledger got a 202 promising "on a passing verification the
+ * mapping becomes READY_FOR_CUTOVER", and the refusal happened minutes later
+ * inside a Trigger.dev run nobody was watching; a press on an APPROVED cutover
+ * quietly revoked the approval. Now the door asks `prepareTransition` — the
+ * same rule the job follows (ADR-0049's rule, one level up: every door asks
+ * before it acts) — and answers 409 with the reason, or 202 that says what
+ * will happen. The read is advisory: the job re-reads the ledger and remains
+ * the authority on a ledger that moved in between.
  */
 router.post(
   '/:mappingId/cutover',
@@ -2828,6 +2842,38 @@ router.post(
         return;
       }
 
+      // Ask the ledger BEFORE anything is enqueued: the same decision the job
+      // follows, so the door never refuses what the job would accept, and
+      // never accepts what the job would refuse.
+      const ledger = await withTenantDb(tenantId, pool, async (db) => {
+        const cutoverStore = new CutoverStore(db);
+        return cutoverStore.loadCutoverState(asTenantId(tenantId), asMappingId(mappingId));
+      });
+      const decision = prepareTransition(ledger ? (ledger.currentState ?? ledger.state) : undefined);
+
+      if ('refuse' in decision) {
+        res.status(409).json({
+          error: 'cutover_refused',
+          message: decision.refuse,
+          hint: decision.hint,
+          code: decision.code,
+          state: decision.from,
+        });
+        return;
+      }
+
+      // What the job will do with this press — said here, because a 202 that
+      // reads the same for a first preparation and for a re-preparation that
+      // revokes an approval is not an honest 202.
+      const preparation =
+        'initialize' in decision
+          ? { from: null, resetsToPreparing: false, revokesApproval: false }
+          : {
+              from: decision.from,
+              resetsToPreparing: decision.resetFirst,
+              revokesApproval: decision.from === 'APPROVED',
+            };
+
       // Enqueue the real Trigger.dev cutover task (id-only, tenant-scoped payload).
       const { taskId, payload } = resolveCutoverJob(tenantId, mappingId, body);
       const run = await getTriggerClient().tasks.trigger(taskId, payload, {
@@ -2843,7 +2889,10 @@ router.post(
         // its grace period ends at T" — nothing had run yet, and the task never
         // executes the cutover or starts a grace period.
         enqueued: 'cutover-preparation',
-        nextStep: 'On a PASSing verification the mapping becomes READY_FOR_CUTOVER and waits for operator approval.',
+        preparation,
+        nextStep: preparation.revokesApproval
+          ? 'The earlier approval is revoked by this re-preparation: on a PASSing verification the mapping is READY_FOR_CUTOVER again and waits for a new approval.'
+          : 'On a PASSing verification the mapping becomes READY_FOR_CUTOVER and waits for operator approval.',
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
