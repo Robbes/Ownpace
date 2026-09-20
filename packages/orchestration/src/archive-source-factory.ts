@@ -31,7 +31,7 @@ import {
   type FileSource,
 } from '@openmig/shared';
 import type { ArchiveReader } from '@openmig/core/archive-reader';
-import { ArchiveFileSource, createTakeoutArchiveReader } from '@openmig/connectors';
+import { ArchiveFileSource, createTakeoutArchiveReader, type ArchiveStore } from '@openmig/connectors';
 
 /**
  * The `connection.kind` an archive row carries (migration 0039).
@@ -62,14 +62,20 @@ export const ARCHIVE_CONNECTION_KIND = 'archive';
  * dates nine hours out and explode an iWork document into its members, so it
  * waits on the second export 0116 specifies rather than on a first one.
  */
-const READERS: Readonly<Partial<Record<ArchiveProvider, () => ArchiveReader>>> = {
-  'google-takeout': createTakeoutArchiveReader,
+const READERS: Readonly<Partial<Record<ArchiveProvider, (store?: ArchiveStore) => ArchiveReader>>> = {
+  'google-takeout': (store) => createTakeoutArchiveReader(store),
 };
 
-/** The reader for an export, or `undefined` where none is built yet. */
-export function archiveReaderFor(provider: string): ArchiveReader | undefined {
+/**
+ * The reader for an export, or `undefined` where none is built yet.
+ *
+ * `store` is where the location points (0116 T4): the appliance's disk when
+ * absent, the customer's own file target on the managed edition, where a
+ * pass has no disk and the relay puts the parts in the target.
+ */
+export function archiveReaderFor(provider: string, store?: ArchiveStore): ArchiveReader | undefined {
   const make = READERS[provider as ArchiveProvider];
-  return make ? make() : undefined;
+  return make ? make(store) : undefined;
 }
 
 /** The exports a reader exists for — what a surface may honestly offer today. */
@@ -93,9 +99,12 @@ export function archiveProvidersWithReaders(): ReadonlyArray<ArchiveProvider> {
  * `provider` stays the connection's (`sourceConfigOverride` keeps it out of
  * the override for exactly that reason).
  */
-export function buildArchiveSourceFrom(config: Record<string, unknown>): FileSource {
+export function buildArchiveSourceFrom(
+  config: Record<string, unknown>,
+  options: { readonly store?: ArchiveStore } = {},
+): FileSource {
   const location = parseArchiveSource(config);
-  const reader = archiveReaderFor(location.provider);
+  const reader = archiveReaderFor(location.provider, options.store);
   if (!reader) {
     throw new Error(
       `No reader is built for ${archiveProviderName(location.provider)} exports yet, so this ` +

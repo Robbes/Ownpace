@@ -40,7 +40,7 @@ import { createReadStream } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import { openFileSource, openZip, type ZipArchive, type ZipEntry } from './zip-archive.ts';
+import { openFileSource, openZip, type RandomAccessSource, type ZipArchive, type ZipEntry } from './zip-archive.ts';
 
 /** One child of a folder. */
 export interface TreeEntry {
@@ -231,16 +231,22 @@ export function zipTreeOf(archives: ReadonlyArray<ZipArchive>): ArchiveTree {
 }
 
 /**
- * The zips at these paths, opened and joined into one tree (the appliance's
- * route). Anything that fails to open closes what was opened before it and
- * throws the zip reader's own sentence — the caller turns that into
- * `ArchiveUnreadable`, because only the caller knows the archive's name.
+ * The zips at these paths, opened and joined into one tree. `open` is how a
+ * path becomes bytes — a file on the appliance's disk by default, a file in
+ * the customer's own target read by byte range on the managed edition
+ * (`webdav-archive-store.ts`). Anything that fails to open closes what was
+ * opened before it and throws the zip reader's own sentence; the caller turns
+ * that into `ArchiveUnreadable`, because only the caller knows the archive's
+ * name.
  */
-export async function openZipTree(parts: ReadonlyArray<string>): Promise<ArchiveTree> {
+export async function openZipTree(
+  parts: ReadonlyArray<string>,
+  open: (path: string) => Promise<RandomAccessSource> = openFileSource,
+): Promise<ArchiveTree> {
   const archives: ZipArchive[] = [];
   try {
     for (const part of parts) {
-      const source = await openFileSource(part);
+      const source = await open(part);
       try {
         archives.push(await openZip(source));
       } catch (err) {

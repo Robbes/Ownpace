@@ -9,6 +9,10 @@ export * from './imap-conventions.ts';
 // A zip read where it lies (workplan 0116 D7 = C): the random-access,
 // zip64-aware, streaming reader an export the size of a photo library needs.
 export * from './zip-archive.ts';
+// Where archives live (0116 T4, the relay's first slice): the appliance's disk, or a
+// file in the customer's own target read by byte range.
+export * from './archive-store.ts';
+export * from './webdav-archive-store.ts';
 
 
 // The IMAP read path. `imap-parity.integration.test.ts` compared it field by

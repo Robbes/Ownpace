@@ -1,8 +1,6 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import { createHash } from 'node:crypto';
-import { readdir, stat } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
 import {
   ARCHIVE_ITEM_KINDS,
   ArchiveUnreadable,
@@ -13,7 +11,8 @@ import {
   type ArchiveReader,
   type ArchiveSummary,
 } from '@openmig/core/archive-reader';
-import { openFolderTree, openZipTree, type ArchiveTree } from './archive-tree.ts';
+import { localStore, type ArchiveStore } from './archive-store.ts';
+import { openZipTree, type ArchiveTree } from './archive-tree.ts';
 import { ZipUnreadable } from './zip-archive.ts';
 
 /**
@@ -310,17 +309,17 @@ function escapeRegExp(text: string): string {
  * seen: a LAST part that never arrived leaves no hole in the numbering, and
  * the guide says so.
  */
-export async function takeoutPartsBeside(zipPath: string): Promise<string[]> {
-  const match = PART_NAME.exec(basename(zipPath));
+export async function takeoutPartsBeside(zipPath: string, store: ArchiveStore = localStore()): Promise<string[]> {
+  const { folder, name } = store.split(zipPath);
+  const match = PART_NAME.exec(name);
   if (!match || !match[2]!.startsWith('0')) return [zipPath];
   const stem = match[1]!;
   const width = match[2]!.length;
   const sibling = new RegExp(`^${escapeRegExp(stem)}-(\\d+)\\.zip$`, 'i');
-  const folder = dirname(zipPath);
   const parts: Array<{ readonly path: string; readonly number: number }> = [];
-  for (const name of await readdir(folder)) {
-    const found = sibling.exec(name);
-    if (found) parts.push({ path: join(folder, name), number: Number(found[1]) });
+  for (const candidate of await store.list(folder)) {
+    const found = sibling.exec(candidate);
+    if (found) parts.push({ path: store.join(folder, candidate), number: Number(found[1]) });
   }
   parts.sort((a, b) => a.number - b.number);
   const have = new Set(parts.map((p) => p.number));
@@ -332,7 +331,7 @@ export async function takeoutPartsBeside(zipPath: string): Promise<string[]> {
   if (missing.length > 0) {
     throw new ArchiveUnreadable(
       `This archive could not be opened — ${missing.length === 1 ? 'a part is' : `${missing.length} parts are`} ` +
-        `missing beside ${basename(zipPath)}: ${missing.join(', ')}. A download that never finished looks ` +
+        `missing beside ${name}: ${missing.join(', ')}. A download that never finished looks ` +
         'like this; fetch the missing part into the same folder, or extract every part into one folder and point at that.',
     );
   }
@@ -344,23 +343,22 @@ const ZIP = /\.zip$/i;
 
 /**
  * The tree behind a location: the folder the person extracted, or the
- * download itself. Everything refused here is refused with the sentence the
- * surfaces show, because every case is one the person can act on — and none
- * of them may read as an empty library.
+ * download itself — on the appliance's disk, or inside the customer's own
+ * file target (0116 T4, the relay), whichever store the reader was given.
+ * Everything refused here is refused with the sentence the surfaces show,
+ * because every case is one the person can act on — and none of them may
+ * read as an empty library.
  */
-async function openTakeoutTree(path: string): Promise<ArchiveTree> {
-  let info;
-  try {
-    info = await stat(path);
-  } catch (cause) {
+async function openTakeoutTree(store: ArchiveStore, path: string): Promise<ArchiveTree> {
+  const found = await store.stat(path);
+  if (found.kind === 'absent') {
     throw new ArchiveUnreadable(
-      `This archive could not be opened — nothing is at ${path}. If the download is still running, ` +
-        'or was saved somewhere else, it will look like this.',
-      { cause },
+      `This archive could not be opened — nothing is at ${store.describe(path)}. If the download is still ` +
+        'running, or was saved somewhere else, it will look like this.',
     );
   }
-  if (info.isDirectory()) return openFolderTree(path);
-  const name = basename(path);
+  if (found.kind === 'folder') return store.folderTree(path);
+  const { name } = store.split(path);
   if (TARBALL.test(name)) {
     throw new ArchiveUnreadable(
       `This archive could not be opened — ${name} is a tar archive, and we read .zip downloads and ` +
@@ -371,7 +369,7 @@ async function openTakeoutTree(path: string): Promise<ArchiveTree> {
     throw new ArchiveUnreadable(`This archive could not be opened — ${name} is a file, not a folder or a .zip download.`);
   }
   try {
-    return await openZipTree(await takeoutPartsBeside(path));
+    return await openZipTree(await takeoutPartsBeside(path, store), (part) => store.source(part));
   } catch (err) {
     if (err instanceof ArchiveUnreadable) throw err;
     // The zip reader's sentence names what it found (a spanned set, a
@@ -393,7 +391,12 @@ function takenAt(sidecar: Sidecar | undefined): string | undefined {
   return new Date(seconds * 1000).toISOString();
 }
 
-export function createTakeoutArchiveReader(): ArchiveReader {
+/**
+ * @param store where locations point: the appliance's disk unless the caller
+ *   says otherwise. The managed edition hands the customer's file target
+ *   (`webdavStore`), and the reader is none the wiser.
+ */
+export function createTakeoutArchiveReader(store: ArchiveStore = localStore()): ArchiveReader {
   const collapse = async (handle: TakeoutHandle): Promise<Collapsed> => {
     try {
       return await walk(handle.tree);
@@ -505,7 +508,7 @@ export function createTakeoutArchiveReader(): ArchiveReader {
           `This reader opens Google Takeout archives, and this one is a ${location.provider} export.`,
         );
       }
-      const tree = await openTakeoutTree(location.path);
+      const tree = await openTakeoutTree(store, location.path);
       if (!(await tree.isDirectory(PHOTOS_ROOT))) {
         await tree.close().catch(() => {});
         // The common case, and it must read as "we could not open this" rather
@@ -513,7 +516,7 @@ export function createTakeoutArchiveReader(): ArchiveReader {
         // fetched, or a folder — or a zip — that is not a Takeout at all.
         throw new ArchiveUnreadable(
           `This archive could not be opened — no “${PHOTOS_ROOT}” folder was found in ` +
-            `${basename(location.path) || location.path}. If the download is still ` +
+            `${store.split(location.path).name || store.describe(location.path)}. If the download is still ` +
             'running, or only some parts arrived, it will look like this.',
         );
       }
