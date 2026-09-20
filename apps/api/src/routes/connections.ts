@@ -38,6 +38,9 @@ import { alias } from 'drizzle-orm/pg-core';
 import * as schema from '@openmig/ledger';
 import { PgLedger } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
+import { HttpTokenRevoker } from '@openmig/connectors';
+import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-credentials';
+import type { TokenRevoker } from '@openmig/shared';
 import {
   probeSourceConnection,
   probeTargetConnection,
@@ -974,6 +977,15 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
  * So: refuse while anything uses it, and say how many and which migrations, so
  * the answer is actionable rather than a flat no.
  */
+/**
+ * The one revoker both editions use (0085 T4a/T9): Google's endpoint for the
+ * kinds that store a refresh token, an honest `unsupported` with the reason
+ * for every other kind. Built lazily and once; it reads the global `fetch` at
+ * call time, which is the seam the integration test stubs.
+ */
+let revoker: TokenRevoker | undefined;
+const tokenRevoker = (): TokenRevoker => (revoker ??= new HttpTokenRevoker());
+
 router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.tenantId) {
@@ -985,7 +997,17 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
 
     const outcome = await withTenantDb(tenantId, pool(), async (db) => {
       const found = await db
-        .select({ id: schema.connection.id, displayName: schema.connection.displayName })
+        .select({
+          id: schema.connection.id,
+          displayName: schema.connection.displayName,
+          kind: schema.connection.kind,
+          secretRef: schema.connection.secretRef,
+          // The legacy column is not modelled by drizzle — nothing has written
+          // it for a long time — but the shared revocation still reads it, so
+          // this reads it too, the same way, rather than deciding here that a
+          // deployment old enough to have used it has nothing to revoke.
+          legacyCredentials: sql<string | null>`encrypted_credentials`,
+        })
         .from(schema.connection)
         .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
       if (!found[0]) return { status: 404 as const };
@@ -1021,7 +1043,7 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
       await db
         .delete(schema.connection)
         .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
-      return { status: 204 as const };
+      return { status: 200 as const, row: found[0] };
     });
 
     if (outcome.status === 404) {
@@ -1058,7 +1080,36 @@ router.delete('/:id', authenticate, async (req: AuthenticatedRequest, res: Respo
           } under Migrations first.`,
       });
     }
-    res.status(204).end();
+    /**
+     * The grant behind the row (2026-09-20). Until now this route deleted our
+     * copy of the credential and stopped, while the privacy text promised, for
+     * exactly this press, that it is *destroyed, and the grant revoked where
+     * the provider supports it*. A deleted copy of a live refresh token is not
+     * a revoked one: the token kept working at Google with nobody holding it.
+     *
+     * AFTER the delete, not before, for two reasons the erasure path shares. A
+     * refused delete (the 409 above) must leave a working credential behind —
+     * the connection stays and its next pass must still sign in — so nothing
+     * may be revoked until the row is actually gone. And a network call must
+     * not hold the tenant transaction open. Best effort, never a refusal: the
+     * outcome says `failed` with the reason and the person is told to withdraw
+     * it themselves, which is the one thing a false `revoked` would stop them
+     * doing.
+     */
+    const revocation = await revokeCredentialRow(
+      {
+        kind: outcome.row.kind,
+        secret_ref: outcome.row.secretRef,
+        legacy_credentials: outcome.row.legacyCredentials,
+      },
+      tokenRevoker(),
+    );
+    res.status(200).json({
+      deleted: true,
+      id: outcome.row.id,
+      displayName: outcome.row.displayName,
+      revocation,
+    });
   } catch (error) {
     serverFault(res, 'delete_failed', 'deleting this connection', error);
   }

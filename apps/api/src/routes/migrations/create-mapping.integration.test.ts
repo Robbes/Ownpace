@@ -388,7 +388,16 @@ describe('POST /api/migrations — real persistence', () => {
           .delete(`/api/connections/${ORPHAN_CONN}`)
           .set('Authorization', `Bearer ${token(REUSE_TENANT)}`);
 
-        expect(res.status, JSON.stringify(res.body)).toBe(204);
+        // 200 with the outcome since 2026-09-20 (it was a bare 204): the delete
+        // also lets go of the grant behind the row, and says what happened to
+        // it. This orphan stored no credential, and the answer says exactly that
+        // rather than implying a revocation.
+        expect(res.status, JSON.stringify(res.body)).toBe(200);
+        expect(res.body).toMatchObject({
+          deleted: true,
+          id: ORPHAN_CONN,
+          revocation: { kind: 'imap', status: 'no_credential' },
+        });
         const left = await pool.query(`SELECT id FROM connection WHERE id = $1`, [ORPHAN_CONN]);
         expect(left.rows).toHaveLength(0);
       });

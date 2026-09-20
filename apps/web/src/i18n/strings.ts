@@ -1796,6 +1796,15 @@ const en = {
   'connections.inUse.unnamed': 'a migration with no name',
   'connections.inUse.reason':
     'Deleting it would delete what those migrations recorded; remove them under Migrations first.',
+  // A delete that went through (2026-09-20). The frame is ours; the provider's
+  // reason, when there is one, follows it verbatim. `failed` must not be
+  // softened: the reader has to go and withdraw the access themselves.
+  'connections.removed.done': 'deleted.',
+  'connections.removed.revoked': 'Its access at the provider has been revoked.',
+  'connections.removed.failed':
+    'Our copy is deleted, but the provider still has its access: withdraw it yourself.',
+  'connections.removed.unsupported': 'We deleted our copy; this provider has no revocation we can call.',
+  'connections.removed.none': 'No credential was stored for it.',
   // Filled in, but not usable — distinct from "still needed" (0072).
   'connections.invalidValues.lead': 'These values cannot be used as they are:',
   // The duplicate-migration refusal (workplan 0071 T6, owner decision
@@ -3440,6 +3449,12 @@ const nl: Record<keyof typeof en, string> = {
   'connections.inUse.unnamed': 'een migratie zonder naam',
   'connections.inUse.reason':
     'Verwijderen wist ook wat die migraties vastlegden; verwijder ze eerst onder Migraties.',
+  'connections.removed.done': 'verwijderd.',
+  'connections.removed.revoked': 'De toegang bij de aanbieder is ingetrokken.',
+  'connections.removed.failed':
+    'Onze kopie is verwijderd, maar de aanbieder heeft de toegang nog: trek die zelf in.',
+  'connections.removed.unsupported': 'Wij hebben onze kopie verwijderd; deze aanbieder biedt geen intrekking die wij kunnen aanroepen.',
+  'connections.removed.none': 'Er waren geen inloggegevens voor opgeslagen.',
   'connections.invalidValues.lead': 'Deze waarden kunnen zo niet worden gebruikt:',
   'createMapping.duplicate.lead': 'U heeft al een migratie tussen deze twee accounts:',
   'createMapping.duplicate.why':

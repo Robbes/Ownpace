@@ -23,6 +23,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   revokeStoredCredentials,
+  revokeCredentialRow,
   type QueryableForRevocation,
 } from './revoke-stored-credentials.ts';
 import type { RevocationOutcome, TokenRevoker } from '@openmig/shared';
@@ -157,5 +158,56 @@ describe('what it says when it genuinely cannot revoke', () => {
     ]);
     const out = await revokeStoredCredentials(pool, 't', recording());
     expect(out.map((o) => o.status)).toEqual(['failed', 'revoked']);
+  });
+});
+
+describe('revokeCredentialRow — the per-row half the delete button calls (2026-09-20)', () => {
+  // The everyday delete route reads ONE row through its own tenant-scoped
+  // connection and hands it here after the delete has gone through. The
+  // tenant-wide function above is this, in a loop — so the two cannot drift.
+  it('decrypts secret_ref and hands the credentials to the revoker', async () => {
+    const revoker = recording();
+    const outcome = await revokeCredentialRow(
+      { kind: 'google', secret_ref: 'sr', legacy_credentials: null },
+      revoker,
+    );
+    expect(outcome.status).toBe('revoked');
+    expect(revoker.seen).toEqual([{ refresh_token: 'decrypted:sr' }]);
+  });
+
+  it('reads the legacy column when secret_ref is empty, never skipping a stored token', async () => {
+    const revoker = recording();
+    const outcome = await revokeCredentialRow(
+      { kind: 'gmail', secret_ref: null, legacy_credentials: 'old' },
+      revoker,
+    );
+    expect(outcome.status).toBe('revoked');
+    expect(revoker.seen).toEqual([{ refresh_token: 'decrypted:old' }]);
+  });
+
+  it('says no_credential when neither column holds anything, and calls nobody', async () => {
+    const revoker = recording();
+    const outcome = await revokeCredentialRow(
+      { kind: 'imap', secret_ref: null, legacy_credentials: null },
+      revoker,
+    );
+    expect(outcome).toEqual({
+      kind: 'imap',
+      status: 'no_credential',
+      reason: 'No credentials were stored for this connection.',
+    });
+    expect(revoker.seen).toEqual([]);
+  });
+
+  it('records a credential it cannot decrypt as failed, with the reason, rather than throwing', async () => {
+    const revoker = recording();
+    const outcome = await revokeCredentialRow(
+      { kind: 'google', secret_ref: 'undecryptable', legacy_credentials: null },
+      revoker,
+    );
+    expect(outcome.status).toBe('failed');
+    expect(outcome.reason).toMatch(/could not be decrypted/);
+    expect(outcome.reason).toMatch(/bad key/);
+    expect(revoker.seen).toEqual([]);
   });
 });
