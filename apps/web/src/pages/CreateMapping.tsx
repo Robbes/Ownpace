@@ -107,7 +107,7 @@ interface FormData {
   sourceBoxUserId: string;
   /** Export archive (workplan 0116): WHICH export, from `ARCHIVE_PROVIDERS`. */
   sourceArchiveProvider: string;
-  /** Export archive: WHERE the extracted folder is — this mapping's own answer. */
+  /** Export archive: WHERE the export is (the folder, or the `.zip` itself) — this mapping's own answer. */
   sourceArchivePath: string;
   /**
    * What to CALL the connection this side saves (workplan 0076).

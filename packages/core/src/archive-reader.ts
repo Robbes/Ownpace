@@ -246,9 +246,10 @@ export interface ArchiveReader {
    *
    * MUST BE RE-OPENABLE, like every `FileBody.open()`: a retry after a
    * half-written upload starts from the beginning, and a stream that has been
-   * consumed cannot. For the Takeout reader that is trivially cheap — it reads
-   * an EXTRACTED tree, so an item is a file on disk and re-opening is another
-   * `createReadStream`, not a second pass over an archive.
+   * consumed cannot. For the Takeout reader that is trivially cheap — an item
+   * is a file in a folder, or one member of a zip read by byte range, and
+   * re-opening is another read from its first byte, not a second pass over
+   * the archive.
    */
   contentStream?(handle: ArchiveHandle, item: ArchiveItem): Promise<ReadableStream<Uint8Array>>;
 }
