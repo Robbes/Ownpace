@@ -24,9 +24,8 @@ it, and every departure from the plan is named in the row that made it.
    `GET /google/callback`, one of them the beginning of an OAuth consent, were served and
    checked by nothing.
 
-**Still open for the owner:** ADR-0035's formal status is Proposed while four of its decisions
-are recorded as owner-decided (ask 3 below); and the 1/7/30-day expiry presets are adjustable
-in review.
+**Closed 2026-09-20:** ADR-0035 is formally Accepted (owner: "yes on all 3"); the 1/7/30-day
+expiry presets stand as built.
 
 | Task | Status | Evidence |
 |---|---|---|

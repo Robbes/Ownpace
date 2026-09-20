@@ -78,7 +78,7 @@ live in [README.md](./README.md), the register.
 - **English** for code, comments, docs and ADRs; the end-user UI is **bilingual EN+NL** (built: typed dictionary in `@openmig/shared`, `Intl` formatting keyed on app locale).
 - The prose boundary (docs/i18n-prose-boundary.md): **translate the frame, never the finding** — server refusal prose renders verbatim, untranslated.
 
-## [ADR-0014: Cost-recovery billing (no profit) for the managed edition](./0014-cost-recovery-billing.md)
+## [ADR-0014: Cost-recovery billing for the managed edition](./0014-cost-recovery-billing.md)
 
 - **A PATH is one kind of thing, from one account, to one account.** Mail, contacts, calendar
   and files are **separate paths** — that is the customer-facing unit and it must be said
@@ -317,14 +317,14 @@ live in [README.md](./README.md), the register.
 - No two-door merge machinery (no ownership column, no collision check). File-seeded rows record their origin path; Organisation's UI shows file topology read-only, naming the file.
 - The deployment mode is **explicit** (Personal default); contradictions refuse loudly (Personal+files at start; Organisation topology writes via UI/API). Deleting a file-declared connection revokes/parks its stored credential.
 - Authentication is a prerequisite for Organisation (decision 6, restated by ADR-0035).
-- Still open: the formal accept/reject of this ADR's surrounding reasoning.
+- Formally accepted 2026-09-20 (owner: "yes on all 3"); the reasoning and consequences stand as written.
 
 ## [ADR-0035: Who signs in, and who just gets a link](./0035-who-signs-in-and-who-gets-a-link.md)
 
 - **Owners sign in; migrated people get links, not accounts** — and the owner decides who gets a link to manage and **grant** their own migration (restated 2026-08-19).
 - Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
 - `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
-- Still open: the formal accept/reject of this ADR's reasoning and consequences.
+- Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
 
 ## [ADR-0036: The managed edition is its own package and its own migration chain](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
 

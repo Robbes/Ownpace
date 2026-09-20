@@ -29,7 +29,7 @@ reader and nothing else; this file has no `switch` on `provider`.
 albums is written under each (0112 decision 5). A photo in an album is NOT written under its
 year as well; a photo in NO album lands under its year — the only home the export gave it, and
 the alternative is thousands of files flat at the root where two cameras' `IMG_0001.jpg`
-collide. **That second half is a reading of 0112 §3 the owner should confirm**: §3 says the
+collide. **That second half is a reading of 0112 §3 the owner confirmed on 2026-09-20** ("confirmed"): §3 says the
 year folder is not reproduced, and this build takes that to be about a photo that has an
 album. Edited versions and motion clips are placed like any item, beside their originals. One
 manifest at the root — `export-archive-manifest-<fingerprint>.json`, fingerprinted by the
