@@ -9,9 +9,12 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { eq, and, asc } from 'drizzle-orm';
 import * as schema from './schema-pg.ts';
+import { withTenant } from './db.ts';
+import type { LedgerDriver } from './driver.ts';
 
 // Generic database type that works with both pg and postgres-js drivers
 // We use unknown and cast at call sites to avoid version mismatch issues
@@ -64,6 +67,65 @@ export interface CutoverStateStore {
     toState: CutoverState,
     metadataOrReason?: string | Record<string, unknown>
   ): Promise<CutoverStatus>;
+}
+
+/**
+ * The cutover ledger for ONE tenant, every call inside `withTenant`.
+ *
+ * `cutover_state` and `cutover_event` carry the tenant policies since
+ * migration 0055, FORCEd like every other tenant table: a session that is
+ * not a superuser sees their rows only with `app.current_tenant` set. The
+ * cutover job, the rollback job and the operator CLI used to hand a bare
+ * `drizzle(pool)` to `CutoverStore`, which was fine only because the bundled
+ * deployments connect as a superuser — on hard rule 5's shape, an operator's
+ * own Postgres with an ordinary owner, that store would now read nothing and
+ * write nothing. This is the store those callers use instead: each method
+ * opens `withTenant(source, tenantId, …)` — BEGIN, the driver's role if it
+ * has one, the tenant context, the call, COMMIT — and the three statements
+ * of a `transitionState` land in one transaction, which they never did before.
+ *
+ * Bound to one tenant on purpose. Every method still takes the tenant id the
+ * interface prescribes; a call for another tenant is refused before any
+ * query, because a store that quietly answered for whichever tenant the
+ * caller named would be the exact hole the policies close.
+ */
+export function tenantCutoverStore(source: LedgerDriver | Pool, tenantId: TenantId): CutoverStateStore {
+  const inTenant = <T>(fn: (store: CutoverStore) => Promise<T>): Promise<T> =>
+    withTenant(source, tenantId, (db) => fn(new CutoverStore(db)));
+  const same = (asked: TenantId): void => {
+    if (asked !== tenantId) {
+      throw new Error(`This cutover store is bound to tenant ${tenantId}; it was asked about ${asked}.`);
+    }
+  };
+  // Every method is async so the binding refusal is a rejection, never a
+  // synchronous throw: a store method that throws before returning a promise
+  // is a store a caller's `.catch` cannot see.
+  return {
+    initializeCutover: async (params) => {
+      same(params.tenantId);
+      return inTenant((store) => store.initializeCutover(params));
+    },
+    saveCutoverState: async (status) => {
+      same(status.tenantId);
+      return inTenant((store) => store.saveCutoverState(status));
+    },
+    loadCutoverState: async (t, mappingId) => {
+      same(t);
+      return inTenant((store) => store.loadCutoverState(t, mappingId));
+    },
+    loadEvents: async (t, mappingId, limit) => {
+      same(t);
+      return inTenant((store) => store.loadEvents(t, mappingId, limit));
+    },
+    getEventHistory: async (t, mappingId, limit) => {
+      same(t);
+      return inTenant((store) => store.getEventHistory(t, mappingId, limit));
+    },
+    transitionState: async (t, mappingId, toState, metadataOrReason) => {
+      same(t);
+      return inTenant((store) => store.transitionState(t, mappingId, toState, metadataOrReason));
+    },
+  };
 }
 
 /**
