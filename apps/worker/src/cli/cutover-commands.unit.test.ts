@@ -670,6 +670,25 @@ describe('showStatus()', () => {
     expect(out).not.toContain('N/A');
   });
 
+  it('names the managed prepare job on the events it wrote (retriedBy, verifiedBy) — not the ledger\'s coarse "cli"', async () => {
+    // The store calls every object-metadata transition 'cli'. The job's way
+    // back to PREPARING and its READY_FOR_CUTOVER carry their own actor.
+    const RESET: Ev = {
+      timestamp: '2026-09-19T10:06:00.000Z', fromState: 'READY_FOR_CUTOVER', toState: 'PREPARING', triggeredBy: 'cli',
+      reason: 'Re-preparing (attempt 2)', metadata: { retriedBy: 'trigger-job', attempt: 2 },
+    };
+    const READY_AGAIN: Ev = {
+      timestamp: '2026-09-19T10:07:00.000Z', fromState: 'PREPARING', toState: 'READY_FOR_CUTOVER', triggeredBy: 'cli',
+      metadata: { verifiedBy: 'trigger-job', attempt: 2 },
+    };
+    await showStatus(statusDeps({ currentState: 'READY_FOR_CUTOVER', rollbackAvailable: false }, trail(INIT, READY, RESET, READY_AGAIN), makeMapping('active')));
+
+    const out = logged.join('\n');
+    // The NEWEST entry into the current state, not the first: 10:07 by the job, not 10:05 by cli.
+    expect(out).toMatch(/State\s+READY_FOR_CUTOVER — since 2026-09-19T10:07:00.000Z by trigger-job/);
+    expect(out).toContain('READY_FOR_CUTOVER -> PREPARING  by trigger-job: Re-preparing (attempt 2)');
+  });
+
   it('lists the NEWEST events first — the rollback is the one the old five-oldest list dropped', async () => {
     await showStatus(statusDeps({ currentState: 'ROLLED_BACK', rollbackAvailable: false }, trail(INIT, READY, APPROVED, IN_PROGRESS, GRACE, ROLLED_BACK)));
 

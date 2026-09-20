@@ -20,7 +20,7 @@ edition runs on one execution plane (ADR-0004).
 | `run-discovery` | mapping creation / API | Read-only, body-free per-domain counts into `migration_discovery` (the confirm screen's data). |
 | `run-verification` | API `POST .../verify/start` | The §20 gate as a job; drives `verification_run` to a terminal report the API serves at `GET .../verify/report`. |
 | `run-apply-deletion` | API apply → receipt | Re-runs ALL apply gates in the job, performs the one destructive removal, lands the `apply_receipt` terminal state (`applied`/`refused`/`failed`). |
-| `run-cutover` | manual | Cutover **preparation** only: final delta + §20 gate, landing in `READY_FOR_CUTOVER` and stopping there — approving and executing are explicit `--yes` CLI actions it never performs. |
+| `run-cutover` | manual | Cutover **preparation** only: final delta + §20 gate, landing in `READY_FOR_CUTOVER` and stopping there — approving and executing are explicit `--yes` CLI actions it never performs. Converges: a second run on `READY_FOR_CUTOVER` or `FAILED` records the way back to `PREPARING` and prepares again; a cutover under way or a closed ledger is refused with nothing written (not marked `FAILED`, not retried); a gate FAIL is recorded once and not retried. |
 | `run-rollback` | manual | Marks `ROLLED_BACK`, reactivates the mapping. DNS is NOT restored and users are NOT notified — see `docs/rollback-mechanisms.md`. |
 
 Task payloads carry **ids only** — never content, never credentials (SAD §17).

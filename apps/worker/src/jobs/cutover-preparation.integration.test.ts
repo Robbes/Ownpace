@@ -13,16 +13,25 @@
  *
  * These tests pin the contract: the job prepares and verifies, and stops.
  *
+ * And that it CONVERGES. It used to call `initializeCutover` (which returns
+ * the existing row) and then write READY_FOR_CUTOVER unconditionally — an
+ * edge the machine does not have out of READY_FOR_CUTOVER — so the second
+ * press of "prepare" on a ready cutover threw, the task marked it FAILED, and
+ * every Trigger.dev retry then found FAILED, where the same write is invalid
+ * too. Now it reads first and follows `prepareTransition`: a ready cutover is
+ * re-verified and ready again, a failed attempt is retried, a cutover under
+ * way or a closed ledger is refused with nothing written.
+ *
  * UUID Family: 7a120000-e29b-41d4-a716-44665544xxxx
  *
  * Runs against a Testcontainers Postgres (pnpm test:integration).
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createPgDb, CutoverStore } from '@openmig/ledger';
-import type { VerificationResult } from '@openmig/core';
-import { prepareCutover } from './run-cutover.ts';
+import { CutoverRefused, type CutoverState, type VerificationResult } from '@openmig/core';
+import { CutoverGateFailed, prepareCutover, preparationFailurePolicy } from './run-cutover.ts';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {
@@ -106,6 +115,8 @@ describe('prepareCutover (integration)', () => {
     expect(result.ready).toBe(true);
     expect(result.state).toBe('READY_FOR_CUTOVER');
     expect(result.verification?.overallStatus).toBe('PASS');
+    expect(result.from).toBeUndefined(); // it created the ledger
+    expect(result.attempt).toBe(1);
 
     // The load-bearing assertion. The old job went on to CUTOVER_IN_PROGRESS and
     // COMPLETED from here, with no approval in between.
@@ -146,6 +157,12 @@ describe('prepareCutover (integration)', () => {
     expect(persisted?.currentState).toBe('PREPARING');
   });
 
+  it('a FAILing gate is a CutoverGateFailed — a verdict the task records once and does not retry', async () => {
+    await expect(
+      prepareCutover(deps({ runGate: async () => verdict('FAIL') })),
+    ).rejects.toBeInstanceOf(CutoverGateFailed);
+  });
+
   it('blocks on canProceedToCutover=false even when the status is not FAIL', async () => {
     const warned = { ...verdict('WARNING'), canProceedToCutover: false } as VerificationResult;
 
@@ -182,5 +199,181 @@ describe('prepareCutover (integration)', () => {
     expect(transitions).toContain('APPROVED->READY_FOR_CUTOVER');
     // Never silently rewound to the start.
     expect(transitions).not.toContain('APPROVED->PREPARING');
+  });
+
+  /** The trail as `from->to` strings, oldest first; the initialisation reads `init->PREPARING`. */
+  async function transitions(): Promise<string[]> {
+    const events = await cutoverStore.getEventHistory(TENANT as never, MAPPING as never, 50);
+    return events.map((e) => `${e.fromState ?? 'init'}->${e.toState}`);
+  }
+
+  /** The machine's own edges from a fresh ledger to each state. */
+  const PATH_TO: Record<CutoverState, readonly CutoverState[]> = {
+    PREPARING: [],
+    READY_FOR_CUTOVER: ['READY_FOR_CUTOVER'],
+    APPROVED: ['READY_FOR_CUTOVER', 'APPROVED'],
+    CUTOVER_IN_PROGRESS: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS'],
+    GRACE_PERIOD: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS', 'GRACE_PERIOD'],
+    COMPLETED: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS', 'GRACE_PERIOD', 'COMPLETED'],
+    ROLLED_BACK: ['READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS', 'ROLLED_BACK'],
+    FAILED: ['FAILED'],
+  };
+
+  /** Walk the ledger to `target` through the machine's own edges. */
+  async function driveTo(target: CutoverState): Promise<void> {
+    await cutoverStore.initializeCutover({ tenantId: TENANT as never, mappingId: MAPPING as never, startedBy: 'test' });
+    for (const to of PATH_TO[target]) {
+      await cutoverStore.transitionState(TENANT as never, MAPPING as never, to, { by: 'test' });
+    }
+  }
+
+  describe('a second press', () => {
+    it('on a READY_FOR_CUTOVER cutover re-syncs, re-verifies and lands READY again — it does not fail it', async () => {
+      await prepareCutover(deps());
+
+      // Before: initializeCutover returned the READY row untouched, the job
+      // wrote READY_FOR_CUTOVER -> READY_FOR_CUTOVER (no such edge), threw, and
+      // the task marked the cutover FAILED.
+      const again = await prepareCutover(deps());
+
+      expect(again.ready).toBe(true);
+      expect(again.state).toBe('READY_FOR_CUTOVER');
+      expect(again.from).toBe('READY_FOR_CUTOVER');
+      expect(again.attempt).toBe(2);
+      expect(again.finalSync).toEqual({ created: 3, skipped: 7 }); // it really re-synced
+      expect(again.verification?.overallStatus).toBe('PASS'); // and really re-verified
+
+      const persisted = await cutoverStore.loadCutoverState(TENANT as never, MAPPING as never);
+      expect(persisted?.currentState).toBe('READY_FOR_CUTOVER');
+
+      // The way back is RECORDED, then the second verification: the trail
+      // shows two attempts, and no failure.
+      expect(await transitions()).toEqual([
+        'init->PREPARING',
+        'PREPARING->READY_FOR_CUTOVER',
+        'READY_FOR_CUTOVER->PREPARING',
+        'PREPARING->READY_FOR_CUTOVER',
+      ]);
+
+      const events = await cutoverStore.getEventHistory(TENANT as never, MAPPING as never, 50);
+      const reset = events.find((e) => e.fromState === 'READY_FOR_CUTOVER' && e.toState === 'PREPARING');
+      expect(reset?.metadata).toMatchObject({ retriedBy: 'trigger-job', attempt: 2 });
+      expect(reset?.reason).toMatch(/no longer describes the data/);
+      const ready = events.at(-1);
+      expect(ready?.metadata).toMatchObject({ verifiedBy: 'trigger-job', attempt: 2 });
+    });
+
+    it('on a READY_FOR_CUTOVER cutover whose data no longer passes lands FAILED — the second verdict is the truth', async () => {
+      await prepareCutover(deps());
+
+      await expect(
+        prepareCutover(deps({ runGate: async () => verdict('FAIL') })),
+      ).rejects.toBeInstanceOf(CutoverGateFailed);
+
+      // The body leaves PREPARING; the task's catch is what writes FAILED
+      // (READY_FOR_CUTOVER has been reset, so PREPARING -> FAILED is the edge).
+      const persisted = await cutoverStore.loadCutoverState(TENANT as never, MAPPING as never);
+      expect(persisted?.currentState).toBe('PREPARING');
+      expect(await transitions()).toEqual([
+        'init->PREPARING',
+        'PREPARING->READY_FOR_CUTOVER',
+        'READY_FOR_CUTOVER->PREPARING',
+      ]);
+    });
+
+    it('retries a FAILED cutover from PREPARING, keeping the failed attempt in the trail', async () => {
+      await driveTo('FAILED'); // what the task's catch leaves behind
+
+      // Before: from FAILED the unconditional READY write was invalid too, so
+      // every retry died with "Could not mark cutover FAILED" and the ledger
+      // stayed FAILED for good.
+      const result = await prepareCutover(deps());
+
+      expect(result.state).toBe('READY_FOR_CUTOVER');
+      expect(result.from).toBe('FAILED');
+      expect(result.attempt).toBe(2);
+      expect(await transitions()).toEqual([
+        'init->PREPARING',
+        'PREPARING->FAILED',
+        'FAILED->PREPARING',
+        'PREPARING->READY_FOR_CUTOVER',
+      ]);
+      const events = await cutoverStore.getEventHistory(TENANT as never, MAPPING as never, 50);
+      const retry = events.find((e) => e.fromState === 'FAILED');
+      expect(retry?.reason).toMatch(/after a failed attempt \(attempt 2\)/);
+    });
+
+    it('on a PREPARING ledger (a run that died before the catch could mark it) simply prepares', async () => {
+      await driveTo('PREPARING');
+
+      const result = await prepareCutover(deps());
+
+      expect(result.state).toBe('READY_FOR_CUTOVER');
+      expect(result.from).toBe('PREPARING');
+      expect(result.attempt).toBe(1);
+      expect(await transitions()).toEqual(['init->PREPARING', 'PREPARING->READY_FOR_CUTOVER']);
+    });
+
+    for (const state of ['CUTOVER_IN_PROGRESS', 'GRACE_PERIOD'] as const) {
+      it(`refuses a cutover under way (${state}) — neither syncs nor verifies, and writes nothing`, async () => {
+        await driveTo(state);
+        const before = await transitions();
+        const runFinalSync = vi.fn(async () => ({ created: 0, skipped: 0 }));
+        const runGate = vi.fn(async () => verdict('PASS'));
+
+        const failure = await prepareCutover(deps({ runFinalSync, runGate })).catch((e: unknown) => e);
+
+        expect(failure).toBeInstanceOf(CutoverRefused);
+        expect((failure as Error).message).toContain(`A cutover in ${state} is under way`);
+        expect((failure as CutoverRefused).hint).toContain('rollback --yes');
+        expect(runFinalSync).not.toHaveBeenCalled();
+        expect(runGate).not.toHaveBeenCalled();
+
+        const persisted = await cutoverStore.loadCutoverState(TENANT as never, MAPPING as never);
+        expect(persisted?.currentState).toBe(state);
+        expect(await transitions()).toEqual(before);
+        expect(logs.join('\n')).toContain('Nothing was changed');
+      });
+    }
+
+    it('refuses a ROLLED_BACK ledger, names the owner\'s call (0009 T8), and writes nothing', async () => {
+      await driveTo('ROLLED_BACK');
+      const before = await transitions();
+
+      const failure = await prepareCutover(deps()).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(CutoverRefused);
+      expect((failure as Error).message).toContain('ROLLED_BACK');
+      expect((failure as CutoverRefused).hint).toContain('0009 T8');
+      const persisted = await cutoverStore.loadCutoverState(TENANT as never, MAPPING as never);
+      expect(persisted?.currentState).toBe('ROLLED_BACK');
+      expect(await transitions()).toEqual(before);
+    });
+
+    it('refuses a COMPLETED ledger — one cutover ledger per mapping, and this one is finished', async () => {
+      await driveTo('COMPLETED');
+      const before = await transitions();
+
+      const failure = await prepareCutover(deps()).catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(CutoverRefused);
+      expect((failure as Error).message).toContain('COMPLETED');
+      expect(await transitions()).toEqual(before);
+    });
+  });
+
+  describe('what the task does with each failure (preparationFailurePolicy)', () => {
+    it('a refusal is neither recorded as FAILED nor retried — nothing was prepared and nothing was written', () => {
+      expect(preparationFailurePolicy(new CutoverRefused('no', 'hint'))).toEqual({ recordFailed: false, retry: false });
+    });
+
+    it('a gate verdict is recorded as FAILED, once — three attempts would be told the same thing three times', () => {
+      expect(preparationFailurePolicy(new CutoverGateFailed('status=FAIL'))).toEqual({ recordFailed: true, retry: false });
+    });
+
+    it('anything else is recorded as FAILED and retried — and the retry converges, since FAILED prepares again', () => {
+      expect(preparationFailurePolicy(new Error('ECONNRESET'))).toEqual({ recordFailed: true, retry: true });
+      expect(preparationFailurePolicy('not even an Error')).toEqual({ recordFailed: true, retry: true });
+    });
   });
 });

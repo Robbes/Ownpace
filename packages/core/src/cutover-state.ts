@@ -227,6 +227,78 @@ export function isTerminalState(state: CutoverState): boolean {
 }
 
 /**
+ * How a PREPARATION enters the machine from a given state — a view of
+ * `VALID_TRANSITIONS`, like `canRollback`, not a second list.
+ *
+ * A preparation is the managed `run-cutover` job: final delta sync, the §20
+ * gate, land in READY_FOR_CUTOVER. It used to call `initializeCutover` — which
+ * returns the existing row untouched — and then write READY_FOR_CUTOVER
+ * unconditionally. The machine has no such edge out of READY_FOR_CUTOVER, so
+ * the second press of "prepare" on a cutover that was ready threw, the job's
+ * catch marked it FAILED (that edge exists), and Trigger.dev's default three
+ * attempts found FAILED, where the same unconditional write is invalid too:
+ * a ready cutover, prepared twice, was a failed one, and could not be retried.
+ *
+ * Three answers, read off the machine in this order:
+ *
+ * - `initialize` — there is no ledger. The one answer that is not a state.
+ * - `prepare` — run the preparation. `resetFirst` is set where the state does
+ *   not admit READY_FOR_CUTOVER directly but does admit PREPARING: a ready
+ *   verdict about to be replaced by a fresh sync and a fresh verification
+ *   (READY_FOR_CUTOVER), or a failed attempt being retried (FAILED). The
+ *   caller records that edge before it starts, so the trail shows the second
+ *   attempt as one. From APPROVED the END of the run revokes the approval,
+ *   as the recorded APPROVED → READY_FOR_CUTOVER the machine admits; from
+ *   PREPARING there is nothing to record first.
+ * - `refuse` — nothing to prepare, and nothing to write. Either a cutover is
+ *   under way (`under_way`: the machine admits a rollback from it and no
+ *   preparation), or the ledger is closed (`closed`: COMPLETED, or
+ *   ROLLED_BACK — a second attempt after a rollback is workplan 0009 T8, the
+ *   owner's call). A refusal is not a failed cutover; callers must not
+ *   record it as one.
+ */
+export type PrepareTransition =
+  | { readonly initialize: true }
+  | { readonly prepare: true; readonly from: CutoverState; readonly resetFirst: boolean }
+  | {
+      readonly refuse: string;
+      readonly hint: string;
+      readonly from: CutoverState;
+      readonly code: 'under_way' | 'closed';
+    };
+
+export function prepareTransition(state: CutoverState | undefined): PrepareTransition {
+  if (state === undefined) return { initialize: true };
+  if (isValidTransition(state, 'READY_FOR_CUTOVER')) {
+    return { prepare: true, from: state, resetFirst: false };
+  }
+  if (isValidTransition(state, 'PREPARING')) {
+    return { prepare: true, from: state, resetFirst: true };
+  }
+  if (canRollback(state)) {
+    return {
+      refuse: `A cutover in ${state} is under way; there is nothing to prepare.`,
+      hint:
+        'Let it finish ("complete --yes" from GRACE_PERIOD), or take it back with ' +
+        '"rollback --yes". Nothing was changed.',
+      from: state,
+      code: 'under_way',
+    };
+  }
+  return {
+    refuse: `The cutover ledger for this mapping is ${state} — closed; there is nothing to prepare.`,
+    hint:
+      state === 'ROLLED_BACK'
+        ? 'A second attempt after a rollback is workplan 0009 T8 — the owner\'s call. ' +
+          '"status" shows the trail. Nothing was changed.'
+        : 'There is one cutover ledger per mapping, and this one is finished. ' +
+          '"status" shows the trail. Nothing was changed.',
+    from: state,
+    code: 'closed',
+  };
+}
+
+/**
  * Create initial cutover status
  */
 export function createInitialCutoverStatus(

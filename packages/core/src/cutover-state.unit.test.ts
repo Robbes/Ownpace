@@ -16,6 +16,7 @@ import {
   createInitialCutoverStatus,
   updateCutoverStatus,
   createCutoverEvent,
+  prepareTransition,
 } from '../src/cutover-state.ts';
 
 describe('Cutover State Machine', () => {
@@ -324,5 +325,88 @@ describe('canRollback derives from the state machine', () => {
     expect(canRollback('ROLLED_BACK')).toBe(false);
     expect(canRollback('PREPARING')).toBe(false);
     expect(canRollback('READY_FOR_CUTOVER')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A second press that failed a ready cutover.
+//
+// The managed prepare job called `initializeCutover` (which returns the
+// existing row) and then wrote READY_FOR_CUTOVER unconditionally. From
+// READY_FOR_CUTOVER that edge does not exist, so a second run threw, the job's
+// catch marked the cutover FAILED — that edge exists — and every Trigger.dev
+// retry then found FAILED, where the same write is invalid too. A ready
+// cutover, prepared twice, was a failed one nothing could retry. The answer
+// is read off the machine, like `canRollback`, so it cannot drift off it.
+// ---------------------------------------------------------------------------
+
+describe('prepareTransition derives from the state machine', () => {
+  const ALL: CutoverState[] = [
+    'PREPARING', 'READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS',
+    'GRACE_PERIOD', 'COMPLETED', 'ROLLED_BACK', 'FAILED',
+  ];
+
+  it('initialises where there is no ledger — the one answer that is not a state', () => {
+    expect(prepareTransition(undefined)).toEqual({ initialize: true });
+  });
+
+  it('prepares straight from the states that admit READY_FOR_CUTOVER: PREPARING, and APPROVED (revoked at the end)', () => {
+    expect(prepareTransition('PREPARING')).toEqual({ prepare: true, from: 'PREPARING', resetFirst: false });
+    expect(prepareTransition('APPROVED')).toEqual({ prepare: true, from: 'APPROVED', resetFirst: false });
+  });
+
+  it('records the way back to PREPARING first from READY_FOR_CUTOVER and FAILED — the second attempt shows in the trail', () => {
+    expect(prepareTransition('READY_FOR_CUTOVER')).toEqual({
+      prepare: true, from: 'READY_FOR_CUTOVER', resetFirst: true,
+    });
+    expect(prepareTransition('FAILED')).toEqual({ prepare: true, from: 'FAILED', resetFirst: true });
+  });
+
+  it('refuses a cutover under way, and points at letting it finish or rolling it back', () => {
+    for (const state of ['CUTOVER_IN_PROGRESS', 'GRACE_PERIOD'] as const) {
+      const d = prepareTransition(state);
+      expect('refuse' in d, state).toBe(true);
+      if (!('refuse' in d)) throw new Error('unreachable');
+      expect(d.code).toBe('under_way');
+      expect(d.from).toBe(state);
+      expect(d.refuse).toContain(state);
+      expect(d.hint).toContain('rollback --yes');
+      expect(d.hint).toContain('Nothing was changed');
+    }
+  });
+
+  it('refuses a closed ledger; after a rollback it names the owner\'s call (0009 T8)', () => {
+    const rolledBack = prepareTransition('ROLLED_BACK');
+    expect('refuse' in rolledBack && rolledBack.code).toBe('closed');
+    if (!('refuse' in rolledBack)) throw new Error('unreachable');
+    expect(rolledBack.hint).toContain('0009 T8');
+    expect(rolledBack.hint).toContain('Nothing was changed');
+
+    const completed = prepareTransition('COMPLETED');
+    expect('refuse' in completed && completed.code).toBe('closed');
+    if (!('refuse' in completed)) throw new Error('unreachable');
+    expect(completed.refuse).toContain('COMPLETED');
+    expect(completed.hint).not.toContain('0009 T8');
+  });
+
+  it('agrees with VALID_TRANSITIONS for every state: direct where READY_FOR_CUTOVER is admitted, reset where only PREPARING is, refuse where neither', () => {
+    for (const state of ALL) {
+      const d = prepareTransition(state);
+      const direct = isValidTransition(state, 'READY_FOR_CUTOVER');
+      const viaPreparing = !direct && isValidTransition(state, 'PREPARING');
+      if (direct) expect(d, state).toEqual({ prepare: true, from: state, resetFirst: false });
+      else if (viaPreparing) expect(d, state).toEqual({ prepare: true, from: state, resetFirst: true });
+      else expect('refuse' in d, state).toBe(true);
+    }
+  });
+
+  it('never proposes an edge the machine rejects — so the job can follow it without a try/catch that marks FAILED', () => {
+    for (const state of ALL) {
+      const d = prepareTransition(state);
+      if (!('prepare' in d)) continue;
+      const entered = d.resetFirst ? 'PREPARING' : state;
+      if (d.resetFirst) expect(isValidTransition(state, 'PREPARING'), state).toBe(true);
+      expect(isValidTransition(entered, 'READY_FOR_CUTOVER'), `${state} -> ${entered}`).toBe(true);
+    }
   });
 });
