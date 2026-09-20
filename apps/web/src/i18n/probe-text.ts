@@ -157,6 +157,11 @@ export function probeText(
     case 'timedOut':
       // Ours: unknown, not refused — the credentials may be fine.
       return t('probe.timedOut', { seconds: outcome.seconds });
+    case 'countedAtPreflight':
+      // Ours: unknown, and nothing is wrong. An archive inside the migration's
+      // own file target has no target to be read through until a migration
+      // names one (0116 T4).
+      return t('probe.countedAtPreflight');
     case 'credentialsRefused':
       // OURS, so it gets translated — the opposite of the case below, and the
       // distinction the outcome exists to carry. The field names inside the

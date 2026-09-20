@@ -422,7 +422,37 @@ export interface ArchiveSource {
    * the caller's job, per 0116 §3; the reader's job starts at the inside.
    */
   readonly path: string;
+  /**
+   * WHICH STORE that path is in (workplan 0116 T4, the relay).
+   *
+   * `disk` — the default, and what every archive mapping written before
+   * 2026-09-20 means — is the machine running the pass. It is the appliance's
+   * route and only the appliance's: a managed run container is given a network
+   * and no shared volume, so a path on a disk there names nothing (measured
+   * 2026-09-05).
+   *
+   * `target` is the same path taken as relative to THIS MIGRATION'S OWN FILE
+   * TARGET, read over the wire by byte range. That is where the relay puts the
+   * parts, and it is equally the route for a person who put the export in
+   * their own cloud themselves — on either edition, because hard rule 5 says
+   * the editions do not differ. It is a file target and not a Nextcloud: the
+   * read path is PROPFIND, GET and `Range`, which is WebDAV, and nothing in it
+   * may ask which product is behind the URL (owner, 2026-09-20: *"we do
+   * however have to anticipate people might have other targets then nextcloud
+   * for files or photo's"*).
+   *
+   * Unset means `disk` — a default chosen so that not one existing mapping
+   * changes meaning, which is the only defensible default when the two answers
+   * are "a path here" and "a path somewhere else entirely".
+   */
+  readonly where?: ArchiveWhere;
 }
+
+/** The stores an archive can be in — see {@link ArchiveSource.where}. */
+export const ARCHIVE_WHERE = ['disk', 'target'] as const;
+
+/** Which store holds the archive: the machine's own disk, or the migration's file target. */
+export type ArchiveWhere = (typeof ARCHIVE_WHERE)[number];
 
 /** Microsoft Graph Calendar source */
 export interface GraphCalendarSource {
@@ -1142,7 +1172,29 @@ export function parseArchiveSource(obj: Record<string, unknown>): ArchiveSource 
     type: 'archive',
     provider,
     path: reqString(obj, 'path', 'source.path'),
+    ...(obj['where'] === undefined ? {} : { where: parseArchiveWhere(obj['where']) }),
   };
+}
+
+/**
+ * Validate WHICH STORE an archive is in, refusing anything else BY NAME.
+ *
+ * The same shape as `parseNativeFilePolicy` below and for the same reason,
+ * sharpened by what the two values mean here: a typo silently falling back to
+ * `disk` on the managed edition would send the pass looking for a path on a
+ * container that has no shared volume at all, and the reader would report the
+ * archive as unreadable — a sentence about the person's export, for a
+ * misspelling in ours.
+ */
+function parseArchiveWhere(value: unknown): ArchiveWhere {
+  if (value === 'disk' || value === 'target') return value;
+  throw new ConfigError(
+    `source.where: unsupported ${JSON.stringify(value)} (expected ${ARCHIVE_WHERE.map((w) => `"${w}"`).join(' or ')}). ` +
+      '"disk" is the default and means a path on the machine running the pass, which is the ' +
+      'appliance only — a managed run container is given a network and no shared volume. ' +
+      '"target" means the path is inside this migration\'s own file target, read over the wire ' +
+      'by byte range, which is where the relay puts the parts of a download.',
+  );
 }
 
 /**

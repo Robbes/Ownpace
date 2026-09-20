@@ -31,6 +31,7 @@ import { withDeploymentApplication } from './deployment-application.ts';
 import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget } from '@openmig/ledger';
 import {
   createTokenProvider,
+  type ArchiveStore,
   type ImapByteMeter,
 } from '@openmig/connectors';
 import type { CalendarSyncDeps, ContactSyncDeps, FileSyncDeps } from '@openmig/core';
@@ -58,7 +59,7 @@ import {
   STORED_BOX_CREDENTIAL_NAMES,
   buildBoxSourceFrom,
 } from './box-source-factory.ts';
-import { buildArchiveSourceFrom } from './archive-source-factory.ts';
+import { archiveStoreInTarget, buildArchiveSourceFrom } from './archive-source-factory.ts';
 import { STORED_GMAIL_CREDENTIAL_NAMES, buildGmailSourceFrom } from './gmail-source-factory.ts';
 import {
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
@@ -763,8 +764,15 @@ export async function buildDomainDepsFromMapping(
         db,
       );
     }
-    const fileSource = buildFileSourceFromConnection(src, throttleLimiter);
+    // The target endpoint is resolved BEFORE the source, because an archive
+    // may be inside it (0116 T4, the relay): `where: 'target'` means the
+    // export's path is relative to whatever this migration writes to, read
+    // there by byte range. Every other source ignores the option.
     const fileTgtEndpoint = fileEndpointFromCreds('target', tgt.config, tgt.creds, tgt.kind);
+    const fileSource = buildFileSourceFromConnection(src, throttleLimiter, {
+      targetStore: () =>
+        archiveStoreInTarget(fileTargetProtocol(tgt.kind), fileTgtEndpoint, tgt.kind),
+    });
     return withClose(
       {
         ...common,
@@ -1019,6 +1027,14 @@ export function buildFileSourceFromConnection(
   },
   /** The tenant's shared rate budget — see `buildCalendarSourceFromConnection`. */
   throttleLimiter: ThrottleLimiter | undefined,
+  /**
+   * How this migration's own file target becomes readable, for an ARCHIVE that
+   * says it is inside it (0116 T4). A thunk, and absent from every caller that
+   * has no migration in hand — a connection test, above all, which is why the
+   * refusal for a `target` archive opened without one says the counts come at
+   * the preflight rather than reporting the export unreadable.
+   */
+  options: { readonly targetStore?: () => ArchiveStore } = {},
 ): FileSource {
   const builder = sourceFaceBuilder(src.kind, 'file');
   switch (builder) {
@@ -1082,7 +1098,10 @@ export function buildFileSourceFromConnection(
       // none: the config IS the credential, a location. This arm existed as a
       // refusal from T1, so that a kind claiming the file face could never
       // fall through to `dav` and aim a WebDAV client at a folder on a disk.
-      return buildArchiveSourceFrom(src.config);
+      return buildArchiveSourceFrom(
+        src.config,
+        options.targetStore ? { targetStore: options.targetStore } : {},
+      );
     case 'dav':
       return buildFileSource(
         fileEndpointFromCreds('source', src.config, src.creds, src.kind),

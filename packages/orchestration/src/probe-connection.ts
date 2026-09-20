@@ -40,7 +40,7 @@ import {
 import type { MicrosoftFaceSourceBuilder } from './microsoft-account-test.ts';
 import type { ArchiveSource, SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { parseArchiveSource } from '@openmig/shared';
-import { ARCHIVE_CONNECTION_KIND, archiveReaderFor } from './archive-source-factory.ts';
+import { ARCHIVE_CONNECTION_KIND, archiveReaderForLocation } from './archive-source-factory.ts';
 import { CalDAVSource, CarddavSource, DropboxFileSource, WebdavFileSource } from '@openmig/connectors';
 import { measureTargetScheduling } from './target-scheduling.ts';
 import type { SchedulingVerdict } from './target-scheduling.ts';
@@ -318,7 +318,27 @@ async function probeArchive(config: Record<string, unknown>): Promise<ProbeResul
   } catch (err) {
     return providerRefused(err);
   }
-  const reader = archiveReaderFor(source.provider);
+  if (source.where === 'target') {
+    // INSIDE THE MIGRATION'S OWN FILE TARGET (0116 T4, the relay), which a
+    // connection test does not have: a connection is tested before any
+    // migration names where it writes. Answered here rather than by trying
+    // and failing, because trying would look on this machine's disk and come
+    // back "not found" — a sentence about the person's export, for a
+    // condition that is entirely ours and entirely temporary.
+    //
+    // `ok: false` is UNKNOWN, not a refusal, on the `timedOut` precedent: the
+    // connection is kept and nothing about it is wrong. The owner's answer of
+    // 2026-09-20 is what it says — the counts come at the preflight.
+    return {
+      ok: false,
+      reason:
+        'This export is in the file target of the migration that will read it, so there is ' +
+        'nothing to test from here yet. Its contents are counted at the preflight, once a ' +
+        'migration names where it writes.',
+      outcome: { code: 'countedAtPreflight' },
+    };
+  }
+  const reader = archiveReaderForLocation(source);
   if (!reader) {
     return {
       ok: false,

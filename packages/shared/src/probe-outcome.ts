@@ -74,4 +74,20 @@ export type ProbeOutcome =
    * data. UNKNOWN, never a refusal — the credentials may be fine, and the
    * connection is kept so it can be tested again.
    */
-  | { readonly code: 'timedOut'; readonly seconds: number };
+  | { readonly code: 'timedOut'; readonly seconds: number }
+  /**
+   * The archive is inside the migration's own file target, and no migration
+   * is in hand (workplan 0116 T4, the relay; owner 2026-09-20: *"Ok, this is
+   * correct"*).
+   *
+   * UNKNOWN, like `timedOut`, and for the same reason: nothing is wrong. A
+   * connection is tested before any migration names where it writes, so there
+   * is no target to read the export through yet — the counts arrive at the
+   * preflight, which is the first moment both halves exist. Saying this
+   * plainly is the whole point: the two answers it must never be mistaken for
+   * are *your export is empty* (a measured no, the most alarming thing this
+   * product can say to somebody who waited a week for 25 GB) and *your
+   * credentials are wrong* (there are none — an archive's credential is a
+   * location).
+   */
+  | { readonly code: 'countedAtPreflight' };

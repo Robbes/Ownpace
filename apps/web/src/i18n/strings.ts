@@ -1744,6 +1744,11 @@ const en = {
   // kept so it can be tested again.
   'probe.timedOut':
     'No answer within {seconds} seconds; kept anyway, so test later or narrow the root folder.',
+  // The export is in the migration's own file target (0116 T4, the relay), and
+  // a connection is tested before any migration names one. Unknown, never a
+  // measured no — the owner's answer of 2026-09-20.
+  'probe.countedAtPreflight':
+    'This export is in the migration\'s file target; it is counted at the preflight.',
   'probe.measuring': 'Still measuring what this account can carry — refresh in a minute.',
   // A listing that stopped at its cap saw AT LEAST this many. It used to say
   // so in the headline; the headline no longer carries a count, so it says so
@@ -3416,6 +3421,8 @@ const nl: Record<keyof typeof en, string> = {
     'Er is nog geen controle voor een {kind}-verbinding; dat is ons gat, niet uw inloggegevens.',
   'probe.timedOut':
     'Geen antwoord binnen {seconds} seconden; toch bewaard, dus test later opnieuw of verklein de hoofdmap.',
+  'probe.countedAtPreflight':
+    'Deze export staat in het bestandsdoel van de migratie en wordt bij de preflight geteld.',
   'probe.measuring': 'Er wordt nog gemeten wat dit account kan dragen — ververs over een minuut.',
   'probe.measured.atLeast': 'ten minste {count} {unit}',
   'probe.unit.folder.one': 'map',

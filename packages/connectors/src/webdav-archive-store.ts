@@ -36,6 +36,7 @@ import type { HttpClient, HttpResponse } from './dav-http.types.ts';
 import { DEFAULT_TREE_READ_BYTES, type ArchiveTree, type TreeEntry } from './archive-tree.ts';
 import { joinStorePath, splitStorePath, type ArchiveStore, type StoreEntry } from './archive-store.ts';
 import { ZipUnreadable, type RandomAccessSource } from './zip-archive.ts';
+import { createFileHttpClient } from './webdav-source.ts';
 
 /** Where the target is and how to sign in: the same three things every DAV endpoint carries. */
 export interface WebDavArchiveEndpoint {
@@ -252,7 +253,7 @@ function webdavFolderTree(dav: Dav, root: string): ArchiveTree {
  */
 export function webdavStore(
   endpoint: WebDavArchiveEndpoint,
-  httpClient: HttpClient,
+  httpClient: HttpClient = createFileHttpClient(),
   options: { readonly windowBytes?: number } = {},
 ): ArchiveStore {
   const dav = new Dav(endpoint, httpClient);
