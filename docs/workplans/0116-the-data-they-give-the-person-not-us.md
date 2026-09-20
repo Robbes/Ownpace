@@ -72,6 +72,20 @@ an archive the migration's own file endpoint, a JMAP target is refused by senten
 cannot serve a byte range, and a Test with no migration in hand answers
 `countedAtPreflight` — unknown, never a measured no.
 
+**And a ceiling the first slice did not have.** Reading the slice back against
+the sizes it is for: the read-ahead window is 8 MiB and it is PER SOURCE, held
+until the source closes — while `openZipTree` opens every part of a multi-part
+download at once (it needs each central directory before it can answer
+anything) and a pass never closes its source. A 25 GB Takeout is twenty-five
+1 GB parts, so that is **200 MiB of buffers resident for the whole pass**, on
+the edition whose run containers have a network and no disk — and it grows
+with the size of the person's library. Fixed with one budget shared by every
+source of a store, least recently used evicted first: the part being read
+keeps its full window, the twenty-four stale ones do not, and the ceiling stops
+moving. Invisible on the appliance (`openFileSource` holds neither a descriptor
+nor a buffer) and invisible in the fixtures (two parts of a few hundred bytes),
+which is why it is written down here.
+
 **2026-09-17: an Apple export exists and has been read (T3b unblocked).** The owner requested
 one on 8 September and it arrived on the 13th; §"What one real export answered" is what was in
 it, provisional and labelled so. The headlines: the person's tree survives intact under two

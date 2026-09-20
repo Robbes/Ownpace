@@ -256,6 +256,36 @@ describe('the read-ahead', () => {
     expect(dav.rangeRequests().length).toBeGreaterThanOrEqual(6);
   });
 
+  it('shares ONE read-ahead budget across every source the store opens', async () => {
+    // The wiring claim, and the one a per-source budget cannot make: a
+    // multi-part download is opened all at once (`openZipTree` needs every
+    // part's central directory), so the ceiling has to be the STORE's, not
+    // each source's. Two windows' worth of budget, five parts.
+    const dav = new FakeDav();
+    for (let i = 0; i < 5; i += 1) dav.put(`part-${i}.bin`, new Uint8Array(4096).fill(i + 1));
+    const store = webdavStore(ENDPOINT, dav, { windowBytes: 1024, budgetBytes: 2048 });
+
+    const sources = [];
+    for (let i = 0; i < 5; i += 1) {
+      const source = await store.source(`part-${i}.bin`);
+      expect([...(await source.read(0, 4))]).toEqual([i + 1, i + 1, i + 1, i + 1]);
+      sources.push(source);
+    }
+    const afterOpening = dav.rangeRequests().length;
+
+    // The part just read still has its window: no request.
+    await sources[4]!.read(4, 4);
+    expect(dav.rangeRequests().length, 'the live window was evicted').toBe(afterOpening);
+
+    // The first part's window is long gone — five parts, two windows — so it
+    // fetches again, and gets ITS OWN bytes back, not a neighbour's.
+    const again = await sources[0]!.read(0, 4);
+    expect(dav.rangeRequests().length, 'a stale window survived a five-part open').toBe(afterOpening + 1);
+    expect([...again], 'the refetch read the wrong part').toEqual([1, 1, 1, 1]);
+
+    await Promise.all(sources.map((s) => s.close()));
+  });
+
   it('refuses a read beyond the file, and serves inside the window from memory', async () => {
     const dav = new FakeDav();
     dav.put('a.bin', new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
@@ -267,7 +297,7 @@ describe('the read-ahead', () => {
       },
       'a.bin',
       8,
-      4,
+      { windowBytes: 4 },
     );
     expect([...(await source.read(0, 2))]).toEqual([1, 2]);
     expect([...(await source.read(2, 2))]).toEqual([3, 4]);

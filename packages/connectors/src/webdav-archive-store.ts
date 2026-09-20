@@ -48,6 +48,98 @@ export interface WebDavArchiveEndpoint {
 /** How much a range read fetches beyond what was asked, so sequential 1 MiB reads share a request. */
 export const DEFAULT_RANGE_WINDOW_BYTES = 8 * 1024 * 1024;
 
+/**
+ * How much read-ahead every source of ONE STORE may hold BETWEEN THEM.
+ *
+ * A window is per source and the window is the point: a 25 GB library read in
+ * 1 MiB steps is a few thousand requests rather than twenty-five thousand. But
+ * a multi-part Takeout is opened ALL AT ONCE — `openZipTree` needs every
+ * part's central directory before it can answer anything, and it holds them
+ * open because a pass never closes its source. So "8 MiB" is a per-part
+ * figure, and 25 GB of Takeout is 25 parts: **200 MiB of buffers, resident for
+ * the whole pass**, on an edition whose run containers are sized for a job and
+ * not for an archive.
+ *
+ * Four windows, shared. The access pattern is what makes that enough: the
+ * reader walks the parts in order and members front to back, so at any moment
+ * one part is being read and its neighbour may be about to be — the other
+ * twenty-three windows are stale and never touched again. The budget evicts
+ * the least recently used, so the part being read keeps its full window and
+ * the ceiling stops growing with the size of the download.
+ *
+ * A single window is always allowed to exceed this: a read longer than the
+ * budget must still be servable, and refusing it would turn a large central
+ * directory into an unreadable archive.
+ */
+export const DEFAULT_RANGE_BUDGET_BYTES = 32 * 1024 * 1024;
+
+/** One source's claim on the shared read-ahead budget — see {@link rangeBudget}. */
+export interface RangeBudget {
+  /** Take (or replace) this source's window, evicting least-recently-used ones until it fits. */
+  hold(source: object, bytes: number, drop: () => void): void;
+  /** Served from this source's window just now, so it is not the next evicted. */
+  touch(source: object): void;
+  /** This source is closing; its window stops counting. */
+  release(source: object): void;
+  /** What is held right now — the number the ceiling is about. */
+  heldBytes(): number;
+}
+
+/**
+ * A shared read-ahead ceiling for the sources of one store, least recently
+ * used evicted first.
+ *
+ * `Map` iterates in insertion order, so re-inserting on every hold and touch
+ * IS the recency order and the oldest key is the first one out. Eviction only
+ * drops a window the reader has moved past; the next read of that source
+ * simply fetches again, which is a request, not a failure.
+ */
+export function rangeBudget(limitBytes: number = DEFAULT_RANGE_BUDGET_BYTES): RangeBudget {
+  const held = new Map<object, { readonly bytes: number; readonly drop: () => void }>();
+  let total = 0;
+
+  function evictUntilItFits(keep: object): void {
+    for (const [source, entry] of held) {
+      if (total <= limitBytes) return;
+      // Never the one just held: a read longer than the whole budget must
+      // still be servable, and dropping it here would make it unreadable
+      // rather than merely expensive.
+      if (source === keep) continue;
+      held.delete(source);
+      total -= entry.bytes;
+      entry.drop();
+    }
+  }
+
+  return {
+    hold(source, bytes, drop) {
+      const previous = held.get(source);
+      if (previous) {
+        held.delete(source);
+        total -= previous.bytes;
+      }
+      held.set(source, { bytes, drop });
+      total += bytes;
+      evictUntilItFits(source);
+    },
+    touch(source) {
+      const entry = held.get(source);
+      if (!entry) return;
+      held.delete(source);
+      held.set(source, entry);
+    },
+    release(source) {
+      const entry = held.get(source);
+      if (!entry) return;
+      held.delete(source);
+      total -= entry.bytes;
+    },
+    heldBytes() {
+      return total;
+    },
+  };
+}
+
 /** Every request this file makes goes through here: one place for the URL, the auth and the refusals. */
 class Dav {
   private readonly base: string;
@@ -153,8 +245,12 @@ export function openRangeSource(
   dav: { request(method: string, path: string, options?: { readonly headers?: Record<string, string> }): Promise<HttpResponse>; url(path: string): string },
   path: string,
   size: number,
-  windowBytes = DEFAULT_RANGE_WINDOW_BYTES,
+  options: { readonly windowBytes?: number; readonly budget?: RangeBudget } = {},
 ): RandomAccessSource {
+  const windowBytes = options.windowBytes ?? DEFAULT_RANGE_WINDOW_BYTES;
+  const budget = options.budget;
+  /** This source's identity in the shared budget — see {@link rangeBudget}. */
+  const claim = {};
   let window: { readonly offset: number; readonly bytes: Uint8Array } | undefined;
 
   async function fetchWindow(offset: number, length: number): Promise<void> {
@@ -175,6 +271,11 @@ export function openRangeSource(
       );
     }
     window = { offset, bytes };
+    // The budget may drop somebody ELSE's window here, and may drop this one
+    // on a later hold — never this one now, so the read below is always served.
+    budget?.hold(claim, bytes.byteLength, () => {
+      window = undefined;
+    });
   }
 
   return {
@@ -184,13 +285,15 @@ export function openRangeSource(
         throw new ZipUnreadable(`A read of ${length} byte(s) at ${offset} lies beyond the ${size}-byte archive ${dav.url(path)}.`);
       }
       const served = window && offset >= window.offset && offset + length <= window.offset + window.bytes.byteLength;
-      if (!served) await fetchWindow(offset, length);
+      if (served) budget?.touch(claim);
+      else await fetchWindow(offset, length);
       const start = offset - window!.offset;
       // A copy, not a view: the caller may hold the bytes after the window moves on.
       return window!.bytes.slice(start, start + length);
     },
     async close() {
       window = undefined;
+      budget?.release(claim);
     },
   };
 }
@@ -254,9 +357,14 @@ function webdavFolderTree(dav: Dav, root: string): ArchiveTree {
 export function webdavStore(
   endpoint: WebDavArchiveEndpoint,
   httpClient: HttpClient = createFileHttpClient(),
-  options: { readonly windowBytes?: number } = {},
+  options: { readonly windowBytes?: number; readonly budgetBytes?: number } = {},
 ): ArchiveStore {
   const dav = new Dav(endpoint, httpClient);
+  // ONE budget for every source this store opens, which is one per tree:
+  // `openZipTree` asks the store for a source per part and holds them all.
+  // Without this the read-ahead ceiling is per part and grows with the size
+  // of the download — see `DEFAULT_RANGE_BUDGET_BYTES`.
+  const budget = rangeBudget(options.budgetBytes);
 
   async function statOf(path: string): Promise<StoreEntry> {
     const found = await dav.propfind(path, 0);
@@ -280,7 +388,10 @@ export function webdavStore(
     async source(path) {
       const found = await statOf(path);
       if (found.kind !== 'file') throw new ZipUnreadable(`${dav.url(path)} is not a file in the target.`);
-      return openRangeSource(dav, path, found.size, options.windowBytes);
+      return openRangeSource(dav, path, found.size, {
+        ...(options.windowBytes === undefined ? {} : { windowBytes: options.windowBytes }),
+        budget,
+      });
     },
     describe(path) {
       return dav.url(path);
