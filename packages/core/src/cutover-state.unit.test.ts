@@ -49,8 +49,17 @@ describe('Cutover State Machine', () => {
 
     it('should not allow transitions from terminal states', () => {
       expect(isValidTransition('COMPLETED', 'PREPARING')).toBe(false);
-      expect(isValidTransition('ROLLED_BACK', 'PREPARING')).toBe(false);
       expect(isValidTransition('FAILED', 'COMPLETED')).toBe(false);
+    });
+
+    it('allows a second attempt after a rollback — ROLLED_BACK -> PREPARING, and nothing else out of it (0009 T8)', () => {
+      // A rollback is a setback (ADR-0047). A setback you cannot recover from
+      // contradicts the definition, so the owner opened this edge on
+      // 2026-09-20: the way back is PREPARING, as it always was from FAILED.
+      expect(isValidTransition('ROLLED_BACK', 'PREPARING')).toBe(true);
+      expect(isValidTransition('ROLLED_BACK', 'ROLLED_BACK')).toBe(false);
+      expect(isValidTransition('ROLLED_BACK', 'APPROVED')).toBe(false);
+      expect(isValidTransition('ROLLED_BACK', 'READY_FOR_CUTOVER')).toBe(false);
     });
 
     it('should not allow invalid transitions', () => {
@@ -100,10 +109,13 @@ describe('Cutover State Machine', () => {
   });
 
   describe('isTerminalState', () => {
-    it('should identify terminal states', () => {
+    it('names COMPLETED, the one state the machine admits nothing out of', () => {
       expect(isTerminalState('COMPLETED')).toBe(true);
-      expect(isTerminalState('ROLLED_BACK')).toBe(true);
-      expect(isTerminalState('FAILED')).toBe(true);
+    });
+
+    it('does not call a setback terminal: FAILED and ROLLED_BACK both admit PREPARING', () => {
+      expect(isTerminalState('FAILED')).toBe(false);
+      expect(isTerminalState('ROLLED_BACK')).toBe(false);
     });
 
     it('should identify non-terminal states', () => {
@@ -111,6 +123,17 @@ describe('Cutover State Machine', () => {
       expect(isTerminalState('READY_FOR_CUTOVER')).toBe(false);
       expect(isTerminalState('CUTOVER_IN_PROGRESS')).toBe(false);
       expect(isTerminalState('GRACE_PERIOD')).toBe(false);
+    });
+
+    it('agrees with the table for every state: terminal means no transition admitted', () => {
+      const ALL: CutoverState[] = [
+        'PREPARING', 'READY_FOR_CUTOVER', 'APPROVED', 'CUTOVER_IN_PROGRESS',
+        'GRACE_PERIOD', 'COMPLETED', 'ROLLED_BACK', 'FAILED',
+      ];
+      for (const state of ALL) {
+        const admitsSomething = ALL.some((to) => isValidTransition(state, to));
+        expect(isTerminalState(state), state).toBe(!admitsSomething);
+      }
     });
   });
 
@@ -270,7 +293,9 @@ describe('VALID_TRANSITIONS Table Snapshot', () => {
       CUTOVER_IN_PROGRESS: ['GRACE_PERIOD', 'ROLLED_BACK', 'FAILED'],
       GRACE_PERIOD: ['COMPLETED', 'ROLLED_BACK', 'FAILED'],
       COMPLETED: [], // Terminal state - no transitions allowed after completion
-      ROLLED_BACK: [], // Terminal state
+      // A second attempt after a rollback — owner sign-off 2026-09-20 ("T8: ok,
+      // what you adviced"), workplan 0009 T8. Never a second ROLLED_BACK.
+      ROLLED_BACK: ['PREPARING'],
       FAILED: ['PREPARING', 'ROLLED_BACK'],
     } as const;
 
@@ -355,11 +380,14 @@ describe('prepareTransition derives from the state machine', () => {
     expect(prepareTransition('APPROVED')).toEqual({ prepare: true, from: 'APPROVED', resetFirst: false });
   });
 
-  it('records the way back to PREPARING first from READY_FOR_CUTOVER and FAILED — the second attempt shows in the trail', () => {
+  it('records the way back to PREPARING first from READY_FOR_CUTOVER, FAILED and ROLLED_BACK — the second attempt shows in the trail', () => {
     expect(prepareTransition('READY_FOR_CUTOVER')).toEqual({
       prepare: true, from: 'READY_FOR_CUTOVER', resetFirst: true,
     });
     expect(prepareTransition('FAILED')).toEqual({ prepare: true, from: 'FAILED', resetFirst: true });
+    // 0009 T8 (owner, 2026-09-20): a rollback is a setback, and a setback can
+    // be attempted again. Derived, not listed: the edge is in the table.
+    expect(prepareTransition('ROLLED_BACK')).toEqual({ prepare: true, from: 'ROLLED_BACK', resetFirst: true });
   });
 
   it('refuses a cutover under way, and points at letting it finish or rolling it back', () => {
@@ -375,18 +403,13 @@ describe('prepareTransition derives from the state machine', () => {
     }
   });
 
-  it('refuses a closed ledger; after a rollback it names the owner\'s call (0009 T8)', () => {
-    const rolledBack = prepareTransition('ROLLED_BACK');
-    expect('refuse' in rolledBack && rolledBack.code).toBe('closed');
-    if (!('refuse' in rolledBack)) throw new Error('unreachable');
-    expect(rolledBack.hint).toContain('0009 T8');
-    expect(rolledBack.hint).toContain('Nothing was changed');
-
+  it('refuses a closed ledger — COMPLETED, the one state nothing leaves', () => {
     const completed = prepareTransition('COMPLETED');
     expect('refuse' in completed && completed.code).toBe('closed');
     if (!('refuse' in completed)) throw new Error('unreachable');
     expect(completed.refuse).toContain('COMPLETED');
-    expect(completed.hint).not.toContain('0009 T8');
+    expect(completed.hint).toContain('finished');
+    expect(completed.hint).toContain('Nothing was changed');
   });
 
   it('agrees with VALID_TRANSITIONS for every state: direct where READY_FOR_CUTOVER is admitted, reset where only PREPARING is, refuse where neither', () => {

@@ -33,9 +33,13 @@
   operator CLI (`rollback --yes`) and the `run-rollback` Trigger.dev job are callers that gate,
   print and notify; neither decides anything. Guards: `cutover-rollback.unit.test.ts`,
   `cutover-commands.unit.test.ts`, `run-rollback.integration.test.ts`.
-- **Mapping first, ledger second, and every refusal before either write.** `ROLLED_BACK` is
-  terminal, so the write that can be retried goes first. Half a rollback is the defect this ADR
-  ends.
+- **Mapping first, ledger second, and every refusal before either write.** `ROLLED_BACK` admits
+  no second rollback, so the write that can be retried goes first. Half a rollback is the defect
+  this ADR ends.
+- **A rollback can be attempted again** (owner, 2026-09-20 — workplan 0009 T8): the state machine
+  admits `ROLLED_BACK → PREPARING`, as it always admitted `FAILED → PREPARING`. `start-cutover`
+  and the managed prepare job take that edge, recorded with the attempt number; the trail keeps
+  the first attempt. `COMPLETED` is the one terminal state. Guard: `cutover-state.unit.test.ts`.
 - The mapping half is decided by `rollbackTransition` in `@openmig/shared` (`lifecycle.ts`):
   `cutover` and `continuous` → `active`; `active` and `paused` are left alone and the outcome says
   why; `done` is **refused** — finishing is not undone by a rollback, for the same reason
@@ -127,6 +131,17 @@ and the code did not implement it once. Both are corrected here.
   execution. **Fixed the same evening, as the owner's next pick —
   [ADR-0048](./0048-the-mapping-hears-the-cutover.md): `execute` and `complete` now write the
   mapping through the same port, and the rollback's mapping half has something to resume.**
+- **A second attempt after a rollback (owner, 2026-09-20; workplan 0009 T8).** The state machine
+  was written before this ADR, and it made a rollback the one outcome with no way forward:
+  `FAILED` could go back to `PREPARING`, `ROLLED_BACK` admitted nothing, and there is one cutover
+  ledger per mapping — so the outcome this ADR made safe to reach was the one a migration could
+  not leave without SQL. A setback you cannot recover from contradicts the definition above. The
+  owner's answer: `ROLLED_BACK → PREPARING` is admitted; `start-cutover` and the managed prepare
+  job attempt again from it as they retry from `FAILED`, with the attempt number and the reason in
+  the trail; the mapping has been syncing again since the rollback and the preparation runs beside
+  it as it did the first time; mail that reached the target during the cutover window stays on the
+  target, as this ADR already said. `COMPLETED` is the one state the machine admits nothing out
+  of, and `isTerminalState` now says exactly that.
 
 ## Alternatives considered
 
