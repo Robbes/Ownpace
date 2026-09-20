@@ -44,6 +44,17 @@ wizard's hint and the guide say "the folder or the .zip". The self-host gate sti
 extracted fixture; a zip fixture is not checked in (a binary, and the same code path). The
 managed transport is unchanged and still waits on the owner's word.
 
+**2026-09-20, late: T4's managed half decided — relay.** Put the three doors to the owner
+(*two-step*: the person uploads the export into their own target and we read it there by byte
+range; *relay*: a resumable upload through Ownpace streamed straight into the target, nothing
+stored; *store*: an object store on our stack). The owner: *"They might not have a Nextcloud!
+So we can not offer that just so easy. I pick Relay."* And asked how to do it efficiently —
+complete zip files, or read from them and carry only the files. The answer, and the design, are
+in §3 "The relay, as decided": complete parts, relayed through us into whatever file target the
+migration writes to, never to our disk, and read there in place by the reader that merged
+tonight; 1 GB parts; the parts left where the relay put them until the person deletes them.
+Three slices, the first of which needs no upload at all. Nothing is built yet.
+
 **2026-09-17: an Apple export exists and has been read (T3b unblocked).** The owner requested
 one on 8 September and it arrived on the 13th; §"What one real export answered" is what was in
 it, provisional and labelled so. The headlines: the person's tree survives intact under two
@@ -130,7 +141,7 @@ as `name`, and a mapping added later cannot walk off with another's history). Pi
 the real appliance on PGlite: two mappings in one tenant have two rows, and an upgraded
 appliance boots into its old row active rather than a fresh one paused.
 
-**What is left.** T3b still waits on an Apple export; T4's managed half on D7's transport question (D7 itself decided 2026-09-20, the reader built, and the Takeout reader reading the zip in place the same evening); T9 on T4.
+**What is left.** T3b still waits on an Apple export; T4's managed half is decided (relay, 2026-09-20 — §3 "The relay, as decided") and not built; T9 on T4.
 
 ### Earlier — 2026-09-04
 
@@ -219,7 +230,7 @@ If the owner decides only one thing here, decide **D1**.
 | T2 The reader seam | ✅ **Built 2026-09-04** | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
 | T3a The Takeout reader (Google Photos) | ✅ **Built 2026-09-04; reads the `.zip` in place since 2026-09-20** | 0112 T1's reader behind the T2 interface. Since D7's second slice it reads the download itself — one `.zip`, or every part of a multi-part download from any one of them — or the extracted folder, through the tree seam in `archive-tree.ts`, and answers identically over both. |
 | T3b The Data & Privacy reader (Apple) | 📋 **Unblocked 2026-09-17 — designed on one export** | An export has been opened and what is in it is written down: see §"What one real export answered". Two of its five questions were not exercised (the multi-part split, the re-request) and the date parsing is an inference, so the reader waits on export #2 — whose contents are specified in that section. |
-| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first.** **Measured 2026-09-05:** the managed edition's run containers get a network (`DOCKER_RUNNER_NETWORKS`) and nothing else — no volume shared with the API — so a local path can never reach a managed pass. The local path is the appliance's route alone; on managed the archive has to arrive through a cloud this product reads, or an upload (D7). **2026-09-20:** on the appliance the download itself is the route — the person points at the `.zip`, or at any part of a multi-part set, and nothing is extracted. | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
+| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first.** **Measured 2026-09-05:** the managed edition's run containers get a network (`DOCKER_RUNNER_NETWORKS`) and nothing else — no volume shared with the API — so a local path can never reach a managed pass. The local path is the appliance's route alone; on managed the archive has to arrive through a cloud this product reads, or an upload (D7). **2026-09-20:** on the appliance the download itself is the route — the person points at the `.zip`, or at any part of a multi-part set, and nothing is extracted. **Managed half decided the same night: relay** — the parts uploaded through Ownpace straight into the customer's file target, read there in place; §3 "The relay, as decided" has the design and the three slices. | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
 | T5 Placement and the manifest | ✅ **Built 2026-09-05** | `ArchiveFileSource` over the seam's new `placeIn` and `content()`: albums as folders, a photo written once per album (0112 decision 5), a photo in no album under its year, one fingerprinted manifest at the root with everything the export knew. Edited versions and motion clips are distinct items linked to their original (decided 2026-09-04, §4). EXIF into the copy stays 0112 T3. |
 | T6 Idempotency by content hash | ✅ **Built 2026-09-05** | Nothing new: the ledger's path-plus-hash rule, proved through the real loop — a second import writes nothing, a later export writes only what is new. **An archive delta may only ADD** is enforced by `FileSource.snapshot`, which switches the loop's absence-counting off; proved with the flag on and, as the control, stripped. |
 | T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
@@ -631,6 +642,73 @@ The 14-day link window is a product constraint, not just a fact: whatever we bui
 usable inside two weeks of the mail arriving, by somebody who is mid-migration. T8's
 walkthrough should tell them to start the request *before* they need it.
 
+#### The relay, as decided (2026-09-20)
+
+**Owner, 2026-09-20, on the three doors for a managed customer's archive:** *"They might not
+have a Nextcloud! So we can not offer that just so easy. I pick Relay."* And, in the same
+breath: do it efficiently — relay the complete zip files, or read from them and carry only the
+files inside?
+
+**What relay means.** The person's browser uploads each part with a resumable upload through
+Ownpace, and Ownpace streams it — never to its own disk — straight into the customer's own file
+target, under an import folder. The pass then reads the zip from there **by byte range**, with
+the same reader that reads it on the appliance's disk (D7's reader behind the tree seam), and
+writes the photos beside it. Nothing of the archive is ever ours to hold, which keeps the
+custody promise; and the person needs no account with any other cloud, which is what the
+owner's word on D7 ruled out.
+
+**Complete parts, not the files inside them.** Three reasons. Photos and videos are already
+compressed, so the zip weighs what its contents weigh and extracting first saves no bytes. The
+reader needs every part before it can decide anything: a photo's album copy sits in part 1 and
+its year copy with the sidecar in part 3, and placement, the collapse by content hash and the
+manifest all depend on seeing both — a stream that extracted members as they passed would have
+to write duplicates first and sort them out later, which is staging, which is *store*. And a
+part is one resumable upload with one integrity check at the end: the reader refuses a corrupt
+member by sentence, from the CRC-32 the zip carries. ("Should the person unzip it first" above
+reached the same answer for the managed edition from the first two reasons.)
+
+**"They might not have a Nextcloud."** A photo import always has a file target — the migration
+writes files somewhere — and the relay lands the parts in whatever that is. What differs is how
+an upload resumes: on Nextcloud and ownCloud, through their chunked upload API, so a dropped
+connection resumes per chunk; on a plain WebDAV target, which cannot take a file in pieces, a
+part goes in one request and a drop resumes per part. **1 GB parts** (Takeout offers 1, 2, 4,
+10 and 50 GB; Apple 1, 2, 5, 10 and 25) are the right size for a browser upload for exactly that
+reason, and the walkthrough should say so. From the person's side this is not "two-step done for
+them" — they never learn a WebDAV path — but on the wire it is, and the earlier recommendation of
+two-step is honoured in the half that mattered: nothing on our side.
+
+**What the target holds, and for how long.** During the import, the parts and the photos: twice
+the archive's size, in the customer's own storage, said up front. After it, the parts stay where
+the relay put them until the person deletes them — hard rule 2 says we never write the source,
+and the uploaded part *is* the source. A "delete the parts" button the person presses is the
+most this product should do; the wizard says where they are.
+
+**The delivery route the table above recommended** — Takeout straight into Drive, Dropbox,
+OneDrive or Box — stays possible for a person who already has one of those, and stops being
+what we tell people to do: the owner's word on D7 (no dependence on another US cloud) applies
+to T4 too. The table's ranking of the upload as "worst for multi-GB" was written before a
+resumable relay was the design; it stays as history.
+
+**Slices, in order — none built yet:**
+
+1. **A random-access source over a file in the target.** `size` from a PROPFIND, `read` by a
+   `Range` GET, reading ahead in windows large enough that a 25 GB library is not twenty-five
+   thousand requests (the zip reader asks in 1 MiB steps; the source may fetch more). An
+   archive location that names a path *inside the target* rather than on a disk —
+   `ArchiveLocation.path` already allows "a path inside a file source we already read". With
+   this alone the managed edition imports an archive somebody put in their target by any
+   means, and its gate needs no upload at all: the managed E2E puts the two Info-ZIP parts in
+   the e2e Nextcloud and imports them.
+2. **The relay endpoint and page.** A resumable upload in the tus protocol's shape (create,
+   offset, patch, a checksum per chunk) without adopting anyone's client library unless the
+   owner wants one; each chunk streamed into the target's chunked upload on Nextcloud and
+   ownCloud, or whole parts per request on a target without chunking; progress and resume on
+   the page; the parts named as Google named them, so the multi-part rule finds the set;
+   memory bounded per chunk and nothing on disk. Egress is metered on the managed stack and
+   the price should say so.
+3. **The managed gate through the door:** relay the two parts through the API into the e2e
+   Nextcloud, import, and make the same comparison the self-host zip-route gate makes.
+
 ### 4. What is carried, and what is honestly lost
 
 Non-destructive toward the archive, always: its bytes are never opened for writing (hard
@@ -779,7 +857,9 @@ domain on one side and a one-shot on the other.
   promise). Put to the owner on 2026-09-20; recommendation two-step first, relay when asked.
   **Second slice, the same evening:** the Takeout reader reads the zip in place through a
   tree seam — folder or zip, a multi-part download as one tree, a gap in the parts refused —
-  so the appliance route needs no extraction; the status block has it in full.
+  so the appliance route needs no extraction; the status block has it in full. **And the
+  transport question closed the same night: relay** (owner: *"They might not have a Nextcloud!
+  … I pick Relay"*); §3 "The relay, as decided" has the design.
 - **D6 — ✅ DECIDED: "Import an export", with the provider's own words beneath.** Not "sync", for Apple. Recommendation: *"Import an
   export"* as the family, and per provider *"Google Takeout archive"* / *"Apple Data & Privacy
   export"* — the provider's own words, so a search engine and a support conversation match.
