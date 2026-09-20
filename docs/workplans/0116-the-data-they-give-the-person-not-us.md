@@ -56,7 +56,16 @@ complete zip files, or read from them and carry only the files. The answer, and 
 in §3 "The relay, as decided": complete parts, relayed through us into whatever file target the
 migration writes to, never to our disk, and read there in place by the reader that merged
 tonight; 1 GB parts; the parts left where the relay put them until the person deletes them.
-Three slices, the first of which needs no upload at all. Nothing is built yet.
+Three slices, the first of which needs no upload at all. **Slice 1's reading half followed the
+same night:** the store seam under the reader, the appliance's disk on one side and a WebDAV
+file target on the other (PROPFIND, a folder tree, a `Range`-reading source in 8 MiB windows),
+proved against a fake Nextcloud with the two Info-ZIP parts and the extracted folder inside
+it. **The owner answered the same night** how a managed archive connection's Test should
+behave when no migration has named a target yet — *"Ok, this is correct"* — and added the
+constraint the rest of the relay is built under: *"We do however have to anticipate people
+might have other targets then nextcloud for files or photo's."* So the Test says what it can
+without a target and the counts come at the preflight, and nothing in the store may assume
+Nextcloud; see §3 "They might not have a Nextcloud.".
 
 **2026-09-17: an Apple export exists and has been read (T3b unblocked).** The owner requested
 one on 8 September and it arrived on the 13th; §"What one real export answered" is what was in
@@ -233,7 +242,7 @@ If the owner decides only one thing here, decide **D1**.
 | T2 The reader seam | ✅ **Built 2026-09-04** | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
 | T3a The Takeout reader (Google Photos) | ✅ **Built 2026-09-04; reads the `.zip` in place since 2026-09-20** | 0112 T1's reader behind the T2 interface. Since D7's second slice it reads the download itself — one `.zip`, or every part of a multi-part download from any one of them — or the extracted folder, through the tree seam in `archive-tree.ts`, and answers identically over both. |
 | T3b The Data & Privacy reader (Apple) | 📋 **Unblocked 2026-09-17 — designed on one export** | An export has been opened and what is in it is written down: see §"What one real export answered". Two of its five questions were not exercised (the multi-part split, the re-request) and the date parsing is an inference, so the reader waits on export #2 — whose contents are specified in that section. |
-| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first.** **Measured 2026-09-05:** the managed edition's run containers get a network (`DOCKER_RUNNER_NETWORKS`) and nothing else — no volume shared with the API — so a local path can never reach a managed pass. The local path is the appliance's route alone; on managed the archive has to arrive through a cloud this product reads, or an upload (D7). **2026-09-20:** on the appliance the download itself is the route — the person points at the `.zip`, or at any part of a multi-part set, and nothing is extracted. **Managed half decided the same night: relay** — the parts uploaded through Ownpace straight into the customer's file target, read there in place; §3 "The relay, as decided" has the design and the three slices. | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
+| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first.** **Measured 2026-09-05:** the managed edition's run containers get a network (`DOCKER_RUNNER_NETWORKS`) and nothing else — no volume shared with the API — so a local path can never reach a managed pass. The local path is the appliance's route alone; on managed the archive has to arrive through a cloud this product reads, or an upload (D7). **2026-09-20:** on the appliance the download itself is the route — the person points at the `.zip`, or at any part of a multi-part set, and nothing is extracted. **Managed half decided the same night: relay** — the parts uploaded through Ownpace straight into the customer's file target, read there in place; §3 "The relay, as decided" has the design and the three slices. **Slice 1's reading half built 2026-09-20:** an archive store seam under the reader (`archive-store.ts`: the appliance's disk, or a WebDAV file target in `webdav-archive-store.ts` — PROPFIND for what is where, a folder tree for an export extracted into the target, and a `Range`-reading source with 8 MiB read-ahead windows for the zip; a target that answers a range request with the whole file is refused by sentence). Proved with a fake Nextcloud: the two Info-ZIP parts and the extracted folder inside the target answer exactly what they answer on disk. Not yet wired: which store the managed builder, the probe and the wizard use. **Owner, 2026-09-20:** a managed archive connection with no target yet passes its Test on what it can read of the archive, with the counts at the preflight, *"and we do however have to anticipate people might have other targets then nextcloud for files or photo's"* — so every rung of the relay is written against the target the migration names, whatever kind it is. | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
 | T5 Placement and the manifest | ✅ **Built 2026-09-05** | `ArchiveFileSource` over the seam's new `placeIn` and `content()`: albums as folders, a photo written once per album (0112 decision 5), a photo in no album under its year, one fingerprinted manifest at the root with everything the export knew. Edited versions and motion clips are distinct items linked to their original (decided 2026-09-04, §4). EXIF into the copy stays 0112 T3. |
 | T6 Idempotency by content hash | ✅ **Built 2026-09-05** | Nothing new: the ledger's path-plus-hash rule, proved through the real loop — a second import writes nothing, a later export writes only what is new. **An archive delta may only ADD** is enforced by `FileSource.snapshot`, which switches the loop's absence-counting off; proved with the flag on and, as the control, stripped. |
 | T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
@@ -680,6 +689,19 @@ reason, and the walkthrough should say so. From the person's side this is not "t
 them" — they never learn a WebDAV path — but on the wire it is, and the earlier recommendation of
 two-step is honoured in the half that mattered: nothing on our side.
 
+**And not only a Nextcloud.** The owner, reading slice 1 the same night: *"We do however have
+to anticipate people might have other targets then nextcloud for files or photo's."* The store
+seam is written that way already — `webdavStore` speaks PROPFIND, GET and `Range`, which is
+WebDAV and not Nextcloud, and the one Nextcloud-specific thing in the relay is the *chunked
+upload* of slice 2, which is an optimisation with a documented fallback (one request per part)
+rather than a requirement. What this rules out, for every slice: an OCS call on the read path,
+a Nextcloud-shaped path convention, a capability probe that refuses a target it does not
+recognise. A file target the migration can write to is a target the relay can land parts in;
+where it cannot resume per chunk it resumes per part, and where it cannot do that either the
+wizard says so before the person starts. The same holds for a photo target: the archive's
+photos land wherever the migration's file target is, and nothing in the reader or the store
+asks which product is behind it.
+
 **What the target holds, and for how long.** During the import, the parts and the photos: twice
 the archive's size, in the customer's own storage, said up front. After it, the parts stay where
 the relay put them until the person deletes them — hard rule 2 says we never write the source,
@@ -692,7 +714,8 @@ what we tell people to do: the owner's word on D7 (no dependence on another US c
 to T4 too. The table's ranking of the upload as "worst for multi-GB" was written before a
 resumable relay was the design; it stays as history.
 
-**Slices, in order — none built yet:**
+**Slices, in order — slice 1's reading half built 2026-09-20 (`archive-store.ts`,
+`webdav-archive-store.ts`); its managed wiring and slices 2 and 3 still to come:**
 
 1. **A random-access source over a file in the target.** `size` from a PROPFIND, `read` by a
    `Range` GET, reading ahead in windows large enough that a 25 GB library is not twenty-five
