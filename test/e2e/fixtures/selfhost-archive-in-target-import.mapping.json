@@ -1,0 +1,43 @@
+{
+  "_note": "The in-target gate's mapping (workplan 0116 T4, the relay's first slice, proved on the real stack). A FOURTH mapping beside the archive-import and zip-route ones: the same five-file Takeout, as the same two-part .zip download, but this time the parts are NOT on the appliance's disk at all — the gate PUTs them into the e2e-target Nextcloud first, and `where: \"target\"` makes the path relative to this migration's own file target. So the pass reads them over the wire by byte range (PROPFIND, GET with Range), which is what a managed pass does after the relay lands the parts: no volume, no local path, nothing of the archive on our disk. Its target is a SUBFOLDER, from-target/, and the parts sit in from-target/exports/ — where the relay would leave them, and where the import must never touch them (hard rule 2). Loads PAUSED like every mapping; green-lit only by its own gate, which runs after the zip-route gate. e2e.yml writes it under a name that sorts after every other mapping; the gates select by id, never by position.",
+  "tenantId": "00000000-0000-4000-8000-000000000001",
+  "mappingId": "44444444-4444-4444-8444-444444444444",
+  "schedule": {
+    "cron": "* * * * *"
+  },
+  "source": {
+    "type": "archive",
+    "provider": "google-takeout",
+    "path": "exports/takeout-20240506T070810Z-001.zip",
+    "where": "target"
+  },
+  "target": {
+    "type": "webdav",
+    "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/from-target/",
+    "user": "e2e-target",
+    "auth": {
+      "kind": "login",
+      "passwordFromEnv": "TARGET_DAV_PASSWORD"
+    }
+  },
+  "domains": {
+    "files": {
+      "enabled": true,
+      "source": {
+        "type": "archive",
+        "provider": "google-takeout",
+        "path": "exports/takeout-20240506T070810Z-001.zip",
+        "where": "target"
+      },
+      "target": {
+        "type": "webdav",
+        "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/from-target/",
+        "user": "e2e-target",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "TARGET_DAV_PASSWORD"
+        }
+      }
+    }
+  }
+}
