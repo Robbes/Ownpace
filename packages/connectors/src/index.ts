@@ -6,6 +6,10 @@ export const packageName = '@openmig/connectors';
 // message-id conventions, the cursor encoding. Client-neutral by design.
 export * from './imap-conventions.ts';
 
+// A zip read where it lies (workplan 0116 D7 = C): the random-access,
+// zip64-aware, streaming reader an export the size of a photo library needs.
+export * from './zip-archive.ts';
+
 
 // The IMAP read path. `imap-parity.integration.test.ts` compared it field by
 // field against the `imap-simple` implementation on a real server before that
