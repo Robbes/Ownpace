@@ -6,8 +6,8 @@
  * - start-cutover: Begin cutover process
  * - verify: Run verification checks
  * - approve: Approve cutover after verification
- * - execute: Execute the actual cutover (lands in GRACE_PERIOD)
- * - complete: Close out the grace period (GRACE_PERIOD -> COMPLETED)
+ * - execute: the mapping stops and the ledger enters the cutover; lands in GRACE_PERIOD (ADR-0048)
+ * - complete: Close out the grace period (GRACE_PERIOD -> COMPLETED); a mapping still running is stopped
  * - rollback: the setback — ledger ROLLED_BACK and the mapping back to syncing (ADR-0047)
  * - status: Show current cutover status
  * 
@@ -23,10 +23,13 @@ import {
   performRollback,
   RollbackRefused,
   TARGET_MAIL_STAYS,
+  enterCutover,
+  closeCutover,
+  CutoverRefused,
   type MappingLifecyclePort,
   type VerificationResult,
 } from '@openmig/core';
-import { log, rollbackTransition } from '@openmig/shared';
+import { log, cutoverTransition, rollbackTransition, type CutoverTransition } from '@openmig/shared';
 
 /** CLI dependencies */
 export interface CutoverCliDeps {
@@ -60,8 +63,9 @@ export interface CutoverCliDeps {
   assumeYes?: boolean;
   /**
    * The mapping's lifecycle — the half of a rollback this CLI never performed
-   * until ADR-0047. `mappingLifecyclePort` in `@openmig/ledger` is the real
-   * one (the row plus its `mapping.status` audit record); the tests hand in a
+   * until ADR-0047, and the half of a cutover it never performed until
+   * ADR-0048. `mappingLifecyclePort` in `@openmig/ledger` is the real one
+   * (the row plus its `mapping.status` audit record); the tests hand in a
    * fake that records what was written.
    */
   mappingLifecycle: MappingLifecyclePort;
@@ -121,6 +125,27 @@ export function confirmed(
   }
   CutoverCliOutput.info('Re-run the same command with --yes to proceed.');
   return false;
+}
+
+/**
+ * The mapping half of a cutover step, as consequence lines for `confirmed()`
+ * — true for THIS mapping rather than generic (ADR-0048). The step reads the
+ * mapping again and decides for itself; this is for the person approving.
+ */
+export function mappingHalfLines(
+  mappingId: MappingId,
+  decision: Exclude<CutoverTransition, { refuse: string }>,
+): string[] {
+  if (decision.stop) {
+    return [
+      `Stop the shadow sync: mapping ${mappingId} '${decision.from}' -> '${decision.to}' — no pass ` +
+        'runs after this, and the source is no longer the authority on what exists.',
+    ];
+  }
+  return [
+    `Leave mapping ${mappingId} '${decision.from}': ${decision.reason}.`,
+    ...(decision.warning ? [decision.warning] : []),
+  ];
 }
 
 /**
@@ -382,7 +407,14 @@ export async function approveCutover(deps: CutoverCliDeps): Promise<void> {
 }
 
 /**
- * Execute the cutover
+ * Execute the cutover: the mapping stops, the ledger enters CUTOVER_IN_PROGRESS,
+ * the operator moves the MX record, and the ledger lands in GRACE_PERIOD.
+ *
+ * The first two are `enterCutover` (ADR-0048). This command used to move only
+ * the ledger, so a CLI-driven cutover ran with the mapping still `active` —
+ * passes scheduled, deletion detectors present, a source that had just
+ * stopped being the authority still mirrored (0117 D4) — and the rollback's
+ * "resume the sync" half found nothing to resume.
  */
 export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.section('Executing Cutover');
@@ -401,9 +433,17 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
       process.exit(1);
     }
 
+    const decision = cutoverTransition(await deps.mappingLifecycle.readStatus());
+    if ('refuse' in decision) {
+      CutoverCliOutput.error(decision.refuse);
+      CutoverCliOutput.info(decision.hint);
+      process.exit(1);
+    }
+
     if (
       !confirmed(deps, 'execute this cutover', [
-        `Move mapping ${deps.mappingId} to CUTOVER_IN_PROGRESS.`,
+        `Move the cutover ledger for mapping ${deps.mappingId} to CUTOVER_IN_PROGRESS (from APPROVED).`,
+        ...mappingHalfLines(deps.mappingId, decision),
         `Wait for YOU to point the ${deps.dnsDomain} MX record at ${deps.targetMailServer} — this command does not change DNS — then enter the GRACE_PERIOD.`,
         'Mail delivery follows DNS — this is the point users notice.',
       ])
@@ -411,13 +451,22 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
       process.exit(1);
     }
 
-    CutoverCliOutput.info('Transitioning to CUTOVER_IN_PROGRESS...');
-    await deps.cutoverPersistence.transitionState(
-      deps.tenantId,
-      deps.mappingId,
-      'CUTOVER_IN_PROGRESS',
-      { startedAt: new Date().toISOString() }
-    );
+    const entered = await enterCutover({
+      tenantId: deps.tenantId,
+      mappingId: deps.mappingId,
+      cutoverStore: deps.cutoverPersistence,
+      mapping: deps.mappingLifecycle,
+      by: 'cli',
+      log: (message) => CutoverCliOutput.info(message),
+    });
+    if (entered.mapping.changed) {
+      CutoverCliOutput.success(
+        `Mapping ${entered.mapping.from} -> ${entered.mapping.to}: the shadow sync has stopped.`,
+      );
+    } else {
+      CutoverCliOutput.warning(`Mapping left '${entered.mapping.from}': ${entered.mapping.note ?? ''}`);
+      if (entered.mapping.warning) CutoverCliOutput.warning(entered.mapping.warning);
+    }
 
     // Nothing here switches DNS, and no worker job does either — DNS provider
     // writes are deferred (verify-only DNS, owner decision 2026-07-16). This
@@ -469,10 +518,24 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
         { failedAt: new Date().toISOString(), failureReason: 'DNS propagation timeout' }
       );
 
+      // The mapping is NOT put back here: whether the MX record moved is
+      // exactly what is unknown, and no pass should run while it is. The
+      // rollback is the explicit undo, and it resumes the sync.
+      CutoverCliOutput.warning(
+        `The mapping stays '${entered.mapping.to}' — no pass runs while the cutover is unresolved. ` +
+          '"rollback --yes" puts it back to syncing and marks the cutover ROLLED_BACK.',
+      );
       CutoverCliOutput.error('Cutover failed. Consider rollback.');
       process.exit(1);
     }
   } catch (error) {
+    if (error instanceof CutoverRefused) {
+      // Nothing was written. Said so, because "failed" would read as half done.
+      CutoverCliOutput.error(`Cutover refused: ${error.message}`);
+      if (error.hint) CutoverCliOutput.info(error.hint);
+      CutoverCliOutput.info('Nothing was changed.');
+      process.exit(1);
+    }
     const err = error as Error;
     CutoverCliOutput.error(`Cutover execution failed: ${err.message}`);
     process.exit(1);
@@ -487,6 +550,12 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
  * COMPLETED and the state machine threw. COMPLETED is terminal (`rollback`
  * is no longer accepted from it), so this is a state-changing action and
  * `--yes`-gated like the others.
+ *
+ * `closeCutover` (ADR-0048) also stops a mapping that is still running — a
+ * cutover executed before `execute` wrote the mapping — rather than closing
+ * a terminal ledger over a sync that keeps mirroring a source that stopped
+ * being the authority. It does NOT finish the migration: `done` has its own
+ * rule about unresolved failures, and it stays where that rule lives.
  */
 export async function completeCutover(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.section('Completing Cutover');
@@ -505,25 +574,55 @@ export async function completeCutover(deps: CutoverCliDeps): Promise<void> {
       process.exit(1);
     }
 
+    const decision = cutoverTransition(await deps.mappingLifecycle.readStatus());
+    if ('refuse' in decision) {
+      CutoverCliOutput.error(decision.refuse);
+      CutoverCliOutput.info(decision.hint);
+      process.exit(1);
+    }
+
     if (
       !confirmed(deps, 'complete this cutover', [
-        `Mark mapping ${deps.mappingId} COMPLETED — a terminal state.`,
+        `Mark the cutover ledger for mapping ${deps.mappingId} COMPLETED (from GRACE_PERIOD) — a terminal state.`,
+        ...mappingHalfLines(deps.mappingId, decision),
         'After this, "rollback" is no longer accepted; reverting means a manual MX change.',
+        "Leave the migration's own ending to you: finishing it ('done', which checks unresolved " +
+          "failures) or keeping it copying ('continuous') is decided on the Finish page, not here.",
       ])
     ) {
       process.exit(1);
     }
 
-    await deps.cutoverPersistence.transitionState(
-      deps.tenantId,
-      deps.mappingId,
-      'COMPLETED',
-      { completedAt: new Date().toISOString(), completedBy: 'cli' }
-    );
+    const closed = await closeCutover({
+      tenantId: deps.tenantId,
+      mappingId: deps.mappingId,
+      cutoverStore: deps.cutoverPersistence,
+      mapping: deps.mappingLifecycle,
+      by: 'cli',
+      log: (message) => CutoverCliOutput.info(message),
+    });
 
     CutoverCliOutput.success('Cutover completed.');
+    if (closed.mapping.changed) {
+      CutoverCliOutput.success(
+        `Mapping ${closed.mapping.from} -> ${closed.mapping.to}: the shadow sync has stopped.`,
+      );
+    } else {
+      CutoverCliOutput.info(`Mapping left '${closed.mapping.from}': ${closed.mapping.note ?? ''}`);
+      if (closed.mapping.warning) CutoverCliOutput.warning(closed.mapping.warning);
+    }
+    CutoverCliOutput.info(
+      `The mapping is '${closed.mapping.to}'. This command closes the cutover ledger, not the migration: ` +
+        "finish it ('done') or keep it copying ('continuous') from the Finish page.",
+    );
     CutoverCliOutput.info('Restore DNS TTLs to their normal values and archive the source per the runbook.');
   } catch (error) {
+    if (error instanceof CutoverRefused) {
+      CutoverCliOutput.error(`Completion refused: ${error.message}`);
+      if (error.hint) CutoverCliOutput.info(error.hint);
+      CutoverCliOutput.info('Nothing was changed.');
+      process.exit(1);
+    }
     const err = error as Error;
     CutoverCliOutput.error(`Failed to complete cutover: ${err.message}`);
     process.exit(1);

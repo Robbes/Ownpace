@@ -34,9 +34,10 @@ function makeStore(currentState = 'GRACE_PERIOD') {
 }
 
 /**
- * The mapping's lifecycle as a rollback sees it (ADR-0047): what it is now,
- * and a recorder for what the command set it to — and WHEN, relative to the
- * ledger write, because the order is part of the contract.
+ * The mapping's lifecycle as a rollback (ADR-0047) or a cutover step (ADR-0048)
+ * sees it: what it is now, and a recorder for what the command set it to —
+ * and WHEN, relative to the ledger write, because the order is part of the
+ * contract.
  */
 function makeMapping(status = 'cutover', order: string[] = []) {
   return {
@@ -157,7 +158,7 @@ describe('rollbackCutover() approval gate', () => {
 
     await rollbackCutover(makeDeps(store, true, mapping));
 
-    expect(mapping.setStatus).toHaveBeenCalledWith({ from: 'cutover', to: 'active' });
+    expect(mapping.setStatus).toHaveBeenCalledWith({ from: 'cutover', to: 'active', via: 'rollback' });
     expect(order).toEqual(['mapping:cutover->active', 'ledger:ROLLED_BACK']);
   });
 
@@ -402,12 +403,14 @@ describe('executeCutover() follows the state machine', () => {
     expect(states).not.toContain('COMPLETED');
   });
 
-  it('refuses without --yes and leaves the ledger untouched', async () => {
+  it('refuses without --yes and leaves the ledger untouched — and the mapping', async () => {
     const store = makeStore('APPROVED');
+    const mapping = makeMapping('active');
 
-    await expect(executeCutover(makeDeps(store))).rejects.toThrow('process.exit(1)');
+    await expect(executeCutover(makeDeps(store, undefined, mapping))).rejects.toThrow('process.exit(1)');
 
     expect(store.transitionState).not.toHaveBeenCalled();
+    expect(mapping.setStatus).not.toHaveBeenCalled();
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
@@ -419,6 +422,95 @@ describe('executeCutover() follows the state machine', () => {
 
     const states = store.transitionState.mock.calls.map((c) => c[2]);
     expect(states).toEqual(['CUTOVER_IN_PROGRESS', 'FAILED']);
+  });
+
+  it("stops the mapping ('active' -> 'cutover') BEFORE the ledger moves, through the cutover door", async () => {
+    // ADR-0048. Until 2026-09-19 this command moved the ledger and left
+    // `mailbox_mapping` where it was, so the appliance kept scheduling passes
+    // — deletion detectors present — against a source that had just stopped
+    // being the authority. The order matters too: CUTOVER_IN_PROGRESS beside
+    // a running mapping is the defect, and execute refuses to run again from
+    // that state, so the retryable write goes first.
+    vi.spyOn(core, 'checkPropagation').mockResolvedValue(true as never);
+    const order: string[] = [];
+    const store = {
+      ...makeStore('APPROVED'),
+      transitionState: vi.fn(async (_t: unknown, _m: unknown, to: string) => {
+        order.push(`ledger:${to}`);
+        return { currentState: to };
+      }),
+    };
+    const mapping = makeMapping('active', order);
+
+    await executeCutover(makeDeps(store, true, mapping));
+
+    expect(mapping.setStatus).toHaveBeenCalledWith({ from: 'active', to: 'cutover', via: 'cutover' });
+    expect(order).toEqual(['mapping:active->cutover', 'ledger:CUTOVER_IN_PROGRESS', 'ledger:GRACE_PERIOD']);
+  });
+
+  it("leaves a 'continuous' mapping alone and says why — the lane copies after cutover by design", async () => {
+    vi.spyOn(core, 'checkPropagation').mockResolvedValue(true as never);
+    const logged: string[] = [];
+    vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    const store = makeStore('APPROVED');
+    const mapping = makeMapping('continuous');
+
+    await executeCutover(makeDeps(store, true, mapping));
+
+    expect(mapping.setStatus).not.toHaveBeenCalled();
+    expect(store.transitionState.mock.calls.map((c) => c[2])).toEqual(['CUTOVER_IN_PROGRESS', 'GRACE_PERIOD']);
+    expect(logged.join('\n')).toContain('by design');
+  });
+
+  it('tells the person approving what will happen to THIS mapping, not a generic sentence', async () => {
+    const logged: string[] = [];
+    vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+
+    await expect(executeCutover(makeDeps(makeStore('APPROVED'), undefined, makeMapping('active')))).rejects.toThrow(
+      'process.exit(1)',
+    );
+    const active = logged.join('\n');
+    expect(active).toContain("'active' -> 'cutover'");
+    expect(active).toContain('no longer the authority');
+
+    logged.length = 0;
+    await expect(executeCutover(makeDeps(makeStore('APPROVED'), undefined, makeMapping('done')))).rejects.toThrow(
+      'process.exit(1)',
+    );
+    const done = logged.join('\n');
+    expect(done).toContain("Leave mapping");
+    // The trap named before it is walked into: a finished migration cannot be rolled back.
+    expect(done).toContain('rollback is refused');
+    expect(done).not.toContain("'done' -> 'cutover'");
+  });
+
+  it('on a propagation timeout the mapping stays stopped, and the output says rollback resumes it', async () => {
+    // Whether the MX record moved is exactly what is unknown after a timeout,
+    // so no pass may run; the rollback is the explicit undo.
+    vi.spyOn(core, 'checkPropagation').mockResolvedValue(false as never);
+    const logged: string[] = [];
+    vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    const order: string[] = [];
+    const store = {
+      ...makeStore('APPROVED'),
+      transitionState: vi.fn(async (_t: unknown, _m: unknown, to: string) => {
+        order.push(`ledger:${to}`);
+        return { currentState: to };
+      }),
+    };
+    const mapping = makeMapping('active', order);
+
+    await expect(executeCutover(makeDeps(store, true, mapping))).rejects.toThrow('process.exit(1)');
+
+    expect(order).toEqual(['mapping:active->cutover', 'ledger:CUTOVER_IN_PROGRESS', 'ledger:FAILED']);
+    expect(order).not.toContain('mapping:cutover->active');
+    expect(logged.join('\n')).toContain('rollback --yes');
   });
 });
 
@@ -465,5 +557,41 @@ describe('completeCutover()', () => {
     await expect(completeCutover(makeDeps(store, true))).rejects.toThrow('process.exit(1)');
 
     expect(store.transitionState).not.toHaveBeenCalled();
+  });
+
+  it("stops a mapping still 'active' — a cutover executed before ADR-0048 — BEFORE COMPLETED", async () => {
+    // COMPLETED is terminal. Closing it over a mapping that is still
+    // scheduling passes would leave the sync mirroring a source that stopped
+    // being the authority, for good, with no cutover command left to stop it.
+    const order: string[] = [];
+    const store = {
+      ...makeStore('GRACE_PERIOD'),
+      transitionState: vi.fn(async (_t: unknown, _m: unknown, to: string) => {
+        order.push(`ledger:${to}`);
+        return { currentState: to };
+      }),
+    };
+    const mapping = makeMapping('active', order);
+
+    await completeCutover(makeDeps(store, true, mapping));
+
+    expect(order).toEqual(['mapping:active->cutover', 'ledger:COMPLETED']);
+  });
+
+  it("converges on a 'cutover' mapping with no mapping write, and says where the migration is finished", async () => {
+    const logged: string[] = [];
+    vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    const store = makeStore('GRACE_PERIOD');
+    const mapping = makeMapping('cutover');
+
+    await completeCutover(makeDeps(store, true, mapping));
+
+    expect(mapping.setStatus).not.toHaveBeenCalled();
+    expect(store.transitionState).toHaveBeenCalledTimes(1);
+    // The ledger closed; the migration's ending is a different decision with
+    // its own rule, and the operator is pointed at where it lives.
+    expect(logged.join('\n')).toContain('Finish page');
   });
 });

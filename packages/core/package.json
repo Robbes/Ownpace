@@ -7,7 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./cutover-state": "./src/cutover-state.ts",
-    "./cutover-rollback": "./src/cutover-rollback.ts",
+    "./cutover-lifecycle": "./src/cutover-lifecycle.ts",
     "./secret-store": "./src/secret-store.ts",
     "./secrets": "./src/secrets.ts",
     "./archive-reader": "./src/archive-reader.ts"

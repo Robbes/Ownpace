@@ -136,14 +136,23 @@ pnpm exec tsx apps/worker/src/cli/index.ts execute \
 
 Requires state `APPROVED`. This will:
 
-1. Transition to `CUTOVER_IN_PROGRESS`.
-2. Print **`MANUAL STEP REQUIRED`** — the command does **not** change DNS.
+1. **Stop the shadow sync**: the mapping goes `active` (or `paused`) → `cutover`,
+   recorded in `audit_log` — no pass runs after this, and the source is no
+   longer the authority on what exists ([ADR-0048](./adr/0048-the-mapping-hears-the-cutover.md)).
+   A `continuous` mapping keeps copying, by design; a `done` one is left alone
+   with a warning that a rollback will be refused for it. Without `--yes` the
+   command prints what it would do to *this* mapping and exits.
+2. Transition to `CUTOVER_IN_PROGRESS` — after the mapping, so a failure between
+   the two leaves a state a re-run finishes.
+3. Print **`MANUAL STEP REQUIRED`** — the command does **not** change DNS.
    Point the domain's MX record at the target now (records in the generated
    DNS runbook).
-3. Poll for propagation of your change (up to 10 attempts, 30s intervals).
-4. On confirmation, transition to **`GRACE_PERIOD`** — not COMPLETED; the
+4. Poll for propagation of your change (up to 10 attempts, 30s intervals).
+5. On confirmation, transition to **`GRACE_PERIOD`** — not COMPLETED; the
    grace window is a real state and rollback is still possible from it.
-5. On propagation timeout, transition to `FAILED` (retry or roll back).
+6. On propagation timeout, transition to `FAILED`. The mapping stays `cutover`
+   — whether the MX record moved is exactly what is unknown, so no pass runs;
+   `rollback --yes` puts it back to syncing.
 
 ### Complete cutover (after the grace period)
 
@@ -157,7 +166,11 @@ pnpm exec tsx apps/worker/src/cli/index.ts complete \
 
 Requires state `GRACE_PERIOD`. Marks the cutover `COMPLETED` — terminal;
 `rollback` is no longer accepted afterwards, so run this only when the grace
-window is genuinely over.
+window is genuinely over. A mapping still `active` (a cutover executed before
+ADR-0048) is stopped on the way, so nothing keeps syncing behind a closed
+ledger. **This closes the cutover ledger, not the migration**: the mapping
+stays `cutover`, and finishing it (`done`, which checks unresolved failures)
+or keeping it copying (`continuous`) is the Finish page's decision.
 
 ### Rollback cutover
 
