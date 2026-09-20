@@ -302,6 +302,14 @@ One check remains open from the proposal and is the first gate of workplan 0089 
 classification of `.../auth/carddav` and `.../auth/caldav` (sensitive vs restricted), which
 decides whether the cheap slice is cheap. It needs a browser this sandbox has not got.
 
+**Closed 2026-09-20.** The owner read the console's *Data Access* page: `.../auth/carddav` is
+**sensitive**; `.../auth/calendar.readonly` is **sensitive** and listed under the CalDAV API;
+`drive.readonly` and every Gmail scope, `https://mail.google.com/` included, are **restricted**.
+The cheap slice is cheap. There is no `.../auth/caldav` scope — the calendar scope the product
+asks for is `.../auth/calendar`, and whether the read-only sibling suffices over CalDAV is now
+a Stage 6 question. The page, as displayed, is copied into
+[`docs/google-oauth-verification.md`](../google-oauth-verification.md) §2.
+
 ### 1. Not in the appliance. Ever.
 
 An appliance is software the customer runs. Embedding Ownpace's client secret in it means
@@ -344,6 +352,9 @@ actually uses for contacts and calendar — is **not verified here** and is the 
 check when this ADR is picked up, because it is the difference between a free path and a paid
 one. Google's own scope list is the source; this sandbox's egress proxy blocks
 `support.google.com`, so it could not be read while writing this.
+
+**Read 2026-09-20 from the console** (see the Decision section above): carddav and the read-only
+calendar scope are sensitive, Drive and every Gmail scope are restricted. The table above holds.
 
 So the order is cheapest-first: **contacts and calendar on the managed client, mail and files
 left bring-your-own** until somebody has actually decided to pay for an assessment. A tier that

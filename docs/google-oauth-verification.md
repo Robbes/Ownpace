@@ -16,6 +16,8 @@ in the managed edition only.
 > proxy**, so no clause on this page was read from Google. Everything below is either (a) a
 > fact about Ownpace, which is checkable here, or (b) a claim about Google's requirements,
 > which is **marked and must be re-read from the live page** before a submission is prepared.
+> One exception since 2026-09-20: the scope classes in §2 were read by the owner from the
+> project's own console page, and are marked as such.
 >
 > The house rule from ADR-0029 applies: an unverified thing is stated, never implied away.
 
@@ -50,10 +52,42 @@ listed there.
 | **sensitive** | contacts, calendar | brand verification: privacy policy, domain ownership, demo video, review |
 | **restricted** | Gmail `https://mail.google.com/`, Drive `drive.readonly` | the above **plus an annual third-party security assessment** |
 
-⚠️ **UNVERIFIED — check first.** The classification of `.../auth/carddav` and `.../auth/caldav`
-specifically, which are the two scopes this product actually uses for contacts and calendar
-(`packages/orchestration/src/google-dav-source-factory.ts:35,37`). This is the difference
-between the free path and the paid one and it is the single highest-value thing to confirm.
+✅ **Verified 2026-09-20, from the console itself.** The owner read the project's *Google Auth
+Platform → Data Access* page, which sorts every declared scope into a class. What it showed,
+copied as displayed:
+
+| console section | API column | scope |
+|---|---|---|
+| Your non-sensitive scopes | — | *(no rows)* |
+| **Your sensitive scopes** | CalDAV API | `.../auth/calendar.readonly` |
+| **Your sensitive scopes** | Google Contacts CardDAV API | `.../auth/carddav` |
+| **Your restricted scopes** — Drive | Google Drive API | `.../auth/drive.readonly` |
+| **Your restricted scopes** — Gmail | Gmail API | `https://mail.google.com/`, `.../auth/gmail.messages.readonly` |
+| **Your restricted scopes** — Gmail | *(blank)* | `.../auth/gmail.readonly`, `.../auth/gmail.metadata` |
+
+So the cheap slice is cheap: contacts (`.../auth/carddav`, the scope
+`GOOGLE_CARDDAV_SCOPE` in `packages/orchestration/src/google-dav-source-factory.ts`) is
+**sensitive**, and Drive and every Gmail scope — including the `https://mail.google.com/` the
+IMAP door needs — are **restricted**, exactly as the table above assumed.
+
+Two things the page did **not** settle, stated rather than implied away:
+
+- The calendar scope the product asks for is the full `.../auth/calendar`
+  (`GOOGLE_CALDAV_SCOPE`), and that one was not on the page; its read-only sibling
+  `.../auth/calendar.readonly` landed in *sensitive* under the same API. Before a submission,
+  add the full scope and read its row — or narrow the product to read-only, which is the
+  better outcome and is now a Stage 6 question in `docs/owner-test-runbook.md`: the console
+  listing `calendar.readonly` **under the CalDAV API** suggests Google's CalDAV endpoint
+  accepts it, and this product never writes a source.
+- There is no `.../auth/caldav` scope. Older notes (ADR-0041, workplan 0089) use that name
+  for the calendar scope; the product has always asked for `.../auth/calendar`.
+
+Two Gmail rows on the page, `gmail.readonly` and `gmail.metadata`, are REST scopes the product
+never requests. They should be removed before a submission: any Gmail scope on the declared
+list brings the assessment with it. **A console note for whoever edits that page:** scopes
+picked in *Add or remove scopes* are only staged by its *Update* button; they vanish on a
+refresh unless the page's own **Save** at the bottom is pressed afterwards, which is how the
+list kept collapsing back to the two Gmail rows.
 
 ADR-0041's ordering follows from the table: contacts and calendar first, personal mail via an
 app password (0089 T7), and **Drive as the only product an assessment could be worth buying
