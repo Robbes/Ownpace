@@ -1,6 +1,6 @@
-# ADR-0014: Cost-recovery billing (no profit) for the managed edition
+# ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers) and **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6). The 2026-08-20 amendment note follows: the model changed from metered
+- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers) and **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6); **retitled 2026-09-20** (owner) — "(no profit)" dropped from the title, since the tiers cross-subsidise by design (the 2026-08-20 amendment) and a title that said otherwise was the last place the old model lived. The 2026-08-20 amendment note follows: the model changed from metered
   resources to five tiers on paths running at the same time, and "no profit" no longer
   describes it. Owner decision in conversation; workplan 0088's blocking T1.
 - **Date:** 2026-06-20

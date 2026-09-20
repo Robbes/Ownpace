@@ -1,6 +1,6 @@
 # Workplan 0092 — what one live sync said
 
-## Status — 2026-08-22 (update this block at the end of every session)
+## Status — 2026-09-20 (update this block at the end of every session)
 
 | Task | Status | Evidence |
 |---|---|---|
@@ -10,7 +10,7 @@
 | T3 A cadence is not a delay | ✅ **Done 2026-08-22** | Activation now runs the first pass in **both** editions. Appliance: `apps/selfhost/src/first-pass-on-activation.unit.test.ts` proves it on a schedule (`0 5 31 2 *`, the 31st of February) that can never fire, so the run row it asserts could only have come from the activation. Managed: `POST /:mappingId/start` enqueues `run-delta-sync` on the transition into `active`, `concurrencyKey: mappingId` (the tick's own key), reported as `firstRun` on the response. Wizard copy says so, EN and NL. |
 | T5 The create path nothing had ever run | ✅ **Written 2026-08-22, not yet run** | `packages/connectors/src/jmap-mailbox-creation.integration.test.ts` — 4 cases against a real Stalwart. Every existing integration test that touched `ensureMailbox` passed it `INBOX`, so all of them exercised ADOPTION and none exercised CREATION; that is the gap T2 lived in. Mailbox assertions go over **IMAP**, deliberately — asking JMAP whether JMAP did the right thing lets one wrong id agree with itself. Needs docker: not run in this sandbox. |
 | T6 The choice the JMAP target ignored | ✅ **Done 2026-08-22, proven on a real Stalwart** | `targetFolderPrefix` (owner decision 2026-08-16) is offered by the wizard, validated, stored and honoured by the IMAP and WebDAV targets — and silently dropped by JMAP, which read `folder.name` before `folder.path` where they read `path` first, and never sent a `parentId`. Probed against the real code path before touching it: prefixed `Sent` returned the account's ROOT Sent with no `Mailbox/set` at all; prefixed `Projects` was created at the root with no `Gmail` above it. JMAP now walks the tree, and a source hierarchy nests instead of flattening (`Archive/2024` was becoming a root mailbox called `2024`). 6 more unit cases, 2 more integration cases. |
-| T4 A front door with nothing behind it | 📋 Planned (**owner decision**, see below) | `site/build.mjs:412` — the site's only CTA is `mailto:`. `apps/web/src/pages/Login.tsx:44` — the app's sign-in is a textarea you paste a JWT into. `apps/api/src/routes/tenants/index.ts:110` — `POST /api/tenants` answers **501** by design. The only path from visitor to account is the owner running `deploy/compose/seed-managed.sh` and emailing a token that expires in 7 days. |
+| T4 A front door with nothing behind it | 📋 **Answered in 0086 (2026-08-18)** — request access, the owner provisions; self-serve later. The build is 0086 T1/T4, owner-gated | `site/build.mjs:412` — the site's only CTA is `mailto:`. `apps/web/src/pages/Login.tsx:44` — the app's sign-in is a textarea you paste a JWT into. `apps/api/src/routes/tenants/index.ts:110` — `POST /api/tenants` answers **501** by design. The only path from visitor to account is the owner running `deploy/compose/seed-managed.sh` and emailing a token that expires in 7 days. |
 
 ## Why this exists
 
@@ -152,6 +152,10 @@ missing is four things, and only the last one is a decision:
 > pick a tier → pay → tenant provisioned → signed in), or do they **request access** and
 > the owner provisions them (site CTA → a real form → an invite email → the customer sets
 > up their own sign-in against the IdP)?
+>
+> **Answered 2026-08-18, in workplan 0086:** request access, the owner provisions; self-serve
+> signup becomes a workplan once demand is real. Recorded here 2026-09-20, so this row stops
+> asking a question already answered.
 
 They share items 1–3 and differ in everything after. Self-service is the arch doc's
 "self-service onboarding" (§4) and needs ADR-0014's five tiers wired to a Mollie checkout

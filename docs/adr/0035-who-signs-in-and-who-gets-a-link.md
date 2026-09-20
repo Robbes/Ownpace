@@ -1,6 +1,7 @@
 # ADR-0035: Who signs in, and who just gets a link
 
-- **Status:** Proposed — but the substance below was decided by the owner on 2026-08-17 in
+- **Status:** Accepted 2026-09-20 (owner: "yes on all 3"; the 1/7/30-day link expiry presets
+  stand). Proposed until then — but the substance below was decided by the owner on 2026-08-17 in
   conversation: (a) **only the migrated person holds their own source credential, never the
   organisation**; (b) migrated people get **links, not accounts**; (c) an admin — a parent, a
   small-business owner — **must see the progress of everyone in their family or
@@ -12,7 +13,7 @@
   sharpens who holds the initiative: **the owner is the only party who signs in**, and the
   link is not merely a status view — it is how the migrated person GRANTS their own
   migration, which is the only place their source credential is ever handled. The formal
-  accept/reject of the reasoning and consequences is still outstanding, and is deliberately
+  accept/reject of the reasoning and consequences was outstanding until 2026-09-20, and was deliberately
   NOT being inferred from this restatement — see ADR-0034's correction for why an
   unstated answer must never be recorded as one.
 - **Date:** 2026-08-17
@@ -35,7 +36,7 @@
 - **Owners sign in; migrated people get links, not accounts** — and the owner decides who gets a link to manage and **grant** their own migration (restated 2026-08-19).
 - Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
 - `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
-- Still open: the formal accept/reject of this ADR's reasoning and consequences.
+- Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
 
 ## Context
 

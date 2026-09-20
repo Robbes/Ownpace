@@ -1,6 +1,7 @@
 # ADR-0034: Personal, Organisation, Managed — naming the deployments, and giving each the configuration door it needs
 
-- **Status:** Proposed — the decisions below await an accept/reject, but two inputs to them
+- **Status:** Accepted 2026-09-20 — the owner's formal accept ("yes on all 3"); nothing below
+  changes. Proposed until then: the decisions below awaited an accept/reject, but two inputs to them
   are settled owner decisions (2026-08-17): the **names** in decision 1 (Personal /
   Organisation / Managed, with edition left as ADR-0003 defined it), and that an
   Organisation deployment's ~1000 is **migrated accounts operated by a small admin team**,
@@ -33,7 +34,7 @@
 - No two-door merge machinery (no ownership column, no collision check). File-seeded rows record their origin path; Organisation's UI shows file topology read-only, naming the file.
 - The deployment mode is **explicit** (Personal default); contradictions refuse loudly (Personal+files at start; Organisation topology writes via UI/API). Deleting a file-declared connection revokes/parks its stored credential.
 - Authentication is a prerequisite for Organisation (decision 6, restated by ADR-0035).
-- Still open: the formal accept/reject of this ADR's surrounding reasoning.
+- Formally accepted 2026-09-20 (owner: "yes on all 3"); the reasoning and consequences stand as written.
 
 ## Context
 
