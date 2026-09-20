@@ -35,8 +35,6 @@ import { sql } from 'drizzle-orm';
 import {
   pruneRunEvents,
   pruneRuns,
-  prunePreflightCounts,
-  preflightRetentionDaysFromEnv,
   retentionDaysFromEnv,
   runRetentionDaysFromEnv,
   type PgDatabase,
@@ -93,23 +91,6 @@ export const managedRetention = schedules.task({
         (runsMoreRemaining ? '; the batch ceiling stopped this pass, the next continues.' : '.'),
     );
 
-    // A stranger's counts (workplan 0088 T6, owner 2026-09-20: seven days).
-    // The invoiced tenants are customers whatever the ledger says — a
-    // customer whose runs were pruned to an invoice has no run rows left and
-    // would otherwise read as somebody who never started. The same rows this
-    // job just used to bound the run prune are the proof, so the list is
-    // built once and passed rather than re-derived.
-    const preflightDays = preflightRetentionDaysFromEnv(process.env.PREFLIGHT_RETENTION_DAYS);
-    const preflight = await prunePreflightCounts(db, now, {
-      olderThanDays: preflightDays,
-      customerTenantIds: (billed.rows ?? []).map((row) => row.tenant_id),
-    });
-    log.info(
-      `[retention] deleted ${preflight.deleted} preflight count row(s) of people who never became customers, ` +
-        `older than ${preflight.cutoff.toISOString()} (${preflightDays}d)` +
-        (preflight.moreRemaining ? '; the batch ceiling stopped this pass, the next continues.' : '.'),
-    );
-
     if (result.moreRemaining) {
       // Said out loud rather than left to look like a quiet success: the first
       // pass over a database that has never been pruned will hit the ceiling,
@@ -130,8 +111,6 @@ export const managedRetention = schedules.task({
       days,
       runsDeleted,
       runDays,
-      preflightDeleted: preflight.deleted,
-      preflightDays,
     };
   },
 });

@@ -137,7 +137,7 @@ export const COPY = {
       untilHint:
         'Duration is a choice, not a prediction: the migration keeps your copy in step until you cut over, and the recurring part of the price is yours to end.',
       kept:
-        'The free preflight that follows keeps counts, sizes and per-folder totals — never an inventory of your items — and if you never become a customer, deletes them after seven days.',
+        'The free preflight that follows keeps counts, sizes and per-folder totals — never an inventory of your items — and keeps them with your migration, never longer than your account.',
       pathsNone: 'Tick what is moving and the count appears here.',
       pathsOne: '{0} — that is one migration.',
       pathsMany: '{0}, for {1} — that is {2} migrations at the same time.',
@@ -273,7 +273,7 @@ export const COPY = {
       untilHint:
         'De duur is een keuze, geen voorspelling: de verhuizing houdt uw kopie bij tot u overstapt, en het terugkerende deel van de prijs beëindigt u zelf.',
       kept:
-        'De gratis preflight die volgt bewaart aantallen, omvang en totalen per map — nooit een inventaris van uw items — en wordt u geen klant, dan verwijdert hij ze na zeven dagen.',
+        'De gratis preflight die volgt bewaart aantallen, omvang en totalen per map — nooit een inventaris van uw items — en bewaart ze bij uw verhuizing, nooit langer dan uw account.',
       pathsNone: 'Vink aan wat er verhuist en de telling verschijnt hier.',
       pathsOne: '{0} — dat is één verhuizing.',
       pathsMany: '{0}, voor {1} — dat zijn {2} verhuizingen tegelijk.',
