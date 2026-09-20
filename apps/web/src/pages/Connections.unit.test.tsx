@@ -528,6 +528,52 @@ describe('deleting a connection', () => {
     expect(screen.queryByText(/still used by 1 mailbox/)).toBeNull();
   });
 
+  it('says what happened to the grant when the delete goes through: revoked', async () => {
+    // A deleted copy of a live grant is not a revoked grant (2026-09-20). The
+    // route now revokes and answers with the outcome; the row is gone after the
+    // refetch, so the sentence lives on the page and outlives it.
+    list.mockResolvedValue([conn({})]);
+    remove.mockResolvedValue({
+      deleted: true,
+      id: 'c1',
+      revocation: { kind: 'google', status: 'revoked' },
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Delete'));
+
+    expect(await screen.findByText(new RegExp(STRINGS.en['connections.removed.revoked']))).toBeTruthy();
+    expect(screen.getByText(new RegExp(STRINGS.en['connections.removed.done']))).toBeTruthy();
+  });
+
+  it('does not soften a failed revocation: our frame, then the provider\'s reason verbatim', async () => {
+    list.mockResolvedValue([conn({})]);
+    remove.mockResolvedValue({
+      deleted: true,
+      id: 'c1',
+      revocation: { kind: 'google', status: 'failed', reason: 'Google answered 503 to the revocation.' },
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Delete'));
+
+    const sentence = await screen.findByText(/Google answered 503/);
+    expect(sentence.textContent).toContain(STRINGS.en['connections.removed.failed']);
+    expect(screen.queryByText(new RegExp(STRINGS.en['connections.removed.revoked']))).toBeNull();
+  });
+
+  it('says nothing about the grant when an older server answers 204', async () => {
+    list.mockResolvedValue([conn({})]);
+    remove.mockResolvedValue(null);
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Delete'));
+
+    expect(await screen.findByText(new RegExp(STRINGS.en['connections.removed.done']))).toBeTruthy();
+    expect(screen.queryByText(new RegExp(STRINGS.en['connections.removed.revoked']))).toBeNull();
+    expect(screen.queryByText(new RegExp(STRINGS.en['connections.removed.failed']))).toBeNull();
+  });
+
   it("refuses while anything uses it, and names what — not a flat no", async () => {
     // The cascade is the reason: mailbox.connection_id cascades and item hangs
     // off the mailboxes, so deleting one in use would take the migration

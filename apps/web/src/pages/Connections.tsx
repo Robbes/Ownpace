@@ -30,6 +30,7 @@ import {
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { frontDoorCards } from '../components/front-door-cards.ts';
 import {
+  type ConnectionDeleted,
   connectionsApi,
   type ConnectionSummary,
   type TestConnectionResult,
@@ -149,10 +150,17 @@ const StatusIcon: React.FC<{ status: ConnectionSummary['status'] }> = ({ status 
   return <HelpCircle className="w-4 h-4 text-gray-400" />;
 };
 
-const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = ({
-  connection,
-  onChanged,
-}) => {
+const Row: React.FC<{
+  connection: ConnectionSummary;
+  onChanged: () => void;
+  /**
+   * A delete that went through, with what happened to the grant behind it.
+   * Lifted to the page rather than shown here: `onChanged` refetches the list
+   * and this row is gone with it, and the one sentence that matters — "we
+   * could not revoke it, withdraw it yourself" — must outlive the row.
+   */
+  onRemoved: (answer: ConnectionDeleted | null) => void;
+}> = ({ connection, onChanged, onRemoved }) => {
   const { t, locale } = useLocale();
   const { relativeToNow } = useFormatters();
   const [testing, setTesting] = React.useState(false);
@@ -217,7 +225,8 @@ const Row: React.FC<{ connection: ConnectionSummary; onChanged: () => void }> = 
     setTesting(true);
     setResult(null);
     try {
-      await connectionsApi.remove(connection.id);
+      const answer = await connectionsApi.remove(connection.id);
+      onRemoved(answer);
       onChanged();
     } catch (err) {
       setResult({ ok: false, reason: refusalText(err) });
@@ -831,12 +840,37 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   );
 };
 
+/**
+ * The sentence for a delete that went through (2026-09-20).
+ *
+ * The frame is ours and translated; the provider's reason, when there is one,
+ * is the finding and renders verbatim after it (prose boundary class 2, as the
+ * in-use refusal above). `failed` is the sentence that matters and must not be
+ * softened: somebody who reads it goes and withdraws the access themselves.
+ */
+function removalText(t: ReturnType<typeof useT>, answer: ConnectionDeleted | null): { text: string; tone: string } {
+  if (!answer) return { text: '', tone: 'text-gray-700 bg-gray-50 border-gray-200' };
+  const { status, reason } = answer.revocation;
+  const withReason = (frame: string): string => (reason ? `${frame} ${reason}` : frame);
+  switch (status) {
+    case 'revoked':
+      return { text: t('connections.removed.revoked'), tone: 'text-green-800 bg-green-50 border-green-200' };
+    case 'failed':
+      return { text: withReason(t('connections.removed.failed')), tone: 'text-amber-900 bg-amber-50 border-amber-200' };
+    case 'unsupported':
+      return { text: withReason(t('connections.removed.unsupported')), tone: 'text-gray-700 bg-gray-50 border-gray-200' };
+    case 'no_credential':
+      return { text: t('connections.removed.none'), tone: 'text-gray-700 bg-gray-50 border-gray-200' };
+  }
+}
+
 const Connections: React.FC = () => {
   const t = useT();
   const { data, isLoading, error, refetch } = useQuery<ConnectionSummary[]>({
     queryKey: ['connections'],
     queryFn: connectionsApi.list,
   });
+  const [removed, setRemoved] = React.useState<{ name: string; answer: ConnectionDeleted | null } | null>(null);
 
   if (isLoading) return <div className="p-6 text-gray-500">{t('common.loading')}</div>;
   if (error) return <div className="p-6 text-red-700">{serverMessage(error)}</div>;
@@ -851,6 +885,16 @@ const Connections: React.FC = () => {
 
       <AddConnection onAdded={() => void refetch()} />
 
+      {removed && (
+        <div
+          role="status"
+          className={`mt-4 text-sm border rounded p-2 ${removalText(t, removed.answer).tone}`}
+        >
+          <strong>{removed.name}</strong> {t('connections.removed.done')}{' '}
+          <span>{removalText(t, removed.answer).text}</span>
+        </div>
+      )}
+
       {(data ?? []).length === 0 ? (
         <p className="mt-6 text-gray-600">{t('connections.none')}</p>
       ) : (
@@ -858,14 +902,24 @@ const Connections: React.FC = () => {
           <h3 className="mt-6 font-medium text-gray-900">{t('connections.sources')}</h3>
           <ul className="mt-2 space-y-3">
             {sources.map((c) => (
-              <Row key={c.id} connection={c} onChanged={() => void refetch()} />
+              <Row
+                key={c.id}
+                connection={c}
+                onChanged={() => void refetch()}
+                onRemoved={(answer) => setRemoved({ name: c.displayName, answer })}
+              />
             ))}
           </ul>
 
           <h3 className="mt-6 font-medium text-gray-900">{t('connections.targets')}</h3>
           <ul className="mt-2 space-y-3">
             {targets.map((c) => (
-              <Row key={c.id} connection={c} onChanged={() => void refetch()} />
+              <Row
+                key={c.id}
+                connection={c}
+                onChanged={() => void refetch()}
+                onRemoved={(answer) => setRemoved({ name: c.displayName, answer })}
+              />
             ))}
           </ul>
         </>

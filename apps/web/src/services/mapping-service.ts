@@ -1056,6 +1056,27 @@ export interface ConnectionSummary {
   standingFailures?: StandingFailure[];
 }
 
+/**
+ * What happened to the credential at the PROVIDER when we let go of our copy
+ * (workplan 0085 T4a's vocabulary, now on the everyday delete too). Only
+ * `revoked` means the grant is dead; `failed` means the person must withdraw
+ * it themselves; `unsupported` means the provider offers no revocation we can
+ * call and `reason` says so; `no_credential` means nothing was stored.
+ */
+export interface RevocationOutcome {
+  kind: string;
+  status: 'revoked' | 'failed' | 'unsupported' | 'no_credential';
+  reason?: string;
+}
+
+/** The answer to a delete that went through. */
+export interface ConnectionDeleted {
+  deleted: true;
+  id: string;
+  displayName?: string;
+  revocation: RevocationOutcome;
+}
+
 export const connectionsApi = {
   /**
    * Add a connection without creating a mapping. Which fields to send comes
@@ -1089,9 +1110,16 @@ export const connectionsApi = {
    * Delete a connection. The server REFUSES while anything uses it, because
    * mailbox rows cascade and would take the migration ledger with them; the
    * refusal names which migrations, so it is actionable.
+   *
+   * Since 2026-09-20 a delete that goes through also revokes the grant at the
+   * provider where one can be revoked, and answers with what happened — the
+   * page says it, because a deleted copy of a live grant is not a revoked
+   * grant. `null` is an older server that still answers 204 and says nothing.
    */
-  remove: async (id: string): Promise<void> => {
-    await apiClient.delete(`/connections/${encodeURIComponent(id)}`);
+  remove: async (id: string): Promise<ConnectionDeleted | null> => {
+    const response = await apiClient.delete(`/connections/${encodeURIComponent(id)}`);
+    const data = response.data as ConnectionDeleted | undefined | '';
+    return response.status === 200 && data && typeof data === 'object' && 'revocation' in data ? data : null;
   },
   list: async (): Promise<ConnectionSummary[]> => {
     const response = await apiClient.get('/connections');

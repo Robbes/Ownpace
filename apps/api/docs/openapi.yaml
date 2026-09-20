@@ -1448,11 +1448,21 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
-        '204': { description: Deleted. }
+        '200':
+          description: |
+            Deleted. Our copy of the credential is gone and — where the provider
+            has a revocation we can call, which today means Google's refresh
+            tokens — the grant itself was revoked. `revocation` says which,
+            because a deleted copy of a live grant is not a revoked grant, and
+            the privacy text promises revocation where the provider supports it.
+            Until 2026-09-20 this answered 204 and revoked nothing.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConnectionDeleted' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: No such connection for this tenant. }
         '409':
-          description: Still in use; the reason names how many and which migrations.
+          description: Still in use; the reason names how many and which migrations. Nothing is revoked on a refusal — the connection stays, and must keep working.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -4683,6 +4693,32 @@ components:
           type: string
           examples: ['Mapping is paused — review the discovery counts and start it first (POST /start).']
       required: [error, message]
+
+    ConnectionDeleted:
+      type: object
+      description: The answer to a delete that went through, with what happened to the grant behind it.
+      properties:
+        deleted: { type: boolean, enum: [true] }
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        revocation: { $ref: '#/components/schemas/RevocationOutcome' }
+      required: [deleted, id, revocation]
+
+    RevocationOutcome:
+      type: object
+      description: |
+        What happened to the credential at the PROVIDER when we let go of our
+        copy. `revoked` is the only status that means the grant is dead.
+        `failed` means we tried and could not, so the person must withdraw it
+        themselves. `unsupported` means this provider offers no revocation we
+        can call — a password is revoked by changing it, Microsoft publishes no
+        endpoint — and `reason` says so. `no_credential` means nothing was
+        stored to revoke.
+      properties:
+        kind: { type: string, examples: [google] }
+        status: { type: string, enum: [revoked, failed, unsupported, no_credential] }
+        reason: { type: string }
+      required: [kind, status]
 
     Health:
       type: object

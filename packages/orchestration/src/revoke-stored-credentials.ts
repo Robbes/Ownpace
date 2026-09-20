@@ -63,10 +63,66 @@ export interface QueryableForRevocation {
   query<T>(text: string, params: unknown[]): Promise<{ rows: T[] }>;
 }
 
-interface CredentialRow {
+/**
+ * One stored credential, as the two columns hold it. Exported because the
+ * everyday delete button (below) reads its one row through the API's own
+ * tenant-scoped connection and hands it here, rather than this module reaching
+ * past row security for it.
+ */
+export interface StoredCredentialRow {
   readonly kind: string;
   readonly secret_ref: string | null;
   readonly legacy_credentials: string | null;
+}
+
+/** @deprecated alias kept for the one file that named it; use StoredCredentialRow. */
+type CredentialRow = StoredCredentialRow;
+
+/**
+ * Revoke ONE stored credential and say what happened (the per-row half of
+ * `revokeStoredCredentials`, shared with the delete route since 2026-09-20).
+ *
+ * ## Why the delete button needed this
+ *
+ * `DELETE /api/connections/:id` deleted our copy and never called this
+ * module, while the privacy text promised, for exactly that press, that the
+ * credential is *destroyed, and the grant revoked where the provider supports
+ * it*. So a customer who deleted a Google connection left a live refresh token
+ * at Google with nobody holding it — the gap this module was written to close
+ * for the erasure path, open on the everyday path. The route now reads the row
+ * inside its own tenant transaction, deletes, and hands the row here AFTER the
+ * delete has gone through: a refused delete (409, the connection is in use)
+ * must leave a working credential in place, and a network call must not hold
+ * a tenant transaction open.
+ *
+ * Never throws; every failure is an outcome with its reason, for the same
+ * reason the tenant-wide function never throws.
+ */
+export async function revokeCredentialRow(
+  row: StoredCredentialRow,
+  revoker: TokenRevoker,
+): Promise<RevocationOutcome> {
+  const stored = row.secret_ref ?? row.legacy_credentials;
+  if (!stored) {
+    return {
+      kind: row.kind,
+      status: 'no_credential',
+      reason: 'No credentials were stored for this connection.',
+    };
+  }
+  let credentials: Record<string, string>;
+  try {
+    credentials = SecretStore.decryptCredentials(stored);
+  } catch (err) {
+    return {
+      kind: row.kind,
+      status: 'failed',
+      reason: `Stored credentials could not be decrypted, so nothing could be revoked: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+  return revoker.revoke({ kind: row.kind, credentials });
 }
 
 /**
@@ -114,30 +170,6 @@ export async function revokeStoredCredentials(
   );
 
   const outcomes: RevocationOutcome[] = [];
-  for (const row of rows) {
-    const stored = row.secret_ref ?? row.legacy_credentials;
-    if (!stored) {
-      outcomes.push({
-        kind: row.kind,
-        status: 'no_credential',
-        reason: 'No credentials were stored for this connection.',
-      });
-      continue;
-    }
-    let credentials: Record<string, string>;
-    try {
-      credentials = SecretStore.decryptCredentials(stored);
-    } catch (err) {
-      outcomes.push({
-        kind: row.kind,
-        status: 'failed',
-        reason: `Stored credentials could not be decrypted, so nothing could be revoked: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      });
-      continue;
-    }
-    outcomes.push(await revoker.revoke({ kind: row.kind, credentials }));
-  }
+  for (const row of rows) outcomes.push(await revokeCredentialRow(row, revoker));
   return outcomes;
 }
