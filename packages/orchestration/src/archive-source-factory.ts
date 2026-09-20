@@ -28,10 +28,17 @@ import {
   archiveProviderName,
   parseArchiveSource,
   type ArchiveProvider,
+  type ArchiveSource,
   type FileSource,
 } from '@openmig/shared';
 import type { ArchiveReader } from '@openmig/core/archive-reader';
-import { ArchiveFileSource, createTakeoutArchiveReader, type ArchiveStore } from '@openmig/connectors';
+import {
+  ArchiveFileSource,
+  createTakeoutArchiveReader,
+  webdavStore,
+  type ArchiveStore,
+} from '@openmig/connectors';
+import type { DavEndpoint } from './dav-factories.ts';
 
 /**
  * The `connection.kind` an archive row carries (migration 0039).
@@ -98,13 +105,18 @@ export function archiveProvidersWithReaders(): ReadonlyArray<ArchiveProvider> {
  * the `path` is this mapping's archive — the next export in a series — while
  * `provider` stays the connection's (`sourceConfigOverride` keeps it out of
  * the override for exactly that reason).
+ *
+ * `targetStore` is how this migration's own file target becomes readable, for
+ * an archive whose `where` says it is in there (0116 T4, the relay). A thunk,
+ * so a mapping that never says `target` is never refused for a target it does
+ * not read from — see {@link storeFor}.
  */
 export function buildArchiveSourceFrom(
   config: Record<string, unknown>,
-  options: { readonly store?: ArchiveStore } = {},
+  options: { readonly targetStore?: () => ArchiveStore } = {},
 ): FileSource {
   const location = parseArchiveSource(config);
-  const reader = archiveReaderFor(location.provider, options.store);
+  const reader = archiveReaderForLocation(location, options.targetStore);
   if (!reader) {
     throw new Error(
       `No reader is built for ${archiveProviderName(location.provider)} exports yet, so this ` +
@@ -113,4 +125,84 @@ export function buildArchiveSourceFrom(
     );
   }
   return new ArchiveFileSource(reader, location);
+}
+
+/**
+ * THE ARCHIVE'S OWN FILE TARGET, AS A STORE (workplan 0116 T4, the relay).
+ *
+ * The relay puts the parts of a download in the customer's own file target
+ * and the pass reads them there. What "there" resolves to is already solved
+ * for every target this product writes to: `fileEndpointFromCreds` is what
+ * the file domain itself aims at, `fileBaseUrl` and all. So this takes that
+ * same endpoint and hands it to the store — and in doing so it holds the
+ * owner's constraint of 2026-09-20 (*"we do however have to anticipate
+ * people might have other targets then nextcloud for files or photo's"*):
+ * nothing here asks which product answers the URL. PROPFIND, GET and `Range`
+ * are WebDAV.
+ *
+ * A target this product writes over JMAP is the one that cannot serve this,
+ * and it is refused BY SENTENCE rather than by a store that answers "absent"
+ * to every path — which is the difference between *this destination cannot
+ * hand us bytes by range* and *your export is not there*, and only one of
+ * those can be acted on.
+ */
+export function archiveStoreInTarget(
+  protocol: 'webdav' | 'jmap',
+  endpoint: DavEndpoint,
+  targetKind: string,
+): ArchiveStore {
+  if (protocol !== 'webdav') {
+    throw new Error(
+      `This migration's file target is a ${targetKind} account, which this product writes to over ` +
+        'JMAP — and an archive is read by asking for byte ranges of a file, which JMAP does not ' +
+        'offer. Nothing is wrong with the export: either point this archive at a path on the ' +
+        'machine running the pass, or give the migration a file target that speaks WebDAV.',
+    );
+  }
+  return webdavStore(endpoint);
+}
+
+/**
+ * The reader for a PARSED location, opened through the store that location
+ * names — the one door the pass, the probe and the qualification share.
+ *
+ * `archiveReaderFor` takes a provider and a store and asks no questions;
+ * this takes the location and answers the question `where` poses, so that
+ * three callers cannot each decide it differently. Undefined for an export
+ * with no reader built, exactly as `archiveReaderFor` is; it THROWS for a
+ * location inside a target that is not in hand, because that is not a missing
+ * reader — it is a reader with nothing to read through, and the sentence
+ * `storeFor` writes is the one a person can act on.
+ */
+export function archiveReaderForLocation(
+  location: ArchiveSource,
+  targetStore?: () => ArchiveStore,
+): ArchiveReader | undefined {
+  return archiveReaderFor(location.provider, storeFor(location, targetStore));
+}
+
+/**
+ * Which store the location names, or `undefined` for the machine's own disk.
+ *
+ * `where` is the whole of the decision (see `ArchiveSource.where`) and the
+ * default is `disk`, so a mapping written before the relay existed keeps
+ * meaning what it meant. The caller passes a THUNK rather than a store
+ * because building one can refuse — a JMAP target cannot serve a range — and
+ * a mapping that never says `target` must not be refused for a target it
+ * never asked to read from.
+ */
+function storeFor(
+  location: ArchiveSource,
+  targetStore: (() => ArchiveStore) | undefined,
+): ArchiveStore | undefined {
+  if (location.where !== 'target') return undefined;
+  if (!targetStore) {
+    throw new Error(
+      'This archive says it is inside the migration\'s own file target, but it is being opened ' +
+        'without one — a connection test, or a surface that has no migration in hand. The ' +
+        'archive is readable; there is just nothing here yet to read it THROUGH. Its contents ' +
+        'are counted at the preflight, once the migration names where it writes.',
+    );
+  }
+  return targetStore();
 }

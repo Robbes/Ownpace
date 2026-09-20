@@ -76,7 +76,7 @@ export class WebdavFileSource implements FileSource {
     deps?: { httpClient?: HttpClient },
   ) {
     this.config = config;
-    this.httpClient = deps?.httpClient ?? createDefaultHttpClient();
+    this.httpClient = deps?.httpClient ?? createFileHttpClient();
   }
 
   /**
@@ -898,7 +898,23 @@ export class WebdavFileSource implements FileSource {
  */
 export { STREAM_FILES_LARGER_THAN_BYTES } from '@openmig/shared';
 
-function createDefaultHttpClient(): HttpClient {
+/**
+ * THE CLIENT THAT CARRIES FILES — exported, unlike its six namesakes.
+ *
+ * Every DAV and Graph connector in this package has a private default client,
+ * and they are not copies of each other: the calendar and contact ones send
+ * XML and refuse a body they cannot send as text, because nothing hands them
+ * bytes. This one is the FILE client, and the only one that (a) streams a
+ * request body, which is how a file larger than this process is uploaded at
+ * all, (b) hands a streamed response back unread, and (c) keeps the raw bytes
+ * beside a lazily decoded `body`.
+ *
+ * It is exported because the archive store needs exactly those three things to
+ * read a `.zip` inside a file target by `Range` (workplan 0116 T4) — and
+ * because the alternative, a seventh copy written beside it, is how two
+ * clients drift apart in the one respect that matters.
+ */
+export function createFileHttpClient(): HttpClient {
   return {
     async request(options: HttpRequestOptions): Promise<HttpResponse> {
       let body: string | ArrayBuffer | Uint8Array | Buffer | undefined;

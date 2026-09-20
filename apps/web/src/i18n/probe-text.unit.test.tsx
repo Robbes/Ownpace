@@ -79,6 +79,22 @@ describe('probeText — the deadline and the floor (2026-09-02)', () => {
     expect(probeText(nl, late, 'ignored')).toContain('binnen 20 seconden');
   });
 
+  it('an archive inside the migration\u2019s target says the counts come later, in both languages', () => {
+    // 0116 T4, the relay. The sentence exists so that a connection tested
+    // before any migration names a target does not read as *your export is
+    // empty* — which is what a fall-through to `connected, count: 0` would
+    // say, and the most alarming thing this product can tell somebody who
+    // waited a week for 25 GB. The owner, on this answer: *"Ok, this is
+    // correct."*
+    const later: ProbeOutcome = { code: 'countedAtPreflight' };
+    expect(probeText(en, later, 'ignored')).toBe(
+      "This export is in the migration's file target; it is counted at the preflight.",
+    );
+    expect(probeText(nl, later, 'ignored')).toContain('preflight');
+    // Not the server's English, which is longer and written for a log.
+    expect(probeText(en, later, 'THE FALLBACK')).not.toContain('THE FALLBACK');
+  });
+
   it('a count that stopped at the cap is not claimed in the headline either', () => {
     // The floor USED to live here, and it was the only place it appeared. It
     // now rides the face and renders beside the number it qualifies — see

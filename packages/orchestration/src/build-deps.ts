@@ -63,7 +63,7 @@ import {
   ENV_DROPBOX_CREDENTIAL_NAMES,
   buildDropboxSourceFrom,
 } from './dropbox-source-factory.ts';
-import { buildArchiveSourceFrom } from './archive-source-factory.ts';
+import { archiveStoreInTarget, buildArchiveSourceFrom } from './archive-source-factory.ts';
 import { ENV_BOX_CREDENTIAL_NAMES, buildBoxSourceFrom } from './box-source-factory.ts';
 import {
   buildGraphCalendarSourceFrom,
@@ -758,6 +758,14 @@ function buildDomainDepsWithLedger(
       break;
     }
     case 'file': {
+      // The target's protocol is decided BEFORE the source, because an archive
+      // source may be inside the target (0116 T4, the relay): `where: 'target'`
+      // makes the export's path relative to whatever this mapping writes to,
+      // read there by byte range. Files can go over JMAP where the target
+      // speaks it (0031 T3) — and JMAP is the one that cannot serve a range,
+      // which `archiveStoreInTarget` refuses by sentence.
+      const protocol = fileTargetProtocol(targetConfig.type);
+      const targetService = protocol === 'jmap' ? 'jmap' : 'webdav';
       // Google Drive is a file source that is not DAV (workplan 0042 T5):
       // Google withdrew WebDAV years ago, so it cannot ride the endpoint
       // resolver below — it has no url/user/password to resolve. Credentials
@@ -804,23 +812,31 @@ function buildDomainDepsWithLedger(
               ENV_GOOGLE_CREDENTIAL_NAMES,
             )
           : sourceConfig.type === 'archive'
-          ? // An EXPORT ARCHIVE (workplan 0116 T5/T6): a folder on this
-            // appliance's own disk, which is the one edition where a local
-            // path is the whole of getting the archive to us (0116 §3, D3).
-            // No credential to read from the environment — the config IS the
-            // credential, a location. Missing from the first cut of T5/T6,
-            // which wired only the managed seam; the self-host gate (T10) is
-            // what found the DAV resolver being handed a folder.
-            buildArchiveSourceFrom(sourceConfig as unknown as Record<string, unknown>)
+          ? // An EXPORT ARCHIVE (workplan 0116 T5/T6). No credential to read
+            // from the environment — the config IS the credential, a
+            // location. Missing from the first cut of T5/T6, which wired only
+            // the managed seam; the self-host gate (T10) is what found the DAV
+            // resolver being handed a folder.
+            //
+            // A path on this appliance's own disk unless the mapping says
+            // otherwise, which is the appliance's own route and was the whole
+            // of D3 until 2026-09-20. `where: 'target'` is the other answer
+            // the relay added, and it is NOT managed-only (hard rule 5): a
+            // person who put their export in the cloud they are migrating
+            // INTO takes the same route here, which is why the target store
+            // is handed down on this edition too.
+            buildArchiveSourceFrom(sourceConfig as unknown as Record<string, unknown>, {
+              targetStore: () =>
+                archiveStoreInTarget(
+                  protocol,
+                  davEndpoint(targetConfig, targetService, 'target'),
+                  targetConfig.type,
+                ),
+            })
           : buildFileSource(davEndpoint(sourceConfig, 'webdav', 'source'), domainThrottleLimiter);
-      // Files can go over JMAP where the target speaks it (0031 T3). The
-      // config already expresses it: `TargetConfig` is a union that includes
-      // `JmapTarget`, so a files domain naming `type: 'jmap'` needs no new
-      // field — only a builder that stops insisting on WebDAV.
-      const protocol = fileTargetProtocol(targetConfig.type);
       target = buildFileTargetFor(
         protocol,
-        davEndpoint(targetConfig, protocol === 'jmap' ? 'jmap' : 'webdav', 'target'),
+        davEndpoint(targetConfig, targetService, 'target'),
         targetDeps,
       );
       break;

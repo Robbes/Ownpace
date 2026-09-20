@@ -64,7 +64,7 @@ import {
 import { buildGoogleDriveSourceFrom, STORED_GOOGLE_CREDENTIAL_NAMES } from './drive-source-factory.ts';
 import { buildDropboxSourceFrom, STORED_DROPBOX_CREDENTIAL_NAMES } from './dropbox-source-factory.ts';
 import { parseArchiveSource } from '@openmig/shared';
-import { archiveReaderFor } from './archive-source-factory.ts';
+import { archiveReaderForLocation } from './archive-source-factory.ts';
 import type { GoogleCredentialsAsFound } from './drive-source-factory.ts';
 
 export type DomainAnswer = 'yes' | 'no' | 'unknown';
@@ -1167,7 +1167,13 @@ export async function qualifyArchive(
   let file: QualifiedDomain;
   try {
     const source = parseArchiveSource(config);
-    const reader = archiveReaderFor(source.provider);
+    // Through the location, not the provider alone (0116 T4): an archive that
+    // says it is inside the migration's own file target has no target here —
+    // a connection is qualified before any migration names one — and the
+    // refusal that comes back lands in the catch below as UNKNOWN with its
+    // reason, which is what the owner asked for on 2026-09-20: the Test says
+    // what it can and the counts come at the preflight.
+    const reader = archiveReaderForLocation(source);
     if (!reader) {
       throw new Error(
         `no reader exists for a '${source.provider}' archive yet — a gap in this product, ` +
