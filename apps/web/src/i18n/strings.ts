@@ -361,9 +361,9 @@ const en = {
   'wizard.archiveProvider.why':
     'It decides how we read the export, and the files themselves do not say. Google exports are requested at takeout.google.com, Apple exports at privacy.apple.com.',
   'wizard.archivePath': 'Where the archive is',
-  'wizard.archivePath.hint': 'The folder you extracted the download into, not the .zip itself.',
+  'wizard.archivePath.hint': 'The folder you extracted the download into, or the .zip itself.',
   'wizard.archivePath.why':
-    'If the export arrived in several parts, extract them all into the same folder first. Nothing is written there: we only read.',
+    'If the export arrived in several parts, keep them in one folder and name any one of them: we read them all, and we say so if one is missing. Or extract them all into the same folder first. Nothing is written there: we only read.',
   // The ACCOUNT card. Four faces, and the sentence says why that is more than
   // Google offers rather than leaving it looking like an oversight there.
   'wizard.proto.microsoft.hint':
@@ -2357,9 +2357,9 @@ const nl: Record<keyof typeof en, string> = {
     'Dat bepaalt hoe wij de export lezen, en aan de bestanden zelf is het niet te zien. Google-exports vraagt u aan op takeout.google.com, Apple-exports op privacy.apple.com.',
   'wizard.archivePath': 'Waar het archief staat',
   'wizard.archivePath.hint':
-    'De map waarin u de download hebt uitgepakt, niet het .zip-bestand zelf.',
+    'De map waarin u de download hebt uitgepakt, of het .zip-bestand zelf.',
   'wizard.archivePath.why':
-    'Bestaat de export uit meerdere delen, pak die dan eerst allemaal uit in dezelfde map. Er wordt niets naar geschreven: wij lezen alleen.',
+    'Bestaat de export uit meerdere delen, zet die dan in één map en wijs er een willekeurig deel van aan: wij lezen ze allemaal, en zeggen het als er een ontbreekt. Of pak ze eerst allemaal uit in dezelfde map. Er wordt niets naar geschreven: wij lezen alleen.',
   'wizard.proto.microsoft.hint':
     'Eén Microsoft 365-account, één aanmelding: e-mail, agenda’s, contacten en OneDrive.',
   'wizard.group.provider': 'Uw aanbieder',

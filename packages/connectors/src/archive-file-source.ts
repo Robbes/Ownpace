@@ -240,11 +240,11 @@ export class ArchiveFileSource implements FileSource {
      * no failure row and no sentence.
      *
      * THE CHEAPEST OF THE FIVE, and worth saying why, because it looked like
-     * the hard one. The Takeout reader takes an EXTRACTED tree, so an item is
-     * a file on disk: re-opening is one more `createReadStream`, with no
-     * second pass over an archive, no re-issued request and no signed URL to
-     * expire. The cost that would have made a body expensive here is one the
-     * reader deliberately does not have.
+     * the hard one. An item is a file in a folder, or one member of a zip read
+     * by byte range (0116 D7): re-opening is one more read from its first
+     * byte, with no second pass over the archive, no re-issued request and no
+     * signed URL to expire. The cost that would have made a body expensive
+     * here is one the reader deliberately does not have.
      *
      * `contentStream` is OPTIONAL on the port, so a reader without it keeps
      * the buffered path and `MAX_BUFFERED_FILE_BYTES` still refuses by

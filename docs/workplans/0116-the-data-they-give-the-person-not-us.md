@@ -22,6 +22,28 @@ target, we read it there by byte range), *relay* (a resumable upload through Own
 straight into the target, nothing stored) or *store* (an upload we hold, against the
 custody promise).
 
+**2026-09-20, later the same evening: the second slice — the Takeout reader reads the `.zip`
+where it lies.** A tree seam (`packages/connectors/src/archive-tree.ts`: five questions — is
+this a folder, what is in it, a whole small file, a stream, close) now sits between the reader
+and the bytes, with a folder tree (what the reader did before) and a zip tree over the D7
+reader. The location decides: a folder is read as before; a `.zip` is opened in place; and a
+multi-part download is ONE tree from any one of its parts — Google's `-001`, `-002`, … after
+one stamp, each part a complete zip, the photo tree split across them by file, so the collapse
+by content hash meets an album's copy in part 1 and the year copy with its sidecar in part 3
+exactly as it does on disk. **A gap in the numbering is refused with the missing part named**,
+because an import that carried most of a library and said nothing would be the silent kind of
+wrong §1 exists to prevent; a last part that never arrived leaves no gap, and the guide says
+to count. Hashing streams now rather than `readFile`, on both trees, so a video over two
+gigabytes no longer trips Node's read cap; and the file source holds no descriptor between
+reads, because a pass never closes its `FileSource`. Proved by one fixture laid out four ways
+(folder, one zip, two parts pointed at either part) answering identically, item for item —
+which found that the order of `folders` and `metadata.albums` followed the container's
+listing order, now sorted — and by the refusals: a zip with no Takeout inside, a download cut
+short, a member whose bytes fail their CRC-32, a `.tgz`, a part missing from the middle. The
+wizard's hint and the guide say "the folder or the .zip". The self-host gate still imports the
+extracted fixture; a zip fixture is not checked in (a binary, and the same code path). The
+managed transport is unchanged and still waits on the owner's word.
+
 **2026-09-17: an Apple export exists and has been read (T3b unblocked).** The owner requested
 one on 8 September and it arrived on the 13th; §"What one real export answered" is what was in
 it, provisional and labelled so. The headlines: the person's tree survives intact under two
@@ -108,7 +130,7 @@ as `name`, and a mapping added later cannot walk off with another's history). Pi
 the real appliance on PGlite: two mappings in one tenant have two rows, and an upgraded
 appliance boots into its old row active rather than a fresh one paused.
 
-**What is left.** T3b still waits on an Apple export; T4's managed half on D7's transport question (D7 itself decided 2026-09-20, the reader built); T9 on T4.
+**What is left.** T3b still waits on an Apple export; T4's managed half on D7's transport question (D7 itself decided 2026-09-20, the reader built, and the Takeout reader reading the zip in place the same evening); T9 on T4.
 
 ### Earlier — 2026-09-04
 
@@ -195,9 +217,9 @@ If the owner decides only one thing here, decide **D1**.
 | T0 | ✅ **Answered 2026-09-04** | All six decided — see §"The owner's decisions". The first slice is **T1+T2+T3a+T7**. |
 | T1 The archive, as a kind of connection | ✅ **Built 2026-09-04** | `ArchiveSource`: a source whose credential is an archive's LOCATION, not an account. Front door, wizard, connection card, probe, three-state record. Provider-agnostic. |
 | T2 The reader seam | ✅ **Built 2026-09-04** | `ArchiveReader` — one interface, one implementation per export. Opens an archive, yields one record per distinct item: content hash, canonical path, the provider's own metadata, the folders it belonged to. No network, no target. |
-| T3a The Takeout reader (Google Photos) | ✅ **Built 2026-09-04** | 0112 T1's reader, unchanged, behind the T2 interface. |
+| T3a The Takeout reader (Google Photos) | ✅ **Built 2026-09-04; reads the `.zip` in place since 2026-09-20** | 0112 T1's reader behind the T2 interface. Since D7's second slice it reads the download itself — one `.zip`, or every part of a multi-part download from any one of them — or the extracted folder, through the tree seam in `archive-tree.ts`, and answers identically over both. |
 | T3b The Data & Privacy reader (Apple) | 📋 **Unblocked 2026-09-17 — designed on one export** | An export has been opened and what is in it is written down: see §"What one real export answered". Two of its five questions were not exercised (the multi-part split, the re-request) and the date parsing is an inference, so the reader waits on export #2 — whose contents are specified in that section. |
-| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first.** **Measured 2026-09-05:** the managed edition's run containers get a network (`DOCKER_RUNNER_NETWORKS`) and nothing else — no volume shared with the API — so a local path can never reach a managed pass. The local path is the appliance's route alone; on managed the archive has to arrive through a cloud this product reads, or an upload (D7). | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
+| T4 Getting the archive to us | 📋 Planned (needs T1) — **D3 decided: local path + cloud-we-already-read first.** **Measured 2026-09-05:** the managed edition's run containers get a network (`DOCKER_RUNNER_NETWORKS`) and nothing else — no volume shared with the API — so a local path can never reach a managed pass. The local path is the appliance's route alone; on managed the archive has to arrive through a cloud this product reads, or an upload (D7). **2026-09-20:** on the appliance the download itself is the route — the person points at the `.zip`, or at any part of a multi-part set, and nothing is extracted. | Difficulty is entirely Apple's half. Takeout delivers to Drive, Dropbox, OneDrive **and Box** — every one already a source we read — so Google needs no transport built. **Apple hands the person a download link and nothing else.** The managed multi-GB upload is its own slice and may never be built. |
 | T5 Placement and the manifest | ✅ **Built 2026-09-05** | `ArchiveFileSource` over the seam's new `placeIn` and `content()`: albums as folders, a photo written once per album (0112 decision 5), a photo in no album under its year, one fingerprinted manifest at the root with everything the export knew. Edited versions and motion clips are distinct items linked to their original (decided 2026-09-04, §4). EXIF into the copy stays 0112 T3. |
 | T6 Idempotency by content hash | ✅ **Built 2026-09-05** | Nothing new: the ledger's path-plus-hash rule, proved through the real loop — a second import writes nothing, a later export writes only what is new. **An archive delta may only ADD** is enforced by `FileSource.snapshot`, which switches the loop's absence-counting off; proved with the flag on and, as the control, stripped. |
 | T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
@@ -755,6 +777,9 @@ domain on one side and a one-shot on the other.
   our side, no US cloud), *relay* (a resumable upload through Ownpace streamed straight into
   the target, nothing stored) or *store* (an object store on our stack, against the custody
   promise). Put to the owner on 2026-09-20; recommendation two-step first, relay when asked.
+  **Second slice, the same evening:** the Takeout reader reads the zip in place through a
+  tree seam — folder or zip, a multi-part download as one tree, a gap in the parts refused —
+  so the appliance route needs no extraction; the status block has it in full.
 - **D6 — ✅ DECIDED: "Import an export", with the provider's own words beneath.** Not "sync", for Apple. Recommendation: *"Import an
   export"* as the family, and per provider *"Google Takeout archive"* / *"Apple Data & Privacy
   export"* — the provider's own words, so a search engine and a support conversation match.

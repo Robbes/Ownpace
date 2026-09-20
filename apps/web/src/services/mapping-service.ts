@@ -347,7 +347,7 @@ export interface CreateMappingInput {
     userId?: string;
     /** Archive only (workplan 0116): WHICH export — `google-takeout` or `apple-privacy`. */
     provider?: string;
-    /** Archive only: WHERE the extracted export is. Not a secret. */
+    /** Archive only: WHERE the export is — the folder it was extracted to, or the `.zip` itself. Not a secret. */
     path?: string;
   };
   targetConfig: {

@@ -293,10 +293,11 @@ async function probeMicrosoftAccount(
  * for an archive that could not be opened (workplan 0116 T1, §1).
  *
  * That distinction is the whole of this function. A truncated download, a part
- * the person never fetched, a path that points at the zip instead of the
- * folder it was extracted to — these are the COMMON case for a multi-gigabyte
- * export, not the exception, and every one of them produces "we could not open
- * this", which reaches the surfaces as `unknown` with the reason. An `ok: true,
+ * the person never fetched, a `.tgz` where a `.zip` was expected — these are
+ * the COMMON case for a multi-gigabyte export, not the exception, and every
+ * one of them produces "we could not open this", which reaches the surfaces
+ * as `unknown` with the reason. (A path that points at the `.zip` itself is
+ * not one of them since 0116 D7's second slice: the reader opens it in place.) An `ok: true,
  * count: 0` would reach them as a measured **no**: *you have no photos*. To
  * somebody who waited a week for a 25 GB download that is the most alarming
  * sentence this product could say, and the one they can do least about.
