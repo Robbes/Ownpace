@@ -19,6 +19,8 @@ import {
   verifyCutover,
   executeCutover,
   completeCutover,
+  showStatus,
+  lifecycleLine,
   type CutoverCliDeps,
 } from './cutover-commands.ts';
 
@@ -593,5 +595,126 @@ describe('completeCutover()', () => {
     // The ledger closed; the migration's ending is a different decision with
     // its own rule, and the operator is pointed at where it lives.
     expect(logged.join('\n')).toContain('Finish page');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// status: both halves, from the records that hold them
+//
+// `showStatus()` printed rows the read path never fills — "Started By" was
+// always N/A and Rolled Back / Failed / Completed never printed — while the
+// trail beside them had every fact, and its "Recent Events" were the OLDEST
+// five. And it never showed the mapping's lifecycle at all, which since
+// ADR-0048 is the half that says whether anything is still running.
+// ---------------------------------------------------------------------------
+
+type Ev = { timestamp: string; fromState: string | null; toState: string; triggeredBy: string; reason?: string; metadata?: Record<string, unknown>; eventType?: string; description?: string };
+
+/** A trail in the order the store returns it: ascending. */
+function trail(...events: Ev[]): Ev[] {
+  return events;
+}
+
+function statusDeps(state: { currentState: string; rollbackAvailable: boolean } | undefined, events: Ev[], mapping = makeMapping('cutover')) {
+  const store = {
+    loadCutoverState: vi.fn().mockResolvedValue(
+      state ? { ...state, state: state.currentState, startedAt: '2026-09-19T10:00:00.000Z', targetMailServer: 'mail.example.com' } : undefined,
+    ),
+    getEventHistory: vi.fn().mockResolvedValue(events),
+  };
+  return makeDeps(store as unknown as ReturnType<typeof makeStore>, true, mapping);
+}
+
+const INIT: Ev = { timestamp: '2026-09-19T10:00:00.000Z', fromState: null, toState: 'PREPARING', triggeredBy: 'cli', eventType: 'CUTOVER_INITIALIZED' };
+const READY: Ev = { timestamp: '2026-09-19T10:05:00.000Z', fromState: 'PREPARING', toState: 'READY_FOR_CUTOVER', triggeredBy: 'cli' };
+const APPROVED: Ev = { timestamp: '2026-09-19T10:10:00.000Z', fromState: 'READY_FOR_CUTOVER', toState: 'APPROVED', triggeredBy: 'cli', metadata: { approvedBy: 'cli' } };
+const IN_PROGRESS: Ev = { timestamp: '2026-09-19T10:20:00.000Z', fromState: 'APPROVED', toState: 'CUTOVER_IN_PROGRESS', triggeredBy: 'cli', metadata: { startedBy: 'cli' } };
+const GRACE: Ev = { timestamp: '2026-09-19T10:30:00.000Z', fromState: 'CUTOVER_IN_PROGRESS', toState: 'GRACE_PERIOD', triggeredBy: 'cli' };
+const ROLLED_BACK: Ev = { timestamp: '2026-09-19T11:00:00.000Z', fromState: 'GRACE_PERIOD', toState: 'ROLLED_BACK', triggeredBy: 'cli', reason: 'mail bouncing', metadata: { rolledBackBy: 'trigger-job', rollbackReason: 'mail bouncing' } };
+
+describe('showStatus()', () => {
+  let logged: string[];
+
+  beforeEach(() => {
+    logged = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows the mapping's lifecycle beside the ledger state, with what it means for the passes", async () => {
+    await showStatus(statusDeps({ currentState: 'GRACE_PERIOD', rollbackAvailable: true }, trail(INIT, READY, APPROVED, IN_PROGRESS, GRACE), makeMapping('cutover')));
+
+    const out = logged.join('\n');
+    expect(out).toContain('Mapping lifecycle');
+    expect(out).toContain('cutover — stopped for the cutover');
+    expect(out).toContain('no pass runs');
+  });
+
+  it('derives who and when from the trail — no N/A for a fact the row never carried', async () => {
+    await showStatus(statusDeps({ currentState: 'ROLLED_BACK', rollbackAvailable: false }, trail(INIT, READY, APPROVED, IN_PROGRESS, GRACE, ROLLED_BACK), makeMapping('active')));
+
+    const out = logged.join('\n');
+    // The state row carries the event that entered it: when, by whom (from the
+    // door's own metadata, not the ledger's coarse 'cli'), and why.
+    expect(out).toMatch(/State\s+ROLLED_BACK — since 2026-09-19T11:00:00.000Z by trigger-job: mail bouncing/);
+    expect(out).toMatch(/Started\s+2026-09-19T10:00:00.000Z by cli/);
+    expect(out).not.toContain('N/A');
+  });
+
+  it('lists the NEWEST events first — the rollback is the one the old five-oldest list dropped', async () => {
+    await showStatus(statusDeps({ currentState: 'ROLLED_BACK', rollbackAvailable: false }, trail(INIT, READY, APPROVED, IN_PROGRESS, GRACE, ROLLED_BACK)));
+
+    const lines = logged.filter((l) => /-> [A-Z_]+/.test(l));
+    expect(lines).toHaveLength(6);
+    expect(lines[0]).toContain('GRACE_PERIOD -> ROLLED_BACK');
+    expect(lines[0]).toContain('mail bouncing');
+    expect(lines[5]).toContain('— -> PREPARING');
+  });
+
+  it('says whether a rollback is admitted from here, as the machine decides it', async () => {
+    await showStatus(statusDeps({ currentState: 'GRACE_PERIOD', rollbackAvailable: true }, trail(INIT, READY, APPROVED, IN_PROGRESS, GRACE)));
+    expect(logged.join('\n')).toMatch(/Rollback\s+available — the state machine admits ROLLED_BACK from GRACE_PERIOD/);
+
+    logged.length = 0;
+    await showStatus(statusDeps({ currentState: 'COMPLETED', rollbackAvailable: false }, trail(INIT)));
+    expect(logged.join('\n')).toMatch(/Rollback\s+not available from COMPLETED/);
+  });
+
+  it("still tells the mapping's lifecycle when there is no cutover at all", async () => {
+    await showStatus(statusDeps(undefined, [], makeMapping('active')));
+
+    const out = logged.join('\n');
+    expect(out).toContain('No cutover found');
+    expect(out).toContain('active — passes run; the source is the authority');
+  });
+
+  it('a mapping row that cannot be read is said so, and does not hide the ledger', async () => {
+    const mapping = makeMapping('active');
+    mapping.readStatus.mockRejectedValue(new Error('Mapping m-1 was not found for tenant t-1.'));
+
+    await showStatus(statusDeps({ currentState: 'GRACE_PERIOD', rollbackAvailable: true }, trail(INIT, READY, APPROVED, IN_PROGRESS, GRACE), mapping));
+
+    const out = logged.join('\n');
+    expect(out).toContain('could not be read: Mapping m-1 was not found');
+    expect(out).toContain('GRACE_PERIOD');
+  });
+});
+
+describe('lifecycleLine()', () => {
+  it('answers every lifecycle from the predicates the passes read, so the sentence cannot contradict the rules', () => {
+    expect(lifecycleLine('active')).toContain('passes run; the source is the authority');
+    expect(lifecycleLine('paused')).toContain('stopped by an operator');
+    expect(lifecycleLine('cutover')).toContain('no pass runs');
+    expect(lifecycleLine('continuous')).toContain('passes run after the cutover');
+    expect(lifecycleLine('continuous')).toContain('deletions at the source are not mirrored');
+    expect(lifecycleLine('done')).toContain('finished');
   });
 });

@@ -29,7 +29,14 @@ import {
   type MappingLifecyclePort,
   type VerificationResult,
 } from '@openmig/core';
-import { log, cutoverTransition, rollbackTransition, type CutoverTransition } from '@openmig/shared';
+import {
+  log,
+  cutoverTransition,
+  rollbackTransition,
+  isAfterCutover,
+  runsPasses,
+  type CutoverTransition,
+} from '@openmig/shared';
 
 /** CLI dependencies */
 export interface CutoverCliDeps {
@@ -722,51 +729,112 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
 }
 
 /**
- * Show cutover status
+ * What the lifecycle word means for the passes, in one line — derived from the
+ * same two predicates the schedulers and the passes read, so this sentence
+ * cannot say something the rules do not (ADR-0048).
+ */
+export function lifecycleLine(status: string): string {
+  if (runsPasses(status)) {
+    return isAfterCutover(status)
+      ? `${status} — passes run after the cutover; deletions at the source are not mirrored (the continuous lane)`
+      : `${status} — passes run; the source is the authority on what exists`;
+  }
+  if (status === 'done') return `${status} — finished; the shadow sync has ended and nothing runs`;
+  if (isAfterCutover(status)) {
+    return `${status} — stopped for the cutover; no pass runs, and the source is no longer the authority on what exists`;
+  }
+  return `${status} — stopped by an operator, before any cutover; Start resumes it`;
+}
+
+/** Who did a thing, from the event's own metadata when the door recorded it, else the ledger's coarse actor. */
+function who(event: { triggeredBy: string; metadata?: Record<string, unknown> }): string {
+  const m = event.metadata ?? {};
+  for (const key of ['rolledBackBy', 'completedBy', 'approvedBy', 'startedBy']) {
+    const v = m[key];
+    if (typeof v === 'string' && v) return v;
+  }
+  return event.triggeredBy;
+}
+
+/**
+ * Show cutover status — both halves, from the records that actually hold them.
+ *
+ * This printed rows the read path never fills: `mapRowToStatus` maps no
+ * `startedBy`, `rolledBackAt`, `failedAt` or `failureReason`, and `complete`
+ * writes `completedAt` metadata the row does not persist as
+ * `gracePeriodCompletedAt`. So "Started By" was always N/A and Rolled Back,
+ * Failed and Completed never printed — while the append-only trail beside
+ * them had every one of those facts. And "Recent Events" asked for the first
+ * five in ascending order, so on any cutover past its fifth event the newest —
+ * the rollback, the failure — was exactly the one left out.
+ *
+ * Now: the ledger state with the event that entered it (when, by whom, why),
+ * whether a rollback is admitted from there (derived from the machine since
+ * ADR-0047), and the MAPPING's lifecycle — the other half an operator needs
+ * since ADR-0048, which this never showed at all — with what it means for the
+ * passes. The trail is listed newest first.
  */
 export async function showStatus(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.section('Cutover Status');
 
   try {
     const state = await deps.cutoverPersistence.loadCutoverState(deps.tenantId, deps.mappingId);
-    
+
+    // The mapping half is read regardless of the ledger: a migration with no
+    // cutover row still has a lifecycle, and it is the one thing the
+    // schedulers act on. A row that cannot be read is said so (hard rule 9),
+    // never presented as a value.
+    let lifecycle: string;
+    try {
+      lifecycle = lifecycleLine(await deps.mappingLifecycle.readStatus());
+    } catch (error) {
+      lifecycle = `could not be read: ${(error as Error).message}`;
+    }
+
     if (!state) {
       CutoverCliOutput.info('No cutover found for this tenant/mapping');
+      CutoverCliOutput.table([{ label: 'Mapping lifecycle', value: lifecycle }]);
       return;
     }
 
+    const current = state.currentState || state.state;
+    const events = await deps.cutoverPersistence.getEventHistory(deps.tenantId, deps.mappingId);
+    const newestFirst = [...events].reverse();
+    const entered = newestFirst.find((e) => e.toState === current);
+    const init = events.find((e) => e.eventType === 'CUTOVER_INITIALIZED');
+
     const rows: Array<{ label: string; value: string }> = [
-      { label: 'State', value: state.currentState || state.state },
-      { label: 'Started', value: state.startedAt || 'N/A' },
-      { label: 'Target Server', value: state.targetMailServer || 'N/A' },
-      { label: 'Started By', value: state.startedBy || 'N/A' },
+      {
+        label: 'State',
+        value: entered
+          ? `${current} — since ${entered.timestamp} by ${who(entered)}${entered.reason ? `: ${entered.reason}` : ''}`
+          : current,
+      },
+      {
+        label: 'Rollback',
+        value: state.rollbackAvailable
+          ? `available — the state machine admits ROLLED_BACK from ${current}`
+          : `not available from ${current}`,
+      },
+      { label: 'Mapping lifecycle', value: lifecycle },
+      { label: 'Started', value: `${state.startedAt}${init ? ` by ${who(init)}` : ''}` },
+      { label: 'Target Server', value: state.targetMailServer || 'not recorded' },
     ];
-
-    if (state.completedAt) {
-      rows.push({ label: 'Completed', value: state.completedAt });
+    if (state.gracePeriodStartedAt) {
+      rows.push({ label: 'Grace period since', value: state.gracePeriodStartedAt });
     }
-
-    if (state.rolledBackAt) {
-      rows.push({ label: 'Rolled Back', value: state.rolledBackAt });
-    }
-
-    if (state.failedAt) {
-      rows.push({ label: 'Failed', value: state.failedAt });
-    }
-
-    if (state.failureReason) {
-      rows.push({ label: 'Failure Reason', value: state.failureReason });
-    }
-
     CutoverCliOutput.table(rows);
 
-    // Show recent events
-    const events = await deps.cutoverPersistence.getEventHistory(deps.tenantId, deps.mappingId, 5);
-    
-    if (events.length > 0) {
-      CutoverCliOutput.section('Recent Events');
-      for (const event of events) {
-        log.info(`  ${event.timestamp} - ${event.eventType}: ${event.description || 'No description'}`);
+    if (newestFirst.length > 0) {
+      CutoverCliOutput.section('Events (newest first)');
+      for (const event of newestFirst.slice(0, 10)) {
+        log.info(
+          `  ${event.timestamp}  ${event.fromState ?? '—'} -> ${event.toState}  by ${who(event)}` +
+            (event.reason ? `: ${event.reason}` : ''),
+        );
+      }
+      if (newestFirst.length > 10) {
+        log.info(`  … ${newestFirst.length - 10} earlier event(s) not shown`);
       }
     }
   } catch (error) {
