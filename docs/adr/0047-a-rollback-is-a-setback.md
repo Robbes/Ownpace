@@ -124,7 +124,9 @@ and the code did not implement it once. Both are corrected here.
   the lifecycle `PATCH` and the appliance's config do. So in a CLI-driven cutover the mapping is
   still `active` throughout, and the rollback's mapping half is a no-op that says so. That is a
   finding about the cutover, not the rollback, and belongs to whichever plan next touches
-  execution.
+  execution. **Fixed the same evening, as the owner's next pick —
+  [ADR-0048](./0048-the-mapping-hears-the-cutover.md): `execute` and `complete` now write the
+  mapping through the same port, and the rollback's mapping half has something to resume.**
 
 ## Alternatives considered
 

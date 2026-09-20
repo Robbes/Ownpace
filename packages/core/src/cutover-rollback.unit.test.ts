@@ -89,7 +89,7 @@ describe('performRollback — the setback, whole or not at all', () => {
   });
 
   it("leaves an 'active' mapping alone, says so, and still marks the ledger", async () => {
-    // The CLI-driven cutover never touches the mapping, so this is the common
+    // A cutover executed before ADR-0048 never touched the mapping, so this is the common
     // case there. The old job would have rewritten active -> active and the
     // old CLI would have warned that nothing resumed; both wrong.
     const h = harness('GRACE_PERIOD', 'active');

@@ -14,7 +14,9 @@ How a cutover is reverted, and — just as importantly — **what rollback does 
 There is **one** implementation — `performRollback` in `@openmig/core`
 (`packages/core/src/cutover-rollback.ts`) — and two ways to reach it. Both do exactly the same
 thing in exactly the same order. (Until 2026-09-19 there were two implementations, and the one an
-operator could reach did not resume the sync; workplan 0101 T5 has the finding.)
+operator could reach did not resume the sync; workplan 0101 T5 has the finding.) Its other half
+is `enterCutover` in `cutover-lifecycle.ts` ([ADR-0048](./adr/0048-the-mapping-hears-the-cutover.md)):
+what the cutover stops, the rollback resumes.
 
 | Entry point | Where | Who uses it |
 |---|---|---|
@@ -34,10 +36,11 @@ Neither is reachable from the API or the web UI, on purpose: the API is prepare-
    not undo it.
 3. **Sets the mapping back to `active`** when it was `cutover` or `continuous`, so shadow sync
    resumes with the original source authoritative again. *This is the real, in-scope rollback
-   action.* A mapping that is already `active` (the common case after a CLI-driven cutover, which
-   never changes the mapping) or `paused` is left alone, and the output says so. The change is
-   recorded in `audit_log` as `mapping.status` with `via: 'rollback'`, in the same transaction as
-   the row.
+   action.* Since [ADR-0048](./adr/0048-the-mapping-hears-the-cutover.md) the CLI's `execute`
+   stops the mapping (`active` or `paused` → `cutover`), so this is the half that undoes it. A
+   mapping still `active` — a cutover executed before ADR-0048, or one the person never declared
+   — or `paused` is left alone, and the output says so. The change is recorded in `audit_log` as
+   `mapping.status` with `via: 'rollback'`, in the same transaction as the row.
 4. **Transitions the cutover to `ROLLED_BACK`**, recording `rolledBackAt`, `rolledBackBy`, the
    reason, and whether the sync resumed, in the append-only event log. This is deliberately *after*
    step 3: `ROLLED_BACK` is terminal, so the write that can be retried comes first.

@@ -47,7 +47,7 @@ describe('rollbackTransition', () => {
     }
   });
 
-  it("leaves an 'active' mapping alone and says why — the CLI-driven cutover never stopped it", () => {
+  it("leaves an 'active' mapping alone and says why — a cutover from before ADR-0048 never stopped it", () => {
     const t = rollbackTransition('active');
     expect(t).toMatchObject({ reactivate: false, from: 'active' });
     if ('reason' in t) expect(t.reason).toContain('already syncing');

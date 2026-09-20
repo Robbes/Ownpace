@@ -151,8 +151,9 @@ export function sourceAuthorityFor(status: string): SourceAuthority {
  *   |              |          | source IS the authority again, and `active` is the    |
  *   |              |          | state that says so — the lane's detector-less phase   |
  *   |              |          | ends with the cutover it belonged to                  |
- *   | `active`     | —        | never stopped. The CLI-driven cutover does not touch  |
- *   |              |          | the mapping at all, so this is the common case there  |
+ *   | `active`     | —        | never stopped: a cutover executed before ADR-0048     |
+ *   |              |          | (when `execute` left the mapping alone), or one the   |
+ *   |              |          | person never declared on the Finish page              |
  *   | `paused`     | —        | an operator stopped it; a rollback ends the cutover,  |
  *   |              |          | it does not start what somebody stopped               |
  *   | `done`       | REFUSE   | finishing is the end of the shadow sync, and it is    |
@@ -201,6 +202,93 @@ export function rollbackTransition(status: string): RollbackTransition {
       // Hard rule 9: a state this product does not know is not "one of the
       // ones that stays put". The CHECK constraint should make this
       // unreachable; if it is reached, say so rather than guess.
+      return {
+        refuse: `'${status}' is not a mapping lifecycle this product knows.`,
+        hint: 'Nothing was changed. The database CHECK constraint should make this unreachable.',
+      };
+  }
+}
+
+/**
+ * What a CUTOVER does to the mapping — the mapping half of `execute`, and of
+ * `complete` (ADR-0048).
+ *
+ * The cutover ledger (`@openmig/core`'s state machine) records that mail is
+ * being moved: APPROVED → CUTOVER_IN_PROGRESS while the operator points the MX
+ * record at the target, GRACE_PERIOD once it has propagated, COMPLETED when the
+ * window is closed. The MAPPING's lifecycle is what the appliance's tick and
+ * the managed poller read to decide whether a pass runs, and what every pass
+ * reads to decide whether the source is still the authority on what exists
+ * (0117 D4). Until 2026-09-19 the CLI moved the ledger and never the mapping,
+ * so a CLI-driven cutover left the mapping `active`: passes kept running with
+ * the deletion detectors present, reading a source that had just stopped
+ * being the authority — §3a's loop, with a ledger beside it saying the cutover
+ * was in progress. And a rollback, which puts a `cutover` mapping back to
+ * `active`, found nothing to put back.
+ *
+ * The table, read with `isAfterCutover` and `runsPasses` beside it:
+ *
+ *   | from         | to        | why                                                  |
+ *   |--------------|-----------|------------------------------------------------------|
+ *   | `active`     | `cutover` | the shadow sync stops; the source is no longer the   |
+ *   |              |           | authority. THE row this function exists for          |
+ *   | `paused`     | `cutover` | somebody stopped it before the cutover; after the    |
+ *   |              |           | cutover the phase has moved on, and `paused` would   |
+ *   |              |           | let Start put it back to `active` — a pass with the  |
+ *   |              |           | detectors present, after cutover. The confirmation   |
+ *   |              |           | says the copy is not running, and the operator       |
+ *   |              |           | decides (a rollback afterwards resumes it)           |
+ *   | `cutover`    | —         | already stopped for a cutover (the Finish page's     |
+ *   |              |           | declaration, or a re-run of this) — converge         |
+ *   | `continuous` | —         | keeps copying after cutover BY DESIGN (0117 T1),     |
+ *   |              |           | with the detectors absent; the source is already not |
+ *   |              |           | the authority, and nothing here changes that         |
+ *   | `done`       | —         | finished; the shadow sync has ended and nothing runs.|
+ *   |              |           | Left alone with a WARNING: a rollback is refused for |
+ *   |              |           | a finished migration, so reverting this cutover      |
+ *   |              |           | later means a manual MX change                       |
+ *
+ * `complete` applies the same table: in the normal flow the mapping is already
+ * `cutover` and the row converges, and a cutover executed before ADR-0048 —
+ * ledger in GRACE_PERIOD, mapping still `active` — is stopped on the way to
+ * COMPLETED rather than left running behind a terminal ledger.
+ *
+ * Only an unknown status refuses. A refusal means NOTHING is written — not the
+ * ledger either.
+ */
+export type CutoverTransition =
+  | { readonly stop: true; readonly from: string; readonly to: 'cutover' }
+  | { readonly stop: false; readonly from: string; readonly reason: string; readonly warning?: string }
+  | { readonly refuse: string; readonly hint: string };
+
+/** Decide what a cutover (`execute`, and `complete`) does to a mapping currently in `status`. */
+export function cutoverTransition(status: string): CutoverTransition {
+  switch (status) {
+    case 'active':
+    case 'paused':
+      return { stop: true, from: status, to: 'cutover' };
+    case 'cutover':
+      return { stop: false, from: status, reason: 'it is already stopped for a cutover' };
+    case 'continuous':
+      return {
+        stop: false,
+        from: status,
+        reason:
+          'it keeps copying after cutover by design (the continuous lane), with deletions at ' +
+          'the source no longer mirrored — the source is already not the authority',
+      };
+    case 'done':
+      return {
+        stop: false,
+        from: status,
+        reason: 'it was finished; the shadow sync has ended and nothing runs',
+        warning:
+          "A rollback is refused for a finished ('done') migration. If this cutover has to be " +
+          'reverted later, that means a manual MX change, not the rollback command.',
+      };
+    default:
+      // Hard rule 9, as in `rollbackTransition`: an unknown status is not
+      // "one of the ones that stays put".
       return {
         refuse: `'${status}' is not a mapping lifecycle this product knows.`,
         hint: 'Nothing was changed. The database CHECK constraint should make this unreachable.',

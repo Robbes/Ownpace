@@ -40,7 +40,7 @@
 
 import { and, eq } from 'drizzle-orm';
 import type { TenantId } from '@openmig/shared';
-import type { MappingLifecyclePort } from '@openmig/core/cutover-rollback';
+import type { MappingLifecyclePort } from '@openmig/core/cutover-lifecycle';
 import type { Pool } from 'pg';
 import { PgLedger } from './ledger.ts';
 import { withTenant } from './db.ts';
@@ -69,9 +69,10 @@ export type MappingStatus = 'active' | 'paused' | 'cutover' | 'done' | 'continuo
 
 /**
  * How a status change was reached — the route, in the operator's vocabulary.
- * `rollback` is the worker's (ADR-0047); the other three are the API's.
+ * `rollback` (ADR-0047) and `cutover` (ADR-0048) are the worker's, through the
+ * cutover CLI; the other three are the API's.
  */
-export type MappingStatusVia = 'start' | 'update' | 'finish' | 'rollback';
+export type MappingStatusVia = 'start' | 'update' | 'finish' | 'rollback' | 'cutover';
 
 /** The database handle the ledger writes through — a pool's, or a transaction's. */
 type Db = ConstructorParameters<typeof PgLedger>[0];
@@ -160,10 +161,12 @@ export async function applyMappingStatusChange(
 }
 
 /**
- * The mapping half of a rollback, as `performRollback` asks for it
- * (ADR-0047): read the lifecycle, and set it back with the record every other
- * lifecycle write leaves. `actor` is who is rolling back — `'cli'` or
- * `'trigger-job'` — and lands in the audit row's `actor`.
+ * The mapping half of a rollback (ADR-0047) or a cutover step (ADR-0048), as
+ * `performRollback`, `enterCutover` and `closeCutover` ask for it: read the
+ * lifecycle, and set it with the record every other lifecycle write leaves.
+ * `actor` is who is pressing — `'cli'` or `'trigger-job'` — and lands in the
+ * audit row's `actor`; the door (`via`) comes with each write, because one
+ * port serves both.
  *
  * A mapping that does not exist is an error, not a status. Hard rule 9: the
  * answer to "what state is this in" was missing, and "stays where it is"
@@ -197,7 +200,7 @@ export function mappingLifecyclePort(
         from: change.from,
         to: change.to,
         actor,
-        via: 'rollback',
+        via: change.via,
       });
     },
   };

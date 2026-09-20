@@ -208,7 +208,7 @@ describe('performRollback (integration)', () => {
   });
 
   it("an 'active' mapping is left alone with no audit row, and the ledger still rolls back", async () => {
-    // The CLI-driven cutover never changes the mapping, so this is the common
+    // A cutover executed before ADR-0048 never changed the mapping, so this is the common
     // case there. `from === to` is a request, not a transition: no row.
     await setMapping('active');
     await driveTo('GRACE_PERIOD');

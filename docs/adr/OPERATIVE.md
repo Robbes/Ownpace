@@ -791,3 +791,26 @@ Nothing in this amendment is built. It records the decision the three tasks in
 - Every mapping status change a rollback makes is recorded in `audit_log` as `mapping.status`
   with `via: 'rollback'`, in the same transaction as the row (`mappingLifecyclePort` in
   `@openmig/ledger`) — the record every other lifecycle write has left since workplan 0109.
+
+## [ADR-0048: The mapping hears the cutover](./0048-the-mapping-hears-the-cutover.md)
+
+- The cutover ledger's **`execute`** (APPROVED → CUTOVER_IN_PROGRESS) and **`complete`**
+  (GRACE_PERIOD → COMPLETED) write `mailbox_mapping.status` as well as the ledger. A mapping that
+  is `active` or `paused` becomes **`cutover`**: no pass runs after it, and the source is no longer
+  the authority on what exists. `cutover`, `continuous` and `done` are left where they are —
+  `done` with a warning that a rollback will be refused for it.
+- The decision is **`cutoverTransition` in `@openmig/shared`**, beside `rollbackTransition`, and
+  the two agree row by row: whatever a cutover stops, a rollback puts back to `active`.
+- **The mapping first, the ledger second**, and every refusal before either write — the order
+  ADR-0047 set, for the same reason: the retryable write goes first, and CUTOVER_IN_PROGRESS beside
+  a running mapping is the defect itself.
+- The mapping write is recorded in `audit_log` as `mapping.status` with **`via: 'cutover'`**, in
+  the same transaction as the row, by the same port the rollback writes through.
+- **`complete` closes the ledger, not the migration.** `done` is the end of the shadow sync, decided
+  by `finishTransition` with its rule about unresolved failures, and it stays where that rule
+  lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so.
+- **A propagation timeout leaves the mapping `cutover`.** Whether the MX record moved is exactly
+  what is unknown after a timeout, so no pass runs; `rollback` is the explicit undo and resumes the
+  sync.
+- The `run-cutover` job is prepare-only (it stops at READY_FOR_CUTOVER) and writes no lifecycle;
+  the API executes no cutover. The operator CLI is the only executor, for both editions.

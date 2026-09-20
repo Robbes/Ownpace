@@ -38,28 +38,14 @@
 
 import type { MappingId, TenantId } from '@openmig/shared';
 import { rollbackTransition } from '@openmig/shared';
-import { isValidTransition, type CutoverState, type CutoverStatus } from './cutover-state.ts';
-
-/** The two calls this needs from a cutover store — `CutoverStore` satisfies it. */
-export interface RollbackCutoverStore {
-  loadCutoverState(tenantId: TenantId, mappingId: MappingId): Promise<CutoverStatus | undefined>;
-  transitionState(
-    tenantId: TenantId,
-    mappingId: MappingId,
-    toState: CutoverState,
-    metadata?: Record<string, unknown>,
-  ): Promise<CutoverStatus>;
-}
+import { isValidTransition, type CutoverState } from './cutover-state.ts';
+import type { CutoverLedgerPort, MappingLifecyclePort } from './cutover-lifecycle.ts';
 
 /**
- * The mapping's lifecycle, as this needs it. `mappingLifecyclePort` in
- * `@openmig/ledger` is the real one: the row, plus the `mapping.status` audit
- * record every other lifecycle write leaves (workplan 0109 T1).
+ * The two calls this needs from a cutover store — `CutoverStore` satisfies it.
+ * The same two the cutover steps need; one definition (`cutover-lifecycle.ts`).
  */
-export interface MappingLifecyclePort {
-  readStatus(): Promise<string>;
-  setStatus(change: { readonly from: string; readonly to: 'active' }): Promise<void>;
-}
+export type RollbackCutoverStore = CutoverLedgerPort;
 
 export interface RollbackDeps {
   readonly tenantId: TenantId;
@@ -146,7 +132,7 @@ export async function performRollback(deps: RollbackDeps): Promise<RollbackOutco
   let mapping: RollbackOutcome['mapping'];
   if (decision.reactivate) {
     deps.log(`Mapping ${decision.from} -> ${decision.to}: the sync resumes with the source authoritative.`);
-    await deps.mapping.setStatus({ from: decision.from, to: decision.to });
+    await deps.mapping.setStatus({ from: decision.from, to: decision.to, via: 'rollback' });
     mapping = { from: decision.from, to: decision.to, changed: true };
   } else {
     deps.log(`Mapping left '${decision.from}': ${decision.reason}`);

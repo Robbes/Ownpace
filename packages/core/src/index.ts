@@ -5,6 +5,9 @@ export const packageName = '@openmig/core';
 export * from './reconcile.ts';
 export * from './reindex.ts';
 export * from './cutover-state.ts';
+// The mapping hears the cutover (ADR-0048): execute and complete stop the
+// mapping through this, with the port both they and the rollback write through.
+export * from './cutover-lifecycle.ts';
 // A rollback is a setback, performed once (ADR-0047); the CLI and the job call this.
 export * from './cutover-rollback.ts';
 export * from './verification.ts';

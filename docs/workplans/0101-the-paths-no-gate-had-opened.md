@@ -1,6 +1,6 @@
 # 0101 — The paths no gate had opened
 
-## Status — 2026-09-19 (update this block at the end of every session)
+## Status — 2026-09-20 (update this block at the end of every session)
 
 | Task | Status | Evidence |
 |---|---|---|
@@ -9,6 +9,7 @@
 | T3 Exercise offboarding where it can be undone | ✅ **Done 2026-08-23** | `close` then `reopen` on T1, the throwaway tenant the invitation phase creates and deletes. The closure ROW is asserted, not the response; the window is checked to be a window (`purge_after > closed_at`); reopen must clear the row. |
 | T4 Stop the coverage list from going stale | ✅ **Done 2026-08-23** | `scripts/gate-coverage.unit.test.ts` — 12 cases. The route families are DERIVED from `index.ts`; each must be requested by the smoke or carry a written reason. Both directions checked: an undecided family fails, and a reason that outlived its route fails. |
 | T5 Rollback | ✅ **Done 2026-09-19 — it exists once, and it is gated** | **What a rollback IS was decided 2026-08-23: a setback, never a reversal, never a salvage** — now [ADR-0047](../adr/0047-a-rollback-is-a-setback.md). `performRollback` in `@openmig/core` is the one implementation; the CLI and the `run-rollback` job call it, in the same order (mapping first, ledger second, refusals before either). The mapping half is `rollbackTransition` in `shared` (`cutover`/`continuous` → `active`; `done` refused). `canRollback` derives from the state machine and `rollbackAvailable` on a read is no longer a constant. The worker's mapping write is audited like the API's. **Gate:** `run-rollback.integration.test.ts` over the real state machine and the real ledger port — not the E2E smoke, which cannot reach GRACE_PERIOD without real DNS. No API route, deliberately: the API is prepare-only for cutovers. See below. |
+| T6 The cutover the mapping never heard of | ✅ **Done 2026-09-20 — [ADR-0048](../adr/0048-the-mapping-hears-the-cutover.md)** | Found while building T5: the CLI's `execute` and `complete` moved the cutover ledger and never `mailbox_mapping.status`, so a CLI-driven cutover ran with the mapping `active` — passes scheduled, deletion detectors present, a source that had just stopped being the authority (0117 D4) still mirrored — and the rollback's mapping half had nothing to resume. Now `enterCutover` / `closeCutover` in `@openmig/core` write the mapping first (`active`/`paused` → `cutover`; `cutover`/`continuous`/`done` left alone, `done` with a warning) and the ledger second, decided by `cutoverTransition` in `shared` beside `rollbackTransition` — the two agree row by row. Recorded in `audit_log` with `via: 'cutover'`. `complete` closes the ledger, not the migration. **Gate:** `cutover-lifecycle.integration.test.ts` on the real ledger, including the round trip: the cutover stops it, the rollback resumes it, two audit rows. See below. |
 
 **2026-09-19: T5 closed.** Read again with a month's distance, the finding was three
 inconsistencies, not two: the two implementations, `rollbackAvailable` hardcoded `false` on every
@@ -19,6 +20,10 @@ consequences: the cutover flow itself never writes `cutover` onto `mailbox_mappi
 CLI's `execute` nor `run-cutover` does — so in a CLI-driven cutover the mapping is `active`
 throughout and the rollback's mapping half is a no-op that says so. That belongs to whichever plan
 next touches execution.
+
+**2026-09-20: T6 closed** — the plan that next touched execution was this one, the same evening.
+The owner picked it as soon as T5 recorded it; [ADR-0048](../adr/0048-the-mapping-hears-the-cutover.md)
+has the decision, and the section below has the finding and the proof.
 
 ## What the grep found
 
@@ -138,6 +143,68 @@ transition rather than in the consequence list, because `confirmed()` returns
 early on `--yes` and never prints those bullets, so a warning living only there
 is invisible to every operator who actually performs a rollback rather than
 being refused one. Both pinned by tests proved by breaking them.
+
+## T6: the cutover the mapping never heard of — RESOLVED 2026-09-20, see ADR-0048
+
+**Found while building T5.** The rollback's mapping half puts a `cutover` mapping back to
+`active`. Tracing where `cutover` gets written turned up exactly one writer: the lifecycle
+`PATCH` — the Finish page's own declaration. The CLI's `execute` moved the ledger APPROVED →
+CUTOVER_IN_PROGRESS → GRACE_PERIOD, `complete` moved it to COMPLETED, and neither touched
+`mailbox_mapping.status`. (`run-cutover`, the Trigger.dev job, is prepare-only and stops at
+READY_FOR_CUTOVER; it was never a door.)
+
+### Three records of one event, disagreeing
+
+| Record | What it said during a CLI-driven cutover | Who reads it |
+|---|---|---|
+| the cutover ledger | CUTOVER_IN_PROGRESS, then GRACE_PERIOD | the operator, `status`, `rollback` |
+| `mailbox_mapping.status` | `active` — syncing, source authoritative | the appliance's tick, the managed poller (`runsPasses`), every pass (`sourceAuthorityFor`) |
+| the passes | kept running, deletion detectors present | — |
+
+The passes believe the mapping. So the product kept scheduling passes against a source that had
+just stopped being the authority on what exists, with the detectors assembled — 0117 §3a's loop,
+the one D4 was decided to close, with a ledger beside it saying the cutover was under way. And
+the reachable rollback, built in T5, resumed nothing on this path — correctly, and said so — because
+there was nothing stopped to resume.
+
+### What was built
+
+- **`cutoverTransition` in `@openmig/shared`**, beside `rollbackTransition`: `active` and `paused`
+  → `cutover`; `cutover`, `continuous` and `done` left alone, `done` with a warning that a rollback
+  will be refused for it; an unknown status refuses. `the-mapping-hears-the-cutover.unit.test.ts`
+  pins every row against `MAPPING_LIFECYCLES`, and pins the round trip: whatever a cutover stops,
+  `rollbackTransition` takes back to `active`.
+- **`enterCutover` and `closeCutover` in `@openmig/core`** (`cutover-lifecycle.ts`, beside
+  `performRollback`, with the `MappingLifecyclePort` they now share): the mapping first, the
+  ledger second, refusals before either — the T5 order, for the T5 reason. `via: 'cutover'` in the
+  audit row, `stoppedSync` and `mappingStatus` in the ledger event.
+- **The CLI over them.** `execute` reads the mapping and lists the mapping half in its `--yes`
+  confirmation ("Stop the shadow sync: mapping … `'active'` → `'cutover'`"), then `enterCutover`,
+  then the DNS wait as before. On a propagation timeout the mapping stays `cutover` and the output
+  says `rollback --yes` resumes it. `complete` stops a mapping still `active` — every cutover
+  executed before this — on its way to COMPLETED, and says that it closes the ledger, not the
+  migration: `done` keeps its one door and its unresolved-failures rule.
+
+### Gate
+
+`apps/worker/src/cli/cutover-lifecycle.integration.test.ts`, the real state machine, the real
+`CutoverStore` and the real `mappingLifecyclePort` on Postgres — the E2E smoke cannot reach
+APPROVED without a verified data gate and real DNS (T5's reason). From APPROVED the mapping is
+`cutover`, the ledger CUTOVER_IN_PROGRESS, the audit row names the door and the event carries the
+mapping half; `paused` is stopped and recorded from `paused`; `continuous` is left alone with no
+audit row; READY_FOR_CUTOVER is refused before the mapping is touched; `complete` stops a mapping
+left `active` by an older cutover and writes no row for one already `cutover`; and the round trip
+— `enterCutover`, then `performRollback` — leaves the mapping `active` with two rows, `via:
+'cutover'` then `via: 'rollback'`.
+
+| Break | Case that fails |
+|---|---|
+| ledger written before the mapping | the two order tests (core, CLI) |
+| `paused` left alone instead of stopped | "stops a 'paused' mapping too" (shared, core) |
+| `complete` leaves the mapping alone | "stops a mapping still 'active' … BEFORE COMPLETED" (core, CLI) |
+| the audit row says `via: 'rollback'` | the `setStatus` shape (core, CLI) and the row itself (integration) |
+| the confirmation drops the mapping line | "tells the person approving what will happen to THIS mapping" |
+| the `done` warning dropped | "WARNS that a rollback will be refused" (shared, core, CLI) |
 
 ## What is still not covered, and why
 
