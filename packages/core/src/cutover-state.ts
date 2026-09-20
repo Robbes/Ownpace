@@ -11,7 +11,7 @@
  * - CUTOVER_IN_PROGRESS: DNS changes being made, final sync running
  * - GRACE_PERIOD: Both systems active, monitoring for discrepancies
  * - COMPLETED: Migration complete, only target system active
- * - ROLLED_BACK: Migration rolled back to source system
+ * - ROLLED_BACK: Migration rolled back to source system — a setback; may be attempted again
  * - FAILED: Error occurred, requires manual intervention
  * 
  * All state transitions are logged and must be explicit.
@@ -173,7 +173,10 @@ const VALID_TRANSITIONS: Record<CutoverState, CutoverState[]> = {
   CUTOVER_IN_PROGRESS: ['GRACE_PERIOD', 'FAILED', 'ROLLED_BACK'],
   GRACE_PERIOD: ['COMPLETED', 'ROLLED_BACK', 'FAILED'],
   COMPLETED: [], // Terminal state - no transitions allowed after completion
-  ROLLED_BACK: [], // Terminal state
+  // A setback, not the end (ADR-0047): a second attempt re-enters PREPARING, as
+  // a FAILED one always could. Owner's decision 2026-09-20 (workplan 0009 T8).
+  // Never a second ROLLED_BACK: there is nothing to roll back from here.
+  ROLLED_BACK: ['PREPARING'],
   FAILED: ['PREPARING', 'ROLLED_BACK'], // Can retry or rollback
 };
 
@@ -220,10 +223,15 @@ export function canRollback(state: CutoverState): boolean {
 }
 
 /**
- * Check if the cutover is in a terminal state
+ * Is this the end of the road — a state the machine admits nothing out of?
+ *
+ * COMPLETED only. It used to name ROLLED_BACK and FAILED too, while the
+ * machine admitted FAILED → PREPARING all along and, since 0009 T8, admits
+ * ROLLED_BACK → PREPARING: both are setbacks a second attempt recovers from.
+ * Derived from the table, so it cannot say "terminal" of a state with a way out.
  */
 export function isTerminalState(state: CutoverState): boolean {
-  return state === 'COMPLETED' || state === 'ROLLED_BACK' || state === 'FAILED';
+  return VALID_TRANSITIONS[state].length === 0;
 }
 
 /**
@@ -245,17 +253,17 @@ export function isTerminalState(state: CutoverState): boolean {
  * - `prepare` — run the preparation. `resetFirst` is set where the state does
  *   not admit READY_FOR_CUTOVER directly but does admit PREPARING: a ready
  *   verdict about to be replaced by a fresh sync and a fresh verification
- *   (READY_FOR_CUTOVER), or a failed attempt being retried (FAILED). The
+ *   (READY_FOR_CUTOVER), a failed attempt being retried (FAILED), or a
+ *   rolled-back one being attempted again (ROLLED_BACK, 0009 T8). The
  *   caller records that edge before it starts, so the trail shows the second
  *   attempt as one. From APPROVED the END of the run revokes the approval,
  *   as the recorded APPROVED → READY_FOR_CUTOVER the machine admits; from
  *   PREPARING there is nothing to record first.
  * - `refuse` — nothing to prepare, and nothing to write. Either a cutover is
  *   under way (`under_way`: the machine admits a rollback from it and no
- *   preparation), or the ledger is closed (`closed`: COMPLETED, or
- *   ROLLED_BACK — a second attempt after a rollback is workplan 0009 T8, the
- *   owner's call). A refusal is not a failed cutover; callers must not
- *   record it as one.
+ *   preparation), or the ledger is closed (`closed`: COMPLETED, the one state
+ *   the machine admits nothing out of). A refusal is not a failed cutover;
+ *   callers must not record it as one.
  */
 export type PrepareTransition =
   | { readonly initialize: true }
@@ -288,11 +296,8 @@ export function prepareTransition(state: CutoverState | undefined): PrepareTrans
   return {
     refuse: `The cutover ledger for this mapping is ${state} — closed; there is nothing to prepare.`,
     hint:
-      state === 'ROLLED_BACK'
-        ? 'A second attempt after a rollback is workplan 0009 T8 — the owner\'s call. ' +
-          '"status" shows the trail. Nothing was changed.'
-        : 'There is one cutover ledger per mapping, and this one is finished. ' +
-          '"status" shows the trail. Nothing was changed.',
+      'There is one cutover ledger per mapping, and this one is finished. ' +
+      '"status" shows the trail. Nothing was changed.',
     from: state,
     code: 'closed',
   };

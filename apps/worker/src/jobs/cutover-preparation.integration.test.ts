@@ -19,8 +19,8 @@
  * press of "prepare" on a ready cutover threw, the task marked it FAILED, and
  * every Trigger.dev retry then found FAILED, where the same write is invalid
  * too. Now it reads first and follows `prepareTransition`: a ready cutover is
- * re-verified and ready again, a failed attempt is retried, a cutover under
- * way or a closed ledger is refused with nothing written.
+ * re-verified and ready again, a failed or rolled-back attempt is tried again,
+ * a cutover under way or a completed ledger is refused with nothing written.
  *
  * UUID Family: 7a120000-e29b-41d4-a716-44665544xxxx
  *
@@ -336,18 +336,30 @@ describe('prepareCutover (integration)', () => {
       });
     }
 
-    it('refuses a ROLLED_BACK ledger, names the owner\'s call (0009 T8), and writes nothing', async () => {
-      await driveTo('ROLLED_BACK');
-      const before = await transitions();
+    it('attempts the cutover again after a rollback: ROLLED_BACK -> PREPARING, recorded, then READY (0009 T8)', async () => {
+      await driveTo('ROLLED_BACK'); // the rollback resumed the mapping; the ledger closed the attempt
 
-      const failure = await prepareCutover(deps()).catch((e: unknown) => e);
+      // Until 2026-09-20 this was refused: ROLLED_BACK admitted nothing, so the
+      // one outcome ADR-0047 made recoverable was the one a cutover could not
+      // leave. The owner opened the edge; the job takes it like FAILED's.
+      const result = await prepareCutover(deps());
 
-      expect(failure).toBeInstanceOf(CutoverRefused);
-      expect((failure as Error).message).toContain('ROLLED_BACK');
-      expect((failure as CutoverRefused).hint).toContain('0009 T8');
-      const persisted = await cutoverStore.loadCutoverState(TENANT as never, MAPPING as never);
-      expect(persisted?.currentState).toBe('ROLLED_BACK');
-      expect(await transitions()).toEqual(before);
+      expect(result.state).toBe('READY_FOR_CUTOVER');
+      expect(result.from).toBe('ROLLED_BACK');
+      expect(result.attempt).toBe(2);
+      expect(await transitions()).toEqual([
+        'init->PREPARING',
+        'PREPARING->READY_FOR_CUTOVER',
+        'READY_FOR_CUTOVER->APPROVED',
+        'APPROVED->CUTOVER_IN_PROGRESS',
+        'CUTOVER_IN_PROGRESS->ROLLED_BACK',
+        'ROLLED_BACK->PREPARING',
+        'PREPARING->READY_FOR_CUTOVER',
+      ]);
+      const events = await cutoverStore.getEventHistory(TENANT as never, MAPPING as never, 50);
+      const again = events.find((e) => e.fromState === 'ROLLED_BACK');
+      expect(again?.reason).toMatch(/again after a rollback \(attempt 2\)/);
+      expect(again?.metadata).toMatchObject({ retriedBy: 'trigger-job', attempt: 2 });
     });
 
     it('refuses a COMPLETED ledger — one cutover ledger per mapping, and this one is finished', async () => {

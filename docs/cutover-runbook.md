@@ -40,8 +40,8 @@ by `CutoverStore` — an invalid transition throws):
 ```
 PREPARING → READY_FOR_CUTOVER → APPROVED → CUTOVER_IN_PROGRESS → GRACE_PERIOD → COMPLETED
     ↑                                            │                    │
-    └─(retry from FAILED)                        ├──→ FAILED ←────────┤
-                                                 └──→ ROLLED_BACK ←───┘
+    ├─(retry from FAILED)                        ├──→ FAILED ←────────┤
+    └─(attempt again after ROLLED_BACK)          └──→ ROLLED_BACK ←───┘
 ```
 
 - **PREPARING** — initial state, pre-cutover checks in progress
@@ -53,10 +53,12 @@ PREPARING → READY_FOR_CUTOVER → APPROVED → CUTOVER_IN_PROGRESS → GRACE_P
   monitoring; rollback still accepted
 - **COMPLETED** — terminal. Closed out with `complete --yes`; `rollback` is
   no longer accepted from here
-- **ROLLED_BACK** — terminal; reached from `CUTOVER_IN_PROGRESS` or
-  `GRACE_PERIOD` (and from `APPROVED`/`FAILED`). One ledger per mapping and no
-  transition out, so **a second attempt after a rollback is not possible today**
-  — workplan 0009 T8, the owner's call
+- **ROLLED_BACK** — a setback (ADR-0047), not the end; reached from
+  `CUTOVER_IN_PROGRESS` or `GRACE_PERIOD` (and from `APPROVED`/`FAILED`). The
+  mapping is syncing again with the source live. **A second attempt is
+  `start-cutover`** (`ROLLED_BACK → PREPARING`, decided 2026-09-20, 0009 T8):
+  prepare, `verify`, `approve --yes`, `execute --yes` as the first time. Mail
+  that reached the target during the cutover window stays on the target
 - **FAILED** — e.g. DNS propagation timeout; retry (back to PREPARING) or
   roll back
 
@@ -91,9 +93,9 @@ pnpm exec tsx apps/worker/src/cli/index.ts start-cutover \
 
 Idempotent, and it says what it found: on a ledger that already exists it
 names the state and the next step and changes nothing; on `FAILED` it retries
-(`FAILED → PREPARING`, recorded with the attempt number; the failed attempt
-stays in the trail); on `COMPLETED` or `ROLLED_BACK` it refuses out loud —
-terminal, one ledger per mapping (0009 T8).
+and on `ROLLED_BACK` it attempts again (either `→ PREPARING`, recorded with
+the attempt number; the earlier attempt stays in the trail — 0009 T8); on
+`COMPLETED` it refuses out loud — terminal, one ledger per mapping.
 
 ### Run verification
 
@@ -270,9 +272,10 @@ If issues are detected during cutover or the grace period:
    server — the CLI prints this reminder and does not do it for you.
 4. **Verify:** `dig MX example.com`; confirm mail flow on the original
    server.
-5. Document the root cause; plan remediation. A `FAILED` cutover can be
-   restarted with `start-cutover` (`FAILED → PREPARING`); a `ROLLED_BACK` one
-   cannot be attempted again today (0009 T8).
+5. Document the root cause; plan remediation. A `FAILED` or `ROLLED_BACK`
+   cutover can be attempted again with `start-cutover` (`→ PREPARING`,
+   recorded as the next attempt; the trail keeps the first). Until 2026-09-20
+   a rolled-back cutover could not be attempted again without SQL (0009 T8).
 
 ## Troubleshooting
 
@@ -291,10 +294,10 @@ If issues are detected during cutover or the grace period:
    then `verify`, `approve --yes`, `execute --yes`.
 
    The managed preparation job (`POST /api/migrations/{id}/cutover`, the
-   Trigger.dev task `run-cutover`) converges on its own: on `FAILED` or
-   `READY_FOR_CUTOVER` it records the way back to `PREPARING` (`retriedBy`,
-   attempt number) and runs the final sync and the gate again; on a cutover
-   under way or a closed ledger it refuses and writes nothing. A gate FAIL is
+   Trigger.dev task `run-cutover`) converges on its own: on `FAILED`,
+   `ROLLED_BACK` or `READY_FOR_CUTOVER` it records the way back to `PREPARING`
+   (`retriedBy`, attempt number) and runs the final sync and the gate again;
+   on a cutover under way or a completed ledger it refuses and writes nothing. A gate FAIL is
    recorded once and not retried. Until 2026-09-20 a second run on a ready
    cutover marked it `FAILED`, and from `FAILED` the job could not run at all.
 

@@ -20,7 +20,7 @@
  *
  * ## Order
  *
- * The mapping FIRST, the ledger SECOND. ROLLED_BACK is terminal: a ledger
+ * The mapping FIRST, the ledger SECOND. ROLLED_BACK admits no second rollback: a ledger
  * write that succeeds followed by a mapping write that fails recreates the
  * original defect with no way back through the state machine. The reverse —
  * an `active` mapping beside a cutover still in its grace window — is a state

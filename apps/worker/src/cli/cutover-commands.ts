@@ -189,11 +189,13 @@ const NEXT_STEP: Record<string, string> = {
  *
  * Now: no ledger → initialise it. FAILED → retry, the FAILED → PREPARING edge
  * the state machine has always had, recorded with who and which attempt; the
- * trail keeps the failed attempt (append-only). COMPLETED and ROLLED_BACK →
- * refuse out loud: the machine admits nothing out of either, and a second
- * attempt after a rollback — the outcome ADR-0047 made recoverable — is the
- * owner's call (workplan 0009 T8), not something to bury under "initialized".
- * Anything else → it already exists, and here is the next step.
+ * trail keeps the failed attempt (append-only). ROLLED_BACK → attempt again,
+ * the same way: a rollback is a setback (ADR-0047), and on 2026-09-20 the
+ * owner opened ROLLED_BACK → PREPARING so a setback can be recovered from
+ * (workplan 0009 T8); the mapping has been syncing again since the rollback,
+ * and the preparation runs beside it as it did the first time. COMPLETED →
+ * refuse out loud: the one state the machine admits nothing out of. Anything
+ * else → it already exists, and here is the next step.
  */
 export async function startCutover(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.section('Starting Cutover');
@@ -218,7 +220,7 @@ export async function startCutover(deps: CutoverCliDeps): Promise<void> {
 
     const current = existing.currentState || existing.state;
 
-    if (current === 'FAILED') {
+    if (current === 'FAILED' || current === 'ROLLED_BACK') {
       // Which attempt this is, counted from the trail rather than guessed.
       const events = await deps.cutoverPersistence.getEventHistory(deps.tenantId, deps.mappingId);
       const attempt = events.filter((e) => e.toState === 'PREPARING').length + 1;
@@ -227,24 +229,26 @@ export async function startCutover(deps: CutoverCliDeps): Promise<void> {
         retriedAt: new Date().toISOString(),
         attempt,
       });
-      CutoverCliOutput.success(`Cutover retried: FAILED -> PREPARING (attempt ${attempt}).`);
-      CutoverCliOutput.info('The failed attempt stays in the event trail. Next step: "verify".');
+      if (current === 'FAILED') {
+        CutoverCliOutput.success(`Cutover retried: FAILED -> PREPARING (attempt ${attempt}).`);
+        CutoverCliOutput.info('The failed attempt stays in the event trail. Next step: "verify".');
+      } else {
+        CutoverCliOutput.success(`Cutover attempted again: ROLLED_BACK -> PREPARING (attempt ${attempt}).`);
+        CutoverCliOutput.info(
+          'The rolled-back attempt stays in the event trail. The mapping has been syncing again ' +
+            'since the rollback; mail that reached the target during the cutover window is on the ' +
+            'target only. Next step: "verify".',
+        );
+      }
       return;
     }
 
-    if (current === 'COMPLETED' || current === 'ROLLED_BACK') {
+    if (current === 'COMPLETED') {
       CutoverCliOutput.error(`A cutover ledger already exists for this mapping, and it is ${current} — terminal.`);
       CutoverCliOutput.info(
         'The state machine admits no transition out of it, and there is one cutover ledger per ' +
-          'mapping, so a second attempt is not possible today. Nothing was changed.',
+          'mapping: a finished cutover is not attempted again. Nothing was changed.',
       );
-      if (current === 'ROLLED_BACK') {
-        CutoverCliOutput.info(
-          'A cutover attempted again after a rollback is workplan 0009 T8 — the owner\'s call. ' +
-            'Until then: "status" shows the trail; the mapping itself is syncing again if the ' +
-            'rollback resumed it.',
-        );
-      }
       process.exit(1);
     }
 

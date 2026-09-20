@@ -148,7 +148,7 @@ describe('rollbackCutover() approval gate', () => {
     // ADR-0047. Until 2026-09-19 this command wrote the ledger and left
     // `mailbox_mapping` where it was, so an operator who ran it and walked
     // away believed their sync was running again when it was not. The order
-    // matters too: ROLLED_BACK is terminal, so the retryable write goes first.
+    // matters too: ROLLED_BACK admits no second rollback, so the retryable write goes first.
     const order: string[] = [];
     const store = {
       ...makeStore(),
@@ -810,8 +810,8 @@ describe('startCutover()', () => {
     expect(logged.join('\n')).toContain('Cutover retried: FAILED -> PREPARING (attempt 3)');
   });
 
-  it.each(['ROLLED_BACK', 'COMPLETED'])('refuses a %s ledger out loud: terminal, one ledger per mapping, nothing changed', async (terminal) => {
-    const store = startStore(terminal);
+  it('refuses a COMPLETED ledger out loud: terminal, one ledger per mapping, nothing changed', async () => {
+    const store = startStore('COMPLETED');
 
     await expect(startCutover(makeDeps(store as unknown as ReturnType<typeof makeStore>, true))).rejects.toThrow('process.exit(1)');
 
@@ -819,16 +819,27 @@ describe('startCutover()', () => {
     expect(store.transitionState).not.toHaveBeenCalled();
     expect(exitSpy).toHaveBeenCalledWith(1);
     const out = logged.join('\n');
-    expect(out).toContain(`${terminal} — terminal`);
+    expect(out).toContain('COMPLETED — terminal');
     expect(out).toContain('Nothing was changed');
     expect(out).not.toContain('initialized');
   });
 
-  it("names the owner's call for a second attempt after a rollback", async () => {
-    const store = startStore('ROLLED_BACK');
+  it('attempts again after a rollback — ROLLED_BACK -> PREPARING (0009 T8, owner 2026-09-20), recorded as attempt N', async () => {
+    // Until 2026-09-20 this refused and named the owner's call. A rollback is
+    // a setback (ADR-0047); the owner opened the edge so it can be recovered from.
+    const store = startStore('ROLLED_BACK', [
+      { toState: 'PREPARING' }, { toState: 'READY_FOR_CUTOVER' }, { toState: 'APPROVED' },
+      { toState: 'CUTOVER_IN_PROGRESS' }, { toState: 'ROLLED_BACK' },
+    ]);
 
-    await expect(startCutover(makeDeps(store as unknown as ReturnType<typeof makeStore>, true))).rejects.toThrow('process.exit(1)');
+    await startCutover(makeDeps(store as unknown as ReturnType<typeof makeStore>, true));
 
-    expect(logged.join('\n')).toContain('0009 T8');
+    expect(store.initializeCutover).not.toHaveBeenCalled();
+    expect(store.transitionState).toHaveBeenCalledWith(TENANT, MAPPING, 'PREPARING', expect.objectContaining({ retriedBy: 'cli', attempt: 2 }));
+    expect(exitSpy).not.toHaveBeenCalled();
+    const out = logged.join('\n');
+    expect(out).toContain('Cutover attempted again: ROLLED_BACK -> PREPARING (attempt 2)');
+    expect(out).toContain('on the target only');
+    expect(out).not.toContain('0009 T8');
   });
 });

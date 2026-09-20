@@ -59,7 +59,7 @@ describe('performRollback — the setback, whole or not at all', () => {
 
     const outcome = await performRollback(h.deps());
 
-    // The order is the point: ROLLED_BACK is terminal, so the write that can
+    // The order is the point: ROLLED_BACK admits no second rollback, so the write that can
     // be retried has to come first.
     expect(h.order).toEqual(['mapping:cutover->active', 'ledger:ROLLED_BACK']);
     expect(outcome).toMatchObject({

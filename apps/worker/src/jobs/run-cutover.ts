@@ -31,9 +31,9 @@
  * `prepareTransition` (`@openmig/core`, a view of the state machine): no
  * ledger → create it; PREPARING or APPROVED → prepare (an approval is revoked
  * at the end, as the recorded APPROVED → READY_FOR_CUTOVER it always was);
- * READY_FOR_CUTOVER or FAILED → record the way back to PREPARING first, then
- * prepare, so the trail shows the second attempt; a cutover under way or a
- * closed ledger → refuse, and write nothing. A refusal is not a failed
+ * READY_FOR_CUTOVER, FAILED or ROLLED_BACK (0009 T8) → record the way back to
+ * PREPARING first, then prepare, so the trail shows the second attempt; a
+ * cutover under way or a completed ledger → refuse, and write nothing. A refusal is not a failed
  * cutover and a gate verdict is not a fault, so neither is retried
  * (`preparationFailurePolicy`).
  *
@@ -190,8 +190,10 @@ export async function prepareCutover(
       const reason =
         decision.from === 'FAILED'
           ? `Retrying the preparation after a failed attempt (attempt ${attempt})`
-          : 'Re-preparing: the final sync and the gate run again, so the earlier ready ' +
-            `verdict no longer describes the data (attempt ${attempt})`;
+          : decision.from === 'ROLLED_BACK'
+            ? `Attempting the cutover again after a rollback (attempt ${attempt})`
+            : 'Re-preparing: the final sync and the gate run again, so the earlier ready ' +
+              `verdict no longer describes the data (attempt ${attempt})`;
       await deps.cutoverStore.transitionState(tenantId, mappingId, 'PREPARING', {
         retriedBy: 'trigger-job',
         retriedAt: new Date().toISOString(),
