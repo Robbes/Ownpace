@@ -1,0 +1,41 @@
+{
+  "_note": "The zip-route gate's mapping (workplan 0116 T10, second half). A THIRD mapping beside the archive-import one: the same five-file Takeout, but as the two-part .zip download in test/e2e/fixtures/takeout-zip, pointed at part 1 so the reader has to find part 2 on its own. Its target is a SUBFOLDER of the same e2e-target account (e2e.yml appends from-zip/ to the URL; the gate creates the collection first), so the import writes into an empty folder rather than adopting what the folder route already put at the root — and the two routes can then be compared file for file. Loads PAUSED like every mapping; green-lit only by its own gate, which runs after the archive-import gate. e2e.yml writes it under a name that sorts after both other mappings; the gates select by id, never by position.",
+  "tenantId": "00000000-0000-4000-8000-000000000001",
+  "mappingId": "33333333-3333-4333-8333-333333333333",
+  "schedule": {
+    "cron": "* * * * *"
+  },
+  "source": {
+    "type": "archive",
+    "provider": "google-takeout",
+    "path": "/data/fixtures/takeout-zip/takeout-20240506T070810Z-001.zip"
+  },
+  "target": {
+    "type": "webdav",
+    "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/from-zip/",
+    "user": "e2e-target",
+    "auth": {
+      "kind": "login",
+      "passwordFromEnv": "TARGET_DAV_PASSWORD"
+    }
+  },
+  "domains": {
+    "files": {
+      "enabled": true,
+      "source": {
+        "type": "archive",
+        "provider": "google-takeout",
+        "path": "/data/fixtures/takeout-zip/takeout-20240506T070810Z-001.zip"
+      },
+      "target": {
+        "type": "webdav",
+        "url": "http://host.docker.internal:8082/remote.php/dav/files/e2e-target/from-zip/",
+        "user": "e2e-target",
+        "auth": {
+          "kind": "login",
+          "passwordFromEnv": "TARGET_DAV_PASSWORD"
+        }
+      }
+    }
+  }
+}

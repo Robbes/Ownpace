@@ -33,6 +33,10 @@ services:
       # has no business shipping to a customer. The appliance only ever reads
       # an archive (hard rule 2), and `:ro` makes the kernel say so too.
       - ../../test/e2e/fixtures/takeout:/data/fixtures/takeout:ro
+      # The same Takeout as the two-part .zip download Google hands over, for
+      # the zip-route gate (0116 T10, second half): read in place, never
+      # extracted, by the reader D7 decided on. Read-only for the same reason.
+      - ../../test/e2e/fixtures/takeout-zip:/data/fixtures/takeout-zip:ro
     # List both networks explicitly rather than relying on Compose's list-merge
     # behavior for this key across -f files — unambiguous either way it merges.
     networks:

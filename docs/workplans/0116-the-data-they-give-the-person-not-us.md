@@ -40,9 +40,12 @@ reads, because a pass never closes its `FileSource`. Proved by one fixture laid 
 which found that the order of `folders` and `metadata.albums` followed the container's
 listing order, now sorted — and by the refusals: a zip with no Takeout inside, a download cut
 short, a member whose bytes fail their CRC-32, a `.tgz`, a part missing from the middle. The
-wizard's hint and the guide say "the folder or the .zip". The self-host gate still imports the
-extracted fixture; a zip fixture is not checked in (a binary, and the same code path). The
-managed transport is unchanged and still waits on the owner's word.
+wizard's hint and the guide say "the folder or the .zip". The self-host gate imports the
+extracted fixture and, since later that night, **the same Takeout as a two-part `.zip` written
+by Info-ZIP** (checked in, under two kilobytes): read in place on the appliance, imported into a
+subfolder of the same account, and compared file for file and manifest for manifest with the
+folder route — the same two parts being the one zip in the unit tests that our own writer did
+not make. The managed transport is unchanged and still waits on the owner's word.
 
 **2026-09-17: an Apple export exists and has been read (T3b unblocked).** The owner requested
 one on 8 September and it arrived on the 13th; §"What one real export answered" is what was in
@@ -225,7 +228,7 @@ If the owner decides only one thing here, decide **D1**.
 | T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
 | T8 The walkthrough | ✅ **Built 2026-09-04** | `docs/archive-setup.md` (the `-setup` suffix is what the app serves at `/docs`): how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
-| T10 The gate | ✅ **Built 2026-09-05** (in two gates) | Connect + measure in the MANAGED E2E (2026-09-04). The IMPORT in the SELF-HOST E2E (2026-09-05): a fixture Takeout mounted read-only into the appliance, a second paused mapping green-lit by the last gate, imported into the e2e-target Nextcloud — placement asserted against the real server (album copy, no year duplicate), the manifest read back, a second pass writing nothing. The managed gate cannot carry the import at all: its run containers share no filesystem with the API (T4). Its first run found the appliance keyed every mapping of a tenant by ONE id (`uuidFromString`) — fixed, with the in-place upgrade kept. |
+| T10 The gate | ✅ **Built 2026-09-05** (in two gates) | Connect + measure in the MANAGED E2E (2026-09-04). The IMPORT in the SELF-HOST E2E (2026-09-05): a fixture Takeout mounted read-only into the appliance, a second paused mapping green-lit by the last gate, imported into the e2e-target Nextcloud — placement asserted against the real server (album copy, no year duplicate), the manifest read back, a second pass writing nothing. The managed gate cannot carry the import at all: its run containers share no filesystem with the API (T4). Its first run found the appliance keyed every mapping of a tenant by ONE id (`uuidFromString`) — fixed, with the in-place upgrade kept. **2026-09-20, the zip route:** a third mapping over the same Takeout as a two-part `.zip` written by Info-ZIP (`test/e2e/fixtures/takeout-zip`), mounted read-only, pointed at part 1, imported into a `from-zip/` subfolder of the same account and compared with the folder route: the same four things written, byte for byte, and the manifest with the same name and the same bytes. |
 
 ## Why this exists
 
