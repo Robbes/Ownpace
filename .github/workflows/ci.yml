@@ -129,12 +129,42 @@ jobs:
           # every prose commit a nine-minute test run for no assertion. The
           # rule is narrow on purpose — a doc a TEST reads is code's business.
           #
+          # Widened 2026-09-21, and this time not by remembering. Everything above
+          # was a family somebody had noticed after it bit. A scan of all 758 test
+          # files found FIFTEEN more repository files that a test READS and this
+          # filter did not select: `docs/feature-matrix.md`, which
+          # `feature-matrix.unit.test.ts` asserts names every source and target
+          # kind; `docs/managed-bring-up.md`, read by three script guards;
+          # `README.md`, read by three more; `docs/workplans/0117-...`, whose
+          # "TAKEN 2026-09-09" line a cutover test asserts on; and the marketing
+          # site's own `build.mjs`. Every one of them was #772's defect sitting
+          # open, and the three-week lag is the whole cost of the list being kept
+          # by hand. `a-doc-a-test-reads-that-ci-skipped.unit.test.ts` now
+          # DISCOVERS that set from the tests themselves rather than restating it,
+          # so the sixteenth goes red on its own pull request.
+          #
+          # `site/**` and `test/**` join `deploy/**` and `scripts/**` for the same
+          # reason those did: they hold code a test reads, and `**.js` does not
+          # match `.mjs`.
+          #
           # Comments belong HERE and not inside the block scalar below, where a
           # `#` line is a PATTERN rather than a comment.
           files: |
             docs/*-setup.md
             docs/LESSONS.md
             docs/adr/**
+            README.md
+            AGENTS.md
+            CONTRIBUTING.md
+            docs/cutover-communication-templates.md
+            docs/dav-sync.md
+            docs/feature-matrix.md
+            docs/managed-bring-up.md
+            docs/operator-runbook.md
+            docs/release.md
+            docs/rls-guide.md
+            docs/windows-appliance-runbook.md
+            docs/workplans/0117-the-conveyor-belt-not-the-home.md
             **.ts
             **.tsx
             **.js
@@ -153,6 +183,8 @@ jobs:
             apps/**
             deploy/**
             scripts/**
+            site/**
+            test/**
       - name: Did the ledger migrations (or this workflow) change?
         id: migrations
         uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v44.5.7
