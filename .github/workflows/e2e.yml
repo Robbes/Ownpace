@@ -387,6 +387,19 @@ jobs:
             zipped.target.url = targetFiles + "from-zip/";
             zipped.domains.files.target.url = targetFiles + "from-zip/";
             fs.writeFileSync("deploy/selfhost/config/zz-archive-zip-import.mapping.json", JSON.stringify(zipped, null, 2));
+            // A FOURTH mapping, for the in-target gate (0116 T4, the relay's
+            // first slice): the same two-part .zip download once more, but the
+            // parts are NOT mounted anywhere — its own gate PUTs them into the
+            // e2e-target Nextcloud, and `where: "target"` makes the source
+            // path relative to this migration's own file target, so the pass
+            // reads them over the wire by byte range. Its target is another
+            // subfolder, from-target/, which its gate creates; the parts land
+            // in from-target/exports/, where the relay would leave them.
+            // Sorts after every other mapping on purpose.
+            const inTarget = JSON.parse(fs.readFileSync("test/e2e/fixtures/selfhost-archive-in-target-import.mapping.json", "utf8"));
+            inTarget.target.url = targetFiles + "from-target/";
+            inTarget.domains.files.target.url = targetFiles + "from-target/";
+            fs.writeFileSync("deploy/selfhost/config/zzz-archive-in-target-import.mapping.json", JSON.stringify(inTarget, null, 2));
           NODE
           cat > deploy/selfhost/.env <<ENV
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -611,6 +624,17 @@ jobs:
       # manifest for manifest, with what the extracted-folder route wrote.
       - name: Run Archive Zip-Route Gate (0116 T10 — the download itself, never extracted)
         run: pnpm test:e2e test/e2e/selfhost-archive-zip-import.e2e.test.ts
+
+      # After the zip-route gate, and the only archive gate with NOTHING
+      # mounted for it (0116 T4, the relay's first slice): the gate puts the
+      # two parts into the target account itself, the way the relay will, and
+      # the pass reads them there by byte range — PROPFIND for what is beside
+      # part 1, GET with Range for the bytes. Then the same comparison: the
+      # four placements and the manifest, against what the folder route wrote.
+      # The route a managed pass has to take, since its run container is given
+      # a network and no shared volume.
+      - name: Run Archive In-Target Gate (0116 T4 — the relay's route, read by byte range)
+        run: pnpm test:e2e test/e2e/selfhost-archive-in-target-import.e2e.test.ts
 
       - name: Appliance + Stalwart + Nextcloud diagnostics
         if: always()
