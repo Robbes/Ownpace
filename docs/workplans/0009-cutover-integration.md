@@ -125,6 +125,26 @@ to pick:
    and the operator who reads the report before pressing cutover has what they need. The argument
    against is that the gate exists precisely for the operator who does NOT read it.
 
+**The fault case is not hypothetical — it has already happened here.** Looked for it after writing
+the above, in the six `contentHashFor` implementations, and both shapes are systemic rather than
+per-item:
+
+- `jmap-target.ts:876` returns `undefined` for EVERY entry when the session has not resolved
+  (`!this.apiUrl || !this.authHeader || !this.accountId`), and again for every entry when the blob
+  download fails. The comment at `:897` records the incident in its own words: *"Returning
+  undefined silently made every mail sample come back `checksumUnavailable` with no indication
+  why, so §20's content leg was reported as 'not exercised' run after run and nothing said the
+  download was failing (hard rule 9)."* The response at the time was a `log.warn` — which gives an
+  operator reading logs the reason, and leaves the VERDICT untouched. The gate went on saying PASS.
+- `webdav-target-writer.ts:558` returns `undefined` on a GET that throws, on any non-200, and on a
+  response with no `bodyBytes`. A target that accepts `PUT` and refuses `GET` — a write-only
+  share, a proxy that strips bodies — fails every sample for the file domain.
+
+So the shape the third bullet of the list above calls *"a fault, and the one that reads as we
+checked and it was fine"* is a shape this product has already been in, on the mail domain, for
+more than one run. What was fixed then was the silence in the log. What was not asked is whether
+the report should still have read PASS.
+
 Option 1 is the one I would propose, because it separates the two cases using a distinction the
 code already makes and changes nothing for JMAP contacts. Not taken: when somebody may delete
 their Google account is not a call to make while the owner is asleep.
