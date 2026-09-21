@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 143 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 144 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -21,6 +21,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/ci.yml`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+- [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts) — A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
 
@@ -1973,6 +1974,14 @@ Reads:
 - `test/e2e/no-workspace-imports.unit.test.ts`
 - `test/e2e/selfhost-restart-resume.e2e.test.ts`
 - `test/e2e/selfhost-verification.e2e.test.ts`
+
+### [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts)
+
+A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
+
+Reads:
+
+- `.github/workflows/ci.yml`
 
 ### [a-scan-that-skipped-itself](../scripts/a-scan-that-skipped-itself.unit.test.ts)
 
