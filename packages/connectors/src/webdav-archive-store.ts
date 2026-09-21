@@ -270,9 +270,12 @@ function covers(from: number, toInclusive: number, offset: number, length: numbe
  *   change under it — another read's fetch landing, or the budget evicting.
  *   Reading it afterwards gave a read somebody else's window to slice itself
  *   out of, which `Uint8Array.slice` answers by clamping to NOTHING rather
- *   than refusing: a short read, no error, and a CRC-32 failure later that
- *   blames the person's export. The cache stays; what a read returns no
- *   longer depends on who else was reading.
+ *   than refusing: a SHORT READ, with no error where the mistake is. What the
+ *   person is told comes later and depends on where it landed — a CRC-32
+ *   failure in a member's data, a `RangeError` off a truncated local header,
+ *   or a bare `TypeError` when the budget evicted between the fetch and the
+ *   slice. All three blame their export. The cache stays; what a read returns
+ *   no longer depends on who else was reading.
  * - **Reads wanting the same window share one request.** Four members inside
  *   one 8 MiB window are one `Range` request, not four — against the
  *   customer's own server, which is also the one being written to.
