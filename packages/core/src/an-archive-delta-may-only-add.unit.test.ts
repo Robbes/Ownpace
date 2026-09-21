@@ -57,6 +57,11 @@ async function takeout(files: Array<[folder: string, name: string, bytes: Buffer
     const dir = join(root, 'Takeout', 'Google Photos', folder);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, name), bytes);
+    // An album carries its own `metadata.json`; a year folder does not. That
+    // is how the reader tells the two apart in any language (2026-09-21).
+    if (!/\d{4}/.test(folder)) {
+      await writeFile(join(dir, 'metadata.json'), JSON.stringify({ title: folder }));
+    }
   }
   return root;
 }

@@ -60,6 +60,9 @@ async function takeoutOnDisk(): Promise<string> {
   const photos = join(root, 'Takeout', 'Google Photos', 'Holiday');
   await mkdir(photos, { recursive: true });
   await writeFile(join(photos, 'IMG_0001.jpg'), Buffer.from('not really a jpeg'));
+  // An album carries its own `metadata.json`; a year folder does not. That is
+  // how the reader tells the two apart in any language (measured 2026-09-21).
+  await writeFile(join(photos, 'metadata.json'), JSON.stringify({ title: 'Holiday' }));
   return root;
 }
 

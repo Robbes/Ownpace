@@ -599,30 +599,63 @@ lists these folders in ENGLISH (`Photos from 2011`, `Trash`) even for a Dutch ac
 the picker, saw English, and nearly concluded there was no defect — a display name is not a
 path. The owner settled it by looking inside a data part.
 
-### The half that is NOT closed, and the three rules that are not it
+### The half that WAS open, closed the same day by a second export
 
-`Photos from <year>` is still a constant, so under a translated root every folder reads as an
-ALBUM, year folders included. For an export with no albums — the owner's — that is invisible:
-each photo sits in one folder and lands in one place. Add an album and it is not: the photo is
-placed under the album AND under its year folder, which §"What is carried" says must not happen.
-Pinned as a failing-on-purpose expectation in
-`a-takeout-that-is-not-in-english.unit.test.ts`; the test fails when the rule lands.
+`Photos from <year>` was the second translated thing, and the fix above left it a constant with a
+deliberately-failing test pinning the wrong answer. The owner requested a second export that
+afternoon — **8477 files, 44.87 GB**, with two albums in it — and it settled the rule outright:
 
-Three candidate rules this export **rules out**, which is the value of having measured it:
+| folder                      | own `metadata.json` | bucket |
+|-----------------------------|---------------------|--------|
+| `Foto_s van 2024/2025/2026` | **no** (all three)  | year   |
+| `Reis`, `Test Album_1$#_`   | **YES** (both)      | album  |
+| `Prullenbak` (export #1)    | **no**              | other  |
 
-| Candidate | What the export says |
-|---|---|
-| The folder's own `metadata.json` — albums carry one, year folders do not | **No folder in the export has one**, year folders included. So the rule is untested, not confirmed. It remains the best candidate; it needs an export WITH albums |
-| The filename — Trash items are marked | Trash is `Prullenbak`, translated like everything else, and **only 1 of its 25 media** carries Android's `.trashed-` prefix. The other 24 are ordinary names |
-| `archive_browser.html` — the report as a Rosetta stone | It carries exactly one English key, `data-english-name="PHOTOS"`, and that is for the **service**. The folders under it appear only in Dutch. It is also in part 001 only, which a person may not have downloaded |
+An album is known POSITIVELY, by carrying its own `metadata.json`, so the year test only has to
+catch what is left — which is what makes an album called `Thailand 2019` safe, because the album
+rule claims it first. **No part of this reads English.** Owner, confirming directly: *"only the
+albums carry a metadata.json. the year-folders do not."*
 
-### What this means for the owner's Trash decision
+**The double placement was real, not theoretical.** All four photos in the two albums appear in a
+year folder as well, so before this rule a translated export wrote each of them twice.
 
-The owner decided on 2026-09-21: *"we should leave out Trash, the user should unselect it, and
-we should not move it to target."* The first half is guidance and can be written today. **The
-second half has no rule yet** — from inside the data parts, `Prullenbak` is indistinguishable
-from an album called `Prullenbak`. It lands with the album rule, not before, and until then
-Trash is carried like any other folder.
+**The bin is the third bucket and it is skipped**, per the owner's rule — and the summary carries
+`skipped: { folders, items }` so a person whose target holds fewer photos than Google showed them
+is given the reason rather than a discrepancy to discover. Anything else that is neither album
+nor year lands there too, which is the conservative direction and a trade worth naming: a folder
+this reader cannot account for is not copied, and is reported by name.
+
+### Four more things that export settled
+
+1. **The folder name is lossy; the metadata is not.** `Test Album'1$#%` reaches disk as
+   `Test Album_1$#_` — Takeout replaces `'` and `%` with `_`, and leaves `$` and `#`. The album's
+   own `metadata.json` still holds `"title": "Test Album'1$#%"`, so that is where the person's
+   real name survives, and what the reader now carries beside the folder name.
+2. **An album's `metadata.json` can be in a DIFFERENT part of the download than its photos.** The
+   owner found `Test Album_1$#_` in two `.zip` parts, photos in one and metadata in the other. A
+   reader that classified per part would call the photo half the bin and skip it. The tree seam
+   merges parts before anything is classified, so it holds — now proved rather than assumed, by a
+   test no fixture in the repository had the shape for (they split by year folder, so every album
+   stayed whole inside one part).
+3. **`access: "protected"` is NOT a share signal.** Both albums carry it and only one was shared,
+   so it is the default. What differs is `sharedAlbumComments`, present only on the shared one —
+   evidence of ACTIVITY, which under-reports an album shared with nobody commenting. Recorded
+   because reading it the other way would have flagged every album a person has.
+4. **Empty albums do not ship at all.** The owner has three albums and the export carries two.
+   So how Takeout disambiguates two same-named albums is STILL unknown — his two `Thailand`
+   albums are both empty and neither appeared.
+
+### The share nobody can recreate
+
+**The export carries no recipient anywhere.** Not in the album's `metadata.json`, not in
+`archive_browser.html` — the only address in the report is the account header, `Archive for
+<the owner>`. An album's sharing cannot be reproduced on the target, whatever we build.
+
+Owner (2026-09-21): *"perhaps we can at least mention the user he/she needs to look at that
+somewhere along the way, and recreate shared photo's if needed"*. So `docs/archive-setup.md` tells
+**everyone with albums** that sharing does not travel and to re-share on the target, rather than
+relying on `shareActivity`, which under-reports. The flag rides beside it as a reminder, named
+for what it measures.
 
 ### Larger parts: safe, with room to spare
 

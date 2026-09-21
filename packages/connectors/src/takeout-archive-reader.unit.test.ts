@@ -68,6 +68,18 @@ const FIXTURE: ReadonlyArray<{ readonly path: string; readonly data: Buffer }> =
   { path: 'Takeout/Google Photos/Holiday in Kent/IMG_0001.jpg', data: PHOTO },
   { path: 'Takeout/Google Photos/Favourites/IMG_0001.jpg', data: PHOTO },
   { path: 'Takeout/Google Photos/Photos from 2019/IMG_0001.jpg', data: PHOTO },
+  // AN ALBUM CARRIES ITS OWN `metadata.json` AND A YEAR FOLDER DOES NOT — which
+  // is how the reader tells the two apart in any language (2026-09-21, measured
+  // on two real exports). The fixture said otherwise until then, modelling a
+  // Takeout that does not exist; these two lines are what a real one has.
+  {
+    path: 'Takeout/Google Photos/Holiday in Kent/metadata.json',
+    data: Buffer.from(JSON.stringify({ title: 'Holiday in Kent', description: '', access: 'protected' })),
+  },
+  {
+    path: 'Takeout/Google Photos/Favourites/metadata.json',
+    data: Buffer.from(JSON.stringify({ title: 'Favourites', description: '' })),
+  },
   // Only ONE of the three carries a sidecar, which is normal: the reader must
   // find it from whichever folder it happens to meet the photo in first.
   {

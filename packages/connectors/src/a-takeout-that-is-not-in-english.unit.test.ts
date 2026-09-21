@@ -190,60 +190,46 @@ describe('when there is no photo tree, the refusal says what was there', () => {
   });
 });
 
-describe('the half this change does NOT close, pinned so it cannot ship quietly', () => {
+describe('the half #1047 left open, now closed — an album is told from a year folder', () => {
   /**
-   * Finding the root is one of two translated things. `Photos from <year>` is
-   * the other, and it is still a constant — so under a Dutch root every folder
-   * reads as an ALBUM, year folders included.
+   * This replaces a test that asserted the WRONG answer on purpose.
    *
-   * For the owner's own export that is invisible: it has no albums, so each
-   * photo sits in exactly one folder and lands in exactly one place. Add an
-   * album and it stops being invisible — the photo is placed twice, once under
-   * the album and once under the year folder that 0112 §3 says must not be
-   * reproduced when an album exists.
+   * #1047 found the photo tree structurally but left `Photos from <year>` an
+   * English constant, so under a translated root every folder read as an album
+   * and a photo that HAD an album was placed under its year folder as well.
+   * That test pinned the wrong answer so it could not ship quietly, and said
+   * the rule that fixed it would make the test fail. It did, and this is the
+   * right answer in its place.
    *
-   * This test asserts the WRONG answer on purpose. It is here because the
-   * right one cannot be written yet: it needs a rule that tells an album from
-   * a year folder without reading English, and the export that settles which
-   * rule that is has not arrived. Measured against the owner's real export
-   * (8517 files, 45.03 GB), what is NOT the rule:
-   *
-   *   - the folder's own `metadata.json` — no folder in his export has one,
-   *     year folders included, so the "albums carry one" rule is untested,
-   *     not confirmed;
-   *   - the filename — Trash is `Prullenbak`, translated like everything else,
-   *     and only 1 of its 25 media carries Android's `.trashed-` prefix;
-   *   - the report — `archive_browser.html` names the service in English and
-   *     the folders in Dutch.
-   *
-   * When that rule lands, this test fails, and the expectation below is what
-   * changes: `placeIn` becomes `['Reis']` alone.
+   * The rule, measured on the owner's two real exports (2026-09-21): an album
+   * carries its own `metadata.json` and a year folder does not.
    */
-  it('places an album photo twice, because a Dutch year folder still reads as an album', async () => {
+  it('places an album photo ONCE, under the album, whatever the language', async () => {
     const root = await libraryNamed('Google Foto_s', (n) => `Foto_s van ${n}`);
     const album = join(root, 'Takeout', 'Google Foto_s', 'Reis');
     await mkdir(album, { recursive: true });
     await writeFile(join(album, 'IMG_0001.jpg'), PHOTO);
+    await writeFile(join(album, 'metadata.json'), JSON.stringify({ title: 'Reis' }));
 
     const items = await itemsOf(root);
     const shared = items.find((i) => i.folders.length > 1);
     expect(shared).toBeDefined();
     expect([...shared!.folders].sort()).toEqual(['Foto_s van 2019', 'Reis']);
-    // Today: both, so the photo is written under the year folder as well.
-    expect([...shared!.placeIn].sort()).toEqual(['Foto_s van 2019', 'Reis']);
-    // And the year folder is reported as one of the person's albums.
-    expect(shared!.metadata.years).toEqual([]);
+    // The whole point: the album alone, NOT the year folder as well.
+    expect(shared!.placeIn).toEqual(['Reis']);
+    expect(shared!.metadata.years).toEqual(['Foto_s van 2019']);
+    expect(shared!.metadata.albums).toEqual(['Reis']);
   });
 
-  it('gets the same library right in English, which is what makes this a translation defect', async () => {
+  it('answers identically in English, which is what it never did before', async () => {
     const root = await libraryNamed('Google Photos', (n) => `Photos from ${n}`);
     const album = join(root, 'Takeout', 'Google Photos', 'Reis');
     await mkdir(album, { recursive: true });
     await writeFile(join(album, 'IMG_0001.jpg'), PHOTO);
+    await writeFile(join(album, 'metadata.json'), JSON.stringify({ title: 'Reis' }));
 
     const items = await itemsOf(root);
     const shared = items.find((i) => i.folders.length > 1);
-    expect(shared).toBeDefined();
     expect(shared!.placeIn).toEqual(['Reis']);
     expect(shared!.metadata.years).toEqual(['Photos from 2019']);
   });
