@@ -798,6 +798,47 @@ asserts on the manifest.
 **Not proposed for now.** The doubling is structural: it buys the collapse,
 and the collapse is the product. The number is here so the trade is visible.
 
+#### One window, four readers (2026-09-20)
+
+Found while reading the measurement above: **the relay's range source was not
+safe to read from twice at once**, and the file loop always does.
+
+`runFileSync` downloads inside `runDomainSync`'s bounded concurrency, and
+`DEFAULT_CONCURRENCY` is four; `ArchiveFileSource.fetch` reads THERE and not
+during the listing, deliberately, so that a listing does not buffer a whole
+folder. Four members of one Takeout part are therefore read through the one
+`RandomAccessSource` that part was opened with, at the same time. That source
+kept its read-ahead window in a field and read the field back AFTER awaiting a
+fetch — so the last fetch to land decided which window every in-flight read
+sliced itself out of.
+
+What that produces is not an error. `Uint8Array.slice` clamps a start that
+lies outside the array rather than refusing it, so a read simply comes back
+SHORT, and the zip reader then says what a short read looks like from where it
+stands: *"Member … failed its CRC-32 check: the bytes are not the ones the
+archive recorded."* A sound export, called corrupt. With the budget of the
+previous subsection in play it is worse — an eviction between a read's fetch
+and its slice makes the field `undefined` and the read throws a bare
+`TypeError`, which is not an archive sentence at all.
+
+Two things about where it hid:
+
+- **The appliance cannot show it.** `openFileSource` opens a descriptor per
+  read and reads positionally, holding nothing between calls, so it is
+  re-entrant by construction. The same import succeeds there and fails on the
+  managed edition — hard rule 5, and the reason this is recorded rather than
+  merely fixed.
+- **No fixture can show it.** The window is 8 MiB and the e2e download's parts
+  are 387 and 1316 bytes, so every window in the gate is the whole part at
+  offset zero: whichever fetch won the field, every read sliced the same
+  bytes. Like the ceiling above it, this is a defect that begins at the size
+  the product is for.
+
+Fixed by making the window a value a read holds rather than a field it
+re-reads, and by letting concurrent readers of one window share a single
+request — four members inside one 8 MiB window are now one `Range` request
+against the customer's server instead of four.
+
 ### 4. What is carried, and what is honestly lost
 
 Non-destructive toward the archive, always: its bytes are never opened for writing (hard
