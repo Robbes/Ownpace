@@ -22,29 +22,29 @@
     "adr:operative": "node scripts/adr-operative.mjs --write"
   },
   "dependencies": {
-    "@azure/msal-node": "^6.0.0",
+    "@azure/msal-node": "^6.0.1",
     "@trigger.dev/core": "4.5.16",
     "@trigger.dev/sdk": "4.5.16",
     "croner": "^10.0.1",
-    "jmap-jam": "^0.13.6"
+    "jmap-jam": "^0.13.7"
   },
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "^6.0.1",
     "@eslint/js": "10.0.1",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.1",
     "@types/pg": "catalog:",
     "@types/supertest": "^7.2.1",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "@typescript-eslint/parser": "^8.70.0",
     "@typescript/native": "npm:typescript@7.0.2",
-    "@vitest/coverage-v8": "5.0.0",
+    "@vitest/coverage-v8": "5.0.1",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "catalog:",
     "esbuild": "^0.28.2",
     "eslint": "10.10.0",
-    "imapflow": "^2.0.2",
-    "jsdom": "^30.0.1",
-    "nodemailer": "^10.0.3",
+    "imapflow": "^2.0.5",
+    "jsdom": "^30.1.0",
+    "nodemailer": "^10.0.10",
     "pg": "catalog:",
     "playwright-core": "^1.63.0",
     "supertest": "^7.2.2",
@@ -52,7 +52,7 @@
     "tsx": "^4.23.13",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "^8.70.0",
-    "vitest": "5.0.0",
-    "yaml": "^2.9.0"
+    "vitest": "5.0.1",
+    "yaml": "^2.9.1"
   }
 }
