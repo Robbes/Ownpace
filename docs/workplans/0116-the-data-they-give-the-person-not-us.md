@@ -812,14 +812,17 @@ kept its read-ahead window in a field and read the field back AFTER awaiting a
 fetch — so the last fetch to land decided which window every in-flight read
 sliced itself out of.
 
-What that produces is not an error. `Uint8Array.slice` clamps a start that
-lies outside the array rather than refusing it, so a read simply comes back
-SHORT, and the zip reader then says what a short read looks like from where it
-stands: *"Member … failed its CRC-32 check: the bytes are not the ones the
-archive recorded."* A sound export, called corrupt. With the budget of the
-previous subsection in play it is worse — an eviction between a read's fetch
-and its slice makes the field `undefined` and the read throws a bare
-`TypeError`, which is not an archive sentence at all.
+What that produces is not an error at the point of the mistake.
+`Uint8Array.slice` clamps a start outside the array rather than refusing it,
+so a read simply comes back SHORT — and what the person is told then depends
+on where the short read landed. In a member's data it is *"Member … failed its
+CRC-32 check: the bytes are not the ones the archive recorded"*, a sound export
+called corrupt. In a local header — which is what the whole-stack test actually
+reproduces — it is `RangeError: Offset is outside the bounds of the DataView`,
+which is not a `ZipUnreadable` at all and so never reaches the person as an
+archive sentence. With the budget of the previous subsection in play there is a
+third: an eviction between a read's fetch and its slice makes the field
+`undefined` and the read throws a bare `TypeError`.
 
 Two things about where it hid:
 
