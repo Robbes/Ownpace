@@ -231,6 +231,25 @@ function requestedPath(url: string): string {
 
 const nameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
 
+/** A stretch of the file, fetched whole and sliced by the reads it covers. */
+interface RangeWindow {
+  readonly offset: number;
+  readonly bytes: Uint8Array;
+}
+
+/** A window on its way, and the extent it will cover, so a second reader can wait rather than ask again. */
+interface RangeWindowOnItsWay {
+  readonly offset: number;
+  /** Inclusive, as the `Range` header spells it. */
+  readonly end: number;
+  readonly at: Promise<RangeWindow>;
+}
+
+/** Whether a window (held or promised) can answer a read of `length` at `offset`. */
+function covers(from: number, toInclusive: number, offset: number, length: number): boolean {
+  return offset >= from && offset + length <= toInclusive + 1;
+}
+
 /**
  * A file in the target as a random-access source, by `Range`.
  *
@@ -240,6 +259,33 @@ const nameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
  * window are served from memory. The zip reader reads members front to back,
  * so a window is spent before the next is fetched; the tail (the end record
  * and the central directory) costs one window of its own.
+ *
+ * READ BY FOUR AT ONCE. The file loop downloads inside a bounded concurrency
+ * of four (`DEFAULT_CONCURRENCY`), and an archive's members are read THERE —
+ * so four members of one Takeout part are read through this one source at the
+ * same time. Two rules follow, and both are the point of the shape below:
+ *
+ * - **A window is a value a read holds, never a field it re-reads.** There is
+ *   an `await` between wanting a window and slicing one, and the field can
+ *   change under it — another read's fetch landing, or the budget evicting.
+ *   Reading it afterwards gave a read somebody else's window to slice itself
+ *   out of, which `Uint8Array.slice` answers by clamping to NOTHING rather
+ *   than refusing: a SHORT READ, with no error where the mistake is. What the
+ *   person is told comes later and depends on where it landed — a CRC-32
+ *   failure in a member's data, a `RangeError` off a truncated local header,
+ *   or a bare `TypeError` when the budget evicted between the fetch and the
+ *   slice. All three blame their export. The cache stays; what a read returns
+ *   no longer depends on who else was reading.
+ * - **Reads wanting the same window share one request.** Four members inside
+ *   one 8 MiB window are one `Range` request, not four — against the
+ *   customer's own server, which is also the one being written to.
+ *
+ * The budget still counts ONE window per source, and four reads can briefly
+ * have four in the air; only the last survives the tick, the rest are the
+ * readers' own and are gone when their reads return. So the ceiling holds
+ * between reads, and the transient above it is bounded by the loop's
+ * concurrency rather than by the size of the download — which is the property
+ * {@link DEFAULT_RANGE_BUDGET_BYTES} is there for.
  */
 export function openRangeSource(
   dav: { request(method: string, path: string, options?: { readonly headers?: Record<string, string> }): Promise<HttpResponse>; url(path: string): string },
@@ -251,31 +297,57 @@ export function openRangeSource(
   const budget = options.budget;
   /** This source's identity in the shared budget — see {@link rangeBudget}. */
   const claim = {};
-  let window: { readonly offset: number; readonly bytes: Uint8Array } | undefined;
+  /** The last window fetched, kept so the next read inside it costs nothing. A cache, not a result. */
+  let held: RangeWindow | undefined;
+  /** The fetch in flight, so concurrent readers of one window make one request. */
+  let onItsWay: RangeWindowOnItsWay | undefined;
 
-  async function fetchWindow(offset: number, length: number): Promise<void> {
+  async function fetchWindow(offset: number, length: number): Promise<RangeWindow> {
     const end = Math.min(size, offset + Math.max(length, windowBytes)) - 1;
-    const response = await dav.request('GET', path, { headers: { Range: `bytes=${offset}-${end}` } });
-    if (response.status === 200) {
-      throw new ZipUnreadable(
-        `${dav.url(path)} answers a byte-range request with the whole file, so an archive there cannot be read in place: reading one member would mean downloading all of it.`,
-      );
+    const at = (async (): Promise<RangeWindow> => {
+      const response = await dav.request('GET', path, { headers: { Range: `bytes=${offset}-${end}` } });
+      if (response.status === 200) {
+        throw new ZipUnreadable(
+          `${dav.url(path)} answers a byte-range request with the whole file, so an archive there cannot be read in place: reading one member would mean downloading all of it.`,
+        );
+      }
+      if (response.status !== 206) {
+        throw new ZipUnreadable(`${dav.url(path)} answered ${response.status} to a byte-range request: ${response.body.slice(0, 200)}`);
+      }
+      const bytes = response.bodyBytes ?? new TextEncoder().encode(response.body);
+      if (bytes.byteLength !== end - offset + 1) {
+        throw new ZipUnreadable(
+          `${dav.url(path)} answered ${bytes.byteLength} byte(s) to a request for ${end - offset + 1}: the archive is not the size the target reported.`,
+        );
+      }
+      const window: RangeWindow = { offset, bytes };
+      held = window;
+      // The budget may drop this window from the CACHE at any point after
+      // here — including before the read that asked for it gets to slice it.
+      // That is why the window is returned rather than read back out of
+      // `held`: an eviction costs a later request, never a short read.
+      budget?.hold(claim, bytes.byteLength, () => {
+        held = undefined;
+      });
+      return window;
+    })();
+    onItsWay = { offset, end, at };
+    try {
+      return await at;
+    } finally {
+      if (onItsWay?.at === at) onItsWay = undefined;
     }
-    if (response.status !== 206) {
-      throw new ZipUnreadable(`${dav.url(path)} answered ${response.status} to a byte-range request: ${response.body.slice(0, 200)}`);
+  }
+
+  async function windowFor(offset: number, length: number): Promise<RangeWindow> {
+    const cached = held;
+    if (cached && covers(cached.offset, cached.offset + cached.bytes.byteLength - 1, offset, length)) {
+      budget?.touch(claim);
+      return cached;
     }
-    const bytes = response.bodyBytes ?? new TextEncoder().encode(response.body);
-    if (bytes.byteLength !== end - offset + 1) {
-      throw new ZipUnreadable(
-        `${dav.url(path)} answered ${bytes.byteLength} byte(s) to a request for ${end - offset + 1}: the archive is not the size the target reported.`,
-      );
-    }
-    window = { offset, bytes };
-    // The budget may drop somebody ELSE's window here, and may drop this one
-    // on a later hold — never this one now, so the read below is always served.
-    budget?.hold(claim, bytes.byteLength, () => {
-      window = undefined;
-    });
+    const coming = onItsWay;
+    if (coming && covers(coming.offset, coming.end, offset, length)) return coming.at;
+    return fetchWindow(offset, length);
   }
 
   return {
@@ -284,15 +356,14 @@ export function openRangeSource(
       if (offset < 0 || offset + length > size) {
         throw new ZipUnreadable(`A read of ${length} byte(s) at ${offset} lies beyond the ${size}-byte archive ${dav.url(path)}.`);
       }
-      const served = window && offset >= window.offset && offset + length <= window.offset + window.bytes.byteLength;
-      if (served) budget?.touch(claim);
-      else await fetchWindow(offset, length);
-      const start = offset - window!.offset;
+      const window = await windowFor(offset, length);
+      const start = offset - window.offset;
       // A copy, not a view: the caller may hold the bytes after the window moves on.
-      return window!.bytes.slice(start, start + length);
+      return window.bytes.slice(start, start + length);
     },
     async close() {
-      window = undefined;
+      held = undefined;
+      onItsWay = undefined;
       budget?.release(claim);
     },
   };
