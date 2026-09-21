@@ -164,6 +164,41 @@ jobs:
             packages/managed/migrations/**
             .github/workflows/ci.yml
 
+  commit-convention:
+    name: commit-convention
+    # PULL REQUESTS ONLY, and this is the load-bearing line.
+    #
+    # `main` carries a hundred prose subjects written while nothing read them —
+    # two of the last two hundred follow the convention, and both are
+    # dependabot's. A gate that judged history would be red on every push to
+    # `main` forever, with not one of those commits fixable, and would be turned
+    # off within the week. It reads `base..head` and nothing else, so no branch
+    # has to be rewritten to go green.
+    #
+    # `ci-complete` fails on `failure` and `cancelled`, never on `skipped`, so
+    # skipping here on a push is green AND is named in its summary table.
+    if: github.event_name == 'pull_request'
+    # Hosted unconditionally: it only ever runs on a pull request, which by the
+    # policy in the header never touches the Spark.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Both ends of the range must be reachable. The default shallow fetch
+          # has neither the base tip nor the branch's own history, and the
+          # script would fail with git's error instead of a verdict.
+          fetch-depth: 0
+      - name: Judge the commit subjects this branch adds
+        # THROUGH `env:`, not interpolated into the script. These two are
+        # GitHub-generated SHAs today and therefore safe, and the moment
+        # somebody widens this step to a title or a branch name the habit is
+        # already the right one — a `${{ }}` inside `run:` is a shell injection
+        # from a pull request nobody has to be trusted to open.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/commit-convention.mjs "$BASE_SHA" "$HEAD_SHA"
+
   docs-hygiene:
     name: docs-hygiene
     runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
@@ -630,6 +665,7 @@ jobs:
     if: always()
     needs:
       - detect-changes
+      - commit-convention
       - docs-hygiene
       - fixture-uuid-check
       - migration-lint
