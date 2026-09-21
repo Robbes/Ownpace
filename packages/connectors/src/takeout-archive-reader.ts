@@ -89,26 +89,52 @@ const TAKEOUT_ROOT = 'Takeout';
 const SIDECAR_JSON = /\.json$/i;
 
 /**
- * `Photos from 2019` is a YEAR folder; anything else under the root is an album.
+ * WHICH OF THREE THINGS A FOLDER UNDER THE PHOTO TREE IS.
  *
- * STILL ENGLISH, and knowingly so (2026-09-21). The root above is found rather
- * than named, so a translated export can now be READ; this line is the second
- * translated thing and it is not yet closed, because the rule that replaces it
- * cannot be written from any export in hand. Under a non-English root every
- * folder falls through to `album`, and a photo that HAS an album is then placed
- * under its year folder as well — which 0112 §3 says must not happen. Pinned,
- * with the measurements behind it, in
- * `a-takeout-that-is-not-in-english.unit.test.ts`; that test fails when the
- * rule lands, which is how it is meant to end.
+ * Takeout puts albums, year folders and the bin side by side, and until
+ * 2026-09-21 this file told them apart with `/^Photos from (\d{4})$/` — a
+ * constant, in English, that every translated export fell through. Under a
+ * Dutch root EVERY folder read as an album, year folders included, so a photo
+ * that HAS an album was placed under its year folder as well.
  *
- * Measured against the owner's real 45.03 GB export, three rules that are NOT
- * it: the folder's own `metadata.json` (no folder in it has one, year folders
- * included — so "albums carry one" is untested, not confirmed), the filename
- * (Trash is `Prullenbak`, translated like the rest; 1 of its 25 media carries
- * Android's `.trashed-` prefix), and `archive_browser.html` (names the SERVICE
- * in English via `data-english-name`, the folders in Dutch).
+ * MEASURED, on the owner's two real exports rather than reasoned about:
+ *
+ * | folder                     | own `metadata.json` | bucket |
+ * |----------------------------|---------------------|--------|
+ * | `Foto_s van 2024/25/26`    | no (all three)      | year   |
+ * | `Reis`, `Test Album_1$#_`  | YES (both)          | album  |
+ * | `Prullenbak` (the bin)     | no                  | other  |
+ *
+ * So an album is known POSITIVELY, by carrying its own `metadata.json`, and
+ * that is what makes the rest safe: the year test only has to catch what is
+ * left, so an album called `Thailand 2019` is claimed by the album rule before
+ * the year rule ever sees it. No part of this reads English.
+ *
+ * The bin is the third bucket and it is SKIPPED (owner, 2026-09-21: *"we
+ * should leave out Trash ... and we should not move it to target"*). Anything
+ * else that is neither album nor year lands there too, which is the
+ * conservative direction: a folder this reader cannot account for is not
+ * copied, and the summary says it was skipped and how much was in it.
  */
-const YEAR_FOLDER = /^Photos from (\d{4})$/;
+const YEAR_IN_NAME = /(?:^|\D)(?:19|20)\d{2}(?:\D|$)/;
+
+/** The file an album folder carries and a year folder does not. */
+const ALBUM_METADATA = 'metadata.json';
+
+/** What an album's own `metadata.json` holds, as far as this reader reads it. */
+export interface AlbumMetadata {
+  readonly title?: string;
+  readonly description?: string;
+  /** `"protected"` on an album the person shared. Verbatim; never interpreted here. */
+  readonly access?: string;
+  readonly [key: string]: unknown;
+}
+
+/** A folder under the photo tree, and which of the three things it is. */
+export type FolderKind =
+  | { readonly kind: 'album'; readonly title: string; readonly metadata: AlbumMetadata }
+  | { readonly kind: 'year' }
+  | { readonly kind: 'other' };
 
 /** Takeout caps a sidecar's filename at this many characters. */
 const SIDECAR_NAME_CAP = 51;
@@ -235,10 +261,20 @@ interface Found {
 }
 
 /** One walk of the tree, and everything the walk learned. */
+/** What was deliberately left behind, so nothing is dropped in silence. */
+export interface Skipped {
+  readonly folders: ReadonlyArray<string>;
+  readonly items: number;
+}
+
 interface Collapsed {
   readonly items: ReadonlyArray<ArchiveItem>;
   /** Content hash → the tree path of ONE copy of those bytes. */
   readonly whereabouts: ReadonlyMap<string, string>;
+  /** The bin and anything else this reader could not account for. */
+  readonly skipped: Skipped;
+  /** Every album the export carried, by folder name, with its own metadata verbatim. */
+  readonly albums: ReadonlyMap<string, { readonly title: string; readonly metadata: AlbumMetadata }>;
 }
 
 interface TakeoutHandle extends ArchiveHandle {
@@ -356,16 +392,75 @@ async function listFolders(tree: ArchiveTree, root: string): Promise<string[]> {
     .map((e) => e.name);
 }
 
-async function findMedia(tree: ArchiveTree, root: string): Promise<Found[]> {
-  const out: Found[] = [];
+/**
+ * Every folder under the photo tree, sorted into the three buckets
+ * {@link FolderKind} describes.
+ *
+ * One `metadata.json` read per folder — a handful of reads for an export with
+ * a handful of folders, and on the relay a GET each. A folder whose
+ * `metadata.json` is absent or unreadable is NOT an album: absent is the year
+ * folder's normal state, and unreadable is not evidence of album-ness.
+ */
+async function classifyFolders(
+  tree: ArchiveTree,
+  root: string,
+): Promise<Map<string, FolderKind>> {
+  const out = new Map<string, FolderKind>();
   for (const folder of await listFolders(tree, root)) {
+    const metadata = await readAlbumMetadata(tree, `${root}/${folder}`);
+    if (metadata) {
+      // The title is the person's OWN spelling, which the folder name is not:
+      // Takeout writes `Test Album'1$#%` to disk as `Test Album_1$#_`, so the
+      // folder has already lost characters the metadata still has.
+      const title = typeof metadata.title === 'string' && metadata.title !== '' ? metadata.title : folder;
+      out.set(folder, { kind: 'album', title, metadata });
+      continue;
+    }
+    out.set(folder, YEAR_IN_NAME.test(folder) ? { kind: 'year' } : { kind: 'other' });
+  }
+  return out;
+}
+
+async function readAlbumMetadata(tree: ArchiveTree, dir: string): Promise<AlbumMetadata | undefined> {
+  try {
+    const parsed: unknown = JSON.parse(utf8.decode(await tree.read(`${dir}/${ALBUM_METADATA}`)));
+    // An album's metadata is an OBJECT. A `metadata.json` holding an array or
+    // a bare string is not one, and calling it an album on the strength of the
+    // file name alone would put a year folder in the wrong bucket.
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as AlbumMetadata)
+      : undefined;
+  } catch {
+    // Absent (the year folder's normal state) or unreadable. Neither is
+    // evidence of an album, and neither is an error.
+    return undefined;
+  }
+}
+
+async function findMedia(
+  tree: ArchiveTree,
+  root: string,
+  kinds: ReadonlyMap<string, FolderKind>,
+): Promise<{ readonly found: Found[]; readonly skipped: Skipped }> {
+  const out: Found[] = [];
+  const skippedFolders: string[] = [];
+  let skippedItems = 0;
+  for (const [folder, kind] of kinds) {
     const dir = `${root}/${folder}`;
-    for (const entry of [...(await tree.list(dir))].sort(byName)) {
-      if (entry.isDirectory || NOT_AN_ITEM.test(entry.name)) continue;
+    const entries = [...(await tree.list(dir))].sort(byName);
+    const media = entries.filter((e) => !e.isDirectory && !NOT_AN_ITEM.test(e.name));
+    if (kind.kind === 'other') {
+      // The bin, and anything else this reader cannot account for. Counted so
+      // the person is told what was left behind, never silently dropped.
+      skippedFolders.push(folder);
+      skippedItems += media.length;
+      continue;
+    }
+    for (const entry of media) {
       out.push({ treePath: `${dir}/${entry.name}`, folder, mediaName: entry.name });
     }
   }
-  return out;
+  return { found: out, skipped: { folders: skippedFolders, items: skippedItems } };
 }
 
 const utf8 = new TextDecoder();
@@ -537,7 +632,15 @@ export function createTakeoutArchiveReader(store: ArchiveStore = localStore()): 
     }
   };
   const walk = async (tree: ArchiveTree, root: string): Promise<Collapsed> => {
-    const found = await findMedia(tree, root);
+    const kinds = await classifyFolders(tree, root);
+    const { found, skipped } = await findMedia(tree, root, kinds);
+    const albums = new Map(
+      [...kinds].flatMap(([folder, kind]) =>
+        kind.kind === 'album' ? [[folder, { title: kind.title, metadata: kind.metadata }] as const] : [],
+      ),
+    );
+    const isAlbum = (folder: string): boolean => kinds.get(folder)?.kind === 'album';
+    const isYear = (folder: string): boolean => kinds.get(folder)?.kind === 'year';
 
     // Keyed by content hash: the same bytes under three albums and a year are
     // ONE item that four folders knew about (0116 T2, rule 1).
@@ -564,7 +667,7 @@ export function createTakeoutArchiveReader(store: ArchiveStore = localStore()): 
       const first = copies[0]!;
       whereabouts.set(contentHash, first.treePath);
       const folders = copies.map((c) => c.folder);
-      const albums = folders.filter((f) => !YEAR_FOLDER.test(f));
+      const inAlbums = folders.filter(isAlbum);
       // EVERY copy is asked, not just the first one met. Takeout writes the
       // sidecar beside ONE of the copies — often the year folder's — and which
       // copy `readdir` returns first is alphabetical accident. Looking only
@@ -592,19 +695,22 @@ export function createTakeoutArchiveReader(store: ArchiveStore = localStore()): 
         // which is then the only home the export gave it (0116 T5; 0112 §3's
         // "the year folder is not reproduced" is about a photo that HAS an
         // album, so the album is not written twice).
-        placeIn: albums.length > 0 ? albums : folders.filter((f) => YEAR_FOLDER.test(f)),
+        placeIn: inAlbums.length > 0 ? inAlbums : folders.filter(isYear),
         ...(createdAt ? { createdAt } : {}),
         metadata: {
           // Verbatim (0116 T2, rule 3): this reader cannot know which field a
           // later task needs, and the archive's link expires.
           ...(sidecar ? { sidecar } : {}),
-          albums,
-          years: folders.filter((f) => YEAR_FOLDER.test(f)),
+          albums: inAlbums,
+          // The person's OWN spelling, which the folder names have lost:
+          // `Test Album'1$#%` reaches disk as `Test Album_1$#_`.
+          albumTitles: inAlbums.map((f) => albums.get(f)?.title ?? f),
+          years: folders.filter(isYear),
           sidecarFound: sidecar !== undefined,
         },
       });
     }
-    return { items, whereabouts };
+    return { items, whereabouts, skipped, albums };
   };
   const collapsedOnce = (handle: TakeoutHandle): Promise<Collapsed> =>
     (handle.collapsed ??= collapse(handle));
@@ -707,7 +813,7 @@ export function createTakeoutArchiveReader(store: ArchiveStore = localStore()): 
     async summary(handle: ArchiveHandle): Promise<ArchiveSummary> {
       // Derived from the SAME collapse the iteration uses, so the measure can
       // never promise a number the import then contradicts.
-      const { items } = await collapsedOnce(handle as TakeoutHandle);
+      const { items, skipped, albums } = await collapsedOnce(handle as TakeoutHandle);
       const dates = items.map((i) => i.createdAt).filter((d): d is string => Boolean(d)).sort();
       // Seeded with every kind at zero rather than counted up from what is
       // present, so a breakdown always has all three keys: a surface reading
@@ -725,6 +831,20 @@ export function createTakeoutArchiveReader(store: ArchiveStore = localStore()): 
         byKind,
         ...(dates[0] ? { earliest: dates[0] } : {}),
         ...(dates.at(-1) ? { latest: dates.at(-1)! } : {}),
+        ...(skipped.folders.length > 0 ? { skipped } : {}),
+        ...(albums.size > 0
+          ? {
+              albums: [...albums].map(([folder, a]) => ({
+                folder,
+                title: a.title,
+                ...(Array.isArray(a.metadata.sharedAlbumComments) &&
+                a.metadata.sharedAlbumComments.length > 0
+                  ? { shareActivity: true as const }
+                  : {}),
+                metadata: a.metadata,
+              })),
+            }
+          : {}),
       };
     },
   };

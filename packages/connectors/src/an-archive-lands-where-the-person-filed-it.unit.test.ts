@@ -51,6 +51,11 @@ beforeAll(async () => {
     await mkdir(join(photos, folder), { recursive: true });
     await writeFile(join(photos, folder, 'IMG_0001.jpg'), PHOTO);
   }
+  // An album carries its own `metadata.json`; a year folder does not. That is
+  // how the reader tells the two apart in any language (measured 2026-09-21).
+  for (const album of ['Holiday in Kent', 'Favourites']) {
+    await writeFile(join(photos, album, 'metadata.json'), JSON.stringify({ title: album }));
+  }
   // The edit sits beside the original in the year folder only, as Takeout
   // often ships it; the sidecar sits there too.
   await writeFile(join(photos, 'Photos from 2019', 'IMG_0001-edited.jpg'), EDIT);

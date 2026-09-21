@@ -97,6 +97,19 @@ the still would throw it away.
 thousand photos can arrive as four thousand files. Nothing has been duplicated — the screen
 breaks the number down so you can see exactly what the extra ones are.
 
+**Your albums come across; who you shared them with does not.** We carry each album as a folder,
+under the name you gave it — even where Google had to change it to write it to disk, because the
+album's own details still hold your spelling. What Google does **not** put in the export is the
+list of people an album was shared with: it is not in the album's details and not in the report.
+So **if you shared albums in Google Photos, note which ones before you delete anything, and
+share them again on your new home.** We cannot do it for you, and we would rather say so than
+let you find out later. Where the export shows that somebody had been in an album — a comment,
+for instance — we flag it, but treat that as a reminder rather than a complete list.
+
+**Photos you deleted do not travel.** Google exports the bin like any other album if you leave
+it ticked. We recognise it and leave it behind, and the summary tells you how many were in it,
+so a count that looks short has a reason you can read.
+
 ---
 
 ## Apple Data & Privacy

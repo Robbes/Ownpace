@@ -194,6 +194,61 @@ export interface ArchiveSummary {
    */
   readonly earliest?: string;
   readonly latest?: string;
+  /**
+   * What the reader deliberately did NOT carry, and how much of it.
+   *
+   * Google Photos exports the bin like any other album, and the owner's rule
+   * (2026-09-21) is that it does not travel. A count rather than silence: a
+   * person whose target holds fewer photos than Google showed them is owed the
+   * reason, and "45 in the bin, left behind" is a better answer than a
+   * discrepancy they have to discover.
+   *
+   * Absent when nothing was skipped — never a zero pretending to be a fact
+   * about an export the reader never bucketed.
+   */
+  readonly skipped?: {
+    readonly folders: ReadonlyArray<string>;
+    readonly items: number;
+  };
+  /**
+   * The albums the export carried, with the person's own spelling of each.
+   *
+   * The folder on disk has already lost characters — Takeout writes
+   * `Test Album'1$#%` as `Test Album_1$#_` — so the title here is the only
+   * place the real name survives. Carried verbatim (0116 T2, rule 3); what a
+   * target does with it is the target's decision, not this reader's.
+   */
+  readonly albums?: ReadonlyArray<{
+    readonly folder: string;
+    readonly title: string;
+    /**
+     * The album's metadata carried COMMENTS — so it was shared with somebody.
+     *
+     * ONE-WAY EVIDENCE, and the asymmetry is the whole point. Present ⟹ the
+     * album was shared, because an album nobody can see collects no comments.
+     * Absent ⟹ **nothing at all**, and two measured reasons why:
+     *
+     * - the only comment in the owner's export is his OWN invite message
+     *   (`contentOwnerName` is him), so the field exists because he typed
+     *   something when sharing. Share without a message and there is no field
+     *   — the owner's own observation, 2026-09-21;
+     * - `access: "protected"` is no help either. Both his albums carry it and
+     *   only one was shared, so it is the default, and he notes it may be
+     *   absent on a shared album too. It is not read here for any purpose.
+     *
+     * So nothing may treat the absence of this flag as "not shared", and
+     * classification never depends on either field: an album is an album
+     * because it has a `metadata.json`, whatever is inside it.
+     *
+     * **A share cannot be recreated either way.** The export carries no
+     * recipient anywhere: not in the album metadata, not in the report. The
+     * person has to re-share on the target themselves, and the guide tells
+     * EVERYONE with albums so rather than relying on this flag — which is what
+     * makes the under-reporting survivable.
+     */
+    readonly shareActivity?: true;
+    readonly metadata: Readonly<Record<string, unknown>>;
+  }>;
 }
 
 /**
