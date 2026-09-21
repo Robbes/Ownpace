@@ -383,7 +383,14 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   tenant or mapping UUID pasted into a new test fails CI by name rather than causing cross-test
   bleed); **`migration-lint`** (ADR-0017, built 2026-08-02) replays `packages/ledger/migrations`
   with Atlas against a disposable dockerized Postgres and fails on destructive schema changes —
-  runs only when the migration directory (or the workflow) changes.
+  runs only when the migration directory (or the workflow) changes;
+  **`commit-convention`** (2026-09-21) reads the commit subjects a pull request ADDS and requires
+  the Conventional Commits prefix CONTRIBUTING.md and the pull-request template both already
+  mandated. Measured the day it was built: two of the last two hundred subjects on `main`
+  followed it, and both were dependabot's — the rule was documented in two places and enforced by
+  nothing. It runs on `pull_request` only and never re-judges history, so those hundred-odd prose
+  subjects stay as they are and no branch is rewritten to go green; merge commits are exempt by
+  parent count, because merging the base branch in is how a conflict is resolved here.
 - `security-scan.yml` — pnpm audit + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
   SBOM attached to release tags.
 - `e2e.yml` — manual only, on `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via

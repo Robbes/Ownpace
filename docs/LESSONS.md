@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 142 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 143 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -65,6 +65,7 @@ reading a file drops off its entry by itself.
 
 ### `CONTRIBUTING.md`
 
+- [a-convention-two-of-two-hundred-commits-followed](../scripts/a-convention-two-of-two-hundred-commits-followed.unit.test.ts) — THE CONVENTION NOTHING ENFORCED.
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
 ### `apps/api/package.json`
@@ -1112,6 +1113,10 @@ reading a file drops off its entry by itself.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
+### `scripts/an-advisory-nobody-listed.unit.test.ts`
+
+- [a-convention-two-of-two-hundred-commits-followed](../scripts/a-convention-two-of-two-hundred-commits-followed.unit.test.ts) — THE CONVENTION NOTHING ENFORCED.
+
 ### `scripts/an-integration-test-is-handed-its-database.unit.test.ts`
 
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
@@ -1412,6 +1417,15 @@ Reads:
 - `packages/shared/src/container-hash.unit.test.ts`
 - `packages/shared/src/fingerprint-scheme.ts`
 - `scripts/drive-export-members.ts`
+
+### [a-convention-two-of-two-hundred-commits-followed](../scripts/a-convention-two-of-two-hundred-commits-followed.unit.test.ts)
+
+THE CONVENTION NOTHING ENFORCED.
+
+Reads:
+
+- `CONTRIBUTING.md`
+- `scripts/an-advisory-nobody-listed.unit.test.ts`
 
 ### [a-count-in-a-sentence-the-table-outgrew](../scripts/a-count-in-a-sentence-the-table-outgrew.unit.test.ts)
 
