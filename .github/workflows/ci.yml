@@ -71,9 +71,43 @@ on:
     # security-scan workflows listened for tags.
     tags: ['v*']
 
+# CANCEL A SUPERSEDED PULL REQUEST RUN. NEVER A SUPERSEDED PUSH RUN.
+#
+# The two cases look identical and are opposites.
+#
+# On a PULL REQUEST, a new commit makes the running one obsolete: the older
+# commit is not what will merge, and nobody will ever ask what its build said.
+# Cancelling is free, and on a busy branch it is most of what keeps the queue
+# short.
+#
+# On a PUSH to `main`, the superseded commit is not obsolete. It is IN `main`.
+# Cancelling its build means nothing ever runs the gates for the code it
+# carried — because `detect-changes` on the NEXT push computes changed files
+# from THAT push's diff alone, not from everything since the last completed
+# run. So a code merge followed by a docs-only merge leaves the code
+# unvalidated and the docs-only run reports green over it.
+#
+# THIS HAPPENED, on the afternoon this line was written. #1054 merged at 21:32
+# with a change to this workflow and a new guard; #1055 merged at 21:43 with
+# one paragraph of prose. Run 2841 was eleven minutes into the suite on the
+# Spark and was cancelled where it stood. Run 2843 read its own diff — one
+# `.md` file — skipped `lint`, `unit-tests`, `ui-tests`, `migration-lint` and
+# `integration-tests`, and concluded success in four and a half minutes.
+# `main` then carried a green tick over a tree whose tests had not run. Nothing
+# lied: `ci-complete` named every skipped gate in its summary, exactly as it is
+# built to. The composition did.
+#
+# THE COST IS A QUEUE, and it is the right trade. Pushes to `main` now wait for
+# each other on the Spark instead of cancelling each other. Merges are minutes
+# apart at worst, the box is otherwise idle, and a build that waits is worth
+# more than a build that never happens.
+#
+# The groups are already separate — `github.ref` is `refs/pull/N/merge` on a
+# pull request and `refs/heads/main` on a push — so this changes only the push
+# path. Held by `a-run-that-was-cancelled-and-called-green.unit.test.ts`.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   detect-changes:
