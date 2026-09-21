@@ -5099,14 +5099,34 @@ components:
           additionalProperties: { type: object }
       required: [state, startedAt]
 
+    VerificationDomain:
+      type: string
+      description: |
+        THE REPORT'S OWN SPELLING, which is not `Domain`'s.
+
+        A migration's domains are `email`, `contact`, `file`, `task` — what a
+        person ticks in the wizard. The §20 report names the same five
+        `mail`, `calendar`, `contacts`, `files`, `tasks`: plural, and three of
+        them different words. The web screen has carried a note about this
+        since workplan 0113 ("the verification report has a THIRD spelling of
+        the domains") and maps one onto the other rather than restating either.
+
+        This schema existed as `$ref: Domain` until 2026-09-21, which meant the
+        spec claimed `/verify` returns rows keyed `email`/`contact`/`file`/`task`.
+        It never has. A client generated from that spec and validating a real
+        report would have rejected every domain row but `calendar`.
+      enum: [mail, calendar, contacts, files, tasks]
+
     DomainVerification:
       type: object
       description: |
         One domain's comparison. `SKIPPED` means the domain was not checked and
-        says so — it is never counted as a pass.
+        says so — it is never counted as a pass. `NOT_VERIFIABLE` is stronger:
+        items WERE copied and the target cannot be read for this domain, so
+        their completeness is unknown and cutover is blocked.
       properties:
-        dataType: { $ref: '#/components/schemas/Domain' }
-        status: { type: string, enum: [PASS, FAIL, WARN, SKIPPED] }
+        dataType: { $ref: '#/components/schemas/VerificationDomain' }
+        status: { type: string, enum: [PASS, FAIL, WARN, SKIPPED, NOT_VERIFIABLE] }
         sourceCount: { type: integer }
         targetCount: { type: integer }
         matchedCount: { type: integer }
