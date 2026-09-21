@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { asTenantId, asMappingId } from '@openmig/shared';
-import type { VerificationResult } from '@openmig/core';
+import type { ContentEvidence, VerificationResult } from '@openmig/core';
 import * as core from '@openmig/core';
 import {
   confirmed,
@@ -243,10 +243,14 @@ describe('rollbackCutover() approval gate', () => {
 // ---------------------------------------------------------------------------
 
 /** A VerificationResult with the verdict we want and nothing else invented. */
-function verdict(overallStatus: 'PASS' | 'WARN' | 'FAIL'): VerificationResult {
+function verdict(
+  overallStatus: 'PASS' | 'WARN' | 'FAIL',
+  contentEvidence: ContentEvidence = 'checked',
+): VerificationResult {
   const canProceed = overallStatus !== 'FAIL';
   return {
     overallStatus,
+    contentEvidence,
     canProceedToCutover: canProceed,
     score: canProceed ? 1 : 0.4,
     totalItemsSource: 10,
@@ -308,6 +312,26 @@ describe('verifyCutover() data gate', () => {
     expect(gate).toHaveBeenCalledTimes(1);
     // The exact string that used to stand in for running it.
     expect(logged.join('\n')).not.toContain('skipping for now');
+  });
+
+  it('says on the PASSING line how much content it actually compared', async () => {
+    // The appliance's own route to the same decision the web screens carry
+    // (2026-09-21). "Data verification passed" is the sentence an operator
+    // acts on, and it read identically whether every sampled item was compared
+    // or none of them could be.
+    const { deps } = depsWith(vi.fn().mockResolvedValue(verdict('PASS', 'none')));
+
+    expect(await verifyCutover(deps)).toBe(true);
+    const out = logged.join('\n');
+    expect(out).toContain('Data verification passed');
+    expect(out).toContain('content evidence: none');
+  });
+
+  it('says so on a pass that DID compare, so the line above is not boilerplate', async () => {
+    const { deps } = depsWith(vi.fn().mockResolvedValue(verdict('PASS', 'checked')));
+
+    await verifyCutover(deps);
+    expect(logged.join('\n')).toContain('content evidence: checked');
   });
 
   it('FAILS overall when the data gate FAILS', async () => {

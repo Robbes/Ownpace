@@ -5091,8 +5091,11 @@ components:
           type: [object, 'null']
           description: |
             Keyed by mapping id; each carries a per-domain
-            `DomainVerification`, an `overallStatus`, `recommendations`, and
-            `canProceedToCutover`.
+            `DomainVerification`, an `overallStatus`, `recommendations`,
+            `canProceedToCutover`, and a `contentEvidence` of `checked`,
+            `partial` or `none` — how much of the content leg actually ran.
+            `none` means not one sampled item could be compared, so the verdict
+            rests on counts and sizes alone; it does NOT close the gate.
           additionalProperties: { type: object }
       required: [state, startedAt]
 

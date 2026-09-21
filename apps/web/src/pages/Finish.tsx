@@ -475,6 +475,15 @@ const Finish: React.FC = () => {
                     verifyOutcome.data.report[id]!.canProceedToCutover ? (
                       <p className="mt-1 text-emerald-700">
                         {t('finish.step1.passed')}
+                        {/* WHAT THE CHECK PASSED ON. This is the screen before
+                            the irreversible press, and "The check passed" in
+                            green over a run that could not compare a single
+                            item is the reading `contentEvidence` exists to
+                            prevent — the verdict is unchanged, and the basis
+                            for it is said out loud. */}
+                        {verifyOutcome.data.report[id]!.contentEvidence === 'none' && (
+                          <span className="text-amber-800"> {t('verify.countsOnly')}</span>
+                        )}
                         {verifyOutcome.data.finishedAt && (
                           <span className="text-gray-500">
                             {' '}

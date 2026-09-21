@@ -18,6 +18,7 @@ import { sameFingerprintVersion } from '@openmig/shared';
 // editions compile against one declaration; the ENGINE below is core's own.
 // Re-exported so every existing `from '@openmig/core'` import keeps working.
 export type {
+  ContentEvidence,
   DataTypeVerificationStatus,
   DataTypeVerification,
   VerificationDomain,
@@ -25,6 +26,7 @@ export type {
 } from '@openmig/shared';
 export { VERIFICATION_DOMAINS } from '@openmig/shared';
 import type {
+  ContentEvidence,
   DataTypeVerification,
   VerificationDomain,
   VerificationResult,
@@ -303,11 +305,14 @@ export async function runVerification(
     0
   );
   
+  const contentEvidence = summariseContentEvidence(allVerifications);
+
   return {
     tenantId,
     mappingId,
     timestamp: new Date().toISOString(),
     overallStatus,
+    contentEvidence,
     score,
     ...byDomain,
     totalItemsSource,
@@ -651,6 +656,38 @@ function determineVerificationStatus(
   
   // PASS only when no discrepancies and all thresholds met
   return 'PASS';
+}
+
+/**
+ * HOW MUCH OF THE CONTENT LEG HAD EVIDENCE — the second axis of the verdict.
+ *
+ * `none` when not one sampled item across the report could be compared —
+ * INCLUDING when nothing was sampled at all. Both mean the same thing to the
+ * person reading it: the verdict rests on counts and sizes, and the content
+ * leg has no evidence behind it either way.
+ *
+ * SUMMED OVER EVERY DOMAIN, deliberately, and not filtered the way
+ * `calculateVerificationScore` below filters. That one AVERAGES, so a
+ * not-measured domain's zeros would score a perfect 1.0 and pull the mean up;
+ * it has to exclude them. This one adds counters up, and a domain that was
+ * never measured contributes 0 to all three — `notMeasured` is the only thing
+ * in this file that produces SKIPPED or NOT_VERIFIABLE, and it sets
+ * `checksumSampleSize`, `checksumMatches`, `checksumMismatches` and
+ * `checksumUnavailable` to zero together. A zero is already neutral in both
+ * questions asked below, so the filter this function first carried could not
+ * change a single answer: it read as a guarantee that nothing was holding up.
+ * The guarantee it looked like — a mail-only migration is not dragged toward
+ * `none` by the four domains the operator turned off — is real, and it rests
+ * on those zeros. `says 'checked' when every sampled item really was compared`
+ * runs with exactly those four SKIPPED domains in the report and pins it.
+ */
+function summariseContentEvidence(
+  verifications: DataTypeVerification[]
+): ContentEvidence {
+  const compared = verifications.reduce((n, v) => n + v.checksumMatches + v.checksumMismatches, 0);
+  const unavailable = verifications.reduce((n, v) => n + v.checksumUnavailable, 0);
+  if (compared === 0) return 'none';
+  return unavailable === 0 ? 'checked' : 'partial';
 }
 
 /**

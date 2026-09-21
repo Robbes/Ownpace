@@ -245,6 +245,98 @@ describe('checksum sampling', () => {
     // no content was verified. Both of these must keep being true together,
     // or the owner has decided something and this test should say so.
     expect(result.mail.issues.map((i) => i.id)).toContain('CHECKSUM_UNAVAILABLE_mail');
+    // ANSWERED 2026-09-21, and this is the line that answers it. The owner's
+    // decision was (b): the gate still opens, and the report stops being
+    // silent about WHY it opened. `contentEvidence` is that second axis — the
+    // verdict above is unchanged, and beside it the report now says the
+    // content leg had nothing.
+    expect(result.contentEvidence).toBe('none');
+  });
+
+  it('says `checked` when every sampled item really was compared', async () => {
+    // The control for the case above: same shape, evidence present. Without
+    // this, `none` could be the only value the field ever takes and nobody
+    // would notice.
+    const result = await verify(reindexer(IDS.map((id, i) => ({
+      naturalKey: id,
+      targetId: `t${i}`,
+      mailboxId: 'INBOX',
+      sizeBytes: 10,
+      contentHash: SOURCE_HASHES[HASHES[i]!]!,
+    })) as TargetEntry[]));
+    expect(result.mail.checksumUnavailable).toBe(0);
+    expect(result.mail.checksumMatches).toBeGreaterThan(0);
+    expect(result.contentEvidence).toBe('checked');
+    expect(result.overallStatus).toBe('PASS');
+
+    // AND THE FOUR DOMAINS NOBODY ASKED FOR DID NOT VOTE. `CONFIG` turns
+    // calendar, contacts, files and tasks off, so this report carries four
+    // SKIPPED domains beside the one that was measured — and it still reads
+    // `checked`, not `partial` and not `none`.
+    //
+    // This is the whole of what keeps a mail-only migration honest, and it is
+    // load-bearing rather than incidental: `summariseContentEvidence` sums
+    // over EVERY domain, so it holds only because `notMeasured` reports a
+    // domain it never measured with all three checksum counters at zero. Give
+    // a not-measured domain a non-zero `checksumUnavailable` and this line
+    // goes red, which is the point — that would be a mail migration reporting
+    // partial content evidence because of a calendar nobody asked it to check.
+    for (const domain of ['calendar', 'contacts', 'files', 'tasks'] as const) {
+      expect(result[domain].status, domain).toBe('SKIPPED');
+      expect(result[domain].checksumUnavailable, domain).toBe(0);
+      expect(result[domain].checksumMatches + result[domain].checksumMismatches, domain).toBe(0);
+    }
+  });
+
+  it('still says `checked` when every comparison came back DIFFERENT', async () => {
+    // `contentEvidence` measures whether the content leg RAN, not whether it
+    // was happy — that second question is `overallStatus`, and the two must
+    // not be allowed to collapse into one.
+    //
+    // A mismatch is evidence. It is the most expensive evidence this gate can
+    // buy: the item was sampled, the target was read, the hashes were compared
+    // and they differ. Counting only the matches would report that same run as
+    // `none` — "the content leg has no evidence behind it either way" — and a
+    // person reading a FAIL beside `none` would reasonably conclude the check
+    // could not be performed, when in fact it was performed and the bytes came
+    // back wrong. That is the one misreading this field exists to prevent,
+    // pointed the other way round.
+    const result = await verify(reindexer(IDS.map((id, i) => ({
+      naturalKey: id,
+      targetId: `t${i}`,
+      mailboxId: 'INBOX',
+      sizeBytes: 10,
+      // Same shape, same scheme, different bytes.
+      contentHash: `${SOURCE_HASHES[HASHES[i]!]!}-changed`,
+    })) as TargetEntry[]));
+
+    expect(result.mail.checksumMismatches, 'nothing was compared at all').toBeGreaterThan(0);
+    expect(result.mail.checksumMatches).toBe(0);
+    expect(result.mail.checksumUnavailable).toBe(0);
+    // Evidence: complete. Verdict: bad. Both, separately.
+    expect(result.contentEvidence).toBe('checked');
+    expect(result.overallStatus).not.toBe('PASS');
+  });
+
+  it('says `partial` when some were compared and some could not be', async () => {
+    // The middle value has to be reachable too, or `partial` is decoration.
+    // One entry carries its hash, the rest cannot be fetched.
+    const entries = IDS.map((id, i) => ({
+      naturalKey: id,
+      targetId: `t${i}`,
+      mailboxId: 'INBOX',
+      sizeBytes: 10,
+      contentHash: SOURCE_HASHES[HASHES[i]!]!,
+    })) as TargetEntry[];
+    const result = await verify(
+      reindexer(
+        entries.map((e, i) => (i === 0 ? e : { ...e, contentHash: undefined })) as TargetEntry[],
+        async () => undefined,
+      ),
+    );
+    expect(result.mail.checksumMatches).toBeGreaterThan(0);
+    expect(result.mail.checksumUnavailable).toBeGreaterThan(0);
+    expect(result.contentEvidence).toBe('partial');
   });
 
   it('prefers a hash already present on the entry over a fetch', async () => {
