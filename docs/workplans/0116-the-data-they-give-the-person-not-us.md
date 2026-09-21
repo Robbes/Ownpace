@@ -1,6 +1,13 @@
 # Workplan 0116 — The data they give the person, not us
 
-## Status — 2026-09-20 (update this block at the end of every session)
+## Status — 2026-09-21 (update this block at the end of every session)
+
+**2026-09-21: the same-named-album question is PARKED, with a list beside it.** Empty albums do
+not ship, so how Takeout disambiguates the owner's two `Thailand` albums could not be answered
+by either export. He will put a photo in each — but not now: two exports in two days is enough.
+So the question waits in *[What a third Takeout must contain](#what-a-third-takeout-must-contain)*
+with four more that only a fresh export can answer, each one a thing to set up in Google Photos
+before requesting rather than a separate export to wait for.
 
 **2026-09-20: D7 decided — C, our own reader — and its first slice built.** The owner, asked
 to choose between the reader and a library: *"C or D, because I don't want to keep someone
@@ -676,6 +683,33 @@ of his length is roughly 170 bytes, so even as ONE part the directory would be a
 per-member extra field), so a part above 4 GiB is read like any other. The cost of larger parts lands on
 the relay upload — fewer, larger PUTs — not on the reader. **Tell people to pick the largest
 part size their connection will carry.**
+
+### What a third Takeout must contain
+
+The owner asked on 2026-09-21 to **park** the same-named-album question rather than answer it
+now: *"I just did 2 in two days and wont do i right away, so park and add other questions
+there, so we add what i need to test when ill make a new takeout."* So this is the list, kept
+the way [export #2's](#what-export-2-must-contain) was — one line per thing to set up in Google
+Photos BEFORE requesting, and what each one settles. None of them needs a separate export.
+
+| Set up before exporting | Settles |
+|---|---|
+| **Two albums with the SAME name, a photo in each** — the owner's two `Thailand` albums | What Takeout does with a collision: a suffixed folder (`Thailand(1)`), a merge, or something else. And whether both carry a `metadata.json` whose `title` is the same string — because the reader buckets by FOLDER and takes the title from metadata, so two folders with one title are two albums with one name on the target, which is a placement decision nobody has had to make |
+| **A third album left EMPTY** — costs nothing but not filling it | Whether empty albums really do not ship. That is currently inferred from ONE pair: his two `Thailand` albums were both empty and neither appeared. A third confirms the rule instead of the coincidence |
+| **One photo in TWO albums at once** | Whether Takeout writes the bytes into each album folder or once. `ArchiveItem.albumTitles` is a LIST, which anticipates this, and nothing has ever observed it. It decides whether the target gets two copies, one copy, or a copy and a link |
+| **A photo edited in Google Photos** before the export | Whether `-bewerkt` is real. `EDITED_SUFFIXES` is a hard-coded list of five languages — `-edited`, `-bewerkt`, `-bearbeitet`, `-modifié`, `-editado` — which is the same shape as the `Photos from <year>` constant the album rule removed, and only the English one has ever been seen. If the edited file carries its own sidecar naming the original, that is a STRUCTURAL signal and the language list can go, the way the year list did |
+| **An album shared with someone who does not comment on it** | Whether anything in the export distinguishes a shared album at all. `shareActivity` is derived from `sharedAlbumComments` and is known to under-report exactly this case. If nothing else distinguishes it, "re-share on the target" is the permanent answer rather than a stopgap, and `docs/archive-setup.md` can say so plainly |
+
+**Not asked for, deliberately.** Whether `Prullenbak` ships when it is EMPTY would settle
+whether `ArchiveSummary.skipped` can name a folder that is not there — but the only way to test
+it is to empty a real bin, which throws away recoverable photos for a question worth less than
+they are. It stays unknown, and the skip is conservative in the safe direction either way.
+
+**What a new export cannot settle.** How Takeout behaves for an account that is not this one:
+every fact in this section is one person's library, twice. The reader is written so that this
+matters as little as possible — the photo tree is found rather than named, an album is known
+positively by its own `metadata.json`, and anything the reader cannot account for is skipped
+and reported by name rather than guessed at.
 
 ## The design
 
