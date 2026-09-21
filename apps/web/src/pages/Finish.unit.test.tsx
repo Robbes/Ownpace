@@ -383,11 +383,38 @@ describe('the checklist checks what it claims to check (0038 T3)', () => {
       state: 'done',
       startedAt: '2026-08-09T10:00:00Z',
       finishedAt: '2026-08-09T10:05:00Z',
-      report: { 'acme-mail': { overallStatus: 'PASS', canProceedToCutover: true } },
+      report: {
+        'acme-mail': { overallStatus: 'PASS', canProceedToCutover: true, contentEvidence: 'checked' },
+      },
     });
     renderScreen();
 
     expect(await screen.findByText('The check passed.')).toBeInTheDocument();
+    expect(screen.queryByText(/No content was compared/)).not.toBeInTheDocument();
+  });
+
+  it('step 1 says WHAT it passed on when no content could be compared', async () => {
+    // The last screen before the button nobody can un-press. A green "The
+    // check passed." over a run that hashed nothing is the same sentence as a
+    // run that compared every sampled item, and the person reading it is about
+    // to delete the account the data came from.
+    //
+    // The verdict does not change — the owner's decision of 2026-09-21 is that
+    // count parity still opens the gate — so this is added BESIDE it, in
+    // amber, rather than turning the line red.
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    fetchVerifyReport.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-08-09T10:00:00Z',
+      finishedAt: '2026-08-09T10:05:00Z',
+      report: {
+        'acme-mail': { overallStatus: 'PASS', canProceedToCutover: true, contentEvidence: 'none' },
+      },
+    });
+    renderScreen();
+
+    expect(await screen.findByText('The check passed.')).toBeInTheDocument();
+    expect(screen.getByText(/No content was compared/)).toBeInTheDocument();
   });
 
   it('step 1 renders the failing status VERBATIM from a not-ready report', async () => {

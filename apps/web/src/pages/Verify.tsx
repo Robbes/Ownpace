@@ -19,6 +19,7 @@ import React from 'react';
 import { useParams } from 'react-router';
 import { AlertCircle, CheckCircle2, HelpCircle, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import type {
+  ContentEvidence,
   DataTypeVerification,
   DataTypeVerificationStatus,
   VerificationResult,
@@ -41,6 +42,35 @@ const STATUS_STYLE: Record<DataTypeVerificationStatus, { icon: React.ReactNode; 
   FAIL: { icon: <XCircle className="w-4 h-4" />, className: 'text-red-700', helpKey: 'verify.help.FAIL' },
   SKIPPED: { icon: <MinusCircle className="w-4 h-4" />, className: 'text-gray-500', helpKey: 'verify.help.SKIPPED' },
   NOT_VERIFIABLE: { icon: <HelpCircle className="w-4 h-4" />, className: 'text-amber-800', helpKey: 'verify.help.NOT_VERIFIABLE' },
+};
+
+/**
+ * THE SECOND AXIS, beside the verdict rather than inside it (2026-09-21).
+ *
+ * `determineVerificationStatus` is handed percentages and counts and never the
+ * issue list, so a run in which NOT ONE item's content could be compared still
+ * reads PASS on count parity — and the owner's decision is that it should keep
+ * opening the gate. What it must not do is look identical to a run that
+ * compared everything. So the word sits next to the status, and `counts only`
+ * is amber even beside a green PASS: nothing is wrong, and something was not
+ * done.
+ */
+const EVIDENCE_STYLE: Record<ContentEvidence, { className: string; labelKey: StringKey; helpKey: StringKey }> = {
+  checked: {
+    className: 'text-gray-500',
+    labelKey: 'verify.evidence.checked',
+    helpKey: 'verify.evidence.help.checked',
+  },
+  partial: {
+    className: 'text-amber-700',
+    labelKey: 'verify.evidence.partial',
+    helpKey: 'verify.evidence.help.partial',
+  },
+  none: {
+    className: 'text-amber-700',
+    labelKey: 'verify.evidence.none',
+    helpKey: 'verify.evidence.help.none',
+  },
 };
 
 // Reuses the queue screens' domain keys — one vocabulary, one translation.
@@ -109,6 +139,7 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
   // Walked, not listed. The label map below has been total since T5 — and this
   // line listed four, so the Tasks row had a translated name and never a row.
   const domains = VERIFICATION_DOMAINS.map((k) => r[k]);
+  const evidence = EVIDENCE_STYLE[r.contentEvidence];
   const issues = domains.flatMap((d) => d.issues.map((i) => ({ ...i, domain: d.dataType })));
   return (
     <section className="mb-8 p-4 bg-white border border-gray-200 rounded-lg">
@@ -117,6 +148,9 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
         <div className="flex items-center gap-3 text-sm">
           <span className={STATUS_STYLE[r.overallStatus].className}>{r.overallStatus}</span>
           <span className="text-gray-500">{t('verify.score')} {(r.score * 100).toFixed(1)}%</span>
+          <span className={evidence.className} title={t(evidence.helpKey)}>
+            {t(evidence.labelKey)}
+          </span>
         </div>
       </div>
 
@@ -126,6 +160,10 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
         }`}
       >
         {r.canProceedToCutover ? t('verify.ready') : t('verify.notReady')}
+        {/* On the SENTENCE a person acts on, not only in the chip above it.
+            "Ready to cut over" with nothing compared is the exact reading this
+            field exists to prevent. */}
+        {r.contentEvidence === 'none' ? ` ${t('verify.countsOnly')}` : ''}
       </div>
 
       <div className="overflow-x-auto">

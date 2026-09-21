@@ -54,6 +54,9 @@ const RESULT: VerificationResult = {
   mappingId: 'm' as never,
   timestamp: '2026-07-31T12:00:00Z',
   overallStatus: 'PASS',
+  // Nothing in this fixture is hashed, so this is what the engine would say
+  // about it. See `summariseContentEvidence`.
+  contentEvidence: 'none',
   score: 1,
   ...(Object.fromEntries(
     VERIFICATION_DOMAINS.map((d) => [d, domainFor(d)]),
@@ -127,6 +130,47 @@ describe('the Verify screen', () => {
         `the report carries ${VERIFICATION_DOMAINS.length} domains and the screen has no ${label} row`,
       ).toBeInTheDocument();
     }
+  });
+
+  it('says the gate opened on COUNTS when nothing could be compared', async () => {
+    // The owner's decision of 2026-09-21, on the screen. A run that hashed
+    // nothing reads PASS, score 1, ready to cut over — and
+    // `determineVerificationStatus` never sees the `CHECKSUM_UNAVAILABLE_*`
+    // issue that would say why, because it is handed percentages and counts.
+    //
+    // So the person about to delete their Google account sees a page that is
+    // indistinguishable from one where every sampled item matched. This is the
+    // line that makes it distinguishable, and it belongs in the SENTENCE they
+    // act on, not only in the word beside the score.
+    fetched.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-07-31T12:00:00Z',
+      finishedAt: '2026-07-31T12:03:00Z',
+      report: { 'mapping-1': { ...RESULT, contentEvidence: 'none' } },
+    });
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+    await screen.findByRole('link', { name: 'mapping-1' });
+
+    expect(screen.getByText('counts only')).toBeInTheDocument();
+    // Beside the verdict, not instead of it: both facts, together.
+    expect(screen.getByText(/ready to cut over/i)).toBeInTheDocument();
+    expect(screen.getByText(/No content was compared/)).toBeInTheDocument();
+  });
+
+  it('does not say it when the content really was compared', async () => {
+    // The control. Without it, the sentence above could be unconditional and
+    // every report would carry a caveat it had earned the right not to.
+    fetched.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-07-31T12:00:00Z',
+      finishedAt: '2026-07-31T12:03:00Z',
+      report: { 'mapping-1': { ...RESULT, contentEvidence: 'checked' } },
+    });
+    render(<MemoryRouter><Verify /></MemoryRouter>);
+    await screen.findByRole('link', { name: 'mapping-1' });
+
+    expect(screen.getByText('content checked')).toBeInTheDocument();
+    expect(screen.queryByText(/No content was compared/)).not.toBeInTheDocument();
   });
 
   it('starts on click, polls to done, renders the report, and STOPS polling', async () => {

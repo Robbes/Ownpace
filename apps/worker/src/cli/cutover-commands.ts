@@ -341,9 +341,15 @@ export async function verifyCutover(deps: CutoverCliDeps): Promise<boolean> {
   } else {
     try {
       const verification = await deps.runDataVerification();
+      // `content evidence` rides along on EVERY line this gate prints, not only
+      // the failing ones. The appliance operator reads "Data verification
+      // passed" and presses on; a pass in which not one item's content could
+      // be compared says the same words as one where every sample matched, and
+      // the count leg is the only thing that separated them (2026-09-21).
       const summary =
         `${verification.totalItemsSource} source / ${verification.totalItemsTarget} target, ` +
-        `${verification.totalDiscrepancies} discrepancies, score ${verification.score.toFixed(3)}`;
+        `${verification.totalDiscrepancies} discrepancies, score ${verification.score.toFixed(3)}, ` +
+        `content evidence: ${verification.contentEvidence}`;
 
       if (verification.overallStatus === 'FAIL' || !verification.canProceedToCutover) {
         CutoverCliOutput.error(`Data verification FAILED — ${summary}`);

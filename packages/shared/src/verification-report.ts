@@ -31,6 +31,9 @@ import type { TenantId, MappingId } from './ids.ts';
  */
 export type DataTypeVerificationStatus = 'PASS' | 'WARN' | 'FAIL' | 'SKIPPED' | 'NOT_VERIFIABLE';
 
+/** How much of §20's content leg had evidence — see `VerificationReport.contentEvidence`. */
+export type ContentEvidence = 'checked' | 'partial' | 'none';
+
 /**
  * EVERY domain this report accounts for — the one list, and the reason this
  * file has one (workplan 0113, the follow-up to T5).
@@ -143,6 +146,36 @@ export interface VerificationResult extends Record<VerificationDomain, DataTypeV
   mappingId: MappingId;
   timestamp: string;
   overallStatus: 'PASS' | 'WARN' | 'FAIL';
+  /**
+   * HOW MUCH OF THE CONTENT LEG ACTUALLY RAN — a second axis, beside the
+   * verdict rather than inside it.
+   *
+   * The owner asked (2026-09-21) for a `PASS_ON_COUNTS` status, and a fourth
+   * value of `overallStatus` cannot carry it: health and thoroughness are
+   * independent. A migration where nothing could be hashed AND items are
+   * missing is a FAIL, and "on counts" is beside the point; one that is WARN
+   * with nothing hashed would lose the fact entirely. So it is its own field.
+   *
+   * - `checked` — every sampled item was compared byte-for-byte (or by the
+   *   canonical fingerprint, for the two DAV domains that cannot hash bytes).
+   * - `partial` — some were, some could not be.
+   * - `none` — NOT ONE sampled item could be compared. The verdict rests on
+   *   counts and sizes alone.
+   *
+   * WHY IT MATTERS: `determineVerificationStatus` is passed counts and
+   * percentages and never `issues`, so `CHECKSUM_UNAVAILABLE_*` findings sit
+   * in the report without touching the verdict. A run that hashed NOTHING can
+   * therefore read PASS, score 1, `canProceedToCutover` — and the person
+   * deciding whether to delete their Google account cannot tell that from a
+   * run that checked everything. This field is the difference, in the report
+   * rather than buried in `issues`.
+   *
+   * It deliberately does NOT close the gate: the owner's decision is that a
+   * count-only PASS still opens it, because both targets in use can fail to
+   * hash for ordinary operational reasons and refusing would block nearly
+   * everyone. What it removes is the silence.
+   */
+  contentEvidence: ContentEvidence;
   score: number; // 0.0 to 1.0
 
   // Summary
