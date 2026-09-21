@@ -90,13 +90,44 @@ describe('phase timing', () => {
   it('attributes time to the phase that actually spent it', async () => {
     setLogLevel('debug');
     // Writes cost 4x what reads cost, so the report must say so.
-    const line = await runWithTiming({ count: 8, fetchMs: 5, upsertMs: 20, concurrency: 2 });
+    const FETCH_MS = 5;
+    const UPSERT_MS = 20;
+    const line = await runWithTiming({ count: 8, fetchMs: FETCH_MS, upsertMs: UPSERT_MS, concurrency: 2 });
 
     const fetchPer = Number(/source-fetch [\d.]+s \(([\d.]+)ms\/item\)/.exec(line)?.[1]);
     const writePer = Number(/target-write [\d.]+s \(([\d.]+)ms\/item\)/.exec(line)?.[1]);
 
     expect(fetchPer).toBeGreaterThan(0);
-    expect(writePer).toBeGreaterThan(fetchPer * 2);
+    expect(writePer).toBeGreaterThan(fetchPer);
+
+    /**
+     * ON THE DIFFERENCE, NOT THE RATIO — and that is the whole point of this
+     * assertion rather than a detail of it.
+     *
+     * Both numbers carry the same additive noise floor: the gap between
+     * `setTimeout(n)` becoming due and its callback actually running. Additive
+     * noise CANCELS in a difference and COMPRESSES a ratio, so a ratio bar is
+     * a bar on how idle the machine is.
+     *
+     * Measured 2026-09-21 on this exact 5ms/20ms pass:
+     *
+     *   idle container        fetch 5.1–5.5   write 20.3–20.4   ratio 3.7–4.0   diff 14.8–15.2
+     *   under CPU + IO load   fetch 7.7–8.1   write 21.4–23.2   ratio 2.7–2.9   diff 13.7–15.2
+     *   the self-hosted arm64 runner   fetch 14.1   write 26.2   ratio 1.86     diff 12.1
+     *
+     * `writePer > fetchPer * 2` therefore passed on every GitHub-hosted runner
+     * — which is the only place a pull request is checked — and FAILED on the
+     * box this product deploys to, which is the only place `main` is built.
+     * `main` was red on it from #1049's merge onward, and every pull request
+     * that produced that red was itself green. Across a 2.8x spread in the
+     * noise floor the ratio fell by half; the difference moved by under 20%.
+     *
+     * The property under test has not changed: the instrument must attribute
+     * the time to the phase that spent it. Swap the two phases and this reads
+     * about -15 rather than 12, so the bar still catches what it was for.
+     */
+    const designedGap = UPSERT_MS - FETCH_MS;
+    expect(writePer - fetchPer).toBeGreaterThan(designedGap / 2);
   });
 
   it('reports overlap near 1 when the pass is effectively serial', async () => {
