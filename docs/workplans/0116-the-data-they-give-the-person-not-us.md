@@ -757,6 +757,49 @@ the probe and the qualification to it); slices 2 and 3 still to come:**
 3. **The managed gate through the door:** relay the two parts through the API into the e2e
    Nextcloud, import, and make the same comparison the self-host zip-route gate makes.
 
+#### What the relay costs to read, measured (2026-09-20)
+
+Not a defect — a number nobody had, so that the next person to ask "why is a
+managed import slower than an appliance one" does not have to re-derive it.
+**An archive's bytes are read TWICE**, and the second read is the one that
+matters on the relay, where reading is HTTP against the customer's own server
+rather than a disk.
+
+Measured through a counting store over the e2e two-part download (387 + 1316
+bytes; the reads are dominated by fixed costs at that size, so read the SHAPE
+and not the ratio):
+
+| Phase | Reads | Bytes |
+|---|---|---|
+| `open` — the end record and both central directories | 4 | 2374 |
+| `items()` — the walk | 14 | 2953 |
+| `content()` — the three collapsed items delivered (176 bytes) | 20 | 3217 |
+
+**Why twice.** The walk streams every media member through SHA-256, because
+collapsing the same photo under three albums and a year into ONE item (§4
+rule 1) is keyed on content and placement cannot be decided before the
+collapse. Then the copy reads each surviving item again to write it. The hash
+is not recomputed — `ArchiveFileSource` carries it — but the bytes travel
+twice.
+
+**So it is worse than 2× for a person who uses albums.** The walk reads every
+COPY; the copy phase reads every collapsed ITEM. A photo in three albums plus
+its year folder is read four times in the walk and once in the copy.
+
+**The optimisation that exists, and its catch.** A zip's central directory
+already carries a CRC-32 and an uncompressed size per member, and both are
+read at `open` for nothing. Grouping by `(crc32, size)` first and hashing only
+the groups with more than one member would leave the unique photos hashed once
+instead of once-per-copy. The catch is that the FOLDER route has no CRC, so
+the two routes would compute the collapse differently — and "a zip and the
+folder it extracts to are one archive" is the property the self-host gate
+exists to hold. Worth doing only with a test that the two routes still agree
+item for item, which is exactly what `selfhost-archive-zip-import` already
+asserts on the manifest.
+
+**Not proposed for now.** The doubling is structural: it buys the collapse,
+and the collapse is the product. The number is here so the trade is visible.
+
 ### 4. What is carried, and what is honestly lost
 
 Non-destructive toward the archive, always: its bytes are never opened for writing (hard
