@@ -71,6 +71,64 @@ there was never "terminal", it was "admits no second rollback") and a consequenc
 (a ledger row per attempt) was not taken: the same outcome for a migration and a pass over every
 reader.
 
+## T9: a PASS that hashed nothing — the owner's call
+
+Found 2026-09-21 while reading the §20 gate for a different reason. Not a defect report: the
+behaviour below is deliberate, documented at the line that produces it, and the alternative is
+worse in a way that matters. What was missing is that the CONSEQUENCE was never stated anywhere,
+so the policy is currently a thing you can only learn by following four hops.
+
+The chain, in `packages/core/src/verification.ts`:
+
+1. a target that cannot report content hashes yields `checksumUnavailable` for every sample, so
+   `checksumComparable === 0` and `checksumMatchPercentage` takes its `: 1` fallback — *"no
+   contrary evidence"*, as the comment above it says. `calculateVerificationScore` makes the same
+   fallback for its own `checksumRatio`;
+2. count parity holds, so `matchPercentage` is 1 and `totalDiscrepancies` is 0;
+3. `determineVerificationStatus` reads percentages and counts and never reads `issues` — so the
+   `CHECKSUM_UNAVAILABLE_*` WARNING raised a few lines earlier, whose own text is *"this is an
+   ABSENCE of content evidence, not evidence of a match"*, cannot move the status. It returns
+   **PASS**;
+4. PASS is the first arm of `canProceedToCutover`, which is therefore **true**.
+
+So a domain can read PASS, score 1.0 and open the cutover gate while its own issue list says no
+content was verified. Pinned as of this PR in
+`verification-bytes-and-checksums.unit.test.ts` — *"opens the cutover gate on count parity alone
+when NOTHING could be hashed"* — so the policy is at least stated, and changing it turns a test red
+rather than passing unnoticed.
+
+**Why the fallback is right as far as it goes.** A `JmapContactTarget` has no blobId and no route
+back to vCard bytes; it omits `contentHashFor` deliberately, and there is no sense in which that is
+a fault. Scoring it 0 would put every JMAP-contact migration permanently below the gate — not
+honesty, a product that cannot cut over. And count parity is real evidence: every recorded item,
+not a sample.
+
+**What it cannot presently distinguish**, and this is the whole of the question:
+
+- a target that **cannot** hash, ever, by design — a known property of a connector; and
+- a target that **can** hash and failed on every single sample — a fault, and the one that reads
+  as *we checked and it was fine* when nothing was checked.
+
+Both land on ratio 1, PASS, and an open gate. Three ways to close it, and none is a programmer's
+to pick:
+
+1. **Ask the reindexer.** A `TargetReindexer` either offers `contentHashFor` or it does not, and
+   that is already the difference — it is knowable at the seam without a new capability flag. When
+   the method IS present and every call came back empty, that is the fault case: hold the gate
+   (FAIL, or WARN that cannot reach 0.95). When it is absent, today's behaviour, unchanged.
+   Cheapest, and needs no decision about thresholds.
+2. **A third status beside PASS and NOT_VERIFIABLE** — `PASS_ON_COUNTS`, say — so the report says
+   which kind of pass it is and the screen can show it. Honest on the surface too, costs a wire
+   shape somebody's stored report is already written in (see `VerificationDomain`'s comment on
+   exactly that hazard).
+3. **Leave it.** The WARNING and the recommendation are already there, count parity is genuine,
+   and the operator who reads the report before pressing cutover has what they need. The argument
+   against is that the gate exists precisely for the operator who does NOT read it.
+
+Option 1 is the one I would propose, because it separates the two cases using a distinction the
+code already makes and changes nothing for JMAP contacts. Not taken: when somebody may delete
+their Google account is not a call to make while the owner is asleep.
+
 ## Definition of Done (the gate)
 A complete cutover lifecycle runs against the dev stack, driven through the worker: shadow →
 **verification gate computed from the real ledger + target counts** (per-folder parity + checksum

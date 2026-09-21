@@ -191,6 +191,62 @@ describe('checksum sampling', () => {
     expect(result.recommendations.join(' ')).toMatch(/could not be content-verified/);
   });
 
+  it('opens the cutover gate on count parity alone when NOTHING could be hashed — the owner\u2019s call', async () => {
+    /**
+     * WHAT THIS PINS, AND WHY IT IS NOT AN ASSERTION THAT THE POLICY IS RIGHT.
+     *
+     * The test above proves an all-unavailable checksum leg is REPORTED. It
+     * stops there, and the consequence was left implicit. It is this:
+     *
+     * 1. nothing comparable → `checksumComparable === 0` → the ratio takes its
+     *    documented `: 1` fallback, in BOTH `verifyDataType` (which feeds
+     *    `determineVerificationStatus`) and `calculateVerificationScore`;
+     * 2. counts match, so `matchPercentage` is 1 and there are no
+     *    discrepancies;
+     * 3. `determineVerificationStatus` therefore returns PASS — it reads
+     *    percentages and counts, never `issues`, so the WARNING raised above
+     *    cannot move it;
+     * 4. PASS is the first arm of `canProceedToCutover`, so the gate opens on
+     *    a report whose own issue list says *"this is an ABSENCE of content
+     *    evidence, not evidence of a match"*.
+     *
+     * The fallback is DELIBERATE and the trade is real in both directions. A
+     * `JmapContactTarget` has no route back to vCard bytes and omits
+     * `contentHashFor` on purpose; scoring that 0 would put every JMAP-contact
+     * migration permanently below the gate, which is not honesty, it is a
+     * product that cannot cut over. And the counts ARE evidence — parity over
+     * every recorded item, not a sample.
+     *
+     * But the report cannot presently tell those two apart:
+     *   - a domain whose target CANNOT hash, ever, by design; and
+     *   - a domain whose target CAN hash and failed on every single sample.
+     * Both land on ratio 1, PASS, and an open gate. The first is a known
+     * property of a connector. The second is a fault, and it is the one that
+     * reads as "we checked and it was fine" when nothing was checked.
+     *
+     * Whether that second case should hold the gate shut is a decision about
+     * when somebody may delete their Google account, which is the owner's and
+     * not this test's. Recorded in workplan 0009. What this test does is make
+     * the policy EXPLICIT: it is now stated, so changing it turns this red and
+     * the change is visible rather than silent.
+     */
+    const result = await verify(reindexer(sized([100, 200])));
+
+    expect(result.mail.checksumUnavailable).toBe(2);
+    expect(result.mail.checksumMatches + result.mail.checksumMismatches, 'something was comparable after all').toBe(0);
+    // Count parity is real evidence and it held.
+    expect(result.mail.matchedCount).toBe(2);
+    expect(result.mail.missingOnTarget).toBe(0);
+    // ...and on that alone, the gate opens.
+    expect(result.mail.status).toBe('PASS');
+    expect(result.overallStatus).toBe('PASS');
+    expect(result.canProceedToCutover).toBe(true);
+    // The contradiction, in one place: the gate says proceed, the report says
+    // no content was verified. Both of these must keep being true together,
+    // or the owner has decided something and this test should say so.
+    expect(result.mail.issues.map((i) => i.id)).toContain('CHECKSUM_UNAVAILABLE_mail');
+  });
+
   it('prefers a hash already present on the entry over a fetch', async () => {
     // If the listing was cheap enough to carry one, do not pay for a GET.
     let fetches = 0;
