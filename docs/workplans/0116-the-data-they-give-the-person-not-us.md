@@ -637,10 +637,17 @@ this reader cannot account for is not copied, and is reported by name.
    merges parts before anything is classified, so it holds — now proved rather than assumed, by a
    test no fixture in the repository had the shape for (they split by year folder, so every album
    stayed whole inside one part).
-3. **`access: "protected"` is NOT a share signal.** Both albums carry it and only one was shared,
-   so it is the default. What differs is `sharedAlbumComments`, present only on the shared one —
-   evidence of ACTIVITY, which under-reports an album shared with nobody commenting. Recorded
-   because reading it the other way would have flagged every album a person has.
+3. **Neither field in an album's metadata says whether it was shared.** `access: "protected"` is
+   on both albums and only one was shared, so it is the default — and the owner notes it may be
+   absent on a shared album too. `sharedAlbumComments` is present only on the shared one, but the
+   comment in it is **his own invite message**: the field exists because he typed something when
+   sharing, so sharing in silence leaves no trace at all (owner, 2026-09-21).
+
+   So `shareActivity` is ONE-WAY evidence — present means shared, absent means nothing — and the
+   classification never reads either field: an album is an album because it has a `metadata.json`,
+   whatever is inside it, down to `{}`. Recorded because reading `access` the other way would
+   have flagged every album a person has, and because a flag people trust in the negative would
+   be worse than no flag.
 4. **Empty albums do not ship at all.** The owner has three albums and the export carries two.
    So how Takeout disambiguates two same-named albums is STILL unknown — his two `Thailand`
    albums are both empty and neither appeared.

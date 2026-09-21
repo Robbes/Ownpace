@@ -156,6 +156,49 @@ describe('the three buckets, on the shape the owner’s export actually has', ()
     expect(summary.albums?.[0]?.metadata.access).toBe('protected');
   });
 
+  it('is still an album with neither `access` nor comments in its metadata', async () => {
+    // The owner's point, 2026-09-21: he TYPED a message when sharing, so the
+    // comments field exists because of that — share in silence and it is
+    // absent. He adds that `access` may be missing on a shared album too.
+    //
+    // So neither field may be load-bearing, and this pins that they are not:
+    // a `metadata.json` holding nothing but a title still makes an album, and
+    // the absence of the flag says nothing about whether it was shared.
+    const root = await mkdtemp(join(tmpdir(), 'bare-album-'));
+    made.push(root);
+    const photos = join(root, 'Takeout', 'Google Foto_s');
+    const year = join(photos, 'Foto_s van 2024');
+    await mkdir(year, { recursive: true });
+    await writeFile(join(year, 'IMG_0001.jpg'), PHOTO);
+    await writeFile(join(year, 'IMG_0001.jpg.supplemental-metadata.json'), JSON.stringify({ title: 'IMG_0001.jpg' }));
+    const album = join(photos, 'Thailand');
+    await mkdir(album, { recursive: true });
+    await writeFile(join(album, 'IMG_0001.jpg'), PHOTO);
+    await writeFile(join(album, 'metadata.json'), JSON.stringify({ title: 'Thailand' }));
+
+    const { items, summary } = await readAll(root);
+    expect(items[0]!.placeIn).toEqual(['Thailand']);
+    expect(summary.albums).toEqual([{ folder: 'Thailand', title: 'Thailand', metadata: { title: 'Thailand' } }]);
+    expect(summary.albums?.[0]?.shareActivity).toBeUndefined();
+  });
+
+  it('is still an album when its metadata.json is empty', async () => {
+    // The floor of the same property: `{}` is an object, so it is an album.
+    // Nothing inside is required, because the reader must not depend on a
+    // field Google may or may not write.
+    const root = await mkdtemp(join(tmpdir(), 'empty-metadata-'));
+    made.push(root);
+    const album = join(root, 'Takeout', 'Google Foto_s', 'Reis');
+    await mkdir(album, { recursive: true });
+    await writeFile(join(album, 'IMG_0001.jpg'), PHOTO);
+    await writeFile(join(album, 'metadata.json'), '{}');
+
+    const { items, summary } = await readAll(root);
+    expect(items[0]!.placeIn).toEqual(['Reis']);
+    // No title in the metadata, so the folder name is the honest fallback.
+    expect(summary.albums?.[0]?.title).toBe('Reis');
+  });
+
   it('does not flag activity on an album that merely has the default access', async () => {
     const root = await mkdtemp(join(tmpdir(), 'unshared-'));
     made.push(root);

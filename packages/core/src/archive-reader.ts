@@ -222,19 +222,29 @@ export interface ArchiveSummary {
     readonly folder: string;
     readonly title: string;
     /**
-     * The album's metadata carried COMMENTS — somebody had been in it.
+     * The album's metadata carried COMMENTS — so it was shared with somebody.
      *
-     * Named for what it measures rather than for what one would like to know.
-     * `access: "protected"` is NOT a share signal: both of the owner's albums
-     * carry it and only one was shared, so it is the default. Comments are
-     * real evidence of sharing, but they UNDER-report — an album shared with
-     * nobody commenting has none — so nothing should treat the absence of this
-     * flag as "not shared".
+     * ONE-WAY EVIDENCE, and the asymmetry is the whole point. Present ⟹ the
+     * album was shared, because an album nobody can see collects no comments.
+     * Absent ⟹ **nothing at all**, and two measured reasons why:
+     *
+     * - the only comment in the owner's export is his OWN invite message
+     *   (`contentOwnerName` is him), so the field exists because he typed
+     *   something when sharing. Share without a message and there is no field
+     *   — the owner's own observation, 2026-09-21;
+     * - `access: "protected"` is no help either. Both his albums carry it and
+     *   only one was shared, so it is the default, and he notes it may be
+     *   absent on a shared album too. It is not read here for any purpose.
+     *
+     * So nothing may treat the absence of this flag as "not shared", and
+     * classification never depends on either field: an album is an album
+     * because it has a `metadata.json`, whatever is inside it.
      *
      * **A share cannot be recreated either way.** The export carries no
-     * recipient anywhere: not in the album metadata, not in the report. So the
+     * recipient anywhere: not in the album metadata, not in the report. The
      * person has to re-share on the target themselves, and the guide tells
-     * everyone with albums so rather than relying on this flag.
+     * EVERYONE with albums so rather than relying on this flag — which is what
+     * makes the under-reporting survivable.
      */
     readonly shareActivity?: true;
     readonly metadata: Readonly<Record<string, unknown>>;
