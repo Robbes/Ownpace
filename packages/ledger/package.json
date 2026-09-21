@@ -19,6 +19,6 @@
   },
   "devDependencies": {
     "@openmig/managed": "workspace:*",
-    "imapflow": "^2.0.2"
+    "imapflow": "^2.0.5"
   }
 }

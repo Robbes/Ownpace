@@ -34,19 +34,19 @@
     "helmet": "^8.3.0",
     "jose": "^6.2.12",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.12.0",
+    "morgan": "^1.12.1",
     "pg": "catalog:",
-    "zod": "^4.6.2"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/morgan": "^1.9.9",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.1",
     "@typescript/native": "npm:typescript@7.0.2",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^5.0.0",
-    "yaml": "^2.9.0"
+    "vitest": "^5.0.1",
+    "yaml": "^2.9.1"
   }
 }
