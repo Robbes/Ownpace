@@ -555,6 +555,88 @@ Not fixed by better test data, and still blocking parts of T3b:
 remains is confirmation, not discovery. A reader written against this section would be wrong in
 its date parsing and silent about packages, which is why neither is built until export #2 lands.
 
+## The owner's own Takeout, measured (2026-09-21)
+
+A real Google export, requested by the owner on 20 September 2026 and delivered as **46 parts,
+8517 files, 45.03 GB**. Part 001 carries `archive_browser.html`, the report, and that is what
+was read here; the data parts were described by the owner from his own disk. It is the first
+Takeout this plan has measured rather than reasoned about, and it broke the reader outright.
+
+### The folder names are translated, and the reader named them
+
+The reader looked for the constant `Takeout/Google Photos`, and for `Photos from <year>` inside
+it. **Google translates both.** The owner's export is:
+
+```
+Takeout/
+  Google Foto_s/              <- Dutch, and `'` is written as `_`
+    Foto_s van 2024/            10 media + 10 sidecars
+    Foto_s van 2025/          2378 media
+    Foto_s van 2026/          1954 media
+    Prullenbak/                 25 media   <- Trash, translated like the rest
+```
+
+So the 45 GB export was refused entirely, with a sentence that blamed his download — after he
+had clicked forty-six download buttons to get it.
+
+**Fixed (2026-09-21): the root is FOUND, not named.** One level under `Takeout`, the product
+folder whose own subfolders hold photos — asked as two questions, strongest first. First, in
+every product: a media file with its sidecar beside it. That pair is what a photo tree IS in any
+language, and a Drive or Mail export under the same `Takeout` has no such pairs. Only if no
+product answers that, a second question: a still or a motion clip by extension. When nothing
+qualifies, the refusal names the products it did see rather than sending the person back to
+their download.
+
+**Both questions are needed, and the order is the point** — found the hard way, when the first
+version asked only the pair and turned five other suites red. "A missing sidecar is not an
+error" is the reader's own rule, so a library whose sidecars are all absent is still a library,
+and demanding the pair refused it outright: the same class of defect as naming the root, one
+layer down. Asking the weaker question per product instead would let a Drive export holding one
+holiday snap win on sort order, since `Drive` sorts before `Google Foto_s`.
+
+**What made it hard to see, recorded because it fooled me first.** Takeout's own album picker
+lists these folders in ENGLISH (`Photos from 2011`, `Trash`) even for a Dutch account. I read
+the picker, saw English, and nearly concluded there was no defect — a display name is not a
+path. The owner settled it by looking inside a data part.
+
+### The half that is NOT closed, and the three rules that are not it
+
+`Photos from <year>` is still a constant, so under a translated root every folder reads as an
+ALBUM, year folders included. For an export with no albums — the owner's — that is invisible:
+each photo sits in one folder and lands in one place. Add an album and it is not: the photo is
+placed under the album AND under its year folder, which §"What is carried" says must not happen.
+Pinned as a failing-on-purpose expectation in
+`a-takeout-that-is-not-in-english.unit.test.ts`; the test fails when the rule lands.
+
+Three candidate rules this export **rules out**, which is the value of having measured it:
+
+| Candidate | What the export says |
+|---|---|
+| The folder's own `metadata.json` — albums carry one, year folders do not | **No folder in the export has one**, year folders included. So the rule is untested, not confirmed. It remains the best candidate; it needs an export WITH albums |
+| The filename — Trash items are marked | Trash is `Prullenbak`, translated like everything else, and **only 1 of its 25 media** carries Android's `.trashed-` prefix. The other 24 are ordinary names |
+| `archive_browser.html` — the report as a Rosetta stone | It carries exactly one English key, `data-english-name="PHOTOS"`, and that is for the **service**. The folders under it appear only in Dutch. It is also in part 001 only, which a person may not have downloaded |
+
+### What this means for the owner's Trash decision
+
+The owner decided on 2026-09-21: *"we should leave out Trash, the user should unselect it, and
+we should not move it to target."* The first half is guidance and can be written today. **The
+second half has no rule yet** — from inside the data parts, `Prullenbak` is indistinguishable
+from an album called `Prullenbak`. It lands with the album rule, not before, and until then
+Trash is carried like any other folder.
+
+### Larger parts: safe, with room to spare
+
+The owner asked whether Takeout's larger part sizes would be a problem, having clicked a button
+per gigabyte for 45 GB. **They would not.** The reader holds no part in memory: `openZip` reads
+the central directory through a seekable source, and the relay reads by `Range` in 8 MiB
+windows. The bound that matters is `MAX_CENTRAL_DIRECTORY_BYTES` (256 MiB), and the arithmetic
+is not close: his whole 45.03 GB export is 8517 files, and a central directory entry for a path
+of his length is roughly 170 bytes, so even as ONE part the directory would be about 1.5 MB —
+**a factor of ~170 under the ceiling**. ZIP64 is implemented (`EOCD64`, the locator, the
+per-member extra field), so a part above 4 GiB is read like any other. The cost of larger parts lands on
+the relay upload — fewer, larger PUTs — not on the reader. **Tell people to pick the largest
+part size their connection will carry.**
+
 ## The design
 
 ### 1. An archive is a connection whose credential is a location

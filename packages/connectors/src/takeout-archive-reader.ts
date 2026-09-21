@@ -29,10 +29,12 @@ import { ZipUnreadable } from './zip-archive.ts';
  *
  * ## What Takeout actually looks like, and why each quirk is here
  *
- * `Takeout/Google Photos/` holds one folder per album plus one
- * `Photos from <year>` per year, and **a photo in three albums appears three
- * times, byte-identical**, plus once more in its year folder. Collapsing that is
- * this reader's first job (0116 T2's rule 1); a caller that saw four records
+ * The photo tree — `Takeout/Google Photos/` in English, `Takeout/Google Foto_s`
+ * in Dutch, and so on, which is why `findPhotosRoot` looks for it rather than
+ * naming it — holds one folder per album plus one `Photos from <year>` per
+ * year, and **a photo in three albums appears three times, byte-identical**,
+ * plus once more in its year folder. Collapsing that is this reader's first
+ * job (0116 T2's rule 1); a caller that saw four records
  * would write the image four times and every count downstream would agree with
  * itself while being wrong.
  *
@@ -54,10 +56,58 @@ import { ZipUnreadable } from './zip-archive.ts';
  * worse answer than carrying it plainly.
  */
 
-/** The path inside a Takeout where the photo tree lives — `/`-separated, the tree's spelling. */
-const PHOTOS_ROOT = 'Takeout/Google Photos';
+/**
+ * The folder every Takeout puts its products under. English in every export
+ * seen so far, including a Dutch one (owner, 2026-09-21) — it is the only part
+ * of the path that is NOT translated.
+ */
+const TAKEOUT_ROOT = 'Takeout';
 
-/** `Photos from 2019` is a YEAR folder; anything else under the root is an album. */
+/*
+ * WHAT A TAKEOUT'S PHOTO TREE IS CALLED, WHICH IS NOT ONE THING.
+ *
+ * This was `Takeout/Google Photos`, a constant, and it was wrong for everyone
+ * who does not use Google in English. The owner's own 45 GB export
+ * (2026-09-21) holds `Takeout/Google Foto_s` with `Foto_s van 2025` inside it
+ * — Dutch, with `'` written as `_` — and the reader refused the whole export
+ * with a sentence blaming his download. He would have re-fetched 45 GB to be
+ * told the same thing again.
+ *
+ * Worth recording precisely, because it fooled me first: Takeout's own
+ * **picker** lists these folders in ENGLISH (`Photos from 2011`, `Trash`) even
+ * in a Dutch account. Only the paths are translated, and a display name is not
+ * a path — this file needs the path. (`archive_browser.html`, the report in
+ * part 001, is the other way round: its folder names ARE the translated paths,
+ * and its one English key, `data-english-name`, names the SERVICE only.)
+ *
+ * So the root is FOUND, not named: see `findPhotosRoot`, one level under
+ * `Takeout`, the folder whose own subfolders hold photos. That is what a photo
+ * tree IS, in any language.
+ */
+
+/** A sidecar is a `.json` beside the media, never an item in its own right. */
+const SIDECAR_JSON = /\.json$/i;
+
+/**
+ * `Photos from 2019` is a YEAR folder; anything else under the root is an album.
+ *
+ * STILL ENGLISH, and knowingly so (2026-09-21). The root above is found rather
+ * than named, so a translated export can now be READ; this line is the second
+ * translated thing and it is not yet closed, because the rule that replaces it
+ * cannot be written from any export in hand. Under a non-English root every
+ * folder falls through to `album`, and a photo that HAS an album is then placed
+ * under its year folder as well — which 0112 §3 says must not happen. Pinned,
+ * with the measurements behind it, in
+ * `a-takeout-that-is-not-in-english.unit.test.ts`; that test fails when the
+ * rule lands, which is how it is meant to end.
+ *
+ * Measured against the owner's real 45.03 GB export, three rules that are NOT
+ * it: the folder's own `metadata.json` (no folder in it has one, year folders
+ * included — so "albums carry one" is untested, not confirmed), the filename
+ * (Trash is `Prullenbak`, translated like the rest; 1 of its 25 media carries
+ * Android's `.trashed-` prefix), and `archive_browser.html` (names the SERVICE
+ * in English via `data-english-name`, the folders in Dutch).
+ */
 const YEAR_FOLDER = /^Photos from (\d{4})$/;
 
 /** Takeout caps a sidecar's filename at this many characters. */
@@ -181,7 +231,6 @@ interface Found {
   /** Where in the tree, `/`-separated. */
   readonly treePath: string;
   readonly folder: string;
-  readonly isYearFolder: boolean;
   readonly mediaName: string;
 }
 
@@ -195,6 +244,8 @@ interface Collapsed {
 interface TakeoutHandle extends ArchiveHandle {
   /** The folder or the zip(s), behind the seam. Closed with the handle. */
   readonly tree: ArchiveTree;
+  /** Where this export's photo tree was FOUND — see {@link findPhotosRoot}. Not a constant. */
+  readonly photosRoot: string;
   /**
    * The collapse, ONCE per open handle (workplan 0116 T5). `summary()` and
    * `items()` used to walk and hash the whole tree each on their own, which
@@ -216,21 +267,102 @@ interface TakeoutHandle extends ArchiveHandle {
 const byName = (a: { readonly name: string }, b: { readonly name: string }): number =>
   a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
 
-async function listFolders(tree: ArchiveTree): Promise<string[]> {
-  return (await tree.list(PHOTOS_ROOT))
+/**
+ * How many of a product folder's own subfolders to look inside before deciding
+ * it is not the photo tree. A Takeout lists year folders and albums together,
+ * so the first few are enough — and on the relay each `list` is a PROPFIND
+ * against the customer's server, so this is a budget, not a formality.
+ */
+const FOLDERS_PROBED = 4;
+
+/**
+ * THE PHOTO TREE, FOUND RATHER THAN NAMED (the block comment above says why).
+ *
+ * One level under `Takeout`, the folder whose own subfolders hold PHOTOS. Two
+ * questions, strongest first, because neither alone is enough:
+ *
+ * 1. a media file with its sidecar beside it. That shape is what a Google
+ *    Photos export IS — a Drive or Mail export under the same `Takeout` has no
+ *    such pairs — and it survives translation, which `'Google Photos'` did not;
+ * 2. failing that, in ANY product, a still or a motion clip by extension.
+ *    "A missing sidecar is not an error" is this file's own rule, so a library
+ *    whose sidecars are all absent is still a library.
+ *
+ * Both are needed, and in that order. Question 1 alone refuses a sidecar-less
+ * export outright — the same class of defect as naming the root, and how this
+ * was found. Question 2 alone lets a Drive export with one holiday snap in it
+ * win on sort order, since `Drive` sorts before `Google Foto_s`.
+ *
+ * Returns the path, or `undefined` with the product folders it DID see, so the
+ * refusal can name them instead of guessing at the person's download.
+ */
+async function findPhotosRoot(
+  tree: ArchiveTree,
+): Promise<{ readonly root?: string; readonly sawProducts: ReadonlyArray<string> }> {
+  if (!(await tree.isDirectory(TAKEOUT_ROOT))) return { sawProducts: [] };
+  const products = (await tree.list(TAKEOUT_ROOT)).filter((e) => e.isDirectory).sort(byName);
+  const probed: { readonly root: string; readonly folders: ReadonlyArray<ReadonlySet<string>> }[] = [];
+  for (const product of products) {
+    const root = `${TAKEOUT_ROOT}/${product.name}`;
+    const inside = (await tree.list(root)).filter((e) => e.isDirectory).sort(byName);
+    const folders: Set<string>[] = [];
+    for (const folder of inside.slice(0, FOLDERS_PROBED)) {
+      const entries = await tree.list(`${root}/${folder.name}`);
+      folders.push(new Set(entries.filter((e) => !e.isDirectory).map((e) => e.name)));
+    }
+    // First pass, and it returns the moment it is satisfied: the listings above
+    // cost a PROPFIND each on the relay, so a Takeout of photos alone — the
+    // ordinary case — probes one product and stops.
+    if (folders.some(holdsASidecarPair)) return { root, sawProducts: [] };
+    probed.push({ root, folders });
+  }
+  // Second pass, over what was already listed. A photo tree whose sidecars are
+  // all absent is still a photo tree: "a missing sidecar is not an error" is
+  // this reader's own rule, and a first pass that stood alone would refuse such
+  // an export outright — which is the same class of defect as naming the root.
+  // Weaker evidence, so it runs only when NO product answered the first pass:
+  // that ordering is what stops a Drive export with one holiday snap in it from
+  // out-voting a photo tree that has its metadata.
+  const byMediaAlone = probed.find((candidate) => candidate.folders.some(holdsMedia));
+  if (byMediaAlone) return { root: byMediaAlone.root, sawProducts: [] };
+  return { sawProducts: products.map((p) => p.name) };
+}
+
+/**
+ * A media file with its sidecar beside it — the PAIR, never a `.json` alone.
+ * An album's own `metadata.json` has no media of that name beside it, and a
+ * folder holding only sidecars is not a tree of photos either.
+ */
+function holdsASidecarPair(names: ReadonlySet<string>): boolean {
+  for (const name of names) {
+    if (SIDECAR_JSON.test(name)) continue;
+    if (sidecarNamesFor(name).some((sidecar) => names.has(sidecar))) return true;
+  }
+  return false;
+}
+
+/** A still or a motion clip, by the same extensions `classifyMedia` knows. */
+function holdsMedia(names: ReadonlySet<string>): boolean {
+  for (const name of names) {
+    if (STILL_EXTENSION.test(name) || MOTION_EXTENSION.test(name)) return true;
+  }
+  return false;
+}
+
+async function listFolders(tree: ArchiveTree, root: string): Promise<string[]> {
+  return (await tree.list(root))
     .filter((e) => e.isDirectory)
     .sort(byName)
     .map((e) => e.name);
 }
 
-async function findMedia(tree: ArchiveTree): Promise<Found[]> {
+async function findMedia(tree: ArchiveTree, root: string): Promise<Found[]> {
   const out: Found[] = [];
-  for (const folder of await listFolders(tree)) {
-    const isYearFolder = YEAR_FOLDER.test(folder);
-    const dir = `${PHOTOS_ROOT}/${folder}`;
+  for (const folder of await listFolders(tree, root)) {
+    const dir = `${root}/${folder}`;
     for (const entry of [...(await tree.list(dir))].sort(byName)) {
       if (entry.isDirectory || NOT_AN_ITEM.test(entry.name)) continue;
-      out.push({ treePath: `${dir}/${entry.name}`, folder, isYearFolder, mediaName: entry.name });
+      out.push({ treePath: `${dir}/${entry.name}`, folder, mediaName: entry.name });
     }
   }
   return out;
@@ -399,13 +531,13 @@ function takenAt(sidecar: Sidecar | undefined): string | undefined {
 export function createTakeoutArchiveReader(store: ArchiveStore = localStore()): ArchiveReader {
   const collapse = async (handle: TakeoutHandle): Promise<Collapsed> => {
     try {
-      return await walk(handle.tree);
+      return await walk(handle.tree, handle.photosRoot);
     } catch (err) {
       throw asArchiveError(err);
     }
   };
-  const walk = async (tree: ArchiveTree): Promise<Collapsed> => {
-    const found = await findMedia(tree);
+  const walk = async (tree: ArchiveTree, root: string): Promise<Collapsed> => {
+    const found = await findMedia(tree, root);
 
     // Keyed by content hash: the same bytes under three albums and a year are
     // ONE item that four folders knew about (0116 T2, rule 1).
@@ -441,7 +573,7 @@ export function createTakeoutArchiveReader(store: ArchiveStore = localStore()): 
       // descriptions. Caught by the fixture rather than by reasoning.
       let sidecar: Sidecar | undefined;
       for (const copy of copies) {
-        sidecar = await readSidecar(tree, `${PHOTOS_ROOT}/${copy.folder}`, copy.mediaName);
+        sidecar = await readSidecar(tree, `${root}/${copy.folder}`, copy.mediaName);
         if (sidecar) break;
       }
       const createdAt = takenAt(sidecar);
@@ -509,18 +641,33 @@ export function createTakeoutArchiveReader(store: ArchiveStore = localStore()): 
         );
       }
       const tree = await openTakeoutTree(store, location.path);
-      if (!(await tree.isDirectory(PHOTOS_ROOT))) {
+      const { root, sawProducts } = await findPhotosRoot(tree);
+      if (root === undefined) {
         await tree.close().catch(() => {});
-        // The common case, and it must read as "we could not open this" rather
-        // than as an empty library: an unfinished download, a part never
-        // fetched, or a folder — or a zip — that is not a Takeout at all.
+        const where = store.split(location.path).name || store.describe(location.path);
+        // It must read as "we could not open this" rather than as an empty
+        // library — and it must now name WHAT WAS THERE. The sentence this
+        // replaces said only that `Takeout/Google Photos` was absent and
+        // blamed an unfinished download, which for a translated export was
+        // both true and useless: the owner's Dutch 45 GB export is
+        // `Takeout/Google Foto_s`, and re-fetching it would have said the
+        // same thing again (2026-09-21).
         throw new ArchiveUnreadable(
-          `This archive could not be opened — no “${PHOTOS_ROOT}” folder was found in ` +
-            `${store.split(location.path).name || store.describe(location.path)}. If the download is still ` +
-            'running, or only some parts arrived, it will look like this.',
+          sawProducts.length > 0
+            ? `This archive could not be opened — ${where} holds ${sawProducts.map((p) => `“${p}”`).join(', ')} ` +
+              'under Takeout, and none of them holds photos with their metadata beside them. A Takeout of ' +
+              'something other than Google Photos looks like this; so does an export whose photo parts have ' +
+              'not all arrived.'
+            : `This archive could not be opened — no “${TAKEOUT_ROOT}” folder was found in ${where}. If the ` +
+              'download is still running, or only some parts arrived, it will look like this.',
         );
       }
-      const handle: TakeoutHandle = { provider: 'google-takeout', tree, close: () => tree.close() };
+      const handle: TakeoutHandle = {
+        provider: 'google-takeout',
+        tree,
+        photosRoot: root,
+        close: () => tree.close(),
+      };
       return handle;
     },
 

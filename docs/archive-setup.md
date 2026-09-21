@@ -35,15 +35,22 @@ no account to link and nothing to revoke afterwards.
 1. Go to **takeout.google.com** and sign in.
 2. Press **Deselect all**, then tick only **Google Photos**. Ticking everything produces a far
    larger download that takes much longer to prepare, and we do not read the rest.
-3. Press **Next step**.
-4. Choose how it reaches you. **Send it straight to Google Drive, Dropbox, OneDrive or Box if
+3. Still inside Google Photos, press **All photo albums included** and **untick `Trash`**.
+   Photos you deleted are in there, and Google puts them in the export like any other album —
+   leave it ticked and they come across to your new home along with everything else. (This
+   list is shown in English even when the rest of Takeout is in your language.)
+4. Press **Next step**.
+5. Choose how it reaches you. **Send it straight to Google Drive, Dropbox, OneDrive or Box if
    you use one** — the file is large, and a cloud delivery avoids downloading and re-uploading
    tens of gigabytes. Otherwise Google emails you a link.
-5. Choose **Export once**, unless you are still adding photos and want a series — Google can
+6. Choose **Export once**, unless you are still adding photos and want a series — Google can
    repeat the export **every two months for a year**, which suits somebody moving gradually.
-6. Choose a file size. Larger parts mean fewer files to keep track of; smaller parts are
-   easier if your connection drops.
-7. Press **Create export**.
+7. Choose a file size. **Pick the largest your connection will manage.** Google makes you
+   press a download button once per part, so a 45 GB export at 1 GB a part is forty-six
+   presses. Size makes no difference to us — we never hold a part in memory, and we read
+   parts above 4 GB the same way as smaller ones. Smaller parts only help if your connection
+   drops mid-download.
+8. Press **Create export**.
 
 Google then takes anywhere from a few minutes to a few days depending on how much you have.
 It emails you when it is ready.
@@ -63,8 +70,11 @@ say which. A part missing from the *end* of the sequence leaves no gap we can se
 the number of files you have with the number Google's download page lists before you start.
 
 If you would rather extract it, extract every part into the same folder. You should end up
-with a folder containing a `Takeout` folder, and inside that a `Google Photos` folder. That
-outer folder is the one to point us at. Both ways give exactly the same result.
+with a folder containing a `Takeout` folder, and inside that one folder per Google service you
+exported. **That inner folder is named in your own language** — a Dutch account's is
+`Google Foto_s`, not `Google Photos` — so do not worry if it does not match what you expected.
+We find the photos by what is in the folders, not by what they are called. Point us at the
+outer folder; both ways give exactly the same result.
 
 ### What is inside, and what we do with it
 

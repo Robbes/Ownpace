@@ -1150,12 +1150,12 @@ export function parseGoogleDriveSource(obj: Record<string, unknown>): GoogleDriv
  * refuse is not one the API quietly writes (hard rule 5).
  *
  * BOTH fields are required and the provider is checked against the list rather
- * than cast. That check is the one that matters here, because getting it wrong
- * does not throw: opening an Apple export with Google's reader finds no
- * `Takeout/Google Photos` tree and reports an archive containing nothing. To
- * somebody who has just waited a week for a 25 GB download that reads as "your
- * export is empty", which is both the most alarming answer available and the
- * one they cannot act on.
+ * than cast. That check is the one that matters here, because the reader
+ * downstream cannot make it: opening an Apple export with Google's reader
+ * finds no photo tree, and the best it can then say is that this archive holds
+ * no Google Photos — a true sentence, arriving a week and 25 GB too late, and
+ * about the wrong product entirely. The door knows which reader was asked for;
+ * it is the only place the mismatch is cheap to catch.
  *
  * `type` is not required in the input — a stored connection carries its kind in
  * its own column, not in the blob — and is always set on the way out.

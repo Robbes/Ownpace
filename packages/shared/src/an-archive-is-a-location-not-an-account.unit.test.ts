@@ -19,11 +19,11 @@
  * is not a compile error: it is a form offering an export the create door
  * refuses, or hiding one it accepts — silent on both sides.
  *
- * **3. The wrong provider does not FAIL, it finds nothing.** Opening an Apple
- * export with Google's reader finds no `Takeout/Google Photos` tree and reports
- * an empty archive. So the value is checked by name at the door, and the
- * refusal names the list. Anything that answers "0 items" to somebody who
- * waited a week for a 25 GB download is the worst answer available here.
+ * **3. The wrong provider is not caught by the reader.** Opening an Apple
+ * export with Google's reader finds no photo tree, and all it can say then is
+ * that this archive holds no Google Photos — true, about the wrong product,
+ * and arriving a week and 25 GB late. So the value is checked by name at the
+ * door, where the mismatch is cheap, and the refusal names the list.
  *
  * **4. Files and photos, and nothing else** (owner decision D5, 2026-09-04).
  * Both exports contain mail, calendars and contacts too; this product reads
