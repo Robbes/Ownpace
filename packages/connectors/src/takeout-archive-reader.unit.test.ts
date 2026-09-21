@@ -411,12 +411,19 @@ describe('a download that cannot be read says so, and never reads as empty', () 
   });
 
   it('refuses a zip with no Takeout in it, naming the file', async () => {
+    // EXPECTATION CHANGED 2026-09-21, and the old one was the defect. This
+    // asserted the reason contained the literal `Takeout/Google Photos` —
+    // pinning the hard-coded English root that made every translated export
+    // unreadable. The behaviour under test is unchanged and the assertion is
+    // stronger: the sentence names what is missing and the file it looked in,
+    // and must NOT invent a product folder that was never there.
     const zip = join(work, 'notes.zip');
     await writeFile(zip, buildZip([{ name: 'notes/todo.txt', data: 'not an export' }]));
     const err = await reader.open({ provider: 'google-takeout', path: zip }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ArchiveUnreadable);
-    expect((err as ArchiveUnreadable).reason).toContain('Takeout/Google Photos');
+    expect((err as ArchiveUnreadable).reason).toContain('Takeout');
     expect((err as ArchiveUnreadable).reason).toContain('notes.zip');
+    expect((err as ArchiveUnreadable).reason).not.toContain('Google Photos');
   });
 
   it('refuses a download that stopped early as unreadable, with the zip reader’s reason', async () => {

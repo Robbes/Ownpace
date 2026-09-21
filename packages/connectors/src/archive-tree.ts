@@ -4,9 +4,10 @@
  * WHERE AN ARCHIVE'S FILES ARE, WITHOUT SAYING HOW THEY ARE STORED
  * (workplan 0116 D7, second slice).
  *
- * The Takeout reader walks a tree: the folders under `Takeout/Google Photos`,
- * the files in each, a sidecar beside a photo, the bytes of one file at a
- * time. Until this slice that tree was the filesystem, which meant the person
+ * The Takeout reader walks a tree: the folders under the export's photo tree
+ * (`Takeout/Google Photos` in English, and translated in every other locale —
+ * which is why the reader FINDS that folder rather than naming it), the files
+ * in each, a sidecar beside a photo, the bytes of one file at a time. Until this slice that tree was the filesystem, which meant the person
  * had to extract the download first — and on the managed edition there is no
  * filesystem a pass can reach at all (0116 T4, measured 2026-09-05).
  *
