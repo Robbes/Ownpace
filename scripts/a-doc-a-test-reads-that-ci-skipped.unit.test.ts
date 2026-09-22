@@ -209,6 +209,82 @@ function readArguments(source: string): string[] {
 }
 
 /**
+ * Every directory a test WALKS, with the extensions it then reads from it.
+ *
+ * The other half of a read, and the half this guard could not see until
+ * 2026-09-22. `filesTestsRead` resolves LITERAL paths, and said so — "a path
+ * built from a variable is invisible here". That limitation had a price, and
+ * `pasteable-hints.unit.test.ts` is where it was paid:
+ *
+ *     readdirSync(DOCS_DIR).filter((f) => f.endsWith('.md'))
+ *       .map((f) => ({ file: `docs/${f}`, text: readFileSync(join(DOCS_DIR, f)) }))
+ *
+ * That reads EVERY top-level document — forty-eight of them — and refuses any
+ * line calling `env-upsert.sh` with a `KEY=VALUE` before the env file. Not one
+ * of those forty-eight was discovered by the literal scan, because not one of
+ * them is named anywhere. Ten happened to be covered by the filter for other
+ * reasons; the rest were #772 waiting to happen again, one `env-upsert.sh`
+ * hint away.
+ *
+ * The same resolution as a literal read, applied to the directory instead: the
+ * string parts of the `readdirSync(...)` argument are joined and resolved, and
+ * the result has to be a directory that EXISTS. Extensions are whatever the
+ * file tests with `endsWith`, and only files that exist are produced — so a
+ * test that walks two directories for two different extensions
+ * over-approximates into pairs that match nothing, which costs nothing.
+ */
+function directoriesTestsWalk(source: string, testDir: string): ReadonlyArray<string> {
+  const found: string[] = [];
+  for (const walk of source.matchAll(/readdirSync\(\s*([^)]{0,200})\)/g)) {
+    // THE EXTENSION HAS TO BELONG TO THIS WALK. Harvesting every `endsWith` in
+    // the file and applying it to every directory in the file was the first
+    // version, and it was wrong in both directions at once: it claimed this
+    // guard reads all forty-eight documents (its own `readdirSync(docs)` paired
+    // with an unrelated `.md`), and it still missed `pasteable-hints`. So the
+    // extension is taken from the chain that follows the call.
+    const chain = source.slice(walk.index + walk[0].length, walk.index + walk[0].length + 220);
+    const extensions = [...chain.matchAll(/endsWith\(\s*['"`](\.[a-z0-9.]{1,12})['"`]/gi)].map(
+      (m) => m[1]!,
+    );
+    // A `endsWith(suffix)` — a VARIABLE — yields nothing, which is right: this
+    // cannot know what it holds, and a guess would demand coverage for files
+    // nothing reads.
+    if (extensions.length === 0) continue;
+
+    // The argument is often a constant defined above, not a literal. Follow it
+    // one hop; `DOCS_DIR` is `join(dirname(fileURLToPath(import.meta.url)),
+    // '..', 'docs')` and its parts are the only way to reach the directory.
+    let argument = walk[1]!;
+    const identifier = /^\s*([A-Za-z_$][\w$]*)\s*$/.exec(argument)?.[1];
+    if (identifier) {
+      const declaration = new RegExp(`const\\s+${identifier}\\s*(?::[^=]+)?=\\s*([^;]{0,200})`).exec(
+        source,
+      );
+      if (!declaration) continue;
+      argument = declaration[1]!;
+    }
+
+    const literals = [...argument.matchAll(/['"`]([^'"`\n]+)['"`]/g)].map((m) => m[1]!);
+    for (let i = 0; i < literals.length; i++) {
+      for (let j = i; j < literals.length; j++) {
+        const candidate = literals.slice(i, j + 1).join('/');
+        for (const base of [testDir, REPO_ROOT, join(testDir, '..'), join(testDir, '../..')]) {
+          const absolute = resolve(base, candidate);
+          if (!absolute.startsWith(`${REPO_ROOT}/`) || absolute.includes('node_modules')) continue;
+          if (!existsSync(absolute) || !statSync(absolute).isDirectory()) continue;
+          for (const entry of readdirSync(absolute)) {
+            if (extensions.some((e) => entry.endsWith(e))) {
+              found.push(relative(REPO_ROOT, join(absolute, entry)));
+            }
+          }
+        }
+      }
+    }
+  }
+  return found;
+}
+
+/**
  * Every repository file a test reads, mapped to the tests that read it.
  *
  * DISCOVERED, not listed. The list this replaced held two entries and was
@@ -216,16 +292,19 @@ function readArguments(source: string): string[] {
  * 2026-09-21 there were fifteen — `docs/feature-matrix.md`,
  * `docs/managed-bring-up.md`, `README.md`, a workplan, `site/build.mjs`.
  *
- * Deliberately conservative: a literal has to resolve to a file that EXISTS,
- * from the reading test's own directory or the repository root. A path built
- * from a variable is invisible here, and that is the right way to be wrong —
- * this guard is a floor, and a false positive would demand a filter pattern
- * for a file nothing reads.
+ * Still conservative about a literal: it has to resolve to a file that EXISTS,
+ * from the reading test's own directory or the repository root. What it no
+ * longer misses is a directory WALK — see `directoriesTestsWalk`, which is the
+ * gap this function's own comment used to describe and accept.
  */
 function filesTestsRead(): Map<string, Set<string>> {
   const found = new Map<string, Set<string>>();
   for (const test of testFilesUnder(REPO_ROOT)) {
     const dir = dirname(test);
+    for (const walked of directoriesTestsWalk(readFileSync(test, 'utf8'), dir)) {
+      if (!found.has(walked)) found.set(walked, new Set());
+      found.get(walked)!.add(relative(REPO_ROOT, test));
+    }
     // `join(ROOT, 'docs', 'rls-guide.md')` hands us three literals, not one,
     // so every run of consecutive literals is a candidate path.
     for (const args of readArguments(readFileSync(test, 'utf8'))) {
