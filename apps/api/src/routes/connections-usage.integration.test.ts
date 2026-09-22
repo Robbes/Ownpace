@@ -13,7 +13,7 @@
  *
  *   display_name                       mailbox_rows  real_mappings
  *   Soverin Full                                  1              0   ← said 1
- *   microsoft · rhberentsen@gmail.com              1              0   ← said 1
+ *   microsoft · owner@example.invalid              1              0   ← said 1
  *   Dropbox                                        0              0   ← said 0 ✓
  *   jmap (demo target)                             2              1   ← said 2
  *

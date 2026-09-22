@@ -5,8 +5,8 @@
  *
  * Mapping `0cc9a844`, Google → Nextcloud. `listFolders()` found five Google
  * calendars and named them correctly; `ensureCalendar()` created all five on
- * the target — `occ dav:list-calendars` shows `rhberentsen@gmail.com`,
- * `Gezin`, `iCloud_`, `BerenHolt` and `FeddeMatsagenda` sitting there. And the
+ * the target — `occ dav:list-calendars` shows `owner@example.invalid`,
+ * `Family`, `iCloud_`, `Cottage` and `Shared team` sitting there. And the
  * run log said:
  *
  *   calendar: 0 created, 0 skipped — 5 collection(s) listed and NOT ONE ITEM
@@ -49,13 +49,13 @@ import type { CalendarFolder, SyncCursor } from '@openmig/shared';
 
 const CONFIG: CalDAVSourceConfig = {
   url: 'https://apidata.googleusercontent.com/caldav/v2/',
-  username: 'rhberentsen@gmail.com',
+  username: 'owner@example.invalid',
   password: 'app-password',
 };
 
 const FOLDER: CalendarFolder = {
-  name: 'Gezin',
-  path: '/caldav/v2/gezin@group.calendar.google.com/events/',
+  name: 'Family',
+  path: '/caldav/v2/family@group.calendar.google.com/events/',
 };
 
 /** A 207 with a sync-token and not one calendar object — what Google sent. */
@@ -87,7 +87,7 @@ const queryAnswerWith = (uids: readonly string[]): HttpResponse => ({
       ${uids
         .map(
           (uid) => `<D:response>
-        <D:href>/caldav/v2/gezin/events/${uid}.ics</D:href>
+        <D:href>/caldav/v2/family/events/${uid}.ics</D:href>
         <D:propstat><D:prop>
           <D:getetag>"etag-${uid}"</D:getetag>
           <C:calendar-data>${oneEvent(uid)}</C:calendar-data>
@@ -291,7 +291,7 @@ describe('what the fallback does NOT claim', () => {
 describe('the CardDAV sibling holds the same line', () => {
   const CARD_CONFIG = {
     url: 'https://www.googleapis.com/carddav/v1/',
-    username: 'rhberentsen@gmail.com',
+    username: 'owner@example.invalid',
     password: 'app-password',
   };
 

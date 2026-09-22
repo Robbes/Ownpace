@@ -94,11 +94,11 @@ describe('the sidebar identity block (T2)', () => {
   });
 
   it('managed: the signed-in claims render — never the dead fallbacks', () => {
-    authState.user = { name: 'Robbe', email: 'rberentsen@snpbv.nl' };
+    authState.user = { name: 'Alex', email: 'owner@example.invalid' };
     renderLayout('/dashboard');
 
-    expect(screen.getByText('Robbe')).toBeInTheDocument();
-    expect(screen.getByText('rberentsen@snpbv.nl')).toBeInTheDocument();
+    expect(screen.getByText('Alex')).toBeInTheDocument();
+    expect(screen.getByText('owner@example.invalid')).toBeInTheDocument();
     expect(screen.getByText('Sign out')).toBeInTheDocument();
     expect(screen.queryByText('user@example.com')).not.toBeInTheDocument();
   });
@@ -131,7 +131,7 @@ describe('the header on per-mapping routes (T3)', () => {
   });
 
   it('managed: same header, and the Mappings entry stays lit', () => {
-    authState.user = { name: 'Robbe', email: 'rberentsen@snpbv.nl' };
+    authState.user = { name: 'Alex', email: 'owner@example.invalid' };
     renderLayout('/mappings/acme-mail/deletions');
 
     const heading = screen.getByRole('heading', { level: 1 });
