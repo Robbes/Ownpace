@@ -384,6 +384,19 @@ export interface StatusReport {
      * completed pass and nothing since.
      */
     readonly migrationStatus: MappingLifecycle;
+    /**
+     * The mapping's SOURCE type, for the screens that must say something true
+     * about the provider rather than about migrations in general.
+     *
+     * Added because the appliance's confirm page shows ONE scope manifest over
+     * every migration on the box, and had no way to tell whose. It showed
+     * Microsoft's list to everybody — see `scope-manifest.ts`.
+     *
+     * Optional: a payload built before this field existed omits it, and a
+     * reader must then narrow to what is true of every source rather than
+     * guess. Absent is not `'unknown'` and must not be read as one.
+     */
+    readonly sourceType?: string;
     readonly domains: readonly DomainStatusReport[];
   }>;
 }
