@@ -33,10 +33,11 @@ import {
   neutraliseScheduling,
 } from '@openmig/shared';
 import { CALENDAR_COMPONENTS, componentOfIcalendar } from '@openmig/shared';
-import { davRefusalBody } from '@openmig/shared';
+import { davRefusalBody, withFailureCategory } from '@openmig/shared';
 import { payloadDefectNote } from './dav-payload-defects.ts';
 import type { CalendarComponent } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
+import { refusalSaysUidAlreadyPresent } from './dav-uid-conflict.ts';
 import {
   findHrefByUid,
   parseMultiStatus,
@@ -305,7 +306,14 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       naturalKey,
       componentOfIcalendar(raw.icalendar),
     );
-    if (existingId) {
+    // ONE RECORDING, TWO WAYS OF ARRIVING AT IT.
+    //
+    // The by-UID check below is the ordinary way: we ask first and the server
+    // says yes. The other is `uploadEvent` refusing the write BECAUSE the UID
+    // is already held (RFC 4791 §5.3.2) — the same fact, learned from the
+    // refusal instead of from the question, and it has to be recorded the same
+    // way or the two paths disagree about what the row means.
+    const adopt = async (targetId: string): Promise<UpsertResult> => {
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
         tenantId: this.tenantId,
@@ -313,7 +321,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         mappingId: this.mappingId,
         naturalKeyHash,
         contentHash: contentHashValue,
-        targetId: existingId,
+        targetId,
         createdAt: new Date().toISOString(),
         sizeBytes,
         // ADOPTED, explicitly. Omitting it let PgLedger apply its 'copied'
@@ -347,11 +355,25 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         // loop's own `recordIfAbsent` will no-op on.
         ...(name !== undefined ? { displayName: name } : {}),
       });
-      return { targetId: existingId, created: false, adopted: true };
-    }
+      return { targetId, created: false, adopted: true };
+    };
+
+    if (existingId) return adopt(existingId);
 
     // Upload the event to the calendar
     const written = await this.uploadEvent(calendarId, raw, uid);
+    // THE COLLECTION HELD THIS UID AFTER ALL, under a different href — the
+    // check above missed it because the listing was stale, or failed, or
+    // because a sibling source handle carrying the same UID was written
+    // earlier in this very pass. Nothing was written, so none of the
+    // create-path recording below is true of it.
+    if (written.alreadyHeld) {
+      // Keep the snapshot current, exactly as the create path does: a THIRD
+      // handle with this UID is then answered from memory rather than by a
+      // refusal.
+      (await this.keysIn(calendarId))?.set(naturalKey, written.path);
+      return adopt(written.path);
+    }
     const eventId = written.path;
     // Keep the snapshot current: a duplicate UID later in the same pass is then
     // answered from memory instead of being written twice.
@@ -879,7 +901,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     uid: string,
     overwrite = false,
     expectedTargetVersion?: string,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean }> {
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean; alreadyHeld?: boolean }> {
     // Generate event filename from UID
     const filename = `${uid}.ics`;
     const eventPath = `${calendarId}${filename}`;
@@ -950,6 +972,24 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     }
 
     if (response.status !== 201 && response.status !== 204) {
+      // THE 412 ABOVE, ON THE OTHER AXIS. `If-None-Match: *` makes the write
+      // atomic against the HREF; RFC 4791 §5.3.2's uniqueness rule is on the
+      // UID, and the href is ours to choose. So a second source handle
+      // carrying one UID finds its own path free, the precondition does not
+      // fire, and the server refuses the body instead. See dav-uid-conflict.ts
+      // for why that was reaching the operator as `unknown`.
+      //
+      // Read BEFORE `refusalDetail`, which costs a PROPFIND to diagnose a
+      // refusal this branch is not going to report.
+      if (!overwrite && refusalSaysUidAlreadyPresent(response.body)) {
+        const held = await this.uidAlreadyHeldAt(calendarId, raw, uid);
+        // Only ever on an href the SERVER named. A refusal is a claim about
+        // the collection, not a handle to the object, and recording an item
+        // against a path we inferred is how the last defect in this file
+        // worked.
+        if (held !== undefined) return { path: held, alreadyHeld: true };
+      }
+
       // A REFUSAL NAMES THE COMPONENT, NEVER A BARE 403 (workplan 0113 T4).
       //
       // A CalDAV collection may declare which components it accepts (RFC 4791
@@ -958,13 +998,46 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // reader nothing they can act on. So on the refusal path only (never on a
       // write that worked) the collection is asked what it accepts, and the
       // sentence says which component was written and which the target takes.
-      throw new Error(await this.refusalDetail(calendarId, eventPath, raw.icalendar, response));
+      throw withFailureCategory(
+        'target_refused',
+        // The write did not happen and the destination is where to look. Stated
+        // rather than left to the regex, because this throw site has already
+        // branched on why — see stated-failure-category.ts. The 400 that
+        // carried Rob's four events matched no rule and read `unknown`, whose
+        // remedy is "send it to us and we will look".
+        new Error(await this.refusalDetail(calendarId, eventPath, raw.icalendar, response)),
+      );
     }
 
     // What the server says this object is now. Recorded so a later pass can
     // tell whether the copy is still the one we made; absent is fine and simply
     // costs this item its overwrite protection.
     return { path: eventPath, ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}) };
+  }
+
+  /**
+   * Where the collection is already holding this item's UID — `undefined`
+   * when we must not claim what is there.
+   *
+   * KEYED BY THE UID ALONE, OR NOT AT ALL. `naturalKeyForCalendar` appends
+   * RECURRENCE-ID for a modified occurrence, so a series and its override are
+   * two ledger items sharing one iCalendar UID — that sharing is precisely
+   * what makes them one event (RFC 5545 §3.8.4.4). The object already in the
+   * collection under that UID is then the SERIES, and it is not this item:
+   * recording the override against it would report the override migrated with
+   * nothing of it on the target, and a later rewrite would replace the whole
+   * series with the override alone.
+   *
+   * The test asks the same function the ledger key comes from rather than
+   * scanning the body for the property, so the two cannot drift apart.
+   */
+  private async uidAlreadyHeldAt(
+    calendarId: string,
+    raw: RawCalendarEvent,
+    uid: string,
+  ): Promise<string | undefined> {
+    if (this.ledgerKeyTextFor(raw, uid) !== uid) return undefined;
+    return this.findCalendarByNaturalKey(calendarId, uid, componentOfIcalendar(raw.icalendar));
   }
 
   /**
