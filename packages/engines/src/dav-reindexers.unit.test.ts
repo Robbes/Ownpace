@@ -148,14 +148,20 @@ describe('CalDAVTargetWriter.listEntries', () => {
     );
   });
 
-  it('decodes hrefs into target ids', async () => {
+  it('decodes hrefs into target ids the writer can address', async () => {
     const { writer } = calWriter([
       { match: /^PROPFIND/, body: CAL_HOME_SET },
       { match: /^REPORT/, body: CAL_EVENTS },
     ]);
 
     const entries = await collect(writer.listEntries());
-    expect(entries[1]!.targetId).toBe('/remote.php/dav/calendars/alice/personal/Team sync.ics');
+    // The SPACE is what this test was written for: `Team%20sync.ics` has to
+    // come back decoded or it will not match the natural key the ledger
+    // holds. The PREFIX rode along — the expectation recorded what the code
+    // did, which was to hand on Sabre's endpoint-absolute href. `buildUrl`
+    // prepends the endpoint to this value, so keeping it here is the exact
+    // doubling the test below already calls a 404.
+    expect(entries[1]!.targetId).toBe('/calendars/alice/personal/Team sync.ics');
   });
 
   it('walks only real calendar collections, not the home set or the scheduling inbox', async () => {
@@ -611,7 +617,7 @@ describe('DAV writers hash content canonically', () => {
 
     const hash = await writer.contentHashFor({
       naturalKey: 'event-1@example.com',
-      targetId: '/remote.php/dav/calendars/alice/personal/event-1.ics',
+      targetId: '/calendars/alice/personal/event-1.ics',
       mailboxId: '/calendars/alice/personal/',
     });
 
@@ -625,15 +631,19 @@ describe('DAV writers hash content canonically', () => {
     const stored = ['BEGIN:VCARD', 'VERSION:4.0', 'UID:c1', 'FN:Ada Lovelace', 'END:VCARD'].join('\r\n');
     const returned = ['BEGIN:VCARD', 'VERSION:4.0', 'PRODID:-//SabreDAV//EN', 'FN:Ada Lovelace', 'REV:20260101T000000Z', 'UID:c1', 'END:VCARD'].join('\r\n');
 
-    const { writer } = cardWriter([{ match: /^GET/, status: 200, body: returned }]);
+    const { writer, calls } = cardWriter([{ match: /^GET/, status: 200, body: returned }]);
 
     const hash = await writer.contentHashFor({
       naturalKey: 'c1',
-      targetId: '/remote.php/dav/addressbooks/users/alice/contacts/c1.vcf',
+      targetId: '/addressbooks/users/alice/contacts/c1.vcf',
       mailboxId: '/addressbooks/users/alice/contacts/',
     });
 
     expect(hash).toBe(contactContentHash(stored));
+    // The CalDAV sibling has always asserted this; this one never did, so it
+    // would have hashed contentedly off a doubled URL — the canned route
+    // matches /^GET/ and does not look at the path.
+    expect(calls[0]!.url.split('/remote.php/dav').length - 1, calls[0]!.url).toBe(1);
   });
 
   it('returns undefined rather than a wrong hash when the resource cannot be read', async () => {
@@ -643,7 +653,7 @@ describe('DAV writers hash content canonically', () => {
 
     const hash = await writer.contentHashFor({
       naturalKey: 'event-1@example.com',
-      targetId: '/remote.php/dav/calendars/alice/personal/event-1.ics',
+      targetId: '/calendars/alice/personal/event-1.ics',
       mailboxId: '/calendars/alice/personal/',
     });
 
@@ -658,7 +668,7 @@ describe('DAV writers hash content canonically', () => {
 
     const hash = await writer.contentHashFor({
       naturalKey: 'e1',
-      targetId: '/remote.php/dav/calendars/alice/personal/e1.ics',
+      targetId: '/calendars/alice/personal/e1.ics',
       mailboxId: '/calendars/alice/personal/',
     });
 

@@ -758,7 +758,15 @@ export function canConfirmPresence(target: unknown): target is TargetPresenceChe
 export interface TargetEntry {
   /** Natural key as stored on the target (e.g. Message-ID). */
   readonly naturalKey: string;
-  /** Target-side id (e.g. a JMAP Email id). */
+  /**
+   * Target-side id (e.g. a JMAP Email id).
+   *
+   * For the DAV writers this is a path in the WRITER'S coordinate system —
+   * leading slash, relative to the configured endpoint — because that is what
+   * `buildUrl` consumes and what the write path records. Never the server's
+   * own href: those come back endpoint-absolute, and one fed through
+   * `buildUrl` carries the DAV prefix twice. `targetIdRelativeTo` converts.
+   */
   readonly targetId: string;
   /** Mailbox/folder the item lives in on the target. */
   readonly mailboxId: string;

@@ -35,8 +35,8 @@ import {
   findHrefByUid,
   hasResourceType,
   extractUid,
-  decodeHref,
   hrefRelativeTo,
+  targetIdRelativeTo,
   unescapeXml,
   sizeOf,
 } from './dav-multistatus.ts';
@@ -399,7 +399,10 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     if (response.status === 207) {
       // The server's match is case-insensitive (§10.5.4's default collation);
       // `findHrefByUid` compares the returned card's own UID exactly.
-      return findHrefByUid(response.body, naturalKey, 'address-data');
+      const href = findHrefByUid(response.body, naturalKey, 'address-data');
+      // Converted here for the same reason as the CalDAV writer's: this is
+      // what the adoption path records as `targetId`.
+      return href === undefined ? undefined : targetIdRelativeTo(href, this.buildUrl(''));
     }
 
     return undefined;
@@ -505,7 +508,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       }
       yield {
         naturalKey: uid,
-        targetId: decodeHref(item.href),
+        targetId: targetIdRelativeTo(item.href, this.buildUrl('')),
         mailboxId: bookPath,
         ...sizeOf(item.xml),
         // No contentHash from the LISTING: it fetches only the UID.
@@ -520,18 +523,17 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
    * does and does not claim.
    */
   async contentHashFor(entry: TargetEntry): Promise<string | undefined> {
-    // Server-absolute href; converting it is what stops the DAV prefix doubling.
-    const relative = hrefRelativeTo(entry.targetId, this.buildUrl(''));
-    if (relative === undefined) {
-      log.warn(`[carddav] ${entry.targetId} is outside the configured base; not content-verifying it`);
-      return undefined;
-    }
+    // `targetId` is base-relative BY CONTRACT: `listEntries` converts the
+    // server's href once, on the way in, so every consumer — and every
+    // ledger row written from an adoption — speaks one coordinate system.
+    // Converting again here would find nothing under the base and quietly
+    // decline to verify anything at all.
 
     let response: HttpResponse;
     try {
       response = await this.httpClient.request({
         method: 'GET',
-        url: this.buildUrl(relative),
+        url: this.buildUrl(entry.targetId),
         headers: { Authorization: this.authHeader() },
       });
     } catch (err) {
