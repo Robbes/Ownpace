@@ -47,6 +47,15 @@ vi.mock('../stores/auth-store', () => ({
     selector ? selector(authState) : authState,
 }));
 
+// The header reads a migration's NAME from the same service, and the same
+// query key, the hub uses. A never-resolving default keeps every existing test
+// exactly as it was — the header shows the id, as it did — and the tests about
+// the name resolve it themselves.
+const { mappingGet } = vi.hoisted(() => ({
+  mappingGet: vi.fn(() => new Promise<never>(() => {})),
+}));
+vi.mock('../services/mapping-service', () => ({ mappingApi: { get: mappingGet } }));
+
 import Layout from './Layout.tsx';
 
 /**
@@ -142,6 +151,44 @@ describe('the header on per-mapping routes (T3)', () => {
     // The nav says "Migrations" since the 0035 T3 glossary rename.
     const mappingsEntry = within(nav).getByRole('link', { name: /Migrations/ });
     expect(mappingsEntry.className).toContain('bg-blue-50');
+  });
+
+  it('managed: calls a migration by its NAME, not its id', async () => {
+    // What the owner saw on 2026-09-22: `ff591fee-9e2a…-37de2233cb7b` at the
+    // top of every screen of a migration they had named "Goog2NC".
+    mappingGet.mockResolvedValueOnce({ name: 'Goog2NC' } as never);
+    renderLayout('/mappings/ff591fee-9e2a-4b64-9707-37de2233cb7b');
+
+    const heading = await screen.findByRole('heading', { level: 1, name: /Goog2NC/ });
+    expect(heading.textContent).not.toContain('ff591fee');
+  });
+
+  it('managed: on the hub the name is the page you are on — no link to itself', async () => {
+    // The click the owner made expecting to go back: the header's only link,
+    // pointing at the page it was on.
+    mappingGet.mockResolvedValueOnce({ name: 'Goog2NC' } as never);
+    renderLayout('/mappings/ff591fee-9e2a-4b64-9707-37de2233cb7b');
+
+    const heading = await screen.findByRole('heading', { level: 1, name: /Goog2NC/ });
+    expect(within(heading).queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('a back arrow goes UP: hub → the list, a screen under it → the hub', () => {
+    renderLayout('/mappings/acme-mail');
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/mappings');
+  });
+
+  it('a back arrow on a screen under the hub leads to that hub', () => {
+    renderLayout('/mappings/acme-mail/failures');
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe(
+      '/mappings/acme-mail',
+    );
+  });
+
+  it('selfhost: the slug is the name, so nothing is fetched', () => {
+    editionFlag.selfhost = true;
+    renderLayout('/mappings/acme-mail/deletions');
+    expect(mappingGet).not.toHaveBeenCalled();
   });
 
   it('ordinary routes keep their nav title', () => {
