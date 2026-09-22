@@ -75,7 +75,12 @@ export function buildFileTargetFor(
     });
   }
   return new WebDAVTargetWriter(
-    { url: endpoint.url, username: endpoint.username, password: endpoint.password },
+    {
+      url: endpoint.url,
+      username: endpoint.username,
+      password: endpoint.password,
+      ...(deps.targetFolderPrefix ? { targetFolderPrefix: deps.targetFolderPrefix } : {}),
+    },
     deps,
   );
 }

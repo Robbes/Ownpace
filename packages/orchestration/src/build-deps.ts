@@ -679,7 +679,16 @@ function buildDomainDepsWithLedger(
   const targetConfig = domainConfig.target;
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;
-  const targetDeps = { ledger, tenantId, mappingId };
+  // The prefix travels with the TARGET's dependencies, not with the endpoint:
+  // it is a choice about this migration, not a property of the server.
+  const targetDeps = {
+    ledger,
+    tenantId,
+    mappingId,
+    ...(config.targetFolderPrefix !== undefined
+      ? { targetFolderPrefix: config.targetFolderPrefix }
+      : {}),
+  };
 
   // Build the real native DAV connectors from the file config + env-resolved
   // credentials (shared with the managed DB path via dav-factories).
