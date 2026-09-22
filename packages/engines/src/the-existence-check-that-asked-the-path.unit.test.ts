@@ -158,8 +158,9 @@ describe('the CardDAV check answers from the card, not from the path', () => {
     // Google's hrefs are opaque. The old check could only work where the
     // server happened to write the UID into the path.
     const { writer } = carddav({ status: 207, body: oneCard('34222-232@example.com') });
+    // Same resource, same reason as the CalDAV case above.
     expect(await writer.findContactByNaturalKey('contacts', '34222-232@example.com')).toBe(
-      '/remote.php/dav/addressbooks/users/rob/contacts/e7c1a9.vcf',
+      '/addressbooks/users/rob/contacts/e7c1a9.vcf',
     );
   });
 
@@ -196,8 +197,13 @@ describe('the CalDAV per-item existence check carries the same Depth, and reads 
 
   it('finds an event the server named nothing like its UID', async () => {
     const { writer } = caldav({ status: 207, body: oneEvent('34222-232@example.com') });
+    // Still `9f31.ics`, still found by the event's own UID — this file's
+    // whole subject, and nothing to do with how the server spelled the path.
+    // What moved is that the answer comes back in the coordinate system the
+    // caller addresses in: it is recorded as a ledger `targetId`, and
+    // endpoint-absolute it doubles the DAV prefix on every later request.
     expect(await writer.findCalendarByNaturalKey('personal', '34222-232@example.com')).toBe(
-      '/remote.php/dav/calendars/rob/personal/9f31.ics',
+      '/calendars/rob/personal/9f31.ics',
     );
   });
 

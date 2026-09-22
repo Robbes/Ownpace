@@ -43,8 +43,8 @@ import {
   firstElementText,
   hasResourceType,
   extractUid,
-  decodeHref,
   hrefRelativeTo,
+  targetIdRelativeTo,
   unescapeXml,
   sizeOf,
 } from './dav-multistatus.ts';
@@ -503,7 +503,12 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // defines collation and negate-condition, and nothing else), so the
       // server's answer is a SUBSTRING match on the UID. The exact comparison
       // has to happen here, against the returned component's own UID.
-      return findHrefByUid(response.body, naturalKey, 'calendar-data');
+      const href = findHrefByUid(response.body, naturalKey, 'calendar-data');
+      // Converted HERE, not by the caller: this value is recorded as the
+      // ledger's `targetId` on the adoption path, and a raw server href
+      // there is the doubled DAV prefix all over again — this time on a row
+      // that outlives the run.
+      return href === undefined ? undefined : targetIdRelativeTo(href, this.buildUrl(''));
     }
 
     return undefined;
@@ -667,7 +672,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       }
       yield {
         naturalKey: uid,
-        targetId: decodeHref(item.href),
+        targetId: targetIdRelativeTo(item.href, this.buildUrl('')),
         mailboxId: calendarPath,
         ...sizeOf(item.xml),
         // No contentHash from the LISTING: it fetches only the UID, and a hash
@@ -695,20 +700,17 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
    * than as corruption.
    */
   async contentHashFor(entry: TargetEntry): Promise<string | undefined> {
-    // `targetId` is the resource href, which is SERVER-absolute. Handing it to
-    // buildUrl unconverted doubles the DAV prefix — the defect that made every
-    // calendar REPORT 404 until hrefRelativeTo was applied to collections.
-    const relative = hrefRelativeTo(entry.targetId, this.buildUrl(''));
-    if (relative === undefined) {
-      log.warn(`[caldav] ${entry.targetId} is outside the configured base; not content-verifying it`);
-      return undefined;
-    }
+    // `targetId` is base-relative BY CONTRACT: `listEntries` converts the
+    // server's href once, on the way in, so every consumer — and every
+    // ledger row written from an adoption — speaks one coordinate system.
+    // Converting again here would find nothing under the base and quietly
+    // decline to verify anything at all.
 
     let response: HttpResponse;
     try {
       response = await this.httpClient.request({
         method: 'GET',
-        url: this.buildUrl(relative),
+        url: this.buildUrl(entry.targetId),
         headers: { Authorization: this.authHeader() },
       });
     } catch (err) {

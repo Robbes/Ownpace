@@ -105,6 +105,34 @@ export function hrefRelativeTo(href: string, baseUrl: string): string | undefine
 }
 
 /**
+ * A server href as a `targetId` — the coordinate system `buildUrl` consumes.
+ *
+ * `hrefRelativeTo` answers "where does this sit under my base", and says
+ * undefined when the href sits nowhere under it. For a COLLECTION that is a
+ * question with a safe answer, and the writers drop what is not theirs to
+ * read. For an ITEM it is not. A dropped item reads as missing from a target
+ * that holds it, and an item keyed by the raw server href reads as present at
+ * a path that does not resolve: `buildUrl` prepends the endpoint again, the
+ * result carries the DAV prefix twice, and every request built from it 404s.
+ * So this throws exactly where `hrefRelativeTo` returns undefined.
+ *
+ * The leading slash is not cosmetic. The write path records
+ * `${calendarId}${filename}`, which carries one, so without it a ledger would
+ * hold `/calendars/a.ics` for an item it wrote and `calendars/a.ics` for the
+ * same item it adopted — two names for one resource, and a verification pass
+ * with no way to see that they match.
+ */
+export function targetIdRelativeTo(href: string, baseUrl: string): string {
+  const relative = hrefRelativeTo(href, baseUrl);
+  if (relative === undefined || relative === '') {
+    throw new Error(
+      `DAV href ${href} is not addressable under ${baseUrl}; refusing to key an item by it.`,
+    );
+  }
+  return `/${relative}`;
+}
+
+/**
  * The `getcontentlength` a response reports, as a spreadable `{ sizeBytes }`.
  *
  * Returns `{}` — not `{ sizeBytes: 0 }` — when the server omits the property or
