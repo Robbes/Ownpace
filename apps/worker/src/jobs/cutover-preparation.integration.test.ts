@@ -103,7 +103,10 @@ describe('prepareCutover (integration)', () => {
       mappingId: MAPPING,
       cutoverStore,
       log: (m: string) => logs.push(m),
-      runFinalSync: async () => ({ created: 3, skipped: 7 }),
+      // All four counts. The `as` below hides a mock that disagrees with the
+      // contract, which is how this one kept returning two after the real
+      // pass started returning four.
+      runFinalSync: async () => ({ created: 3, updated: 0, adopted: 0, skipped: 7 }),
       runGate: async () => verdict('PASS'),
       ...overrides,
     } as Parameters<typeof prepareCutover>[0];
@@ -135,7 +138,7 @@ describe('prepareCutover (integration)', () => {
       deps({
         runFinalSync: async () => {
           order.push('sync');
-          return { created: 3, skipped: 7 };
+          return { created: 3, updated: 0, adopted: 0, skipped: 7 };
         },
         runGate: async () => {
           order.push('gate');
@@ -145,7 +148,7 @@ describe('prepareCutover (integration)', () => {
     );
 
     expect(order).toEqual(['sync', 'gate']);
-    expect(result.finalSync).toEqual({ created: 3, skipped: 7 });
+    expect(result.finalSync).toEqual({ created: 3, updated: 0, adopted: 0, skipped: 7 });
   });
 
   it('throws on a FAILing gate and does not reach READY_FOR_CUTOVER', async () => {
@@ -240,7 +243,7 @@ describe('prepareCutover (integration)', () => {
       expect(again.state).toBe('READY_FOR_CUTOVER');
       expect(again.from).toBe('READY_FOR_CUTOVER');
       expect(again.attempt).toBe(2);
-      expect(again.finalSync).toEqual({ created: 3, skipped: 7 }); // it really re-synced
+      expect(again.finalSync).toEqual({ created: 3, updated: 0, adopted: 0, skipped: 7 }); // it really re-synced
       expect(again.verification?.overallStatus).toBe('PASS'); // and really re-verified
 
       const persisted = await cutoverStore.loadCutoverState(TENANT as never, MAPPING as never);
@@ -318,7 +321,7 @@ describe('prepareCutover (integration)', () => {
       it(`refuses a cutover under way (${state}) — neither syncs nor verifies, and writes nothing`, async () => {
         await driveTo(state);
         const before = await transitions();
-        const runFinalSync = vi.fn(async () => ({ created: 0, skipped: 0 }));
+        const runFinalSync = vi.fn(async () => ({ created: 0, updated: 0, adopted: 0, skipped: 0 }));
         const runGate = vi.fn(async () => verdict('PASS'));
 
         const failure = await prepareCutover(deps({ runFinalSync, runGate })).catch((e: unknown) => e);

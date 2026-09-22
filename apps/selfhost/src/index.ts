@@ -155,6 +155,8 @@ import {
   markShareGrant,
   refreshShareGrants,
   summariseShareGrants,
+  itemsHandled,
+  passCounts,
 } from '@openmig/core';
 
 /** Graph speaks plain JSON over fetch; the detector needs nothing more. */
@@ -861,12 +863,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                 await runs.logEvent(tenantId, id, 'error', `${r.domain} sync failed: ${r.error}`, { domain: r.domain });
               } else {
                 await runs.logEvent(tenantId, id, 'info',
-                  `${r.domain}: ${r.created} created, ${r.skipped} skipped`,
-                  { domain: r.domain, created: r.created, skipped: r.skipped });
+                  `${r.domain}: ${passCounts(r)}`,
+                  { domain: r.domain, created: r.created, updated: r.updated, adopted: r.adopted, skipped: r.skipped });
               }
             }
             await runs.finishRun(id, failures.length > 0 && failures.length === ran.length ? 'failed' : 'succeeded', {
-              itemsProcessed: ran.reduce((n, r) => n + r.created + r.skipped, 0),
+              itemsProcessed: ran.reduce((n, r) => n + itemsHandled(r), 0),
               errors: failures.length,
             });
           });

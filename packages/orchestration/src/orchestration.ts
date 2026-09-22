@@ -121,10 +121,17 @@ export interface DomainSyncResult {
   adopted: number;
   /**
    * Rewritten because the source version moved on after we copied them — the
-   * shadow-sync update path (§11.1). Absent for mail, whose messages are
-   * immutable and which therefore has nothing to update.
+   * shadow-sync update path (§11.1).
+   *
+   * REQUIRED, and a zero where there is nothing to update. It was optional,
+   * absent for mail on the grounds that mail messages are immutable — true of
+   * the data, and exactly the shape that teaches every reader to default an
+   * absent count to zero. The run log did precisely that, for every domain:
+   * it printed `created` and `skipped` and nothing else, so a pass that
+   * carried an owner's calendar edit across read identically to one that
+   * carried nothing. A required count cannot be left out by a new branch.
    */
-  updated?: number;
+  updated: number;
   /**
    * This domain was not enabled for the mapping — the zeros are a placeholder
    * so status pollers see every domain, NOT a clean pass. Consumers deciding
@@ -360,7 +367,7 @@ export async function runAllDomains(
     await statusStore.initDomainStatus(tenantId, mappingId, domain);
     if (!enabled) {
       await statusStore.markSkipped(tenantId, mappingId, domain);
-      results.push({ domain, scanned: 0, created: 0, skipped: 0, adopted: 0, failed: 0, disabled: true });
+      results.push({ domain, scanned: 0, created: 0, updated: 0, skipped: 0, adopted: 0, failed: 0, disabled: true });
     }
   }
 
@@ -416,7 +423,11 @@ export async function runAllDomains(
           const result = await runShadowPass(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
           budgetPause = result.budgetPause;
-          outcome = { domain, collectionsListed: result.collectionsListed, scanned: result.scanned, created: result.created, skipped: result.skipped, adopted: result.adopted ?? 0, moved: result.moved ?? 0, failed: 0 };
+          // `updated` carried like every other branch below. Mail delegates to
+          // the same `runDomainSync`, so it reports one; this was the only
+          // branch that dropped it, and the appliance's run log printed what
+          // this object held.
+          outcome = { domain, collectionsListed: result.collectionsListed, scanned: result.scanned, created: result.created, updated: result.updated, skipped: result.skipped, adopted: result.adopted ?? 0, moved: result.moved ?? 0, failed: 0 };
           // Said out loud, every pass. Quietly not copying someone's Deleted
           // Items is the same class of failure as quietly copying it, and this
           // is the only place the choice becomes visible during a run.
@@ -687,7 +698,7 @@ export async function runAllDomains(
       // second slice), so the connections page can put the line on one
       // card; undefined when it could not tell, and the page says so.
       await statusStore.markFailed(tenantId, mappingId, domain, error.message, failureSideOf(err));
-      results.push({ domain, scanned: 0, created: 0, skipped: 0, adopted: 0, failed: 1, error: error.message });
+      results.push({ domain, scanned: 0, created: 0, updated: 0, skipped: 0, adopted: 0, failed: 1, error: error.message });
       // Continue to the next domain — one domain's failure must not block others.
     }
   }

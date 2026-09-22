@@ -21,6 +21,8 @@ import {
   runTaskSync,
   type FileSyncDeps,
   failureSideOf,
+  itemsHandled,
+  passCounts,
 } from '@openmig/core';
 import { budgetPauseToReason } from '@openmig/shared';
 import { mappingStillRuns, taskErrorFor } from './stopping-a-pass.ts';
@@ -391,10 +393,17 @@ export const runDeltaSync = schemaTask({
 
           // Build + run + release the deps' pool per domain. Literal domain
           // args pick the right overload; the finally never leaks the pool.
+          // THE FIELDS THE LOG LINE NEEDS, NAMED. This type listed only the
+          // counts the job happened to read, so `updated` and `adopted` —
+          // present on every result it is assigned from — were invisible to
+          // everything below it, and the run log could not say that a pass
+          // had carried the owner's edits across.
           let result: {
             collectionsListed: number;
             scanned: number;
             created: number;
+            updated: number;
+            adopted: number;
             skipped: number;
             firstCopyBytes?: number;
             budgetPause?: BudgetPause;
@@ -416,6 +425,11 @@ export const runDeltaSync = schemaTask({
                 collectionsListed: pass.collectionsListed,
                 scanned: pass.scanned,
                 created: pass.created,
+                // The two this literal left out, directly under the comment
+                // saying every field left out is a fact the summary cannot
+                // state — and the summary could not state them.
+                updated: pass.updated,
+                adopted: pass.adopted,
                 skipped: pass.skipped,
                 ...(pass.budgetPause ? { budgetPause: pass.budgetPause } : {}),
                 ...(pass.deadlinePause ? { deadlinePause: pass.deadlinePause } : {}),
@@ -571,7 +585,10 @@ export const runDeltaSync = schemaTask({
               await new PgBytesMovedStore(db).add(tenantId, firstCopyBytes);
             });
           }
-          itemsProcessed += result.created + result.skipped;
+          // Every item the pass HANDLED, not only the two kinds it used to
+          // count — see `itemsHandled` for why an edit carried across was
+          // missing from this total.
+          itemsProcessed += itemsHandled(result);
           // "completed" only when it did. The counts are the same either way —
           // the pass really copied them — but a line that says a paused domain
           // completed is the same untruth as the status row would have been,
@@ -594,15 +611,12 @@ export const runDeltaSync = schemaTask({
           const foundNothingIn =
             result.collectionsListed > 0 && result.scanned === 0 ? result.collectionsListed : 0;
           const line = foundNothingIn
-            ? `${domain}: ${result.created} created, ${result.skipped} skipped — ` +
+            ? `${domain}: ${passCounts(result)} — ` +
               `${foundNothingIn} collection(s) listed and NOT ONE ITEM scanned in any of them. ` +
               `A source with nothing in it lists no collections, so this is not that: either ` +
               `the listing inside them is failing or they are genuinely empty.`
-            : `${domain}: ${result.created} created, ${result.skipped} skipped`;
-          log.info(
-            `${domain} sync ${pause ? 'paused' : 'completed'}: ` +
-              `${result.created} created, ${result.skipped} skipped`,
-          );
+            : `${domain}: ${passCounts(result)}`;
+          log.info(`${domain} sync ${pause ? 'paused' : 'completed'}: ${passCounts(result)}`);
           if (foundNothingIn) log.warn(`[delta-sync] ${line}`);
           await withTenant(pool, tenantId, async (db) => {
             await new RunStore(db).logEvent(tenantId, runId, foundNothingIn ? 'warn' : 'info',
@@ -610,6 +624,8 @@ export const runDeltaSync = schemaTask({
               {
                 domain,
                 created: result.created,
+                updated: result.updated,
+                adopted: result.adopted,
                 skipped: result.skipped,
                 collectionsListed: result.collectionsListed,
                 scanned: result.scanned,
