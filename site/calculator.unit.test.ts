@@ -140,15 +140,47 @@ describe('the one script, the one hash', () => {
     // nginx add_header inheritance: a location that adds ANY header inherits
     // NONE. Until 2026-08-26 the CSP sat only at server level while every
     // location set Cache-Control — so no served page carried it at all.
+    //
+    // This read `conf.split(/location[^{]+\{/)` and took each body as far as
+    // its first `}`, and both halves of that were wrong in the same direction:
+    // quietly, by examining LESS.
+    //
+    //   - `location[^{]+\{` matched the word "location" in this file's own
+    //     header comment — the paragraph describing the trap — and ran to the
+    //     next `{`, so the server block arrived as a phantom sixth location.
+    //   - `indexOf('}')` ends a body at the first closing brace, which is the
+    //     NESTED one in a location holding a `limit_except` or an `if`. Put
+    //     such a block above the headers and the body ends before any
+    //     `add_header` is seen, the test's own filter skips the location, and
+    //     a location serving three headers and NO Content-Security-Policy is
+    //     green. Proved by mutation before this was changed.
+    //
+    // So the blocks are brace-matched, and an opener has to be the first word
+    // on its line and carry its brace on that same line. The two assertions
+    // above the loop are the rest of it: this test SKIPS a block that sets no
+    // header, so a list that came back empty or short would assert nothing
+    // while reading exactly like a thorough check. The count is what catches
+    // the phantom — restoring the old regex fails it, 6 against 5.
     const conf = readFileSync(join(HERE, '..', 'deploy', 'compose', 'www-nginx.conf'), 'utf8');
-    const locations = conf.split(/location[^{]+\{/).slice(1);
-    for (const block of locations) {
-      const body = block.slice(0, block.indexOf('}'));
-      if (/add_header/.test(body)) {
-        expect(body, 'a location sets headers but drops the Content-Security-Policy').toContain(
-          'Content-Security-Policy',
-        );
-      }
+    const blocks = locationBlocks(conf);
+    const directiveLines = conf.split('\n').filter((l) => /^[ \t]*location\b/.test(l)).length;
+
+    expect(
+      blocks.length,
+      'the location parse and the file disagree about how many locations there are, so at ' +
+        'least one block is not being examined at all',
+    ).toBe(directiveLines);
+    const setting = blocks.filter(({ body }) => /add_header/.test(body));
+    expect(
+      setting.length,
+      'not one location sets a header, which is not what this file looks like — the parse is ' +
+        'returning bodies that are empty or truncated, and the loop below would assert nothing',
+    ).toBeGreaterThan(0);
+
+    for (const { directive, body } of setting) {
+      expect(body, `${directive} sets headers but drops the Content-Security-Policy`).toContain(
+        'Content-Security-Policy',
+      );
     }
   });
 });
@@ -196,3 +228,49 @@ describe('fill', () => {
     expect(fill('{0} and {2}', 'a', 'b')).toBe('a and ');
   });
 });
+
+/**
+ * The `location` blocks of an nginx config, brace-matched.
+ *
+ * Two rules, and each replaces a way the previous regex examined less than it
+ * appeared to:
+ *
+ *   - **The opener is one line, and it is the start of one.** `location[^{]+\{`
+ *     matched the word "location" in this file's own header comment — the
+ *     paragraph explaining the trap — and ran across four more lines to
+ *     `server {`, handing the test the server block as a phantom sixth
+ *     location: six matches against five directives, measured. Two things stop
+ *     that here and EITHER WOULD DO ON ITS OWN, also measured: `^[ \t]*`, since
+ *     an nginx comment is `#` to end of line so a directive is the first word
+ *     or it is prose, and `[^{\n]*`, since a directive and its brace are on one
+ *     line. The anchor states what a directive IS; the newline bar keeps the
+ *     match local. A rule worth two sentences is worth stating twice.
+ *   - **The body runs to the MATCHING brace**, not the first one. A location
+ *     holding a `limit_except` or an `if` has a nested `}` inside it, and
+ *     ending there drops every directive that follows — silently, because a
+ *     shorter body simply fails fewer tests.
+ *
+ * Unbalanced braces throw. A config this cannot parse is a config nothing has
+ * checked, and that must be loud rather than empty.
+ */
+function locationBlocks(conf: string): ReadonlyArray<{ readonly directive: string; readonly body: string }> {
+  const blocks: Array<{ directive: string; body: string }> = [];
+  for (const opener of conf.matchAll(/^[ \t]*(location\b[^{\n]*)\{/gm)) {
+    const from = opener.index + opener[0].length;
+    let i = from;
+    let depth = 1;
+    while (i < conf.length && depth > 0) {
+      const c = conf[i++]!;
+      if (c === '{') depth++;
+      else if (c === '}') depth--;
+    }
+    if (depth !== 0) {
+      throw new Error(
+        `www-nginx.conf: no closing brace for \`${opener[1]!.trim()}\`. The file does not parse, ` +
+          'so nothing below has been checked — fix the config rather than this test.',
+      );
+    }
+    blocks.push({ directive: opener[1]!.trim(), body: conf.slice(from, i - 1) });
+  }
+  return blocks;
+}
