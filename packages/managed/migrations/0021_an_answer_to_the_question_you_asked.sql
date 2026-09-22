@@ -2,7 +2,7 @@
 -- 2026-09-01).
 --
 -- The owner walked the whole path tonight — asked for access from
--- rhberentsen@gmail.com, granted it as operator, signed in with Google — and
+-- a second address of his own, granted it as operator, signed in with Google — and
 -- met a screen headed "You have been invited", with Join / Decline / Not now
 -- and the sentence "Joining is your choice. Nothing happens until you make
 -- it.". His words: *"weird to again need to accept the join after I myself
