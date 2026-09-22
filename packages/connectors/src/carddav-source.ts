@@ -294,24 +294,28 @@ export class CarddavSource implements ContactSource {
     ctag?: string;
     removed: string[];
   }> {
-    // Build sync-collection REPORT
+    // A CTAG CURSOR IS NOT DECODED INTO ANYTHING, and that is the whole point.
+    //
+    // A ctag is a collection-level tag, not an RFC 6578 sync-token: there is
+    // no way to send it that makes a server answer "what changed since". So a
+    // ctag cursor means a FULL read, which is what an empty `<D:sync-token/>`
+    // asks for, and the per-card ETags sort out what actually moved.
+    //
+    // It used to be decoded, and the only thing it selected was a property
+    // restriction on `address-data` — see `buildSyncCollectionReport`. Which
+    // cursor we hold decides what we SEND as the token. It must never decide
+    // which fields we ask for.
     let syncToken: string | undefined;
-    let ctag: string | undefined;
-
     if (cursor) {
       try {
         const decoded = this.decodeSyncToken(cursor);
-        if (decoded.isSyncToken) {
-          syncToken = decoded.token;
-        } else {
-          ctag = decoded.token;
-        }
+        if (decoded.isSyncToken) syncToken = decoded.token;
       } catch {
         // Invalid cursor, do full sync
       }
     }
 
-    const report = this.buildSyncCollectionReport(collectionPath, syncToken, ctag);
+    const report = this.buildSyncCollectionReport(collectionPath, syncToken);
 
     const response = await this.send({
       method: 'REPORT',
@@ -418,20 +422,38 @@ export class CarddavSource implements ContactSource {
   /**
    * Build the sync-collection REPORT XML.
    */
-  private buildSyncCollectionReport(
-    collectionPath: string,
-    syncToken?: string,
-    ctag?: string,
-  ): string {
+  /**
+   * AN EMPTY `address-data`, AND IT HAS TO STAY EMPTY.
+   *
+   * Empty asks for the WHOLE card, which is the only thing this connector can
+   * use: `carddav-target-writer` PUTs `raw.vcard` back verbatim, so whatever a
+   * card is missing here is missing on the target afterwards.
+   *
+   * Until 2026-09-22 a `ctag` cursor put a SECOND `address-data` inside this
+   * one, carrying `<prop>FN</prop><prop>UID</prop>` — a request for a name and
+   * an identifier and nothing else. The variable holding it was called
+   * `vcardVersionElement`, which is what hid it for as long as it lasted: the
+   * name says it declares a version, the value restricts the properties.
+   *
+   * WHY NOBODY SAW IT. A first sync has no cursor, so it took the empty branch
+   * and every card arrived whole — every migration looked right, because the
+   * one that matters to a customer is the first one. The restriction could
+   * only appear on a LATER pass, over contacts already on the target, and
+   * there a card cut down to FN and UID does not read as an incomplete answer.
+   * It overwrites a complete one. Mail addresses, phone numbers, postal
+   * addresses, photos — gone, on a sync that reported success.
+   *
+   * The nesting was also not valid CardDAV, so a server was free to ignore it,
+   * and the ones this was ever run against evidently did. That is not a reason
+   * to keep sending it: the request asked for something this code cannot use,
+   * and the next server would have been within its rights to answer.
+   */
+  private buildSyncCollectionReport(collectionPath: string, syncToken?: string): string {
     // Nextcloud requires sync-token element even for full syncs
     // Use empty element for full sync, actual token for incremental sync
     const syncTokenElement = syncToken
       ? `<D:sync-token>${this.escapeXml(syncToken)}</D:sync-token>`
       : '<D:sync-token/>';
-
-    const vcardVersionElement = ctag
-      ? `<A:address-data xmlns:A="urn:ietf:params:xml:ns:carddav"><A:prop>FN</A:prop><A:prop>UID</A:prop></A:address-data>`
-      : '';
 
     return `<?xml version="1.0" encoding="utf-8"?>
       <D:sync-collection xmlns:D="DAV:" xmlns:A="urn:ietf:params:xml:ns:carddav">
@@ -441,9 +463,7 @@ export class CarddavSource implements ContactSource {
                for it here the response carries none and every card looks
                unchanged forever. -->
           <D:getetag/>
-          <A:address-data>
-            ${vcardVersionElement}
-          </A:address-data>
+          <A:address-data/>
         </D:prop>
         ${syncTokenElement}
       </D:sync-collection>`;
