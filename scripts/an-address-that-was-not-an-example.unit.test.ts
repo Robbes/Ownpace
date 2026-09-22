@@ -36,6 +36,12 @@
  * builds gets a different address, and a guard that only knew the old one
  * would watch it arrive.
  *
+ * RUN IT AGAINST THE INDEX, NOT YOUR WORKING COPY. `git grep` reads TRACKED
+ * files, so while this guard was still untracked it swept everything except
+ * itself and went green on a machine where CI would go red — which is exactly
+ * what happened on its own first pull request. A guard that sweeps what git
+ * knows about has to be `git add`ed before its local run means anything.
+ *
  * A KNOWN GAP, so its absence is not read as coverage. The sweep includes
  * `docs/workplans/**` and `docs/adr/**`, but CI's changed-file filter
  * deliberately does not select them — a prose-only pull request skips the
@@ -47,10 +53,21 @@
 
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * This file, as git spells it. It is the one place in the repository that
+ * holds in-range addresses on purpose — the fixtures below that prove the rule
+ * is not vacuous are, by construction, exactly what the rule forbids — so it
+ * is excluded from its own sweep. `a-count-in-a-sentence-the-table-outgrew`
+ * makes the same trade for the same reason, and it costs the same thing: an
+ * address hidden in THIS file would not be caught. Derived rather than typed
+ * so a rename cannot quietly empty the exclusion and re-break the build.
+ */
+const SELF = relative(ROOT, fileURLToPath(import.meta.url));
 
 /**
  * The one address this repository may print: the first of the range, which
@@ -98,7 +115,15 @@ function trackedMeshLines(): string {
   try {
     return execFileSync(
       'git',
-      ['grep', '-I', '-n', '-E', '(^|[^0-9.])100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\.'],
+      [
+        'grep',
+        '-I',
+        '-n',
+        '-E',
+        '(^|[^0-9.])100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\.',
+        '--',
+        `:!${SELF}`,
+      ],
       { cwd: ROOT, encoding: 'utf8' },
     );
   } catch (e) {
@@ -145,6 +170,13 @@ describe('an address that was not an example', () => {
     ]) {
       expect(sightings(fine), fine).toEqual([]);
     }
+  });
+
+  it('excludes itself, and only itself, from the sweep', () => {
+    // The exclusion is the one hole in the rule, so it is asserted rather than
+    // left to a reader to confirm: a second path added here silently would be
+    // a place to hide an address.
+    expect(SELF).toBe('scripts/an-address-that-was-not-an-example.unit.test.ts');
   });
 
   it('names every address on a line, not just the first', () => {
