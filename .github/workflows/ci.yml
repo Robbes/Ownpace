@@ -71,7 +71,7 @@ on:
     # security-scan workflows listened for tags.
     tags: ['v*']
 
-# CANCEL A SUPERSEDED PULL REQUEST RUN. NEVER A SUPERSEDED PUSH RUN.
+# CANCEL A SUPERSEDED PULL REQUEST RUN. DO NOT ASK FOR A PUSH RUN TO BE CANCELLED.
 #
 # The two cases look identical and are opposites.
 #
@@ -97,10 +97,36 @@ on:
 # lied: `ci-complete` named every skipped gate in its summary, exactly as it is
 # built to. The composition did.
 #
-# THE COST IS A QUEUE, and it is the right trade. Pushes to `main` now wait for
-# each other on the Spark instead of cancelling each other. Merges are minutes
-# apart at worst, the box is otherwise idle, and a build that waits is worth
-# more than a build that never happens.
+# WHAT THIS ACTUALLY BUYS, corrected 2026-09-22 after watching it. The first
+# version of this comment said pushes "now wait for each other instead of
+# cancelling each other", and the pull request said every pushed commit gets
+# its own completed run. Both were wrong, and a reason that is wrong is worse
+# than no reason — so here is the measurement that replaced the guess.
+#
+# Four merges landed in ninety-one seconds:
+#
+#   2850  c66743a (#1057)  created 05:24:28  ran to completion
+#   2851  b01675c (#1058)  created 05:25:00  CANCELLED 05:25:17
+#   2852  0f89337 (#1059)  created 05:25:16  CANCELLED 05:26:00
+#   2853  2920c86 (#1060)  created 05:25:59  ran to completion
+#
+# Each cancellation lands one second after the NEXT run is created. GitHub
+# holds one run pending per concurrency group; a newer arrival takes that slot
+# and the run already in it is cancelled. `cancel-in-progress` does not reach
+# that — it governs the run that HOLDS the group, and 2850 proves it does:
+# under the old `true` it would have died at 05:25:00, and instead it shrugged
+# off all three merges behind it.
+#
+# So of N merges arriving faster than a build takes, the OLDEST and the NEWEST
+# complete and the middle ones do not. That is strictly better than what this
+# replaced — where only the newest survived, and a docs-only newest ran nothing
+# at all — and it is not the same as every commit being built. `b01675c` and
+# `0f89337` have no completed build and never will.
+#
+# The tree is still covered: 2853's head contains all four changes. What is
+# lost is the per-commit RECORD, which is the question an audit asks and the
+# reason this is written down rather than shrugged at. Closing it properly
+# needs a merge queue, which is a bigger decision than a flag.
 #
 # The groups are already separate — `github.ref` is `refs/pull/N/merge` on a
 # pull request and `refs/heads/main` on a push — so this changes only the push
