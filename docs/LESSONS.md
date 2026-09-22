@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 145 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 146 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -252,6 +252,10 @@ reading a file drops off its entry by itself.
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
+
+### `apps/web/src/pages/MappingDetail.tsx`
+
+- [a-live-progress-that-needed-f5](../scripts/a-live-progress-that-needed-f5.unit.test.ts) — A LIVE PROGRESS THAT NEEDED F5.
 
 ### `apps/web/src/pages/end-user-docs.unit.test.tsx`
 
@@ -1751,6 +1755,14 @@ Reads:
 
 - `deploy/compose/env-read.sh`
 - `scripts/dav-target-probe.mjs`
+
+### [a-live-progress-that-needed-f5](../scripts/a-live-progress-that-needed-f5.unit.test.ts)
+
+A LIVE PROGRESS THAT NEEDED F5.
+
+Reads:
+
+- `apps/web/src/pages/MappingDetail.tsx`
 
 ### [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts)
 

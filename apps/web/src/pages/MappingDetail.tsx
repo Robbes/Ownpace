@@ -28,6 +28,30 @@ import {
   Trash2,
 } from 'lucide-react';
 import { isSelfHost } from '../services/edition.ts';
+
+/**
+ * HOW OFTEN THE LIVE STRIP ASKS AGAIN, from what it is currently showing.
+ *
+ * `pending` and `in_progress` are the two states where the numbers are still
+ * moving, so they are the two that earn the fast rate. Everything else —
+ * `completed`, `failed`, `skipped`, and a mapping with no domains yet — falls
+ * back to the idle rate rather than to `false`: a migration STARTED from
+ * another screen has to become visible here without a reload too, and that is
+ * the same bug one step further out.
+ *
+ * Exported because both editions read it, and because a rule this small is
+ * cheaper to assert directly than through two rendered components.
+ */
+export const PROGRESS_POLL_ACTIVE_MS = 10_000;
+export const PROGRESS_POLL_IDLE_MS = 30_000;
+
+export function progressRefetchInterval(
+  domains: ReadonlyArray<{ readonly state: string }> | undefined,
+): number {
+  return domains?.some((d) => d.state === 'pending' || d.state === 'in_progress')
+    ? PROGRESS_POLL_ACTIVE_MS
+    : PROGRESS_POLL_IDLE_MS;
+}
 import { mappingApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import { fetchStatus } from '../services/operating-service.ts';
@@ -101,6 +125,13 @@ const MappingDetail: React.FC = () => {
     queryFn: () => mappingApi.get(id!),
     enabled: Boolean(id) && !isSelfHost(),
     retry: false,
+    // MANAGED'S HALF OF THE STRIP HAD NO INTERVAL AT ALL, so the panel headed
+    // "Live progress" sat on the number it was born with until somebody
+    // pressed F5. Live 2026-09-22, on a running Google migration: "Calendar
+    // Syncing 439 synced, last active 1 minute ago", unmoved. The selfhost
+    // half below polled, which is why this survived — the strip is one
+    // component and it was live on the edition its author was looking at.
+    refetchInterval: (query) => progressRefetchInterval(query.state.data?.domainStatus),
   });
 
   // Pause, from the page the operator is actually looking at when a
@@ -135,7 +166,12 @@ const MappingDetail: React.FC = () => {
     queryKey: ['status'],
     queryFn: fetchStatus,
     enabled: Boolean(id) && isSelfHost(),
-    refetchInterval: 30_000,
+    // The same rule as managed above, from the same function: a strip that
+    // cannot mean different things per edition must not REFRESH differently
+    // per edition either. This was a flat 30s, which is the idle rate — a
+    // running migration now moves at the same ten seconds on both.
+    refetchInterval: (query) =>
+      progressRefetchInterval(query.state.data?.mappings.find((m) => m.mappingId === id)?.domains),
   });
 
   if (!id) {

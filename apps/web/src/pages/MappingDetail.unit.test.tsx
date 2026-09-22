@@ -38,7 +38,11 @@ vi.mock('../services/operating-service', () => ({
   fetchStatus: fetchStatusMock,
 }));
 
-import MappingDetail from './MappingDetail.tsx';
+import MappingDetail, {
+  progressRefetchInterval,
+  PROGRESS_POLL_ACTIVE_MS,
+  PROGRESS_POLL_IDLE_MS,
+} from './MappingDetail.tsx';
 
 /**
  * A detail payload the way the route actually answers one.
@@ -254,5 +258,44 @@ describe('the live progress strip', () => {
     // The other mapping's numbers must not leak into this hub.
     expect(screen.queryByText('999 synced')).not.toBeInTheDocument();
     expect(mappingApiGet).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * HOW FAST THE LIVE STRIP ASKS AGAIN.
+ *
+ * `a-live-progress-that-needed-f5` holds that every source the strip reads
+ * HAS an interval; this holds what that interval is. The two halves are
+ * deliberately apart: the guard reads the page's wiring and would still pass
+ * if the rate were nonsense, and these cases would still pass if the rate
+ * were never wired to anything.
+ */
+describe('the live strip\'s refresh rate', () => {
+  it('runs fast while any domain is still moving', () => {
+    for (const moving of ['pending', 'in_progress']) {
+      expect(
+        progressRefetchInterval([{ state: 'completed' }, { state: moving }]),
+        `one ${moving} domain should have earned the fast rate`,
+      ).toBe(PROGRESS_POLL_ACTIVE_MS);
+    }
+  });
+
+  it('drops to the idle rate when nothing is moving', () => {
+    expect(
+      progressRefetchInterval([{ state: 'completed' }, { state: 'failed' }, { state: 'skipped' }]),
+    ).toBe(PROGRESS_POLL_IDLE_MS);
+  });
+
+  it('keeps asking when there is nothing to show yet', () => {
+    // NOT `false`. A migration started from another screen has to appear here
+    // without a reload too — that is the same bug one step further out, and
+    // stopping on an empty list is how it would come back.
+    for (const nothing of [undefined, []]) {
+      expect(progressRefetchInterval(nothing)).toBe(PROGRESS_POLL_IDLE_MS);
+    }
+  });
+
+  it('polls faster when active than when idle, whatever the numbers become', () => {
+    expect(PROGRESS_POLL_ACTIVE_MS).toBeLessThan(PROGRESS_POLL_IDLE_MS);
   });
 });
