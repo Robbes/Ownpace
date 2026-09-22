@@ -42,6 +42,7 @@ import type {
   TokenProvider,
   TrashListing,
 } from '@openmig/shared';
+import { fileVersion } from '@openmig/shared';
 import type { BoxFileSourceConfig, BoxItem, BoxItemList, BoxTransport } from './box-file-source.types.ts';
 // The seam's threshold, not DAV's — every connector that moves to `FileBody`
 // decides at the same size, or a file of a given size behaves differently
@@ -382,6 +383,10 @@ export class BoxFileSource implements FileSource {
       // Box's sha1: stable per content, compared against itself across
       // passes — the same contract Drive's md5 carries.
       ...(file.sha1 ? { contentHash: file.sha1 } : {}),
+      // The version an edit is detected by — see `FileItem.etag`. Absent
+      // until 2026-09-22, so a Box file edited after its first copy was never
+      // copied again.
+      ...fileVersion(file.sha1, file.modified_at),
       modifiedAt: file.modified_at ?? new Date(0).toISOString(),
       ...(file.created_at ? { createdAt: file.created_at } : {}),
       // The source's own handle — stable across renames, unlike the path.

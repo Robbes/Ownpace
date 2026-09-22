@@ -38,6 +38,7 @@ import type {
   TokenProvider,
   TrashListing,
 } from '@openmig/shared';
+import { fileVersion } from '@openmig/shared';
 import type {
   DropboxEntry,
   DropboxFileSourceConfig,
@@ -406,6 +407,10 @@ export class DropboxFileSource implements FileSource {
       // Dropbox's block hash: stable per content, compared against itself
       // across passes — the same contract Drive's md5 carries.
       ...(entry.content_hash ? { contentHash: entry.content_hash } : {}),
+      // The version an edit is detected by — see `FileItem.etag`. Absent
+      // until 2026-09-22, so a Dropbox file edited after its first copy was
+      // never copied again.
+      ...fileVersion(entry.content_hash, entry.server_modified),
       modifiedAt: entry.server_modified ?? entry.client_modified ?? new Date(0).toISOString(),
       // The source's own handle — stable across renames, unlike the path.
       sourceRef: entry.id,

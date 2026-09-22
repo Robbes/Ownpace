@@ -42,6 +42,7 @@
  */
 
 import {
+  fileVersion,
   permissionsNotDiscoverable,
   markNeedsDecision,
   statedFailureCategoryOf,
@@ -1194,6 +1195,13 @@ export class GoogleDriveSource implements FileSource {
       // exclusion was always right; the reason was not, and a wrong reason in
       // a comment is what the next person changing this listing acts on.
       ...(file.md5Checksum ? { contentHash: file.md5Checksum } : {}),
+      // THE VERSION, which is what makes an edit in Google reach the copy.
+      // `classifyKnownItem` rewrites a known file only when this changes, and
+      // skips one that has none — so until 2026-09-22, when this was absent,
+      // a file edited after its first copy was never copied again. The bytes'
+      // own checksum where Drive keeps one; the last modification otherwise,
+      // which is the only change a native Doc can show before it is exported.
+      ...fileVersion(file.md5Checksum, file.modifiedTime),
       modifiedAt: file.modifiedTime ?? new Date(0).toISOString(),
       ...(file.createdTime ? { createdAt: file.createdTime } : {}),
       // `sourceRef` is the port's field for the source's OWN handle, and the

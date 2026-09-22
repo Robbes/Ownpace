@@ -22,7 +22,7 @@ import type { FileSource, FileFolder, RawFileItem, SyncCursor, ThrottleLimiter, 
 import type { GraphDriveSourceConfig, GraphDriveItem, GraphDriveDeltaResponse, GraphDriveDeltaCursor, ParsedPath, NormalizePathOptions } from './graph-drive-source.types.ts';
 import { graphScopePrefix } from './graph-scope.ts';
 import type { HttpClient as _HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
-import { log, STREAM_FILES_LARGER_THAN_BYTES } from '@openmig/shared';
+import { fileVersion, log, STREAM_FILES_LARGER_THAN_BYTES } from '@openmig/shared';
 
 /** The tick and the delegated scope this face needs — named in a refusal's way forward (0114 T6). */
 const FILES_FACE = { face: 'Files', scope: 'Files.Read' } as const;
@@ -447,6 +447,12 @@ export class GraphDriveSource implements FileSource {
             // and never on a hash, and neither value is comparable with the
             // SHA-256 the ledger stores. See `FileItem.contentHash`.
             contentHash: changeHash,
+            // The version an edit is detected by — see `FileItem.etag`. Absent
+            // until 2026-09-22, so a OneDrive file edited after its first copy
+            // was never copied again. The content hash first: `cTag` is the
+            // content-only tag, but a OneDrive for Business delta omits it on
+            // create and modify (Microsoft's delta documentation).
+            ...fileVersion(item.file?.hashes?.quickXorHash ?? item.cTag, item.lastModifiedDateTime),
             modifiedAt: item.lastModifiedDateTime,
             mimeType: item.file?.mimeType,
             sourceRef: item.id,

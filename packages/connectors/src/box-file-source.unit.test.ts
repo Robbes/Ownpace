@@ -118,6 +118,24 @@ describe('the natural key', () => {
   });
 });
 
+describe('the version an edit is detected by', () => {
+  it('is Box\'s sha1, and the last change only where Box gave no sha1', async () => {
+    // Absent until 2026-09-22, so a Box file edited after its first copy was
+    // never copied again — `classifyKnownItem` skips a file with no version.
+    const { transport } = fakeBox({
+      '0': [{ entries: [FILE('f1', 'a.txt'), FILE('f2', 'b.txt', { sha1: undefined })] }],
+    });
+    const source = new BoxFileSource(transport, { baseUrl: API });
+
+    const { items } = await source.listSince({ path: '' });
+
+    expect(items.map((i) => i.item.etag)).toEqual([
+      'hash:sha-f1',
+      'modified:2026-08-01T10:00:00Z',
+    ]);
+  });
+});
+
 describe('pagination', () => {
   it('follows next_marker to the end — a partial listing is never the folder', async () => {
     const { transport, calls } = fakeBox({

@@ -121,6 +121,31 @@ describe('the natural key', () => {
   });
 });
 
+describe('the version an edit is detected by', () => {
+  it('is Dropbox\'s content hash, and the server\'s last change only without one', async () => {
+    // Absent until 2026-09-22 — while the header above already promised that
+    // "changed ones are updated". They were not: with no version, a known file
+    // was skipped on every pass.
+    const { transport } = fakeDropbox({
+      '': [
+        {
+          entries: [FILE('/a.txt'), FILE('/b.txt', { content_hash: undefined })],
+          cursor: 'c',
+          has_more: false,
+        },
+      ],
+    });
+    const source = new DropboxFileSource(transport, { apiBaseUrl: API, contentBaseUrl: CONTENT });
+
+    const { items } = await source.listSince({ path: '' });
+
+    expect(items.map((i) => i.item.etag)).toEqual([
+      'hash:hash-/a.txt',
+      'modified:2026-08-01T10:00:00Z',
+    ]);
+  });
+});
+
 describe('pagination', () => {
   it('follows has_more to the end — a partial listing is never the folder', async () => {
     const { transport, calls } = fakeDropbox({
