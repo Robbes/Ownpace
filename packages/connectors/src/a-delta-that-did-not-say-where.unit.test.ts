@@ -22,6 +22,12 @@
  *    the preflight summed all four into the number the owner approves, and the
  *    pass paid for each of them.
  *
+ * SINCE THE SAME DAY THE DRIVE IS READ ONCE PER PASS (`GraphDriveSource`'s
+ * `snapshot`): `listFolders` reads the root's delta, and each folder's first
+ * listing is answered from it. The placement rules pinned here are the same
+ * rules, applied to that one read; `a-drive-read-once.unit.test.ts` pins the
+ * reading itself.
+ *
  * THE FAKE BELOW ANSWERS THE WAY THAT DOCUMENTATION SAYS GRAPH DOES. The
  * fixtures that stayed green over fault 1 put `parentReference.path` on delta
  * entries and no parent id at all — the reverse of the documented shape, and
@@ -214,17 +220,17 @@ describe('a file listed once per folder above it', () => {
   });
 
   it('says a folder holding only subfolders WAS read, so it keeps a cursor', async () => {
-    // `/Archive` returns c.jpg and keeps none of it. Without a count of what
-    // it returned for others, the sync loop reads "no items" on a first read
-    // as "saw nothing", stores no cursor, and re-reads the subtree for ever.
+    // `/Archive` holds no file of its own. Without a count of what the read
+    // returned for others, the sync loop reads "no items" on a first read as
+    // "saw nothing" and stores no cursor. Since the drive is read once per
+    // pass (2026-09-22), "the read" is that one read, so the count is every
+    // file in the drive that is not this folder's.
     const listed = await listEveryFolder(sourceOver(graphOver(aDrive())));
-    const said = Object.fromEntries(listed.map((l) => [l.folder, l.listedElsewhere]));
+    const said = Object.fromEntries(listed.map((l) => [l.folder, l]));
 
-    expect(said['/Archive']).toBe(1);
-    expect(said['/Photos']).toBe(1);
-    expect(said['']).toBe(3);
-    // A folder whose read held only its own files says nothing extra.
-    expect(said['/Photos/2019']).toBeUndefined();
+    expect(said['/Archive']!.paths).toEqual([]);
+    expect(said['/Archive']!.listedElsewhere).toBe(4);
+    expect(said['']!.listedElsewhere).toBe(3);
   });
 });
 
@@ -247,18 +253,19 @@ describe('a file the walk cannot place yet', () => {
     expect(byFolder(next)['/New']).toEqual(['/New/n.txt']);
   });
 
-  it('gives a folder that was EMPTY at the walk the file that landed in it since', async () => {
-    // An empty folder has no children to name it by id, so the walk has only
-    // the folder's own entry to learn it from — and without that, its own read
-    // would take the new file for somebody else's.
+  it('lists a folder that is EMPTY, and gives it the file that lands in it by the next pass', async () => {
+    // An empty folder has no file to name it as a parent, so only its own
+    // entry in the read makes it a folder at all — and the sync loop creates
+    // directories from what `listFolders` answers.
     const drive = [...aDrive(), { id: 'd-empty', name: 'Empty', parent: ROOT, folder: true as const }];
     const source = sourceOver(graphOver(drive));
-    const folders = await source.listFolders();
+    const first = await listEveryFolder(source);
+    expect(byFolder(first)['/Empty']).toEqual([]);
+
     drive.push({ id: 'f-e', name: 'e.txt', parent: 'd-empty', size: 3 });
+    const next = await listEveryFolder(source);
 
-    const empty = await source.listSince(folders.find((f) => f.path === '/Empty')!);
-
-    expect(empty.items.map((i) => i.item.path)).toEqual(['/Empty/e.txt']);
+    expect(byFolder(next)['/Empty']).toEqual(['/Empty/e.txt']);
   });
 
   it('counts a file nobody can place ONCE — by the root, whose read every file is in', async () => {
@@ -273,8 +280,9 @@ describe('a file the walk cannot place yet', () => {
 
     expect(at['']!.unreadable).toBe(1);
     expect(at['/Photos']!.unreadable).toBeUndefined();
-    // Still evidence the subfolder's read returned something: b.jpg and it.
-    expect(at['/Photos']!.listedElsewhere).toBe(2);
+    // Still evidence the read returned something for others: the drive's
+    // other three files, and the stray.
+    expect(at['/Photos']!.listedElsewhere).toBe(4);
     expect(listed.flatMap((l) => l.paths)).not.toContain('/stray.txt');
   });
 });
