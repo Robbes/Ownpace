@@ -29,6 +29,7 @@ import { formatDateTime } from '../i18n/datetime.ts';
 import type { StringKey } from '../i18n/index.tsx';
 import DiscoveryCounts from '../components/confirm/DiscoveryCounts.tsx';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
+import { scopeFamilyOf, scopeManifestFor } from '@openmig/shared';
 import SharedAddresses from '../components/confirm/SharedAddresses.tsx';
 // The live strip is shared with the managed hub (0033 T5) — one component,
 // two data sources, same DomainStatusReport rows underneath.
@@ -109,6 +110,24 @@ const Confirm: React.FC = () => {
   }
 
   const mappings = status.data?.mappings ?? [];
+
+  // WHOSE PROMISES THIS BOX IS SHOWING. One manifest sits above every migration
+  // on the appliance, so it is scoped to the UNION of what they actually leave:
+  // every row shown is true of a migration here, and no row names a provider
+  // that is not.
+  //
+  // A mapping whose row carries no `sourceType` (a payload from before the
+  // field) contributes NOTHING rather than a guess, so the manifest narrows
+  // toward the rows true of every source. Under-telling is the safe direction
+  // and mis-telling is the bug this replaced.
+  const families = [
+    ...new Set(
+      mappings.flatMap((m) => {
+        const f = scopeFamilyOf(m.sourceType ?? '');
+        return f ? [f] : [];
+      }),
+    ),
+  ];
 
   return (
     <div>
@@ -276,7 +295,7 @@ const Confirm: React.FC = () => {
       {manifest.data && (
         <section className="p-4 bg-white border border-gray-200 rounded-lg">
           <h3 className="font-semibold text-gray-900 mb-3">{t('confirm.whatMigrates')}</h3>
-          <ScopeManifestPanel manifest={manifest.data} />
+          <ScopeManifestPanel manifest={scopeManifestFor(manifest.data, families)} />
         </section>
       )}
     </div>

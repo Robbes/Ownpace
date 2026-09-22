@@ -28,6 +28,8 @@ export interface MappingStatusInput {
   readonly mappingId: string;
   /** Where the mapping is in its life — see `StatusReport`. */
   readonly migrationStatus: MappingLifecycle;
+  /** The mapping's source type — see `StatusReport`. Optional for the same reason. */
+  readonly sourceType?: string;
   readonly statuses: readonly MigrationStatus[];
   /** Unresolved item failures for this mapping, from the ledger. */
   readonly failures?: readonly ItemFailure[];
@@ -62,14 +64,20 @@ export function buildStatusReport(
   return {
     status: 'ok',
     ...(notifications ? { notifications } : {}),
-    mappings: inputs.map(({ mappingId, migrationStatus, statuses, failures = [], adopted }) => ({
-      mappingId,
-      migrationStatus,
+    mappings: inputs.map(
+      ({ mappingId, migrationStatus, sourceType, statuses, failures = [], adopted }) => ({
+        mappingId,
+        migrationStatus,
+        // Spread, not `sourceType: sourceType`: a caller that did not supply
+        // one produces a row WITHOUT the key, which is the difference the
+        // contract asks for between "no source named" and "source unknown".
+        ...(sourceType === undefined ? {} : { sourceType }),
       // The row derivation moved to @openmig/shared (0033 T5) so the managed
       // GET /migrations/{id} serves the SAME shape — before that, its raw
       // MigrationStatus rows lacked itemsRetrying/itemsNeedingDecision and a
       // UI reading them saw undefined where this edition served numbers.
-      domains: buildDomainStatusReports(statuses, failures, adopted),
-    })),
+        domains: buildDomainStatusReports(statuses, failures, adopted),
+      }),
+    ),
   };
 }

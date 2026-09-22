@@ -3,6 +3,7 @@
 import React from 'react';
 import DiscoveryCounts from './confirm/DiscoveryCounts.tsx';
 import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
+import { scopeFamilyOf, scopeManifestFor } from '@openmig/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
@@ -96,6 +97,20 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
     queryFn: () => scopeManifestApi.get(),
   });
 
+  // WHOSE PROMISES TO SHOW. The manifest is one public document and the server
+  // serves all of it; which rows are TRUE here depends on what this migration
+  // is leaving, and this screen already knows — it reads the mapping above for
+  // `syncConfig.domains`. Until 2026-09-22 it showed every row to everybody,
+  // so a Google migration was confirmed under a list naming SharePoint, Teams
+  // and Planner and mentioning Drive nowhere.
+  //
+  // An unrecognised source narrows to the rows true of every source rather
+  // than falling back to a provider: `scopeFamilyOf` returns undefined and the
+  // filter is given nothing, which under-tells instead of mis-telling.
+  const family = scopeFamilyOf(mapping.data?.sourceType ?? '');
+  const scoped =
+    manifest.data && scopeManifestFor(manifest.data, family ? [family] : []);
+
   const queryClient = useQueryClient();
   const startMutation = useMutation({
     mutationFn: () => mappingApi.start(mappingId),
@@ -140,7 +155,7 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
       </section>
 
       {/* Scope manifest (§11.2) */}
-      {manifest.data && <ScopeManifestPanel manifest={manifest.data} />}
+      {scoped && <ScopeManifestPanel manifest={scoped} />}
 
       {startMutation.isError && (
         <p className="text-sm text-red-600" role="alert">

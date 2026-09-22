@@ -1403,6 +1403,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           inputs.push({
             mappingId: m.config.mappingId,
             migrationStatus: await mappingStatus(m),
+            sourceType: m.config.source.type,
             statuses,
             failures,
             adopted,
