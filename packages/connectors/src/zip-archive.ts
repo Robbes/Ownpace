@@ -51,7 +51,8 @@
  * them, because each Takeout part is a complete zip with its own directory.
  */
 
-import { createInflateRaw, crc32 } from 'node:zlib';
+import { createInflateRaw } from 'node:zlib';
+import { crc32 } from './crc32.ts';
 import { Readable, Transform, pipeline } from 'node:stream';
 import { open as openFile, stat } from 'node:fs/promises';
 
