@@ -6,6 +6,13 @@
  * `concurrency: cancel-in-progress` is right on a pull request and wrong on a
  * push, and the two look identical.
  *
+ * What this holds is the SETTING, not an outcome: that the workflow does not
+ * ask for a push or a schedule run to be cancelled. The outcome is narrower
+ * than the first version of this file implied, and ci.yml's concurrency
+ * comment carries the measurement — GitHub cancels the run in its one pending
+ * slot whatever this flag says, so of several rapid merges the oldest and the
+ * newest complete and the middle ones do not.
+ *
  * On a PULL REQUEST a new commit makes the running build obsolete — the older
  * commit is not what will merge, and nobody will ever ask what it said.
  * Cancelling is free.
@@ -150,14 +157,21 @@ describe('a superseded push build is finished, not cancelled', () => {
     ).toEqual([]);
   });
 
-  it('never cancels a push build, whatever lands on main behind it', () => {
+  it('does not ask for a running push build to be cancelled', () => {
+    // NAMED FOR WHAT IT ASSERTS. This said "never cancels a push build,
+    // whatever lands on main behind it" until 2026-09-22, which claimed an
+    // EFFECT this setting does not deliver: GitHub holds one run pending per
+    // group, and a newer arrival cancels the one in that slot regardless of
+    // this flag. What the flag governs is the run HOLDING the group, and that
+    // is worth having — run 2850 outlived three merges landing behind it. See
+    // the measurement in ci.yml's concurrency comment.
     expect(
       cancelsFor(flag, 'push'),
-      'ci.yml would cancel a running push build. The commit it was testing is already IN main, ' +
-        'and the next push computes its own diff — so nothing re-runs the gates for the code ' +
-        'the cancelled build carried, and a later docs-only merge reports green over it. That ' +
-        'is run 2841 against run 2843 on 2026-09-21. Condition `cancel-in-progress` on the ' +
-        'event instead of setting it true.',
+      'ci.yml asks for a running push build to be cancelled. The commit it was testing is ' +
+        'already IN main, and the next push computes its own diff — so nothing re-runs the ' +
+        'gates for the code the cancelled build carried, and a later docs-only merge reports ' +
+        'green over it. That is run 2841 against run 2843 on 2026-09-21. Condition ' +
+        '`cancel-in-progress` on the event instead of setting it true.',
     ).toBe(false);
   });
 
