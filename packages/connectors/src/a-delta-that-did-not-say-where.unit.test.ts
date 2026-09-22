@@ -259,6 +259,8 @@ describe('a file the walk cannot place yet', () => {
 
     expect(at['']!.unreadable).toBe(1);
     expect(at['/Photos']!.unreadable).toBeUndefined();
+    // Still evidence the subfolder's read returned something: b.jpg and it.
+    expect(at['/Photos']!.listedElsewhere).toBe(2);
     expect(listed.flatMap((l) => l.paths)).not.toContain('/stray.txt');
   });
 });
