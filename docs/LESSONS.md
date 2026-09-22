@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 144 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 145 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -1070,6 +1070,7 @@ reading a file drops off its entry by itself.
 ### `pnpm-workspace.yaml`
 
 - [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts) — A supply-chain gate with an exclude list, an escape hatch, and no gate.
+- [a-tag-the-publisher-can-move](../scripts/a-tag-the-publisher-can-move.unit.test.ts) — A THIRD-PARTY ACTION, REFERENCED BY SOMETHING ITS PUBLISHER CAN REWRITE.
 - [an-advisory-nobody-listed](../scripts/an-advisory-nobody-listed.unit.test.ts) — An advisory nobody listed, in a job that reported green.
 
 ### `scripts/a-check-that-was-never-valid.unit.test.ts`
@@ -2090,6 +2091,14 @@ A BARE ALIAS SWALLOWS ITS OWN SUBPATHS.
 Reads:
 
 - `vitest.aliases.ts`
+
+### [a-tag-the-publisher-can-move](../scripts/a-tag-the-publisher-can-move.unit.test.ts)
+
+A THIRD-PARTY ACTION, REFERENCED BY SOMETHING ITS PUBLISHER CAN REWRITE.
+
+Reads:
+
+- `pnpm-workspace.yaml`
 
 ### [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts)
 
