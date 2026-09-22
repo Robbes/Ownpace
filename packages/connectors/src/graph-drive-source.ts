@@ -8,6 +8,8 @@
  * Features:
  * - File/folder enumeration via {scope}/drive/root/children endpoint
  * - Delta query for incremental sync, scoped per folder ({scope}/drive/root:{path}:/delta)
+ * - Each folder lists its OWN files, placed by parent id: a folder's delta is its
+ *   whole subtree, and delta entries carry no `parentReference.path` (see `placementOf`)
  * - Path normalization as natural key (§10)
  * - cTag/quickXorHash as cheap change detection before byte hashing
  * - Download streams to file writer
