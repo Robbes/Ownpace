@@ -160,7 +160,9 @@ describe('fetch — native editor files', () => {
 
     await expect(source.fetch(item)).rejects.toThrow(NativeFileRefused);
     await expect(source.fetch(item)).rejects.toThrow(/has no file to copy/);
-    await expect(source.fetch(item)).rejects.toThrow(/nativeFilePolicy/);
+    // "Naming why" means naming the setting a person can change — by the
+    // screen it lives on, now that it has one, rather than its config key.
+    await expect(source.fetch(item)).rejects.toThrow(/Export format for Google files/);
   });
 
   it('exports a Google Doc when the owner chose an export policy', async () => {

@@ -974,6 +974,8 @@ const en = {
   'failures.group.found': 'Groups in this queue',
   'failures.group.items.one': '1 item',
   'failures.group.items.many': '{count} items',
+  'failures.group.stillTrying.one': '1 still trying',
+  'failures.group.stillTrying.many': '{count} still trying',
   'failures.group.noCategory': 'No kind of failure recorded',
   'failures.group.noCategory.why':
     'These items failed before this deployment stored a failure kind on each one. The next attempt on them records it, and they join a group. Until then they can be decided one at a time, or by the error text below.',
@@ -1106,10 +1108,24 @@ const en = {
   // something the reader owns: their own migration's settings. It says which
   // setting, because "change the policy" without naming the field is the
   // remedy the owner already could not carry out.
+  //
+  // REWORDED BY THE OWNER, 2026-09-22 — "the text is way too long". It names
+  // the setting by the words on its own screen (`settings.exportPolicy`) and
+  // the button by its own label (`failures.retry`), so a reader can find both.
   'failure.policyRefused':
-    'This migration declined to copy this. The old account would have handed it over and the new one was never asked \u2014 the mapping\u2019s export format for Google documents is set to refuse them, or to a format this file has none. Change that setting and press Retry, or leave these items behind.',
+    'Not migrated yet: Google files in a format the new account cannot receive. Choose one both sides can handle under Export format for Google files, then press Try again \u2014 or leave these items behind.',
+  // Also shortened on 2026-09-22 from the owner's draft, but kept GENERAL: this
+  // category is not Drive's alone — a mail or calendar source that refuses an
+  // item lands here too — so the owner's "like maps" belongs in the per-item
+  // reason Drive writes, not in a sentence every domain shares.
+  //
+  // "Nothing to check there" SURVIVES the cut, and is not decoration. It is
+  // why this category exists apart from `target_refused` (migration 0048):
+  // the two read alike, and the wrong one sent people to audit a destination
+  // that was never sent the file. The first shortening dropped it and the
+  // Failures page test caught it.
   'failure.sourceRefused':
-    'The source would not hand this over, so nothing was sent to the destination \u2014 there is nothing to check there. Common causes are a file whose owner turned off downloading or copying, a share that was withdrawn, and an item this account may open but not export.',
+    'Not migrated: the old account would not hand this over, so nothing was sent to the new one \u2014 there is nothing to check there. Try again if that has changed, or leave these items behind.',
   // The last clause was added on 2026-09-17, when two contacts were refused
   // with a bare `TypeError` five times over and the only readable account of
   // WHY was in the customer's own Nextcloud log. Nothing on this screen pointed
@@ -2015,9 +2031,9 @@ const nl: Record<keyof typeof en, string> = {
   'failure.quotaExceeded':
     'Dit account heeft bereikt wat de provider per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
   'failure.policyRefused':
-    'Deze migratie heeft dit zelf niet overgezet. Het oude account had het gewoon afgegeven en het nieuwe is er nooit om gevraagd \u2014 het exportformaat voor Google-documenten staat op weigeren, of op een formaat dat dit bestand niet kent. Pas die instelling aan en klik op Opnieuw proberen, of laat deze items achter.',
+    'Nog niet gemigreerd: Google-bestanden in een formaat dat het nieuwe account niet kan ontvangen. Kies er een dat beide kanten aankunnen onder Exportformaat voor Google-bestanden en klik op Probeer opnieuw \u2014 of laat deze items achter.',
   'failure.sourceRefused':
-    'De bron wilde dit niet afgeven, dus er is niets naar de bestemming gestuurd \u2014 daar valt niets te controleren. Veelvoorkomende oorzaken: een bestand waarvan de eigenaar downloaden of kopi\u00EBren heeft uitgezet, een ingetrokken deling, en een item dat dit account wel mag openen maar niet exporteren.',
+    'Niet gemigreerd: het oude account wilde dit niet afgeven, dus er is niets naar het nieuwe gestuurd \u2014 daar valt niets te controleren. Probeer opnieuw als dat veranderd is, of laat deze items achter.',
   'failure.targetRefused':
     'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: een volle mailbox, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Antwoordde de bestemming met een interne fout, dan staat de reden in het logboek van de bestemming zelf en niet in het antwoord dat wij terugkregen.',
   'failure.formatRefused':
@@ -2898,6 +2914,8 @@ const nl: Record<keyof typeof en, string> = {
   'failures.group.found': 'Groepen in deze wachtrij',
   'failures.group.items.one': '1 item',
   'failures.group.items.many': '{count} items',
+  'failures.group.stillTrying.one': '1 wordt nog geprobeerd',
+  'failures.group.stillTrying.many': '{count} worden nog geprobeerd',
   'failures.group.noCategory': 'Geen soort fout vastgelegd',
   'failures.group.noCategory.why':
     'Deze items mislukten voordat deze installatie per item een soort fout vastlegde. De volgende poging legt die vast en dan horen ze bij een groep. Tot dan kunt u ze \u00E9\u00E9n voor \u00E9\u00E9n beslissen, of via de fouttekst hieronder.',

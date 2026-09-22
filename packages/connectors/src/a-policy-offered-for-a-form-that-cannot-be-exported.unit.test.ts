@@ -27,10 +27,16 @@ const G = 'application/vnd.google-apps.';
 
 describe('NativeFileRefused says the thing that is true for THIS type', () => {
   it('a Doc under refuse: the export policy is the way out, and is named', () => {
+    // Named by the SCREEN a person can open, since there is one. This pinned
+    // the config key `nativeFilePolicy="refuse"` while the key was the
+    // setting's only name — which is the defect `ExportPolicyPanel` records:
+    // a remedy that named a setting with nowhere to set it. Pinning the key
+    // after the screen existed kept the jargon on the row and the reader off
+    // the screen.
     const e = new NativeFileRefused('Heen-en-Weer tas', `${G}document`);
     expect(e.message).toContain('is a Google Doc');
-    expect(e.message).toContain('nativeFilePolicy="refuse"');
-    expect(e.message).toContain('Set an export policy');
+    expect(e.message).toContain('Export format for Google files');
+    expect(e.message).not.toContain('nativeFilePolicy');
   });
 
   // Still the raw suffix for these four, deliberately: "a Google form" and "a
