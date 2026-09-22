@@ -386,6 +386,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/env-upsert.sh`
 
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -1191,6 +1192,10 @@ reading a file drops off its entry by itself.
 
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 
+### `scripts/pasteable-hints.unit.test.ts`
+
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
 ### `scripts/runs-without-a-transpiler.unit.test.ts`
 
 - [a-fixture-with-ten-seconds](../scripts/a-fixture-with-ten-seconds.unit.test.ts) — A hook that builds a database gets more than ten seconds to do it.
@@ -1471,6 +1476,7 @@ Reads:
 
 - `.github/workflows/ci.yml`
 - `apps/web/src/pages/end-user-docs.unit.test.tsx`
+- `deploy/compose/env-upsert.sh`
 - `docs/LESSONS.md`
 - `docs/adr/0041-who-owns-the-oauth-client.md`
 - `docs/adr/OPERATIVE.md`
@@ -1484,6 +1490,7 @@ Reads:
 - `scripts/adr-operative.mjs`
 - `scripts/adr-operative.unit.test.ts`
 - `scripts/lessons.unit.test.ts`
+- `scripts/pasteable-hints.unit.test.ts`
 - `site/build.mjs`
 
 ### [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts)

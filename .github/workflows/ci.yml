@@ -181,23 +181,33 @@ jobs:
           # reason those did: they hold code a test reads, and `**.js` does not
           # match `.mjs`.
           #
+          # `docs/*.md` — ALL of them, from 2026-09-22, replacing the ten that were
+          # named individually. Not a loosening: `pasteable-hints.unit.test.ts` reads
+          # EVERY top-level document, through `readdirSync(DOCS_DIR)`, and refuses any
+          # line calling `env-upsert.sh` with a `KEY=VALUE` before the env file. It has
+          # done so all along. The ten names were simply the ten a scan of LITERAL
+          # paths could see, and a walk names nothing.
+          #
+          # Two of the forty-eight carry such a hint today and both were already
+          # covered, so nothing was broken — the hole was one `env-upsert.sh` line in
+          # any other guide away from opening, and the person adding that line is
+          # exactly who the guard is for.
+          #
+          # THE COST, stated rather than buried: a prose-only edit to any top-level
+          # document now runs the full suite, where thirty-eight of them used to skip
+          # it. The alternative is a guard that cannot fire on the commit that breaks
+          # it, which is #772 and is what this whole filter exists to have stopped.
+          # Workplans, ADRs and architecture notes are unaffected — they are not
+          # top-level and the narrow rule still holds for them.
+          #
           # Comments belong HERE and not inside the block scalar below, where a
           # `#` line is a PATTERN rather than a comment.
           files: |
-            docs/*-setup.md
-            docs/LESSONS.md
+            docs/*.md
             docs/adr/**
             README.md
             AGENTS.md
             CONTRIBUTING.md
-            docs/cutover-communication-templates.md
-            docs/dav-sync.md
-            docs/feature-matrix.md
-            docs/managed-bring-up.md
-            docs/operator-runbook.md
-            docs/release.md
-            docs/rls-guide.md
-            docs/windows-appliance-runbook.md
             docs/workplans/0117-the-conveyor-belt-not-the-home.md
             **.ts
             **.tsx
