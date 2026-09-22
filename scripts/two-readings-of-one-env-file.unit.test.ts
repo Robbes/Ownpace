@@ -267,10 +267,10 @@ describe("what env_value does to a real line", () => {
     // a leading quote, and Nextcloud would have refused every request.
     expect(
       envValue(
-        "NEXTCLOUD_TRUSTED_DOMAINS='localhost nextcloud 100.97.25.131'\n",
+        "NEXTCLOUD_TRUSTED_DOMAINS='localhost nextcloud 100.64.0.1'\n",
         "NEXTCLOUD_TRUSTED_DOMAINS",
       ),
-    ).toBe("localhost nextcloud 100.97.25.131");
+    ).toBe("localhost nextcloud 100.64.0.1");
   });
 
   it("drops a comment after a quoted value, and not before it", () => {
@@ -298,7 +298,7 @@ describe("the writer, the checker and the reader are one rule", () => {
   const VALUES: ReadonlyArray<readonly [string, string]> = [
     ["hex, the ordinary case", "0123456789abcdef0123456789abcdef"],
     ["a URL", "https://app.ota.ownpace.eu"],
-    ["a hostname list with spaces", "localhost nextcloud 100.97.25.131"],
+    ["a hostname list with spaces", "localhost nextcloud 100.64.0.1"],
     ["a console URL with a placeholder", "https://idp.x/ui/console/users/{sub}"],
     ["a secret with punctuation", "aB3~x?y&z.q_-Qw"],
     ["a secret with a dollar", "pa$$w0rd"],

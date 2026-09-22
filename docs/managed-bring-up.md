@@ -468,14 +468,16 @@ trusted domains are `localhost nextcloud`, so the UI answers on
 
 To browse what a migration actually landed, from a laptop on the mesh and with
 no tunnel, publish it on the peer address and put that address on the
-trusted-domain list. **Both**, or the second one bites: Nextcloud answers its
+trusted-domain list. `100.64.0.1` below is the SHAPE of a mesh address, not a
+reachable one — both meshes allocate out of `100.64.0.0/10`, and yours is
+whatever this box was given; `ip -4 addr show` on the box names it. **Both**, or the second one bites: Nextcloud answers its
 untrusted-domain page to any host header not on the list, and that refusal
 reads like a broken deployment rather than a setting.
 
 ```bash
 # deploy/compose/.env
-NEXTCLOUD_BIND=100.97.25.131
-NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud 100.97.25.131"
+NEXTCLOUD_BIND=100.64.0.1
+NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud 100.64.0.1"
 ```
 
 Keep `localhost` and `nextcloud` on the list: the gate asks on the first, the
@@ -492,7 +494,7 @@ not add the address by itself. Set it directly, then re-read it:
 
 ```bash
 docker exec -u www-data ownpace-nextcloud \
-  php occ config:system:set trusted_domains 2 --value=100.97.25.131
+  php occ config:system:set trusted_domains 2 --value=100.64.0.1
 docker exec -u www-data ownpace-nextcloud php occ config:system:get trusted_domains
 ```
 
@@ -1501,14 +1503,15 @@ A WireGuard peer address — NetBird, Tailscale — is **not** the same thing as
 `0.0.0.0`. It is reachable only by devices holding a key for that network, which
 is an authentication boundary Mailpit does not have to provide itself. So it is
 a legitimate place to publish the catcher, and the shipped default stays
-loopback for everyone who does not ask:
+loopback for everyone who does not ask. Substitute this box's own mesh address
+for `100.64.0.1`, which is an example of the shape and reaches nothing:
 
 ```bash
-./deploy/compose/env-upsert.sh deploy/compose/.env MAILPIT_BIND=100.97.25.131
+./deploy/compose/env-upsert.sh deploy/compose/.env MAILPIT_BIND=100.64.0.1
 docker compose -f deploy/compose/managed.yml up -d mailpit
 ```
 
-Then http://100.97.25.131:3127 from any device on the mesh.
+Then http://100.64.0.1:3127 from any device on the mesh.
 
 That command **recreates the container**, and what it already caught survives
 it: Mailpit writes to `mailpit_data` rather than to memory, so verification

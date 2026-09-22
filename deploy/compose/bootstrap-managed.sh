@@ -156,7 +156,7 @@ load_env() {
   # A .env THIS CAN SOURCE, checked before sourcing it (E2E (managed) #163).
   #
   # Compose parses `.env` with its own reader, which accepts a bare space in a
-  # value: `NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud 100.97.25.131` brings
+  # value: `NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud 100.64.0.1` brings
   # the container up and looks entirely right. Bash does not read it that way.
   # Sourced, that line assigns `localhost` and then RUNS `nextcloud`, and the
   # run ends at exit 127 on `nextcloud: command not found` — a sentence naming

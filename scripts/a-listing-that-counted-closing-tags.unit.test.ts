@@ -159,8 +159,8 @@ describe('where the probe decides to look', () => {
   });
 
   it('unwraps a quoted value', () => {
-    const f = envFile('NEXTCLOUD_BIND="100.97.25.131"\n');
-    expect(envValue('NEXTCLOUD_BIND', f)).toBe('100.97.25.131');
+    const f = envFile('NEXTCLOUD_BIND="100.64.0.1"\n');
+    expect(envValue('NEXTCLOUD_BIND', f)).toBe('100.64.0.1');
   });
 
   it('answers undefined for a key that is not there, rather than throwing', () => {

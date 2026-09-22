@@ -105,7 +105,7 @@ Pick **Web application** and add an authorised redirect URI:
   exact value to register when you press the button, so a mismatch is visible before
   Google refuses it.
 
-  **If you browse to your Ownpace at a bare IP address** (say `https://100.97.25.131:3123`):
+  **If you browse to your Ownpace at a bare IP address** (say `https://100.64.0.1:3123`):
   Google does not accept a raw IP as a redirect URI, and the button will refuse with the
   same two ways out written here. Either **forward a local port** to the box and register
   `http://localhost:<port>/api/migrations/google/callback` — Google permits loopback over

@@ -1208,7 +1208,7 @@ services:
       NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:-admin_managed_pw}
       # WHICH NAMES IT WILL ANSWER TO. Nextcloud refuses any host header not on
       # this list with its "untrusted domain" page — so publishing it on a mesh
-      # address is only half the job: reached at `http://100.97.25.131:8083`
+      # address is only half the job: reached at `http://100.64.0.1:8083`
       # with the list unchanged, it refuses before a login form is ever drawn,
       # and the refusal looks like a broken deployment rather than a setting.
       # The two shipped names keep the demo scripts and the gate working
