@@ -14,7 +14,8 @@
  * drift apart in what "a zip64 record" means; nothing in `index.ts` exports it.
  */
 
-import { deflateRawSync, crc32 } from 'node:zlib';
+import { deflateRawSync } from 'node:zlib';
+import { crc32 } from './crc32.ts';
 import type { RandomAccessSource } from './zip-archive.ts';
 
 export interface ZipTestFile {
