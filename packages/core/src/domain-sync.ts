@@ -422,6 +422,17 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
      * sync-collection never fills this in at all.
      */
     removed?: ReadonlyArray<string>;
+    /**
+     * Items this read RETURNED that another collection's listing yields.
+     *
+     * A OneDrive folder's delta is its whole subtree, and each folder keeps
+     * only its own files — so a folder holding nothing but subfolders answers
+     * with none of its own while plainly having been read. Counted here so
+     * that read is not mistaken for one that saw nothing; see
+     * `firstReadSawNothing`. Absent means the source never lists one
+     * collection's items in another's read, which is every other source.
+     */
+    listedElsewhere?: number;
   }>;
   /** Fetch raw data for an item */
   readonly fetchRaw: (item: Item) => Promise<{ raw: unknown; sizeBytes: number }>;
@@ -1069,7 +1080,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // cheaper price than two subtly different names for the same collection.
     const collectionPath = folder.path ? folder.path : folder.name ? folder.name : '/';
     const prev = cursors ? await cursors.get(tenantId, mappingId, collectionPath) : undefined;
-    const { items, nextCursor, removed } = await listSince(folder, prev);
+    const { items, nextCursor, removed, listedElsewhere } = await listSince(folder, prev);
     const seenHere = seenByCollection.get(collectionPath) ?? new Set<string>();
     seenByCollection.set(collectionPath, seenHere);
 
@@ -1792,12 +1803,21 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
      * so a first poll that reports only deletions has read something real and
      * may keep its place.
      *
+     * So does an item the read returned for ANOTHER collection. A OneDrive
+     * folder's delta covers its subtree, and a folder holding only subfolders
+     * — the drive's root, very often — returns their files and none of its
+     * own. Treating that as "saw nothing" would store no cursor for it, ever,
+     * and re-read its whole subtree on every pass.
+     *
      * Deliberately narrow. Once a cursor EXISTS, an empty answer is the normal
      * incremental case — nothing changed — and must go on advancing, or every
      * pass after the first would re-list the whole account for ever.
      */
     const firstReadSawNothing =
-      prev === undefined && items.length === 0 && (removed?.length ?? 0) === 0;
+      prev === undefined &&
+      items.length === 0 &&
+      (removed?.length ?? 0) === 0 &&
+      (listedElsewhere ?? 0) === 0;
     // A PAUSED folder keeps its cursor too, for the same reason a retrying
     // one does: advancing it would retire the items the pause left
     // unprocessed, and the next pass — the one the pause promises — would

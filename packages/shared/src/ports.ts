@@ -289,6 +289,16 @@ export interface FileSource {
      * has no delta query at all and never populates this.
      */
     removed?: ReadonlyArray<string>;
+    /**
+     * Files this read returned that ANOTHER folder's listing yields.
+     *
+     * A OneDrive folder's delta is its whole subtree, so the Graph source
+     * keeps each folder's own files and counts the rest here — which is how
+     * the sync loop tells a folder holding only subfolders from one that
+     * answered nothing (see `firstReadSawNothing` in `domain-sync.ts`).
+     * Absent from every source whose listing is a folder's own children.
+     */
+    listedElsewhere?: number;
   }>;
   /**
    * Fetch one file's bytes. Called once per item by the sync loop.

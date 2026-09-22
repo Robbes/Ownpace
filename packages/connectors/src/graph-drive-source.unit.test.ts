@@ -234,19 +234,26 @@ describe('GraphDriveSource', () => {
         tenantId: 'test-tenant-id',
       });
 
-      const result = await driveSource.listSince({ path: '/' });
+      // Each folder lists its OWN files (2026-09-22) — the same subtree answer
+      // is handed to all three here, as Graph hands a folder its descendants.
+      const listed: string[] = [];
+      for (const folder of [{ path: '/' }, { path: '/Work' }, { path: '/Personal' }]) {
+        listed.push(...(await driveSource.listSince(folder)).items.map((i) => i.item.path));
+      }
 
-      expect(result.items.map((i) => i.item.path)).toEqual([
-        '/Work/notes.txt',
-        '/Personal/notes.txt',
+      expect(listed).toEqual([
         // A file sitting in the drive root keeps its bare path.
         '/top.txt',
+        '/Work/notes.txt',
+        '/Personal/notes.txt',
       ]);
     });
 
     it('SKIPS a file whose location Graph did not report, rather than guessing a key', async () => {
       // Falling back to the bare name is exactly what flattened the tree. One
       // skipped item is a visible loss; a wrong key silently merges two files.
+      // Visible because it is COUNTED — by the root, whose read every file in
+      // the drive appears in, and by no other listing.
       const delta = {
         value: [
           {
@@ -277,9 +284,13 @@ describe('GraphDriveSource', () => {
         tenantId: 'test-tenant-id',
       });
 
-      const result = await driveSource.listSince({ path: '/' });
+      const atRoot = await driveSource.listSince({ path: '/' });
+      const inDocs = await driveSource.listSince({ path: '/Docs' });
 
-      expect(result.items.map((i) => i.item.path)).toEqual(['/Docs/fine.txt']);
+      expect(atRoot.items).toEqual([]);
+      expect(atRoot.unreadable).toBe(1);
+      expect(inDocs.items.map((i) => i.item.path)).toEqual(['/Docs/fine.txt']);
+      expect(inDocs.unreadable).toBeUndefined();
     });
 
     it('carries DELETED delta entries up as `removed` ids — the reported evidence class', async () => {
@@ -321,7 +332,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'document.docx',
-            parentReference: { path: '/drive/root:/Documents' },
+            parentReference: { path: '/drive/root:' },
             file: {
               mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             },
@@ -333,7 +344,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file2',
             name: 'image.png',
-            parentReference: { path: '/drive/root:/Photos' },
+            parentReference: { path: '/drive/root:' },
             file: {
               mimeType: 'image/png',
             },
@@ -369,7 +380,7 @@ describe('GraphDriveSource', () => {
       const result = await driveSource.listSince({ path: '/' });
 
       expect(result.items).toHaveLength(2); // Only files, not folders
-      expect(result.items[0]?.item.path).toBe('/Documents/document.docx');
+      expect(result.items[0]?.item.path).toBe('/document.docx');
       expect(result.items[0]?.item.contentHash).toBe('abc123');
       expect(result.items[0]?.content).toBeUndefined(); // Metadata-only, no content
       expect(result.items[1]?.item.contentHash).toBe('xyz789');
@@ -450,7 +461,7 @@ describe('GraphDriveSource', () => {
           {
             id: 'file1',
             name: 'document.docx',
-            parentReference: { path: '/drive/root:/Documents' },
+            parentReference: { path: '/drive/root:' },
             file: {
               mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             },
