@@ -91,6 +91,47 @@ describe('ConfirmMigration (0013 T6)', () => {
     await waitFor(() => expect(mappingApi.start).toHaveBeenCalledWith('m1'));
     await waitFor(() => expect(onStarted).toHaveBeenCalled());
   });
+  it('starts with no extra click when nothing will be refused', async () => {
+    // The quiet case, pinned FIRST so the gate below cannot be mistaken for a
+    // new hoop in front of every migration. The default discovery mock carries
+    // no refusals, which is what almost every migration looks like.
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+    expect(await screen.findByText('Email')).toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: /start migration/i })).not.toBeDisabled();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('holds Start until the refusals have been acknowledged', async () => {
+    // What the owner met on 2026-09-22: twenty Google files that would not be
+    // copied, a screen that said so, and a Start button that did not wait to
+    // find out whether anybody had read it.
+    vi.mocked(mappingApi.getDiscovery).mockResolvedValueOnce({
+      mappingId: 'm1',
+      discovered: true,
+      domains: [
+        {
+          domain: 'file',
+          collections: 2,
+          items: 229,
+          discoveredAt: '2026-09-22T10:00:00Z',
+          refusedNative: { document: 12, spreadsheet: 5 },
+        },
+      ],
+    } as never);
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    const box = await screen.findByRole('checkbox');
+    const start = screen.getByRole('button', { name: /start migration/i });
+    expect(start).toBeDisabled();
+
+    fireEvent.click(box);
+
+    expect(start).not.toBeDisabled();
+    fireEvent.click(start);
+    await waitFor(() => expect(mappingApi.start).toHaveBeenCalledWith('m1'));
+  });
 });
 
 describe('the start tells both screens (owner, 2026-09-17)', () => {

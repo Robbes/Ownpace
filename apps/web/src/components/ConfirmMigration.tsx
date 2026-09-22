@@ -2,6 +2,10 @@
 
 import React from 'react';
 import DiscoveryCounts from './confirm/DiscoveryCounts.tsx';
+import {
+  RefusedNativeAcknowledgement,
+  needsAcknowledgement,
+} from './confirm/native-refusals.tsx';
 import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
 import { scopeFamilyOf, scopeManifestFor } from '@openmig/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -73,6 +77,7 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
 
   const startedAt = React.useRef(Date.now());
   const [gaveUp, setGaveUp] = React.useState(false);
+  const [refusedAcked, setRefusedAcked] = React.useState(false);
 
   const discovery = useQuery({
     queryKey: ['discovery', mappingId],
@@ -152,6 +157,13 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
       <section aria-label="discovery-counts">
         <h3 className="text-sm font-medium text-gray-700 mb-2">{t('confirm.foundInSource')}</h3>
         <DiscoveryCounts domains={domains} expected={expected} slow={gaveUp} />
+        {/* Beside the count it acknowledges, not in a dialog after the press:
+            the thing being confirmed is a number on this screen. */}
+        <RefusedNativeAcknowledgement
+          domains={domains}
+          checked={refusedAcked}
+          onChange={setRefusedAcked}
+        />
       </section>
 
       {/* Scope manifest (§11.2) */}
@@ -170,7 +182,10 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
         <button
           type="button"
           onClick={() => startMutation.mutate()}
-          disabled={startMutation.isPending}
+          // NOT A BLOCK — a tick-box one line up, and only when something is
+          // actually refused. A migration with nothing to warn about starts
+          // exactly as it did.
+          disabled={startMutation.isPending || (needsAcknowledgement(domains) && !refusedAcked)}
           className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {startMutation.isPending ? t('confirm.starting') : t('confirm.start')}

@@ -28,6 +28,7 @@ import { formatBytes } from '../../i18n/bytes.ts';
 // remembered.
 import { DOMAIN_STRING_KEY as DOMAIN_KEY } from '../../i18n/domain-words.ts';
 import { nativeKindKey } from '../../i18n/native-kind-key.ts';
+import { refusedByKind } from './native-refusals.tsx';
 
 // Moved to `i18n/bytes.ts` (2026-09-02) so the measured-volume line can share
 // it; re-exported here for the importers this file already has.
@@ -42,18 +43,6 @@ export { formatBytes };
  * worth a line — and a domain that never looked contributes nothing at all,
  * which is the distinction the column's nullability exists to keep.
  */
-function refusedByKind(
-  domains: ReadonlyArray<{ readonly refusedNative?: Readonly<Record<string, number>> }>,
-): ReadonlyArray<readonly [string, number]> {
-  const total = new Map<string, number>();
-  for (const d of domains) {
-    for (const [kind, n] of Object.entries(d.refusedNative ?? {})) {
-      if (n > 0) total.set(kind, (total.get(kind) ?? 0) + n);
-    }
-  }
-  return [...total.entries()].sort((a, b) => b[1] - a[1]);
-}
-
 /**
  * WHAT IS STILL COMING IS PART OF THE ANSWER (2026-09-07).
  *
@@ -110,11 +99,12 @@ export const DiscoveryCounts: React.FC<{
   // default, but it decides what the customer ends up with, so it belongs here
   // and not in a verification report after the fact.
   const colliding = domains.reduce((sum, d) => sum + (d.targetColliding ?? 0), 0);
-  // Native editor files this migration's export policy will REFUSE for measured
-  // byte-instability (0042 T7, ADR-0046). `export-office` carries a Doc and a
-  // Sheet and would rewrite a Slides deck every night, so the person choosing
-  // the policy needs the number here — while the choice is still open — and not
-  // as a queue full of failure rows after the first pass.
+  // Native editor files this migration's export policy will REFUSE — whether
+  // for measured byte-instability (0042 T7, ADR-0046) or because the policy
+  // exports nothing for them at all, `refuse` included. The person choosing
+  // the policy needs the number here, while the choice is still open, and not
+  // as a queue full of failure rows after the first pass. That was already the
+  // rule; the default was the case it did not cover.
   //
   // Named by KIND rather than totalled. "3 items will not be copied" sends
   // somebody hunting through their Drive; "3 Google Slides" does not.
