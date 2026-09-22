@@ -247,6 +247,20 @@ describe('a file the walk cannot place yet', () => {
     expect(byFolder(next)['/New']).toEqual(['/New/n.txt']);
   });
 
+  it('gives a folder that was EMPTY at the walk the file that landed in it since', async () => {
+    // An empty folder has no children to name it by id, so the walk has only
+    // the folder's own entry to learn it from — and without that, its own read
+    // would take the new file for somebody else's.
+    const drive = [...aDrive(), { id: 'd-empty', name: 'Empty', parent: ROOT, folder: true as const }];
+    const source = sourceOver(graphOver(drive));
+    const folders = await source.listFolders();
+    drive.push({ id: 'f-e', name: 'e.txt', parent: 'd-empty', size: 3 });
+
+    const empty = await source.listSince(folders.find((f) => f.path === '/Empty')!);
+
+    expect(empty.items.map((i) => i.item.path)).toEqual(['/Empty/e.txt']);
+  });
+
   it('counts a file nobody can place ONCE — by the root, whose read every file is in', async () => {
     // Neither a parent the walk knows, nor a folder in the same read, nor a
     // path: the key would be a guess. Counted rather than dropped, and counted
