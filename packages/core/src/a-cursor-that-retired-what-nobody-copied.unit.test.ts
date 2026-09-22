@@ -59,6 +59,7 @@ function pass(
   answer: (folder: { path: string }) => {
     items: Item[];
     removed?: string[];
+    listedElsewhere?: number;
     token: string;
   },
 ) {
@@ -84,6 +85,7 @@ function pass(
             items: a.items,
             nextCursor: { value: a.token },
             ...(a.removed ? { removed: a.removed } : {}),
+            ...(a.listedElsewhere ? { listedElsewhere: a.listedElsewhere } : {}),
           };
         },
         fetchRaw: async (i) => ({ raw: i.body, sizeBytes: i.body.length }),
@@ -167,6 +169,43 @@ describe('a first read that saw nothing claims nothing', () => {
     expect((await cursors.get(TENANT, MAPPING, ONE_CALENDAR[0]!.path))?.value).toBe(
       'sync-token:first',
     );
+  });
+});
+
+describe('a read that answered with ANOTHER collection\'s items', () => {
+  const FOLDER_OF_FOLDERS = [{ path: '/Photos' }];
+
+  it('stores the cursor: the folder was read, it simply holds only subfolders', async () => {
+    // Live shape, 2026-09-22: a OneDrive folder's delta is its whole subtree,
+    // and each folder now keeps only its own files. A folder holding nothing
+    // but subfolders — the drive's root, very often — answers with their files
+    // and none of its own. Withholding its cursor would re-read that whole
+    // subtree on every pass, for ever.
+    const cursors = new MemoryCursorStore();
+    const { run } = pass(new MemoryLedger(), cursors, FOLDER_OF_FOLDERS, () => ({
+      items: [],
+      listedElsewhere: 3,
+      token: 'delta:first',
+    }));
+
+    await run();
+
+    expect((await cursors.get(TENANT, MAPPING, '/Photos'))?.value).toBe('delta:first');
+  });
+
+  it('still withholds it when the read returned nothing for anyone', async () => {
+    // The count has to be a real one. Zero is the live Google case above: a
+    // read that saw nothing, whatever it says it was reading for.
+    const cursors = new MemoryCursorStore();
+    const { run } = pass(new MemoryLedger(), cursors, FOLDER_OF_FOLDERS, () => ({
+      items: [],
+      listedElsewhere: 0,
+      token: 'delta:first',
+    }));
+
+    await run();
+
+    expect(await cursors.get(TENANT, MAPPING, '/Photos')).toBeUndefined();
   });
 });
 

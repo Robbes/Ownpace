@@ -8,6 +8,8 @@
  * Features:
  * - File/folder enumeration via {scope}/drive/root/children endpoint
  * - Delta query for incremental sync, scoped per folder ({scope}/drive/root:{path}:/delta)
+ * - Each folder lists its OWN files, placed by parent id: a folder's delta is its
+ *   whole subtree, and delta entries carry no `parentReference.path` (see `placementOf`)
  * - Path normalization as natural key (§10)
  * - cTag/quickXorHash as cheap change detection before byte hashing
  * - Download streams to file writer
@@ -38,6 +40,22 @@ export class GraphDriveSource implements FileSource {
   private readonly provider: string;
   /** `{baseUrl}/me` or `{baseUrl}/users/{address}` — see graph-scope.ts. */
   private readonly scope: string;
+  /**
+   * WHICH FOLDER EACH ID IS, as the last walk found it (2026-09-22).
+   *
+   * Microsoft's delta documentation says its entries *"won't include a value
+   * for path"* in `parentReference`, and that *"when using delta you should
+   * always track items by id"*. This connector built every file's key from
+   * exactly that path and dropped a file without one with a log line —
+   * uncounted, uncopied, on no screen. The walk in `listFolders` already sees
+   * every folder's id beside the path it builds from names, so it keeps that
+   * pairing here, and `listSince` places a file by its parent's id first. A
+   * reported path is the fallback, not the source.
+   *
+   * Rebuilt by every walk, so a folder renamed since the last one does not
+   * keep its old path.
+   */
+  private folderPathById = new Map<string, string>();
 
   constructor(
     config: GraphDriveSourceConfig,
@@ -72,6 +90,7 @@ export class GraphDriveSource implements FileSource {
    */
   async listFolders(): Promise<ReadonlyArray<FileFolder>> {
     const folders: FileFolder[] = [{ path: '' }];
+    this.folderPathById = new Map();
 
     const walk = async (url: string, prefix: string, depth: number): Promise<void> => {
       // A drive cannot nest this deep; a walk that says otherwise is looping,
@@ -104,8 +123,14 @@ export class GraphDriveSource implements FileSource {
 
         // Only folders: files arrive through `listSince`, per collection.
         for (const item of data.value) {
+          // Every child names its parent by id, and its parent is the folder
+          // being walked. This is how the ROOT's id is learned: nothing lists
+          // the root as an item of its own.
+          const parentId = item.parentReference?.id;
+          if (parentId !== undefined) this.folderPathById.set(parentId, prefix);
           if (!item.folder) continue;
           const path = `${prefix}/${item.name}`;
+          this.folderPathById.set(item.id, path);
           folders.push({
             path,
             name: item.name,
@@ -205,12 +230,56 @@ export class GraphDriveSource implements FileSource {
    */
   private itemPath(item: GraphDriveItem): string | undefined {
     if (!item.name) return undefined;
+    const dir = this.reportedDir(item);
+    if (dir === undefined) return undefined;
+    return this.normalizePath(`${dir}/${item.name}`);
+  }
+
+  /** The directory `parentReference.path` names, when Graph sent one: `''` at the root. */
+  private reportedDir(item: GraphDriveItem): string | undefined {
     const parent = item.parentReference?.path;
     if (parent === undefined) return undefined;
     const marker = parent.indexOf('root:');
     if (marker === -1) return undefined;
-    const dir = parent.slice(marker + 'root:'.length);
-    return this.normalizePath(`${dir}/${item.name}`);
+    return parent.slice(marker + 'root:'.length);
+  }
+
+  /**
+   * Which listing a delta entry belongs to, and on what directory its key is
+   * built (2026-09-22).
+   *
+   * A folder's delta is its whole SUBTREE — Microsoft's words are that delta
+   * *"starts enumerating the drive's hierarchy"* — and `listFolders` returns
+   * every folder, so without this a file three folders deep was listed four
+   * times: by the root and by each folder above it. The ledger's key kept the
+   * copy single, but the preflight summed all four listings into the count the
+   * owner approves, and the pass paid for every one of them.
+   *
+   * So a listing keeps its DIRECT children only, and knows them by the
+   * parent's id where the walk knows that id — which it does for every folder
+   * that existed when the pass began. Everything else in the read is some
+   * other listing's: a deeper folder's file, or a file in a folder created
+   * after the walk, which the next pass's walk lists.
+   *
+   * `unplaced` only when neither an id the walk knows nor a reported path
+   * says where the file is — and then the key would be a guess, and a wrong
+   * key silently merges two files.
+   */
+  private placementOf(
+    item: GraphDriveItem,
+    here: string,
+    foldersInThisRead: ReadonlySet<string>,
+  ): { readonly dir: string } | 'elsewhere' | 'unplaced' {
+    if (!item.name) return 'unplaced';
+    const parentId = item.parentReference?.id;
+    if (parentId !== undefined) {
+      const walked = this.folderPathById.get(parentId);
+      if (walked !== undefined) return walked === here ? { dir: walked } : 'elsewhere';
+      if (foldersInThisRead.has(parentId)) return 'elsewhere';
+    }
+    const reported = this.reportedDir(item);
+    if (reported === undefined) return 'unplaced';
+    return reported === here ? { dir: reported } : 'elsewhere';
   }
 
   /**
@@ -226,6 +295,7 @@ export class GraphDriveSource implements FileSource {
     nextCursor: SyncCursor;
     removed?: ReadonlyArray<string>;
     unreadable?: number;
+    listedElsewhere?: number;
   }> {
     // Files this listing found and could not turn into a file to migrate.
     let unreadable = 0;
@@ -248,9 +318,12 @@ export class GraphDriveSource implements FileSource {
     // ledger's natural key made it converge, but at N-folders × whole-drive
     // cost per pass — 0026 T1 item 1). Graph addresses a folder's delta by
     // path — `{scope}/drive/root:/{path}:/delta` — which scopes the response
-    // server-side to that folder's descendants; no client-side filter needed.
+    // server-side to that folder's DESCENDANTS: its whole subtree, not its own
+    // files. `placementOf` below keeps this folder's own; see there.
     const folderPath = folder.path;
     const isRoot = folderPath === '/' || folderPath === '';
+    // The directory this listing answers for, in the form `placementOf` compares.
+    const here = isRoot ? '' : folderPath;
 
     const baseUrl = isRoot
       ? `${this.scope}/drive/root/delta`
@@ -278,6 +351,9 @@ export class GraphDriveSource implements FileSource {
      * records as the item's source ref.
      */
     const removed: string[] = [];
+    // Folders this read returned, so a file in one the walk has not seen yet is
+    // known to belong to a folder rather than to nowhere.
+    const foldersInThisRead = new Set<string>();
     let lastDeltaLink: string | undefined;
     let nextLink: string | undefined;
 
@@ -309,6 +385,7 @@ export class GraphDriveSource implements FileSource {
 
         // Skip folders in the items list - we only want files
         if (item.folder) {
+          foldersInThisRead.add(item.id);
           continue;
         }
 
@@ -319,23 +396,41 @@ export class GraphDriveSource implements FileSource {
       nextLink = data['@odata.nextLink'];
     } while (nextLink);
 
+    // Files this read returned that another folder's listing yields — see
+    // `placementOf`. Reported so the sync loop can tell a folder holding only
+    // subfolders from one that answered nothing.
+    let listedElsewhere = 0;
     // Build metadata-only items (no content fetch in listSince)
     const fileItems: RawFileItem[] = [];
     for (const item of items) {
       try {
-        // The natural key, derived from Graph's own fields — see `itemPath`.
-        const naturalKey = this.itemPath(item);
-        if (naturalKey === undefined) {
-          // Never fall back to the bare name. That fallback is what flattened
-          // every file onto the root; skipping one item loudly is the honest
-          // failure, merging two files silently is not.
-          log.warn(
-            `[graph-drive] skipping "${item.name}" (id ${item.id}): Graph did not report a ` +
-              'usable parentReference.path, so where it lives cannot be named and a natural ' +
-              'key would be a guess.',
-          );
+        const placement = this.placementOf(item, here, foldersInThisRead);
+        if (placement === 'elsewhere') {
+          listedElsewhere += 1;
           continue;
         }
+        if (placement === 'unplaced') {
+          // Never fall back to the bare name. That fallback is what flattened
+          // every file onto the root; a wrong key silently merges two files.
+          //
+          // COUNTED ONCE, by the root. The root's read is the one every file
+          // in the drive appears in, so counting here as well would count one
+          // file once per folder above it — the fault `placementOf` exists to
+          // remove.
+          if (isRoot) {
+            unreadable += 1;
+            log.warn(
+              `[graph-drive] cannot place "${item.name}" (id ${item.id}): its parent is no ` +
+                'folder this pass walked and Graph reported no parentReference.path, so ' +
+                'where it lives cannot be named and a natural key would be a guess.',
+            );
+          } else {
+            listedElsewhere += 1;
+          }
+          continue;
+        }
+        // The natural key: the folder it lives in, and its own name.
+        const naturalKey = this.normalizePath(`${placement.dir}/${item.name}`);
 
         // Get change detection hash (quickXorHash or cTag)
         const changeHash = item.quickXorHash || item.cTag;
@@ -390,6 +485,7 @@ export class GraphDriveSource implements FileSource {
       // Omitted rather than sent as 0, so "none failed" and "this listing
       // cannot report" read differently downstream.
       ...(unreadable > 0 ? { unreadable } : {}),
+      ...(listedElsewhere > 0 ? { listedElsewhere } : {}),
     };
   }
 
