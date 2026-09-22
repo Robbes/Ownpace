@@ -14,8 +14,8 @@
  * adoption — the branch that fires when a UID is already on the target — so a
  * single mapping ended up holding two coordinate systems at once:
  *
- *     /calendars/admin/feddematsagenda/                 644 rows   (written)
- *     /remote.php/dav/calendars/admin/feddematsagenda/    4 rows   (adopted)
+ *     /calendars/admin/<calendar>/                 644 rows   (written)
+ *     /remote.php/dav/calendars/admin/<calendar>/    4 rows   (adopted)
  *
  * Feed one of those four back through `buildUrl` and the prefix appears twice.
  * Every request built from it 404s — and `removeDavResource` reads 404 on a
