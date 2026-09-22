@@ -234,19 +234,28 @@ export class NativeFileRefused extends Error {
         'it is copied under its own path; otherwise accept leaving the shortcut behind.';
     } else if (!EXPORTABLE_NATIVE_TYPES.has(mimeType)) {
       category = 'source_refused';
+      // The owner's own wording, 2026-09-22, shortened from one that took three
+      // clauses to say "no format exists". "Copy", not the "move" of the
+      // draft: nothing is taken from the old account, ever, and the word the
+      // product uses for that is the one a person should read here.
       message =
-        `"${name}" is a Google ${kind} and has no file to copy. Drive cannot export a ${kind} in ` +
-        'any format, so no export policy would change this — the only way to keep it is to open ' +
-        'it in Drive and share or download it there. Accept leaving it behind here.';
+        `"${name}" is a Google ${kind} and has no file to copy: Drive cannot export a ${kind} in ` +
+        'any format — to keep it, open it in Drive and share or download it there. Accept ' +
+        'leaving it behind here.';
     } else if (policy === 'refuse') {
       category = 'policy_refused';
+      // NAMES THE SCREEN, NOT THE CONFIG KEY (2026-09-22). This told a person
+      // their migration was "configured with nativeFilePolicy=\"refuse\"" and
+      // listed three policy ids, because when it was written the setting had
+      // no screen and the key was its only name. It has one now, titled
+      // "Export format for Google files", and the owner reading this row on a
+      // live migration found it "very long" and asked why a file NAMED
+      // `.xlsx` could not be exported. The lossy-export reasoning lives on that
+      // screen's own "Why?", where a person choosing a format will read it.
       message =
-        `"${name}" is a Google ${kind} and has no file to copy. Migrating it means asking Drive ` +
-        'to EXPORT a rendering (.docx, .pdf, …), which is lossy — the original is not ' +
-        'recoverable from the result — and is not copied here because this migration is ' +
-        'configured with nativeFilePolicy="refuse". Set an export policy on the mapping — ' +
-        '"export-odf" (.odt/.ods/.odp), "export-office" (.docx/.xlsx/.pptx) or "export-pdf" — ' +
-        'to migrate these, or move them out of scope.';
+        `"${name}" is a Google ${kind}: it has no file to copy until Drive exports one, and this ` +
+        'migration is set not to export. Choose a format under Export format for Google files, ' +
+        'then try again — or leave it behind.';
     } else if (stability === 'unstable') {
       category = 'policy_refused';
       // MEASURED, not suspected. Drive CAN export this one — the refusal is

@@ -112,23 +112,40 @@ export function failureGroups(
   readonly domain: DiscoveryDomain;
   readonly category?: FailureCategory;
   readonly count: number;
+  /**
+   * How many of `count` are already queued to be tried again — the rows in
+   * "Still trying" rather than "Waiting on you".
+   *
+   * `count` covers both on purpose: the group's buttons reach both, and a
+   * total over half the rows it changes would misstate what a press does. But
+   * a total that never moves makes a press that WORKED look like it did
+   * nothing. The owner retried nine rows one by one on 2026-09-22, refreshed,
+   * saw "20 items" and "13 items" exactly as before, and reasonably concluded
+   * the buttons were broken — while "Waiting on you" had gone from 33 to 24.
+   * The row now says how much of its total is already on its way.
+   */
+  readonly retrying: number;
   readonly pressable: boolean;
 }> {
   const byKey = new Map<
     string,
-    { domain: DiscoveryDomain; category?: FailureCategory; count: number }
+    { domain: DiscoveryDomain; category?: FailureCategory; count: number; retrying: number }
   >();
   for (const f of failures) {
     const key = `${f.domain}\u0000${f.category ?? ''}`;
+    // Parked means waiting on a person; anything else is queued for the next pass.
+    const queued = f.needsDecision ? 0 : 1;
     const seen = byKey.get(key);
     if (seen) {
       seen.count += 1;
+      seen.retrying += queued;
       continue;
     }
     byKey.set(key, {
       domain: f.domain,
       ...(f.category ? { category: f.category } : {}),
       count: 1,
+      retrying: queued,
     });
   }
   return [...byKey.values()]
@@ -269,6 +286,16 @@ export const FailureGroupPanel: React.FC<{
                 {g.count === 1
                   ? t('failures.group.items.one')
                   : t('failures.group.items.many', { count: String(g.count) })}
+                {/* The same words as the section they are listed in, so the
+                    reader knows where to find them. */}
+                {g.retrying > 0 && (
+                  <>
+                    {' \u00b7 '}
+                    {g.retrying === 1
+                      ? t('failures.group.stillTrying.one')
+                      : t('failures.group.stillTrying.many', { count: String(g.retrying) })}
+                  </>
+                )}
               </span>
               {g.pressable && (
                 <>

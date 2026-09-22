@@ -245,10 +245,50 @@ describe('the groups are read off the rows', () => {
 
   it('crosses the kind with the category, biggest group first', () => {
     expect(failureGroups(MIXED)).toEqual([
-      { domain: 'contact', category: 'target_refused', count: 2, pressable: true },
-      { domain: 'contact', count: 1, pressable: false },
-      { domain: 'file', category: 'source_refused', count: 1, pressable: true },
+      { domain: 'contact', category: 'target_refused', count: 2, retrying: 0, pressable: true },
+      { domain: 'contact', count: 1, retrying: 0, pressable: false },
+      { domain: 'file', category: 'source_refused', count: 1, retrying: 0, pressable: true },
     ]);
+  });
+
+  it('says how much of a group is already queued to try again', () => {
+    // The owner's screen, 2026-09-22: nine rows retried one by one, a refresh,
+    // and "20 items" / "13 items" exactly as before — while "Waiting on you"
+    // had gone from 33 to 24. The total is right to include them; the buttons
+    // reach them. What was missing was any sign that the presses had worked.
+    const [group] = failureGroups([
+      failure({ naturalKeyHash: 'a', domain: 'file', category: 'policy_refused', needsDecision: true }),
+      failure({ naturalKeyHash: 'b', domain: 'file', category: 'policy_refused', needsDecision: false }),
+      failure({ naturalKeyHash: 'c', domain: 'file', category: 'policy_refused', needsDecision: false }),
+    ]);
+    expect(group).toMatchObject({ count: 3, retrying: 2 });
+  });
+
+  it('shows the queued share beside the total, in the words of the section that lists them', () => {
+    renderPanel([
+      failure({ naturalKeyHash: 'a', domain: 'file', category: 'policy_refused', needsDecision: true }),
+      failure({ naturalKeyHash: 'b', domain: 'file', category: 'policy_refused', needsDecision: false }),
+    ]);
+    expect(screen.getByText(/1 still trying/)).toBeInTheDocument();
+  });
+
+  it('counts the queued share rather than naming one', () => {
+    // In English the one-row sentence and the many-row sentence read the same
+    // at one, so only a second queued row shows which of the two was chosen.
+    renderPanel([
+      failure({ naturalKeyHash: 'a', domain: 'file', category: 'policy_refused', needsDecision: true }),
+      failure({ naturalKeyHash: 'b', domain: 'file', category: 'policy_refused', needsDecision: false }),
+      failure({ naturalKeyHash: 'c', domain: 'file', category: 'policy_refused', needsDecision: false }),
+    ]);
+    expect(screen.getByText(/2 still trying/)).toBeInTheDocument();
+  });
+
+  it('says nothing extra when nothing in a group is queued', () => {
+    renderPanel([
+      failure({ naturalKeyHash: 'a', domain: 'file', category: 'policy_refused', needsDecision: true }),
+      failure({ naturalKeyHash: 'b', domain: 'file', category: 'policy_refused', needsDecision: true }),
+    ]);
+    expect(screen.queryByText(/still trying/)).not.toBeInTheDocument();
   });
 
   it('marks a group with NO category unpressable', () => {
