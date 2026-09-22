@@ -65,7 +65,18 @@ export interface FileItem {
   readonly modifiedAt: string;
   /** Created time (ISO 8601), if available. */
   readonly createdAt?: string;
-  /** ETag, if available. */
+  /**
+   * The source's VERSION of this file — what `sourceVersion` reads
+   * (`dav-sync.ts`), and so the only thing that makes an edit at the source
+   * reach the copy. `classifyKnownItem` rewrites a known file when this
+   * changes and SKIPS one that has none.
+   *
+   * WebDAV fills it with the server's ETag. The four API sources — Drive,
+   * OneDrive, Box, Dropbox — filled nothing until 2026-09-22, so a file edited
+   * after its first copy was never copied again, on every one of them, with
+   * nothing reported. They now fill it through `fileVersion`. Like
+   * `contentHash`, comparable only with another value from the same source.
+   */
   readonly etag?: string;
   /** MIME type (for files). */
   readonly mimeType?: string;
@@ -77,6 +88,29 @@ export interface FileItem {
   readonly group?: string;
   /** Source reference (opaque handle for fetching). */
   readonly sourceRef: string;
+}
+
+/**
+ * A file's version for `FileItem.etag`, from what an API source already
+ * lists: the provider's own content hash where it keeps one, else the last
+ * modification time.
+ *
+ * The hash first because it moves only when the bytes do — a rename, a share
+ * or a star leaves it alone, so none of those costs a download and a rewrite.
+ * The time for what has no hash: Drive keeps none for a native Doc, which has
+ * no bytes until it is exported, and an edit to it shows nowhere else.
+ *
+ * Nothing at all when the source gave neither, rather than a constant: a
+ * version that never changes would claim every later pass "unchanged" with
+ * the confidence of a real comparison.
+ */
+export function fileVersion(
+  contentHash: string | undefined,
+  modifiedAt: string | undefined,
+): { readonly etag?: string } {
+  if (contentHash) return { etag: `hash:${contentHash}` };
+  if (modifiedAt) return { etag: `modified:${modifiedAt}` };
+  return {};
 }
 
 /** File/folder with raw content. */

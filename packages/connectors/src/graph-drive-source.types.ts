@@ -48,8 +48,23 @@ export interface GraphDriveItem {
   readonly size: number;
   readonly lastModifiedDateTime: string;
   readonly cTag?: string;
+  /**
+   * NOT a field Graph sends. The real one is `file.hashes.quickXorHash`
+   * (below), which is what the version reads. This one stays only for
+   * `contentHash` and `getChangeHash`, which nothing on the sync path reads,
+   * and for the fixtures written against it; retiring it means rewriting those
+   * fixtures in the documented shape (0060's kind of fix).
+   */
   readonly quickXorHash?: string;
-  readonly file?: { mimeType?: string };
+  readonly file?: {
+    mimeType?: string;
+    /**
+     * Microsoft: *"quickXorHash is the only value that is guaranteed to be
+     * available for both OneDrive for work or school and OneDrive for
+     * home"* — and it moves only when the content does.
+     */
+    hashes?: { quickXorHash?: string; sha1Hash?: string; crc32Hash?: string };
+  };
   readonly folder?: { childCount?: number };
   readonly deleted?: object;
   readonly '@odata.deltaLink'?: string;

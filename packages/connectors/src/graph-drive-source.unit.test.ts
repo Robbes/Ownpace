@@ -702,6 +702,41 @@ describe('GraphDriveSource', () => {
     });
   });
 
+  describe('the version an edit is detected by', () => {
+    it('is the content hash Graph keeps under file.hashes, then cTag, then the last change', async () => {
+      // Absent until 2026-09-22, so a OneDrive file edited after its first
+      // copy was never copied again. `file.hashes.quickXorHash` is the one hash
+      // Microsoft guarantees on both OneDrive kinds; a business delta omits
+      // `cTag` on create and modify, so it cannot come first.
+      const at = { path: '/drive/root:' };
+      fetchMock.mockResolvedValueOnce({
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            value: [
+              { id: 'a', name: 'a.txt', parentReference: at, size: 1, lastModifiedDateTime: '2026-09-01T00:00:00Z',
+                cTag: 'ctag-a', file: { mimeType: 'text/plain', hashes: { quickXorHash: 'qxh-a' } } },
+              { id: 'b', name: 'b.txt', parentReference: at, size: 1, lastModifiedDateTime: '2026-09-02T00:00:00Z',
+                cTag: 'ctag-b', file: { mimeType: 'text/plain' } },
+              { id: 'c', name: 'c.txt', parentReference: at, size: 1, lastModifiedDateTime: '2026-09-03T00:00:00Z',
+                file: { mimeType: 'text/plain' } },
+            ],
+            '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/delta?deltatoken=v',
+          }),
+        headers: new Map(),
+      });
+      const source = new GraphDriveSource({ tokenProvider: mockTokenProvider, tenantId: 't' });
+
+      const { items } = await source.listSince({ path: '' });
+
+      expect(items.map((i) => i.item.etag)).toEqual([
+        'hash:qxh-a',
+        'hash:ctag-b',
+        'modified:2026-09-03T00:00:00Z',
+      ]);
+    });
+  });
+
   describe('Delta Paging', () => {
     it('should handle pagination in delta query results', async () => {
       const page1 = {
