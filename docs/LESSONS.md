@@ -254,6 +254,10 @@ reading a file drops off its entry by itself.
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 
+### `apps/web/src/pages/MappingDetail.tsx`
+
+- [a-live-progress-that-needed-f5](../scripts/a-live-progress-that-needed-f5.unit.test.ts) — A LIVE PROGRESS THAT NEEDED F5.
+
 ### `apps/web/src/pages/end-user-docs.unit.test.tsx`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -1755,6 +1759,14 @@ Reads:
 
 - `deploy/compose/env-read.sh`
 - `scripts/dav-target-probe.mjs`
+
+### [a-live-progress-that-needed-f5](../scripts/a-live-progress-that-needed-f5.unit.test.ts)
+
+A LIVE PROGRESS THAT NEEDED F5.
+
+Reads:
+
+- `apps/web/src/pages/MappingDetail.tsx`
 
 ### [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts)
 
