@@ -234,7 +234,7 @@ describe('a raw-IP callback refuses with the two ways out named (0089 T6)', () =
   const cb = (host: string) => `https://${host}:3123/api/migrations/google/callback`;
 
   it('refuses the appliance-at-a-bare-address case, naming the port-forward AND the hostname shape', () => {
-    const refusal = rawIpCallbackRefusal(cb('100.97.25.131'));
+    const refusal = rawIpCallbackRefusal(cb('100.64.0.1'));
     expect(refusal).toContain('raw IP address');
     expect(refusal).toContain('http://localhost:<port>');
     expect(refusal).toContain('hostname under a domain you own');
@@ -330,7 +330,7 @@ describe('a callback this deployment cannot be reached at', () => {
     // sentences about one problem reads neither.
     expect(
       unreachableCallbackRefusal(
-        'https://100.97.25.131:3123/api/migrations/google/callback',
+        'https://100.64.0.1:3123/api/migrations/google/callback',
         PUBLIC_APP,
       ),
     ).toBeNull();

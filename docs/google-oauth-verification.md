@@ -218,14 +218,14 @@ which is the same mechanism recommended below, just requested once.
 
 **Why a subdomain and not the box's address.** Google refuses a **raw IP** as a redirect URI,
 and refuses **`http://`** for anything but loopback — and the box currently serves plain HTTP on
-3123 (`SSL_ERROR_RX_RECORD_TOO_LONG` against `https://100.97.25.131:3123` is a server speaking
-HTTP on that port). So `https://100.97.25.131:3123/…` fails twice over.
+3123 (`SSL_ERROR_RX_RECORD_TOO_LONG` against `https://100.64.0.1:3123` is a server speaking
+HTTP on that port). So `https://100.64.0.1:3123/…` fails twice over.
 
 **"It cannot be an IP" reads as a blocker and is not one, because Google never resolves the
 name.** It hands the browser a 302 and stops caring. Only the machine doing the consent has to
 reach the address. So:
 
-- **`ota.ownpace.eu` → an `A` record at the netbird address** (`100.97.25.131`). A private or
+- **`ota.ownpace.eu` → an `A` record at the netbird address** (`100.64.0.1`). A private or
   CGNAT address in public DNS is perfectly legal; Google's objection is to the IP *literal* in
   the redirect URI, not to where the name points. Anyone not on the mesh gets a timeout, which
   is the correct outcome for a test box.
@@ -237,7 +237,7 @@ reach the address. So:
   (`packages/core/src/dns-provider-desec.ts` exists but is not wired to production.)
 
 **Loopback stays as a developer convenience, not the answer.** It needs a port forward
-(`ssh -N -L 3123:localhost:3123 «user»@100.97.25.131`) and gives nothing the subdomain does not.
+(`ssh -N -L 3123:localhost:3123 «user»@100.64.0.1`) and gives nothing the subdomain does not.
 Note that `localhost` and `127.0.0.1` are **different strings** to Google — register whichever
 will actually be in the URL bar.
 

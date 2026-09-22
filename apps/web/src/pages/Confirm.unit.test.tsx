@@ -143,7 +143,7 @@ function activeStatusWithProgress(): StatusReport {
             bytesTransferred: 8359732,
             itemsRetrying: 16,
             itemsNeedingDecision: 0,
-            lastError: 'connect ECONNREFUSED 100.97.25.131:1993',
+            lastError: 'connect ECONNREFUSED 100.64.0.1:1993',
           },
           {
             domain: 'calendar',
@@ -193,7 +193,7 @@ describe('once it is running', () => {
   it('shows the current failure VERBATIM in the progress row', async () => {
     fetchStatus.mockResolvedValue(activeStatusWithProgress());
     renderScreen();
-    expect(await screen.findByText('connect ECONNREFUSED 100.97.25.131:1993')).toBeInTheDocument();
+    expect(await screen.findByText('connect ECONNREFUSED 100.64.0.1:1993')).toBeInTheDocument();
   });
 
   it('demotes the pre-start scan to a labelled, dated, FOLDED snapshot', async () => {

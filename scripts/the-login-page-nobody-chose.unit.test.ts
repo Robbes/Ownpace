@@ -339,7 +339,7 @@ describe('and it names the Host header the ingress rewrote', () => {
    * MEASURED ON THE REFERENCE HOST, 2026-08-25. The same authorization request,
    * two ways:
    *
-   *   through the mesh ingress   ->  Domain=100.97.25.131
+   *   through the mesh ingress   ->  Domain=100.64.0.1
    *   straight at the container  ->  Domain=id.ota.ownpace.eu
    *
    * Zitadel builds that domain from the RAW `Host` header

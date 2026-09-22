@@ -9,7 +9,7 @@
  *     mailpit is not answering at http://localhost:3127 — the mail path is unproven
  *
  * while the same run's `docker compose ps` said the catcher was `Up (healthy)`
- * on `100.97.25.131:3127`. `MAILPIT_BIND` is a documented setting; the box had
+ * on `100.64.0.1:3127`. `MAILPIT_BIND` is a documented setting; the box had
  * used it; the gate asked loopback anyway and then blamed the mail path.
  *
  * THE POINT FIX WAS NOT THE END OF IT. Every published port in `managed.yml`

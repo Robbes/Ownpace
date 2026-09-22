@@ -12,7 +12,7 @@
  * before anything the bring-up prints. The runner's `.env` carried the line
  * this repository told the operator to write:
  *
- *     NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud 100.97.25.131
+ *     NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud 100.64.0.1
  *
  * TWO READERS, ONE FILE, AND ONLY ONE OF THEM MINDS. Compose parses `.env`
  * itself and takes the whole rest of the line as the value, so the container
@@ -87,19 +87,19 @@ describe('the env examples are safe for the stricter reader', () => {
   it('leaves the guide to the run-time check, which sees the real file', () => {
     // The one line that produced #163, now quoted in the guide too.
     const guide = read('docs/managed-bring-up.md');
-    expect(guide).toContain('NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud 100.97.25.131"');
+    expect(guide).toContain('NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud 100.64.0.1"');
     expect(guide).not.toContain('NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud');
   });
 
   it('recognises the exact line that broke the gate, so it is not vacuous', () => {
     // Without this, a regex that matched nothing would pass all three tests
     // above and protect nothing at all.
-    expect(UNSOURCEABLE.test('NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud 100.97.25.131')).toBe(
+    expect(UNSOURCEABLE.test('NEXTCLOUD_TRUSTED_DOMAINS=localhost nextcloud 100.64.0.1')).toBe(
       true,
     );
     // ...and leaves the shapes that are already correct alone.
     for (const safe of [
-      'NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud 100.97.25.131"',
+      'NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud 100.64.0.1"',
       "SINGLE='a b c'",
       'SMTP_PORT=1025          # a relay is usually 587 (STARTTLS)',
       'LEDGER_RETENTION_DAYS=  # whole days, minimum 1',
