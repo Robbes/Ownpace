@@ -1,6 +1,16 @@
 # Workplan 0103 — the mail a migration must not send
 
-## Status — 2026-08-27 (update this block at the end of every session)
+## Status — 2026-09-22 (update this block at the end of every session)
+
+**2026-09-22 — the first live UPDATE, and the catcher heard nothing.** On the owner's live Google →
+Nextcloud migration (Nextcloud's SMTP pointed at Mailpit, as T2 arms it, so silence can be
+disproved), the owner added an attendee to an already-migrated event in Google. The change reached
+the Nextcloud copy through the update path, and he saw the new attendee there. Mailpit received
+nothing. T2's gate covered create and delete; this is the first evidence for an UPDATE carrying a
+new attendee, the change a server is most likely to announce. It covers this one event. Whether
+the owner or a third party organises it was not confirmed from the stored copy (the fetch that
+would have shown `ORGANIZER` did not run), so **T3's canary, an event the owner organises, stays
+open**.
 
 | Task | Status | Evidence |
 |---|---|---|
