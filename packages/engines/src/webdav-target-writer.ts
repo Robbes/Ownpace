@@ -29,6 +29,7 @@ import {
   streamingFileContentHash,
   tooLargeToBuffer,
   isOnTarget,
+  applyTargetFolderPrefix,
 } from '@openmig/shared';
 import { davRefusalBody } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
@@ -57,6 +58,15 @@ export interface WebDAVTargetConfig {
    * with the ledger.
    */
   rootPath?: string;
+  /**
+   * Put everything this writer creates under this folder on the TARGET.
+   *
+   * See `MappingConfig.targetFolderPrefix`. It is a wire-side concern and
+   * nothing else: the natural keys, the ledger, `rootDirs` and every path this
+   * class passes around stay root-relative to the SOURCE, exactly as they were
+   * before a prefix existed. `buildUrl` is the one place the two spaces meet.
+   */
+  targetFolderPrefix?: string;
   /** Use chunked uploads for large files */
   chunkedUploads?: boolean;
   /** Chunk size for chunked uploads (in bytes) */
@@ -72,6 +82,18 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
   private readonly tenantId: TenantId;
   private readonly mappingId: MappingId;
   private readonly httpClient: HttpClient;
+
+  /**
+   * THIS WRITER APPLIES `targetFolderPrefix` ITSELF, on both sides.
+   *
+   * Read by `dav-sync`, which then leaves `folder.path` alone. Without the
+   * handshake the prefix is applied twice — once to the folder by the caller
+   * and once to everything by `buildUrl` — and directories land under
+   * `Google/Google`. A writer that does not set this is prefixed the old way,
+   * by the caller, on directories only; that is the state `jmap-file-target`
+   * is in, and it is a gap NAMED here rather than a silence.
+   */
+  readonly ownsTargetFolderPrefix = true;
   /**
    * One snapshot of everything already under the target root, natural key
    * (root-relative path) -> href.
@@ -91,6 +113,8 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
    * conflict this writer must not paper over; see `upsertFile`.
    */
   private readonly rootDirs = new Set<string>();
+  /** Whether `targetFolderPrefix`'s own chain has been created this session. */
+  private prefixRootReady = false;
 
   constructor(
     config: WebDAVTargetConfig,
@@ -153,7 +177,47 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
    * thrown verbatim — a refusal to create the folder is the reason the files
    * under it will fail, and it must be the sentence the operator reads.
    */
+  /**
+   * MKCOL the prefix's own chain, once.
+   *
+   * `ensureCollectionPath` walks the segments of a SOURCE-relative path, and
+   * the prefix is in none of them — so without this, the first MKCOL under a
+   * `Google` that does not exist yet answers 409 and every file in the
+   * migration fails behind it. Built with `buildUrlUnprefixed` because these
+   * paths are already wire-relative; putting them through `buildUrl` would
+   * prefix the prefix.
+   *
+   * Not recorded in `rootDirs`: that map is keyed in source-relative space and
+   * an entry for `Google` there would match a source folder of that name.
+   */
+  private async ensurePrefixRoot(): Promise<void> {
+    const prefix = this.config.targetFolderPrefix;
+    if (!prefix || this.prefixRootReady) return;
+    const segments = this.normalizeRelativePath(prefix).split('/').filter(Boolean);
+    for (let depth = 1; depth <= segments.length; depth++) {
+      const at = segments.slice(0, depth).join('/');
+      const url = this.buildUrlUnprefixed(at);
+      const response = await this.httpClient.request({
+        method: 'MKCOL',
+        url,
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+        },
+      });
+      // 405 is "it is already there", which is the ordinary answer on every
+      // pass after the first and is not a failure.
+      if (response.status !== 201 && response.status !== 405) {
+        throw new Error(
+          `Could not create the target folder ${at} (targetFolderPrefix): ` +
+            `MKCOL answered ${response.status}: ${davRefusalBody(response.body)}`,
+        );
+      }
+    }
+    this.prefixRootReady = true;
+  }
+
   private async ensureCollectionPath(path: string): Promise<void> {
+    await this.ensurePrefixRoot();
     const collection = this.normalizeRelativePath(path);
     if (collection === '') return;
     // The up-front walk fills `rootDirs`; a memoised no-op after the first call.
@@ -1039,12 +1103,47 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
    * as a query and leaves `%` alone, so a file called `Q&A #2 (50%).pdf` was
    * PUT to an address the server could not resolve.
    */
+  /**
+   * THE ONE PLACE A SOURCE-RELATIVE PATH BECOMES A URL, and therefore the one
+   * place `targetFolderPrefix` belongs.
+   *
+   * Until 2026-09-22 the prefix was applied by the CALLER, to the folder only
+   * (`dav-sync.ts`), so directories were created under it and files were
+   * written beside it. An operator who asked for `Google` got a complete empty
+   * tree under `Google/` and a second complete tree, with all the files in it,
+   * at the account root — because a PUT to `Wieke/foto.jpg` auto-creates
+   * `Wieke/` on the way past.
+   *
+   * Putting it here fixes the read side for free, which is why it is here and
+   * not in `upsertFile`. `listEntries` measures every href with
+   * `hrefRelativeTo(href, this.buildUrl(''))`, so moving the base moves the
+   * measurement with it: the keys that come back out of a listing are
+   * source-relative again, and adoption keeps matching what the ledger holds.
+   * That symmetry is the whole design — cross the boundary in two places and
+   * the natural keys drift apart from the paths, which is the shape of the bug
+   * this replaces.
+   */
   private buildUrl(path: string): string {
+    return this.buildUrlUnprefixed(
+      applyTargetFolderPrefix(this.config.targetFolderPrefix, path.replace(/^\/+/, '')),
+      path.replace(/^\/+/, '') === '',
+    );
+  }
+
+  /**
+   * A URL for a path that is ALREADY wire-relative — the prefix's own
+   * directories, which no natural key contains and so nothing else would ever
+   * create.
+   */
+  private buildUrlUnprefixed(path: string, asRoot = false): string {
     const baseUrl = this.config.url.replace(/\/$/, '');
     const normalizedPath = path.replace(/^\/+/, '');
     if (normalizedPath === '') return `${baseUrl}/`;
     const encoded = normalizedPath.split('/').map((segment) => encodeURIComponent(segment)).join('/');
-    return `${baseUrl}/${encoded}`;
+    // THE ROOT KEEPS ITS TRAILING SLASH. `hrefRelativeTo` measures listings
+    // against `buildUrl('')`; without the slash the separator would be left on
+    // the front of every path it hands back.
+    return asRoot ? `${baseUrl}/${encoded}/` : `${baseUrl}/${encoded}`;
   }
 }
 

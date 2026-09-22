@@ -44,6 +44,19 @@ import { applyTargetFolderPrefix,
 import { runDomainSync, type DomainSyncResult } from './domain-sync.ts';
 
 /**
+ * Does this target apply `targetFolderPrefix` itself?
+ *
+ * A duck-type rather than an interface, for the reason `canConfirmPresence`
+ * next door is one: the writers come from several packages and a shared
+ * marker interface would make every one of them import a type to say "no".
+ * The absence of the property IS the answer, and it is the safe answer —
+ * a writer that says nothing keeps exactly the behaviour it had.
+ */
+function ownsPrefix(target: unknown): boolean {
+  return (target as { ownsTargetFolderPrefix?: boolean } | undefined)?.ownsTargetFolderPrefix === true;
+}
+
+/**
  * Dependencies for calendar (CalDAV) sync.
  */
 export interface CalendarSyncDeps extends PassClock, SourceAuthority {
@@ -456,9 +469,22 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
       if (!(raw as RawFileItem).rendering) return fileContentHash(bytes);
       return containerContentHash(bytes) ?? fileContentHash(bytes);
     },
+    // WHOSE PREFIX IT IS.
+    //
+    // A writer that sets `ownsTargetFolderPrefix` applies it to every path it
+    // puts on the wire — the directory AND the file — so prefixing here as
+    // well would produce `Google/Google/…`.
+    //
+    // A writer that does not gets the old behaviour, which is prefixed
+    // directories and unprefixed files. That is the bug this branch exists to
+    // stop pretending is fine: it is what left the operator an empty tree
+    // under `Google/` and every file at the account root, 2026-09-22. It is
+    // kept only because removing it would take the prefix away from a writer
+    // that has no replacement for it yet, and a named gap beats a silent
+    // regression.
     ensureCollection: (folder) =>
       target.ensureDirectory(
-        deps.targetFolderPrefix
+        deps.targetFolderPrefix && !ownsPrefix(target)
           ? { ...folder, path: applyTargetFolderPrefix(deps.targetFolderPrefix, folder.path) }
           : folder,
       ),

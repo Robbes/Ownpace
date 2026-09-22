@@ -697,7 +697,14 @@ export async function buildDomainDepsFromMapping(
       cursors,
       ...sourceAuthorityFor(status),
     };
-    const targetDeps = { ledger, tenantId: tId, mappingId: mId };
+    // As in `build-deps.ts`: a choice about this migration, carried with the
+    // target's dependencies rather than with the endpoint.
+    const targetDeps = {
+      ledger,
+      tenantId: tId,
+      mappingId: mId,
+      ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
+    };
 
     // DAV endpoints are resolved INSIDE the branches that are DAV-shaped, not
     // hoisted above them. Hoisting was a live bug, not a style point: a

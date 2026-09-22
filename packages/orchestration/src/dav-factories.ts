@@ -38,6 +38,15 @@ export interface DavTargetDeps {
   readonly ledger: Ledger;
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
+  /**
+   * `MappingConfig.targetFolderPrefix`, for the writers that OWN it.
+   *
+   * A writer that sets `ownsTargetFolderPrefix` applies this to every path it
+   * puts on the wire, and `dav-sync` then leaves `folder.path` alone. A writer
+   * that does not is prefixed the old way, by the caller, on directories only
+   * — see `dav-sync.ts`, which will not let both happen at once.
+   */
+  readonly targetFolderPrefix?: string;
 }
 
 export function buildCalendarSource(e: DavEndpoint, throttleLimiter?: ThrottleLimiter): CalendarSource {
@@ -116,5 +125,13 @@ export function buildFileSource(e: DavEndpoint, throttleLimiter?: ThrottleLimite
   });
 }
 export function buildFileTarget(e: DavEndpoint, d: DavTargetDeps): FileTargetWriter {
-  return new WebDAVTargetWriter({ url: e.url, username: e.username, password: e.password }, d);
+  return new WebDAVTargetWriter(
+    {
+      url: e.url,
+      username: e.username,
+      password: e.password,
+      ...(d.targetFolderPrefix ? { targetFolderPrefix: d.targetFolderPrefix } : {}),
+    },
+    d,
+  );
 }
