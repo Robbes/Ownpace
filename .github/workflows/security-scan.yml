@@ -25,9 +25,39 @@ on:
     - cron: '0 6 * * 1'   # weekly, Monday 06:00 UTC, to catch newly disclosed CVEs
   workflow_dispatch:
 
+# CANCEL A SUPERSEDED PULL REQUEST SCAN. NOTHING ELSE.
+#
+# `group` keys on `github.ref`, and for THREE of this workflow's five triggers
+# that ref is the same string: a push to `main`, the Monday `schedule`, and a
+# `workflow_dispatch` on main all sit in `security-scan-refs/heads/main`. With
+# `cancel-in-progress: true` they cancel each other.
+#
+# THE WEEKLY SWEEP IS THE ONE THAT LOSES. It exists to scan code that has NOT
+# changed, against a CVE list that has — so the run is worth exactly as much as
+# its being the only one that happens that week. Merge anything on a Monday
+# morning while it is running and it is killed where it stands, and the next
+# one is seven days away. Nothing reports this: a cancelled run is not a failed
+# run, and `security-scan` is a required check whose absence on an already
+# merged commit blocks nothing.
+#
+# A push to `main` loses less than ci.yml's equivalent did, and it is worth
+# being exact about why rather than borrowing that PR's alarm: this workflow
+# has no `detect-changes`, so it scans the whole tree at HEAD and a later run
+# covers everything a cancelled one would have. What is lost is the RECORD —
+# that commit uploads no SARIF, so code scanning has a hole where a merged
+# commit should be, which is the question an audit asks.
+#
+# Tags are already safe by accident (`refs/tags/v1.2.3` is its own group) and
+# are now safe on purpose, which matters because the tag path is the one that
+# attaches the release SBOM.
+#
+# `images.yml` has been written this way since it was created; ci.yml joined it
+# in #1056. This was the last workflow cancelling a build nothing would re-run.
+# Held for EVERY workflow, not just this one, by
+# `scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts`.
 concurrency:
   group: security-scan-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

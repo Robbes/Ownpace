@@ -52,16 +52,34 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const workflow = parseYaml(readFileSync(join(REPO_ROOT, '.github/workflows/ci.yml'), 'utf8')) as {
-  concurrency?: { group?: string; 'cancel-in-progress'?: boolean | string };
-};
+const WORKFLOWS = join(REPO_ROOT, '.github/workflows');
+
+interface Workflow {
+  /** The FILE name. Not `name:` — every workflow declares one of those, and
+   *  spreading the parsed document over a field called `name` let `ci.yml`
+   *  arrive calling itself `CI`. */
+  readonly file: string;
+  readonly concurrency?: { group?: string; 'cancel-in-progress'?: boolean | string };
+}
+
+/** Every workflow in the repository, parsed. */
+function workflows(): ReadonlyArray<Workflow> {
+  return readdirSync(WORKFLOWS)
+    .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
+    .map((file) => ({
+      ...(parseYaml(readFileSync(join(WORKFLOWS, file), 'utf8')) as object),
+      file,
+    })) as ReadonlyArray<Workflow>;
+}
+
+const workflow = workflows().find((w) => w.file === 'ci.yml')!;
 
 /**
  * Would this `cancel-in-progress` cancel a running build, for this event?
@@ -99,6 +117,38 @@ function cancelsFor(flag: boolean | string | undefined, eventName: string): bool
 
 describe('a superseded push build is finished, not cancelled', () => {
   const flag = workflow.concurrency?.['cancel-in-progress'];
+
+  it('holds for EVERY workflow, not just the one this started with', () => {
+    // #1056 fixed ci.yml and named only ci.yml, which is the shape
+    // `a-doc-a-test-reads-that-ci-skipped` was rewritten to stop repeating: a
+    // guard that knows one file cannot notice the second. security-scan.yml
+    // was the second, and it was worse in one way — its `group` keys on
+    // `github.ref`, which is `refs/heads/main` for a push, for the Monday
+    // `schedule` AND for a dispatch, so an ordinary merge cancelled the weekly
+    // CVE sweep and the next one was seven days out.
+    //
+    // A `schedule` run is the sharpest case anywhere: it exists to scan code
+    // that has NOT changed, so nothing about a later run replaces it.
+    const withConcurrency = workflows().filter((w) => w.concurrency !== undefined);
+    expect(
+      withConcurrency.length,
+      'no workflow declares a concurrency block, which is not what this directory looks like — ' +
+        'the scan is broken and every assertion below is passing over an empty list',
+    ).toBeGreaterThan(3);
+
+    const cancelled = withConcurrency.flatMap((w) =>
+      (['push', 'schedule'] as const)
+        .filter((event) => cancelsFor(w.concurrency?.['cancel-in-progress'], event))
+        .map((event) => `${w.file} cancels a running ${event} build`),
+    );
+    expect(
+      cancelled,
+      'these cancel a build that nothing will re-run. A push build is testing a commit that is ' +
+        'already on the branch, and a scheduled build is the only one that will happen that ' +
+        'week. Condition `cancel-in-progress` on the event, the way ci.yml, images.yml and ' +
+        'security-scan.yml do.',
+    ).toEqual([]);
+  });
 
   it('never cancels a push build, whatever lands on main behind it', () => {
     expect(
