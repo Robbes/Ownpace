@@ -73,13 +73,41 @@
  * its own diagnosis — *"a guess dressed as a diagnosis is worse than the raw
  * refusal"*. A repair can follow once a real refusal has named the shape.
  *
+ * ## A REPAIR THE OWNER ASKED FOR (2026-09-22)
+ *
+ * The rule above says a rewrite of somebody's card "needs the owner's word".
+ * This is that word, recorded rather than inferred.
+ *
+ * Contacts migrated from Google arrive with their photo as inline base64 and
+ * NO `TYPE` parameter — `PHOTO;ENCODING=B:/9j/…`. The bytes are all there;
+ * Nextcloud draws the initials instead, because nothing in the card says what
+ * the bytes are. The owner found it on his own 1,229 contacts, and then proved
+ * the cause on two of them by hand: adding `TYPE=JPEG` made the picture
+ * appear. The first attempt also lowercased the `B`, so a second card was done
+ * with the capital kept and only the TYPE added — it worked too, which is what
+ * isolates the variable. Without that second card this repair would have been
+ * built on a guess between two changes.
+ *
+ * So the rewrite is narrow and it is the owner's: add the `TYPE` that is
+ * missing, to a property that already says it carries encoded bytes, when the
+ * bytes themselves say which format they are. Nothing else about the card is
+ * touched — not the name, not the UID, not the value, not the folding of any
+ * line that needed no repair.
+ *
  * ## What may be reported, and what may never be
  *
  * Property names and parameter names come from a fixed vocabulary (`FN`, `TEL`,
  * `VALUE`, `TYPE`, plus `X-`/vendor extensions). **The VALUE is the personal
- * data**, and it is never read, never returned, and never logged here. That is
- * the difference between a diagnosis somebody can paste into an issue and a
+ * data**, and it is never returned and never logged here. That is the
+ * difference between a diagnosis somebody can paste into an issue and a
  * contact's phone number in a server log, and it is pinned by its own test.
+ *
+ * NARROWED ONCE, deliberately: `untypedImageFault` reads the first sixteen
+ * characters of a `PHOTO`/`LOGO` value to tell a JPEG from a PNG. It is a
+ * bounded prefix, it is read for one purpose, and what leaves the function is
+ * the word `JPEG` — never a byte of the image. The rule it narrows is about
+ * personal data reaching a log, and a format name is not that. Stated here
+ * because a rule crossed in silence is a rule nobody can rely on.
  *
  * ## Cost
  *
@@ -522,6 +550,7 @@ function separatorFaults(
  */
 export function repairPayload(body: string): PayloadRepair {
   const faults: Array<{ offset: number; property: string; parameter: string }> = [];
+  const inserts = new Map<number, string>();
   const sentences: string[] = [];
   for (const line of logicalLines(body)) {
     if (line.text === '') continue;
@@ -533,14 +562,81 @@ export function repairPayload(body: string): PayloadRepair {
           'corrected so the next parameter is a parameter again',
       );
     }
+    const untyped = untypedImageFault(line);
+    if (untyped) {
+      inserts.set(untyped.offset, `;TYPE=${untyped.format}`);
+      sentences.push(
+        `line ${line.at}: property ${untyped.property} carried encoded bytes with no TYPE, ` +
+          `so a consumer had nothing to say what they were; TYPE=${untyped.format} was added ` +
+          'from the bytes themselves',
+      );
+    }
   }
-  if (faults.length === 0) return { body, corrections: [] };
+  if (faults.length === 0 && inserts.size === 0) return { body, corrections: [] };
 
   // ONE CHARACTER EACH, in place. Built by walking the offsets in order rather
   // than by `replace`, because there is no pattern here that is safe to match
   // globally — the same `,` in a different parameter is a legal list.
+  //
+  // The TYPE repair INSERTS rather than replaces, which is the one thing in
+  // this function that lengthens a line. It can push the first physical line of
+  // a folded PHOTO past the 75-octet fold width RFC 6350 §3.2 asks for. That is
+  // accepted deliberately and it is measured, not assumed: refolding would
+  // rewrite line breaks in a card nobody asked us to touch, which the
+  // `offsets` map exists to avoid, and a Nextcloud took the over-long line and
+  // drew the photo (owner's box, 2026-09-22).
   const at = new Set(faults.map((f) => f.offset));
   let out = '';
-  for (let i = 0; i < body.length; i += 1) out += at.has(i) ? ';' : body[i];
+  for (let i = 0; i < body.length; i += 1) {
+    const insert = inserts.get(i);
+    if (insert !== undefined) out += insert;
+    out += at.has(i) ? ';' : body[i];
+  }
   return { body: out, corrections: sentences };
+}
+
+/**
+ * The base64 an image starts with, and what it is.
+ *
+ * Read from the VALUE, which this file otherwise never touches — see the
+ * narrowing in the header. Four formats, each identified by bytes that cannot
+ * mean anything else at offset zero; anything unrecognised produces NO repair,
+ * because a wrong TYPE is worse than a missing one.
+ */
+const IMAGE_MAGIC: ReadonlyArray<readonly [string, string]> = [
+  ['/9j/', 'JPEG'],
+  ['iVBORw0KGgo', 'PNG'],
+  ['R0lGOD', 'GIF'],
+  ['UklGR', 'WEBP'],
+];
+
+/** How much of the value is read to classify it. Nothing past this is looked at. */
+const MAGIC_WINDOW = 16;
+
+/**
+ * A `PHOTO`/`LOGO` carrying encoded bytes and no `TYPE` to say what they are.
+ *
+ * Returns where a `;TYPE=…` belongs — the offset of the colon that ends the
+ * parameters — or `null` when the property is fine, carries a TYPE already, or
+ * holds bytes this cannot identify.
+ */
+function untypedImageFault(
+  line: LogicalLine,
+): { readonly offset: number; readonly property: string; readonly format: string } | null {
+  const opener = /^(PHOTO|LOGO)((?:;[^:]*)?):/i.exec(line.text);
+  if (!opener) return null;
+  const parameters = opener[2] ?? '';
+  // A `VALUE=uri` photo is a LINK and has no bytes to classify; it is also the
+  // shape that carries no ENCODING, so this one test excludes both.
+  if (!/ENCODING\s*=\s*(?:b|base64)(?:;|$)/i.test(parameters)) return null;
+  if (/(?:^|;)\s*TYPE\s*=/i.test(parameters)) return null;
+
+  const window = line.text.slice(opener[0].length, opener[0].length + MAGIC_WINDOW);
+  const known = IMAGE_MAGIC.find(([prefix]) => window.startsWith(prefix));
+  if (!known) return null;
+
+  const colon = opener[0].length - 1;
+  const offset = line.offsets[colon];
+  if (offset === undefined) return null;
+  return { offset, property: (opener[1] ?? '').toUpperCase(), format: known[1]! };
 }
