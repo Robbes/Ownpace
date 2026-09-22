@@ -272,6 +272,17 @@ describe('the groups are read off the rows', () => {
     expect(screen.getByText(/1 still trying/)).toBeInTheDocument();
   });
 
+  it('counts the queued share rather than naming one', () => {
+    // In English the one-row sentence and the many-row sentence read the same
+    // at one, so only a second queued row shows which of the two was chosen.
+    renderPanel([
+      failure({ naturalKeyHash: 'a', domain: 'file', category: 'policy_refused', needsDecision: true }),
+      failure({ naturalKeyHash: 'b', domain: 'file', category: 'policy_refused', needsDecision: false }),
+      failure({ naturalKeyHash: 'c', domain: 'file', category: 'policy_refused', needsDecision: false }),
+    ]);
+    expect(screen.getByText(/2 still trying/)).toBeInTheDocument();
+  });
+
   it('says nothing extra when nothing in a group is queued', () => {
     renderPanel([
       failure({ naturalKeyHash: 'a', domain: 'file', category: 'policy_refused', needsDecision: true }),
