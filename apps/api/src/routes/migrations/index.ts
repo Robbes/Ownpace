@@ -34,7 +34,12 @@ import { SecretStore } from '@openmig/core/secret-store';
 import { prepareTransition } from '@openmig/core/cutover-state';
 import { getTriggerClient } from '@openmig/scheduler';
 import type { TenantId, MappingId } from '@openmig/shared';
-import { resolveSyncJob, resolveCutoverJob, resolveDiscoveryJob } from './job-resolution.ts';
+import {
+  resolveSyncJob,
+  resolveCutoverJob,
+  resolveDiscoveryJob,
+  discoveryTriggerOptions,
+} from './job-resolution.ts';
 import {
   listDropboxSharedFolders,
   listGoogleSharedDrives,
@@ -3046,9 +3051,15 @@ router.post('/:mappingId/discover', authenticate, async (req: AuthenticatedReque
     // naming all five here put on a migration whose owner had switched mail
     // off, and what it said.
     const { taskId, payload } = resolveDiscoveryJob(tenantId, mappingId, body);
-    const run = await getTriggerClient().tasks.trigger(taskId, payload, {
-      tags: [`tenant:${tenantId}`, `mapping:${mappingId}`],
-    });
+    // One count per migration, and a reload joins it: see the function.
+    const run = await getTriggerClient().tasks.trigger(
+      taskId,
+      payload,
+      discoveryTriggerOptions(tenantId, mappingId, {
+        updatedAt: mapping.updatedAt,
+        ...(body.domains ? { domains: body.domains } : {}),
+      }),
+    );
     res.status(202).json({ success: true, runId: run.id, jobType: 'run-discovery', triggeredAt: new Date().toISOString() });
   } catch (error) {
     if (error instanceof z.ZodError) {

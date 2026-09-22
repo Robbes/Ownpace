@@ -123,6 +123,59 @@ export function resolveDiscoveryJob(
 }
 
 /**
+ * How long a request for the same count joins the one already started.
+ *
+ * Long enough to cover a preflight in flight and the reloads it provokes; short
+ * enough that coming back to the screen later counts again. A changed
+ * migration counts again at once, because its `updatedAt` is in the key.
+ */
+export const DISCOVERY_JOIN_WINDOW = '15m';
+
+/**
+ * How a preflight is enqueued: ONE count per migration at a time, and a
+ * request for a count already under way JOINS it (2026-09-22).
+ *
+ * The confirm screen enqueues a preflight when it opens, and its slow message
+ * says *"reload to check again"*. The route enqueued with nothing to tell one
+ * request from the next, so every reload started ANOTHER full count, running
+ * beside the first, against the same provider. On the owner's first Microsoft
+ * run that was one more walk of a OneDrive per reload, each at a request per
+ * folder, and the counts the screen showed were re-stamped mid-flight by a
+ * count that had just begun.
+ *
+ * Two keys, for two different questions:
+ *
+ *  - `idempotencyKey`: *is this the same count?* The migration, its last
+ *    change, and the domains asked for. A reload asks the same question, so
+ *    Trigger.dev answers with the run already started instead of a new one,
+ *    for `DISCOVERY_JOIN_WINDOW`. A migration edited since asks a new
+ *    question, because the answer may differ.
+ *  - `concurrencyKey`: *may two counts of this migration run at once?* Never.
+ *    The discovery task's queue allows one run per key, so a count that
+ *    genuinely differs waits for the running one instead of racing it, which
+ *    is how `run-delta-sync` has always kept one pass per mapping.
+ */
+export function discoveryTriggerOptions(
+  tenantId: string,
+  mappingId: string,
+  opts: { updatedAt: Date; domains?: readonly string[] },
+): {
+  tags: string[];
+  concurrencyKey: string;
+  idempotencyKey: string;
+  idempotencyKeyTTL: string;
+} {
+  // Sorted, so the same set asked in another order is the same count.
+  const asked = opts.domains ? [...opts.domains].sort().join(',') : 'its-own';
+  return {
+    tags: [`tenant:${tenantId}`, `mapping:${mappingId}`],
+    concurrencyKey: mappingId,
+    idempotencyKey: `discovery:${mappingId}:${opts.updatedAt.toISOString()}:${asked}`,
+    idempotencyKeyTTL: DISCOVERY_JOIN_WINDOW,
+  };
+}
+
+/**
  * Resolve the confirmation task + payload (workplan 0117 T2, D7(a)).
  *
  * NO `domains` in the payload, and that is the same rule `resolveSyncJob`
