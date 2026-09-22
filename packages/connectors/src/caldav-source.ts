@@ -369,19 +369,37 @@ export class CalDAVSource implements CalendarSource {
      *
      *  - a non-207, which is a server refusing the report (Sabre answers
      *    `ReportNotSupported`); and
-     *  - a 207 that carries nothing, on a read with NO CURSOR. With a cursor,
-     *    "nothing" is the correct and common answer — it means nothing
-     *    changed. Without one it is a claim that an entire calendar is empty,
-     *    and this is where #926's invariant already refuses to store a token
-     *    over it. Refusing to record the claim was the right half; this is the
-     *    other half, which is to go and find out.
+     *  - a 207 that carries nothing, on a read that sent NO SYNC TOKEN. With
+     *    a token, "nothing" is the correct and common answer — it means
+     *    nothing changed since that token. Without one it is a claim that an
+     *    entire calendar is empty, and this is where #926's invariant already
+     *    refuses to store a token over it. Refusing to record the claim was
+     *    the right half; this is the other half, which is to go and find out.
+     *
+     * ## A token SENT, not a cursor HELD (2026-09-22)
+     *
+     * This asked `cursor === undefined`, and that is a different question. The
+     * fallback below returns an EMPTY cursor — `calendar-query` has no token to
+     * give — so the pass after it arrives holding a cursor object that
+     * decodes to nothing and sends `<D:sync-token/>`: the very same request as
+     * a first read, answered with the very same nothing. But a cursor object
+     * WAS passed, so the guard stood down, the empty answer was trusted as
+     * "nothing changed", and Google's token was stored in its place. From then
+     * on every pass sent a real token, got nothing back, and moved the token
+     * past whatever had changed.
+     *
+     * Live, on the owner's own calendar: an event moved a week in Google, two
+     * passes run since, both advancing the token, the copy on the target
+     * untouched — and no future delta ever going to mention it again. The
+     * existing suite tested every one of those reads alone and never fed the
+     * first one's cursor into the second, which is the only place it breaks.
      */
     const parsed =
       response.status === 207 ? this.parseSyncCollectionResponse(response.body) : undefined;
     const answeredNothing =
       parsed !== undefined && parsed.objects.length === 0 && parsed.removed.length === 0;
 
-    if (parsed !== undefined && !(answeredNothing && cursor === undefined)) {
+    if (parsed !== undefined && !(answeredNothing && syncToken === undefined)) {
       return parsed;
     }
 
@@ -393,7 +411,7 @@ export class CalDAVSource implements CalendarSource {
       );
     } else {
       log.warn(
-        `[caldav] '${collectionPath}': a FIRST sync-collection read (no cursor) came back with ` +
+        `[caldav] '${collectionPath}': a sync-collection read that sent no sync token came back with ` +
           `no objects and no removals, from a ${response.body.length}-byte 207. That is a claim ` +
           `the whole calendar is empty, which this does not take on trust — falling back to a ` +
           `calendar-query listing (RFC 4791 §7.8).`,
