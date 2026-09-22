@@ -26,9 +26,15 @@ import {
   displayNameForContact,
   isOnTarget,
 } from '@openmig/shared';
-import { carddavMatchAllFilter, carddavUidFilter, davRefusalBody } from '@openmig/shared';
+import {
+  carddavMatchAllFilter,
+  carddavUidFilter,
+  davRefusalBody,
+  withFailureCategory,
+} from '@openmig/shared';
 import { payloadDefectNote, repairPayload } from './dav-payload-defects.ts';
 import { collectionSlug } from './dav-collection-path.ts';
+import { refusalSaysUidAlreadyPresent } from './dav-uid-conflict.ts';
 import {
   parseMultiStatus,
   firstElementText,
@@ -208,7 +214,11 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
 
     // Check if contact already exists on target (by UID)
     const existingId = await this.existingTargetId(folderId, naturalKey);
-    if (existingId) {
+    // ONE RECORDING, TWO WAYS OF ARRIVING AT IT — see the CalDAV writer's
+    // `adopt` for the reasoning. The by-UID check below is the ordinary way;
+    // the other is `uploadContact` being refused BECAUSE the UID is already
+    // held, which is the same fact learned from the refusal.
+    const adopt = async (targetId: string): Promise<UpsertResult> => {
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
         tenantId: this.tenantId,
@@ -216,7 +226,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         mappingId: this.mappingId,
         naturalKeyHash,
         contentHash: contentHashValue,
-        targetId: existingId,
+        targetId,
         createdAt: new Date().toISOString(),
         sizeBytes,
         // ADOPTED, explicitly. Omitting it let PgLedger apply its 'copied'
@@ -257,11 +267,19 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         // silent would not.
         ...(repaired !== undefined ? { repaired } : {}),
       });
-      return { targetId: existingId, created: false, adopted: true };
-    }
+      return { targetId, created: false, adopted: true };
+    };
+
+    if (existingId) return adopt(existingId);
 
     // Upload the contact to the address book
     const written = await this.uploadContact(folderId, raw, uid);
+    // The book held this UID after all, under a different href. Nothing was
+    // written, so none of the create-path recording below is true of it.
+    if (written.alreadyHeld) {
+      (await this.keysIn(folderId))?.set(naturalKey, written.path);
+      return adopt(written.path);
+    }
     const contactId = written.path;
     (await this.keysIn(folderId))?.set(naturalKey, contactId);
 
@@ -692,7 +710,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     uid: string,
     overwrite = false,
     expectedTargetVersion?: string,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean }> {
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean; alreadyHeld?: boolean }> {
     // Generate contact filename from UID
     const filename = `${uid}.vcf`;
     const contactPath = `${folderId}${filename}`;
@@ -739,14 +757,31 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     }
 
     if (response.status !== 201 && response.status !== 204) {
+      // THE 412 ABOVE, ON THE OTHER AXIS — the href was free, the UID was not.
+      // See dav-uid-conflict.ts. A vCard's natural key is its UID and nothing
+      // else (`naturalKeyTextForContact`), so unlike the CalDAV writer there
+      // is no second key shape to exclude here: an object under this UID in
+      // this book IS this contact.
+      if (!overwrite && refusalSaysUidAlreadyPresent(response.body)) {
+        // Only ever an href the SERVER named — a refusal is a claim about the
+        // book, not a handle to the card.
+        const held = await this.findContactByNaturalKey(folderId, uid);
+        if (held !== undefined) return { path: held, alreadyHeld: true };
+      }
+
       // What the SERVER said, then what is wrong with what WE sent — appended
       // only when there is something to append. A Sabre `TypeError` names no
       // property and no line, so on a refused card this note is the whole
       // diagnosis; on a well-formed one it is empty and the refusal reads
       // exactly as it did before.
-      throw new Error(
-        `PUT failed for ${contactPath} with status ${response.status}: ` +
-          `${davRefusalBody(response.body)}${payloadDefectNote(raw.vcard)}`,
+      throw withFailureCategory(
+        'target_refused',
+        // The write did not happen and the destination is where to look.
+        // Stated rather than left to the regex — see stated-failure-category.ts.
+        new Error(
+          `PUT failed for ${contactPath} with status ${response.status}: ` +
+            `${davRefusalBody(response.body)}${payloadDefectNote(raw.vcard)}`,
+        ),
       );
     }
 
