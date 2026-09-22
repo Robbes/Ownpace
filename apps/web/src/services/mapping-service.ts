@@ -476,6 +476,18 @@ export const DiscoveryRecordSchema = z.object({
   /** What the destination already holds, and how much of it we will adopt. */
   targetExisting: z.number().optional(),
   targetColliding: z.number().optional(),
+  /**
+   * Native editor files this migration's export policy will not carry, by kind.
+   *
+   * MISSING UNTIL NOW, which is the failure the comment above this schema
+   * exists to warn about — *"the schema below still has to list it to survive
+   * parsing"*. It did not list it, so zod stripped the field on the way in and
+   * the managed confirm screen rendered nothing about refusals whatever the
+   * connector counted. The appliance reads its own route and was unaffected,
+   * which is why this stayed invisible: the same component, the same data, and
+   * one of the two callers quietly handed an empty object.
+   */
+  refusedNative: z.record(z.string(), z.number()).optional(),
   perCollection: z.array(DiscoveryCollectionSchema).optional(),
   discoveredAt: z.string(),
   lastError: z.string().optional(),

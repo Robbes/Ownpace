@@ -109,6 +109,41 @@ describe('before anything has started', () => {
     expect(await screen.findByText('4812')).toBeInTheDocument();
   });
 
+  it('holds the green light until the refusals have been acknowledged', async () => {
+    // The appliance half of the same gate the managed wizard carries. Untested
+    // here, dropping it from this page changed no test at all — which the
+    // mutation run said, and is why this exists.
+    fetchStatus.mockResolvedValue(status('paused'));
+    fetchAllDiscovery.mockResolvedValue({
+      'acme-mail': [
+        {
+          domain: 'file' as const,
+          collections: 2,
+          items: 229,
+          discoveredAt: '2026-09-22T10:00:00Z',
+          refusedNative: { document: 12, spreadsheet: 5 },
+        },
+      ],
+    });
+    renderScreen();
+
+    const start = await screen.findByRole('button', { name: /Start migration/ });
+    expect(start).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(start).not.toBeDisabled();
+  });
+
+  it('offers the green light straight away when nothing is refused', async () => {
+    // The ordinary case, pinned so the gate above cannot become a hoop in
+    // front of every migration on this page.
+    fetchStatus.mockResolvedValue(status('paused'));
+    renderScreen();
+
+    expect(await screen.findByRole('button', { name: /Start migration/ })).not.toBeDisabled();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
   it('shows the scope manifest, so "what am I getting" is answered before the click', async () => {
     fetchStatus.mockResolvedValue(status('paused'));
     renderScreen();

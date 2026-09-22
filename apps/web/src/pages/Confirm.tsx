@@ -28,6 +28,10 @@ import { Hint } from '../components/Hint.tsx';
 import { formatDateTime } from '../i18n/datetime.ts';
 import type { StringKey } from '../i18n/index.tsx';
 import DiscoveryCounts from '../components/confirm/DiscoveryCounts.tsx';
+import {
+  RefusedNativeAcknowledgement,
+  needsAcknowledgement,
+} from '../components/confirm/native-refusals.tsx';
 import ScopeManifestPanel from '../components/confirm/ScopeManifestPanel.tsx';
 import { scopeFamilyOf, scopeManifestFor } from '@openmig/shared';
 import SharedAddresses from '../components/confirm/SharedAddresses.tsx';
@@ -76,6 +80,11 @@ const Confirm: React.FC = () => {
     queryKey: ['shared-addresses'],
     queryFn: fetchSharedAddresses,
   });
+
+  // WHICH MAPPINGS THE PERSON HAS READ THE REFUSALS FOR. A set rather than a
+  // boolean: this page lists every mapping at once, and acknowledging one
+  // Drive's refusals says nothing about another's.
+  const [acked, setAcked] = React.useState<ReadonlySet<string>>(new Set());
 
   const start = useMutation({
     mutationFn: (mappingId: string) => startMigration(mappingId),
@@ -213,7 +222,22 @@ const Confirm: React.FC = () => {
               // `syncConfig.domains`, the scope selection — and uses it. Here
               // the component falls back to its old behaviour, which is what
               // this page had anyway.
-              <DiscoveryCounts domains={domains} />
+              <>
+                <DiscoveryCounts domains={domains} />
+                <RefusedNativeAcknowledgement
+                  domains={domains}
+                  checked={acked.has(m.mappingId)}
+                  onChange={(next) =>
+                    setAcked((prev) => {
+                      const copy = new Set(prev);
+                      if (next) copy.add(m.mappingId);
+                      else copy.delete(m.mappingId);
+                      return copy;
+                    })
+                  }
+                  id={m.mappingId}
+                />
+              </>
             ) : (
               // After the start it is a historical snapshot: the source keeps
               // changing and these numbers do not. Folded, labelled with WHEN
@@ -240,7 +264,12 @@ const Confirm: React.FC = () => {
               {m.migrationStatus === 'paused' ? (
                 <button
                   onClick={() => start.mutate(m.mappingId)}
-                  disabled={start.isPending && start.variables === m.mappingId}
+                  // PER MAPPING, because this page shows several and one
+                  // person's answer about one Drive says nothing about another.
+                  disabled={
+                    (start.isPending && start.variables === m.mappingId) ||
+                    (needsAcknowledgement(domains) && !acked.has(m.mappingId))
+                  }
                   className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {start.isPending && start.variables === m.mappingId ? (

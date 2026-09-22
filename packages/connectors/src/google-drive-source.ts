@@ -44,6 +44,7 @@
 import {
   permissionsNotDiscoverable,
   markNeedsDecision,
+  statedFailureCategoryOf,
   withFailureCategory,
   type FailureCategory,
   type FileSource,
@@ -484,15 +485,40 @@ export class GoogleDriveSource implements FileSource {
       // Filtering it out of the listing here would make it vanish instead —
       // uncounted, unreported, and indistinguishable from a file that was never
       // there.
-      // MEASURED-UNSTABLE ONLY, which is narrower than "would be refused" and
-      // is the number that tells an owner something they cannot already see.
-      // Under `refuse` every native file is refused and the policy's own name
-      // says so; a type this policy has no rendering for is refused for a
-      // reason that is Drive's, not ours. The surprise — and the only one worth
-      // a line on the confirm screen — is the file a policy carries in general
-      // and will not carry here.
-      if (this.policy !== 'refuse' && isNativeEditorFile(file.mimeType)) {
-        if (exportStabilityOf(this.policy, file.mimeType) === 'unstable') {
+      // EVERY FILE THIS POLICY WILL NOT CARRY — not only the measured-unstable
+      // ones.
+      //
+      // This counted `policy !== 'refuse'` and unstable-only, on a stated
+      // argument: *"under `refuse` every native file is refused and the
+      // policy's own name says so"*. That holds for a policy somebody CHOSE.
+      // It does not hold for a DEFAULT, and `refuse` is the default — so the
+      // one case the number was omitted from is the one where nobody has been
+      // told anything. The owner met it on 2026-09-22: a full migration under
+      // the default, the setting never seen, and the consequence arriving
+      // afterwards as twenty failure rows. Which is verbatim the outcome the
+      // confirm screen's own comment says this count exists to prevent —
+      // *"while the choice is still open, and not as a queue full of failure
+      // rows after the first pass"*.
+      //
+      // `refusalFor` DECIDES, rather than a second copy of its branches, so
+      // the count and the per-item reason cannot disagree about what is
+      // refused. Its category is what separates the two kinds of no: a
+      // `policy_refused` file has some export policy that would carry it, and
+      // a `source_refused` one — a Form, a Map, a shortcut — has none and
+      // never will, so counting it here would promise that changing the
+      // setting brings it back. Bounded by the native files in the walk, not
+      // by the walk.
+      //
+      // A COUNT MUST NEVER BE ABLE TO FAIL A WALK. `mimeType` is required by
+      // the type and Drive's own `fields` asks for it, so an absent one means a
+      // provider sent less than it promised. Losing one file from a
+      // confirm-screen tally is the right price for that; throwing loses the
+      // whole folder's listing. The old form was shielded from this by
+      // accident — under the default policy it short-circuited before it ever
+      // read the field, which is why no test had to think about it.
+      if (typeof file.mimeType === 'string' && isNativeEditorFile(file.mimeType)) {
+        const refusal = this.refusalFor(file);
+        if (refusal !== undefined && statedFailureCategoryOf(refusal) === 'policy_refused') {
           const kind = file.mimeType.slice(GOOGLE_NATIVE_PREFIX.length);
           this.refusedNative.set(kind, (this.refusedNative.get(kind) ?? 0) + 1);
         }
@@ -1200,11 +1226,15 @@ export class GoogleDriveSource implements FileSource {
    * is why the caller attaches it AFTER `discoverSource` returns rather than
    * reading it up front.
    *
-   * `{}` under `refuse` as well, and that is correct rather than a gap: under
-   * that policy EVERY native file is refused and the existing per-item reason
-   * already says so at the front door. This number exists for the case where a
-   * policy carries most things and refuses some, which is the one an owner
-   * cannot see coming.
+   * COUNTED UNDER `refuse` TOO, which it was not. The argument for leaving it
+   * out was that under `refuse` the policy's own name says every native file
+   * is refused — true of a policy somebody chose, and `refuse` is the DEFAULT.
+   * A default says nothing to the person who never opened the screen, and the
+   * per-item reason it deferred to arrives in the failures queue, after the
+   * run. See the tally site for what that cost.
+   *
+   * Only `policy_refused` files are counted: a Form or a Map has no export in
+   * any policy, so including it would promise a remedy that does not exist.
    */
   nativeRefusals(): Readonly<Record<string, number>> {
     return Object.fromEntries(this.refusedNative);

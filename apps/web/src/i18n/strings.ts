@@ -82,11 +82,20 @@ const en = {
   'discovery.refusedNative.kind.other': 'Google files',
   'discovery.refusedNative.strong': 'will not be copied',
   // Fifteen words, like every `discovery.*.post` beside it (0118). The whole
-  // reasoning — what was measured, and that a copy would be re-copied nightly —
-  // is in the connector's refusal, which the failures queue prints verbatim.
-  // This line is the one an owner reads while the choice is still open.
+  // reasoning — the measurement, or that this policy exports nothing for the
+  // kind — is in the connector's refusal, which the failures queue prints
+  // verbatim. This line is the one an owner reads while the choice is open.
+  //
+  // REASON-NEUTRAL since the count stopped being instability-only: the same
+  // sentence now covers a format that renders the kind unstably and a policy
+  // that renders it not at all, and naming one of those would be wrong about
+  // the other. What both readers need is identical — pick a format that
+  // carries these, or decide to leave them.
   'discovery.refusedNative.post':
-    'because this export format does not produce the same file twice. Choose another format.',
+    "with this migration's export format. Choose one that covers them, or accept leaving them.",
+  // The tick-box beside that sentence. Named counts, never "some files": a
+  // person who reads "3 items" goes hunting through their Drive.
+  'confirm.refusedAck': 'I understand that {kinds} ({n} files) will not be copied.',
   'applyFlag.readFailed': 'Could not read whether applying deletions is enabled:',
   'applyFlag.on': 'Applying deletions is ON for this migration.',
   'applyFlag.off': 'Applying deletions is OFF for this migration (the default).',
@@ -2173,7 +2182,8 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.refusedNative.kind.other': 'Google-bestanden',
   'discovery.refusedNative.strong': 'worden niet gekopieerd',
   'discovery.refusedNative.post':
-    'omdat dit exportformaat niet twee keer hetzelfde bestand oplevert. Kies een ander formaat.',
+    'met dit exportformaat. Kies er een die ze wel omvat, of laat ze achter.',
+  'confirm.refusedAck': 'Ik begrijp dat {kinds} ({n} bestanden) niet worden gekopieerd.',
   'applyFlag.readFailed': 'Kon niet lezen of het toepassen van verwijderingen is ingeschakeld:',
   'applyFlag.on': 'Het toepassen van verwijderingen staat AAN voor deze migratie.',
   'applyFlag.off': 'Het toepassen van verwijderingen staat UIT voor deze migratie (de standaard).',
