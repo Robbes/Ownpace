@@ -15,7 +15,9 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2 } from 'lucide-react';
+  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { mappingApi } from '../services/mapping-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { isSelfHost } from '../services/edition.ts';
 import { signOutUrl } from '../services/oidc.ts';
@@ -26,8 +28,9 @@ import BuildStamp from './BuildStamp.tsx';
 import PlatformPauseBanner from './PlatformPauseBanner.tsx';
 import {
   activeNavHref,
+  mappingDisplayName,
   mappingRouteContext,
-  truncateMiddle,
+  upHref,
   type MappingScreen,
 } from './layout-context.ts';
 
@@ -43,6 +46,18 @@ const SCREEN_TITLE_KEY: Record<MappingScreen, StringKey> = {
 const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const location = useLocation();
+  const routeCtx = mappingRouteContext(location.pathname);
+  const selfHostEdition = isSelfHost();
+  // THE MIGRATION'S NAME, for the header. The same query key the hub already
+  // uses, so on the hub this is the cached answer and not a second request;
+  // on a screen under it, one read that the hub then reuses. The appliance
+  // is skipped — its id is a slug somebody chose, and it is the name.
+  const headerMapping = useQuery({
+    queryKey: ['mapping', routeCtx?.mappingId],
+    queryFn: () => mappingApi.get(routeCtx!.mappingId),
+    enabled: routeCtx !== null && !selfHostEdition,
+    staleTime: 60_000,
+  });
   const { user, logout, operator, tenantCount } = useAuthStore();
   const token = useAuthStore((s) => s.token);
 
@@ -315,19 +330,44 @@ const Layout: React.FC = () => {
                 the title fell back to the brand (selfhost) or said only
                 "Mappings" (managed), and the id lived in body text alone. */}
             {(() => {
-              const ctx = mappingRouteContext(location.pathname);
+              const ctx = routeCtx;
               if (ctx) {
+                const name = mappingDisplayName(ctx.mappingId, headerMapping.data?.name);
+                // Monospace only when what is shown IS the id; a name the owner
+                // typed is prose and reads as prose.
+                const showingId = !headerMapping.data?.name?.trim();
                 return (
-                  <h1 className="text-xl font-semibold text-gray-900">
-                    {ctx.screen && <>{t(SCREEN_TITLE_KEY[ctx.screen])} — </>}
+                  <div className="flex items-center gap-3">
+                    {/* UP a level, not back in history — see `upHref`. */}
                     <Link
-                      to={`/mappings/${encodeURIComponent(ctx.mappingId)}`}
-                      className="font-mono text-lg text-blue-700 hover:underline"
-                      title={ctx.mappingId}
+                      to={upHref(ctx)}
+                      aria-label={t('nav.back')}
+                      title={t('nav.back')}
+                      className="p-1 -ml-1 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100"
                     >
-                      {truncateMiddle(ctx.mappingId)}
+                      <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                     </Link>
-                  </h1>
+                    <h1 className="text-xl font-semibold text-gray-900">
+                      {ctx.screen && <>{t(SCREEN_TITLE_KEY[ctx.screen])} — </>}
+                      {ctx.screen ? (
+                        // On a screen UNDER the hub the name leads back to it.
+                        <Link
+                          to={`/mappings/${encodeURIComponent(ctx.mappingId)}`}
+                          className={`${showingId ? 'font-mono text-lg ' : ''}text-blue-700 hover:underline`}
+                          title={ctx.mappingId}
+                        >
+                          {name}
+                        </Link>
+                      ) : (
+                        // On the hub itself it is the page you are on — a link
+                        // here pointed at itself, and was the click the owner
+                        // made expecting to go back.
+                        <span className={showingId ? 'font-mono text-lg' : ''} title={ctx.mappingId}>
+                          {name}
+                        </span>
+                      )}
+                    </h1>
+                  </div>
                 );
               }
               return (

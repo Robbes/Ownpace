@@ -9,7 +9,13 @@
  * hrefs; `/mappings` wins on managed).
  */
 import { describe, it, expect } from 'vitest';
-import { activeNavHref, mappingRouteContext, truncateMiddle } from './layout-context.ts';
+import {
+  activeNavHref,
+  mappingDisplayName,
+  mappingRouteContext,
+  truncateMiddle,
+  upHref,
+} from './layout-context.ts';
 
 const SELFHOST_HREFS = ['/confirm', '/deletions', '/moves', '/failures', '/verify', '/finish', '/decisions'];
 const MANAGED_HREFS = ['/dashboard', '/mappings', '/decisions', '/tenants', '/billing'];
@@ -68,5 +74,42 @@ describe('truncateMiddle', () => {
     expect(out).toContain('…');
     expect(out.startsWith('a-very-lo')).toBe(true);
     expect(out.endsWith('om-config')).toBe(true);
+  });
+});
+
+describe('upHref — the header\'s back arrow goes UP a level', () => {
+  it('from a migration\'s hub, up to the list of migrations', () => {
+    // The owner's click, 2026-09-22: on the hub, the header's only link pointed
+    // at the page they were on. Up from a hub is the list.
+    expect(upHref({ mappingId: 'ff591fee-9e2a-4b64-9707-37de2233cb7b', screen: null })).toBe(
+      '/mappings',
+    );
+  });
+
+  it('from a screen under the hub, up to that hub', () => {
+    expect(upHref({ mappingId: 'acme-mail', screen: 'failures' })).toBe('/mappings/acme-mail');
+  });
+
+  it('encodes an id it puts back into a path', () => {
+    expect(upHref({ mappingId: 'a b/c', screen: 'verify' })).toBe('/mappings/a%20b%2Fc');
+  });
+});
+
+describe('mappingDisplayName — a migration is called by its name', () => {
+  const UUID = 'ff591fee-9e2a-4b64-9707-37de2233cb7b';
+
+  it('uses the name the owner gave it', () => {
+    expect(mappingDisplayName(UUID, 'Goog2NC')).toBe('Goog2NC');
+  });
+
+  it('falls back to the shortened id, never to a blank', () => {
+    // While the name loads, when it could not be read, and on the appliance.
+    expect(mappingDisplayName(UUID, undefined)).toBe(truncateMiddle(UUID));
+    expect(mappingDisplayName(UUID, '   ')).toBe(truncateMiddle(UUID));
+    expect(mappingDisplayName(UUID, '')).not.toBe('');
+  });
+
+  it('keeps an appliance slug as it is, because that slug already is a name', () => {
+    expect(mappingDisplayName('acme-mail', undefined)).toBe('acme-mail');
   });
 });
