@@ -347,13 +347,17 @@ export class CarddavSource implements ContactSource {
        * cursor invariant refused to record a token over it, so the next pass
        * started again from the beginning.
        *
-       * With a cursor, "nothing" is the right answer and the point of asking:
-       * it means nothing changed.
+       * With a SYNC TOKEN, "nothing" is the right answer and the point of
+       * asking: it means nothing changed since that token. With a cursor that
+       * holds no token — which is what the fallback below hands back — the
+       * request is a first read in every respect, and so is the answer. The
+       * guard used to test for the cursor rather than the token; see the
+       * CalDAV sibling for what that cost on a live calendar.
        */
       const answeredNothing = parsed.objects.length === 0 && parsed.removed.length === 0;
-      if (!(answeredNothing && cursor === undefined)) return parsed;
+      if (!(answeredNothing && syncToken === undefined)) return parsed;
       log.warn(
-        `[carddav] '${collectionPath}': a FIRST sync-collection read (no cursor) came back with ` +
+        `[carddav] '${collectionPath}': a sync-collection read that sent no sync token came back with ` +
           `no cards and no removals. That is a claim the whole address book is empty, which ` +
           `this does not take on trust — falling back to an addressbook-query listing.`,
       );
