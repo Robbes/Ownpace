@@ -229,6 +229,9 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     firstCopyBytes: result.firstCopyBytes,
     skipped: result.skipped,
     adopted: result.adopted,
+    // The one count this result dropped, beside the comment below saying every
+    // dropped count has turned out to be one somebody needed.
+    updated: result.updated,
     moved: result.moved,
     drift: result.drift,
     // Passed through rather than dropped. The ledger is where these persist and

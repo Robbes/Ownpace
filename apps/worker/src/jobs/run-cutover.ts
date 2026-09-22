@@ -50,7 +50,9 @@ import {
   runShadowPass,
   runVerification,
   createRealVerificationDeps,
+  passCounts,
   type CutoverState,
+  type PassCounts,
   type VerificationResult,
 } from '@openmig/core';
 import { Pool } from 'pg';
@@ -105,7 +107,10 @@ export interface CutoverPreparationDeps {
   /** Where progress goes. The Trigger.dev task passes the SDK's `logger`. */
   log: (message: string) => void;
   /** Final delta sync. Omit (or pass undefined) to skip it. */
-  runFinalSync?: () => Promise<{ created: number; skipped: number }>;
+  // All four counts, not two: this is the last pass before the owner stops
+  // using the old system, and the one where knowing what it changed matters
+  // most. It was narrowed to `created`/`skipped` here, before it was logged.
+  runFinalSync?: () => Promise<PassCounts>;
   /** The §20 verification gate. Omit to skip it. */
   runGate?: () => Promise<VerificationResult>;
 }
@@ -211,7 +216,7 @@ export async function prepareCutover(
     deps.log('Running final delta sync...');
     const delta = await deps.runFinalSync();
     result.finalSync = delta;
-    deps.log(`Final delta sync: ${delta.created} created, ${delta.skipped} skipped`);
+    deps.log(`Final delta sync: ${passCounts(delta)}`);
   } else {
     deps.log('Final delta sync SKIPPED at the caller\'s request.');
   }
@@ -305,7 +310,12 @@ export const runCutover = schemaTask({
               const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
               try {
                 const delta = await runShadowPass(deps);
-                return { created: delta.created, skipped: delta.skipped };
+                return {
+                  created: delta.created,
+                  updated: delta.updated,
+                  adopted: delta.adopted,
+                  skipped: delta.skipped,
+                };
               } finally {
                 await deps.close(); // release the deps' pool
               }

@@ -2154,10 +2154,24 @@ export interface ReconcileResult {
   /**
    * Not created because the TARGET mailbox already held a message with this
    * Message-ID. Counted apart from `skipped`: both mean "not created", but only
-   * this one says the destination was not empty. Optional for compatibility
-   * with callers written before it existed.
+   * this one says the destination was not empty.
+   *
+   * REQUIRED now, as `updated` is. It was optional "for compatibility with
+   * callers written before it existed", and an optional count is one a
+   * summary line defaults to zero — which is how a pass came to report
+   * `N created, M skipped` and nothing about what it adopted or rewrote.
    */
-  readonly adopted?: number;
+  readonly adopted: number;
+  /**
+   * Rewritten on the target because the source changed after it was copied.
+   *
+   * Mail is mostly immutable, so this is usually zero — but mail runs through
+   * the same `runDomainSync` as every other domain and that reports one, and
+   * this result was the place it was dropped. `pass-summary.ts` in core reads
+   * it; a result that cannot say what it rewrote cannot say the pass carried
+   * the owner's edits across.
+   */
+  readonly updated: number;
   /**
    * Messages the source now lists in a different folder from the one they were
    * copied into. Nothing was written and nothing was deleted — see `ItemMove`.
