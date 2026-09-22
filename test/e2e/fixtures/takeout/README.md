@@ -7,7 +7,9 @@ every shape it has to handle:
 
 - `IMG_0001.jpg` twice, byte-identical, in the `Holiday` album and under its
   year: one item the reader collapses, placed under the album and NOT under
-  the year as well.
+  the year as well. `Holiday/metadata.json` is what makes it an album rather
+  than an ordinary folder (workplan 0116, "the album rule") — the reader
+  classifies a folder as an album by that file's presence, never by its name.
 - `IMG_0001-edited.jpg`: an edited version, a distinct item linked to its
   original, filed under the year only.
 - `IMG_0002.jpg`: a photo in no album, which lands under its year.
