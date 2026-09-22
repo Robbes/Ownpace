@@ -1,9 +1,31 @@
 # The first live run — who does what
 
-Everything in workplans 0093, 0094 and ADR-0042 is proven against stubs,
-PGlite and Testcontainers. **Nothing has met a real identity provider, a real
-mail server, or a real domain.** This is the plan for changing that, split by who
-can actually do each part.
+> **Status — 2026-09-22. Most of this has happened; read the exception first.**
+>
+> This document opened with "nothing has met a real identity provider, a real mail
+> server, or a real domain" and kept saying it for four days after it stopped being
+> true. `app.ota.ownpace.eu` runs against a real Zitadel on the real domain, and the
+> owner has completed the round trip in §6 end to end.
+>
+> **THE ONE THING THAT IS NOT DONE, and it is the thing that blocks inviting
+> anybody:** that deployment's `SMTP_HOST` points at **mailpit**. Product mail —
+> the access-granted email in §6.3 above all — is *caught, not delivered*. The round
+> trip was completed by reading the message out of mailpit's web UI, which proves
+> the API composed and sent it and proves nothing at all about whether a stranger
+> would receive it. So §3 (SPF, DKIM, DMARC) has never been exercised, because
+> nothing has ever left the machine.
+>
+> Grant an access request to a real person today and they wait for an email that is
+> sitting in a catcher. **Point `SMTP_HOST` at a real provider and do §3 before the
+> first invitation**, then re-run §6 once with an address on a mailbox you can open
+> from outside.
+>
+> Everything else below stands as written, and the checks are still worth running
+> after any change to the addresses or the issuer.
+
+Everything in workplans 0093, 0094 and ADR-0042 was proven against stubs,
+PGlite and Testcontainers before any of it met the real thing. This is the plan
+that took it there, split by who can actually do each part.
 
 The split is not arbitrary. Some of this needs a machine, a credential, or a DNS
 record — things an agent cannot and should not hold. The rest is code, and

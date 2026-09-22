@@ -5,7 +5,16 @@ coherence matrices (`SOURCE_TYPE_DOMAINS` / `TARGET_TYPE_DOMAINS` in
 `packages/shared/src/target-domains.ts`) — the same tables the wizard constrains with and
 the create API refuses against. When this document and the code disagree, the code is right
 and this file has a bug; the per-domain detail links the ADR or workplan that carries each
-decision. Last reconciled: 2026-09-04 (after PR #767 — the task domain — and workplan 0115).
+decision. Last reconciled: 2026-09-22.
+
+**What ✅ means here, and what it does not.** Three Google sources moved from ⏳ to ✅ on
+2026-09-22 because the marker was measuring the wrong thing: ⏳ reads "awaiting first contact
+with reality", and `gmail`, `google-calendar` and `google-contacts` have been run against the
+owner's real Google account routinely for weeks. The document had simply not been told. What
+that evidence does NOT cover is a SECOND account — another org's sharing policy, scopes a user
+declines, a Workspace admin's restrictions — so each row says so rather than letting ✅ imply
+more than one person has ever used it. The Microsoft Graph rows stay ⏳: nothing here changes
+what is known about those.
 
 Legend: ✅ migrates · 🔁 detected & reported, owner decides (never acted on silently) ·
 ⏳ built, awaiting first contact with reality (owner runbook stage named) ·
@@ -17,7 +26,7 @@ Legend: ✅ migrates · 🔁 detected & reported, owner decides (never acted on 
 
 | | generic IMAP | Microsoft 365 | Gmail |
 |---|---|---|---|
-| **Source** | ✅ password (`imap`) | ✅ IMAP+XOAUTH2 with your Entra app (`oauth2`), Graph fallback behind it; ✅ Graph REST (`graph`) | ⏳ IMAP+XOAUTH2 with your Google client (`gmail`, workplan 0044) — Stage 5 |
+| **Source** | ✅ password (`imap`) | ✅ IMAP+XOAUTH2 with your Entra app (`oauth2`), Graph fallback behind it; ✅ Graph REST (`graph`) | ✅ IMAP+XOAUTH2 with your Google client (`gmail`, workplan 0044) — **run against the owner's real Google account**, not yet against a second one |
 | **Target** | ✅ IMAP half of `imap-dav` | — (targets are where you migrate *to*) | 🚫 never a target |
 
 Also a target: **JMAP** (`jmap` — Stalwart / La Suite / mosa.cloud), and **Soverin**
@@ -66,7 +75,7 @@ Not (yet) migrated:
 
 | | generic CalDAV | Microsoft 365 | Google |
 |---|---|---|---|
-| **Source** | ✅ (`caldav`) | ⏳ Graph (`graph-calendar`) — WIRED in workplan 0054 (before it, the config parsed but could not build: the connector had no call site); **workplan 0059 fixed a delta loop that re-requested page one forever on any calendar with more than one page, and the `/$delta` path Graph does not serve**; appliance mapping files; shared mailbox via `source.mailbox` | ⏳ CalDAV with OAuth (`google-calendar`, workplan 0045) — Stage 6 |
+| **Source** | ✅ (`caldav`) | ⏳ Graph (`graph-calendar`) — WIRED in workplan 0054 (before it, the config parsed but could not build: the connector had no call site); **workplan 0059 fixed a delta loop that re-requested page one forever on any calendar with more than one page, and the `/$delta` path Graph does not serve**; appliance mapping files; shared mailbox via `source.mailbox` | ✅ CalDAV with OAuth (`google-calendar`, workplan 0045) — **run against the owner's real Google account**, not yet against a second one |
 | **Target** | ✅ CalDAV only | — | 🚫 never a target |
 
 Also a target: **Soverin** (`soverin`, workplan 0106 T4a+T4b) — the first provider-named
@@ -156,7 +165,7 @@ description, the recurrence as an `RRULE`. Google Tasks needs its own API.
 
 | | generic CardDAV | Microsoft 365 | Google |
 |---|---|---|---|
-| **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`) — wired in workplan 0054, same story as calendars, **including the same page-one-forever delta loop and `/$delta` path, both fixed in workplan 0059**; appliance mapping files; shared via `source.mailbox` | ⏳ CardDAV with OAuth (`google-contacts`, workplan 0045) — Stage 6 |
+| **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`) — wired in workplan 0054, same story as calendars, **including the same page-one-forever delta loop and `/$delta` path, both fixed in workplan 0059**; appliance mapping files; shared via `source.mailbox` | ✅ CardDAV with OAuth (`google-contacts`, workplan 0045) — **run against the owner's real Google account**, not yet against a second one |
 | **Target** | ✅ CardDAV | — | 🚫 never a target |
 
 Also a target: **JMAP** (workplan 0031 T2), **Soverin** (`soverin`) and **Nextcloud**
