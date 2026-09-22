@@ -23,7 +23,7 @@
  *    pass paid for each of them.
  *
  * SINCE THE SAME DAY THE DRIVE IS READ ONCE PER PASS (`GraphDriveSource`'s
- * `snapshot`): `listFolders` reads the root's delta, and each folder's first
+ * `driveRead`): `listFolders` reads the root's delta, and each folder's first
  * listing is answered from it. The placement rules pinned here are the same
  * rules, applied to that one read; `a-drive-read-once.unit.test.ts` pins the
  * reading itself.

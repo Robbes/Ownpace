@@ -99,7 +99,10 @@ export class GraphDriveSource implements FileSource {
    *
    * Undefined when that read named no root, and `listFolders` walked instead.
    */
-  private snapshot?: DriveSnapshot;
+  // Not `snapshot`: that name is the file port's own marker for an ARCHIVE
+  // (`FileSource.snapshot`), which switches off absence-based detection. The
+  // compiler refused the clash; this comment says why the name is not reused.
+  private driveRead?: DriveSnapshot;
   /**
    * The drive's change feed, read once per link this pass. On a later pass
    * every folder's cursor holds the same link, so the first folder to ask
@@ -134,7 +137,7 @@ export class GraphDriveSource implements FileSource {
    *    lists them.
    *
    * And a third until 2026-09-22: it WALKED, a request per folder, one after
-   * another, and each folder's listing then asked again (see `snapshot`). It
+   * another, and each folder's listing then asked again (see `driveRead`). It
    * now reads the root's delta once and builds the tree from each folder's
    * parent id. The walk stays for a read that names no root, so this can never
    * do worse than it did.
@@ -147,7 +150,7 @@ export class GraphDriveSource implements FileSource {
     this.changeReads = new Map();
     const read = await this.readDelta(`${this.scope}/drive/root/delta`, 'Failed to list drive items');
     const built = this.snapshotOf(read);
-    this.snapshot = built?.snapshot;
+    this.driveRead = built?.snapshot;
     return built !== undefined ? built.folders : this.walkFolders();
   }
 
@@ -454,7 +457,7 @@ export class GraphDriveSource implements FileSource {
    *
    * Three ways to answer, tried in this order:
    *
-   *  1. NO CURSOR, and this pass read the drive (`snapshot`): from that read,
+   *  1. NO CURSOR, and this pass read the drive (`driveRead`): from that read,
    *     with no request at all.
    *  2. A cursor on the drive's CHANGE FEED, which is what 1 hands out: the
    *     feed is read once per link (`changeReads`), and every folder keeps its
@@ -484,8 +487,8 @@ export class GraphDriveSource implements FileSource {
     // An unreadable cursor reads as none: a full listing, as it always did.
     const resumed = cursor ? this.resumePointOf(cursor) : undefined;
 
-    if (resumed === undefined && this.snapshot !== undefined) {
-      return this.fromSnapshot(folder, here, isRoot, this.snapshot);
+    if (resumed === undefined && this.driveRead !== undefined) {
+      return this.fromSnapshot(folder, here, isRoot, this.driveRead);
     }
 
     if (resumed?.scope === 'drive') {
@@ -516,8 +519,8 @@ export class GraphDriveSource implements FileSource {
           .join('/')}:/delta`;
     const changes = await this.readDelta(resumed?.deltaLink || baseUrl, 'Failed to list drive changes');
     const nextCursor =
-      this.snapshot !== undefined
-        ? this.feedCursor(folder, this.snapshot.deltaLink)
+      this.driveRead !== undefined
+        ? this.feedCursor(folder, this.driveRead.deltaLink)
         : { value: this.encodeCursor({ deltaLink: changes.deltaLink, folderPath: folder.path }) };
     return this.fromChanges(here, isRoot, changes, true, nextCursor);
   }
