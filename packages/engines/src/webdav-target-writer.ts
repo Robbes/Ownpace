@@ -790,7 +790,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       // not the assembled file. The item simply has no overwrite protection
       // until something rewrites it in one piece, which is honest — inventing a
       // version here would be worse than admitting we do not have one.
-      return { path: await this.uploadFileChunked(filePath, raw.content) };
+      return {
+        path: await this.uploadFileChunked(filePath, raw.content, raw.item.mimeType),
+      };
     }
 
     // Simple PUT for small files - only if content exists
@@ -918,9 +920,30 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     };
   }
 
+  /**
+   * THE TYPE A BIG FILE USED TO LOSE.
+   *
+   * Every other PUT in this writer sends `raw.item.mimeType` and falls back to
+   * `application/octet-stream` only when the source declared nothing. This one
+   * sent the fallback unconditionally, so a file was typed or untyped on the
+   * target according to its SIZE — and the ones that lost it are exactly the
+   * ones where the type matters most: photos and video.
+   *
+   * Nothing about a chunk argues for the generic type. `Content-Range` is what
+   * says "this is a piece"; the entity being assembled is still the file, and
+   * the header describes the entity. A server assembling the pieces has the
+   * source's own answer on every chunk instead of a shrug on all of them.
+   *
+   * Found 2026-09-22 while chasing why migrated Drive files with no extension
+   * would not open on Nextcloud. It is NOT the whole of that — a target may
+   * type a file by its name whatever the header says — but a type thrown away
+   * here could never have helped, and that had to stop being true before the
+   * rest could be measured.
+   */
   private async uploadFileChunked(
     filePath: string,
     content: Uint8Array,
+    mimeType?: string,
   ): Promise<string> {
     const chunkSize = this.config.chunkSize || 10 * 1024 * 1024; // 10MB default
     const totalChunks = Math.ceil(content.length / chunkSize);
@@ -937,7 +960,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
         url: this.buildUrl(filePath),
         body: chunk,
         headers: {
-          'Content-Type': 'application/octet-stream',
+          'Content-Type': mimeType || 'application/octet-stream',
           'Content-Range': range,
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
