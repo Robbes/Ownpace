@@ -112,7 +112,13 @@ export function isRefusal(
  */
 const ORDER: ReadonlyArray<DiscoveryDomain> = ['email', 'calendar', 'contact', 'file', 'task'];
 
-const KNOWN = ORDER;
+/**
+ * What the account ask accepts; any other value is `unknown_domain`. Exported
+ * because the API spec documents the same list and `openapi-spec.unit.test.ts`
+ * holds the two together: Microsoft's documented list fell a face behind its
+ * route while nothing did.
+ */
+export const GOOGLE_ACCOUNT_CONSENT_DOMAINS: ReadonlyArray<DiscoveryDomain> = ORDER;
 
 /**
  * The grant names for these domains, dropping any Google cannot serve.
@@ -136,7 +142,7 @@ function listed(items: ReadonlyArray<string>): string {
 }
 
 const isDiscoveryDomain = (value: string): value is DiscoveryDomain =>
-  (KNOWN as ReadonlyArray<string>).includes(value);
+  (GOOGLE_ACCOUNT_CONSENT_DOMAINS as ReadonlyArray<string>).includes(value);
 
 /**
  * The scope string for a `google` account consent, or a refusal saying why.
