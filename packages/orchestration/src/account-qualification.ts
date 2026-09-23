@@ -1248,7 +1248,10 @@ export async function qualifyArchive(
       mail: liveInstead('mail'),
       calendar: liveInstead('calendars'),
       contact: liveInstead('contacts'),
-      task: liveInstead('reminders'),
+      // Each provider's own word: Apple's are Reminders, Google's are tasks.
+      // True for Google since workplan 0126 T2, which is what makes "migrated
+      // from the account itself instead, live" true of them too.
+      task: liveInstead(config.provider === 'apple-privacy' ? 'reminders' : 'tasks'),
       file,
     },
   };

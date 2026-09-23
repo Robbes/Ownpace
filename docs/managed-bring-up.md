@@ -1012,7 +1012,7 @@ afternoon, so name them once:
 
 | | Google as **identity** | Google as a **source** |
 |---|---|---|
-| What it does | somebody signs in to Ownpace with their Google account | Ownpace reads their mail, calendar, contacts or files |
+| What it does | somebody signs in to Ownpace with their Google account | Ownpace reads their mail, calendar, contacts, tasks or files |
 | Where it is set up | §8b, `IDP_GOOGLE_CLIENT_ID` — a Zitadel identity provider | here, the OAuth client the migration consent runs against |
 | What it proves | who this person is | what this account let us read |
 | Boundary | [ADR-0042](./adr/0042-who-holds-the-passwords.md): the issuer owns identity, `tenant_member` owns tenancy | [ADR-0041](./adr/0041-who-owns-the-oauth-client.md): the deployment owns its own client |
@@ -1035,15 +1035,16 @@ application**, and the deployment declares it:
 
 | value | one account consent may ask for |
 |---|---|
-| unset (the default), or `sensitive` | calendar, contacts |
-| `restricted` | mail, calendar, contacts, files |
+| unset (the default), or `sensitive` | calendar, contacts, tasks |
+| `restricted` | mail, calendar, contacts, files, tasks |
 
 The split is Google's pricing of its own scopes, not a limit of this product.
-Calendar and CardDAV are *sensitive* — brand review, free. Gmail's
+Calendar and CardDAV are *sensitive* — brand review, free — and Tasks'
+`tasks.readonly` is believed to be (workplan 0126; the console confirms it). Gmail's
 `https://mail.google.com/` and `drive.readonly` are *restricted*, which needs
 an annual third-party security assessment
 ([`google-oauth-verification.md`](./google-oauth-verification.md)). The client
-Ownpace publishes to strangers offers two faces until that assessment is
+Ownpace publishes to strangers offers three faces until that assessment is
 actually paid for; a deployment whose owner registered their own application
 and accepts the tier answers for itself.
 
@@ -1126,16 +1127,17 @@ So at Google, once, for the client this deployment uses:
 
 1. **Google Cloud Console → APIs & Services → Library.** Enable the API behind
    each face: **CalDAV API** (calendar), **Google Contacts CardDAV API**
-   (contacts), **Google Drive API** (files), and **Gmail API** — not for IMAP,
-   which needs none, but so the `https://mail.google.com/` scope is listed in
-   the consent screen's scope picker rather than pasted in. A consent goes through without
+   (contacts), **Google Tasks API** (tasks), **Google Drive API** (files), and
+   **Gmail API** — not for IMAP, which needs none, but so the
+   `https://mail.google.com/` scope is listed in the consent screen's scope
+   picker rather than pasted in. A consent goes through without
    any of these; the face whose switch is off refuses its first request with
    `accessNotConfigured`, and *Test connection* shows Google's sentence naming
    the API and the page (the owner met the CalDAV one on 2026-09-02, after a
    clean consent).
 2. **APIs & Services → OAuth consent screen.** Add
    `https://mail.google.com/` and `https://www.googleapis.com/auth/drive.readonly`
-   to the scopes, beside the calendar and CardDAV ones.
+   to the scopes, beside the calendar, CardDAV and `tasks.readonly` ones.
 3. **Credentials → your OAuth client → Authorised redirect URIs.** It must
    carry `https://<your API host>/api/migrations/google/callback` — the exact
    string, which `POST /api/migrations/google/authorize` also returns so the
@@ -1170,8 +1172,8 @@ button — it is not a publishing status to run a customer on.
 
 #### What it looks like when it worked
 
-- The **Google account** card on step 1 of the wizard offers four object types
-  instead of two, and its hint stops mentioning a security review.
+- The **Google account** card on step 1 of the wizard offers five object types
+  instead of three, and its hint stops mentioning a security review.
 - The consent button asks for exactly the ticked faces — never more, and never
   fewer without saying so.
 - The connection's **qualification badges** report each face separately, read
