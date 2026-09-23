@@ -17,6 +17,7 @@ import {
   type ShareGrantRow,
   classifyFailure,
   isFailureCategory,
+  boundDisplayName,
   type FailureSide,
   type FormerName,
 } from '@openmig/shared';
@@ -52,6 +53,34 @@ import type { DiscoveryDomain, FailureCategory } from '@openmig/shared';
  * reinstall with no backup) it is rebuilt by reindexing the target rather than re-copying
  * everything; correctness does not depend on it surviving. See ADR-0020 and workplan T9.
  */
+/**
+ * What a failed row is called on the failures queue.
+ *
+ * The stored name when there is one: an event's SUMMARY, a contact's FN. A
+ * FILE stores none, deliberately (`runFileSync`: its key is its path), and
+ * this queue serves the path only as its folder (`collection`) beside an
+ * opaque hash. So a file's row named its folder and never the file. The
+ * owner's `.htaccess` (2026-09-23) read as a folder path with the file's name
+ * only inside the error line, and a refusal that does not quote the path
+ * would not have said which file at all.
+ *
+ * So for a file the name is read here from the key the row already stores:
+ * its last segment, the name a person gave it. That is not an invented name,
+ * and it reaches rows written before today. A row whose key was never
+ * recorded (`''`, written before 2026-09-12) still has no name, and the
+ * screen shows the folder as it did.
+ */
+function nameOfFailure(row: {
+  readonly domain: string;
+  readonly displayName: string | null;
+  readonly naturalKey: string | null;
+}): { readonly displayName?: string } {
+  if (row.displayName) return { displayName: row.displayName };
+  if (row.domain !== 'file' || !row.naturalKey) return {};
+  const name = boundDisplayName(row.naturalKey.split('/').filter(Boolean).pop());
+  return name ? { displayName: name } : {};
+}
+
 export class PgLedger implements Ledger {
   private readonly db: PgDatabase;
 
@@ -790,7 +819,7 @@ export class PgLedger implements Ledger {
       // still the handle for both actions; this is the only thing on the row a
       // person can recognise, and without it this queue asked the owner to act
       // on `926caf98adce563`.
-      ...(row.displayName ? { displayName: row.displayName } : {}),
+      ...nameOfFailure(row),
       ...(row.collection ? { collection: row.collection } : {}),
       attempts: row.attemptCount,
       lastError: row.lastError ?? '(no error recorded)',
