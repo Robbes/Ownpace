@@ -322,14 +322,9 @@ const transport = recorder ? recorder.transport : googleDriveTransport(tokens);
  * it at.
  */
 async function pickLargest(candidates: readonly DriveFile[]): Promise<DriveFile> {
-  // Through the connector with the stability refusal lifted, for the same
-  // reason the measurement below does it: this is the instrument, and a
-  // candidate the table calls `unstable` is still a candidate for measuring.
-  const source = new GoogleDriveSource(
-    transport,
-    { rootFolderId: ROOT, nativeFilePolicy: POLICY },
-    { exportDespiteMeasuredInstability: true },
-  );
+  // Through the connector, for the same reason the measurement below goes
+  // through it.
+  const source = new GoogleDriveSource(transport, { rootFolderId: ROOT, nativeFilePolicy: POLICY });
 
   console.log(
     `  weighing ${candidates.length} candidate(s) under "${POLICY}" — one export each, to ` +
@@ -545,19 +540,11 @@ async function main(): Promise<void> {
 
   // Through the connector, not through a hand-rolled request: the point is to
   // measure what a MIGRATION would store, and that is whatever `fetch` returns.
-  //
-  // WITH THE STABILITY REFUSAL LIFTED, and only that one. The connector refuses
-  // what `EXPORT_STABILITY` calls `unstable`, and `EXPORT_STABILITY` is written
-  // from THIS SCRIPT'S OUTPUT — so without the exemption the instrument cannot
-  // re-take a reading it once took, which also means a red can never go back to
-  // green no matter what Google fixes. Every other refusal still applies here:
-  // a shortcut has nothing to export, a Form cannot be rendered, and `refuse`
+  // No measurement refuses an export any more (ADR-0046, amended 2026-09-23),
+  // so the instrument needs no way past one; the other refusals still apply: a
+  // shortcut has nothing to export, a Form cannot be rendered, and `refuse`
   // refuses.
-  const source = new GoogleDriveSource(
-    transport,
-    { rootFolderId: ROOT, nativeFilePolicy: POLICY },
-    { exportDespiteMeasuredInstability: true },
-  );
+  const source = new GoogleDriveSource(transport, { rootFolderId: ROOT, nativeFilePolicy: POLICY });
   const item = {
     path: doc.name,
     isDirectory: false,

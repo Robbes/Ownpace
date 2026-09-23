@@ -35,7 +35,6 @@ import { exportOutcome } from './drive-export-verdict.ts';
 import {
   EXPORT_STABILITY,
   exportStabilityOf,
-  stablePoliciesFor,
 } from '@openmig/connectors';
 
 const G = 'application/vnd.google-apps.';
@@ -160,11 +159,14 @@ describe('what the table now records', () => {
     expect(exportStabilityOf('export-office', `${G}presentation`)).toBe('unstable');
   });
 
-  it('a deck is now carryable under two policies and refused under one', () => {
+  it('a deck measures settleable under two policies and unstable under one', () => {
     // The sharpest evidence that a policy cannot be judged whole: the SAME
     // deck is settleable under `export-odf` and genuinely unstable under
-    // `export-office`. Two renderers, two answers.
-    expect([...stablePoliciesFor(`${G}presentation`)].sort()).toEqual(['export-odf', 'export-pdf']);
+    // `export-office`. Two renderers, two answers. A record since 2026-09-23:
+    // no measurement refuses an export any more (ADR-0046, amended).
+    expect(exportStabilityOf('export-odf', `${G}presentation`)).toBe('stable');
+    expect(exportStabilityOf('export-pdf', `${G}presentation`)).toBe('stable');
+    expect(exportStabilityOf('export-office', `${G}presentation`)).toBe('unstable');
   });
 
   it('export-pdf is stable on all four types, which is the escape hatch complete', () => {

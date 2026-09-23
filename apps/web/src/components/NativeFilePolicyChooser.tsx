@@ -17,8 +17,13 @@
  * in Word and their decks at all had to choose which kind to lose. The owner's
  * decision, 2026-09-23: *"a per kind choice makes more sense for the
  * fileformats. Split that up."* Each kind now has its own select, offering only
- * the formats that carry it, and Office for Docs, Sheets and Drawings with
- * OpenDocument for Slides leaves nothing behind.
+ * the formats that carry it.
+ *
+ * Since the refusals of measured-unstable exports went later that day
+ * (ADR-0046, amended), every format carries every kind, so every select offers
+ * all three. The chooser still reads the table rather than assuming it is
+ * full: `a-format-that-leaves-a-kind-behind.unit.test.tsx` holds what it says
+ * the day a format cannot render a kind.
  *
  * ## Why it is a component and not a method on the wizard
  *
@@ -30,8 +35,8 @@
  * missing screen and reintroduce the same class of defect one level up.
  *
  * So there is one chooser, and both arrivals render it. A guard holds each
- * kind's options against `NATIVE_POLICY_COVERAGE`, so a format that gets
- * measured cannot reach one screen and not the other.
+ * kind's options against `NATIVE_POLICY_COVERAGE`, so a format that changes
+ * there cannot reach one screen and not the other.
  *
  * ## The lines under the selects are read off the choice
  *
@@ -88,7 +93,7 @@ export interface NativeFormatChoice {
 
 /**
  * The formats a kind's select offers: each one that carries the kind, by the
- * measured table, and the one in force whatever it is.
+ * coverage table, and the one in force whatever it is.
  *
  * ONE ENTRY PER FILE, not per policy. A Drawing is an `.svg` under both
  * OpenDocument and Office, and two entries for the same file would ask
@@ -123,8 +128,8 @@ export function formatChoicesFor(
  * OpenDocument is the same file under Office, and switching it would count as
  * a change of format that changes nothing.
  *
- * Read off the measured table rather than written down, so the day a format
- * is measured differently this follows it. Office first because it is what the
+ * Read off the coverage table rather than written down, so the day a format
+ * stops carrying a kind this follows it. Office first because it is what the
  * owner's own migration already uses for Docs and Sheets.
  */
 export function editableFormats(

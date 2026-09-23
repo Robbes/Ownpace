@@ -193,11 +193,13 @@ describe('fetch — native editor files', () => {
     expect(decodeURIComponent(exportCall!.url)).toContain('wordprocessingml');
   });
 
-  it('REFUSES a Google Slide under export-office, measured rather than suspected', async () => {
+  it('EXPORTS a Google Slide under export-office, though no two draws agree', async () => {
     // 0042 T3, measured 2026-09-16: a `.pptx` from `files.export` changes five
     // members' content between draws, so the container hash does not settle it.
-    // Copying it would make every later pass see a change nobody made and
-    // re-copy the deck, nightly, with every write succeeding.
+    // It was refused from then until 2026-09-23, because copying it made every
+    // later pass see a change nobody made. A rewrite follows Drive's modified
+    // time since #1083, so that cannot happen, and the refusal went (ADR-0046,
+    // amended; `a-deck-copied-once-not-nightly` in core proves it end to end).
     const slide = {
       id: 'slide-1',
       name: 'Kickoff',
@@ -217,13 +219,12 @@ describe('fetch — native editor files', () => {
       modifiedAt: '2026-08-01T10:00:00Z',
       sourceRef: 'slide-1',
     };
-    await expect(source.fetch(item)).rejects.toThrow(NativeFileRefused);
-    await expect(source.fetch(item)).rejects.toThrow(/NOT byte-stable/);
-    await expect(source.fetch(item)).rejects.toThrow(/nightly, forever/);
+    const out = await source.fetch(item);
+    expect(out.content).toBeDefined();
     expect(
-      calls.some((c) => c.url.includes('/export')),
-      'the refused deck was exported anyway — the bytes left Google',
-    ).toBe(false);
+      calls.some((c) => c.url.includes('/export') && decodeURIComponent(c.url).includes('presentationml')),
+      'the deck was not exported as a .pptx',
+    ).toBe(true);
   });
 
   it('does NOT refuse a combination nobody has measured — a blank is not a red', async () => {
@@ -290,24 +291,26 @@ describe('fetch — native editor files', () => {
     );
   });
 
-  it('REFUSES a Google Doc under export-odf, by the same rule one format earlier', async () => {
-    // `settings.xml` genuinely changes between draws (0042 T3). Same verdict as
-    // the Slide, and this is a behaviour change: export-odf used to copy it.
-    const { transport } = fakeDrive({ '/files/doc-1?fields=': NATIVE_DOC, '/export': {} });
+  it('EXPORTS a Google Doc under export-odf, by the same reasoning one format earlier', async () => {
+    // `settings.xml` genuinely changes between draws (0042 T3). Refused with
+    // the Slide from 2026-09-16 to 2026-09-23, and copied again since.
+    const { transport, calls } = fakeDrive({ '/files/doc-1?fields=': NATIVE_DOC, '/export': {} });
     const source = new GoogleDriveSource(transport, {
       baseUrl: BASE,
       nativeFilePolicy: 'export-odf',
     });
 
-    await expect(
-      source.fetch({
-        path: 'Notes',
-        isDirectory: false,
-        size: 0,
-        modifiedAt: '2026-08-01T10:00:00Z',
-        sourceRef: 'doc-1',
-      }),
-    ).rejects.toThrow(/NOT byte-stable/);
+    const out = await source.fetch({
+      path: 'Notes',
+      isDirectory: false,
+      size: 0,
+      modifiedAt: '2026-08-01T10:00:00Z',
+      sourceRef: 'doc-1',
+    });
+    expect(out.content).toBeDefined();
+    expect(
+      calls.some((c) => decodeURIComponent(c.url).includes('application/vnd.oasis.opendocument.text')),
+    ).toBe(true);
   });
 
   it('downloads an ordinary file rather than exporting it', async () => {

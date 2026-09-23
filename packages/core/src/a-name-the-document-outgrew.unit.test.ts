@@ -446,7 +446,7 @@ describe('through the real Google Drive connector', () => {
     };
   }
 
-  it('a deck refused under Office is copied under ODF, and its refusal closes', async () => {
+  it('a deck left behind is copied once a format is chosen, and its refusal closes', async () => {
     const ledger = new MemoryLedger();
     const cursors = new MemoryCursorStore();
     const common = {
@@ -458,17 +458,19 @@ describe('through the real Google Drive connector', () => {
       sourceIsAuthorityOnExistence: true,
     };
 
-    // Under `export-office` a Slides export is measured unstable, so it is
-    // refused, as the owner's twenty were.
+    // Under the default, `refuse`, the deck stays behind, on the Failures
+    // screen under its bare name. (Until 2026-09-23 this was a deck under
+    // Office, refused as measured unstable, as the owner's twenty were. Office
+    // carries a deck now; the refusal a person still meets is this one.)
     await runFileSync({
       ...common,
-      source: new GoogleDriveSource(drive(), { baseUrl: BASE, nativeFilePolicy: 'export-office' }),
+      source: new GoogleDriveSource(drive(), { baseUrl: BASE }),
     });
     expect((await ledger.listFailures(TENANT, MAPPING)).map((f) => f.naturalKeyHash)).toEqual([
-      key('Deck.pptx'),
+      key('Deck'),
     ]);
 
-    // The owner switches the migration to ODF, where a deck is stable.
+    // The owner chooses OpenDocument for the migration.
     const second = await runFileSync({
       ...common,
       source: new GoogleDriveSource(drive(), { baseUrl: BASE, nativeFilePolicy: 'export-odf' }),
@@ -477,6 +479,6 @@ describe('through the real Google Drive connector', () => {
     expect(second.created).toBe(1);
     expect(second.superseded).toBe(1);
     expect(await ledger.listFailures(TENANT, MAPPING)).toEqual([]);
-    expect((await ledger.find(TENANT, MAPPING, 'file', key('Deck.pptx')))?.status).toBe('superseded');
+    expect((await ledger.find(TENANT, MAPPING, 'file', key('Deck')))?.status).toBe('superseded');
   });
 });

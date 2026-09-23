@@ -285,14 +285,15 @@ evidence drops to `inferred`, which gate 3 will not apply — so the count is wh
 why an apply button is missing rather than leaving them to guess.
 
 Not (yet) migrated:
-- ⏳ **Google Docs / Sheets / Slides / Drawings** — refused by default, each named with the
-  reason: they have no bytes, only exports. An owner can choose an export per migration, and
-  **all twelve (policy, type) combinations were measured on a real tenant** (workplan 0042 T3,
-  2026-09-16 and 17). `export-pdf` is stable for all four and is the only policy that carries
-  all four. `export-office` refuses a Slides deck and `export-odf` refuses a Doc, per file,
-  because those two exports change between calls. A document is exported again only when
-  Drive's modified time for it moves (#1083), so an export that differs byte for byte is not
-  re-copied every pass. Drive **shortcuts** are refused too (they are pointers, not files).
+- ⏳ **Google Docs / Sheets / Slides / Drawings** — left behind by default, each named with the
+  reason: they have no bytes, only exports. An owner chooses a format **per kind**
+  (OpenDocument, Microsoft Office or PDF), and **every format carries every kind**. All twelve
+  (policy, type) combinations were measured on a real tenant (workplan 0042 T3, 2026-09-16 and
+  17), and two differ between two exports of an unchanged document: Slides as `.pptx` and Docs
+  as `.odt`. They were refused for that until 2026-09-23 and are copied since (ADR-0046,
+  amended): a document is exported again only when Drive's modified time for it moves (#1083),
+  and a renamed one is paired by its Drive id (ADR-0030, amended), so no rewrite and no
+  deletion report depends on the bytes. Drive **shortcuts** are refused (pointers, not files).
 - 🚫 **Sharing permissions / ACLs, version history, comments, stars** — the file's bytes
   and place migrate; its social metadata does not. The Finish screen's **permissions
   handover** document is the deliberate substitute for ACL migration.

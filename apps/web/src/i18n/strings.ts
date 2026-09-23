@@ -448,8 +448,10 @@ const en = {
     'A Google Doc lives in Google, not in a file: there is nothing to copy across. Drive can render one as a document or a PDF, and that rendering is what would arrive. Leaving them behind is the alternative, and the default.',
   // ONE SELECT PER KIND (0042 T9; the owner, 2026-09-23: "a per kind choice
   // makes more sense for the fileformats. Split that up."). Each select offers
-  // only the formats measured to carry that kind, so nothing on the list leaves
-  // its kind behind while looking as though it would copy it.
+  // the formats that carry that kind, so nothing on the list leaves its kind
+  // behind while looking as though it would copy it. Every format carries every
+  // kind since the refusals of measured-unstable exports went (ADR-0046,
+  // amended 2026-09-23).
   'wizard.nativePolicy.leave': 'Leave behind, and report each one',
   'wizard.nativePolicy.as.odf': 'OpenDocument ({ext})',
   'wizard.nativePolicy.as.office': 'Microsoft Office ({ext})',
@@ -462,10 +464,10 @@ const en = {
   // where it is made. Read off the same tables the selects are built from.
   'wizard.nativePolicy.leftBehind': '{kinds} stay behind in Google, each reported by name.',
   'wizard.nativePolicy.leftBehind.why':
-    'Nothing is copied for them and nothing is lost: each one appears on the Failures screen with its name, and you accept or retry them one at a time or all at once. A format missing from a kind’s list was measured not to come back the same from two exports of an unchanged file, and is not offered for that kind. Forms, My Maps, Sites and Apps Scripts always stay behind: Google can export those in no format at all.',
+    'Nothing is copied for them and nothing is lost: each one appears on the Failures screen with its name, and you accept or retry them one at a time or all at once. Forms, My Maps, Sites and Apps Scripts always stay behind: Google can export those in no format at all.',
   'wizard.nativePolicy.notEditable': '{kinds} arrive as PDF, which nobody can edit afterwards.',
   'wizard.nativePolicy.notEditable.why':
-    'A PDF is a copy of how the document looks: nobody gets a Google Doc back out of it, and fine formatting can shift. It is the one format measured to carry all four kinds, so it is the way out for a kind you want copied but not in an editable format.',
+    'A PDF is a copy of how the document looks: nobody gets a Google Doc back out of it, and fine formatting can shift. Choose it for a kind you want copied but do not need to edit.',
   'wizard.nativePolicy.allEditable': 'All four kinds arrive as files you can edit.',
   'wizard.nativePolicy.allEditable.why':
     'Each arrives as a rendering Google makes, not the original: fine formatting can shift, and drawings arrive as .svg images because Drive offers no editable drawing format. You can change a format later; files already copied keep the format they arrived in.',
@@ -1767,7 +1769,7 @@ const en = {
     'Enter its tenant ID and client ID here, and its client secret with the mailbox address on the credentials step. Register the app and grant admin consent in your own tenant first; the checklist below has the steps.',
   'wizard.about.googleDrive': 'Uses your own Google OAuth client and a read-only token.',
   'wizard.about.googleDrive.more':
-    'The token cannot write to the Drive. Google Docs, Sheets and Slides are reported as un-migratable, one by one, with the reason: they have no file to copy, and rendering them is not enabled until export stability is measured. The setup guide walks through all three values and ends with one read-only command that proves them.',
+    'The token cannot write to the Drive. Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason. The setup guide walks through all three values and ends with one read-only command that proves them.',
   'wizard.about.dropbox': 'Uses your own read-only Dropbox app.',
   'wizard.about.dropbox.more':
     'Create it read-only: files.metadata.read and files.content.read, plus sharing.read if you want the shared-folder browse. The App key goes here; on the credentials step, the App secret goes in the client-secret field and the refresh token beside it.',
@@ -2569,10 +2571,10 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.nativePolicy.editable': 'Kies voor elke soort een bewerkbaar formaat',
   'wizard.nativePolicy.leftBehind': '{kinds} blijven staan in Google, elk met naam gemeld.',
   'wizard.nativePolicy.leftBehind.why':
-    'Er wordt niets van gekopieerd en niets gaat verloren: elk bestand verschijnt met naam op het scherm Mislukkingen, en u accepteert of probeert ze per stuk of in één keer. Een formaat dat bij een soort ontbreekt, kwam bij meting niet hetzelfde terug uit twee exports van een ongewijzigd bestand, en wordt voor die soort niet aangeboden. Formulieren, My Maps, Sites en Apps Scripts blijven altijd staan: die kan Google in geen enkel formaat exporteren.',
+    'Er wordt niets van gekopieerd en niets gaat verloren: elk bestand verschijnt met naam op het scherm Mislukkingen, en u accepteert of probeert ze per stuk of in één keer. Formulieren, My Maps, Sites en Apps Scripts blijven altijd staan: die kan Google in geen enkel formaat exporteren.',
   'wizard.nativePolicy.notEditable': '{kinds} komen aan als PDF, die achteraf niet te bewerken is.',
   'wizard.nativePolicy.notEditable.why':
-    'Een PDF legt vast hoe het document eruitziet: er komt nooit weer een Google-document uit, en fijne opmaak kan verschuiven. Het is het enige formaat waarvan gemeten is dat het alle vier de soorten meeneemt, dus de uitweg voor een soort die u gekopieerd wilt hebben, maar niet in een bewerkbaar formaat.',
+    'Een PDF legt vast hoe het document eruitziet: er komt nooit weer een Google-document uit, en fijne opmaak kan verschuiven. Kies het voor een soort die u gekopieerd wilt hebben, maar niet hoeft te bewerken.',
   'wizard.nativePolicy.allEditable': 'Alle vier de soorten komen aan als bestanden die u kunt bewerken.',
   'wizard.nativePolicy.allEditable.why':
     'Elk bestand komt aan als weergave van Google, niet als origineel: fijne opmaak kan verschuiven, en tekeningen komen aan als .svg-afbeelding omdat Drive geen bewerkbaar formaat voor tekeningen aanbiedt. U kunt een formaat later wijzigen; al gekopieerde bestanden houden het formaat waarin ze aankwamen.',
@@ -3512,7 +3514,7 @@ const nl: Record<keyof typeof en, string> = {
     'Vul hier de tenant-ID en client-ID in, en op de stap met inloggegevens het clientgeheim samen met het mailboxadres. Registreer de app en verleen eerst beheerderstoestemming in uw eigen tenant; de checklist hieronder heeft de stappen.',
   'wizard.about.googleDrive': 'Gebruikt uw eigen Google OAuth-client en een alleen-lezen token.',
   'wizard.about.googleDrive.more':
-    'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets en Presentaties worden één voor één als niet-migreerbaar gemeld, met de reden: er is geen bestand om te kopiëren, en renderen staat uit totdat de exportstabiliteit is gemeten. De handleiding behandelt alle drie de waarden en eindigt met één alleen-lezen commando dat ze bewijst.',
+    'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden. De handleiding behandelt alle drie de waarden en eindigt met één alleen-lezen commando dat ze bewijst.',
   'wizard.about.dropbox': 'Gebruikt uw eigen alleen-lezen Dropbox-app.',
   'wizard.about.dropbox.more':
     'Maak deze alleen-lezen aan: files.metadata.read en files.content.read, plus sharing.read als u gedeelde mappen wilt bekijken. De App-sleutel komt hier; op de stap met inloggegevens komt het App-geheim in het clientgeheim-veld en het refresh-token ernaast.',

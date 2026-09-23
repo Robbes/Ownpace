@@ -366,8 +366,9 @@ The split, by the code that already exists:
 
 - **not in `EXPORTABLE_NATIVE_TYPES`** (forms, maps, the shortcut) → `source_refused`. Drive
   cannot produce a file in any format; no setting changes it.
-- **`policy === 'refuse'`, or a policy with no rendering, or measured `unstable`** →
-  `policy_refused`. The source would hand it over; this migration declined.
+- **`policy === 'refuse'`, or a policy with no rendering, or measured `unstable`** (the last
+  until 2026-09-23, when that refusal went: ADR-0046, amended) → `policy_refused`. The source
+  would hand it over; this migration declined.
 
 **Rows written before today keep the category they were given**, which is 0048's rule and right
 for the same reason: rewriting them would be a claim about a failure nobody re-observed. They

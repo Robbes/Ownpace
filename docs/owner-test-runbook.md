@@ -50,10 +50,11 @@ Everything else: test through the app, exactly as you prefer.
 ## Stage 1 — the Drive probe (any machine with the repo, ~15 min once credentials exist)
 
 > **Done 2026-09-16 and 17.** The probe measured all twelve (policy, type) combinations. The
-> verdicts are in workplan 0042 T3 and in `EXPORT_STABILITY`, the policies can be chosen per
-> migration, and the two unstable combinations are refused per file. Since #1083 a document is
-> exported again only when Drive's modified time for it moves, so the rewrite-forever failure
-> no longer happens through an unstable export. The probe remains the way to re-take a verdict.
+> verdicts are in workplan 0042 T3 and in `EXPORT_STABILITY`, and a format can be chosen per
+> kind. The two unstable combinations were refused per file until 2026-09-23: since #1083 a
+> document is exported again only when Drive's modified time for it moves, and a renamed one
+> is paired by its Drive id, so neither is refused any more (ADR-0046, amended). The probe
+> remains the way to re-take a verdict.
 
 Follow [`google-workspace-setup.md`](./google-workspace-setup.md) §1–4 once: Cloud
 project, Drive API, consent screen, OAuth client, and the refresh token via the

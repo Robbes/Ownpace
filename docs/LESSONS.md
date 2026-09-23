@@ -738,9 +738,8 @@ reading a file drops off its entry by itself.
 
 ### `packages/connectors/src/google-drive-source.ts`
 
-- [a-deck-that-would-be-rewritten-nightly](../scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts) — A MEASURED-UNSTABLE EXPORT, COPIED ANYWAY (workplan 0042 T3 and T7, ADR-0046, owner's decision 2026-09-16).
+- [a-deck-that-would-be-rewritten-nightly](../scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts) — A MEASURED-UNSTABLE EXPORT, AND WHY IT IS NO LONGER REWRITTEN NIGHTLY (workplan 0042 T3, T7 and T10 (c); ADR-0046, amended 2026-09-23).
 - [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
-- [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts) — THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/connectors/src/google-token-provider.ts`
@@ -769,6 +768,10 @@ reading a file drops off its entry by itself.
 
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
+### `packages/core/src/a-deck-copied-once-not-nightly.unit.test.ts`
+
+- [a-deck-that-would-be-rewritten-nightly](../scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts) — A MEASURED-UNSTABLE EXPORT, AND WHY IT IS NO LONGER REWRITTEN NIGHTLY (workplan 0042 T3, T7 and T10 (c); ADR-0046, amended 2026-09-23).
+
 ### `packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`
 
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
@@ -785,7 +788,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/core/src/dav-sync.ts`
 
-- [a-deck-that-would-be-rewritten-nightly](../scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts) — A MEASURED-UNSTABLE EXPORT, COPIED ANYWAY (workplan 0042 T3 and T7, ADR-0046, owner's decision 2026-09-16).
+- [a-deck-that-would-be-rewritten-nightly](../scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts) — A MEASURED-UNSTABLE EXPORT, AND WHY IT IS NO LONGER REWRITTEN NIGHTLY (workplan 0042 T3, T7 and T10 (c); ADR-0046, amended 2026-09-23).
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [an-item-the-listing-dropped-in-silence](../scripts/an-item-the-listing-dropped-in-silence.unit.test.ts) — AN ITEM THE LISTING DROPPED, AND NOTHING ANYWHERE COUNTED IT.
 
@@ -938,7 +941,6 @@ reading a file drops off its entry by itself.
 
 ### `packages/shared/src/config.ts`
 
-- [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts) — THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `packages/shared/src/confirmed-list.ts`
@@ -1165,7 +1167,7 @@ reading a file drops off its entry by itself.
 - [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts) — A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
 - [a-placeholder-that-reached-google](../scripts/a-placeholder-that-reached-google.unit.test.ts) — A guard that the measurement can be aimed by kind, so no instruction for it has to carry a placeholder.
 - [a-red-verdict-the-table-calls-stable](../scripts/a-red-verdict-the-table-calls-stable.unit.test.ts) — A RED VERDICT THE TABLE CALLS STABLE (found 2026-09-17, on the owner's run).
-- [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts) — THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
+- [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts) — THE MEASUREMENT THAT COULD NOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
 - [two-draws-that-could-agree-by-accident](../scripts/two-draws-that-could-agree-by-accident.unit.test.ts) — TWO DRAWS OF A ONE-BYTE WOBBLE CAN AGREE, AND THE SCRIPT WOULD HAVE CALLED THAT STABLE.
 
 ### `scripts/drive-share-inheritance.ts`
@@ -1474,11 +1476,12 @@ Reads:
 
 ### [a-deck-that-would-be-rewritten-nightly](../scripts/a-deck-that-would-be-rewritten-nightly.unit.test.ts)
 
-A MEASURED-UNSTABLE EXPORT, COPIED ANYWAY (workplan 0042 T3 and T7, ADR-0046, owner's decision 2026-09-16).
+A MEASURED-UNSTABLE EXPORT, AND WHY IT IS NO LONGER REWRITTEN NIGHTLY (workplan 0042 T3, T7 and T10 (c); ADR-0046, amended 2026-09-23).
 
 Reads:
 
 - `packages/connectors/src/google-drive-source.ts`
+- `packages/core/src/a-deck-copied-once-not-nightly.unit.test.ts`
 - `packages/core/src/dav-sync.ts`
 
 ### [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts)
@@ -2310,12 +2313,10 @@ Reads:
 
 ### [an-instrument-that-cannot-take-its-own-reading](../scripts/an-instrument-that-cannot-take-its-own-reading.unit.test.ts)
 
-THE MEASUREMENT THAT CANNOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
+THE MEASUREMENT THAT COULD NOT BE RE-TAKEN (workplan 0042 T3 and T6, ADR-0046).
 
 Reads:
 
-- `packages/connectors/src/google-drive-source.ts`
-- `packages/shared/src/config.ts`
 - `scripts/drive-export-stability.ts`
 
 ### [an-integration-test-is-handed-its-database](../scripts/an-integration-test-is-handed-its-database.unit.test.ts)

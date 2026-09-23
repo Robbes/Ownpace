@@ -3,7 +3,18 @@
 /**
  * WHICH OF SOMEBODY'S GOOGLE FILES EACH EXPORT POLICY ACTUALLY CARRIES.
  *
- * THE DEFECT THIS EXISTS TO FIX. The wizard offers four options in a `<select>`
+ * **EVERY POLICY CARRIES EVERY KIND, SINCE 2026-09-23.** What follows is the
+ * history that made this table necessary. Two of its cells were empty because
+ * the connector refused an export measured to differ between two draws: every
+ * Doc under OpenDocument, every Slides deck under Office. Once a rewrite
+ * followed Drive's own modified time instead of the bytes (#1083), and a
+ * renamed document was paired by its Drive id (ADR-0030, amended), that
+ * refusal protected nothing, and it went (ADR-0046, amended). The table stays,
+ * and so do the functions below: they are how a screen asks what a format
+ * carries, and a format that cannot render a kind will be the next reason a
+ * cell is empty.
+ *
+ * THE DEFECT THIS EXISTED TO FIX. The wizard offers four options in a `<select>`
  * — leave them behind, OpenDocument, Microsoft Office, PDF — and presents them
  * as equals, differing only in file extension. They are not equals. As measured
  * on 2026-09-16 and 2026-09-17 (workplan 0042 T3, `EXPORT_STABILITY`):
@@ -35,17 +46,14 @@
  * which sits beside `GoogleNativeFilePolicy` for the same reason that type does.
  * **The two are held together by a guard rather than by memory**:
  * `a-chooser-that-hid-which-files-it-would-drop.unit.test.ts` derives this table
- * from the measurements and fails if they disagree, so a cell that flips colour
+ * from what the connector does and fails if they disagree, so a change there
  * cannot leave a stale promise on the wizard.
  *
- * ## `unstable` is the only thing that leaves a file behind
+ * ## The table follows BEHAVIOUR
  *
- * Not "anything that is not `stable`". The connector refuses a combination the
- * table calls `unstable` and copies everything else, `unmeasured` included — a
- * blank is recorded, not acted on. So this table follows BEHAVIOUR: a kind is
- * carried unless the measurement says it would be rewritten nightly. Deriving
- * it from the greens instead would put a warning on the screen for a type
- * nobody has measured, about a refusal that would never happen.
+ * A kind is carried when the connector exports it under that policy: when the
+ * policy has a rendering for it. No measurement refuses anything any more, so
+ * that is every kind under every policy today.
  */
 
 import type { GoogleNativeFilePolicy } from './config.ts';
@@ -132,14 +140,12 @@ export function nativeFilePoliciesOf(source: {
 export const NATIVE_POLICY_COVERAGE: Readonly<
   Record<Exclude<GoogleNativeFilePolicy, 'refuse'>, readonly GoogleEditorKind[]>
 > = {
-  // No Doc: `settings.xml` moves between draws, so every Doc would be rewritten
-  // on every pass. The most common file type in the list, dropped by the policy
-  // whose label leads with `.odt`.
-  'export-odf': ['spreadsheet', 'presentation', 'drawing'],
-  // No deck: five members of the `.pptx` change content.
-  'export-office': ['document', 'spreadsheet', 'drawing'],
-  // All four, measured across five draws each. The only policy that leaves
-  // nothing behind, and the only one nothing comes back editable from.
+  // All four. A Doc's `.odt` has a `settings.xml` that moves between draws, and
+  // that no longer matters: the bytes decide nothing (see the header).
+  'export-odf': ['document', 'spreadsheet', 'presentation', 'drawing'],
+  // All four. A deck's `.pptx` moves in five members between draws, likewise.
+  'export-office': ['document', 'spreadsheet', 'presentation', 'drawing'],
+  // All four, and the only one nothing comes back editable from.
   'export-pdf': ['document', 'spreadsheet', 'presentation', 'drawing'],
 };
 

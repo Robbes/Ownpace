@@ -66,15 +66,12 @@ import {
   GOOGLE_NATIVE_PREFIX,
   NATIVE_EXPORT_EXTENSIONS,
   NATIVE_EXPORT_TYPES,
-  exportStabilityOf,
   nativeFileWord,
-  stablePoliciesFor,
   type DriveFile,
   type DriveFileList,
   type DriveTransport,
   type DriveResponse,
   type GoogleDriveSourceConfig,
-  type ExportStability,
   type NativeFilePolicy,
 } from './google-drive-source.types.ts';
 // The seam's threshold, not DAV's — every connector that moves to `FileBody`
@@ -123,76 +120,12 @@ export const DRIVE_SHORTCUT_MIME = 'application/vnd.google-apps.shortcut';
  *     nothing;
  *   - a shortcut is a pointer to something else, not content.
  */
-/**
- * WHAT TO DO ABOUT A REFUSED FILE, read off the measurements rather than
- * written into the sentence.
- *
- * This used to be the fixed clause *"export-pdf is stable for a Doc and loses
- * editability"*, which was true on the day a Doc was the only thing anyone had
- * measured. It then said Doc to every customer whose SLIDES DECK had just been
- * refused — the wrong file type, in the one sentence whose whole job is telling
- * somebody what to do next. Two measurements later it would also have been
- * needlessly bleak: a Doc refused under `export-odf` can go to `export-office`
- * and STAY EDITABLE, and the fixed clause sent it to PDF.
- *
- * So the way out is derived per type, and the consequence is that a
- * measurement is the only thing that can change this advice. A green that turns
- * red later removes a recommendation nobody has to remember to withdraw.
- *
- * AN EMPTY LIST IS NOT A BUG and must not be read as one: a type with nothing
- * measured stable genuinely has no way out through a policy today, and saying
- * that is better than naming a format nobody has run. **No type is in that
- * position as this is written** (2026-09-17): every one of the twelve cells has
- * been measured and every editor type has at least two policies measured
- * stable. The branch stays because a Google product added tomorrow starts with
- * nothing measured, which is exactly the case it is for.
- */
-function wayOutFor(kind: string, mimeType: string, refused: NativeFilePolicy): string {
-  const alternatives = stablePoliciesFor(mimeType).filter((policy) => policy !== refused);
-  const keepIt = `Move the ${kind} out of scope and keep it where it is.`;
-  if (alternatives.length === 0) {
-    return `No export policy is measured stable for a ${kind}, so there is no format to switch to. ${keepIt}`;
-  }
-  const named = alternatives.map((policy) => `"${policy}"`).join(' and ');
-  const verb = alternatives.length === 1 ? 'is' : 'are';
-  // The editability cost is attached to the policy that carries it rather than
-  // stated in general: "export-office" keeps a document editable and "export-pdf"
-  // does not, and a customer choosing between them needs that difference and not
-  // a blanket warning over both.
-  //
-  // TWO SHAPES, because with one alternative the parenthetical form names the
-  // same policy twice in a row — `"export-pdf" is measured stable for a Slides
-  // deck ("export-pdf" is not editable afterwards)` — which reads like a stutter
-  // and buries the one thing being said. With two it is the parenthetical that
-  // does the work, saying WHICH of them costs the editing.
-  const onlyPdf = alternatives.length === 1 && alternatives[0] === 'export-pdf';
-  const cost = onlyPdf
-    ? ', though a PDF is not editable afterwards'
-    : alternatives.includes('export-pdf')
-      ? ' ("export-pdf" is not editable afterwards)'
-      : '';
-  // THE SCREEN, AND THE KIND (0042 T9). "Switch the mapping's export policy"
-  // named a single setting for all four kinds; each kind has its own now, so
-  // switching the one that refused this file is a change to this kind alone.
-  return `${named} ${verb} measured stable for a ${kind}${cost}. Choose one for this kind under Export format for Google files, or: ${keepIt}`;
-}
 
 export class NativeFileRefused extends Error {
   constructor(
     name: string,
     mimeType: string,
     policy: NativeFilePolicy = 'refuse',
-    /**
-     * What the measurement says about THIS policy on THIS type, when the
-     * policy has a rendering for it at all.
-     *
-     * Only `unstable` ever reaches here — `refusalFor` does not refuse an
-     * `unmeasured` combination, because a blank is not a red (see there). The
-     * parameter takes the whole type rather than a boolean so that if that
-     * product decision is ever revisited, the call site changes and this
-     * signature does not.
-     */
-    stability: ExportStability = 'stable',
   ) {
     // The word a person uses, not the MIME suffix. The LEDGER key stays the
     // suffix (see `nativeFileWord`); this is only the sentence.
@@ -221,13 +154,14 @@ export class NativeFileRefused extends Error {
     // export policy" could never hold an item no policy carries. The condition
     // cannot fire: the three branches that could reach it are all below the
     // `EXPORTABLE_NATIVE_TYPES` guard, and every exportable type has at least
-    // two stable policies. A branch nothing can execute is a branch no test can
-    // prove, so it is not here.
+    // two policies that render it (since 2026-09-23 no measurement refuses
+    // one). A branch nothing can execute is a branch no test can prove, so it
+    // is not here.
     //
-    // WHAT HOLDS THE CLAIM INSTEAD is a guard over the measurement table
-    // itself, in `a-policy-offered-for-a-form-that-cannot-be-exported`: every
-    // exportable type must keep a stable policy to switch TO, whichever one is
-    // in force. Add a Google type with nothing measured and that goes red,
+    // WHAT HOLDS THE CLAIM INSTEAD is a guard over the rendering table itself,
+    // in `a-policy-offered-for-a-form-that-cannot-be-exported`: every
+    // exportable type must keep a policy to switch TO, whichever one is in
+    // force. Add a Google type that only one policy renders and that goes red,
     // naming the type — rather than this shipping a `policy_refused` whose
     // remedy names no format, which is the one-button-two-remedies defect the
     // category was added to end, reappearing one size down.
@@ -263,20 +197,6 @@ export class NativeFileRefused extends Error {
         `"${name}" is a Google ${kind}: it has no file to copy until Drive exports one, and this ` +
         'migration is set not to export. Choose a format under Export format for Google files, ' +
         'and the next pass copies it in that format and closes this line — or leave it behind.';
-    } else if (stability === 'unstable') {
-      category = 'policy_refused';
-      // MEASURED, not suspected. Drive CAN export this one — the refusal is
-      // about what the export is worth, which is a harder thing to explain and
-      // a worse thing to get wrong. If this file were copied, every later pass
-      // would see a different hash for a document nobody touched, re-copy it,
-      // and succeed; the owner would find their whole library rewritten every
-      // night with nothing in any report saying so.
-      message =
-        `"${name}" is a Google ${kind}. Drive can export one under "${policy}", but the export ` +
-        'is NOT byte-stable: exporting the same unchanged file twice gives two different ' +
-        'results, measured on a real account. Copying it would make every later pass see a ' +
-        `change that did not happen and re-copy it, nightly, forever. ${wayOutFor(kind, mimeType, policy)} ` +
-        'This is a measurement, not a guess — see workplan 0042 T3.';
     } else {
       category = 'policy_refused';
       message =
@@ -349,43 +269,6 @@ export interface DriveStorageUsage {
   readonly nativeFilesExcluded: true;
 }
 
-/**
- * THE ONE WAY PAST THE STABILITY REFUSAL, and it exists for the instrument that
- * produced the measurement in the first place.
- *
- * ## The circle this breaks
- *
- * `EXPORT_STABILITY` is built from the output of
- * `scripts/drive-export-stability.ts`, and that script measures THROUGH this
- * connector on purpose — the question it answers is "what would a migration
- * store", and a hand-rolled export would answer a different one. So when the
- * connector learned to refuse what the table calls `unstable`, the script
- * inherited the refusal and stopped being able to measure the two combinations
- * the table condemns. The instrument could no longer take a reading it had
- * itself produced, which also means it could not notice Google FIXING one: a
- * red would have been permanent by construction, with no way back to green
- * short of editing the table by hand on no evidence.
- *
- * ## Why a third argument and not a config field
- *
- * `GoogleDriveSourceConfig` is parsed from an appliance's config file and from
- * a managed connection's stored row. Anything in it is reachable by a customer
- * or an operator typing a key, which is exactly what must not be true of this:
- * the refusal is the only thing standing between a Slides deck and a library
- * rewritten nightly. A separate positional argument is not in that schema,
- * cannot arrive through it, and reads at the call site as the sentence it is.
- *
- * `a-deck-that-would-be-rewritten-nightly.unit.test.ts` holds the other half:
- * no production call site passes it.
- */
-export type MeasuringInstrument = {
-  /**
-   * Named at length so it cannot be set casually, and so a reviewer seeing it
-   * in a diff outside `scripts/` knows immediately that something is wrong.
-   */
-  readonly exportDespiteMeasuredInstability: true;
-};
-
 export class GoogleDriveSource implements FileSource {
   private readonly baseUrl: string;
   private readonly rootFolderId: string;
@@ -423,20 +306,8 @@ export class GoogleDriveSource implements FileSource {
 
   private readonly transport: DriveTransport;
 
-  /**
-   * Whether this source may export a combination the measurements call
-   * `unstable`. FALSE for every migration, and settable only by passing a
-   * third constructor argument that spells out what it is for.
-   */
-  private readonly measuring: boolean;
-
-  constructor(
-    transport: DriveTransport,
-    config: GoogleDriveSourceConfig = {},
-    instrument?: MeasuringInstrument,
-  ) {
+  constructor(transport: DriveTransport, config: GoogleDriveSourceConfig = {}) {
     this.transport = transport;
-    this.measuring = instrument?.exportDespiteMeasuredInstability === true;
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE).replace(/\/$/, '');
     this.rootFolderId = config.rootFolderId ?? 'root';
     // Defaults to refusing, not exporting. See NativeFilePolicy: of the two ways
@@ -553,8 +424,7 @@ export class GoogleDriveSource implements FileSource {
       // Filtering it out of the listing here would make it vanish instead —
       // uncounted, unreported, and indistinguishable from a file that was never
       // there.
-      // EVERY FILE THIS POLICY WILL NOT CARRY — not only the measured-unstable
-      // ones.
+      // EVERY FILE THIS POLICY WILL NOT CARRY: today, a kind set not to export.
       //
       // This counted `policy !== 'refuse'` and unstable-only, on a stated
       // argument: *"under `refuse` every native file is refused and the
@@ -1311,14 +1181,6 @@ export class GoogleDriveSource implements FileSource {
     if (policy === 'refuse' || !isNativeEditorFile(file.mimeType)) return undefined;
     const target = NATIVE_EXPORT_TYPES[policy][file.mimeType];
     if (!target) return undefined;
-    // A SECOND GATE, on purpose. `fetch` asks `refusalFor` first and throws, so
-    // nothing measured-unstable reaches here today — but that is an ORDERING,
-    // and an ordering is what a later edit reorders. The cost of the duplicate
-    // check is a map lookup; the cost of losing it is a policy silently
-    // exporting the file the measurement refused.
-    if (!this.measuring && exportStabilityOf(policy, file.mimeType) === 'unstable') {
-      return undefined;
-    }
     return (
       `${this.baseUrl}/files/${encodeURIComponent(file.id)}/export` +
       `?mimeType=${encodeURIComponent(target)}`
@@ -1359,34 +1221,18 @@ export class GoogleDriveSource implements FileSource {
     if (!map[file.mimeType]) {
       return new NativeFileRefused(file.name, file.mimeType, policy);
     }
-    // A rendering exists. Whether it is worth having is the measurement's
-    // question.
-    //
-    // ONLY `unstable` REFUSES, and the line is drawn there deliberately.
-    // `unmeasured` is recorded in the table and reported, but it does NOT stop
-    // a copy: turning off a path that works today on the strength of a
-    // measurement nobody has run would be a product decision — it would refuse
-    // every Drawing, and it would have refused every Sheet and Slide under
-    // `export-pdf`, the escape hatch an owner reaches for when `export-office`
-    // will not do. Those were measured on 2026-09-16 and came back stable, one
-    // day after this comment was written: the hatch would have been shut on no
-    // evidence, the day before the evidence arrived. A Drawing under
-    // `export-office` was deliberately made to work (SVG), and this is not the
-    // change that turns it off again.
-    //
-    // The asymmetry is the same one the whole workplan runs on: a red is
-    // conclusive and a blank is not. A blank is a reason to go and measure,
-    // which `EXPORT_STABILITY` now names precisely enough to act on.
-    const stability = exportStabilityOf(policy, file.mimeType);
-    // The instrument is exempt from this ONE refusal and from no other: a
-    // shortcut still has nothing to export, a Form still cannot be rendered,
-    // and `refuse` still refuses. Only the verdict this script's own output
-    // wrote is lifted, and only for the script that has to be able to write it
-    // again.
-    if (this.measuring) return undefined;
-    return stability === 'unstable'
-      ? new NativeFileRefused(file.name, file.mimeType, policy, stability)
-      : undefined;
+    // A rendering exists, and that is the whole question now. Until 2026-09-23
+    // an export measured to differ between two draws of an unchanged file was
+    // refused here (a Doc under OpenDocument, a Slides deck under Office),
+    // because every later pass would have seen new bytes and copied it again,
+    // nightly. Two changes took that reason away: a document is copied again
+    // when Drive says it was edited, never because its bytes differ (#1083),
+    // and a renamed one is paired by its Drive id rather than by its bytes
+    // (ADR-0030, amended). So every format is offered for every kind, which is
+    // the owner's aim: *"working fileformats that suite the user"*. The
+    // measurements stay in `EXPORT_STABILITY` as what they are, a record
+    // (ADR-0046, amended).
+    return undefined;
   }
 }
 

@@ -88,10 +88,20 @@ export const NATIVE_EXPORT_TYPES: Readonly<
 };
 
 /**
- * WHETHER AN EXPORT IS STABLE ENOUGH TO MIGRATE — the measurements, as a table
- * the code reads (workplan 0042 T3, ADR-0046, decision 2026-09-16).
+ * WHETHER TWO EXPORTS OF AN UNCHANGED DOCUMENT AGREE — the measurements, as a
+ * table (workplan 0042 T3, ADR-0046, decision 2026-09-16).
  *
- * THE PROBLEM THIS EXISTS FOR. A Google Doc has no bytes; migrating one means
+ * **A RECORD, NO LONGER A GATE (2026-09-23, ADR-0046 amended).** Until then the
+ * connector refused every combination this table calls `unstable`, a Doc under
+ * OpenDocument and a Slides deck under Office, for the reason in the next
+ * paragraph. That reason is gone: a document is copied again when Drive says it
+ * was edited, never because its bytes differ (#1083), and a renamed one is
+ * paired by its Drive id (ADR-0030, amended). So nothing reads this table to
+ * refuse, and every format is offered for every kind; the owner's aim was
+ * *"working fileformats that suite the user"*. The measurements stay because
+ * they are true, and the instrument that took them can take them again.
+ *
+ * THE PROBLEM THIS EXISTED FOR. A Google Doc has no bytes; migrating one means
  * asking Drive to EXPORT a rendering. If two exports of an unchanged document
  * differ, `contentHash` sees a change on every pass and the migration rewrites
  * every document nightly, forever, with every write succeeding and nothing
@@ -103,8 +113,8 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  *   - `stable`     measured, and either byte-identical or settleable by the
  *                  container hash. Safe to export.
  *   - `unstable`   measured, and NOT settleable: something inside a member
- *                  varies. Refused, because exporting it is the nightly
- *                  rewrite.
+ *                  varies. Refused until 2026-09-23, when a rewrite stopped
+ *                  depending on the bytes; copied since.
  *   - `unmeasured` nobody has run it. **Recorded, and NOT acted on** — a blank
  *                  is not a red. EVERY entry that has ever left this column has
  *                  gone to `stable`, twice now: `export-pdf` on a Sheet and a
@@ -148,13 +158,6 @@ export const NATIVE_EXPORT_TYPES: Readonly<
  *     changes, 16 members restamped, normalised draws agree. Container-only —
  *     and the same deck under `export-office` is NOT, which is the sharpest
  *     evidence in this table that a policy cannot be judged as a whole.
- *
- * THE THREE `export-pdf` GREENS ARE WHAT MAKES THE SLIDE REFUSAL SURVIVABLE.
- * Without them `export-office` refusing a deck is a dead end — the customer is
- * told their decks cannot be migrated and given nothing to do about it. With
- * them the refusal names a format measured to carry the same file, which is
- * the difference between a gate and a wall. `stablePoliciesFor` below is how
- * the refusal reaches them without a second copy of this table.
  *
  * ONE REQUEST CANNOT HAVE TWO ANSWERS, and that is why one run moved two
  * entries. `exportUrlFor` builds the export url out of
@@ -304,39 +307,6 @@ export const EXPORT_STABILITY: Readonly<
     'application/vnd.google-apps.drawing': 'stable',
   },
 };
-
-/**
- * Every policy MEASURED stable for this type, in table order.
- *
- * This is what a refusal says instead of naming a policy by hand. The sentence
- * it feeds used to read *"export-pdf is stable for a Doc"* — written when a Doc
- * was the only thing measured, and still saying Doc to a customer whose DECK
- * had just been refused. Deriving it means the sentence can only ever name a
- * policy this table calls stable FOR THE TYPE IN FRONT OF IT, and that a
- * measurement which goes the other way silently corrects the advice instead of
- * leaving a stale promise in a string.
- *
- * Read off `EXPORT_STABILITY`'s own keys rather than a second list of policies,
- * so a policy added to the table is considered here without being remembered.
- *
- * BOTH TABLES ARE CONSULTED, not just the stability one. A policy is only a way
- * out if it can render this type AT ALL, and the two tables are maintained by
- * hand: a `stable` sitting beside a rendering that does not exist would put a
- * format in front of a customer that Drive would then refuse to produce. The
- * guard in `a-deck-that-would-be-rewritten-nightly.unit.test.ts` holds the
- * other direction — every rendering has a stability entry — and this holds
- * this one.
- */
-export function stablePoliciesFor(
-  mimeType: string,
-): ReadonlyArray<Exclude<NativeFilePolicy, 'refuse'>> {
-  const policies = Object.keys(EXPORT_STABILITY) as Exclude<NativeFilePolicy, 'refuse'>[];
-  return policies.filter(
-    (policy) =>
-      exportStabilityOf(policy, mimeType) === 'stable' &&
-      NATIVE_EXPORT_TYPES[policy][mimeType] !== undefined,
-  );
-}
 
 /**
  * How stable this policy's rendering of this type is, for a caller that has a
