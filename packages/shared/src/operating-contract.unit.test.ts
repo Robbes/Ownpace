@@ -23,8 +23,10 @@ import {
   DELETIONS_MEANING,
   FAILURE_GUIDANCE,
   decisionSucceeded,
+  earlierExportsQueue,
   mayOfferApply,
   type DecisionOutcome,
+  type EarlierExport,
   type ItemDeletion,
 } from './index.ts';
 
@@ -62,6 +64,23 @@ describe('mayOfferApply', () => {
 
   it('does not offer apply for an unconfirmed item even with positive evidence', () => {
     expect(mayOfferApply(deletion({ evidence: 'reported', confirmed: false }))).toBe(false);
+  });
+});
+
+describe('earlierExportsQueue (0042 T8 (b))', () => {
+  const earlier = (naturalKeyHash: string, acknowledgedAt?: string): EarlierExport => ({
+    domain: 'file',
+    naturalKeyHash,
+    collection: 'Reports',
+    exportedAs: `${naturalKeyHash}-now`,
+    ...(acknowledgedAt ? { acknowledgedAt } : {}),
+  });
+
+  it('splits them the one way both editions do: waiting for the owner, and kept', () => {
+    const open = earlier('open');
+    const kept = earlier('kept', '2026-09-23T12:00:00Z');
+    expect(earlierExportsQueue([open, kept])).toEqual({ waiting: [open], kept: [kept] });
+    expect(earlierExportsQueue([])).toEqual({ waiting: [], kept: [] });
   });
 });
 

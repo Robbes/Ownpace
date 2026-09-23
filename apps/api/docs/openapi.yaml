@@ -2473,6 +2473,13 @@ paths:
         Watched, not acted on. An item appears here when the source stopped
         reporting it; nothing is deleted on the target until a person applies
         it, and then only with evidence.
+
+        Beside them, `earlierExports` (`waiting`, `kept`): copies an earlier
+        export policy left on the target (workplan 0042 T8 (b)). The same
+        Google document is copied under the name the current policy gives it,
+        so these are not deletions, and they count in none of the deletion
+        counts or the mass-deletion breaker. A waiting one is kept through
+        the keep route below.
       responses:
         '200':
           description: The deletion queue.
@@ -2489,7 +2496,7 @@ paths:
     post:
       tags: [Operating]
       summary: Keep this item on the target
-      description: Decides the queue entry the safe way — the copy stays, and it stops being watched.
+      description: Decides the queue entry the safe way — the copy stays, and it stops being watched. Also keeps an earlier export (`earlierExports.waiting`).
       responses:
         '200':
           description: Kept.

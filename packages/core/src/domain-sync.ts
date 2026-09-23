@@ -782,6 +782,16 @@ export interface DomainSyncResult {
    */
   readonly superseded: number;
   /**
+   * Copies on the target marked as earlier exports of a document now listed
+   * under another name (workplan 0042 T8 (b), second half), on this pass.
+   *
+   * The other half of `superseded`. Those were failures, and close. These are
+   * copies the owner has, and stay: the document was exported again under the
+   * new policy's name, not deleted in Google, so they go to the Deletions queue
+   * as earlier exports rather than to the detector as absences.
+   */
+  readonly earlierExports: number;
+  /**
    * Where this pass's wall time went. Always present — the caller persists it
    * for §19's dashboards and feeds it to the metrics registry.
    */
@@ -917,6 +927,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // Failures closed because the same document is listed under the name the
   // current export policy gives it. See `DomainSyncResult.superseded`.
   let superseded = 0;
+  // Copies marked as earlier exports of a document listed under a new name.
+  // See `DomainSyncResult.earlierExports`.
+  let earlierExports = 0;
   const failures: ItemFailure[] = [];
   /**
    * Consecutive failures, reset by any success.
@@ -1986,6 +1999,22 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
             'no longer gives. The same documents are listed under their current names.',
         );
       }
+      // THE COPIES THOSE NAMES LEFT ON THE TARGET (0042 T8 (b), second half; the
+      // owner's decision of 2026-09-23: *"An old copy in Nextcloud is never
+      // deleted for you. Deletions lists it as 'an earlier export', not as
+      // 'deleted in Google'."*). Marked here, before the detector below runs,
+      // so a copy the policy renamed is never counted as missing.
+      const marked = await timed(phases, 'ledgerWriteMs', () =>
+        ledger.markEarlierExports(tenantId, mappingId, domain, unlisted),
+      );
+      earlierExports = marked.length;
+      if (earlierExports > 0) {
+        log.info(
+          `[sync] ${domain}: ${earlierExports} copy(ies) on the target are earlier exports of ` +
+            'documents now listed under another name. Nothing was removed; they are in the ' +
+            'Deletions queue for the owner to keep or remove.',
+        );
+      }
     }
   }
 
@@ -2089,6 +2118,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     leftBehind,
     reappearedAfterRemoval,
     superseded,
+    earlierExports,
     failures,
     moved,
     moves,
@@ -2371,8 +2401,21 @@ async function detectPathKeyedMoves(args: {
       if (row.absentPasses) {
         await ledger.clearAbsent(tenantId, mappingId, domain, row.naturalKeyHash);
       }
+      // And a name the policy gave again (it was switched back): the copy is a
+      // current one again, not an earlier export of anything (0042 T8 (b)).
+      if (row.supersededByNaturalKeyHash !== undefined) {
+        await ledger.clearEarlierExport(tenantId, mappingId, domain, row.naturalKeyHash);
+      }
       continue;
     }
+
+    // AN EARLIER EXPORT, already explained: the document is listed under the
+    // name the current export policy gives it, and this copy is what the old
+    // policy left (`markEarlierExports`, earlier in this pass). Not a
+    // disappearance to count, and not a competitor for this pass's arrivals,
+    // whose bytes are a different export of the same document. It waits in the
+    // Deletions queue as an earlier export, for the owner.
+    if (row.supersededByNaturalKeyHash !== undefined) continue;
 
     // ALREADY EXPLAINED, and therefore NOT a competitor for this pass's
     // arrivals.

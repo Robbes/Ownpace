@@ -7,6 +7,7 @@ import type {
   ItemFailure,
   ItemMove,
   ItemDeletion,
+  EarlierExport,
   DeletionAction,
   Ledger,
   LedgerRecord,
@@ -327,6 +328,49 @@ export class MemoryLedger implements Ledger {
     return Promise.resolve(superseded);
   }
 
+  /**
+   * Mirrors `PgLedger.markEarlierExports`: only our own copy (`copied`,
+   * `updated`) that was never removed, matched by source handle as a failure
+   * is, and not written again when already marked for the same key.
+   */
+  markEarlierExports(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    formerNames: ReadonlyArray<FormerName>,
+  ): Promise<ReadonlyArray<{ readonly naturalKeyHash: string; readonly exportedAs: string }>> {
+    const marked: Array<{ naturalKeyHash: string; exportedAs: string }> = [];
+    for (const name of formerNames) {
+      if (name.formerNaturalKeyHash === name.naturalKeyHash) continue;
+      const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash: name.formerNaturalKeyHash });
+      const row = this.rows.get(k);
+      if (!row || (row.status !== 'copied' && row.status !== 'updated')) continue;
+      if (row.deletionAppliedAt !== undefined) continue;
+      if (row.sourceRef !== undefined && row.sourceRef !== '' && row.sourceRef !== name.sourceRef) continue;
+      if (row.supersededByNaturalKeyHash === name.naturalKeyHash) continue;
+      this.rows.set(k, { ...row, supersededByNaturalKeyHash: name.naturalKeyHash, absentPasses: 0 });
+      marked.push({ naturalKeyHash: name.formerNaturalKeyHash, exportedAs: name.naturalKeyHash });
+    }
+    return Promise.resolve(marked);
+  }
+
+  /** Mirrors `PgLedger.clearEarlierExport`: the mark on a copy only. */
+  clearEarlierExport(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+  ): Promise<void> {
+    const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
+    const row = this.rows.get(k);
+    if (row && (row.status === 'copied' || row.status === 'updated') && row.supersededByNaturalKeyHash) {
+      const cleared: LedgerRecord = { ...row };
+      delete (cleared as { supersededByNaturalKeyHash?: string }).supersededByNaturalKeyHash;
+      this.rows.set(k, cleared);
+    }
+    return Promise.resolve();
+  }
+
   recordIfAbsent(record: LedgerRecord): Promise<LedgerRecord> {
     const k = this.key(record);
     const existing = this.rows.get(k);
@@ -498,6 +542,7 @@ export class MemoryLedger implements Ledger {
       absentPasses?: number;
       deletionAcknowledgedAt?: string;
       deletionAppliedAt?: string;
+      supersededByNaturalKeyHash?: string;
     }>
   > {
     const out: Array<{
@@ -510,6 +555,7 @@ export class MemoryLedger implements Ledger {
       absentPasses?: number;
       deletionAcknowledgedAt?: string;
       deletionAppliedAt?: string;
+      supersededByNaturalKeyHash?: string;
     }> = [];
     for (const r of this.rows.values()) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
@@ -530,6 +576,9 @@ export class MemoryLedger implements Ledger {
           ? { deletionAcknowledgedAt: r.deletionAcknowledgedAt }
           : {}),
         ...(r.deletionAppliedAt ? { deletionAppliedAt: r.deletionAppliedAt } : {}),
+        ...(r.supersededByNaturalKeyHash
+          ? { supersededByNaturalKeyHash: r.supersededByNaturalKeyHash }
+          : {}),
       });
     }
     return Promise.resolve(out);
@@ -1124,6 +1173,41 @@ export class MemoryLedger implements Ledger {
     );
   }
 
+  /**
+   * Mirrors `PgLedger.listEarlierExports`: a marked copy that is ours and was
+   * never removed, open ones first. This fake keeps no date for the mark, so
+   * within each group it orders by key; Postgres's "longest waiting first" is
+   * pinned by the ledger's own test against a real database.
+   */
+  listEarlierExports(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain?: LedgerRecord['itemType'],
+  ): Promise<EarlierExport[]> {
+    const out: EarlierExport[] = [];
+    for (const r of this.rows.values()) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (domain && r.itemType !== domain) continue;
+      if (r.status !== 'copied' && r.status !== 'updated') continue;
+      if (!r.supersededByNaturalKeyHash || r.deletionAppliedAt !== undefined) continue;
+      out.push({
+        domain: r.itemType,
+        naturalKeyHash: r.naturalKeyHash,
+        collection: r.collection ?? '',
+        exportedAs: r.supersededByNaturalKeyHash,
+        ...(r.deletionAcknowledgedAt ? { acknowledgedAt: r.deletionAcknowledgedAt } : {}),
+      });
+    }
+    return Promise.resolve(
+      out.sort(
+        (a, b) =>
+          Number(a.acknowledgedAt !== undefined) - Number(b.acknowledgedAt !== undefined) ||
+          (a.markedAt ?? '').localeCompare(b.markedAt ?? '') ||
+          a.naturalKeyHash.localeCompare(b.naturalKeyHash),
+      ),
+    );
+  }
+
   resolveDeletion(
     tenantId: LedgerRecord['tenantId'],
     mappingId: LedgerRecord['mappingId'],
@@ -1137,10 +1221,14 @@ export class MemoryLedger implements Ledger {
       // CONFIRMED and open only, as in Postgres — where "confirmed" is enough
       // consecutive absences, OR the source having said so outright, OR the item
       // sitting in the owner's bin.
+      // …or an earlier export, which is known on sight too (0042 T8 (b)).
+      const earlierExport =
+        r.supersededByNaturalKeyHash !== undefined && (r.status === 'copied' || r.status === 'updated');
       if (
         (r.absentPasses ?? 0) < DELETION_CONFIRMATIONS &&
         r.deletionReportedAt === undefined &&
-        r.deletionTrashedAt === undefined
+        r.deletionTrashedAt === undefined &&
+        !earlierExport
       ) {
         continue;
       }

@@ -479,9 +479,13 @@ const en = {
   // already copied keep the format they arrived in: this tool never overwrites
   // what is on the new system (hard rule 2), so the new format applies from
   // here on.
-  'settings.exportPolicy.consequence': 'Files already copied keep the format they arrived in.',
+  // Since 0042 T8 (b)'s second half: what the new names mean for the copies
+  // already there (the owner, 2026-09-23: "The export-format setting says this
+  // before you save").
+  'settings.exportPolicy.consequence':
+    'Google documents are copied under their new names. Old copies stay, listed as earlier exports.',
   'settings.exportPolicy.consequence.why':
-    'Nothing on the new system is rewritten — this tool never overwrites what it did not write, so a file copied as a .pdf stays a .pdf. The new format applies to files copied from now on, including any you send back through. Comparing the two is safe: each copy records which format it was made under, so a later pass reads a format change as a format change and never as a file that was edited.',
+    'A Google document has no file name of its own: its format gives it one (Report.docx, Report.odt), and the name is how a migration recognises a file. So under a new format the next pass copies each document under its new name. Nothing on the new system is rewritten or removed: a copy made in the old format stays where it is, and the Deletions screen lists it as an earlier export, never as deleted in Google. Keep it, or remove it yourself on the new system. Where a new format gives a document the same name, each copy records which format it was made under, so a later pass reads the change as a format change and never as an edit.',
   // WHAT HAPPENS TO THE FILES THE OLD FORMAT REFUSED (0125 T5, and since 0042
   // T8 (b) the pass does it). A Google file's name comes from its format, so
   // under a new one it is a new name: the next pass tries it, and closes the
@@ -1043,6 +1047,13 @@ const en = {
   'deletions.keep': 'Keep our copy',
   'deletions.apply': 'Delete it here too',
   'deletions.applyArmed': 'Confirm delete',
+  // Copies an earlier export policy left (workplan 0042 T8 (b), second half):
+  // on this screen, and never called a deletion.
+  'deletions.earlierExports': 'Earlier exports',
+  'deletions.earlierExports.intro':
+    'Copies an earlier export format left. The documents were not deleted in Google.',
+  'deletions.earlierExport.badge': 'earlier export',
+  'deletions.earlierExport.badgeTitle': 'Exported again under its new name; this is the old copy.',
   'common.loading': 'Loading…',
   'common.cancel': 'Cancel',
   'common.close': 'Close',
@@ -2495,9 +2506,9 @@ const nl: Record<keyof typeof en, string> = {
   'settings.exportPolicy.saving': 'Opslaan…',
   'settings.exportPolicy.saved': 'Opgeslagen. De volgende ronde gebruikt het.',
   'settings.exportPolicy.consequence':
-    'Al gekopieerde bestanden houden het formaat waarin ze aankwamen.',
+    'Google-documenten worden onder hun nieuwe namen gekopieerd. Oude kopieën blijven, vermeld als eerdere exports.',
   'settings.exportPolicy.consequence.why':
-    'Op het nieuwe systeem wordt niets herschreven — dit gereedschap overschrijft nooit wat het niet zelf heeft geschreven, dus een bestand dat als .pdf is aangekomen blijft een .pdf. Het nieuwe formaat geldt voor bestanden die vanaf nu worden gekopieerd, ook voor bestanden die u opnieuw laat proberen. Vergelijken blijft veilig: bij elke kopie staat onder welk formaat die is gemaakt, dus een latere ronde leest een formaatwijziging als een formaatwijziging en nooit als een bewerkt bestand.',
+    'Een Google-document heeft geen eigen bestandsnaam: het formaat geeft het er een (Rapport.docx, Rapport.odt), en aan de naam herkent een migratie een bestand. Onder een nieuw formaat kopieert de volgende ronde dus elk document onder de nieuwe naam. Op het nieuwe systeem wordt niets herschreven of verwijderd: een kopie in het oude formaat blijft staan, en het scherm Verwijderingen vermeldt die als eerdere export, nooit als verwijderd in Google. Behoud hem, of verwijder hem zelf op het nieuwe systeem. Geeft een nieuw formaat een document dezelfde naam, dan staat bij elke kopie onder welk formaat die is gemaakt, dus een latere ronde leest de wijziging als een formaatwijziging en nooit als een bewerking.',
   'settings.exportPolicy.refusedBefore':
     'De volgende ronde probeert Google-bestanden die het oude formaat weigerde opnieuw, in dit formaat.',
   'settings.exportPolicy.refusedBefore.why':
@@ -3004,6 +3015,11 @@ const nl: Record<keyof typeof en, string> = {
   'deletions.keep': 'Behoud onze kopie',
   'deletions.apply': 'Verwijder het hier ook',
   'deletions.applyArmed': 'Bevestig verwijderen',
+  'deletions.earlierExports': 'Eerdere exports',
+  'deletions.earlierExports.intro':
+    'Kopieën die een eerder exportformaat achterliet. De documenten zijn niet verwijderd in Google.',
+  'deletions.earlierExport.badge': 'eerdere export',
+  'deletions.earlierExport.badgeTitle': 'Opnieuw geëxporteerd onder de nieuwe naam; dit is de oude kopie.',
   'common.loading': 'Laden…',
   'common.cancel': 'Annuleren',
   'common.close': 'Sluiten',

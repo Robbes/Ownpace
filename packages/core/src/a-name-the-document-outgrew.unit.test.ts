@@ -97,16 +97,17 @@ function target() {
 function world(initial: ReadonlyArray<Listed>, opts: { cursors?: boolean; listKeys?: boolean } = {}) {
   const { state, src } = source(initial, opts);
   const ledger = new MemoryLedger();
+  const onTarget = target();
   const deps = {
     tenantId: TENANT,
     mappingId: MAPPING,
     source: src,
-    target: target(),
+    target: onTarget,
     ledger,
     ...(opts.cursors ? { cursors: new MemoryCursorStore() } : {}),
     sourceIsAuthorityOnExistence: true,
   };
-  return { state, ledger, pass: () => runFileSync(deps) };
+  return { state, ledger, stored: onTarget.stored, pass: () => runFileSync(deps) };
 }
 
 /** A Slides deck called `Deck`, as the listing names it under each policy. */
@@ -275,7 +276,8 @@ describe('what it leaves alone', () => {
   });
 
   it('a copy that reached the target under the old name', async () => {
-    // Bytes the owner may want: the second half of 0042 T8 (b), not this one.
+    // Bytes the owner may want: never closed, never removed. The second half
+    // marks it as an earlier export instead (below).
     const report = { path: 'Report.docx', sourceRef: 'doc-1', formerPaths: ['Report', 'Report.odt', 'Report.pdf'] };
     const w = world([report]);
     await w.pass();
@@ -286,6 +288,106 @@ describe('what it leaves alone', () => {
     expect(second.superseded).toBe(0);
     const old = await w.ledger.find(TENANT, MAPPING, 'file', key('Report.docx'));
     expect(old?.status).toBe('copied');
+  });
+});
+
+/**
+ * THE SECOND HALF (the owner, 2026-09-23: *"An old copy in Nextcloud is never
+ * deleted for you. Deletions lists it as 'an earlier export', not as 'deleted
+ * in Google'."*).
+ *
+ * Between two export formats every document is copied again under its new
+ * name, and the old copy stays on the target. Before this, the detector saw the
+ * old name missing with nothing carrying its bytes (the new format's bytes
+ * differ), and two clean passes later reported each old copy as deleted in
+ * Google.
+ */
+describe('the copy the old name left on the target', () => {
+  const reportUnder = {
+    office: { path: 'Report.docx', sourceRef: 'doc-1', formerPaths: ['Report', 'Report.odt', 'Report.pdf'] },
+    odf: { path: 'Report.odt', sourceRef: 'doc-1', formerPaths: ['Report', 'Report.docx', 'Report.pdf'] },
+  } as const;
+
+  it('is marked as an earlier export of the new copy, and nothing is removed', async () => {
+    const w = world([reportUnder.office]);
+    await w.pass();
+
+    w.state.listed = [reportUnder.odf];
+    const second = await w.pass();
+
+    expect(second.created, 'the document arrives under its new name').toBe(1);
+    expect(second.earlierExports, 'and the pass says what the old copy is').toBe(1);
+    const old = await w.ledger.find(TENANT, MAPPING, 'file', key('Report.docx'));
+    expect(old, 'still ours, still on the target').toMatchObject({
+      status: 'copied',
+      supersededByNaturalKeyHash: key('Report.odt'),
+    });
+    expect([...w.stored.keys()].sort()).toEqual(['t/root:Report.docx', 't/root:Report.odt']);
+  });
+
+  it('is never counted as missing, however many passes follow', async () => {
+    const w = world([reportUnder.office]);
+    await w.pass();
+    w.state.listed = [reportUnder.odf];
+    const later = [await w.pass(), await w.pass(), await w.pass()];
+
+    for (const pass of later) {
+      expect(pass.deletions.map((d) => d.naturalKeyHash)).not.toContain(key('Report.docx'));
+      expect(pass.drift, 'not an unexplained absence either').toBe(0);
+    }
+    const old = await w.ledger.find(TENANT, MAPPING, 'file', key('Report.docx'));
+    expect(old?.absentPasses ?? 0).toBe(0);
+    expect(later.slice(1).every((p) => p.earlierExports === 0), 'marked once, not every pass').toBe(true);
+  });
+
+  it('is a current copy again when the policy gives its name again, and the other becomes the earlier one', async () => {
+    const w = world([reportUnder.office]);
+    await w.pass();
+    w.state.listed = [reportUnder.odf];
+    await w.pass();
+
+    w.state.listed = [reportUnder.office];
+    const back = await w.pass();
+
+    expect(back.earlierExports).toBe(1);
+    expect((await w.ledger.find(TENANT, MAPPING, 'file', key('Report.docx')))?.supersededByNaturalKeyHash).toBeUndefined();
+    expect(await w.ledger.find(TENANT, MAPPING, 'file', key('Report.odt'))).toMatchObject({
+      status: 'copied',
+      supersededByNaturalKeyHash: key('Report.docx'),
+    });
+  });
+
+  it('leaves alone a copy that says it belongs to another document', async () => {
+    const w = world([{ path: 'Report.docx', sourceRef: 'an-uploaded-file' }]);
+    await w.pass();
+
+    w.state.listed = [reportUnder.odf];
+    const second = await w.pass();
+
+    expect(second.earlierExports).toBe(0);
+    expect((await w.ledger.find(TENANT, MAPPING, 'file', key('Report.docx')))?.supersededByNaturalKeyHash).toBeUndefined();
+  });
+
+  it('leaves alone a file that was on the target before the migration came', async () => {
+    // `adopted`: the owner's own bytes, whatever their name.
+    const w = world([reportUnder.odf]);
+    await w.ledger.recordIfAbsent({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      itemType: 'file',
+      naturalKeyHash: key('Report.docx'),
+      sourceRef: 'doc-1',
+      collection: '',
+      contentHash: 'theirs',
+      targetId: 't/root:Report.docx',
+      createdAt: '2026-09-17T00:00:00Z',
+      status: 'adopted',
+    });
+
+    const pass = await w.pass();
+
+    expect(pass.earlierExports).toBe(0);
+    expect((await w.ledger.find(TENANT, MAPPING, 'file', key('Report.docx')))?.supersededByNaturalKeyHash).toBeUndefined();
   });
 });
 

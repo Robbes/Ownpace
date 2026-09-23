@@ -953,8 +953,13 @@ export interface LedgerRecord {
      */
     | 'superseded';
   /**
-   * The row that took over from a `superseded` one: the same document under
-   * the name the current export policy gives it. Absent on every other row.
+   * The same document under the name the current export policy gives it.
+   *
+   * On a `superseded` row, the row that took over from it (0042 T8 (b)). On a
+   * copy still on the target (`copied` or `updated`), the row it is an earlier
+   * export of: the document was exported again under another name, and this
+   * copy is what the earlier policy left (`Ledger.markEarlierExports`). Absent
+   * on every other row.
    */
   readonly supersededByNaturalKeyHash?: string;
   /**
@@ -1333,6 +1338,13 @@ export interface Ledger {
        * distinguishable rather than absent.
        */
       deletionAppliedAt?: string;
+      /**
+       * The key this copy is an earlier export of (0042 T8 (b), second half):
+       * the document is listed under the name the current export policy gives
+       * it. Carried so the detector leaves an explained copy alone, and clears
+       * the mark when the old name is given again.
+       */
+      supersededByNaturalKeyHash?: string;
     }>
   >;
   /**
@@ -1637,6 +1649,44 @@ export interface Ledger {
     formerNames: ReadonlyArray<FormerName>,
   ): Promise<ReadonlyArray<{ readonly naturalKeyHash: string; readonly supersededBy: string }>>;
   /**
+   * Mark the copies a document left ON THE TARGET under names it no longer has
+   * (workplan 0042 T8 (b), second half; the owner's decision of 2026-09-23).
+   *
+   * `supersedeFormerNames`'s other half, over the same pairs. That one closes a
+   * failure, because nothing of it reached the target. This one is for a copy
+   * that did: the document's earlier export (`Report.docx` after a switch to
+   * `export-odf`). Nothing is removed or closed. The row is marked as an
+   * earlier export of the key that took over (`supersededByNaturalKeyHash` on
+   * a row still `copied` or `updated`), which keeps it out of the deletion
+   * detector, because the document was exported again, not deleted in Google,
+   * and puts it in the Deletions queue as what it is, for the owner to keep or
+   * remove.
+   *
+   * Our own copies only (`copied`, `updated`) that were never removed: an
+   * `adopted` file was on the target before the migration arrived and is the
+   * owner's, whatever its name. Matched by the source's handle as
+   * `supersedeFormerNames` matches. A row already marked for the same key is
+   * left as it is. Returns the rows newly marked, with the key each is an
+   * earlier export of.
+   */
+  markEarlierExports(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    formerNames: ReadonlyArray<FormerName>,
+  ): Promise<ReadonlyArray<{ readonly naturalKeyHash: string; readonly exportedAs: string }>>;
+  /**
+   * The name an earlier export had is a current name again (the policy was
+   * switched back), so the copy is no longer an earlier export of anything.
+   * A no-op on a row that is not one.
+   */
+  clearEarlierExport(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    naturalKeyHash: string,
+  ): Promise<void>;
+  /**
    * Note that a complete scan did not find this item, and return how many
    * consecutive scans that now makes.
    *
@@ -1720,6 +1770,16 @@ export interface Ledger {
     mappingId: MappingId,
     domain?: DiscoveryDomain,
   ): Promise<ItemDeletion[]>;
+  /**
+   * The copies on the target that an earlier export policy left, still ours
+   * and never removed (0042 T8 (b), second half): open ones first, then kept.
+   * See {@link EarlierExport} for why these are not deletions.
+   */
+  listEarlierExports(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain?: DiscoveryDomain,
+  ): Promise<EarlierExport[]>;
   /**
    * Apply an owner decision to one vanished item.
    *
@@ -2013,6 +2073,35 @@ export interface ItemMove {
  * data because a listing was throttled is the worst thing this product could do.
  */
 export type DeletionEvidence = 'reported' | 'trashed' | 'inferred';
+
+/**
+ * A copy on the target that an earlier export policy left (workplan 0042 T8
+ * (b), second half; the owner's decision of 2026-09-23: *"An old copy in
+ * Nextcloud is never deleted for you. Deletions lists it as 'an earlier
+ * export', not as 'deleted in Google'."*).
+ *
+ * NOT an `ItemDeletion`, deliberately. Nothing was deleted at the source: the
+ * same document is listed there under the name the current policy gives it,
+ * and copied under that name. Counted as a deletion it would raise the
+ * mass-deletion breaker the day an owner switches format (every Google
+ * document at once), and every digest, report and checklist that says
+ * "deleted on the old system" would say it of documents that are not. So it
+ * has its own listing, shown on the Deletions screen as what it is, and it
+ * counts in none of those.
+ */
+export interface EarlierExport {
+  readonly domain: DiscoveryDomain;
+  /** The earlier copy's key. Same anchor, same §17 reason, as `ItemFailure.naturalKeyHash`. */
+  readonly naturalKeyHash: string;
+  /** Where it was copied from. */
+  readonly collection: string;
+  /** The document's current copy: the key the current export policy gives it. */
+  readonly exportedAs: string;
+  /** When a pass first found it an earlier export. */
+  readonly markedAt?: string;
+  /** Set once the owner has said to keep it. */
+  readonly acknowledgedAt?: string;
+}
 
 /**
  * An item the SOURCE no longer has, which the target still holds.

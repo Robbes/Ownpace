@@ -116,15 +116,18 @@ const RULES: ReadonlyArray<Rule> = [
      * The consequence is real and is stated rather than hidden: items already
      * copied under the old policy keep the rendering they were copied as. This
      * product does not delete or overwrite on a target (hard rule 2), so the
-     * new policy applies to what is copied from here on.
+     * new policy applies to what is copied from here on. And since a Google
+     * document's name is its format's (0042 T8 (b)), every one is copied again
+     * under its new name, and the old copy stays as an earlier export.
      */
     field: 'source.nativeFilePolicy',
     verdict: {
       allowed: true,
       consequence:
         'Items already copied keep the format they were copied in — this tool never ' +
-        'overwrites what is on the new system. The new format applies to items copied ' +
-        'from now on, including any you retry.',
+        'overwrites what is on the new system. Every Google document is copied again ' +
+        'under the name the new format gives it; the copy in the old format stays, and ' +
+        'the Deletions screen lists it as an earlier export, never as a deletion.',
     },
   },
   {

@@ -56,6 +56,7 @@ import {
   MOVE_GUIDANCE,
   DELETIONS_MEANING,
   DELETION_GUIDANCE,
+  earlierExportsQueue,
   setupStepsFor,
   summariseSetup,
 } from '@openmig/shared';
@@ -1692,6 +1693,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             acknowledged: all.filter((d) => d.acknowledgedAt),
             whatThisMeans: DELETIONS_MEANING,
             howToResolve: DELETION_GUIDANCE,
+            // Copies an earlier export policy left (0042 T8 (b)), split as
+            // managed splits them.
+            earlierExports: earlierExportsQueue(
+              await ledger.listEarlierExports(m.config.tenantId as TenantId, m.mailboxMappingId as MappingId),
+            ),
           };
         }
         return sendJson(res, 200, out);

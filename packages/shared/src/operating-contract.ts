@@ -42,6 +42,7 @@ import {
   DELETION_CONFIRMATIONS,
   MAX_ITEM_ATTEMPTS,
   type ItemDeletion,
+  type EarlierExport,
   type ItemFailure,
   type ItemMove,
   type MigrationStatus,
@@ -184,6 +185,16 @@ export interface DeletionsQueue extends QueueEnvelope {
   readonly acknowledged: readonly ItemDeletion[];
   readonly whatThisMeans: string;
   readonly howToResolve: DeletionGuidance;
+  /**
+   * Copies an earlier export policy left on the target (workplan 0042 T8 (b),
+   * second half), shown beside the deletions and counted as none of them:
+   * nothing was deleted at the source. `waiting` for the owner to keep, `kept`
+   * once they have. See `EarlierExport`.
+   */
+  readonly earlierExports: {
+    readonly waiting: readonly EarlierExport[];
+    readonly kept: readonly EarlierExport[];
+  };
 }
 
 /**
@@ -823,6 +834,17 @@ export const DELETION_GUIDANCE: DeletionGuidance = {
     'so does any report or bin sighting, because an item can be deleted and ' +
     'restored, or dragged back out of Deleted Items.',
 };
+
+/**
+ * The Deletions queue's earlier exports, split the one way both editions
+ * split them: waiting for the owner, and kept (0042 T8 (b), second half).
+ */
+export function earlierExportsQueue(all: readonly EarlierExport[]): DeletionsQueue['earlierExports'] {
+  return {
+    waiting: all.filter((e) => e.acknowledgedAt === undefined),
+    kept: all.filter((e) => e.acknowledgedAt !== undefined),
+  };
+}
 
 /**
  * Whether this item may be put in front of an `apply` button at all.

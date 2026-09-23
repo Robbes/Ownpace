@@ -66,6 +66,11 @@ describe('the export policy — the field this plan was opened for', () => {
     expect(consequence).toBeDefined();
     expect(consequence).toMatch(/already copied/i);
     expect(consequence).toMatch(/never overwrites/i);
+    // And what the new names do to the copies already there (0042 T8 (b)):
+    // copied again, the old ones kept and listed as earlier exports, never as
+    // deletions.
+    expect(consequence).toMatch(/copied again under the name the new format gives it/);
+    expect(consequence).toMatch(/earlier export, never as a deletion/);
   });
 });
 

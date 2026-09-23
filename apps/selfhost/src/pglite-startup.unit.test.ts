@@ -127,6 +127,13 @@ describe('the appliance on PGlite', () => {
       expect(res.status, path).toBe(200);
       expect(res.headers.get('content-type'), path).toContain('application/json');
     }
+
+    // Earlier exports (0042 T8 (b)) ride the deletions queue on this edition
+    // too, read from the appliance's own ledger, in managed's shape.
+    const deletions = (await (await fetch(`${base}/deletions`)).json()) as Record<string, unknown>;
+    for (const queue of Object.values(deletions)) {
+      expect(queue).toMatchObject({ earlierExports: { waiting: [], kept: [] } });
+    }
   }, 60_000);
 
   it('serves the confirm redirect, so the UI works the same way', async () => {

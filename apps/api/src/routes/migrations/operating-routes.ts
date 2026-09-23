@@ -60,6 +60,7 @@ import { channelIsOn, tellMessage } from '../../access-notify.ts';
 import {
   DELETIONS_MEANING,
   DELETION_GUIDANCE,
+  earlierExportsQueue,
   FAILURE_GUIDANCE,
   MOVES_MEANING,
   MOVE_GUIDANCE,
@@ -217,9 +218,10 @@ router.get('/:mappingId/deletions', authenticate, async (req: AuthenticatedReque
   try {
     const s = await scope(req, res);
     if (!s) return;
-    const all = await withLedger(s.tenantId, (l) =>
-      l.listDeletions(s.tenantId as TenantId, s.mappingId as MappingId),
-    );
+    const { all, earlier } = await withLedger(s.tenantId, async (l) => ({
+      all: await l.listDeletions(s.tenantId as TenantId, s.mappingId as MappingId),
+      earlier: await l.listEarlierExports(s.tenantId as TenantId, s.mappingId as MappingId),
+    }));
     const body: DeletionsResponse = {
       [s.mappingId]: {
         migrationStatus: s.lifecycle,
@@ -230,6 +232,9 @@ router.get('/:mappingId/deletions', authenticate, async (req: AuthenticatedReque
         acknowledged: all.filter((d) => d.acknowledgedAt),
         whatThisMeans: DELETIONS_MEANING,
         howToResolve: DELETION_GUIDANCE,
+        // Copies an earlier export policy left (0042 T8 (b)): beside the
+        // deletions, and counted as none of them.
+        earlierExports: earlierExportsQueue(earlier),
       },
     };
     res.json(body);

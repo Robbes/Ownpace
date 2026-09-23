@@ -713,6 +713,39 @@ Three answers, the same set for both kinds of positive evidence:
 - **remove it yourself** — delete it in the target system, then `keep`. This
   tool will never do it for you unless you explicitly call `apply`.
 
+### Earlier exports of a Google document
+
+Switching a migration's export format for Google files (Docs, Sheets, Slides,
+Drawings) gives every such document a new name, because its format is its
+name: `Report.docx` under Office, `Report.odt` under ODF. The next pass copies
+each one under its new name, and the copy made under the old format stays on
+the target. That copy is **not** a deletion: the document is still in Google.
+So it is never counted as one (workplan 0042 T8 (b); the owner, 2026-09-23:
+*"An old copy in Nextcloud is never deleted for you. Deletions lists it as 'an
+earlier export', not as 'deleted in Google'."*).
+
+| Where | What it tells you |
+|---|---|
+| `GET /deletions` → `earlierExports.waiting` | each old copy, with its collection, its key, and `exportedAs`: the key of the document's current copy |
+| `GET /deletions` → `earlierExports.kept` | the ones the owner has kept |
+| appliance log / task run log | one line per pass that finds new ones, with a count |
+
+- A pass marks the old copy once it lists the document under its new name and
+  no longer lists the old name. Only our own copies are marked (`copied`,
+  `updated`), matched to the document by Drive's file id where the row
+  recorded one. A file that was on the target before the migration came
+  (`adopted`) is the owner's, whatever its name, and is left alone.
+- **They count in none of the deletion numbers**: not the mass-deletion
+  breaker, not the digest, not the completion report, not Finish. A format
+  switch makes every Google document's old copy an earlier export at once, and
+  counted as deletions they would raise the breaker for every real removal in
+  the domain.
+- **keep** is the same `POST /mappings/{id}/deletions/{hash}/keep`. To be rid
+  of an old copy, delete it on the target yourself, then keep. `apply` does
+  not remove an earlier export: nothing was deleted at the source.
+- If the format is switched back, the old name is given again: that copy is
+  a current one again, and the other becomes the earlier export.
+
 ### Removing it on the target too — `apply`
 
 **This is the only operation in the whole product that deletes anything.**
