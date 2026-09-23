@@ -44,7 +44,7 @@ import {
 } from './google-account-consent.ts';
 
 const RESTRICTED = { GOOGLE_ACCOUNT_SCOPE_CLASS: 'restricted' };
-const ALL_FOUR = ['email', 'calendar', 'contact', 'file'];
+const ALL_FIVE = ['email', 'calendar', 'contact', 'file', 'task'];
 
 describe('the narrow answer is the one you get by not answering', () => {
   it.each([
@@ -59,15 +59,15 @@ describe('the narrow answer is the one you get by not answering', () => {
     // put mail and Drive on the consent screen of every deployment that never
     // heard of this setting — including the appliance, which has no Google
     // application at all and could not honour it (hard rule 5).
-    expect(providerAccountDomains('google', env)).toEqual(['calendar', 'contact']);
+    expect(providerAccountDomains('google', env)).toEqual(['calendar', 'contact', 'task']);
     expect(providerAccountServes('google', 'email', env)).toBe(false);
     expect(providerAccountServes('google', 'file', env)).toBe(false);
   });
 
   it('the exact word, and only trimmed whitespace, widens it', () => {
-    expect(providerAccountDomains('google', RESTRICTED)).toEqual(ALL_FOUR);
+    expect(providerAccountDomains('google', RESTRICTED)).toEqual(ALL_FIVE);
     expect(providerAccountDomains('google', { GOOGLE_ACCOUNT_SCOPE_CLASS: '  restricted  ' }))
-      .toEqual(ALL_FOUR);
+      .toEqual(ALL_FIVE);
   });
 
   it('leaves every other provider alone', () => {
@@ -83,7 +83,7 @@ describe('the narrow answer is the one you get by not answering', () => {
 
 describe('the declaration reaches the consent, and the sentence beside it', () => {
   it('refuses mail and files by default, naming the way through', () => {
-    const refused = googleAccountConsent(ALL_FOUR, {});
+    const refused = googleAccountConsent(ALL_FIVE, {});
     expect(isRefusal(refused)).toBe(true);
     if (!isRefusal(refused)) return;
     expect(refused.error).toBe('not_on_this_account');
@@ -93,8 +93,8 @@ describe('the declaration reaches the consent, and the sentence beside it', () =
     expect(refused.reason).toContain('the google-drive source');
   });
 
-  it('asks for all four when the deployment says its application carries them', () => {
-    const ask = googleAccountConsent(ALL_FOUR, RESTRICTED);
+  it('asks for all five when the deployment says its application carries them', () => {
+    const ask = googleAccountConsent(ALL_FIVE, RESTRICTED);
     expect(isRefusal(ask), 'the declaration did not reach the consent gate').toBe(false);
     if (isRefusal(ask)) return;
     for (const scope of [
@@ -102,10 +102,11 @@ describe('the declaration reaches the consent, and the sentence beside it', () =
       'https://www.googleapis.com/auth/calendar',
       'https://www.googleapis.com/auth/carddav',
       'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/tasks.readonly',
     ]) {
       expect(ask.scope, `${scope} is not in the ask`).toContain(scope);
     }
-    expect(ask.domains).toEqual(ALL_FOUR);
+    expect(ask.domains).toEqual(ALL_FIVE);
   });
 
   it('never asks for a scope nobody ticked, however wide the declaration', () => {

@@ -67,13 +67,13 @@ describe('GET /api/provider-accounts', () => {
     // express app, two requests, the variable moved in between. An answer
     // frozen when the module loaded would give the same list twice, and an
     // operator who set the variable and restarted the API would still be
-    // looking at a two-tick wizard with no idea why.
+    // looking at a three-tick wizard with no idea why.
     const narrow = await request(app).get('/api/provider-accounts');
     process.env.GOOGLE_ACCOUNT_SCOPE_CLASS = 'restricted';
     const wide = await request(app).get('/api/provider-accounts');
 
-    expect(narrow.body.google.domains).toEqual(['calendar', 'contact']);
-    expect(wide.body.google.domains).toEqual(['email', 'calendar', 'contact', 'file']);
+    expect(narrow.body.google.domains).toEqual(['calendar', 'contact', 'task']);
+    expect(wide.body.google.domains).toEqual(['email', 'calendar', 'contact', 'file', 'task']);
   });
 
   it('defaults narrow for a value nobody recognises', async () => {
@@ -82,7 +82,11 @@ describe('GET /api/provider-accounts', () => {
     for (const typo of ['Restricted', 'restrictd', 'true', '']) {
       process.env.GOOGLE_ACCOUNT_SCOPE_CLASS = typo;
       const res = await request(app).get('/api/provider-accounts');
-      expect(res.body.google.domains, `'${typo}' widened the ceiling`).toEqual(['calendar', 'contact']);
+      expect(res.body.google.domains, `'${typo}' widened the ceiling`).toEqual([
+        'calendar',
+        'contact',
+        'task',
+      ]);
     }
   });
 

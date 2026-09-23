@@ -27,10 +27,11 @@
  * account, and only a measured `no` constrains anything (0106 T3a). Unmeasured
  * is never a wall.
  *
- * ## Why `google` starts with two faces
+ * ## Why `google` starts with three faces
  *
  * Not a technical limit — Google's own pricing of its scopes. Calendar and
- * carddav are *sensitive* (brand verification, free); Gmail's
+ * carddav are *sensitive* (brand verification, free), and so is Tasks'
+ * `tasks.readonly` (workplan 0126); Gmail's
  * `https://mail.google.com/` and `drive.readonly` are *restricted*, needing an
  * annual third-party security assessment (`docs/google-oauth-verification.md`).
  * One consent inviting all four would push the MANAGED client into the
@@ -76,7 +77,11 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   // (ADR-0041). A deployment whose own Google application carries the
   // restricted scopes says so, and `providerAccountDomains` below is what
   // reads that. `gmail`/`google_drive` remain their own kinds either way.
-  google: ['calendar', 'contact'],
+  //
+  // 'task' joined on 2026-09-23 (workplan 0126 T2), last so the consent's
+  // order and this one agree. Not over CalDAV, which carries no VTODO at
+  // Google: over the Tasks API, which `google-tasks-source` reads.
+  google: ['calendar', 'contact', 'task'],
   // Soverin's Nextcloud for files is expected later in 2026 (the owner,
   // 2026-08-27). When it lands and has been MEASURED against the live
   // provider, 'file' joins this array — one word, no new branch. Never added
@@ -102,6 +107,7 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   // To Do list is not a CalDAV collection, so it took a connector of its own
   // (`graph-todo-source`) rather than the DAV builder the other task faces
   // share; the consent asks for Tasks.Read only when the face is ticked.
+  // Google's tasks took the same road later (0126): `google-tasks-source`.
   microsoft: ['email', 'calendar', 'contact', 'file', 'task'],
   // FOUR AGAIN, and a different four (workplan 0115). Apple is the first
   // provider account with NO consent screen behind it: Apple publishes no
@@ -112,7 +118,7 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   // 'task' is here on the day the kind arrives, which no other provider
   // account managed: Apple Reminders are VTODO components in the same CalDAV
   // account, which is exactly what 0113 taught this product to read. Google
-  // Tasks needs its own API and Microsoft To Do needed `graph-todo-source`
+  // Tasks needed its own API (0126) and Microsoft To Do `graph-todo-source`
   // (0114 T9); Apple needs nothing new.
   //
   // 'file' is absent and it is APPLE'S absence, not ours: there is no
@@ -131,16 +137,17 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
  * restricted, and Google grants them only to an application that registered
  * them and passed the review its publishing status demands.
  *
- * `task` is absent from BOTH Google lists, and no scope buys it. Google's own
- * CalDAV developer guide says its service supports neither VTODO nor VJOURNAL:
- * there is no task face to consent to, at any tier (workplan 0113 T5). This is
- * the asymmetry that makes the grant map partial rather than total.
+ * `task` is in BOTH Google lists since 2026-09-23 (workplan 0126 T2). Google's
+ * CalDAV still carries no VTODO (0113 T5); the face is the Tasks API, under
+ * the sensitive `tasks.readonly`, so a deployment that declares the restricted
+ * tier keeps it rather than losing it for having asked for more.
  */
 export const GOOGLE_RESTRICTED_ACCOUNT_DOMAINS: ReadonlyArray<DiscoveryDomain> = [
   'email',
   'calendar',
   'contact',
   'file',
+  'task',
 ];
 
 /** What a deployment may declare about the scope class its application holds. */
@@ -179,8 +186,8 @@ export function isProviderAccountKind(kind: string): kind is ProviderAccountKind
  * anything. It changes which consent this product is willing to BUILD, so a
  * deployment that declares `restricted` without having registered the scopes
  * gets a refusal at Google's own screen with the scope string in hand —
- * never a consent silently narrowed to two faces and a migration that turns
- * out weeks later to have never included mail.
+ * never a consent silently narrowed to the sensitive faces and a migration
+ * that turns out weeks later to have never included mail.
  *
  * AND IN "EXTERNAL + TESTING" IT COSTS ONE MORE THING, which the operator
  * documentation says beside the setting: Google expires refresh tokens after

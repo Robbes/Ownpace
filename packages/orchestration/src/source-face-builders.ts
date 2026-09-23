@@ -70,6 +70,9 @@ export type SourceFaceBuilder =
   | 'gmail'
   | 'google-dav'
   | 'google-drive'
+  // Google Tasks (workplan 0126 T2): the Tasks API, because Google's CalDAV
+  // carries no VTODO. The fourth Google builder, and To Do's counterpart.
+  | 'google-tasks'
   | 'graph-mail'
   | 'graph-calendar'
   | 'graph-contacts'
@@ -96,12 +99,12 @@ export type SourceFaceBuilder =
  * serves several domains.
  *
  * Total over every face the kind can ever claim, including the ones a
- * deployment's own application unlocks: `google` serves calendar and contact
- * by default and gains mail and files when the deployment declares its
- * restricted scopes (`GOOGLE_RESTRICTED_ACCOUNT_DOMAINS`). A table that only
- * covered the default would build the two nobody had to ask about and drop
- * the two that needed a declaration — the failure landing on the deployment
- * that had gone to the most trouble.
+ * deployment's own application unlocks: `google` serves calendar, contact
+ * and tasks by default and gains mail and files when the deployment declares
+ * its restricted scopes (`GOOGLE_RESTRICTED_ACCOUNT_DOMAINS`). A table that
+ * only covered the default would build the three nobody had to ask about and
+ * drop the two that needed a declaration — the failure landing on the
+ * deployment that had gone to the most trouble.
  */
 const ACCOUNT_FACE_BUILDERS: Readonly<
   Record<ProviderAccountKind, Readonly<Partial<Record<DiscoveryDomain, SourceFaceBuilder>>>>
@@ -111,6 +114,7 @@ const ACCOUNT_FACE_BUILDERS: Readonly<
     calendar: 'google-dav',
     contact: 'google-dav',
     file: 'google-drive',
+    task: 'google-tasks',
   },
   // DAV and IMAP throughout, and that is the provider's own shape rather than
   // a fallback: Soverin publishes IMAP for mail and a DAV root for the rest

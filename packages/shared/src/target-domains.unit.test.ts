@@ -120,8 +120,8 @@ describe('sourceDomainRefusal — the source-side matrix', () => {
     // ADR-0041, owner decision 2026-09-01. Absent means the static table,
     // which is what an appliance always gets — it registers its own OAuth
     // client and this table never spoke for it.
-    expect(sourceTypeDomains('google')).toEqual(['calendar', 'contact']);
-    expect(sourceDomainRefusal('google', ['calendar', 'contact'])).toBeNull();
+    expect(sourceTypeDomains('google')).toEqual(['calendar', 'contact', 'task']);
+    expect(sourceDomainRefusal('google', ['calendar', 'contact', 'task'])).toBeNull();
 
     const refused = sourceDomainRefusal('google', ['calendar', 'email']);
     expect(refused).toContain('Google');

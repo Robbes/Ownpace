@@ -1125,7 +1125,8 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     expect(posted.sourceConfig).not.toHaveProperty('host');
     expect(posted.sourceConfig).not.toHaveProperty('password');
     const domains = (posted.syncConfig as { domains: string[] }).domains;
-    expect(domains).toEqual(['calendar', 'contact']);
+    // Tasks since 0126 T2, over Google's Tasks API.
+    expect(domains).toEqual(['calendar', 'contact', 'task']);
     // The two Google prices differently, and the refusal for them lives on
     // the server. The wizard must not even offer them here.
     expect(domains).not.toContain('email');
@@ -1154,7 +1155,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
       fireEvent.click(screen.getByRole('button', { name: /Connect with Google/i }));
       await waitFor(() => expect(authorizeMock).toHaveBeenCalled());
       const sent = authorizeMock.mock.calls[0]![0] as Record<string, unknown>;
-      expect(sent.domains).toEqual(['calendar', 'contact']);
+      expect(sent.domains).toEqual(['calendar', 'contact', 'task']);
       expect(sent).not.toHaveProperty('sourceType');
       expect(sent.clientId).toBe('cid.apps.googleusercontent.com');
       // The secret goes in the BODY and never into a URL — the popup is
@@ -1174,9 +1175,9 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     fireEvent.change(screen.getByPlaceholderText('••••••••'), {
       target: { value: 'client-secret' },
     });
-    // Untick both on the migration step, then come back: an empty tick set is
-    // reachable, and the server refuses it with a sentence. The button says
-    // the same thing sooner, rather than spending a round trip to be told.
+    // Untick all three on the migration step, then come back: an empty tick
+    // set is reachable, and the server refuses it with a sentence. The button
+    // says the same thing sooner, rather than spending a round trip to be told.
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
@@ -1190,6 +1191,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     fireEvent.click(nextButton());
     fireEvent.click(screen.getByRole('button', { name: /Calendar/ }));
     fireEvent.click(screen.getByRole('button', { name: /Contacts/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Tasks/ }));
     fireEvent.click(screen.getByRole('button', { name: /Back/ }));
     fireEvent.click(screen.getByRole('button', { name: /Back/ }));
 
@@ -1445,13 +1447,15 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
         target: { value: 'owner@gmail.com' },
       });
-      // The deployment's ceiling arrives pre-ticked (calendar and contacts
-      // here), and the ticks are the same state the migration step shows —
-      // so they can be read and changed HERE, before the consent asks.
+      // The deployment's ceiling arrives pre-ticked (calendar, contacts and
+      // tasks here), and the ticks are the same state the migration step
+      // shows — so they can be read and changed HERE, before the consent asks.
       expect(screen.getByLabelText('Calendar')).toBeChecked();
       expect(screen.getByLabelText('Contacts')).toBeChecked();
+      expect(screen.getByLabelText('Tasks')).toBeChecked();
       fireEvent.click(screen.getByLabelText('Calendar'));
       fireEvent.click(screen.getByLabelText('Contacts'));
+      fireEvent.click(screen.getByLabelText('Tasks'));
       // Nothing ticked: nothing to ask Google for.
       await waitFor(() => expect(connectButton()).toBeDisabled());
       fireEvent.click(screen.getByLabelText('Calendar'));

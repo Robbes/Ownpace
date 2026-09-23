@@ -51,9 +51,9 @@ import { buildImapSourceFrom } from './mail-source-factory.ts';
 import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint.ts';
 import { measureTargetScheduling } from './target-scheduling.ts';
 import type { SchedulingVerdict } from './target-scheduling.ts';
-// THE FOUR FACES OF A GOOGLE GRANT, built exactly as a pass builds them
-// (2026-09-02): the same factories `build-deps-from-mapping.ts` reaches for,
-// under the same stored names, so the reach cannot pass a shape a pass would
+// THE FIVE FACES OF A GOOGLE GRANT, built exactly as a pass builds them
+// (2026-09-02; Tasks, the fifth, 2026-09-23): the same factories
+// `build-deps-from-mapping.ts` reaches for, under the same stored names, so the reach cannot pass a shape a pass would
 // refuse — `probe-connection.ts`'s reason, applied to the qualification.
 import { buildGmailSourceFrom, STORED_GMAIL_CREDENTIAL_NAMES } from './gmail-source-factory.ts';
 import {
@@ -62,6 +62,13 @@ import {
   STORED_GOOGLE_DAV_CREDENTIAL_NAMES,
 } from './google-dav-source-factory.ts';
 import { buildGoogleDriveSourceFrom, STORED_GOOGLE_CREDENTIAL_NAMES } from './drive-source-factory.ts';
+// Directly, not through `buildTaskSourceFromConnection`: that module imports
+// this one (through `deployment-application.ts`), so the seam would be a cycle.
+import {
+  buildGoogleTasksSourceFrom,
+  GOOGLE_TASKS_SCOPE,
+  STORED_GOOGLE_TASKS_CREDENTIAL_NAMES,
+} from './google-tasks-source-factory.ts';
 import { buildDropboxSourceFrom, STORED_DROPBOX_CREDENTIAL_NAMES } from './dropbox-source-factory.ts';
 import { parseArchiveSource } from '@openmig/shared';
 import { archiveReaderForLocation } from './archive-source-factory.ts';
@@ -766,8 +773,8 @@ export function isGoogleGrantKind(kind: string): boolean {
   return (GOOGLE_GRANT_KINDS as ReadonlyArray<string>).includes(kind);
 }
 
-/** The four faces an account can carry here. */
-export type GoogleGrantDomain = 'mail' | 'calendar' | 'contact' | 'file';
+/** The five faces an account can carry here. */
+export type GoogleGrantDomain = 'mail' | 'calendar' | 'contact' | 'file' | 'task';
 
 /**
  * The product's own scope needs, domain by domain — one table read in BOTH
@@ -781,7 +788,9 @@ export type GoogleGrantDomain = 'mail' | 'calendar' | 'contact' | 'file';
  *
  *  - `asked` is the ONLY scope a consent request may name for this domain.
  *    It is the scope the factory actually mints tokens with (GMAIL_SCOPE,
- *    GOOGLE_CALDAV_SCOPE, GOOGLE_CARDDAV_SCOPE, DRIVE_READONLY_SCOPE).
+ *    GOOGLE_CALDAV_SCOPE, GOOGLE_CARDDAV_SCOPE, DRIVE_READONLY_SCOPE,
+ *    GOOGLE_TASKS_SCOPE — the last read from its factory, so the two cannot
+ *    drift).
  *  - `alsoAccepted` is broader scopes that SATISFY the domain when a person
  *    already granted them elsewhere. Read-only, never asked for.
  *
@@ -806,6 +815,12 @@ const GOOGLE_DOMAIN_SCOPES: Record<
     asked: 'https://www.googleapis.com/auth/drive.readonly',
     alsoAccepted: ['https://www.googleapis.com/auth/drive'],
   },
+  // Workplan 0126 T2. Read-only is all a migration needs; the read-write
+  // scope satisfies it when a person already granted that elsewhere.
+  task: {
+    asked: GOOGLE_TASKS_SCOPE,
+    alsoAccepted: ['https://www.googleapis.com/auth/tasks'],
+  },
 };
 
 /**
@@ -820,6 +835,7 @@ export const GOOGLE_SCOPES_ASKED_BY_DOMAIN: Readonly<Record<GoogleGrantDomain, s
     calendar: GOOGLE_DOMAIN_SCOPES.calendar.asked,
     contact: GOOGLE_DOMAIN_SCOPES.contact.asked,
     file: GOOGLE_DOMAIN_SCOPES.file.asked,
+    task: GOOGLE_DOMAIN_SCOPES.task.asked,
   });
 
 /** Every scope that satisfies a domain: the one we ask for, then the broader
@@ -828,6 +844,19 @@ export const GOOGLE_SCOPES_ASKED_BY_DOMAIN: Readonly<Record<GoogleGrantDomain, s
 function scopesSatisfying(domain: GoogleGrantDomain): ReadonlyArray<string> {
   const { asked, alsoAccepted } = GOOGLE_DOMAIN_SCOPES[domain];
   return [asked, ...alsoAccepted];
+}
+
+/**
+ * Whether a granted set satisfies ONE asked scope: the scope itself, or a
+ * broader one the table accepts for the same domain. For a consent's answer,
+ * where the question arrives as the scope string that was asked for; read off
+ * the one table, so a sixth broader scope is a line there and not a second
+ * list somewhere else.
+ */
+export function grantSatisfiesAskedScope(asked: string, granted: ReadonlyArray<string>): boolean {
+  const entry = Object.values(GOOGLE_DOMAIN_SCOPES).find((e) => e.asked === asked);
+  const satisfying = entry ? [entry.asked, ...entry.alsoAccepted] : [asked];
+  return satisfying.some((scope) => granted.includes(scope));
 }
 
 /**
@@ -846,33 +875,17 @@ function scopesSatisfying(domain: GoogleGrantDomain): ReadonlyArray<string> {
 export function domainsToScopes(
   domains: Iterable<GoogleGrantDomain>,
 ): ReadonlyArray<string> {
-  const order: ReadonlyArray<GoogleGrantDomain> = ['mail', 'calendar', 'contact', 'file'];
+  const order: ReadonlyArray<GoogleGrantDomain> = ['mail', 'calendar', 'contact', 'file', 'task'];
   const ticked = new Set(domains);
   return order.filter((d) => ticked.has(d)).map((d) => GOOGLE_DOMAIN_SCOPES[d].asked);
 }
 
-/**
- * GOOGLE HAS NO TASK FACE, AND NO SCOPE BUYS ONE (workplan 0113 T5/T6).
- *
- * Google's own CalDAV developer guide says its service supports neither VTODO
- * nor VJOURNAL: a Google account's tasks live behind the separate Tasks REST
- * API, whose model is thinner than VTODO, and driving it is T6 — deliberately
- * out of v1. So this is a MEASURED no under the three-state rule (0106 T3a),
- * not an unknown: the answer is known, it just is not this account's to give.
- *
- * Which is why it stands even in `allUnknown`, where every other face is
- * unmeasured because the token exchange never answered. This one does not
- * depend on the exchange — it is a fact about the provider and about what this
- * product drives, and a `?` here would invite somebody to re-consent for a
- * scope that does not exist.
+/*
+ * `GOOGLE_NO_TASKS` stood here until 2026-09-23: a structural no for the task
+ * face, because Google's CalDAV carries no VTODO and the Tasks API was not
+ * driven (0113 T6). Workplan 0126 T2 drives it, so the task face is measured
+ * like the other four, and in `allUnknown` it is unmeasured like them.
  */
-const GOOGLE_NO_TASKS: QualifiedDomain = {
-  answer: 'no',
-  reason: 'structural',
-  detail:
-    "Google's CalDAV service carries no VTODO components at all, so there is no task face to " +
-    'grant. Google Tasks is a separate API this product does not migrate yet.',
-};
 
 const DWD_UNMEASURED =
   "Unmeasured — a service-account key's scopes live in the Workspace admin " +
@@ -881,7 +894,7 @@ const DWD_UNMEASURED =
 function allUnknown(why: string): AccountQualification {
   const domain: QualifiedDomain = { answer: 'unknown', reason: 'refused', detail: why };
   return {
-    domains: { mail: domain, calendar: domain, contact: domain, file: domain, task: GOOGLE_NO_TASKS },
+    domains: { mail: domain, calendar: domain, contact: domain, file: domain, task: domain },
   };
 }
 
@@ -992,6 +1005,15 @@ async function measureGoogleFace(
       const usage = await source.storageUsage();
       return { bytes: usage.bytes, ...(usage.nativeFilesExcluded ? { nativeFilesExcluded: true } : {}) };
     }
+    case 'task': {
+      // One listing per task list, the same one a pass makes: the tasks a
+      // pass would carry, completed ones included (0126 D1). A deleted task
+      // is a removal, not an item, and is not counted.
+      if (!offers<CardListable>(source, 'listSince')) return undefined;
+      let items = 0;
+      for (const folder of listed) items += (await source.listSince(folder)).items.length;
+      return { items };
+    }
     case 'calendar':
       return undefined;
   }
@@ -1003,6 +1025,7 @@ const GOOGLE_FACE_UNIT: Readonly<Record<GoogleGrantDomain, ProbeUnit>> = {
   calendar: 'calendar',
   contact: 'addressBook',
   file: 'folder',
+  task: 'taskList',
 };
 
 function googleFaceListable(
@@ -1024,6 +1047,10 @@ function googleFaceListable(
         creds,
         STORED_GOOGLE_CREDENTIAL_NAMES,
       );
+    case 'task':
+      // No rate budget: a Test is a one-shot probe over a connection that
+      // may belong to no mapping yet, as for the Microsoft qualification.
+      return buildGoogleTasksSourceFrom(user, creds, undefined, STORED_GOOGLE_TASKS_CREDENTIAL_NAMES);
   }
 }
 
@@ -1372,11 +1399,12 @@ export async function qualifyGoogleGrant(
       };
     }
   };
-  const [mail, calendar, contact, file] = await Promise.all([
+  const [mail, calendar, contact, file, task] = await Promise.all([
     domainFromGrant('mail'),
     domainFromGrant('calendar'),
     domainFromGrant('contact'),
     domainFromGrant('file'),
+    domainFromGrant('task'),
   ]);
-  return { domains: { mail, calendar, contact, file, task: GOOGLE_NO_TASKS } };
+  return { domains: { mail, calendar, contact, file, task } };
 }

@@ -67,6 +67,10 @@ import {
   buildGoogleContactsDavSourceFrom,
 } from './google-dav-source-factory.ts';
 import {
+  STORED_GOOGLE_TASKS_CREDENTIAL_NAMES,
+  buildGoogleTasksSourceFrom,
+} from './google-tasks-source-factory.ts';
+import {
   STORED_GRAPH_FIELD_NAMING,
   buildGraphCalendarSourceFrom,
   buildGraphTodoSourceFrom,
@@ -738,10 +742,9 @@ export async function buildDomainDepsFromMapping(
       // told to serve VTODO (0113 T3b), and there is no scheduling verdict —
       // a to-do list invites nobody, so RFC 6638 has nothing to say about it.
       //
-      // No Google branch: Google's CalDAV supports neither VTODO nor VJOURNAL
-      // (its own developer guide), and `task` is not one of the faces
-      // PROVIDER_ACCOUNT_DOMAINS gives a `google` account — so a Google source
-      // never reaches here.
+      // A Google account's task face is not its CalDAV, which carries no VTODO
+      // (Google's own developer guide): `buildTaskSourceFromConnection` sends it
+      // to the Tasks API instead (workplan 0126 T2).
       return withClose(
         {
           ...common,
@@ -876,10 +879,11 @@ export function buildCalendarSourceFromConnection(
  * `a-face-no-account-can-actually-build` needs in order to ask its question
  * about all five, rather than about the four that happened to be exported.
  *
- * `dav` and nothing else, deliberately. A to-do list IS a calendar collection
- * declaring VTODO (RFC 4791 §5.2.3, 0113 T5), so there is no Google branch
- * (its CalDAV serves neither VTODO nor VJOURNAL, per its own guide) and no
- * Graph branch (To Do is not CalDAV — 0114 T9). A kind whose task face
+ * `dav` for every kind whose tasks are CalDAV: a to-do list IS a calendar
+ * collection declaring VTODO (RFC 4791 §5.2.3, 0113 T5). Two providers keep
+ * their tasks elsewhere and have a builder each: Microsoft To Do (`graph-todo`,
+ * 0114 T9) and Google Tasks (`google-tasks`, 0126 T2), because Google's CalDAV
+ * serves neither VTODO nor VJOURNAL, per its own guide. A kind whose task face
  * resolves to anything else is a defect, and this refuses by name rather than
  * falling through.
  */
@@ -903,6 +907,15 @@ export function buildTaskSourceFromConnection(
         graphCredsFromConnection(src.creds),
         throttleLimiter,
         STORED_GRAPH_FIELD_NAMING,
+      );
+    case 'google-tasks':
+      // Google Tasks (workplan 0126 T2): the Tasks API, under the account's
+      // own address, with the tenant's rate budget like the Graph faces.
+      return buildGoogleTasksSourceFrom(
+        String((src.config as { user?: unknown }).user ?? ''),
+        src.creds,
+        throttleLimiter,
+        STORED_GOOGLE_TASKS_CREDENTIAL_NAMES,
       );
     case 'dav':
       return buildTaskSource(

@@ -34,6 +34,7 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
   domainsToScopes,
+  grantSatisfiesAskedScope,
   type GoogleGrantDomain,
 } from '@openmig/orchestration/account-qualification';
 import type { ProgressPageUrl } from './progress-page-url.ts';
@@ -333,10 +334,10 @@ export type ExchangeResult =
   | { readonly ok: false; readonly reason: string };
 
 /**
- * Which of the asked scopes the granted set does NOT satisfy. The broader
- * Drive scope satisfies the read-only ask (a superset grant is reported, never
- * refused — over-ASKING is what least privilege forbids, not over-receiving
- * what Google chose to enumerate).
+ * Which of the asked scopes the granted set does NOT satisfy. A broader scope
+ * satisfies a read-only ask, Drive's and Tasks' alike (a superset grant is
+ * reported, never refused — over-ASKING is what least privilege forbids, not
+ * over-receiving what Google chose to enumerate).
  *
  * AN ASK IS ONE OR MORE SCOPES, space-separated — one per domain ticked
  * (0106 T1b) — and each is judged on its own. On 2026-09-02 the owner ticked
@@ -346,14 +347,13 @@ export type ExchangeResult =
  * one-element case of this, not a separate rule.
  */
 export function unsatisfiedScopes(asked: string, granted: ReadonlyArray<string>): string[] {
-  const satisfied = (scope: string): boolean =>
-    granted.includes(scope) ||
-    (scope === 'https://www.googleapis.com/auth/drive.readonly' &&
-      granted.includes('https://www.googleapis.com/auth/drive'));
+  // Read off the scope table (`grantSatisfiesAskedScope`) since 2026-09-23,
+  // when Tasks brought a second broader scope: Drive's pair was written out
+  // here, and a second copy of the table is where the two would drift.
   return asked
     .split(/\s+/)
     .filter((scope) => scope.length > 0)
-    .filter((scope) => !satisfied(scope));
+    .filter((scope) => !grantSatisfiesAskedScope(scope, granted));
 }
 
 /**

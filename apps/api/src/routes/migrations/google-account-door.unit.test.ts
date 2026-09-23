@@ -290,7 +290,8 @@ describe('the faces this account kind does not serve', () => {
     for (const domain of PROVIDER_ACCOUNT_DOMAINS.google) {
       const result = CreateMappingSchema.safeParse(
         body({
-          targetType: domain === 'calendar' ? 'caldav' : 'carddav',
+          // CalDAV carries calendars and tasks; CardDAV carries contacts.
+          targetType: domain === 'contact' ? 'carddav' : 'caldav',
           syncConfig: { domains: [domain] },
         }),
       );

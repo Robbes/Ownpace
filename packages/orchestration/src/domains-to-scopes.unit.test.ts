@@ -22,7 +22,7 @@ import {
   type GoogleGrantDomain,
 } from './account-qualification.ts';
 
-const ALL: ReadonlyArray<GoogleGrantDomain> = ['mail', 'calendar', 'contact', 'file'];
+const ALL: ReadonlyArray<GoogleGrantDomain> = ['mail', 'calendar', 'contact', 'file', 'task'];
 
 /** Every scope Google publishes that is BROADER than something we ask for.
  *  Written out rather than derived, so the guard has an independent opinion:
@@ -34,6 +34,9 @@ const BROADER_THAN_WE_NEED = [
   'https://www.googleapis.com/auth/contacts',
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/cloud-platform',
+  // Tasks' read-write scope (workplan 0126): accepted when already granted,
+  // never asked for.
+  'https://www.googleapis.com/auth/tasks',
 ];
 
 describe('the ask is exactly the ticks', () => {
@@ -109,6 +112,7 @@ describe('the ask can never be a superset — proved against the table', () => {
         'https://www.googleapis.com/auth/calendar',
         'https://www.googleapis.com/auth/carddav',
         'https://www.googleapis.com/auth/drive.readonly',
+        'https://www.googleapis.com/auth/tasks.readonly',
       ]),
     );
   });

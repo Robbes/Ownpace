@@ -24,16 +24,17 @@ import {
 import { SOURCE_TYPE_DOMAINS } from './target-domains.ts';
 
 describe('a provider account serves the faces its row names', () => {
-  it('google serves calendar and contacts today', () => {
-    expect(providerAccountDomains('google')).toEqual(['calendar', 'contact']);
+  it('google serves calendar, contacts and tasks today', () => {
+    expect(providerAccountDomains('google')).toEqual(['calendar', 'contact', 'task']);
     expect(providerAccountServes('google', 'calendar')).toBe(true);
     expect(providerAccountServes('google', 'contact')).toBe(true);
+    expect(providerAccountServes('google', 'task')).toBe(true);
   });
 
   it('google does NOT serve mail or files yet — the assessment, not the code', () => {
-    // Google prices calendar and carddav as sensitive (free brand
-    // verification) and Gmail and drive.readonly as restricted (annual
-    // third-party assessment). A consent inviting all four would push the
+    // Google prices calendar, carddav and tasks.readonly as sensitive (free
+    // brand verification) and Gmail and drive.readonly as restricted (annual
+    // third-party assessment). A consent inviting all five would push the
     // managed client into the restricted tier for every customer, including
     // one who only wanted contacts.
     expect(providerAccountServes('google', 'email')).toBe(false);
@@ -53,13 +54,15 @@ describe('a provider account serves the faces its row names', () => {
     expect(providerAccountServes('soverin', 'file')).toBe(false);
   });
 
-  it('google serves no task face, and no scope class buys one', () => {
-    // Not a pricing decision like mail and files: Google's CalDAV supports
-    // neither VTODO nor VJOURNAL at all, so a restricted-scope deployment
-    // gets exactly the same answer (0113 T5/T6).
-    expect(providerAccountServes('google', 'task')).toBe(false);
+  it('google serves its task face at both tiers, over the Tasks API (0126 T2)', () => {
+    // Until 2026-09-23 this pinned the opposite: Google's CalDAV supports
+    // neither VTODO nor VJOURNAL (0113 T5), and the Tasks API was not driven.
+    // It is now, under the sensitive tasks.readonly, so a deployment that
+    // declares the restricted tier must keep the face rather than lose it for
+    // having asked for more.
+    expect(providerAccountServes('google', 'task')).toBe(true);
     expect(providerAccountServes('google', 'task', { GOOGLE_ACCOUNT_SCOPE_CLASS: 'restricted' })).toBe(
-      false,
+      true,
     );
   });
 
@@ -128,11 +131,11 @@ describe('the client fact beside the domains (ADR-0041, owner decision 2026-09-0
 
   it('google answers where its client comes from; soverin has no such thing to answer', () => {
     expect(providerAccountFacts('google', none)).toEqual({
-      domains: ['calendar', 'contact'],
+      domains: ['calendar', 'contact', 'task'],
       client: 'connection',
     });
     expect(providerAccountFacts('google', pair)).toEqual({
-      domains: ['calendar', 'contact'],
+      domains: ['calendar', 'contact', 'task'],
       client: 'deployment',
     });
     expect(providerAccountFacts('soverin', pair)).not.toHaveProperty('client');
@@ -140,7 +143,7 @@ describe('the client fact beside the domains (ADR-0041, owner decision 2026-09-0
 
   it('carries the domains ceiling unchanged — one answer, not two routes', () => {
     expect(providerAccountFacts('google', { ...pair, GOOGLE_ACCOUNT_SCOPE_CLASS: 'restricted' })).toEqual(
-      { domains: ['email', 'calendar', 'contact', 'file'], client: 'deployment' },
+      { domains: ['email', 'calendar', 'contact', 'file', 'task'], client: 'deployment' },
     );
   });
 
@@ -171,17 +174,18 @@ describe('the microsoft account kind (0114 T3)', () => {
   it('serves five faces — the asymmetry with Google running the other way', () => {
     const faces = providerAccountDomains('microsoft', {});
     expect(faces).toEqual(['email', 'calendar', 'contact', 'file', 'task']);
-    // Google offers two by default because mail and files are restricted
+    // Google offers three by default because mail and files are restricted
     // scopes; Microsoft's delegated equivalents carry no such tier.
-    expect(providerAccountDomains('google', {})).toEqual(['calendar', 'contact']);
+    expect(providerAccountDomains('google', {})).toEqual(['calendar', 'contact', 'task']);
   });
 
-  it('claims the task face since 0114 T9 — and Google still cannot, at any tier', () => {
+  it('claims the task face since 0114 T9 — and Google since 0126 T2', () => {
     // Microsoft HAS one at /me/todo/lists, and `graph-todo-source` now reads
     // it. Until T9 this line pinned the opposite, because claiming a face
     // nothing could carry would have offered a tick that ran against nothing.
+    // Google's followed on 2026-09-23, over its Tasks API.
     expect(providerAccountServes('microsoft', 'task', {})).toBe(true);
-    expect(providerAccountServes('google', 'task', {})).toBe(false);
+    expect(providerAccountServes('google', 'task', {})).toBe(true);
   });
 
   it('answers where its OAuth application comes from, like google and unlike soverin', () => {

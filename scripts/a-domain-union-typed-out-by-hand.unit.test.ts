@@ -78,9 +78,9 @@ const MAY_LIST_THE_VALUES: Readonly<Record<string, string>> = {
     'reason as GRANT_FACES: a fact about one provider.',
   'packages/shared/src/provider-accounts.ts':
     'GOOGLE_RESTRICTED_ACCOUNT_DOMAINS — what a deployment running its OWN Google ' +
-    'application with the restricted scopes carries. It happens to be four today ' +
-    "because Google's four are these four; it is a row in a provider table, not the " +
-    "product's list, and it must not gain a domain Google has no scope for.",
+    'application with the restricted scopes carries. It happens to be all five since ' +
+    "Tasks joined (0126 T2) because Google has a scope for each; it is a row in a provider " +
+    "table, not the product's list, and it must not gain a domain Google has no scope for.",
 
   // --- Tests that pin "these four, exactly" as their subject.
   'packages/shared/src/qualification-gate.unit.test.ts':
