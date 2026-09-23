@@ -134,6 +134,25 @@ describe('create', () => {
     }
   });
 
+  it('stores none on an account whose files are not Google’s', () => {
+    // A Microsoft or Apple account shares this branch with Google's, and its
+    // files are OneDrive's or iCloud's: a Google export format stored on it
+    // is a setting that could never do anything, shown back as if it did.
+    for (const sourceType of ['microsoft', 'apple'] as const) {
+      expect(
+        sourceConnectionConfig({
+          sourceType,
+          sourceConfig: {
+            username: ACCOUNT,
+            nativeFilePolicy: 'export-pdf',
+            nativeFilePolicies: PER_KIND,
+          },
+        } as never),
+        sourceType,
+      ).toEqual({ type: sourceType, user: ACCOUNT });
+    }
+  });
+
   it('refuses a kind it does not know on the box it was typed in, in the parser’s words', () => {
     const result = CreateMappingSchema.safeParse(body({ nativeFilePolicies: { slides: 'export-odf' } }));
     expect(result.success).toBe(false);
