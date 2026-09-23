@@ -2,7 +2,11 @@
 import React, { useState } from 'react';
 import { useT, useLocale } from '../i18n/index.tsx';
 import { Hint, whyKeyOf } from '../components/Hint.tsx';
-import { NativeFilePolicyChooser } from '../components/NativeFilePolicyChooser.tsx';
+import {
+  LEAVE_ALL_BEHIND,
+  NativeFilePolicyChooser,
+  type NativeFilePolicyByKind,
+} from '../components/NativeFilePolicyChooser.tsx';
 import {
   measuredText,
   probeText,
@@ -95,12 +99,13 @@ interface FormData {
   /**
    * What happens to Google Docs, Sheets, Slides and Drawings (0042 T0 Q3).
    *
-   * One policy per migration, chosen HERE rather than defaulted silently: the
-   * two outcomes available are "your Docs did not migrate, and here is why"
-   * and "your Docs arrived as a rendering that cannot be edited back" — and
-   * only the owner can say which of those they want.
+   * Chosen HERE rather than defaulted silently: the two outcomes available are
+   * "your Docs did not migrate, and here is why" and "your Docs arrived as a
+   * rendering that cannot be edited back" — and only the owner can say which
+   * of those they want. One format per KIND since 0042 T9, because no editable
+   * format carries all four.
    */
-  sourceNativeFilePolicy: string;
+  sourceNativeFilePolicies: NativeFilePolicyByKind;
   /** Dropbox: root the migration at a folder ('' = the whole Dropbox). */
   sourceRootPath: string;
   /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
@@ -155,7 +160,7 @@ const initialFormData: FormData = {
   sourceRootFolderId: '',
   // `refuse` is also the server's default, so this changes nothing by
   // itself — it makes the choice VISIBLE, and records that somebody made it.
-  sourceNativeFilePolicy: 'refuse',
+  sourceNativeFilePolicies: LEAVE_ALL_BEHIND,
   sourceRootPath: '',
   sourceBoxUserId: '',
   sourceArchiveProvider: '',
@@ -270,7 +275,7 @@ function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
     sourceRefreshToken: '',
     sourceServiceAccountKey: '',
     sourceRootFolderId: '',
-    sourceNativeFilePolicy: 'refuse',
+    sourceNativeFilePolicies: LEAVE_ALL_BEHIND,
     sourceRootPath: '',
     sourceBoxUserId: '',
     sourceArchiveProvider: '',
@@ -648,8 +653,10 @@ const CreateMapping: React.FC = () => {
               // Always sent, `refuse` included. Omitting it would land the
               // same behaviour by default, but the mapping would then not say
               // whether anybody chose it — and the answer to "why were my Docs
-              // left behind" is different when somebody decided that.
-              nativeFilePolicy: formData.sourceNativeFilePolicy,
+              // left behind" is different when somebody decided that. All four
+              // kinds are named (0042 T9), so nothing about them is left to a
+              // single format the chooser does not show.
+              nativeFilePolicies: formData.sourceNativeFilePolicies,
             }
           : isGmailSource || isGoogleDavSource || isGoogleAccountSource
           ? {
@@ -674,7 +681,7 @@ const CreateMapping: React.FC = () => {
               // asked. Gmail and the DAV pair carry no files at all, so this is
               // never set for them.
               ...(nativePolicyApplies
-                ? { nativeFilePolicy: formData.sourceNativeFilePolicy }
+                ? { nativeFilePolicies: formData.sourceNativeFilePolicies }
                 : {}),
             }
           : isO365Source
@@ -1829,8 +1836,10 @@ const CreateMapping: React.FC = () => {
             place the account kind has. */}
         {isSource && nativePolicyApplies && (
           <NativeFilePolicyChooser
-            value={formData.sourceNativeFilePolicy}
-            onChange={(next) => updateField('sourceNativeFilePolicy', next)}
+            value={formData.sourceNativeFilePolicies}
+            onChange={(next) =>
+              setFormData((prev) => ({ ...prev, sourceNativeFilePolicies: next }))
+            }
           />
         )}
         {/* What happens to these secrets — one sentence, at the foot of the

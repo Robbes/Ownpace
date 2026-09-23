@@ -168,6 +168,11 @@ describe('each kind in its own format', () => {
     );
     // The way out it names is read off the measurements, and PDF is one.
     await expect(source.fetch(itemFor(DECK))).rejects.toThrow(/"export-pdf"/);
+    // And it is a choice for this kind, on the screen that makes it, not a
+    // switch of one setting for all four.
+    await expect(source.fetch(itemFor(DECK))).rejects.toThrow(
+      /Choose one for this kind under Export format for Google files, or: Move the Slides deck/,
+    );
   });
 
   it('gives a Form no way out, whatever each kind is set to', () => {

@@ -216,6 +216,13 @@ const MaskedConfigSchema = z.object({
    * "absent" look identical from the component's side (hard rule 9).
    */
   nativeFilePolicy: z.string().optional(),
+  /**
+   * A format per kind, laid over `nativeFilePolicy` (workplan 0042 T9). Kept
+   * for the reason the line above is: `z.object` strips what it does not
+   * name, and a panel reading the single format alone would show "Office" for
+   * a migration whose decks go out as `.odp`.
+   */
+  nativeFilePolicies: z.record(z.string(), z.string()).optional(),
 });
 
 /**
@@ -363,6 +370,12 @@ export interface CreateMappingInput {
      * another to the parser.
      */
     nativeFilePolicy?: string;
+    /**
+     * A format per kind (workplan 0042 T9): `document`, `spreadsheet`,
+     * `presentation` and `drawing`, each one of the four values above. The
+     * server's parser refuses an unknown kind by name.
+     */
+    nativeFilePolicies?: Record<string, string>;
     /** Box only (workplan 0056): the numeric user id the CCG token reads for. */
     userId?: string;
     /** Archive only (workplan 0116): WHICH export — `google-takeout` or `apple-privacy`. */
@@ -921,7 +934,9 @@ export const mappingApi = {
    * `sourceConfig` and dropped it, so the sentence named an action the product
    * did not have.
    *
-   * Sends ONLY the policy. `UpdateMappingSchema` is a partial, and the route
+   * Sends ONLY the format, one per kind (workplan 0042 T9), all four named so
+   * the single format a migration may also carry decides nothing about them.
+   * `UpdateMappingSchema` is a partial, and the route
    * refuses every field `mayRevise` refuses — all of them at once, with the
    * reason each — so a body carrying a `sourceConfig` this panel did not mean
    * to change is a body that gets refused for the wrong reason. The narrowest
@@ -932,14 +947,17 @@ export const mappingApi = {
    * below). `sourceConfig` comes back because it was sent, not because the
    * route read it from anywhere.
    */
-  setNativeFilePolicy: async (mappingId: string, nativeFilePolicy: string) => {
+  setNativeFilePolicies: async (
+    mappingId: string,
+    nativeFilePolicies: Readonly<Record<string, string>>,
+  ) => {
     const response = await apiClient.put(`/migrations/${mappingId}`, {
-      sourceConfig: { nativeFilePolicy },
+      sourceConfig: { nativeFilePolicies },
     });
     return z
       .object({
         id: z.string(),
-        sourceConfig: z.object({ nativeFilePolicy: z.string() }),
+        sourceConfig: z.object({ nativeFilePolicies: z.record(z.string(), z.string()) }),
         updatedAt: z.string(),
       })
       .parse(response.data);

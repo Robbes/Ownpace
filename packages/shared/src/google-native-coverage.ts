@@ -143,6 +143,32 @@ export const NATIVE_POLICY_COVERAGE: Readonly<
   'export-pdf': ['document', 'spreadsheet', 'presentation', 'drawing'],
 };
 
+/**
+ * WHAT EACH FORMAT TURNS EACH KIND INTO, by the file extension it lands under
+ * (workplan 0042 T9).
+ *
+ * A chooser that asks per kind has to say, per kind, what a format means:
+ * "Microsoft Office" is a `.docx` for a Doc and a `.pptx` for a deck, and a
+ * Drawing is an `.svg` under both document families, because Drive offers no
+ * editable drawing format. The connector's `NATIVE_EXPORT_TYPES` and
+ * `NATIVE_EXPORT_EXTENSIONS` say this in Google's MIME types, which `apps/web`
+ * does not import; this is the same fact in the words a screen shows, held to
+ * those two tables by the guard in
+ * `a-chooser-that-hid-which-files-it-would-drop.unit.test.ts`.
+ */
+export const NATIVE_POLICY_EXTENSIONS: Readonly<
+  Record<Exclude<GoogleNativeFilePolicy, 'refuse'>, Readonly<Record<GoogleEditorKind, string>>>
+> = {
+  'export-odf': { document: '.odt', spreadsheet: '.ods', presentation: '.odp', drawing: '.svg' },
+  'export-office': {
+    document: '.docx',
+    spreadsheet: '.xlsx',
+    presentation: '.pptx',
+    drawing: '.svg',
+  },
+  'export-pdf': { document: '.pdf', spreadsheet: '.pdf', presentation: '.pdf', drawing: '.pdf' },
+};
+
 /** The kinds this policy carries. */
 export function policyCarries(
   policy: Exclude<GoogleNativeFilePolicy, 'refuse'>,

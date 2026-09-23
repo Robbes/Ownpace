@@ -171,7 +171,10 @@ function wayOutFor(kind: string, mimeType: string, refused: NativeFilePolicy): s
     : alternatives.includes('export-pdf')
       ? ' ("export-pdf" is not editable afterwards)'
       : '';
-  return `${named} ${verb} measured stable for a ${kind}${cost}. Switch the mapping's export policy, or: ${keepIt}`;
+  // THE SCREEN, AND THE KIND (0042 T9). "Switch the mapping's export policy"
+  // named a single setting for all four kinds; each kind has its own now, so
+  // switching the one that refused this file is a change to this kind alone.
+  return `${named} ${verb} measured stable for a ${kind}${cost}. Choose one for this kind under Export format for Google files, or: ${keepIt}`;
 }
 
 export class NativeFileRefused extends Error {
