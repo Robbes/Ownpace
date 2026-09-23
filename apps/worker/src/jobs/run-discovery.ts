@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import { schemaTask } from '@trigger.dev/sdk';
+import { schemaTask, queue } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { discoverSource } from '@openmig/core';
 import type {
@@ -243,10 +243,19 @@ export async function domainsToCount(
   return [...(await enabledDomains(scopePool, tenantId, mappingId))];
 }
 
+/**
+ * One count per migration at a time, partitioned by the `concurrencyKey` the
+ * API sets (`discoveryTriggerOptions`) — the shape `run-delta-sync` uses for
+ * passes. Every reload of the confirm screen used to start a count beside the
+ * running one (2026-09-22).
+ */
+export const discoveryQueue = queue({ name: 'run-discovery', concurrencyLimit: 1 });
+
 export const runDiscovery = schemaTask({
   id: 'run-discovery',
   description: 'Pre-sync discovery (read-only counts)',
   schema: DiscoveryJobSchema,
+  queue: discoveryQueue,
   run: async (payload: unknown, _context) => {
     const typed = payload as DiscoveryJobPayload;
     if (!typed.tenantId) {
