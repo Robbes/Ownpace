@@ -69,6 +69,12 @@ describe("the Test lists a face the grant carries", () => {
     vi.stubGlobal('fetch', grantOf(`${TASKS} ${CARDDAV}`));
     expect((await probe()).asked).toEqual(['contact']);
   });
+
+  it('counts a broader scope as carried, as the qualification does', async () => {
+    // Read-write Tasks, granted elsewhere, satisfies the read-only face.
+    vi.stubGlobal('fetch', grantOf('https://www.googleapis.com/auth/tasks'));
+    expect((await probe()).asked).toEqual(['task']);
+  });
 });
 
 describe('a grant it cannot read keeps the answer it always had', () => {
