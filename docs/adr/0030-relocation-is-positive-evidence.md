@@ -13,7 +13,7 @@
 
 - A **correlated relocation** (disappearance + same-content-hash arrival in one pass) is positive evidence; `apply` may remove the OLD copy. Recorded by `movedToNaturalKeyHash` — a cross-folder move and a rename are the same event.
 - All ADR-0024 gates stand, plus: the arrival must be **ours** (`copied`/`updated`, same `contentHash`, never `adopted` — refusal `relocation_unconfirmed`); the target is **asked** (`hasItem`) immediately before removal; a two-halves mass-relocation breaker; `keep` enforced server-side.
-- Relocated rows no longer count as absent — no phantom deletions. Manual relocation apply is appliance-only; the managed edition executes relocations via ADR-0031's auto path with receipts.
+- Relocated rows no longer count as absent — no phantom deletions. Manual relocation apply is served by both editions: the appliance answers once the old copy is removed, and the managed edition queues `run-apply-relocation` and answers with a receipt (the managed route since 2026-08-16, workplan 0042 T2). ADR-0031's auto path applies them unattended where a mapping opts in.
 
 ## Context
 

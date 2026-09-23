@@ -779,19 +779,22 @@ export const MOVE_GUIDANCE: MoveGuidance = {
     `POST /mappings/{mappingId}/moves/{naturalKeyHash}/keep — the target's layout ` +
     `is fine as it is; stop reporting this one. Reversible only in the sense that ` +
     `moving the item somewhere else again reopens it.`,
+  // BOTH EDITIONS SERVE IT. This said "APPLIANCE ONLY so far" and sent a
+  // managed customer to remove the old copy by hand, from 2026-08-16, when
+  // managed gained the route (workplan 0042 T2), until 2026-09-23: on the one
+  // screen that also offered them the Apply button.
   apply:
-    `POST /mappings/{mappingId}/moves/{naturalKeyHash}/apply — APPLIANCE ONLY so far, and `
-    + `RELOCATIONS ONLY, ` +
-    `and it REMOVES the target's old copy. Allowed where the same operation on a ` +
+    `POST /mappings/{mappingId}/moves/{naturalKeyHash}/apply — RELOCATIONS ONLY, and it ` +
+    `REMOVES the target's old copy. Allowed where the same operation on a ` +
     `deletion would not be, for one reason: the same bytes are already on the ` +
     `target under the key the source moved the item to, written by this migration, ` +
     `and that is re-checked at the moment of removal. Off unless the mapping sets ` +
     `allowApplyDeletions — the same switch, because it is the same capability — ` +
     `and refused for a copy somebody has edited on the target, for one this ` +
-    `migration did not write, and while the mass-deletion breaker is up (ADR-0030). The `
-    + `managed edition does not serve this route yet — its destructive path runs through a `
-    + `queued job and a receipt — so there it is: remove the old copy in the target system `
-    + `yourself, then keep.`,
+    `migration did not write, and while the mass-deletion breaker is up (ADR-0030). ` +
+    `Both editions serve it: the appliance answers once the old copy is removed, and ` +
+    `the managed edition queues the removal and answers with a receipt that says how ` +
+    `it ended.`,
   byHand:
     'To make the target match without using apply, move or delete the item there ' +
     'yourself in the target system, then keep. This tool never removes anything ' +
