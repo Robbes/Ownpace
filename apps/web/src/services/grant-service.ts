@@ -17,6 +17,8 @@ const SubjectSchema = z.object({
   // Who asked (0108 T8a): the issuing member's sign-in address, or null when
   // they are no longer a member.
   askedBy: z.string().nullable(),
+  // The organisation's phone number, when it gave one (optional).
+  organisationPhone: z.string().nullable(),
   reads: z.string(),
   scope: z.string(),
   // Where from and where to (workplan 0108 T8a): the account the migration

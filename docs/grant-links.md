@@ -23,6 +23,11 @@ On the migration's page, under **Grant links**:
 2. Press **Create grant link**.
 3. Copy the link and send it, however you normally reach that person.
 
+**Worth doing once:** give your organisation a phone number, under **Team & organization →
+Organization → Phone number**. It is optional. When it is set, the page the other person opens
+shows it beside your address, and a number they can call is the quickest way for them to check
+the link really came from you.
+
 **The link is shown once.** Nothing can show it to you again, because only a fingerprint of it
 is stored — the same reason a password is never stored readable. If you lose it, revoke it and
 issue another.
@@ -51,7 +56,9 @@ Each refusal names what to fix:
 Before any button, the page tells them:
 
 - **who is asking** — your organisation, by name, and the address **you** sign in to Ownpace
-  with, so they know which person is asking and not only which organisation;
+  with, so they know which person is asking and not only which organisation. If your
+  organisation has a phone number set, they see that too, so they can call and check it is
+  really you;
 - **from which account, and to where** — the account the migration reads, and its destination:
   which kind of server, where it is, and the account on it. Then one question: *do you know
   who asked, and is the destination yours or your organisation's? Only then continue.* This

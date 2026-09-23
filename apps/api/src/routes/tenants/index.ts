@@ -31,6 +31,9 @@ import * as schema from '@openmig/ledger/schema-pg';
 import {
   readTenantNotificationPrefs,
   withTenantNotificationPrefs,
+  contactPhoneFrom,
+  readTenantContactPhone,
+  withTenantContactPhone,
 } from '@openmig/shared';
 
 const router = Router();
@@ -60,6 +63,16 @@ const UpdateTenantSchema = z.object({
 const NotificationPrefsSchema = z.object({
   digest: z.enum(['daily', 'weekly', 'off']),
   locale: z.enum(['en', 'nl']),
+});
+
+/**
+ * What `PUT …/contact` may carry: a phone number, or null (or empty) to show
+ * none. The SHAPE of the number is `contactPhoneFrom`'s to judge, not zod's,
+ * so the refusal is one sentence a person can act on rather than a schema
+ * error. The length cap here only keeps an absurd body out of that check.
+ */
+const ContactSchema = z.object({
+  phone: z.string().max(200).nullable(),
 });
 
 /**
@@ -253,6 +266,82 @@ router.put(
       }
     }
   }
+);
+
+/**
+ * PUT /api/tenants/:tenantId/contact
+ *
+ * The organisation's phone number, shown on the grant page to the people it
+ * asks (workplan 0108 T8a). The owner, 2026-09-23: *"If there is no phone
+ * number, then add it, but leave optional: we show it at grant-migration-page,
+ * but it's not required to have in the tenant profile."*
+ *
+ * A route of its own, like the notification preferences below, for their
+ * reasons and one more: the generic settings PUT keeps only its two keys, so
+ * this is the only door, and its check (`contactPhoneFrom`) is therefore the
+ * only check. Only a phone number's characters get through, because the grant
+ * page is the one screen a stranger could dress up. MERGED into `settings`,
+ * never replacing it. Empty or null clears the number.
+ *
+ * Owner/admin only, like every other change on the Tenants screen.
+ */
+router.put(
+  '/:tenantId/contact',
+  authenticate,
+  requireRole('owner', 'admin'),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const parsed = ContactSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const reason = 'Send { phone }: a phone number, or null to show none.';
+        res.status(400).json({ error: 'invalid_body', message: reason, reason });
+        return;
+      }
+      const verdict = contactPhoneFrom(parsed.data.phone);
+      if (!verdict.ok) {
+        // Both shapes this API answers in, so every screen shows the sentence.
+        res.status(400).json({
+          error: 'not_a_phone_number',
+          message: verdict.reason,
+          reason: verdict.reason,
+        });
+        return;
+      }
+
+      if (!req.tenantId) {
+        res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Tenant ID not found in authentication context',
+        });
+        return;
+      }
+      const tenantId = req.tenantId;
+      const pool = getSharedPool();
+
+      const [updated] = await withTenantDb(tenantId, pool, async (db) => {
+        const rows = await db
+          .select()
+          .from(schema.tenant)
+          .where(eq(schema.tenant.id, tenantId));
+        const current = rows[0];
+        if (!current) return [];
+        return await db
+          .update(schema.tenant)
+          .set({ settings: withTenantContactPhone(current.settings, verdict.phone) })
+          .where(eq(schema.tenant.id, tenantId))
+          .returning();
+      });
+
+      if (!updated) {
+        res.status(404).json({ error: 'Not found', message: 'Tenant not found' });
+        return;
+      }
+      // What was STORED, read back through the reader the grant page uses.
+      res.json({ contact: { phone: readTenantContactPhone(updated.settings) } });
+    } catch (error) {
+      serverFault(res, 'update_failed', 'saving the phone number', error);
+    }
+  },
 );
 
 /**

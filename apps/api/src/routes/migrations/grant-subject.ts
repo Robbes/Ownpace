@@ -21,7 +21,11 @@ import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
-import { googleDeploymentClient, type GoogleClientEnv } from '@openmig/shared';
+import {
+  googleDeploymentClient,
+  readTenantContactPhone,
+  type GoogleClientEnv,
+} from '@openmig/shared';
 import { tenantMember } from '@openmig/managed/schema-managed';
 import type { GrantLinkReadiness } from './grant-link-readiness.ts';
 import { accountOfMapping } from './account-on-connection.ts';
@@ -34,6 +38,11 @@ interface StoredConnection {
 
 export interface GrantRows {
   readonly organisation: string;
+  /**
+   * The organisation's phone number, when it gave one (0108 T8a), read through
+   * the one reader that shows nothing that is not a phone number.
+   */
+  readonly organisationPhone: string | null;
   readonly source: StoredConnection;
   /** `mailbox_mapping.source_config_override`: this migration's own account. */
   readonly sourceOverride: unknown;
@@ -53,6 +62,7 @@ export async function readGrantRows(
   const found = await db
     .select({
       organisation: schema.tenant.name,
+      organisationSettings: schema.tenant.settings,
       kind: schema.connection.kind,
       config: schema.connection.config,
       secretRef: schema.connection.secretRef,
@@ -95,6 +105,7 @@ export async function readGrantRows(
 
   return {
     organisation: row.organisation,
+    organisationPhone: readTenantContactPhone(row.organisationSettings),
     source: { kind: row.kind, config: row.config, secretRef: row.secretRef },
     sourceOverride: row.sourceOverride,
     target,

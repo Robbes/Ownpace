@@ -117,6 +117,18 @@ const Grant: React.FC = () => {
                 <dd className="text-gray-900 break-all">{subject.data.askedBy}</dd>
               </>
             )}
+            {/* The organisation's number, when it gave one: optional, and the
+                server shows nothing here that is not a phone number. */}
+            {subject.data.organisationPhone && (
+              <>
+                <dt className="text-gray-600">{t('grant.phone')}</dt>
+                <dd className="text-gray-900">
+                  <a className="underline" href={`tel:${subject.data.organisationPhone.replace(/[^0-9+]/g, '')}`}>
+                    {subject.data.organisationPhone}
+                  </a>
+                </dd>
+              </>
+            )}
             <dt className="text-gray-600">{t('grant.from')}</dt>
             <dd className="text-gray-900 break-all">
               {subject.data.from ?? t('grant.fromAnyAccount')}

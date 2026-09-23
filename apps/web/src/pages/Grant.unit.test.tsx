@@ -34,6 +34,7 @@ const SCOPE = 'https://mail.google.com/';
 const SUBJECT = {
   organisation: 'Acme Legal',
   askedBy: 'owner@example.org',
+  organisationPhone: '+31 20 123 4567',
   reads: 'your email — messages, folders and labels',
   scope: SCOPE,
   from: 'someone@example.invalid',
@@ -117,6 +118,20 @@ describe('what a person sees before consenting', () => {
     const asker = screen.getByText('owner@example.org');
     const button = screen.getByRole('button', { name: /Continue with Google/ });
     expect(asker.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("gives the organisation's number to call, as a link a phone can dial", async () => {
+    renderPage();
+    expect(await screen.findByText('Phone')).toBeInTheDocument();
+    const number = screen.getByRole('link', { name: '+31 20 123 4567' });
+    expect(number).toHaveAttribute('href', 'tel:+31201234567');
+  });
+
+  it('leaves the number out when the organisation gave none — it is optional', async () => {
+    readMock.mockResolvedValue({ ...SUBJECT, organisationPhone: null });
+    renderPage();
+    expect(await screen.findByText('owner@example.org')).toBeInTheDocument();
+    expect(screen.queryByText('Phone')).not.toBeInTheDocument();
   });
 
   it('leaves out who asked when the server cannot say, rather than a blank', async () => {

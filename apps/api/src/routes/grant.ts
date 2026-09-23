@@ -113,6 +113,7 @@ function listed(items: ReadonlyArray<string>): string {
 
 interface GrantSubject extends WhereFromAndTo {
   readonly organisation: string;
+  readonly organisationPhone: string | null;
   readonly reads: string;
   readonly scope: string;
   readonly clientId: string;
@@ -180,6 +181,7 @@ async function loadSubject(
     ok: true,
     subject: {
       organisation: rows.organisation,
+      organisationPhone: rows.organisationPhone,
       reads: listed(decided.ask.domains.map((d) => READS[d])),
       scope: decided.ask.scope,
       from: where.from,
@@ -215,8 +217,11 @@ router.get(
       const askedBy = await withTenantDb(tenantId, pool(), (db) => readAskedBy(db, tenantId, linkId));
       res.json({
         organisation: loaded.subject.organisation,
-        // Who asked (0108 T8a): the issuing member's sign-in address.
+        // Who asked (0108 T8a): the issuing member's sign-in address, and a
+        // number to call when the organisation gave one — optional, by the
+        // owner's decision of 2026-09-23.
         askedBy,
+        organisationPhone: loaded.subject.organisationPhone,
         reads: loaded.subject.reads,
         // The scope in Google's own words, beside the plain sentence rather
         // than behind it: a person consenting is entitled to the exact string

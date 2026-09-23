@@ -889,6 +889,7 @@ const en = {
   // Where from and where to (workplan 0108 T8a): what lets a person tell their
   // own migration from a stranger's, whose every other screen is genuine.
   'grant.askedBy': 'Asked by',
+  'grant.phone': 'Phone',
   'grant.from': 'From',
   'grant.to': 'To',
   'grant.fromAnyAccount': 'The Google account you sign in with',
@@ -1581,6 +1582,13 @@ const en = {
     'This lowers your own role; you may not be able to change it back yourself.',
   'tenants.selfDemotionConfirm': 'Confirm role change',
   'tenants.org.heading': 'Organization',
+  // The organisation's phone number (workplan 0108 T8a): optional, and shown
+  // on the grant page to the people the organisation asks.
+  'tenants.org.phone': 'Phone number',
+  'tenants.org.phone.hint': 'Optional; shown to people you send a grant link to.',
+  'tenants.org.phone.save': 'Save',
+  'tenants.org.phone.saved': 'Saved.',
+  'tenants.org.phone.none': 'None given.',
   'tenants.org.readError':
     "Could not read the organization's details — the member list below still works.",
   'tenants.org.rename': 'Rename',
@@ -2853,6 +2861,7 @@ const nl: Record<keyof typeof en, string> = {
   'grant.asking': '{organisation} verhuist uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
   'grant.reads': 'U staat op het punt toegang te geven tot {reads}.',
   'grant.askedBy': 'Gevraagd door',
+  'grant.phone': 'Telefoon',
   'grant.from': 'Van',
   'grant.to': 'Naar',
   'grant.fromAnyAccount': 'Het Google-account waarmee u inlogt',
@@ -3310,6 +3319,11 @@ const nl: Record<keyof typeof en, string> = {
     'Hiermee verlaagt u uw eigen rol; u kunt dit mogelijk niet zelf terugdraaien.',
   'tenants.selfDemotionConfirm': 'Bevestig rolwijziging',
   'tenants.org.heading': 'Organisatie',
+  'tenants.org.phone': 'Telefoonnummer',
+  'tenants.org.phone.hint': 'Optioneel; getoond aan wie u een toegangslink stuurt.',
+  'tenants.org.phone.save': 'Opslaan',
+  'tenants.org.phone.saved': 'Opgeslagen.',
+  'tenants.org.phone.none': 'Niet opgegeven.',
   'tenants.org.readError':
     'De gegevens van de organisatie konden niet worden gelezen — de ledenlijst hieronder werkt nog.',
   'tenants.org.rename': 'Naam wijzigen',

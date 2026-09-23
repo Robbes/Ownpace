@@ -35,9 +35,9 @@ import {
   type Member,
   type TenantNotificationPrefs,
 } from '../services/mapping-service.ts';
-// The SAME reader the API and the digest task use, so what this screen shows
-// and what the morning job acts on cannot be two different defaults.
-import { readTenantNotificationPrefs } from '@openmig/shared';
+// The SAME readers the API, the digest task and the grant page use, so what
+// this screen shows and what they act on cannot be two different answers.
+import { readTenantNotificationPrefs, readTenantContactPhone } from '@openmig/shared';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
@@ -93,6 +93,12 @@ const Tenants: React.FC = () => {
   const [renaming, setRenaming] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState('');
   const [renameError, setRenameError] = React.useState<string | null>(null);
+  // The organisation's phone number (workplan 0108 T8a). Null while the owner
+  // has not typed, so the field shows what is stored.
+  const [phoneDraft, setPhoneDraft] = React.useState<string | null>(null);
+  const [phoneBusy, setPhoneBusy] = React.useState(false);
+  const [phoneError, setPhoneError] = React.useState<string | null>(null);
+  const [phoneSaved, setPhoneSaved] = React.useState(false);
 
   const tenantQuery = useQuery({
     queryKey: ['tenant', tenantId],
@@ -195,6 +201,31 @@ const Tenants: React.FC = () => {
   const tenant = tenantQuery.data;
 
   /**
+   * The organisation's phone number as the grant page would show it: through
+   * the shared reader, so a stored value that is not a phone number shows here
+   * as none, exactly as it would there.
+   */
+  const storedPhone = readTenantContactPhone(tenant?.settings);
+
+  const savePhone = async () => {
+    setPhoneBusy(true);
+    setPhoneError(null);
+    setPhoneSaved(false);
+    try {
+      const typed = (phoneDraft ?? storedPhone ?? '').trim();
+      // What the server stored, which may differ in spacing from what was typed.
+      const stored = await tenantApi.setContact(tenantId, typed === '' ? null : typed);
+      setPhoneDraft(stored ?? '');
+      setPhoneSaved(true);
+      await queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] });
+    } catch (err) {
+      setPhoneError(errorText(err, t('common.requestFailed')));
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
+
+  /**
    * The stored preference, or the server's default while nothing is stored.
    *
    * The DRAFT wins once a save has answered, so the control shows what was
@@ -278,6 +309,45 @@ const Tenants: React.FC = () => {
                 <Pencil className="w-3.5 h-3.5" />
                 {t('tenants.org.rename')}
               </button>
+            )}
+          </div>
+        )}
+
+        {/* The organisation's phone number (workplan 0108 T8a): optional, and
+            shown on the grant page to the people this organisation asks. */}
+        {tenant && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <label htmlFor="org-phone" className="block text-sm font-medium text-gray-700">
+              {t('tenants.org.phone')}
+            </label>
+            <p className="mt-0.5 text-xs text-gray-500">{t('tenants.org.phone.hint')}</p>
+            {canManage ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  id="org-phone"
+                  type="tel"
+                  autoComplete="tel"
+                  value={phoneDraft ?? storedPhone ?? ''}
+                  onChange={(e) => {
+                    setPhoneDraft(e.target.value);
+                    setPhoneSaved(false);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                />
+                <button
+                  onClick={savePhone}
+                  disabled={phoneBusy}
+                  className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {t('tenants.org.phone.save')}
+                </button>
+                {phoneSaved && (
+                  <span className="text-sm text-green-700">{t('tenants.org.phone.saved')}</span>
+                )}
+                {phoneError && <p className="w-full text-sm text-amber-700">{phoneError}</p>}
+              </div>
+            ) : (
+              <p className="mt-2 text-gray-900">{storedPhone ?? t('tenants.org.phone.none')}</p>
             )}
           </div>
         )}
