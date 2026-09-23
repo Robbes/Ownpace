@@ -203,6 +203,11 @@ describe('before the press', () => {
       'export-pdf',
     );
     expect(screen.getByText(EN['settings.exportPolicy.consequence'])).toBeInTheDocument();
+    // What the new names do to the copies already there, before the save
+    // (0042 T8 (b), the owner: "The export-format setting says this before you
+    // save"): copied under new names, old copies kept as earlier exports.
+    expect(EN['settings.exportPolicy.consequence']).toMatch(/copied under their new names/);
+    expect(EN['settings.exportPolicy.consequence']).toMatch(/Old copies stay, listed as earlier exports/);
     // And it is there BEFORE anything is sent.
     expect(setNativeFilePolicy).not.toHaveBeenCalled();
   });
