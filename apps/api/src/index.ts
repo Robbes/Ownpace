@@ -11,7 +11,13 @@ import type { Request, Response, NextFunction, Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { accessLog } from './access-log.ts';
-import { runMigrations, migrationConnectionString, poolerInFront } from '@openmig/ledger';
+import {
+  appEventSinkOn,
+  migrationConnectionString,
+  pgDriver,
+  poolerInFront,
+  runMigrations,
+} from '@openmig/ledger';
 
 // Import types
 import type { AuthenticatedRequest, JwtPayload } from './types/api.ts';
@@ -43,13 +49,13 @@ import invitationRoutes from './routes/invitations.ts';
 import readyRoutes from './routes/ready.ts';
 import supportRoutes from './routes/support.ts';
 import platformPauseRoutes from './routes/platform-pause.ts';
-import { assertProductionAuthConfig, selectAuthMode } from './middleware/auth.ts';
+import { assertProductionAuthConfig, getDbPool, selectAuthMode } from './middleware/auth.ts';
 import { assertProductionUrlConfig } from './config-guards.ts';
 import { serverFault } from './server-fault.ts';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { runManagedMigrations } from '@openmig/managed';
-import { log } from '@openmig/shared';
+import { log, setAppEventSink } from '@openmig/shared';
 
 // Re-export for backwards compatibility
 export type { AuthenticatedRequest, JwtPayload };
@@ -309,6 +315,10 @@ if (process.env.NODE_ENV !== 'test') {
   runMigrations({ connectionString: migrationUrl })
     .then(() => runManagedMigrations({ connectionString: migrationUrl }))
     .then(() => {
+      // Errors and warnings to the operator's log page (0129 T1), once the
+      // table exists. On the application's own role, which may write an
+      // event and may not read one (migration 0059).
+      setAppEventSink(appEventSinkOn(pgDriver(getDbPool())));
       app.listen(PORT, () => {
         log.info(`API server running on port ${PORT}`);
         log.info(`Environment: ${process.env.NODE_ENV || 'development'}`);

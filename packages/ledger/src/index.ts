@@ -4,6 +4,7 @@ export const packageName = '@openmig/ledger';
 
 export * from './ledger.ts';
 export * from './cursor-store.ts';
+export * from './app-event-store.ts';
 export * from './db.ts';
 // The connection seam (workplan 0015 T1) — what a PGlite driver would implement.
 export * from './driver.ts';

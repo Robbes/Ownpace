@@ -30,6 +30,7 @@ import {
   DEFAULT_CONCURRENCY,
 } from '@openmig/shared';
 import { log, isLevelEnabled, type DiscardedListing, type PassMetrics } from '@openmig/shared';
+import { newAppEvent, recordAppEvent } from '@openmig/shared';
 import type {
   BudgetPause,
   ByteBudgetState,
@@ -1217,10 +1218,20 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // the pass then knows its key set is incomplete and reports nothing
         // rather than reporting the collection as vanished.
         fullyEnumerated = false;
+        // And on the operator's log page (0129 T1), under the reference this
+        // line carries: the page shows that it happened, the line says why.
+        const unread = newAppEvent({
+          level: 'warn',
+          event: `sync.${domain}.keys-unreadable`,
+          tenantId,
+          mappingId,
+        });
         log.warn(
           `[sync] ${domain}: could not enumerate a collection's keys, so moved and deleted ` +
-            `items will not be reported this pass: ${(err as Error)?.message ?? String(err)}`,
+            `items will not be reported this pass [ref ${unread.reference}]: ` +
+            `${(err as Error)?.message ?? String(err)}`,
         );
+        await recordAppEvent(unread);
       }
     } else if (prev !== undefined) {
       fullyEnumerated = false;
@@ -2003,10 +2014,19 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       // Degrade the DETECTOR, not the pass. This listing moves no data; failing
       // a whole migration because a scan of Deleted Items hiccuped would trade a
       // real copy for a report. Said out loud rather than swallowed (hard rule 9).
+      // And on the operator's log page (0129 T1), under this line's reference.
+      const unread = newAppEvent({
+        level: 'warn',
+        event: `sync.${domain}.bin-unreadable`,
+        tenantId,
+        mappingId,
+      });
       log.warn(
         `[sync] ${domain}: could not read the owner's discarded items, so deletions will not ` +
-          `be reported from them this pass: ${(err as Error)?.message ?? String(err)}`,
+          `be reported from them this pass [ref ${unread.reference}]: ` +
+          `${(err as Error)?.message ?? String(err)}`,
       );
+      await recordAppEvent(unread);
     }
     // Entries the bin held and the source could not NAME. Their deletions are
     // still detected by absence-counting, but the evidence drops from

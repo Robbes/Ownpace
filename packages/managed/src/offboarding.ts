@@ -140,6 +140,10 @@ export const PURGED_TABLES = [
   'tenant_pricing',
   'tenant_closure',
   'audit_log',
+  // The application's own errors and warnings about this customer (workplan
+  // 0129 T1): metadata only, and an erasure's to remove like every row that
+  // names the tenant. The key would cascade; named so the receipt counts it.
+  'app_event',
   'rate_budget',
   'byte_budget',
   // The support read log (workplan 0110 T1). It exists so a customer can be

@@ -1192,6 +1192,32 @@ export const auditLog = pgTable(
   (t) => [index('ix_audit_tenant').on(t.tenantId, t.at)],
 );
 
+/**
+ * The application's own errors and warnings, metadata only (migration 0059,
+ * workplan 0129 T1). No message column, on purpose: the text stays in the
+ * container's output, on a line with the same `reference`. The CHECKs on the
+ * three text columns are in the migration; `recordAppEvent` checks the same
+ * shapes before a row is sent.
+ */
+export const appEvent = pgTable(
+  'app_event',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    level: text('level').notNull(),
+    tenantId: uuid('tenant_id').references(() => tenant.id, { onDelete: 'cascade' }),
+    mappingId: uuid('mapping_id').references(() => mailboxMapping.id, { onDelete: 'set null' }),
+    event: text('event').notNull(),
+    category: text('category'),
+    reference: text('reference').notNull(),
+  },
+  (t) => [
+    index('ix_app_event_at').on(t.at),
+    index('ix_app_event_tenant').on(t.tenantId, t.at),
+    index('ix_app_event_reference').on(t.reference),
+  ],
+);
+
 // ========================= Cursors table (for CursorStore) =========================
 
 export const cursor = pgTable(

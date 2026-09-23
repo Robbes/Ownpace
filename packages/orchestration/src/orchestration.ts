@@ -59,6 +59,7 @@ import {
 } from './target-fan-out.ts';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery.ts';
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
+import { domainFailedEvent, recordAppEvent } from '@openmig/shared';
 import { DISCOVERY_DOMAINS, DOMAIN_CONFIG_KEY } from '@openmig/shared';
 import { sourceAuthorityFor } from '@openmig/shared';
 
@@ -734,11 +735,21 @@ export async function runAllDomains(
       }
     } catch (err) {
       const error = err as Error;
-      log.error(`[Worker] ${domain} sync failed: ${error.message}`);
+      // Recorded for the operator's log page (0129 T1): metadata only, and
+      // this line carries the same reference, so the page finds the message.
+      const failed = domainFailedEvent({
+        tenantId,
+        mappingId,
+        domain,
+        message: error.message,
+        side: failureSideOf(err),
+      });
+      log.error(`[Worker] ${domain} sync failed [ref ${failed.reference}]: ${error.message}`);
       // With the side the pass tagged at the closure that threw (0094 T5,
       // second slice), so the connections page can put the line on one
       // card; undefined when it could not tell, and the page says so.
       await statusStore.markFailed(tenantId, mappingId, domain, error.message, failureSideOf(err));
+      await recordAppEvent(failed);
       results.push({ domain, scanned: 0, created: 0, updated: 0, skipped: 0, adopted: 0, failed: 1, error: error.message });
       // Continue to the next domain — one domain's failure must not block others.
     }

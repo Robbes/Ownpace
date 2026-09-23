@@ -135,10 +135,13 @@ A future migration that adds an RLS table and forgets `FORCE` fails
 own list. The same file asks the question that check could not: **which table
 with a `tenant_id` column has no row security at all** (`pg_class.relrowsecurity`
 joined to `pg_attribute`). That is the question `cutover_state` and
-`cutover_event` were the answer to for the whole life of the baseline. Two
-tables answer it on purpose — `rate_budget` (`0024`) and `byte_budget`
-(`0030`): system-level code consults them with no tenant context, they carry no
-personal data, and a cross-tenant read reveals nothing. Their migrations say
+`cutover_event` were the answer to for the whole life of the baseline. Three
+tables answer it on purpose. `rate_budget` (`0024`) and `byte_budget` (`0030`):
+system-level code consults them with no tenant context, they carry no personal
+data, and a cross-tenant read reveals nothing. `app_event` (`0059`), the
+application's own errors and warnings: system-level code writes it, often with
+no tenant at all, it holds metadata only, and `app_user` may insert into it and
+nothing else, so no customer reads it. Their migrations say
 `NO ROW-LEVEL SECURITY, deliberately`, and that sentence, in the file that
 creates the table, is the only exemption the guard accepts.
 

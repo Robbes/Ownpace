@@ -121,6 +121,15 @@ afterAll(async () => {
  * a narrower GRANT would change nothing.
  */
 const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }> = {
+  app_event: {
+    privileges: ['INSERT'],
+    why:
+      'The application writes its own errors and warnings from any context, often with no ' +
+      'tenant (migration 0059, workplan 0129 T1), and no customer reads them: they are the ' +
+      "operator's, read through a view that runs as its owner (0129 T2). INSERT only, so a " +
+      'tenant session can write an event and cannot read one, not even its own. The table has ' +
+      'no row security for the same reasons, and its migration says so where it is created.',
+  },
   access_request: {
     privileges: ['INSERT', 'SELECT', 'UPDATE'],
     why:

@@ -33,10 +33,12 @@ import {
   withTenant,
   PgMigrationStatusStore,
   RunStore,
+  appEventSinkOn,
+  pgDriver,
 } from '@openmig/ledger';
 import { PgBytesMovedStore } from '@openmig/managed';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { log, passDeadlineFrom } from '@openmig/shared';
+import { log, passDeadlineFrom, domainFailedEvent, recordAppEvent, setAppEventSink } from '@openmig/shared';
 
 /**
  * ADR-0031 (accepted 2026-08-16): apply open relocations unattended, after a
@@ -169,6 +171,8 @@ if (!DATABASE_URL) {
 
 // Create a persistent pool for jobs
 const pool = new Pool({ connectionString: DATABASE_URL });
+// This process's errors and warnings go to the operator's log page (0129 T1).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 
 // NOTHING ABOUT BILLING LIVES HERE ANY MORE (workplan 0121 T3).
 //
@@ -662,7 +666,16 @@ export const runDeltaSync = schemaTask({
             (Date.now() - domainPassStartedAt.getTime()) / 1000;
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          log.error(`Domain ${domain} sync failed:`, errorMessage);
+          // Recorded for the operator's log page (0129 T1): metadata only, and
+          // this line carries the same reference, so the page finds the message.
+          const failed = domainFailedEvent({
+            tenantId,
+            mappingId,
+            domain,
+            message: errorMessage,
+            side: failureSideOf(error),
+          });
+          log.error(`Domain ${domain} sync failed [ref ${failed.reference}]:`, errorMessage);
           // Record the failure verbatim in the run log (hard rule 9) before
           // surfacing it. Best-effort: a logging failure must not replace the
           // real error with a logging error.
@@ -694,6 +707,7 @@ export const runDeltaSync = schemaTask({
           } catch (statusErr) {
             log.error('Failed to mark domain status failed:', statusErr);
           }
+          await recordAppEvent(failed);
           // Re-throw so Trigger.dev records the failure (hard rule 9 — no masking).
           throw error;
         }
