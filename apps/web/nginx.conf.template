@@ -1,9 +1,46 @@
 # Rendered by the nginx image's envsubst entrypoint: ${API_UPSTREAM} is
 # substituted from the container environment (only defined env vars are
 # substituted, so nginx's own $host/$uri variables survive untouched).
+
+# THE ACCESS LOG, WITHOUT THE SECRETS IN IT. nginx's default log writes each
+# request line and its Referer in full, and a grant or view link is a
+# credential in the path: the page `/grant/<link>`, the API calls
+# `/api/grant/<link>/...` it proxies, and the Referer every one of those calls
+# carries. An OAuth callback's query carries a code that can still be spent.
+# So a link becomes `:link` and a query is kept only as `?...`, the same rule
+# the API's own log follows (`apps/api/src/access-log.ts`). The capture names
+# are prefixed so no environment variable can ever be substituted into them.
+map $request_uri $ownpace_log_uri_path {
+  "~^(?<ownpace_uri_path>[^?]*)\?" "${ownpace_uri_path}?...";
+  default $request_uri;
+}
+map $ownpace_log_uri_path $ownpace_log_uri {
+  "~^(?<ownpace_uri_route>/(?:api/)?(?:grant|view)/)[^/?]+(?<ownpace_uri_rest>.*)$" "${ownpace_uri_route}:link${ownpace_uri_rest}";
+  default $ownpace_log_uri_path;
+}
+map $http_referer $ownpace_log_referer_path {
+  # No Referer at all. Said as an entry of its own because nginx never runs a
+  # map's regexes on an empty value, so the "not a URL" rule below cannot.
+  "" "-";
+  "~^(?<ownpace_referer_path>[^?]*)\?" "${ownpace_referer_path}?...";
+  default $http_referer;
+}
+map $ownpace_log_referer_path $ownpace_log_referer {
+  "~^(?<ownpace_referer_route>[a-z][a-z0-9+.-]*://[^/]+/(?:api/)?(?:grant|view)/)[^/?]+(?<ownpace_referer_rest>.*)$" "${ownpace_referer_route}:link${ownpace_referer_rest}";
+  # Anything else that is not a URL is written "-", as the API's log does.
+  "~^(?![a-z][a-z0-9+.-]*://)" "-";
+  default $ownpace_log_referer_path;
+}
+# nginx's `combined`, with the request line and the Referer in their loggable
+# forms: the same fields in the same places.
+log_format ownpace_combined '$remote_addr - $remote_user [$time_local] '
+  '"$request_method $ownpace_log_uri $server_protocol" $status $body_bytes_sent '
+  '"$ownpace_log_referer" "$http_user_agent"';
+
 server {
   listen 80;
   root /usr/share/nginx/html;
+  access_log /var/log/nginx/access.log ownpace_combined;
 
   # Docker's embedded DNS, re-resolved so an api-container restart cannot
   # leave this process holding a stale IP.

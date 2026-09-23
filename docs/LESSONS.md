@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 148 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 149 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -73,6 +73,10 @@ reading a file drops off its entry by itself.
 ### `apps/api/package.json`
 
 - [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
+
+### `apps/api/src/access-log.ts`
+
+- [a-log-that-kept-the-link](../scripts/a-log-that-kept-the-link.unit.test.ts) — A LOG THAT KEPT THE LINK, on the web image's nginx.
 
 ### `apps/api/src/index.ts`
 
@@ -1768,6 +1772,14 @@ A LIVE PROGRESS THAT NEEDED F5.
 Reads:
 
 - `apps/web/src/pages/MappingDetail.tsx`
+
+### [a-log-that-kept-the-link](../scripts/a-log-that-kept-the-link.unit.test.ts)
+
+A LOG THAT KEPT THE LINK, on the web image's nginx.
+
+Reads:
+
+- `apps/api/src/access-log.ts`
 
 ### [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts)
 
