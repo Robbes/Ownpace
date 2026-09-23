@@ -157,8 +157,15 @@ describe('the connector acts on the table, in two places', () => {
     // A preflight count is a snapshot; a deck added after it must still be
     // refused. This is the gate, and the count on the confirm screen is the
     // early warning — they are not interchangeable.
-    expect(source).toMatch(/refusalFor\(file: DriveFile\)/);
-    expect(source).toMatch(/exportStabilityOf\(this\.policy, file\.mimeType\) === 'unstable'/);
+    //
+    // Asked about the policy THIS file is exported under since each kind can
+    // have its own (0042 T9): a deck set to Office on its own is refused the
+    // same as a deck under an Office setting for all four.
+    const gate = source.slice(source.indexOf('refusalFor(file: DriveFile)'));
+    const body = gate.slice(0, gate.indexOf('\n  }'));
+    expect(body).toMatch(/const policy = this\.policyFor\(file\.mimeType\);/);
+    expect(body).toMatch(/exportStabilityOf\(policy, file\.mimeType\)/);
+    expect(body).toMatch(/stability === 'unstable'/);
   });
 
   it('also refuses to BUILD the export URL, so an ordering cannot undo it', () => {
