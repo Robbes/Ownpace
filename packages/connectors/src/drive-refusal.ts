@@ -140,6 +140,16 @@ export function driveRefusalBody(body: string): string {
 }
 
 /**
+ * Google's machine-readable reason (`error.errors[0].reason`), or `''`.
+ *
+ * Every Google JSON API refuses in this one document, so a source for another
+ * Google face reads it here rather than parsing it a second way (0126 T1).
+ */
+export function googleRefusalReason(body: string): string {
+  return driveError(body)?.reason ?? '';
+}
+
+/**
  * The way forward for a reason we know one for, and NOTHING for a reason we
  * do not.
  *

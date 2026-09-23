@@ -386,10 +386,10 @@ const en = {
   'wizard.m365.viaGraph': 'Via the Graph API',
   'wizard.proto.oauth2.hint': 'IMAP with XOAUTH2, Graph fallback behind it (app registration)',
   'wizard.proto.graph.hint': 'Graph API only (app registration)',
-  // The ACCOUNT card (workplan 0106 T3b). It names the two faces AND why the
-  // other two are not here, because "why is Gmail a separate card" is the
-  // first question this card raises.
-  'wizard.proto.google.hint': 'One Google account, one sign-in: calendars and contacts.',
+  // The ACCOUNT card (workplan 0106 T3b). It names the faces it serves (three
+  // since Tasks joined, 0126 T2), because "why is Gmail a separate card" is
+  // the first question this card raises.
+  'wizard.proto.google.hint': 'One Google account, one sign-in: calendars, contacts and tasks.',
   // The same card where the DEPLOYMENT'S own Google application carries the
   // restricted scopes (ADR-0041, owner decision 2026-09-01). The sentence
   // above names a wall that is not there on such an installation, and a card
@@ -397,7 +397,7 @@ const en = {
   // single-purpose cards stay: an existing mapping keeps working, and one
   // account per face is still a reasonable thing to want.
   'wizard.proto.google.hint.restricted':
-    'One Google account, one sign-in: mail, calendars, contacts and files.',
+    'One Google account, one sign-in: mail, calendars, contacts, files and tasks.',
   'wizard.proto.googleDrive.hint': 'Files from a Google Drive (read-only OAuth)',
   'wizard.proto.dropbox.hint': 'Files from a Dropbox (read-only OAuth app)',
   'wizard.proto.box.hint': 'Files from a Box account (read-only platform app)',
@@ -1925,7 +1925,7 @@ const en = {
   'setup.google.create_oauth_client.yields': 'a Client ID and a Client Secret.',
   'setup.google.enable_api.title': 'Enable the product’s API',
   'setup.google.enable_api.detail':
-    'In the same project, enable the API that matches the source you picked — Drive, Gmail, Calendar or People. A client without it fails on the first call.',
+    'In the same project, enable the API that matches the source you picked — Drive, Gmail, Calendar, People or Tasks. A client without it fails on the first call.',
   'setup.google.consent_scope.title': 'Consent a read-only refresh token',
   'setup.google.consent_scope.detail':
     'Have the account owner consent with the scope for that product; a token consented for one Google product does not work for another. Or use a service account with domain-wide delegation, which an admin authorises once for the whole domain.',
@@ -2408,11 +2408,11 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.m365.viaGraph': 'Via de Graph-API',
   'wizard.proto.oauth2.hint': 'IMAP met XOAUTH2, met Graph-terugval erachter (appregistratie)',
   'wizard.proto.graph.hint': 'Alleen de Graph-API (appregistratie)',
-  'wizard.proto.google.hint': 'Eén Google-account, één aanmelding: agenda’s en contacten.',
+  'wizard.proto.google.hint': 'Eén Google-account, één aanmelding: agenda’s, contacten en taken.',
   // Dezelfde kaart waar de EIGEN Google-applicatie van deze omgeving de
   // restricted scopes draagt — zie het Engelse blok.
   'wizard.proto.google.hint.restricted':
-    'Eén Google-account, één aanmelding: e-mail, agenda’s, contacten en bestanden.',
+    'Eén Google-account, één aanmelding: e-mail, agenda’s, contacten, bestanden en taken.',
   'wizard.proto.googleDrive.hint': 'Bestanden uit een Google Drive (alleen-lezen OAuth)',
   'wizard.proto.dropbox.hint': 'Bestanden uit een Dropbox (alleen-lezen OAuth-app)',
   'wizard.proto.box.hint': 'Bestanden uit een Box-account (alleen-lezen platform-app)',
@@ -3582,7 +3582,7 @@ const nl: Record<keyof typeof en, string> = {
   'setup.google.create_oauth_client.yields': 'een Client-ID en een Client-geheim.',
   'setup.google.enable_api.title': 'Zet de API van het product aan',
   'setup.google.enable_api.detail':
-    'Zet in hetzelfde project de API aan die past bij de gekozen bron — Drive, Gmail, Calendar of People. Zonder dat mislukt de eerste aanroep.',
+    'Zet in hetzelfde project de API aan die past bij de gekozen bron — Drive, Gmail, Calendar, People of Tasks. Zonder dat mislukt de eerste aanroep.',
   'setup.google.consent_scope.title': 'Laat een alleen-lezen refresh-token toestemmen',
   'setup.google.consent_scope.detail':
     'Laat de accounthouder toestemmen met de scope van dat product; een token voor het ene Google-product werkt niet voor het andere. Of gebruik een service-account met domain-wide delegation, dat een beheerder eenmalig voor het hele domein autoriseert.',

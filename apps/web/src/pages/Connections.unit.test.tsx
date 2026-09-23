@@ -853,7 +853,10 @@ describe('adding a connection through the front door', () => {
     }
   });
 
-  it("a Google account offers no Tasks tick — its list is the deployment's, not Microsoft's", async () => {
+  it("a Google account offers the ticks the deployment answers with — its list, not Microsoft's", async () => {
+    // Until 0126 T2 Google had no Tasks face at all and this pinned its
+    // absence. The point it keeps: the Google form ticks what the deployment
+    // answered, and does not borrow Microsoft's list, which has Tasks.
     providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
     providerAccounts.mockResolvedValue({
       google: { domains: ['calendar', 'contact'], client: 'deployment' },
@@ -865,6 +868,34 @@ describe('adding a connection through the front door', () => {
     await screen.findByLabelText('Contacts');
     expect(screen.queryByLabelText('Tasks')).toBeNull();
     expect(screen.queryByLabelText('Email')).toBeNull();
+  });
+
+  it('a Google account offers Tasks since 0126 T2, and the consent asks for it when ticked', async () => {
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
+    providerAccounts.mockResolvedValue({
+      google: { domains: [...PROVIDER_ACCOUNT_DOMAINS.google], client: 'deployment' },
+      microsoft: { domains: [...PROVIDER_ACCOUNT_DOMAINS.microsoft], client: 'connection' },
+    });
+    googleAuthorize.mockResolvedValue({ url: 'https://accounts.google.com/x', redirectUri: 'r', scope: 'x' });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      await open();
+      fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@gmail.com' },
+      });
+      await screen.findByText('What this account will serve');
+      const tasks = await screen.findByLabelText('Tasks');
+      expect(screen.queryByLabelText('Email')).toBeNull();
+      fireEvent.click(tasks);
+      const button = await screen.findByRole('button', { name: /Connect with Google/ });
+      await waitFor(() => expect(button).toBeEnabled());
+      fireEvent.click(button);
+      await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
+      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ domains: ['task'] });
+    } finally {
+      opened.mockRestore();
+    }
   });
 
   it('while the facts are still on their way, the shared table answers — Tasks is offered for Microsoft', async () => {

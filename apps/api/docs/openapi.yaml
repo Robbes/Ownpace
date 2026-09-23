@@ -1016,13 +1016,14 @@ paths:
         set is refused rather than substituted, because a fallback would be a
         way to ask for something nobody ticked.
 
-        A `google` account connection serves **calendar and contact**. Mail and
-        files need scopes Google classes as restricted — an annual third-party
-        security assessment for the whole application, including customers who
-        only wanted contacts — so a tick for either is **refused**, naming the
-        single-purpose `gmail` or `google-drive` source that still serves it. A
-        silent narrowing would be worse: somebody approves a screen showing two
-        faces, believing they ticked four.
+        A `google` account connection serves **calendar, contact and task**
+        (tasks over Google's Tasks API, `tasks.readonly`, since workplan 0126).
+        Mail and files need scopes Google classes as restricted — an annual
+        third-party security assessment for the whole application, including
+        customers who only wanted contacts — so a tick for either is
+        **refused**, naming the single-purpose `gmail` or `google-drive` source
+        that still serves it. A silent narrowing would be worse: somebody
+        approves a screen showing three faces, believing they ticked five.
 
         The consent is asked **incrementally** (`include_granted_scopes`), which
         is not optional once the ask is narrow: Google replaces a grant with
@@ -1053,13 +1054,12 @@ paths:
                     The account ask: which faces of one Google account to
                     consent to. Mutually exclusive with `sourceType`.
 
-                    FOUR, not five: there is no `task` here and no scope that
-                    would add one. Google's CalDAV carries no VTODO at all, so
-                    a Google account has no task face to consent to (workplan
-                    0113).
+                    All five since workplan 0126: `task` asks
+                    `tasks.readonly`, for Google's Tasks API. Google's CalDAV
+                    carries no VTODO, so the face is not a CalDAV one.
                   items:
                     type: string
-                    enum: [email, calendar, contact, file]
+                    enum: [email, calendar, contact, file, task]
               oneOf:
                 - required: [sourceType]
                 - required: [domains]
@@ -1090,7 +1090,7 @@ paths:
         '400':
           description: |
             `invalid_body` (neither shape), `no_domains_ticked` (an empty tick
-            set), `unknown_domain` (not one of the four), `not_on_this_account`
+            set), `unknown_domain` (not one of the five), `not_on_this_account`
             (a face this account kind does not serve, naming the source that
             does), or `raw_ip_callback`.
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -3361,8 +3361,8 @@ paths:
       summary: What one account of each provider kind may serve here
       description: |
         A ceiling, not a capability and not a measurement: which faces one
-        account row may wear on THIS deployment. `google` answers with two
-        faces by default and with all four where the deployment declares that
+        account row may wear on THIS deployment. `google` answers with three
+        faces by default and with all five where the deployment declares that
         its own Google application carries the restricted scopes
         (`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, ADR-0041).
 
@@ -3398,7 +3398,7 @@ paths:
                         ADR-0041), so a connection need not bring one;
                         `connection` otherwise. Never the values.
               example:
-                google: { domains: [calendar, contact], client: deployment }
+                google: { domains: [calendar, contact, task], client: deployment }
                 soverin: { domains: [email, calendar, contact] }
 
   /api/provider-clients:
