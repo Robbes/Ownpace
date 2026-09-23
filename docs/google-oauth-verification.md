@@ -49,7 +49,7 @@ listed there.
 
 | class | Ownpace's scopes | what Google requires |
 |---|---|---|
-| **sensitive** | contacts, calendar | brand verification: privacy policy, domain ownership, demo video, review |
+| **sensitive** | contacts, calendar; tasks believed so (see below) | brand verification: privacy policy, domain ownership, demo video, review |
 | **restricted** | Gmail `https://mail.google.com/`, Drive `drive.readonly` | the above **plus an annual third-party security assessment** |
 
 ✅ **Verified 2026-09-20, from the console itself.** The owner read the project's *Google Auth
@@ -70,7 +70,7 @@ So the cheap slice is cheap: contacts (`.../auth/carddav`, the scope
 **sensitive**, and Drive and every Gmail scope — including the `https://mail.google.com/` the
 IMAP door needs — are **restricted**, exactly as the table above assumed.
 
-Two things the page did **not** settle, stated rather than implied away:
+Three things the page did **not** settle, stated rather than implied away:
 
 - The calendar scope the product asks for is the full `.../auth/calendar`
   (`GOOGLE_CALDAV_SCOPE`), and that one was not on the page; its read-only sibling
@@ -81,6 +81,10 @@ Two things the page did **not** settle, stated rather than implied away:
   accepts it, and this product never writes a source.
 - There is no `.../auth/caldav` scope. Older notes (ADR-0041, workplan 0089) use that name
   for the calendar scope; the product has always asked for `.../auth/calendar`.
+- **Tasks came later** (workplan 0126, 2026-09-23): `.../auth/tasks.readonly`, under the
+  **Google Tasks API**, was not declared when the page was read. It is believed sensitive,
+  like the other two, which is why Tasks is a default face. Declare it (and enable the API),
+  then read its row: a *restricted* verdict would move Tasks off the default list.
 
 Two Gmail rows on the page, `gmail.readonly` and `gmail.metadata`, are REST scopes the product
 never requests. They should be removed before a submission: any Gmail scope on the declared
@@ -101,6 +105,7 @@ Google asks why each scope is needed. The answers are short because the product 
 |---|---|---|
 | `.../auth/carddav` | Read the contacts being migrated | Google's CardDAV endpoint accepts this scope; the People API's granular scopes are a different API |
 | `.../auth/calendar` | Read the calendars being migrated | Same shape as above for CalDAV |
+| `.../auth/tasks.readonly` | Read the task lists being migrated (workplan 0126) | It is the narrow one: `.../auth/tasks` adds writing, which the product never does |
 | `https://mail.google.com/` | Read the mail being migrated over IMAP | **There is no narrower choice.** The granular `gmail.readonly` scopes belong to the REST API and are refused at the IMAP door. The scope *reads as* full mail access; the connector has no write path and Google is never a target — a property of the product, not one Google enforces, and stated rather than glossed |
 | `.../auth/drive.readonly` | Read the files being migrated | `drive.file` reaches only files the app created or the user picked; a whole-Drive migration cannot be expressed with it |
 

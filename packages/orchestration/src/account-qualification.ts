@@ -39,6 +39,7 @@ import {
   providerDisplayName,
   withDeploymentDropboxClient,
   withDeploymentGoogleClient,
+  type ProviderAccountEnv,
 } from '@openmig/shared';
 import {
   QUALIFICATION_KEYS,
@@ -53,8 +54,9 @@ import { measureTargetScheduling } from './target-scheduling.ts';
 import type { SchedulingVerdict } from './target-scheduling.ts';
 // THE FIVE FACES OF A GOOGLE GRANT, built exactly as a pass builds them
 // (2026-09-02; Tasks, the fifth, 2026-09-23): the same factories
-// `build-deps-from-mapping.ts` reaches for, under the same stored names, so the reach cannot pass a shape a pass would
-// refuse — `probe-connection.ts`'s reason, applied to the qualification.
+// `build-deps-from-mapping.ts` reaches for, under the same stored names, so
+// the reach cannot pass a shape a pass would refuse — `probe-connection.ts`'s
+// reason, applied to the qualification.
 import { buildGmailSourceFrom, STORED_GMAIL_CREDENTIAL_NAMES } from './gmail-source-factory.ts';
 import {
   buildGoogleCalendarDavSourceFrom,
@@ -1020,7 +1022,7 @@ async function measureGoogleFace(
 }
 
 /** What each face counts, in the unit a screen words. */
-const GOOGLE_FACE_UNIT: Readonly<Record<GoogleGrantDomain, ProbeUnit>> = {
+export const GOOGLE_FACE_UNIT: Readonly<Record<GoogleGrantDomain, ProbeUnit>> = {
   mail: 'folder',
   calendar: 'calendar',
   contact: 'addressBook',
@@ -1028,7 +1030,8 @@ const GOOGLE_FACE_UNIT: Readonly<Record<GoogleGrantDomain, ProbeUnit>> = {
   task: 'taskList',
 };
 
-function googleFaceListable(
+/** Build one face's source the way a pass builds it — the probe's seam too. */
+export function googleFaceListable(
   domain: GoogleGrantDomain,
   user: string,
   creds: GoogleCredentialsAsFound,
@@ -1245,7 +1248,10 @@ export async function qualifyArchive(
       mail: liveInstead('mail'),
       calendar: liveInstead('calendars'),
       contact: liveInstead('contacts'),
-      task: liveInstead('reminders'),
+      // Each provider's own word: Apple's are Reminders, Google's are tasks.
+      // True for Google since workplan 0126 T2, which is what makes "migrated
+      // from the account itself instead, live" true of them too.
+      task: liveInstead(config.provider === 'apple-privacy' ? 'reminders' : 'tasks'),
       file,
     },
   };
@@ -1290,29 +1296,36 @@ function archiveDetail(summary: {
   return parts.join(' ');
 }
 
-export async function qualifyGoogleGrant(
-  kind: string,
-  rawCreds: Record<string, string>,
-  options: QualifyGoogleGrantOptions = {},
-): Promise<AccountQualification | undefined> {
-  const tokenEndpoint = options.tokenEndpoint ?? GOOGLE_TOKEN_ENDPOINT;
-  if (!isGoogleGrantKind(kind)) return undefined;
-  // THE DEPLOYMENT'S OWN CLIENT, where it configured one (ADR-0041, owner
-  // decision 2026-09-01). Without this the measurement is the one that goes
-  // quiet: a connection whose client lives in the deployment rather than in
-  // its own credentials would answer "Unmeasured — the stored credentials
-  // carry no clientId/refreshToken pair", which reads as a broken grant and is
-  // a missing exchange. Already kind-gated by the guard above.
-  const creds = withDeploymentGoogleClient(true, rawCreds);
-  if (creds.serviceAccountKey) return allUnknown(DWD_UNMEASURED);
+/** What a stored Google grant carries, or why it could not be read. */
+export type GoogleGrantRead =
+  | { readonly ok: true; readonly granted: ReadonlySet<string> }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * READ THE GRANT, and nothing else: one refresh-token exchange, whose `scope`
+ * field enumerates what the grant carries (0106 T1a). Shared by the
+ * qualification and by the connection probe (0126 T3), so the two can never
+ * read one grant two ways.
+ *
+ * `creds` must already carry the deployment's client where it has one: the
+ * qualification fills them itself, and the probe's arrive filled by
+ * `credentialsForProbe`. Under domain-wide delegation there is no grant to
+ * read, only an admin-console authorisation no token response enumerates.
+ */
+export async function readGoogleGrant(
+  creds: Readonly<Record<string, string | undefined>>,
+  tokenEndpoint: string = GOOGLE_TOKEN_ENDPOINT,
+): Promise<GoogleGrantRead> {
+  if (creds.serviceAccountKey) return { ok: false, reason: DWD_UNMEASURED };
   const clientId = creds.clientId;
   const refreshToken = creds.refreshToken;
   if (!clientId || !refreshToken) {
-    return allUnknown(
-      'Unmeasured — the stored credentials carry no clientId/refreshToken pair to read the grant from.',
-    );
+    return {
+      ok: false,
+      reason:
+        'Unmeasured — the stored credentials carry no clientId/refreshToken pair to read the grant from.',
+    };
   }
-  let granted: ReadonlySet<string>;
   try {
     const body = new URLSearchParams({
       grant_type: 'refresh_token',
@@ -1327,17 +1340,57 @@ export async function qualifyGoogleGrant(
     });
     if (!response.ok) {
       const head = (await response.text()).slice(0, 200);
-      return allUnknown(
-        `Unmeasured — the token exchange answered ${response.status}: ${head}`,
-      );
+      return { ok: false, reason: `Unmeasured — the token exchange answered ${response.status}: ${head}` };
     }
     const token = (await response.json()) as { scope?: string };
-    granted = new Set((token.scope ?? '').split(' ').filter(Boolean));
+    return { ok: true, granted: new Set((token.scope ?? '').split(' ').filter(Boolean)) };
   } catch (err) {
-    return allUnknown(
-      `Unmeasured — the token exchange failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    return {
+      ok: false,
+      reason: `Unmeasured — the token exchange failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
+}
+
+/** Whether a read grant carries one face: its own scope, or a broader one the table accepts. */
+export function googleGrantCarries(domain: GoogleGrantDomain, granted: ReadonlySet<string>): boolean {
+  return scopesSatisfying(domain).some((scope) => granted.has(scope));
+}
+
+/** The grant vocabulary for a discovery domain: only `email` is spelled differently. */
+function grantDomainOf(domain: DiscoveryDomain): GoogleGrantDomain {
+  return domain === 'email' ? 'mail' : domain;
+}
+
+/**
+ * The faces a Google account's headline probe tries, in order: calendar first,
+ * because the scheduling verdict belongs to it, then the rest of what this
+ * deployment lets the account serve. Read from `providerAccountDomains`, so a
+ * face that joins the table joins the probe without an edit here.
+ */
+export function googleFacesInProbeOrder(
+  env: ProviderAccountEnv = process.env,
+): ReadonlyArray<GoogleGrantDomain> {
+  const claimed = providerAccountDomains('google', env).map(grantDomainOf);
+  return [...claimed.filter((f) => f === 'calendar'), ...claimed.filter((f) => f !== 'calendar')];
+}
+
+export async function qualifyGoogleGrant(
+  kind: string,
+  rawCreds: Record<string, string>,
+  options: QualifyGoogleGrantOptions = {},
+): Promise<AccountQualification | undefined> {
+  if (!isGoogleGrantKind(kind)) return undefined;
+  // THE DEPLOYMENT'S OWN CLIENT, where it configured one (ADR-0041, owner
+  // decision 2026-09-01). Without this the measurement is the one that goes
+  // quiet: a connection whose client lives in the deployment rather than in
+  // its own credentials would answer "Unmeasured — the stored credentials
+  // carry no clientId/refreshToken pair", which reads as a broken grant and is
+  // a missing exchange. Already kind-gated by the guard above.
+  const creds = withDeploymentGoogleClient(true, rawCreds);
+  const read = await readGoogleGrant(creds, options.tokenEndpoint ?? GOOGLE_TOKEN_ENDPOINT);
+  if (!read.ok) return allUnknown(read.reason);
+  const granted = read.granted;
 
   const reach = options.reach;
   const domainFromGrant = async (domain: GoogleGrantDomain): Promise<QualifiedDomain> => {

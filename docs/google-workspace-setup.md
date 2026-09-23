@@ -74,6 +74,7 @@ person, no admin needed.
    | Calendar | **CalDAV API** | Google's CalDAV endpoint is a Cloud API like any other |
    | Contacts | **Google Contacts CardDAV API** | the same, for CardDAV |
    | Mail | **Gmail API** | IMAP itself needs no API; with this on, the `https://mail.google.com/` scope is listed in the consent screen's scope picker instead of having to be pasted in by hand |
+   | Tasks | **Google Tasks API** | Google's tasks are not on its CalDAV; the Tasks face reads this API |
 
    The owner met the calendar one on 2026-09-02: a Google account connection whose consent
    had gone through cleanly, refused at Test with *CalDAV API has not been used in project …
@@ -485,6 +486,7 @@ Each product has its own scope, and the refresh token must be consented with it:
 |---|---|---|
 | Google Calendar | `https://www.googleapis.com/auth/calendar` | `GOOGLE_CALENDAR_REFRESH_TOKEN` |
 | Google Contacts | `https://www.googleapis.com/auth/carddav` | `GOOGLE_CONTACTS_REFRESH_TOKEN` |
+| Google Tasks | `https://www.googleapis.com/auth/tasks.readonly` | — (a Google account connection only; there is no variable for it) |
 
 Mint each token exactly as in step 4, entering the scope above. One consent CAN carry
 several scopes — if you authorize calendar and carddav together, the same refresh token
@@ -586,6 +588,7 @@ account (the subject); what widens is the credential, not any mapping.
    | Gmail | `https://mail.google.com/` |
    | Calendar | `https://www.googleapis.com/auth/calendar` |
    | Contacts | `https://www.googleapis.com/auth/carddav` |
+   | Tasks | `https://www.googleapis.com/auth/tasks.readonly` |
 
 4. **Configure it**: paste the whole key file into the wizard's "Service account key"
    field and state each migration's account. (If you run Ownpace yourself from
