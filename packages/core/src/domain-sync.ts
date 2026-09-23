@@ -986,6 +986,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * ledger row that recorded the href at copy time.
    */
   const reportedRemovals: string[] = [];
+  /**
+   * CURSORS HELD FOR THEIR REMOVALS (after #1116). A collection that reported
+   * removals keeps its cursor until they are resolved, at the end of the pass,
+   * and only a pass that reached every collection resolves them. The server
+   * hands a removal out once: a cursor advanced before the removal was
+   * resolved would retire it for good, whether the pass then stopped early or
+   * failed while writing it down.
+   */
+  const cursorsHeldForRemovals: Array<{
+    readonly collectionPath: string;
+    readonly cursor: { readonly value: string };
+  }> = [];
 
   /**
    * Every natural key this pass actually SAW, per source collection.
@@ -1085,7 +1097,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * of a collection this pass did not finish is missing from its seen-set
    * because nobody looked, not because the source lost it. Read as gone, it
    * was counted absent, and two stopped passes in a row reported every file
-   * past the stop as deleted at the source.
+   * past the stop as deleted at the source. The same holds for an item a
+   * source REPORTS removed: it may have moved into a collection this pass did
+   * not reach, so a pass with any unfinished collection resolves no removal
+   * report (`cursorsHeldForRemovals`) and does not read the owner's bin.
    */
   const unfinishedCollections = new Set<string>();
 
@@ -1958,7 +1973,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // never see them. `paused()` rather than a named reason, so a pause added
     // later cannot advance a cursor by being forgotten in this one condition.
     if (cursors && !retryablePending && !paused() && !firstReadSawNothing) {
-      await cursors.set(tenantId, mappingId, collectionPath, nextCursor);
+      // Held, not advanced, while this collection's removals are unresolved:
+      // they are resolved at the end of the pass, or on a later pass if this
+      // one stops before reaching every collection (below).
+      if (sourceIsAuthorityOnExistence && (removed?.length ?? 0) > 0) {
+        cursorsHeldForRemovals.push({ collectionPath, cursor: nextCursor });
+      } else {
+        await cursors.set(tenantId, mappingId, collectionPath, nextCursor);
+      }
     } else if (firstReadSawNothing) {
       // Said out loud, because the alternative is the silence this bug lived
       // in. Either the collection is empty or we could not read it, and the
@@ -1981,21 +2003,64 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // listing cannot make that untrue, and refusing to believe it on an
   // incremental pass would discard the signal on every pass that has a cursor —
   // which in production is all of them but the first.
-  if (reportedRemovals.length > 0) {
-    const reported = await resolveReportedRemovals({
-      tenantId,
-      mappingId,
-      domain,
-      ledger,
-      removals: reportedRemovals,
-      seenByCollection,
-    });
-    deletions.push(...reported);
+  //
+  // BUT GATED ON HAVING REACHED EVERY COLLECTION (after #1116). What tells a
+  // move from a deletion is whether the item turned up anywhere else in this
+  // pass, and a pass that stopped early did not look everywhere: the calendar
+  // an event moved into may be one it never opened. Resolved anyway, the move
+  // was recorded as a deletion the source reported, the one kind a person may
+  // apply, and applying it removed the only copy: the event's arrival in its
+  // new calendar is not copied again after a deletion applied on purpose. So
+  // a stopped pass resolves nothing, the collections that reported removals
+  // keep their cursors (above), and the next pass reads the same removals.
+  // `fullyEnumerated` would be the wrong gate, for the reason just given: a
+  // cursor-limited pass is complete in the sense that matters here.
+  if (unfinishedCollections.size > 0) {
+    if (reportedRemovals.length > 0) {
+      log.info(
+        `[sync] ${domain}: this pass stopped before finishing ${unfinishedCollections.size} ` +
+          `collection(s), so the ${new Set(reportedRemovals).size} removal(s) the source ` +
+          'reported are not resolved yet: an item reported removed may have moved into one of ' +
+          'them. The collections that reported them keep their cursors, and the next pass ' +
+          'reads them again.',
+      );
+    }
+  } else {
+    if (reportedRemovals.length > 0) {
+      const reported = await resolveReportedRemovals({
+        tenantId,
+        mappingId,
+        domain,
+        ledger,
+        removals: reportedRemovals,
+        seenByCollection,
+      });
+      deletions.push(...reported);
+    }
+    // Written down, so the cursors may move past the removals now.
+    if (cursors) {
+      for (const held of cursorsHeldForRemovals) {
+        await cursors.set(tenantId, mappingId, held.collectionPath, held.cursor);
+      }
+    }
   }
 
   // What the owner threw away. Read from collections this pass deliberately did
   // NOT copy — which is what makes them readable as a signal at all.
-  if (listDiscardedKeys) {
+  //
+  // ONLY ON A PASS THAT REACHED EVERY COLLECTION, for the reason the removal
+  // reports above wait. What rules out a message that is in the bin AND alive in
+  // a folder is whether this pass saw it alive, and a pass that stopped early
+  // did not look in every folder. Read anyway, such a message was recorded as
+  // trashed, which a person may apply. The bin still holds it on the next pass,
+  // so waiting loses nothing.
+  if (listDiscardedKeys && unfinishedCollections.size > 0) {
+    log.info(
+      `[sync] ${domain}: this pass stopped before finishing ${unfinishedCollections.size} ` +
+        "collection(s), so the owner's bin is not read for deletions this pass: a message in " +
+        'it may also be in one of them. The next pass that reaches every collection reads it.',
+    );
+  } else if (listDiscardedKeys) {
     let discarded: DiscardedListing | undefined;
     try {
       discarded = await listDiscardedKeys();
