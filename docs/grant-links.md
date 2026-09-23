@@ -39,8 +39,11 @@ Each refusal names what to fix:
 | It says | What to do |
 |---|---|
 | The migration has no source connection yet | Finish setting up the source first. |
-| The source is not a Google account | Grant links cover Gmail, Google Calendar, Google Contacts and Google Drive today. For other sources, the credential still comes to you by hand. |
-| No client id or client secret is stored | Add them on the source connection — see [Google Workspace setup](./google-workspace-setup.md), step 3. The consent runs against your own Google application. |
+| The source is not a Google account | Grant links cover a Google account, Gmail, Google Calendar, Google Contacts and Google Drive today. For other sources, the credential still comes to you by hand. |
+| The migration has no destination yet | Set the destination first. The person you ask is shown where their data will go before they agree, so a link needs one to name. |
+| The migration copies no data types | Include at least one. A link for a Google account asks for exactly the data types the migration copies, so with none there is nothing to ask. |
+| No client id or client secret is stored, and the deployment has no Google client | Add them on the source connection — see [Google Workspace setup](./google-workspace-setup.md), step 3 — or ask whoever runs your Ownpace to set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. Your own client, when you store one, is always the one used. Half a pair is refused rather than finished with the deployment's other half. |
+| Mail and files need scopes Google classes as restricted | Through the deployment's own Google client, a link asks for Gmail or Drive only where whoever runs your Ownpace has declared `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, once their application carries those scopes. Or add your own Google client on the source connection. Calendars, contacts and tasks need neither. |
 | `WEB_URL` is not set | A deployment setting. Whoever runs your Ownpace needs to set it and restart; a link built without it would point at the wrong machine. |
 
 ## What the other person sees
@@ -48,7 +51,13 @@ Each refusal names what to fix:
 Before any button, the page tells them:
 
 - **who is asking** — your organisation, by name;
-- **what will be read** — their mail, calendar, contacts or files, in plain words;
+- **from which account, and to where** — the account the migration reads, and its destination:
+  which kind of server, where it is, and the account on it. Then one question: *do you know
+  who asked, and is the destination yours or your organisation's? Only then continue.* This
+  is what lets somebody tell your migration from a stranger's, because everything else they
+  see is genuine either way — this page, and Google's own;
+- **what will be read** — their mail, calendars, contacts, tasks or files, in plain words; for a
+  Google account, exactly the data types the migration copies;
 - **that it is read-only** — nothing is ever deleted or changed in their account, and nobody
   sees their password, because they sign in on Google's own page;
 - **the exact permission** Google will record, so they can find it again in their own account;
@@ -95,7 +104,8 @@ to press the button rather than only opening the page — opening it does nothin
 use it up, which is why a link that was merely previewed is still live.
 
 If the new link fails the same way, the problem is not the link. Check the source connection's
-Google application still exists and its client secret has not been rotated.
+Google application still exists and its client secret has not been rotated — or, where the
+connection stores none, the deployment's.
 
 ## Two things this is not
 

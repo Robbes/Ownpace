@@ -59,6 +59,33 @@ const IMAP_MAPPING = '5f4f0000-e29b-41d4-a716-446655441633';
 const FOREIGN_MAPPING = '5f4f0000-e29b-41d4-a716-446655441634';
 const FOREIGN_CONN = '5f4f0000-e29b-41d4-a716-446655441614';
 const FOREIGN_BOX = '5f4f0000-e29b-41d4-a716-446655441624';
+/** The destination every mapping above copies to (0108 T8a: the page names it). */
+const TARGET_CONN = '5f4f0000-e29b-41d4-a716-446655441615';
+const TARGET_BOX = '5f4f0000-e29b-41d4-a716-446655441625';
+/** The ready mapping's source with no destination at all. */
+const NO_TARGET_MAPPING = '5f4f0000-e29b-41d4-a716-446655441635';
+/** A Google ACCOUNT source with no client of its own, copying one type (0108 T7). */
+const ACCOUNT_CONN = '5f4f0000-e29b-41d4-a716-446655441616';
+const ACCOUNT_BOX = '5f4f0000-e29b-41d4-a716-446655441626';
+const ACCOUNT_MAPPING = '5f4f0000-e29b-41d4-a716-446655441636';
+/** Gmail with no client of its own, for the deployment's-client tests alone. */
+const DEPLOYMENT_GMAIL_CONN = '5f4f0000-e29b-41d4-a716-446655441617';
+const DEPLOYMENT_GMAIL_BOX = '5f4f0000-e29b-41d4-a716-446655441627';
+const DEPLOYMENT_GMAIL_MAPPING = '5f4f0000-e29b-41d4-a716-446655441637';
+
+/** Run `fn` on a deployment that carries its own Google client (ADR-0041). */
+async function onTheDeploymentsClient<T>(fn: () => Promise<T>, scopeClass?: string): Promise<T> {
+  process.env.GOOGLE_OAUTH_CLIENT_ID = 'deployment.apps.googleusercontent.com';
+  process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'not-a-real-deployment-secret';
+  if (scopeClass) process.env.GOOGLE_ACCOUNT_SCOPE_CLASS = scopeClass;
+  try {
+    return await fn();
+  } finally {
+    delete process.env.GOOGLE_OAUTH_CLIENT_ID;
+    delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+    delete process.env.GOOGLE_ACCOUNT_SCOPE_CLASS;
+  }
+}
 
 let driver: LedgerDriver;
 /** Set per test — the session `authenticate` pretends to have verified. */
@@ -145,10 +172,28 @@ beforeAll(async () => {
        VALUES ($1,$2,'source','imap','i','{}'::jsonb,'connected')`,
       [IMAP_CONN, TENANT],
     );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
+       VALUES ($1,$2,'source','google','account','{}'::jsonb,'connected')`,
+      [ACCOUNT_CONN, TENANT],
+    );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
+       VALUES ($1,$2,'source','gmail','g-deployment','{}'::jsonb,'connected')`,
+      [DEPLOYMENT_GMAIL_CONN, TENANT],
+    );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
+       VALUES ($1,$2,'target','nextcloud','nc','{"host":"cloud.example.org"}'::jsonb,'connected')`,
+      [TARGET_CONN, TENANT],
+    );
     for (const [box, conn] of [
       [GOOGLE_BOX, GOOGLE_CONN],
       [BARE_BOX, BARE_CONN],
       [IMAP_BOX, IMAP_CONN],
+      [ACCOUNT_BOX, ACCOUNT_CONN],
+      [DEPLOYMENT_GMAIL_BOX, DEPLOYMENT_GMAIL_CONN],
+      [TARGET_BOX, TARGET_CONN],
     ]) {
       await q(
         `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
@@ -156,17 +201,24 @@ beforeAll(async () => {
         [box, TENANT, conn],
       );
     }
-    for (const [mapping, box] of [
-      [READY_MAPPING, GOOGLE_BOX],
-      [UNCONFIGURED_MAPPING, BARE_BOX],
-      [IMAP_MAPPING, IMAP_BOX],
+    for (const [mapping, box, target] of [
+      [READY_MAPPING, GOOGLE_BOX, TARGET_BOX],
+      [UNCONFIGURED_MAPPING, BARE_BOX, TARGET_BOX],
+      [IMAP_MAPPING, IMAP_BOX, TARGET_BOX],
+      [NO_TARGET_MAPPING, GOOGLE_BOX, null],
+      [ACCOUNT_MAPPING, ACCOUNT_BOX, TARGET_BOX],
+      [DEPLOYMENT_GMAIL_MAPPING, DEPLOYMENT_GMAIL_BOX, TARGET_BOX],
     ]) {
       await q(
-        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status)
-         VALUES ($1,$2,$3,'paused')`,
-        [mapping, TENANT, box],
+        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status)
+         VALUES ($1,$2,$3,$4,'paused')`,
+        [mapping, TENANT, box, target],
       );
     }
+    await q(
+      `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1,$2,'contact',true)`,
+      [TENANT, ACCOUNT_MAPPING],
+    );
     // The other tenant's own chain, so its mapping is a real one rather than a
     // half-row: the isolation check has to fail on the TENANT, not on a
     // constraint.
@@ -217,6 +269,22 @@ describe('issuing refuses BEFORE it writes', () => {
     expect(await rowsFor(UNCONFIGURED_MAPPING)).toEqual([]);
   });
 
+  it('refuses a migration with no destination, and writes nothing', async () => {
+    const res = await request(app).post(`/api/migrations/${NO_TARGET_MAPPING}/links`).send({});
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('no_target');
+    expect(await rowsFor(NO_TARGET_MAPPING)).toEqual([]);
+  });
+
+  it("refuses Gmail through the deployment's client until the class is declared", async () => {
+    await onTheDeploymentsClient(async () => {
+      const res = await request(app).post(`/api/migrations/${DEPLOYMENT_GMAIL_MAPPING}/links`).send({});
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('restricted_scope');
+      expect(await rowsFor(DEPLOYMENT_GMAIL_MAPPING)).toEqual([]);
+    });
+  });
+
   it('refuses when the deployment has no WEB_URL, and writes nothing', async () => {
     const had = process.env.WEB_URL;
     delete process.env.WEB_URL;
@@ -250,6 +318,33 @@ describe('issuing refuses BEFORE it writes', () => {
     const res = await request(app).post(`/api/migrations/${READY_MAPPING}/links`).send({});
     expect(res.status).toBe(403);
     expect(await rowsFor(READY_MAPPING)).toEqual([]);
+  });
+});
+
+describe("a link through the deployment's client (0108 T6, T7)", () => {
+  it('is issued for Gmail with no client of its own, once the class is declared', async () => {
+    await onTheDeploymentsClient(async () => {
+      const res = await request(app).post(`/api/migrations/${DEPLOYMENT_GMAIL_MAPPING}/links`).send({});
+      expect(res.status).toBe(201);
+      expect(await rowsFor(DEPLOYMENT_GMAIL_MAPPING)).toHaveLength(1);
+    }, 'restricted');
+  });
+
+  it('is issued for a Google account migration', async () => {
+    await onTheDeploymentsClient(async () => {
+      const res = await request(app).post(`/api/migrations/${ACCOUNT_MAPPING}/links`).send({});
+      expect(res.status).toBe(201);
+      expect(await rowsFor(ACCOUNT_MAPPING)).toHaveLength(1);
+    });
+  });
+
+  it('is refused for it on a deployment with no client of its own, naming both ways out', async () => {
+    const before = (await rowsFor(ACCOUNT_MAPPING)).length;
+    const res = await request(app).post(`/api/migrations/${ACCOUNT_MAPPING}/links`).send({});
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('client_not_configured');
+    expect(res.body.reason).toMatch(/GOOGLE_OAUTH_CLIENT_ID/);
+    expect(await rowsFor(ACCOUNT_MAPPING)).toHaveLength(before);
   });
 });
 

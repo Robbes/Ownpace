@@ -886,6 +886,13 @@ const en = {
   'grant.loading': 'One moment…',
   'grant.asking': '{organisation} is moving your account to a new provider, and needs your permission to read what is in it.',
   'grant.reads': 'You are about to give access to {reads}.',
+  // Where from and where to (workplan 0108 T8a): what lets a person tell their
+  // own migration from a stranger's, whose every other screen is genuine.
+  'grant.from': 'From',
+  'grant.to': 'To',
+  'grant.fromAnyAccount': 'The Google account you sign in with',
+  'grant.toWhere': '{provider} at {host}',
+  'grant.check': 'Do you know who asked? Is the destination yours or your organisation’s? Only then continue.',
   'grant.readOnly':
     'Read-only. Nothing is ever deleted or changed in your account, and nobody — not the organisation, not Ownpace — ever sees your password. You sign in to Google yourself, on Google’s own page.',
   'grant.scopeIntro': 'Google will record this permission as:',
@@ -2844,6 +2851,11 @@ const nl: Record<keyof typeof en, string> = {
   'grant.loading': 'Een moment…',
   'grant.asking': '{organisation} verhuist uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
   'grant.reads': 'U staat op het punt toegang te geven tot {reads}.',
+  'grant.from': 'Van',
+  'grant.to': 'Naar',
+  'grant.fromAnyAccount': 'Het Google-account waarmee u inlogt',
+  'grant.toWhere': '{provider} op {host}',
+  'grant.check': 'Kent u de vrager? Is de bestemming van u of uw organisatie? Alleen dan doorgaan.',
   'grant.readOnly':
     'Alleen lezen. Er wordt nooit iets verwijderd of gewijzigd in uw account, en niemand — niet de organisatie, niet Ownpace — ziet ooit uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf.',
   'grant.scopeIntro': 'Google legt deze toestemming vast als:',

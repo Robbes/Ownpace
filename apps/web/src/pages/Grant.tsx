@@ -14,6 +14,13 @@
  * organisation's name comes from the server, so the page cannot be made to
  * claim somebody else asked.
  *
+ * **From where, and to where** (workplan 0108 T8a, 2026-09-23). Somebody with
+ * a tenant of their own can set up a migration from another person's account
+ * into a server they control and send the link with a plausible story. This
+ * page and Google's consent screen would both be genuine. The account it reads
+ * and the destination it writes are the two facts only the person granting can
+ * check, so they come before the button, with one plain question beside them.
+ *
  * **What will be read, and that it is read-only.** In plain words AND as the
  * scope Google itself will record (ADR-0041's operative rule: the scopes are
  * shown as scopes). The plain sentence is what a person understands; the scope
@@ -44,6 +51,12 @@ import { grantApi } from '../services/grant-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
+import { TARGET_CARDS } from '../components/front-door-cards.ts';
+
+/** A destination's kind, by the name its card carries; the kind itself otherwise. */
+function providerName(kind: string): string {
+  return TARGET_CARDS.find((c) => c.id === kind)?.name ?? kind;
+}
 
 const Grant: React.FC = () => {
   const { link } = useParams<{ link: string }>();
@@ -93,6 +106,26 @@ const Grant: React.FC = () => {
           <p className="mt-4 text-gray-900">
             {t('grant.asking', { organisation: subject.data.organisation })}
           </p>
+
+          <dl className="mt-4 p-4 border border-gray-200 rounded-lg grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt className="text-gray-600">{t('grant.from')}</dt>
+            <dd className="text-gray-900 break-all">
+              {subject.data.from ?? t('grant.fromAnyAccount')}
+            </dd>
+            <dt className="text-gray-600">{t('grant.to')}</dt>
+            <dd className="text-gray-900 break-all">
+              {subject.data.to.account && <span className="block">{subject.data.to.account}</span>}
+              <span className="block text-gray-600">
+                {subject.data.to.host
+                  ? t('grant.toWhere', {
+                      provider: providerName(subject.data.to.provider),
+                      host: subject.data.to.host,
+                    })
+                  : providerName(subject.data.to.provider)}
+              </span>
+            </dd>
+          </dl>
+          <p className="mt-2 text-sm font-medium text-gray-900">{t('grant.check')}</p>
           <p className="mt-3 text-gray-900">{t('grant.reads', { reads: subject.data.reads })}</p>
 
           <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">

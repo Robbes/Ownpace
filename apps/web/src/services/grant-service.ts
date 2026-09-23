@@ -16,6 +16,15 @@ const SubjectSchema = z.object({
   organisation: z.string(),
   reads: z.string(),
   scope: z.string(),
+  // Where from and where to (workplan 0108 T8a): the account the migration
+  // reads, or null when it names none; and the kind of server it writes, its
+  // host and the account on it.
+  from: z.string().nullable(),
+  to: z.object({
+    provider: z.string(),
+    host: z.string().nullable(),
+    account: z.string().nullable(),
+  }),
   expiresAt: z.string(),
 });
 export type GrantSubject = z.infer<typeof SubjectSchema>;

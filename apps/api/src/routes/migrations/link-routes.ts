@@ -47,7 +47,6 @@ import {
   listMappingLinks,
   revokeMappingLink,
 } from '@openmig/ledger';
-import { SecretStore } from '@openmig/core/secret-store';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { serverFault } from '../../server-fault.ts';
@@ -56,6 +55,7 @@ import {
   viewLinkRefusal,
   type GrantLinkReadiness,
 } from './grant-link-readiness.ts';
+import { grantReadiness, readGrantRows } from './grant-subject.ts';
 
 const router = Router({ mergeParams: true });
 
@@ -146,47 +146,24 @@ async function scopedMapping(
 /**
  * Read what the readiness decision needs, and NOTHING ELSE.
  *
- * The credentials are decrypted here and immediately reduced to two booleans —
- * the values never leave this function. That is the point of
- * `grant-link-readiness.ts` taking booleans: the secret's lifetime is these
- * three lines.
+ * The same reading the grant route makes when the link is used
+ * (`grant-subject.ts`), so the link issued here is the link that works there.
+ * The credentials are decrypted inside `grantReadiness` and immediately reduced
+ * to two booleans — the values never reach this route. That is the point of
+ * `grant-link-readiness.ts` taking booleans.
  *
  * A source whose credentials cannot be decrypted reads as "not configured"
  * rather than throwing. That is not masking an error (hard rule 9): from the
  * owner's side an unreadable secret and an absent one are the same fact — the
- * consent has no client to run against — and the remedy the refusal names, "add
- * it on the source connection", is the right remedy for both. What must never
- * happen is issuing a link anyway.
+ * consent has no client to run against — and the remedy the refusal names is
+ * the right remedy for both. What must never happen is issuing a link anyway.
  */
 async function readReadiness(
   tenantId: string,
   mappingId: string,
 ): Promise<Omit<GrantLinkReadiness, 'hasWebUrl'>> {
-  const rows = await withTenantDb(tenantId, pool(), (db) =>
-    db
-      .select({ kind: schema.connection.kind, secretRef: schema.connection.secretRef })
-      .from(schema.mailboxMapping)
-      .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
-      .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
-      .where(
-        and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)),
-      ),
-  );
-  const source = rows[0];
-  if (!source) return { sourceKind: null, hasClientId: false, hasClientSecret: false };
-
-  let creds: Record<string, unknown> = {};
-  try {
-    if (source.secretRef) creds = SecretStore.decryptCredentials(source.secretRef);
-  } catch {
-    creds = {};
-  }
-  const present = (key: string) => typeof creds[key] === 'string' && creds[key].trim().length > 0;
-  return {
-    sourceKind: source.kind,
-    hasClientId: present('clientId'),
-    hasClientSecret: present('clientSecret'),
-  };
+  const rows = await withTenantDb(tenantId, pool(), (db) => readGrantRows(db, tenantId, mappingId));
+  return grantReadiness(rows);
 }
 
 /**
