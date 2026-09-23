@@ -152,6 +152,20 @@ describe('the suffix and the natural key agree', () => {
     const out = await namesUnder('export-pdf', [native('d', 'Q3 report.PDF', 'document')]);
     expect(out[0]?.name).toBe('Q3 report.PDF');
   });
+
+  it("keeps a name that ends in ANOTHER format's suffix whole, and adds the real one", async () => {
+    // The owner's decision (0042 T8 (c), 2026-09-23): "if those are the
+    // original files and work in the target, we keep". The name they gave
+    // stays whole, and the LAST suffix is what the bytes are, which is the one
+    // Nextcloud types a file by. Stripping or replacing ".xls" would rename
+    // their document, and re-key it.
+    const out = await namesUnder('export-office', [
+      native('s', 'Budget.xls', 'spreadsheet'),
+      native('d', 'Notes.rtf', 'document'),
+    ]);
+    expect(out.map((o) => o.name)).toEqual(['Budget.xls.xlsx', 'Notes.rtf.docx']);
+    expect(out.map((o) => o.path)).toEqual(['Budget.xls.xlsx', 'Notes.rtf.docx']);
+  });
 });
 
 describe('nothing else is renamed', () => {
