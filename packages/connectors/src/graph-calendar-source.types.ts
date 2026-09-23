@@ -46,6 +46,11 @@ export interface GraphCalendar {
 export interface GraphEvent {
   /** The event ID */
   readonly id: string;
+  /** The item's version: it changes every time the event does (`graphItemVersion`). */
+  readonly changeKey?: string;
+  /** The same validator as a weak ETag. */
+  readonly '@odata.etag'?: string;
+  readonly lastModifiedDateTime?: string;
   /** Event subject/title */
   readonly subject: string;
   /** Event body content */

@@ -139,6 +139,10 @@ shadow-sync **update path** rewrites an event the source changed — unless the 
 was edited there, which is detected and left alone (`conflicted`, hard rule 2). Deletions
 arrive as **`reported` evidence** (the DAV sync answer names the removed object), the
 strongest class, and `apply` may follow them through per owner decision.
+**From Microsoft 365, the update path only since 2026-09-23.** Graph's listing carried no
+version, so an event edited in Outlook after its first copy was skipped on every pass. It now
+carries Graph's `changeKey`. A copy made before that records its version on the next pass,
+and the next real edit is the one that is copied.
 
 Not (yet) migrated:
 - 🚫 **JMAP as a calendar target** — parked by owner decision (workplan 0031 T1): recurring
@@ -187,7 +191,8 @@ root the way Soverin's are.
 
 What migrates: contacts as **vCards** (photos ride inside), with the same
 update/conflict/adoption behaviour as calendars, incremental sync, and `reported` deletion
-evidence with the owner-decided `apply`.
+evidence with the owner-decided `apply`. From Microsoft 365 the update path works only since
+2026-09-23, for the reason given under Calendars.
 
 Not (yet) migrated:
 - 🚫 **Distribution lists / contact groups as mappings** — same refusal and reason as

@@ -21,6 +21,7 @@ import type { TokenProvider } from '@openmig/shared';
 import type { GraphCalendarSourceConfig, GraphCalendar, GraphEvent, GraphDeltaCursor, ParsedIcalComponent } from './graph-calendar-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { graphScopePrefix } from './graph-scope.ts';
+import { graphItemVersion } from './graph-item-version.ts';
 import type { ThrottleLimiter } from '@openmig/shared';
 import { log } from '@openmig/shared';
 
@@ -210,6 +211,10 @@ export class GraphCalendarSource implements CalendarSource {
             end: this.extractEnd(parsed),
             description: this.extractDescription(parsed),
             location: this.extractLocation(parsed),
+            // The version an edit is detected by. Absent until 2026-09-23, so
+            // an event edited in Outlook after its first copy was never
+            // copied again (`graphItemVersion`).
+            ...graphItemVersion(event),
             sourcePath: `/calendars/${calendarId}/events/${event.id}`,
             icalendar: icalData,
           },
