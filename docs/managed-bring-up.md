@@ -1052,6 +1052,12 @@ and accepts the tier answers for itself.
 the `gmail` and `google-drive` sources, each asking its own one scope. What
 `restricted` buys is *one* consent instead of three.
 
+**Grant links follow the same setting.** A link for a Gmail or Drive source
+that stores no Google client of its own runs its consent through this
+deployment's application, so it is issued only where `restricted` is declared.
+Calendars, contacts and tasks need nothing. A source with its own client uses
+that client, whatever this says ([grant links](./grant-links.md)).
+
 ```bash
 # in deploy/compose/.env
 GOOGLE_ACCOUNT_SCOPE_CLASS=restricted

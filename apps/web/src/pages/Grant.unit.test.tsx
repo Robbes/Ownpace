@@ -33,8 +33,11 @@ import Grant from './Grant.tsx';
 const SCOPE = 'https://mail.google.com/';
 const SUBJECT = {
   organisation: 'Acme Legal',
+  askedBy: 'owner@example.org',
   reads: 'your email — messages, folders and labels',
   scope: SCOPE,
+  from: 'someone@example.invalid',
+  to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'dest@example.org' },
   expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
 };
 
@@ -89,6 +92,60 @@ describe('what a person sees before consenting', () => {
     const privacy = await screen.findByRole('link', { name: 'Privacy policy' });
     expect(privacy).toHaveAttribute('href', expect.stringContaining('privacy'));
     expect(screen.getByRole('link', { name: 'Terms' })).toBeInTheDocument();
+  });
+
+  it('says from which account and to which destination, before the button (0108 T8a)', async () => {
+    renderPage();
+    const from = await screen.findByText('someone@example.invalid');
+    expect(screen.getByText('dest@example.org')).toBeInTheDocument();
+    // The destination's kind by the name its card carries, and where it is.
+    expect(screen.getByText('Nextcloud at cloud.example.org')).toBeInTheDocument();
+    // With the question that makes the two facts worth reading.
+    const check = screen.getByText(
+      'Do you know who asked? Is the destination yours or your organisation’s? Only then continue.',
+    );
+    // Both before the button: a check read after the redirect is no check.
+    const button = screen.getByRole('button', { name: /Continue with Google/ });
+    for (const before of [from, check]) {
+      expect(before.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+
+  it('says who asked, by address, before the button (0108 T8a)', async () => {
+    renderPage();
+    expect(await screen.findByText('Asked by')).toBeInTheDocument();
+    const asker = screen.getByText('owner@example.org');
+    const button = screen.getByRole('button', { name: /Continue with Google/ });
+    expect(asker.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('leaves out who asked when the server cannot say, rather than a blank', async () => {
+    readMock.mockResolvedValue({ ...SUBJECT, askedBy: null });
+    renderPage();
+    expect(await screen.findByText('someone@example.invalid')).toBeInTheDocument();
+    expect(screen.queryByText('Asked by')).not.toBeInTheDocument();
+  });
+
+  it('says it reads the account they sign in with, where the migration names none', async () => {
+    readMock.mockResolvedValue({ ...SUBJECT, from: null });
+    renderPage();
+    expect(await screen.findByText('The Google account you sign in with')).toBeInTheDocument();
+  });
+
+  it('names a destination with no host by its kind alone', async () => {
+    readMock.mockResolvedValue({ ...SUBJECT, to: { provider: 'jmap', host: null, account: null } });
+    renderPage();
+    expect(await screen.findByText('JMAP')).toBeInTheDocument();
+    expect(screen.queryByText(/^JMAP at/)).not.toBeInTheDocument();
+  });
+
+  it('names a kind no card carries as it is stored, rather than nothing', async () => {
+    readMock.mockResolvedValue({
+      ...SUBJECT,
+      to: { provider: 'selfhosted_mail', host: 'mail.example.org', account: null },
+    });
+    renderPage();
+    expect(await screen.findByText('selfhosted_mail at mail.example.org')).toBeInTheDocument();
   });
 
   it('tells them how to take the access back afterwards', async () => {

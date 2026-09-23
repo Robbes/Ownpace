@@ -24,9 +24,26 @@
  * shown to a person and written to a log — one interpolation away from ADR-0037's
  * hardest rule. Taking a boolean makes that mistake unavailable rather than
  * merely unmade.
+ *
+ * ## One decision for issue and use (reopened 2026-09-23, 0108 T6–T8a)
+ *
+ * The owner: *"Grant links: Yes, fix both."* The link never inherited the
+ * deployment's Google client (ADR-0041), and it did not know the Google
+ * ACCOUNT kind the wizard now makes. Both are answered here once, by
+ * `grantLinkAsk`, and read by the owner's route when a link is issued and by
+ * the grant route when it is used. Two readings of whose client and which
+ * scope would be two answers that can disagree, and the one that loses is a
+ * stranger at a Google error page.
+ *
+ * It also decides that a link is never issued for a migration with no
+ * destination: the page says where the data goes before the button (T8a),
+ * and a page with nothing to say there is the consent-phishing page with one
+ * line missing.
  */
 
-import type { GoogleConsentSourceType } from './google-consent.ts';
+import { providerAccountDomains, type DiscoveryDomain } from '@openmig/shared';
+import { GOOGLE_SOURCE_SCOPES, type GoogleConsentSourceType } from './google-consent.ts';
+import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
 
 /**
  * `connection.kind` → the consent vocabulary, for the four Google sources.
@@ -35,8 +52,9 @@ import type { GoogleConsentSourceType } from './google-consent.ts';
  * `.replace('_', '-')`: the two vocabularies agree by coincidence today (one
  * underscores where the other hyphenates, because `connection.kind` predates
  * the wizard's words) and a derivation would silently accept a fifth kind that
- * happens to transliterate. Membership of THIS table is what "a grant link can
- * be issued for it" means.
+ * happens to transliterate. Membership of this table, or being the account
+ * kind below, is what "a grant link can be issued for it" means
+ * (`isGrantableSourceKind`).
  */
 export const GOOGLE_CONSENT_KIND_TO_SOURCE: Readonly<Record<string, GoogleConsentSourceType>> = {
   gmail: 'gmail',
@@ -45,28 +63,96 @@ export const GOOGLE_CONSENT_KIND_TO_SOURCE: Readonly<Record<string, GoogleConsen
   google_drive: 'google-drive',
 };
 
+/**
+ * The Google ACCOUNT kind (workplan 0106 T3b), grantable since 2026-09-23
+ * (0108 T7). Not in the table above, because it has no ONE consent source:
+ * its link asks for the data types the migration copies, through the same
+ * `googleAccountConsent` the owner's own account consent uses.
+ */
+export const GOOGLE_ACCOUNT_KIND = 'google';
+
+/**
+ * Whether a grant link can be issued for this `connection.kind` at all — the
+ * four single-purpose kinds and the account. Own properties only: `toString`
+ * is on every object and is not a Google source.
+ */
+export function isGrantableSourceKind(kind: string | null | undefined): boolean {
+  if (!kind) return false;
+  return kind === GOOGLE_ACCOUNT_KIND || Object.hasOwn(GOOGLE_CONSENT_KIND_TO_SOURCE, kind);
+}
+
+/**
+ * The one data type each single-purpose kind IS, in the discovery vocabulary
+ * the account ask and the scheduler use. Keyed by the consent type, so a
+ * fifth one does not compile until it says which type it reads.
+ */
+const SINGLE_PURPOSE_DOMAIN: Readonly<Record<GoogleConsentSourceType, DiscoveryDomain>> = {
+  gmail: 'email',
+  'google-calendar': 'calendar',
+  'google-contacts': 'contact',
+  'google-drive': 'file',
+};
+
 /** What the API knows about a mapping before it decides to issue. */
 export interface GrantLinkReadiness {
   /** `connection.kind` of the mapping's SOURCE, or null when it has none. */
   readonly sourceKind: string | null;
+  /**
+   * The data types the migration copies: its included `scope_selection`
+   * rows, the scheduler's own reading (`enabledDomains`). What an ACCOUNT
+   * link asks for. A single-purpose kind is its one type and ignores this.
+   */
+  readonly includedDomains: ReadonlyArray<string>;
+  /** Whether the migration has a destination. The page names it (T8a). */
+  readonly hasTarget: boolean;
   /** Whether the stored source credentials carry a non-empty client id. */
   readonly hasClientId: boolean;
   /** Whether they carry a non-empty client secret. */
   readonly hasClientSecret: boolean;
+  /** Whether this deployment carries a whole Google client (ADR-0041). */
+  readonly hasDeploymentClient: boolean;
+  /**
+   * `GOOGLE_ACCOUNT_SCOPE_CLASS` as configured: a setting, not a secret. A
+   * string rather than the environment, so nothing else in the environment
+   * can reach a sentence through it.
+   */
+  readonly scopeClass: string | undefined;
   /** Whether this deployment knows the browser-facing address (`WEB_URL`). */
   readonly hasWebUrl: boolean;
 }
 
+/** The refusals `grantLinkAsk` can give — every one but the deployment's address. */
+export type GrantLinkAskRefusalCode =
+  | 'no_source_connection'
+  | 'source_not_google'
+  | 'no_target'
+  | 'nothing_to_ask'
+  | 'client_not_configured'
+  | 'restricted_scope';
+
 export interface GrantLinkRefusal {
   /** A stable machine code, for a UI that wants to route to the right screen. */
-  readonly code:
-    | 'no_source_connection'
-    | 'source_not_google'
-    | 'client_not_configured'
-    | 'web_url_unset';
+  readonly code: GrantLinkAskRefusalCode | 'web_url_unset';
   /** One sentence, naming what to do about it. Never a value, only a field. */
   readonly reason: string;
 }
+
+/** What a link asks Google for, and whose application asks. */
+export interface GrantLinkAsk {
+  /** Whose Google application the consent runs against — never its values. */
+  readonly client: 'connection' | 'deployment';
+  /** The scope string Google will record, space-joined. */
+  readonly scope: string;
+  /** The data types it covers, in the scope table's order. */
+  readonly domains: ReadonlyArray<DiscoveryDomain>;
+}
+
+export type GrantLinkDecision =
+  | { readonly ok: true; readonly ask: GrantLinkAsk }
+  | {
+      readonly ok: false;
+      readonly refusal: GrantLinkRefusal & { readonly code: GrantLinkAskRefusalCode };
+    };
 
 /**
  * The one refusal BOTH purposes share, as a value rather than as two copies.
@@ -85,7 +171,122 @@ const WEB_URL_UNSET: GrantLinkRefusal = {
 };
 
 /**
- * The four ways a grant link is dead on arrival, in the order the owner can act
+ * What a grant link for this mapping would ask, and through whose Google
+ * application — or why it cannot be issued. In the order the owner can act on
+ * them: the migration's own gaps first, then its client.
+ *
+ * **Whose client** (T6, the rule ADR-0041 states for every other Google door):
+ * the connection's own WHOLE pair wins; with none stored, the deployment's; half
+ * a pair is refused, never completed with the deployment's other half. The
+ * run path resolves the same way (`withDeploymentGoogleClient`), so the
+ * refresh token a link brings back belongs to the application that will use it.
+ *
+ * **Mail and files through the deployment's client only where the restricted
+ * class is declared.** Its consent screen says Ownpace, and Google verifies it
+ * before it may ask for Gmail or Drive (0108, *Reopened 2026-09-23*). Asked of
+ * `providerAccountDomains`, the one reading of that setting, so this cannot
+ * disagree with what an account consent may ask for.
+ *
+ * **What is asked** (T7): a single-purpose kind is its one data type. The
+ * account kind asks for the data types the migration copies, through
+ * `googleAccountConsent` — the owner's own account consent, so the same
+ * migration cannot be asked for differently by its owner and by its link.
+ */
+export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLinkDecision {
+  const refuse = (code: GrantLinkAskRefusalCode, reason: string): GrantLinkDecision => ({
+    ok: false,
+    refusal: { code, reason },
+  });
+  if (!r.sourceKind) {
+    return refuse(
+      'no_source_connection',
+      'This migration has no source connection yet, so there is nothing for anyone to ' +
+        'grant access to. Finish setting up the source first.',
+    );
+  }
+  if (!isGrantableSourceKind(r.sourceKind)) {
+    return refuse(
+      'source_not_google',
+      `A grant link asks somebody to sign in with Google, and this migration's source is ` +
+        `'${r.sourceKind}'. Only a Google account, Gmail, Google Calendar, Google Contacts ` +
+        'and Google Drive can be granted this way today — for the others, the credential ' +
+        'still comes to you by hand.',
+    );
+  }
+  if (!r.hasTarget) {
+    return refuse(
+      'no_target',
+      'This migration has no destination yet. The person you send the link to is shown ' +
+        'where their data will go before they agree, so set the destination first.',
+    );
+  }
+
+  const scopeEnv = { GOOGLE_ACCOUNT_SCOPE_CLASS: r.scopeClass };
+  let scope: string;
+  let domains: ReadonlyArray<DiscoveryDomain>;
+  const single = Object.hasOwn(GOOGLE_CONSENT_KIND_TO_SOURCE, r.sourceKind)
+    ? GOOGLE_CONSENT_KIND_TO_SOURCE[r.sourceKind]
+    : undefined;
+  if (single) {
+    scope = GOOGLE_SOURCE_SCOPES[single];
+    domains = [SINGLE_PURPOSE_DOMAIN[single]];
+  } else {
+    const consent = googleAccountConsent(r.includedDomains, scopeEnv);
+    if (isRefusal(consent)) {
+      // `no_domains_ticked` is the one refusal that means "nothing to ask";
+      // every other is the account kind declining a face on this deployment,
+      // said in that function's own words (its caller's rule: verbatim).
+      return consent.error === 'no_domains_ticked'
+        ? refuse(
+            'nothing_to_ask',
+            'This migration copies no data types at the moment, so a link would have ' +
+              'nothing to ask for. Include at least one, then issue the link.',
+          )
+        : refuse('restricted_scope', consent.reason);
+    }
+    scope = consent.scope;
+    domains = consent.domains;
+  }
+
+  if (r.hasClientId !== r.hasClientSecret) {
+    // Names the FIELD, never a value, and says where it is set. An owner who
+    // reads "clientSecret is missing" and cannot find the box has been told
+    // nothing.
+    const missing = r.hasClientId ? 'has no client secret stored' : 'has no client id stored';
+    return refuse(
+      'client_not_configured',
+      `The consent runs against your own Google client, and this source ${missing}. ` +
+        'Add it on the source connection, then issue the link — otherwise the person you ' +
+        'send it to lands on a Google error page about a client they have never heard of.',
+    );
+  }
+  const client = r.hasClientId ? 'connection' : r.hasDeploymentClient ? 'deployment' : null;
+  if (client === null) {
+    return refuse(
+      'client_not_configured',
+      'The consent needs a Google application, and there is none: this source has neither ' +
+        'a client id nor a client secret stored, and this deployment has no Google client ' +
+        'of its own. Add the pair on the source connection, or set GOOGLE_OAUTH_CLIENT_ID ' +
+        'and GOOGLE_OAUTH_CLIENT_SECRET on the deployment.',
+    );
+  }
+  if (client === 'deployment') {
+    const served = providerAccountDomains(GOOGLE_ACCOUNT_KIND, scopeEnv);
+    if (domains.some((d) => !served.includes(d))) {
+      return refuse(
+        'restricted_scope',
+        'Mail and files need scopes Google classes as restricted, and this deployment’s ' +
+          'own Google application has not declared them (GOOGLE_ACCOUNT_SCOPE_CLASS). Add ' +
+          'your own Google client on the source connection, or ask whoever runs this ' +
+          'deployment to declare the class once their application carries those scopes.',
+      );
+    }
+  }
+  return { ok: true, ask: { client, scope, domains } };
+}
+
+/**
+ * Every way a grant link is dead on arrival, in the order the owner can act
  * on them. Returns null when the link would work.
  *
  * `web_url_unset` is last because it is the deployment's problem rather than
@@ -96,43 +297,8 @@ const WEB_URL_UNSET: GrantLinkRefusal = {
  * goes out looking exactly like a successful one.
  */
 export function grantLinkRefusal(r: GrantLinkReadiness): GrantLinkRefusal | null {
-  if (!r.sourceKind) {
-    return {
-      code: 'no_source_connection',
-      reason:
-        'This migration has no source connection yet, so there is nothing for anyone to ' +
-        'grant access to. Finish setting up the source first.',
-    };
-  }
-  const consentSource = GOOGLE_CONSENT_KIND_TO_SOURCE[r.sourceKind];
-  if (!consentSource) {
-    return {
-      code: 'source_not_google',
-      reason:
-        `A grant link asks somebody to sign in with Google, and this migration's source is ` +
-        `'${r.sourceKind}'. Only Gmail, Google Calendar, Google Contacts and Google Drive ` +
-        'sources can be granted this way today — for the others, the credential still comes ' +
-        'to you by hand.',
-    };
-  }
-  if (!r.hasClientId || !r.hasClientSecret) {
-    // Names the FIELD, never a value, and says where it is set. An owner who
-    // reads "clientSecret is missing" and cannot find the box has been told
-    // nothing.
-    const missing =
-      !r.hasClientId && !r.hasClientSecret
-        ? 'has neither a client id nor a client secret stored'
-        : !r.hasClientId
-          ? 'has no client id stored'
-          : 'has no client secret stored';
-    return {
-      code: 'client_not_configured',
-      reason:
-        `The consent runs against your own Google client, and this source ${missing}. ` +
-        'Add it on the source connection, then issue the link — otherwise the person you send ' +
-        'it to lands on a Google error page about a client they have never heard of.',
-    };
-  }
+  const decided = grantLinkAsk(r);
+  if (!decided.ok) return decided.refusal;
   if (!r.hasWebUrl) return WEB_URL_UNSET;
   return null;
 }
@@ -141,10 +307,10 @@ export function grantLinkRefusal(r: GrantLinkReadiness): GrantLinkRefusal | null
  * The same question for a PROGRESS link, and the answer is much shorter
  * (workplan 0122 T2).
  *
- * Three of `grantLinkRefusal`'s four checks exist because a grant link has to
- * be able to run a **Google consent**: there must be a source connection, it
- * must be one of the four Google kinds, and the owner's client id and secret
- * must be stored. A progress link runs no consent. It renders counts and
+ * Every check of `grantLinkRefusal` but the last exists because a grant link
+ * has to be able to run a **Google consent** and say where it leads: a source
+ * connection, a Google kind, a destination to name, something to ask for, and
+ * a client to ask with. A progress link runs no consent. It renders counts and
  * states, and a Microsoft mapping, an Apple mapping, an IMAP mapping and an
  * archive import all have those — including a mapping that has never run, whose
  * honest answer is "nothing has happened yet" and is exactly what somebody
@@ -202,7 +368,7 @@ export function awaitingGrantRefusal(r: {
   readonly hasRefreshToken: boolean;
   readonly hasServiceAccountKey: boolean;
 }): string | null {
-  if (!r.sourceKind || !GOOGLE_CONSENT_KIND_TO_SOURCE[r.sourceKind]) return null;
+  if (!isGrantableSourceKind(r.sourceKind)) return null;
   if (r.hasRefreshToken || r.hasServiceAccountKey) return null;
   return (
     'This migration cannot start yet: nobody has connected its Google account. Create a ' +

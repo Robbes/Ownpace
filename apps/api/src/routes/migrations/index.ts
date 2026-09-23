@@ -63,6 +63,11 @@ import microsoftOauthRoutes from './microsoft-oauth-routes.ts';
 // live behind their own middleware rather than behind `authenticate`.
 import linkRoutes from './link-routes.ts';
 import { awaitingGrantRefusal } from './grant-link-readiness.ts';
+// Its own module since 2026-09-23 (0108 T8a): the grant page names the same
+// accounts the detail route does, and importing this router to reach it would
+// load every migration route to answer one question.
+import { accountOnConnection } from './account-on-connection.ts';
+export { accountOnConnection };
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
   targetDomainRefusal,
@@ -145,44 +150,6 @@ export function sourceKindFor(
   // lives in the config so a third export needs no nineteenth kind here.
   if (sourceType === 'archive') return 'archive';
   return sourceType === 'imap' ? 'imap' : 'o365';
-}
-
-/**
- * WHICH ACCOUNT A CONNECTION SIGNS IN AS, for the detail route to print.
- *
- * THE DEFECT (owner, 2026-09-17): *"in the migration overview or 'Migration
- * Details' view ... it doesnt list the username within the source and username
- * within target ... please that those in this overview."* The screen printed
- * neither, and for his migration this route could not have supplied them: it
- * read the account out of the encrypted credential record alone.
- *
- * TWO PLACES, because two kinds of connection keep it in different ones:
- *
- *  - a PASSWORD kind (imap, the DAV targets) stores `{username, password}`
- *    encrypted together, so the account is in the secret;
- *  - an OAUTH kind (every Google, Microsoft and Apple row — the doors most
- *    customers now come through) has no password and stores no username at
- *    all: `sourceCredentialRecord` writes the client pair and the refresh
- *    token, and the ADDRESS goes in the connection's own config as `user`.
- *
- * The secret first and the config second, so a row that has both answers with
- * the credential it actually signs in with. `password` is never returned by
- * the route whatever this finds; an address is not a secret, and a screen that
- * cannot say whose mailbox is being read is the one the owner met.
- */
-export function accountOnConnection(
-  conn: { readonly secretRef?: string | null; readonly config?: unknown } | null | undefined,
-): string | undefined {
-  const fromConfig = (conn?.config as { user?: unknown } | null | undefined)?.user;
-  const fallback = typeof fromConfig === 'string' && fromConfig !== '' ? fromConfig : undefined;
-  if (!conn?.secretRef) return fallback;
-  try {
-    // A secret this process cannot read is a fact for the connection card to
-    // report (0094 T5), not a reason to print nothing here.
-    return SecretStore.decryptCredentials(conn.secretRef).username ?? fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 /**

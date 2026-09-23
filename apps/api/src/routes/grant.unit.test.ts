@@ -34,6 +34,7 @@ import {
   expiryFromDays,
 } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
+import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
 
 // UUID family 5f500000-…, unused elsewhere in the repo.
@@ -44,6 +45,23 @@ const BOX = '5f500000-e29b-41d4-a716-446655441721';
 const BARE_BOX = '5f500000-e29b-41d4-a716-446655441722';
 const MAPPING = '5f500000-e29b-41d4-a716-446655441731';
 const UNCONFIGURED = '5f500000-e29b-41d4-a716-446655441732';
+/** Where every mapping here copies to, so the page has a destination to name. */
+const TARGET_CONN = '5f500000-e29b-41d4-a716-446655441713';
+const TARGET_BOX = '5f500000-e29b-41d4-a716-446655441723';
+/** The ready mapping's source, with its destination gone. */
+const NO_TARGET = '5f500000-e29b-41d4-a716-446655441733';
+/** A calendar source that stores no client of its own (0108 T6). */
+const CALENDAR_CONN = '5f500000-e29b-41d4-a716-446655441714';
+const CALENDAR_BOX = '5f500000-e29b-41d4-a716-446655441724';
+const CALENDAR = '5f500000-e29b-41d4-a716-446655441734';
+/** A Google ACCOUNT source, no client of its own, copying two types (0108 T7). */
+const ACCOUNT_CONN = '5f500000-e29b-41d4-a716-446655441715';
+const ACCOUNT_BOX = '5f500000-e29b-41d4-a716-446655441725';
+const ACCOUNT = '5f500000-e29b-41d4-a716-446655441735';
+
+/** The deployment's own Google client, set only by the tests that need one. */
+const DEPLOYMENT_CLIENT_ID = 'deployment.apps.googleusercontent.com';
+const DEPLOYMENT_CLIENT_SECRET = 'the-deployments-secret-value';
 
 const CLIENT_ID = 'client.apps.googleusercontent.com';
 const CLIENT_SECRET = 'the-owners-secret-value';
@@ -59,6 +77,19 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
 const { default: grantRoutes } = await import('./grant.ts');
 const { default: googleOauthRoutes } = await import('./migrations/google-oauth-routes.ts');
 const { GOOGLE_SOURCE_SCOPES } = await import('./migrations/google-consent.ts');
+const { googleAccountConsent, isRefusal } = await import('./migrations/google-account-consent.ts');
+
+/** Run `fn` on a deployment that carries its own Google client, then take it away. */
+async function onTheDeploymentsClient<T>(fn: () => Promise<T>): Promise<T> {
+  process.env.GOOGLE_OAUTH_CLIENT_ID = DEPLOYMENT_CLIENT_ID;
+  process.env.GOOGLE_OAUTH_CLIENT_SECRET = DEPLOYMENT_CLIENT_SECRET;
+  try {
+    return await fn();
+  } finally {
+    delete process.env.GOOGLE_OAUTH_CLIENT_ID;
+    delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  }
+}
 
 const app = express();
 app.use(express.json());
@@ -106,6 +137,8 @@ beforeAll(async () => {
   process.env.WEB_URL = 'https://app.example';
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
+  // The managed chain too: who asked is a `tenant_member` row (0108 T8a).
+  await runManagedMigrations({ driver, logger: () => {} });
 
   // Google's token endpoint, replaced. `exchangeCode` uses the global fetch by
   // default, and the callback route calls it without injecting one — so this is
@@ -131,6 +164,13 @@ beforeAll(async () => {
   try {
     const q = (sql: string, p: unknown[] = []) => conn.query(sql, p);
     await q('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'Acme Legal']);
+    // The member who issues every link below (`mintLink`'s createdBy): the page
+    // names them by the address they sign in with (0108 T8a).
+    await q(`INSERT INTO tenant_member (tenant_id, user_id, email) VALUES ($1,$2,$3)`, [
+      TENANT,
+      'rob',
+      'owner@example.org',
+    ]);
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
        VALUES ($1,$2,'source','gmail','g','{}'::jsonb,'connected',$3)`,
@@ -141,9 +181,29 @@ beforeAll(async () => {
        VALUES ($1,$2,'source','gmail','bare','{}'::jsonb,'connected')`,
       [BARE_CONN, TENANT],
     );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
+       VALUES ($1,$2,'source','google_calendar','cal','{}'::jsonb,'connected')`,
+      [CALENDAR_CONN, TENANT],
+    );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
+       VALUES ($1,$2,'source','google','account','{"user":"account@example.invalid"}'::jsonb,'connected')`,
+      [ACCOUNT_CONN, TENANT],
+    );
+    // The destination: a Nextcloud named by its host, with no credential in
+    // this fixture — the account it writes is the mapping's own.
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
+       VALUES ($1,$2,'target','nextcloud','nc','{"host":"cloud.example.org","port":443}'::jsonb,'connected')`,
+      [TARGET_CONN, TENANT],
+    );
     for (const [box, c] of [
       [BOX, CONN],
       [BARE_BOX, BARE_CONN],
+      [CALENDAR_BOX, CALENDAR_CONN],
+      [ACCOUNT_BOX, ACCOUNT_CONN],
+      [TARGET_BOX, TARGET_CONN],
     ]) {
       await q(
         `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
@@ -151,14 +211,30 @@ beforeAll(async () => {
         [box, TENANT, c],
       );
     }
-    for (const [m, box] of [
-      [MAPPING, BOX],
-      [UNCONFIGURED, BARE_BOX],
+    for (const [m, box, target] of [
+      [MAPPING, BOX, TARGET_BOX],
+      [UNCONFIGURED, BARE_BOX, TARGET_BOX],
+      [NO_TARGET, BOX, null],
+      [CALENDAR, CALENDAR_BOX, TARGET_BOX],
+      [ACCOUNT, ACCOUNT_BOX, TARGET_BOX],
     ]) {
       await q(
-        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status)
-         VALUES ($1,$2,$3,'paused')`,
-        [m, TENANT, box],
+        `INSERT INTO mailbox_mapping
+           (id, tenant_id, source_mailbox_id, target_mailbox_id, target_config_override, status)
+         VALUES ($1,$2,$3,$4,'{"user":"dest@example.org"}'::jsonb,'paused')`,
+        [m, TENANT, box, target],
+      );
+    }
+    // What the account migration copies: two types, and a third switched off,
+    // which the link must not ask for.
+    for (const [domain, included] of [
+      ['calendar', true],
+      ['task', true],
+      ['contact', false],
+    ] as const) {
+      await q(
+        `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1,$2,$3,$4)`,
+        [TENANT, ACCOUNT, domain, included],
       );
     }
   } finally {
@@ -215,7 +291,64 @@ describe('what the page may know before the button', () => {
     for (const leak of [TENANT, MAPPING, CONN, BOX, CLIENT_ID, CLIENT_SECRET, 'rob']) {
       expect(body, `${leak} must not reach a link holder`).not.toContain(leak);
     }
-    expect(Object.keys(res.body).sort()).toEqual(['expiresAt', 'organisation', 'reads', 'scope']);
+    expect(Object.keys(res.body).sort()).toEqual([
+      'askedBy',
+      'expiresAt',
+      'from',
+      'organisation',
+      'reads',
+      'scope',
+      'to',
+    ]);
+  });
+
+  it('says who asked: the issuing member, by the address they sign in with', async () => {
+    // The owner, 2026-09-23: "It has to be clear who is facilitating a
+    // migration of someone else." An organisation's name is anyone's to choose.
+    const { token } = await mintLink(MAPPING);
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.body.askedBy).toBe('owner@example.org');
+    // The member's address, never their account id.
+    expect(JSON.stringify(res.body)).not.toContain('"rob"');
+  });
+
+  it('says nothing about who asked when the issuer is no longer a member, rather than guessing', async () => {
+    const { token } = await withTenant(driver, TENANT, (db) =>
+      issueMappingLink(db, {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        purpose: 'grant',
+        createdBy: 'somebody-who-left',
+        expiresAt: expiryFromDays(7),
+      }),
+    );
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.askedBy).toBeNull();
+  });
+
+  it('says from which account and to which destination (0108 T8a)', async () => {
+    const { token } = await mintLink(MAPPING);
+    const res = await request(app).get(`/api/grant/${token}`);
+    // The account the migration reads, and the server and account it writes:
+    // the two facts a person needs to tell their own migration from a stranger's.
+    expect(res.body.from).toBe('someone@example.invalid');
+    expect(res.body.to).toEqual({
+      provider: 'nextcloud',
+      host: 'cloud.example.org',
+      account: 'dest@example.org',
+    });
+  });
+
+  it('refuses a migration whose destination is gone, in forwardable words', async () => {
+    const { token } = await mintLink(NO_TARGET);
+    const get = await request(app).get(`/api/grant/${token}`);
+    expect(get.status).toBe(409);
+    expect(get.body.reason).toMatch(/it has no destination to copy to/);
+    expect(get.body.reason).toMatch(/tell the person who sent you the link/);
+    // And the button cannot start a consent the page would not describe.
+    const post = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
+    expect(post.status).toBe(409);
   });
 
   it('does not spend the link — a chat preview must not burn it', async () => {
@@ -309,6 +442,81 @@ describe('starting the consent', () => {
     expect(started.text).not.toContain(CLIENT_SECRET);
     expect(started.body.url).not.toContain(CLIENT_SECRET);
     expect(ended.text).not.toContain(CLIENT_SECRET);
+  });
+});
+
+describe("the deployment's client, where the source stores none (0108 T6)", () => {
+  it('asks for a calendar through it, and exchanges the code with its secret', async () => {
+    await onTheDeploymentsClient(async () => {
+      const { token } = await mintLink(CALENDAR);
+      const page = await request(app).get(`/api/grant/${token}`);
+      expect(page.status).toBe(200);
+      expect(page.body.reads).toBe('your calendars and their events');
+      expect(page.body.scope).toBe(GOOGLE_SOURCE_SCOPES['google-calendar']);
+
+      const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
+      expect(started.status).toBe(200);
+      const url = new URL(started.body.url);
+      expect(url.searchParams.get('client_id')).toBe(DEPLOYMENT_CLIENT_ID);
+      expect(started.text).not.toContain(DEPLOYMENT_CLIENT_SECRET);
+
+      tokenResponse = () => ({
+        status: 200,
+        body: { refresh_token: REFRESH, scope: GOOGLE_SOURCE_SCOPES['google-calendar'] },
+      });
+      const state = url.searchParams.get('state')!;
+      const ended = await request(app)
+        .get('/api/migrations/google/callback')
+        .query({ state, code: 'auth-code' });
+      expect(ended.status).toBe(200);
+      expect(tokenRequests[0]!.get('client_id')).toBe(DEPLOYMENT_CLIENT_ID);
+      expect(tokenRequests[0]!.get('client_secret')).toBe(DEPLOYMENT_CLIENT_SECRET);
+      expect(ended.text).not.toContain(DEPLOYMENT_CLIENT_SECRET);
+    });
+  });
+
+  it('will not ask for Gmail through it on a deployment that has not declared the class', async () => {
+    await onTheDeploymentsClient(async () => {
+      const { token } = await mintLink(UNCONFIGURED);
+      const res = await request(app).get(`/api/grant/${token}`);
+      expect(res.status).toBe(409);
+      expect(res.body.reason).toMatch(/may not ask for mail or files/);
+    });
+  });
+
+  it("keeps the source's own client where it stores one", async () => {
+    await onTheDeploymentsClient(async () => {
+      const { token } = await mintLink(MAPPING);
+      const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
+      expect(new URL(started.body.url).searchParams.get('client_id')).toBe(CLIENT_ID);
+    });
+  });
+});
+
+describe('a link for a Google ACCOUNT (0108 T7)', () => {
+  it('asks for the types the migration copies, and nothing it switched off', async () => {
+    await onTheDeploymentsClient(async () => {
+      const { token } = await mintLink(ACCOUNT);
+      const page = await request(app).get(`/api/grant/${token}`);
+      expect(page.status).toBe(200);
+      const owners = googleAccountConsent(['calendar', 'task'], {});
+      if (isRefusal(owners)) throw new Error(owners.reason);
+      expect(page.body.scope).toBe(owners.scope);
+      expect(page.body.reads).toBe('your calendars and their events and your tasks');
+      // Its own account, from the connection's config: an OAuth row stores no
+      // username in its secret.
+      expect(page.body.from).toBe('account@example.invalid');
+
+      const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
+      expect(new URL(started.body.url).searchParams.get('scope')).toBe(owners.scope);
+    });
+  });
+
+  it('is not ready on a deployment with no client of its own, when the account has none', async () => {
+    const { token } = await mintLink(ACCOUNT);
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.status).toBe(409);
+    expect(res.body.reason).toMatch(/its Google application is not set up yet/);
   });
 });
 
