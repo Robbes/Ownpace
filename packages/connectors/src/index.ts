@@ -119,6 +119,9 @@ export * from './google-drive-transport.ts';
 export * from './google-token-provider.ts';
 export * from './token-revoker.ts';
 export * from './google-jwt-bearer-provider.ts';
+// Google Tasks as a task source (workplan 0126 T1).
+export * from './google-tasks-source.ts';
+export type * from './google-tasks-source.types.ts';
 export * from './caldav-scheduling-probe.ts';
 // The Google Takeout archive reader (workplan 0116 T3a), behind the T2 seam.
 // A reader rather than a connector: it opens a file the person downloaded,
