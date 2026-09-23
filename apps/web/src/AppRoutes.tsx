@@ -34,6 +34,7 @@ import {
   SupportTenantDetail,
   SupportMigrationDetail,
   SupportRetainedInvoices,
+  SupportLog,
 } from './pages/Support.tsx';
 import Invitations from './pages/Invitations.tsx';
 import Decisions from './pages/Decisions.tsx';
@@ -447,6 +448,16 @@ const AppRoutes: React.FC = () => {
           element={
             <ManagedOnly>
               <SupportRetainedInvoices />
+            </ManagedOnly>
+          }
+        />
+        {/* The log (0129 T2), across every organisation or filtered to one.
+            The same non-gating: `support_log`'s own predicate is the rule. */}
+        <Route
+          path="support/log"
+          element={
+            <ManagedOnly>
+              <SupportLog />
             </ManagedOnly>
           }
         />

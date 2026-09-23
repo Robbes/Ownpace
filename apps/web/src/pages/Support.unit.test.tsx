@@ -50,6 +50,7 @@ vi.mock('../services/support.ts', () => ({
   searchSupportPeople: vi.fn(),
   recordPersonOpened: vi.fn(),
   getSupportPlatform: vi.fn(),
+  readSupportLog: vi.fn(),
 }));
 
 /**
@@ -142,6 +143,15 @@ describe('the list of organisations', () => {
     expect(screen.getByText('1')).toBeInTheDocument();
   });
 
+  it('leads to the log, across every organisation (0129 T2)', async () => {
+    listMock.mockResolvedValue([TENANT]);
+    mount(<SupportTenants />);
+    expect(await screen.findByRole('link', { name: STRINGS.en['support.log.link'] })).toHaveAttribute(
+      'href',
+      '/support/log',
+    );
+  });
+
   it('reads as empty rather than as broken — which is what a non-operator gets', async () => {
     // The API answers 200 with `[]` on purpose rather than 403. A screen that
     // spun forever, or said "something went wrong", would turn a correct
@@ -198,6 +208,14 @@ describe('one organisation', () => {
     expect(await screen.findByText('Alpha mail')).toBeInTheDocument();
     expect(screen.getByText('Alpha migration')).toBeInTheDocument();
     expect(screen.getByText('sent')).toBeInTheDocument();
+  });
+
+  it('opens the log narrowed to this organisation (0129 T2)', async () => {
+    tenantMock.mockResolvedValue(DETAIL);
+    mount(<SupportTenantDetail />, `/support/tenants/${TENANT.tenant_id}`, '/support/tenants/:tenantId');
+    expect(
+      await screen.findByRole('link', { name: STRINGS.en['support.log.forOrganisation'] }),
+    ).toHaveAttribute('href', `/support/log?tenantId=${TENANT.tenant_id}`);
   });
 
   it('says the same thing for an id that does not exist and one it may not see', async () => {
@@ -262,6 +280,14 @@ describe('one migration', () => {
     migrationMock.mockResolvedValue(MIGRATION);
     mount(<SupportMigrationDetail />, '/support/migrations/m1', '/support/migrations/:mappingId');
     expect(await screen.findByText(STRINGS.en['support.noFourthLevel'])).toBeInTheDocument();
+  });
+
+  it('opens the log narrowed to this migration (0129 T2)', async () => {
+    migrationMock.mockResolvedValue(MIGRATION);
+    mount(<SupportMigrationDetail />, '/support/migrations/m1', '/support/migrations/:mappingId');
+    expect(
+      await screen.findByRole('link', { name: STRINGS.en['support.log.forMigration'] }),
+    ).toHaveAttribute('href', '/support/log?mappingId=m1');
   });
 
   it('shows no remedy for a category no build of this app knows', async () => {
