@@ -121,9 +121,18 @@ describe('the shared prose', () => {
     // it still said the route was the appliance's, and to remove the old copy
     // in the target system instead.
     expect(MOVE_GUIDANCE.apply).not.toMatch(/appliance only|does not serve/i);
-    expect(MOVE_GUIDANCE.apply).toContain('Both editions serve it');
-    expect(MOVE_GUIDANCE.apply).toContain('receipt');
     expect(MOVE_GUIDANCE.apply).toContain('REMOVES');
+  });
+
+  it('says what Apply does, and nothing about which edition has it', () => {
+    // The owner, 2026-09-23: "Why would a user care? They just want to use the
+    // move function or check what it is." Both editions have it, so naming
+    // them tells the reader nothing about the button in front of them.
+    for (const text of Object.values(MOVE_GUIDANCE)) {
+      expect(text).not.toMatch(/edition|appliance|managed/i);
+    }
+    // What it does instead: how the result reads, every way it can end.
+    expect(MOVE_GUIDANCE.apply).toMatch(/removed, refused with the reason, or failed with the error/);
   });
 });
 

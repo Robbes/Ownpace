@@ -779,10 +779,14 @@ export const MOVE_GUIDANCE: MoveGuidance = {
     `POST /mappings/{mappingId}/moves/{naturalKeyHash}/keep — the target's layout ` +
     `is fine as it is; stop reporting this one. Reversible only in the sense that ` +
     `moving the item somewhere else again reopens it.`,
-  // BOTH EDITIONS SERVE IT. This said "APPLIANCE ONLY so far" and sent a
-  // managed customer to remove the old copy by hand, from 2026-08-16, when
-  // managed gained the route (workplan 0042 T2), until 2026-09-23: on the one
-  // screen that also offered them the Apply button.
+  // WHAT IT DOES, AND NOTHING ABOUT EDITIONS. This said "APPLIANCE ONLY so
+  // far" and sent a managed customer to remove the old copy by hand, from
+  // 2026-08-16, when managed gained the route (workplan 0042 T2), until
+  // 2026-09-23, on the one screen that also offered them the Apply button.
+  // Its first fix said both editions serve it, which is true and of no use to
+  // the person pressing it. The owner: "Why would a user care? They just want
+  // to use the move function or check what it is." So it says what Apply
+  // does, and parity stays the code's business (hard rule 5).
   apply:
     `POST /mappings/{mappingId}/moves/{naturalKeyHash}/apply — RELOCATIONS ONLY, and it ` +
     `REMOVES the target's old copy. Allowed where the same operation on a ` +
@@ -792,9 +796,8 @@ export const MOVE_GUIDANCE: MoveGuidance = {
     `allowApplyDeletions — the same switch, because it is the same capability — ` +
     `and refused for a copy somebody has edited on the target, for one this ` +
     `migration did not write, and while the mass-deletion breaker is up (ADR-0030). ` +
-    `Both editions serve it: the appliance answers once the old copy is removed, and ` +
-    `the managed edition queues the removal and answers with a receipt that says how ` +
-    `it ended.`,
+    `The result says how it ended: removed, refused with the reason, or failed ` +
+    `with the error.`,
   byHand:
     'To make the target match without using apply, move or delete the item there ' +
     'yourself in the target system, then keep. This tool never removes anything ' +
