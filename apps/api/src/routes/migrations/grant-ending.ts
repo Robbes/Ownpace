@@ -54,17 +54,43 @@ import { eq, and } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
   DEFAULT_MAPPING_VIEW_LINK_EXPIRY_DAYS,
+  PgLedger,
   expiryFromDays,
   issueMappingLink,
   spendMappingLink,
   type LedgerDriver,
 } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
-import { log } from '@openmig/shared';
+import { log, type TenantId } from '@openmig/shared';
 import { withTenantDb } from '../../middleware/auth.ts';
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
-import { namedAccount, readGrantRows } from './grant-subject.ts';
-import { signedInAccountRefusal } from './signed-in-account.ts';
+import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts';
+import {
+  signedInAccountRefusal,
+  type SignedInAccountRefusal,
+  type SignedInAccountRefusalCode,
+} from './signed-in-account.ts';
+
+/**
+ * THE AUDIT LINE (0108 T8 (d), the owner's decision of 2026-09-23: *"yes, all
+ * those, so auditline, limit and report"*). What a grant is recorded under in
+ * `audit_log`: which link, which account granted, and which destination; the
+ * tenant and the moment are the row's own. Written in the grant's own
+ * transaction, so a grant and its record commit together or not at all, for
+ * `mapping-status-audit.ts`'s reason.
+ */
+export const GRANT_ACTION = 'mapping.granted';
+
+/**
+ * What a sign-in the ending refused is recorded under (0108 T8 (b)'s refusals).
+ * WITHOUT the address that signed in: that belongs to somebody who granted
+ * nothing, and `audit_log` is never pruned (`retention.ts`). The code says
+ * which refusal it was, and the link which door was tried.
+ */
+export const GRANT_REFUSED_ACTION = 'mapping.grant_refused';
+
+/** Who acted: a link holder, who has no user id to be recorded under. */
+export const GRANT_ACTOR = 'grant-link';
 
 /** The link the consent belonged to, as the pending state recorded it. */
 export interface GrantTarget {
@@ -94,10 +120,36 @@ export type GrantStoreResult =
  * signed in, and caught outside it. A return would commit the spent link.
  */
 class AnotherAccountSignedIn extends Error {
-  readonly reason: string;
-  constructor(reason: string) {
+  readonly refusal: SignedInAccountRefusal;
+  constructor(refusal: SignedInAccountRefusal) {
     super('the account that signed in is not the one the migration names');
-    this.reason = reason;
+    this.refusal = refusal;
+  }
+}
+
+/**
+ * Record a refused sign-in, AFTER its transaction rolled back: in that
+ * transaction the record would have rolled back with the claim. So it is its
+ * own write, and a failure is logged rather than raised. The person has already
+ * been refused and nothing was stored; a record that could not be written must
+ * not turn their page into a fault.
+ */
+async function recordRefusedSignIn(
+  source: Pool | LedgerDriver,
+  target: GrantTarget,
+  code: SignedInAccountRefusalCode,
+): Promise<void> {
+  try {
+    await withTenantDb(target.tenantId, source, (db) =>
+      new PgLedger(db).recordAuditEvent(target.tenantId as TenantId, {
+        actor: GRANT_ACTOR,
+        action: GRANT_REFUSED_ACTION,
+        entity: 'mapping',
+        detail: { mappingId: target.mappingId, linkId: target.linkId, refused: code },
+      }),
+    );
+  } catch (error) {
+    log.error('[api] recording a refused grant sign-in failed:', error);
   }
 }
 
@@ -158,13 +210,29 @@ export async function storeGrantedToken(
             'granted credential has nowhere to go',
         );
       }
+
+      await new PgLedger(db).recordAuditEvent(target.tenantId as TenantId, {
+        actor: GRANT_ACTOR,
+        action: GRANT_ACTION,
+        // `entity` is the kind and the id rides in `detail`: the shape every
+        // other writer uses (`mapping-status-audit.ts` says why).
+        entity: 'mapping',
+        detail: {
+          mappingId: target.mappingId,
+          linkId: target.linkId,
+          // As Google gave it: the named account, which the check just proved.
+          account: granted.signedInAs,
+          to: (rows && whereFromAndTo(rows)?.to) ?? null,
+        },
+      });
       return { ok: true as const };
     });
   } catch (error) {
     // The one refusal that has to undo the claim. Everything else thrown is a
     // fault, and goes on up as one.
     if (error instanceof AnotherAccountSignedIn) {
-      return { ok: false, reason: error.reason, linkStillWorks: true };
+      await recordRefusedSignIn(source, target, error.refusal.code);
+      return { ok: false, reason: error.refusal.reason, linkStillWorks: true };
     }
     throw error;
   }

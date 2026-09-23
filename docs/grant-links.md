@@ -113,6 +113,10 @@ The list under **Grant links** shows every link for the migration and what becam
 - **Expired unused** — it ran out before anybody got to it. This is the one to act on: somebody
   was asked and never managed to answer. Issue another and send it again.
 
+Every grant is recorded: which link, which account, which destination, and when. So is every
+sign-in the page refused, but without the address that tried. Whoever runs your Ownpace can read
+that record.
+
 **Revoke** switches a link off immediately. It stops a sign-in that is already in progress too,
 not only future ones — so if you think a link went to the wrong place, revoke it first and ask
 questions afterwards. Deleting the migration removes its links with it.
