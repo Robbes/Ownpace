@@ -70,17 +70,23 @@ import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Settings2 } from 'lucide-react';
 import {
+  GOOGLE_EDITOR_KINDS,
   carriesGoogleNativeFiles,
   mayRevise,
+  nativeFilePoliciesOf,
   type FailuresQueue,
   type GoogleNativeFilePolicy,
+  type NativeFilePolicies,
 } from '@openmig/shared';
 import { mappingApi } from '../services/mapping-service.ts';
 import { fetchFailures } from '../services/operating-service.ts';
 import { revisionRefusals, serverMessage } from '../services/api.ts';
 import { useT } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
-import { NativeFilePolicyChooser } from './NativeFilePolicyChooser.tsx';
+import {
+  NativeFilePolicyChooser,
+  type NativeFilePolicyByKind,
+} from './NativeFilePolicyChooser.tsx';
 
 /**
  * The policy this migration is running under, as a value the chooser can show.
@@ -95,6 +101,40 @@ export function policyInForce(value: unknown): GoogleNativeFilePolicy {
   return value === 'export-odf' || value === 'export-office' || value === 'export-pdf'
     ? value
     : 'refuse';
+}
+
+/**
+ * The format each kind is exported in, as the chooser shows it (workplan 0042
+ * T9): a kind's own format where the migration has one, the single format
+ * where it has not, and `refuse` where neither says.
+ *
+ * `nativeFilePoliciesOf` decides that, the same function the engine exports
+ * with, so this panel cannot show a kind in one format while the next pass
+ * copies it in another. Each value is read through `policyInForce` first, for
+ * the reason given there.
+ */
+export function policiesInForce(
+  sourceConfig:
+    | { readonly nativeFilePolicy?: unknown; readonly nativeFilePolicies?: unknown }
+    | undefined,
+): NativeFilePolicyByKind {
+  const own = sourceConfig?.nativeFilePolicies;
+  const perKind: Record<string, GoogleNativeFilePolicy> = {};
+  if (typeof own === 'object' && own !== null) {
+    for (const kind of GOOGLE_EDITOR_KINDS) {
+      const value = (own as Record<string, unknown>)[kind];
+      if (value !== undefined) perKind[kind] = policyInForce(value);
+    }
+  }
+  return nativeFilePoliciesOf({
+    nativeFilePolicy: policyInForce(sourceConfig?.nativeFilePolicy),
+    nativeFilePolicies: perKind as NativeFilePolicies,
+  });
+}
+
+/** Whether two choices differ for any kind. */
+function differs(a: NativeFilePolicyByKind, b: NativeFilePolicyByKind): boolean {
+  return GOOGLE_EDITOR_KINDS.some((kind) => a[kind] !== b[kind]);
 }
 
 /**
@@ -124,15 +164,20 @@ const ExportPolicyPanel: React.FC<{
   sourceType: string;
   /** What it carries — a migration with no files has no Docs to decide about. */
   domains: ReadonlyArray<string>;
-  /** `sourceConfig.nativeFilePolicy` off the detail payload. */
-  current: unknown;
+  /** The detail payload's `sourceConfig`: the single format and the per-kind ones. */
+  current:
+    | { readonly nativeFilePolicy?: unknown; readonly nativeFilePolicies?: unknown }
+    | undefined;
 }> = ({ mappingId, sourceType, domains, current }) => {
   const t = useT();
   const queryClient = useQueryClient();
-  const inForce = policyInForce(current);
-  const [chosen, setChosen] = React.useState<GoogleNativeFilePolicy>(inForce);
+  const inForce = policiesInForce(current);
+  // A key, because `inForce` is a new object on every render and an effect
+  // keyed on it would reset the choice each time anything re-rendered.
+  const inForceKey = GOOGLE_EDITOR_KINDS.map((kind) => inForce[kind]).join(',');
+  const [chosen, setChosen] = React.useState<NativeFilePolicyByKind>(inForce);
   const [saving, setSaving] = React.useState(false);
-  const [saved, setSaved] = React.useState<GoogleNativeFilePolicy | null>(null);
+  const [saved, setSaved] = React.useState<NativeFilePolicyByKind | null>(null);
   const [refused, setRefused] = React.useState<
     ReadonlyArray<{ field: string; reason: string }>
   >([]);
@@ -154,9 +199,12 @@ const ExportPolicyPanel: React.FC<{
   // panel every time a save lands and the query refetches. Without this, a
   // second save would be offered against the value that was on screen when the
   // page loaded.
+  // Keyed on `inForceKey`, which IS `current`'s meaning: keyed on the object,
+  // this would run on every render.
   React.useEffect(() => {
-    setChosen(inForce);
-  }, [inForce]);
+    setChosen(policiesInForce(current));
+  }, [inForceKey]);
+  const changed = differs(chosen, inForce);
 
   const verdict = mayRevise('source.nativeFilePolicy');
 
@@ -178,7 +226,7 @@ const ExportPolicyPanel: React.FC<{
     setFailed(null);
     setSaved(null);
     try {
-      await mappingApi.setNativeFilePolicy(mappingId, chosen);
+      await mappingApi.setNativeFilePolicies(mappingId, chosen);
       setSaved(chosen);
       // The panel reads its current value off the detail query, so the save is
       // not finished until that has been re-read.
@@ -213,7 +261,7 @@ const ExportPolicyPanel: React.FC<{
           {/* BEFORE the press, and only when something would actually change:
               restating it under a chooser nobody has touched is noise, and the
               rule this repo keeps is one line per thing to read. */}
-          {chosen !== inForce && verdict.consequence !== undefined && (
+          {changed && verdict.consequence !== undefined && (
             <Hint
               tone="caution"
               className="mt-3"
@@ -225,7 +273,7 @@ const ExportPolicyPanel: React.FC<{
             <button
               type="button"
               onClick={() => void save()}
-              disabled={saving || chosen === inForce}
+              disabled={saving || !changed}
               className="px-3 py-1 text-sm font-medium rounded border border-blue-300 text-blue-800 hover:bg-blue-50 disabled:opacity-50"
             >
               {saving ? t('settings.exportPolicy.saving') : t('settings.exportPolicy.save')}

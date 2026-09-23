@@ -200,8 +200,33 @@ describe('the export-policy panel', () => {
       }),
     );
     renderHub();
-    const select = await screen.findByLabelText(/Google Docs, Sheets, Slides and Drawings/i);
+    const select = await screen.findByLabelText('Google Docs');
     expect((select as HTMLSelectElement).value).toBe('export-pdf');
+  });
+
+  /**
+   * THE WHOLE SOURCE CONFIG REACHES THE PANEL (workplan 0042 T9), not the
+   * single format alone: handed only that, the panel would show "Office" for
+   * decks the migration exports as `.odp`.
+   */
+  it('shows a kind’s own format where the migration has one', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        sourceType: 'google',
+        syncConfig: { domains: ['file'] },
+        sourceConfig: {
+          username: 'owner@acme.test',
+          nativeFilePolicy: 'export-office',
+          nativeFilePolicies: { presentation: 'export-odf' },
+        },
+      }),
+    );
+    renderHub();
+    const slides = await screen.findByLabelText('Google Slides');
+    expect((slides as HTMLSelectElement).value).toBe('export-odf');
+    expect((screen.getByLabelText('Google Docs') as HTMLSelectElement).value).toBe(
+      'export-office',
+    );
   });
 
   it('is absent from a migration with no Google files to decide about', async () => {
@@ -210,7 +235,7 @@ describe('the export-policy panel', () => {
     // The hub's own content still arrives, so this is "the panel is not here"
     // rather than "nothing rendered".
     expect(await screen.findByText(/cutover order/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Google Docs, Sheets, Slides and Drawings/i)).toBeNull();
+    expect(screen.queryByLabelText('Google Docs')).toBeNull();
   });
 });
 

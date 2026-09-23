@@ -789,36 +789,40 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     expect((posted.syncConfig as { domains: string[] }).domains).toEqual(['file']);
   });
 
-  it('offers the Google-native format choice on the source step, defaulting to leaving them behind', () => {
+  it('offers a format per kind on the source step, each defaulting to leaving them behind', () => {
     // 0042 T0 Q3, owner ask 2026-09-14: "can we offer a best fitting
-    // fileformat to transform it in to and then store in target?" Four
-    // answers, ONE per migration, chosen where the folder is chosen — the
-    // same question as "which folder": what, of this Drive, comes across.
+    // fileformat to transform it in to and then store in target?" — and since
+    // 0042 T9 (the owner, 2026-09-23: "a per kind choice makes more sense for
+    // the fileformats") one answer per KIND, chosen where the folder is
+    // chosen. Each select offers only the formats measured to carry its kind.
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
 
-    const policy = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/);
-    expect(policy).toBeVisible();
-    expect(policy).toHaveValue('refuse');
-    expect(
-      [...(policy as HTMLSelectElement).options].map((o) => o.value),
-      'every policy the parser accepts must be offerable, or one is unreachable from the app',
-    ).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
+    const offered = (label: string) => {
+      const select = screen.getByLabelText(label) as HTMLSelectElement;
+      expect(select, label).toBeVisible();
+      expect(select, label).toHaveValue('refuse');
+      return [...select.options].map((o) => o.value);
+    };
+    expect(offered('Google Docs')).toEqual(['refuse', 'export-office', 'export-pdf']);
+    expect(offered('Google Sheets')).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
+    expect(offered('Google Slides')).toEqual(['refuse', 'export-odf', 'export-pdf']);
+    // One .svg for a Drawing, whichever document family makes it.
+    expect(offered('Google Drawings')).toEqual(['refuse', 'export-odf', 'export-pdf']);
   });
 
-  it('says what the format costs only once an export is chosen', () => {
-    // Under `refuse` nothing is being exported, and a warning shown beside a
-    // choice it does not apply to is a warning people learn to skip past.
+  it('says what stays behind, and what cannot be edited, as the choice is made', () => {
+    // Under `refuse` for all four, every kind stays behind, and the line says
+    // so by name. A PDF says it cannot be edited; nothing else does.
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
-    const policy = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/);
 
-    expect(screen.queryByText(/leaves .* behind/)).not.toBeInTheDocument();
-    expect(screen.getByText(/reported by name, with a reason/)).toBeVisible();
+    expect(screen.getByText(/stay behind in Google, each reported by name/)).toBeVisible();
+    expect(screen.queryByText(/arrive as PDF/)).not.toBeInTheDocument();
 
-    fireEvent.change(policy, { target: { value: 'export-odf' } });
-    expect(screen.getByText(/leaves .* behind/)).toBeVisible();
-    expect(screen.queryByText(/reported by name, with a reason/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Google Docs'), { target: { value: 'export-pdf' } });
+    expect(screen.getByText(/Google Docs arrive as PDF/)).toBeVisible();
+    expect(screen.getByText(/stay behind in Google/).textContent).not.toContain('Google Docs');
   });
 
   /**
@@ -833,33 +837,31 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
    * would-drop.unit.test.ts` holds it equal to the measurements. This is the
    * half that puts it on the screen.
    */
-  it('names the kind each format leaves behind, before the choice is made', () => {
+  it('carries all four kinds, editable, one press away', () => {
+    // THE COMBINATION NO SINGLE FORMAT COULD BE: OpenDocument drops every Doc
+    // and Office every deck, so until each kind had its own select, keeping
+    // Docs editable meant losing the decks.
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
-    const policy = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/);
+    fireEvent.click(screen.getByRole('button', { name: /Use an editable format for every kind/ }));
 
-    // THE HEADLINE, and the sharpest case: the label starts with `.odt`.
-    fireEvent.change(policy, { target: { value: 'export-odf' } });
-    expect(screen.getByText(/leaves Google Docs behind/)).toBeVisible();
-
-    // A different format drops a different kind. One sentence, driven by data.
-    fireEvent.change(policy, { target: { value: 'export-office' } });
-    expect(screen.getByText(/leaves Google Slides behind/)).toBeVisible();
-    expect(screen.queryByText(/leaves Google Docs behind/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Google Docs')).toHaveValue('export-office');
+    expect(screen.getByLabelText('Google Slides')).toHaveValue('export-odf');
+    expect(screen.getByText(/All four kinds arrive as files you can edit/)).toBeVisible();
+    expect(screen.queryByText(/stay behind in Google/)).not.toBeInTheDocument();
   });
 
   it('says PDF carries everything, and what that costs', () => {
-    // The other half of the trade, and the reason this is not just a warning:
-    // there IS a format that drops nothing, and its price is the editing.
+    // The other half of the trade: there IS a format that drops nothing, and
+    // its price is the editing.
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
-    fireEvent.change(screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/), {
-      target: { value: 'export-pdf' },
-    });
+    for (const kind of ['Google Docs', 'Google Sheets', 'Google Slides', 'Google Drawings']) {
+      fireEvent.change(screen.getByLabelText(kind), { target: { value: 'export-pdf' } });
+    }
 
-    expect(screen.getByText(/Carries all four kinds/)).toBeVisible();
-    expect(screen.getByText(/None of them arrives editable/)).toBeVisible();
-    expect(screen.queryByText(/leaves .* behind/)).not.toBeInTheDocument();
+    expect(screen.getByText(/arrive as PDF, which nobody can edit afterwards/)).toBeVisible();
+    expect(screen.queryByText(/stay behind in Google/)).not.toBeInTheDocument();
   });
 
   it('keeps the long half folded, one line on screen (0118 T1)', () => {
@@ -872,18 +874,11 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
 
     expect(screen.getByText(/They have no file to copy/)).toBeVisible();
     expect(screen.getByText(/A Google Doc lives in Google, not in a file/)).not.toBeVisible();
+    // What leaving a kind behind costs is a paragraph, and it stays folded.
+    expect(screen.getByText(/Nothing is copied for them and nothing is lost/)).not.toBeVisible();
 
-    fireEvent.change(screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/), {
-      target: { value: 'export-pdf' },
-    });
-    expect(screen.getByText(/Nobody gets a Google Doc back out of a .pdf/)).not.toBeVisible();
-
-    // And the same for the line that replaced it on the other branch: what a
-    // refused kind costs is a paragraph, and it stays folded too.
-    fireEvent.change(screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/), {
-      target: { value: 'export-office' },
-    });
-    expect(screen.getByText(/do not come back the same/)).not.toBeVisible();
+    fireEvent.change(screen.getByLabelText('Google Docs'), { target: { value: 'export-pdf' } });
+    expect(screen.getByText(/A PDF is a copy of how the document looks/)).not.toBeVisible();
   });
 
   it('carries the chosen format all the way to the created mapping', async () => {
@@ -896,7 +891,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
       target: { value: 'cid.apps.googleusercontent.com' },
     });
-    fireEvent.change(screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/), {
+    fireEvent.change(screen.getByLabelText('Google Slides'), {
       target: { value: 'export-odf' },
     });
     satisfySourceStep();
@@ -912,7 +907,15 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
 
     await waitFor(() => expect(createMock).toHaveBeenCalled());
     const posted = createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
-    expect(posted.sourceConfig).toMatchObject({ nativeFilePolicy: 'export-odf' });
+    // All four kinds named, so no single format decides any of them.
+    expect(posted.sourceConfig).toMatchObject({
+      nativeFilePolicies: {
+        document: 'refuse',
+        spreadsheet: 'refuse',
+        presentation: 'export-odf',
+        drawing: 'refuse',
+      },
+    });
   });
 
   it('sends `refuse` rather than leaving the choice unsaid', async () => {
@@ -936,7 +939,14 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
 
     await waitFor(() => expect(createMock).toHaveBeenCalled());
     const posted = createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
-    expect(posted.sourceConfig).toMatchObject({ nativeFilePolicy: 'refuse' });
+    expect(posted.sourceConfig).toMatchObject({
+      nativeFilePolicies: {
+        document: 'refuse',
+        spreadsheet: 'refuse',
+        presentation: 'refuse',
+        drawing: 'refuse',
+      },
+    });
   });
 
   it('domains beyond file are not offerable for a Drive source', () => {
@@ -1219,7 +1229,7 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
    * person who came in the other one, a default with no way out.
    */
   const facts: ProviderAccountFacts = { google: { domains: ['calendar', 'contact', 'file'] } };
-  const policyBox = () => screen.queryByLabelText(/Google Docs, Sheets, Slides and Drawings/);
+  const policyBox = () => screen.queryByLabelText('Google Docs');
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1252,14 +1262,20 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
     renderWizard();
     await pickAccountCarryingFiles();
 
-    const policy = policyBox();
-    expect(policy, 'the account kind carries files through Drive and must be able to choose').not
-      .toBeNull();
-    expect(policy).toHaveValue('refuse');
-    expect(
-      [...(policy as HTMLSelectElement).options].map((o) => o.value),
-      'a format offered on one Drive-backed door and not the other is a default nobody can leave',
-    ).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
+    expect(policyBox(), 'the account kind carries files through Drive and must be able to choose')
+      .not.toBeNull();
+    // Kind by kind, the same lists the `google-drive` row offers: a format
+    // offered on one Drive-backed door and not the other is a default nobody
+    // can leave.
+    const offered = (label: string) => {
+      const select = screen.getByLabelText(label) as HTMLSelectElement;
+      expect(select, label).toHaveValue('refuse');
+      return [...select.options].map((o) => o.value);
+    };
+    expect(offered('Google Docs')).toEqual(['refuse', 'export-office', 'export-pdf']);
+    expect(offered('Google Sheets')).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
+    expect(offered('Google Slides')).toEqual(['refuse', 'export-odf', 'export-pdf']);
+    expect(offered('Google Drawings')).toEqual(['refuse', 'export-odf', 'export-pdf']);
   });
 
   it('carries the account’s chosen format all the way to the created mapping', async () => {
@@ -1271,6 +1287,7 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
     fireEvent.click(screen.getByLabelText('Calendar'));
     fireEvent.click(screen.getByLabelText('Contacts'));
     fireEvent.change(policyBox()!, { target: { value: 'export-pdf' } });
+    fireEvent.change(screen.getByLabelText('Google Slides'), { target: { value: 'export-odf' } });
     fireEvent.change(screen.getByPlaceholderText('…apps.googleusercontent.com'), {
       target: { value: 'cid.apps.googleusercontent.com' },
     });
@@ -1290,7 +1307,14 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
     expect(posted.sourceType).toBe('google');
     // The wiring that would otherwise fail silently: a chooser that changes
     // nothing looks exactly like one that works, until the Docs are missing.
-    expect(posted.sourceConfig).toMatchObject({ nativeFilePolicy: 'export-pdf' });
+    expect(posted.sourceConfig).toMatchObject({
+      nativeFilePolicies: {
+        document: 'export-pdf',
+        spreadsheet: 'refuse',
+        presentation: 'export-odf',
+        drawing: 'refuse',
+      },
+    });
     expect((posted.syncConfig as { domains: string[] }).domains).toEqual(['file']);
   });
 
@@ -1335,6 +1359,7 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
     // A Drive policy stored on a calendar migration is an answer to a question
     // nobody was asked, and one the reuse path would then inherit.
     expect(posted.sourceConfig).not.toHaveProperty('nativeFilePolicy');
+    expect(posted.sourceConfig).not.toHaveProperty('nativeFilePolicies');
   });
 
   it('is offered by no Google source that carries no files', () => {

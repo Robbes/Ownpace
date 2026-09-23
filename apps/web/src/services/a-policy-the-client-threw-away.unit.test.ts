@@ -60,6 +60,22 @@ describe('the policy survives the parse', () => {
   });
 
   /**
+   * AND THE FORMAT PER KIND (workplan 0042 T9), for the same reason: stripped
+   * here, the panel would read the single format alone and show "Office" for
+   * decks the migration exports as `.odp`.
+   */
+  it('keeps the per-kind formats off the detail payload', () => {
+    const parsed = MappingSchema.parse(
+      detailPayload({
+        username: 'owner@acme.test',
+        nativeFilePolicy: 'export-office',
+        nativeFilePolicies: { presentation: 'export-odf' },
+      }),
+    );
+    expect(parsed.sourceConfig.nativeFilePolicies).toEqual({ presentation: 'export-odf' });
+  });
+
+  /**
    * AND THE ACCOUNT IS STILL THERE. The one field this schema was carrying
    * before, printed on the hub's "From … to …" line since 2026-09-17 — proof
    * the addition did not come at its expense.

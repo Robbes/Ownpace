@@ -29,13 +29,17 @@ import { AxiosError, AxiosHeaders } from 'axios';
 import { FAILURE_GUIDANCE, type FailuresResponse, type ItemFailure } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
 
-const { setNativeFilePolicy } = vi.hoisted(() => ({ setNativeFilePolicy: vi.fn() }));
-vi.mock('../services/mapping-service', () => ({ mappingApi: { setNativeFilePolicy } }));
+const { setNativeFilePolicies } = vi.hoisted(() => ({ setNativeFilePolicies: vi.fn() }));
+vi.mock('../services/mapping-service', () => ({ mappingApi: { setNativeFilePolicies } }));
 
 const { fetchFailures } = vi.hoisted(() => ({ fetchFailures: vi.fn() }));
 vi.mock('../services/operating-service', () => ({ fetchFailures }));
 
-import ExportPolicyPanel, { policyInForce, refusedByPolicy } from './ExportPolicyPanel.tsx';
+import ExportPolicyPanel, {
+  policiesInForce,
+  policyInForce,
+  refusedByPolicy,
+} from './ExportPolicyPanel.tsx';
 
 /** One failure row, with the field the count reads and enough to be a row. */
 const failure = (over: Partial<ItemFailure> & { naturalKeyHash: string }): ItemFailure => ({
@@ -103,19 +107,27 @@ beforeEach(() => {
   // The default for every test that is not about the count: the queue is not
   // readable, so the sentence keeps its number-free wording.
   fetchFailures.mockRejectedValue(new Error('no queue in this test'));
-  setNativeFilePolicy.mockResolvedValue({
+  setNativeFilePolicies.mockResolvedValue({
     id: 'm-1',
-    sourceConfig: { nativeFilePolicy: 'export-pdf' },
+    sourceConfig: { nativeFilePolicies: { document: 'export-pdf' } },
     updatedAt: '2026-09-18T20:00:00.000Z',
   });
 });
 
-/** Choose a policy and press save — the two steps every count test needs. */
+/** The select for one kind, by the name the reader sees beside it. */
+const docs = () => screen.getByLabelText(EN['discovery.refusedNative.kind.document']);
+
+/** Every kind left behind but the Docs, which go as `docsAs`. */
+const onlyDocs = (docsAs: string) => ({
+  document: docsAs,
+  spreadsheet: 'refuse',
+  presentation: 'refuse',
+  drawing: 'refuse',
+});
+
+/** Choose PDF for the Docs and press save — the two steps every count test needs. */
 async function saveExportPdf() {
-  await userEvent.selectOptions(
-    screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
-    'export-pdf',
-  );
+  await userEvent.selectOptions(docs(), 'export-pdf');
   await userEvent.click(
     screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
   );
@@ -161,13 +173,35 @@ describe('the policy in force', () => {
   });
 
   it.each(['export-odf', 'export-office', 'export-pdf'] as const)(
-    'shows %s when that is what the mapping holds',
+    'shows %s for every kind when that is the one format the mapping holds',
     (policy) => {
-      renderPanel({ current: policy });
-      const select = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i);
-      expect((select as HTMLSelectElement).value).toBe(policy);
+      renderPanel({ current: { nativeFilePolicy: policy } });
+      for (const kind of ['document', 'spreadsheet', 'presentation', 'drawing'] as const) {
+        const select = screen.getByLabelText(EN[`discovery.refusedNative.kind.${kind}`]);
+        expect((select as HTMLSelectElement).value, kind).toBe(policy);
+      }
     },
   );
+
+  /**
+   * A KIND'S OWN FORMAT WINS (workplan 0042 T9), as it does in the engine: a
+   * panel showing "Office" for decks that go out as `.odp` would be offering a
+   * change away from something the migration never did.
+   */
+  it('shows each kind’s own format over the single one', () => {
+    renderPanel({
+      current: { nativeFilePolicy: 'export-office', nativeFilePolicies: { presentation: 'export-odf' } },
+    });
+    const slides = screen.getByLabelText(EN['discovery.refusedNative.kind.presentation']);
+    expect((slides as HTMLSelectElement).value).toBe('export-odf');
+    expect((docs() as HTMLSelectElement).value).toBe('export-office');
+    expect(policiesInForce({ nativeFilePolicies: { drawing: 'export-pdf' } })).toEqual({
+      document: 'refuse',
+      spreadsheet: 'refuse',
+      presentation: 'refuse',
+      drawing: 'export-pdf',
+    });
+  });
 });
 
 describe('before the press', () => {
@@ -177,12 +211,9 @@ describe('before the press', () => {
    * looks exactly the same.
    */
   it('cannot be pressed until the choice differs from what is in force', async () => {
-    renderPanel({ current: 'export-pdf' });
+    renderPanel({ current: { nativeFilePolicy: 'export-pdf' } });
     expect(screen.getByRole('button', { name: EN['settings.exportPolicy.save'] })).toBeDisabled();
-    await userEvent.selectOptions(
-      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
-      'export-odf',
-    );
+    await userEvent.selectOptions(docs(), 'export-office');
     expect(
       screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
     ).toBeEnabled();
@@ -196,12 +227,9 @@ describe('before the press', () => {
    * before they choose, not discover it about their own migration afterwards.
    */
   it('states what will NOT change, once a change is actually proposed', async () => {
-    renderPanel({ current: 'refuse' });
+    renderPanel({ current: { nativeFilePolicy: 'refuse' } });
     expect(screen.queryByText(EN['settings.exportPolicy.consequence'])).toBeNull();
-    await userEvent.selectOptions(
-      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
-      'export-pdf',
-    );
+    await userEvent.selectOptions(docs(), 'export-pdf');
     expect(screen.getByText(EN['settings.exportPolicy.consequence'])).toBeInTheDocument();
     // What the new names do to the copies already there, before the save
     // (0042 T8 (b), the owner: "The export-format setting says this before you
@@ -209,21 +237,22 @@ describe('before the press', () => {
     expect(EN['settings.exportPolicy.consequence']).toMatch(/copied under their new names/);
     expect(EN['settings.exportPolicy.consequence']).toMatch(/Old copies stay, listed as earlier exports/);
     // And it is there BEFORE anything is sent.
-    expect(setNativeFilePolicy).not.toHaveBeenCalled();
+    expect(setNativeFilePolicies).not.toHaveBeenCalled();
   });
 });
 
 describe('the press', () => {
-  it('sends the chosen policy and says it landed', async () => {
-    renderPanel({ current: 'refuse' });
-    await userEvent.selectOptions(
-      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
-      'export-pdf',
-    );
+  it('sends a format for every kind and says it landed', async () => {
+    renderPanel({ current: { nativeFilePolicy: 'refuse' } });
+    await userEvent.selectOptions(docs(), 'export-pdf');
     await userEvent.click(
       screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
     );
-    await waitFor(() => expect(setNativeFilePolicy).toHaveBeenCalledWith('m-1', 'export-pdf'));
+    // All four named, so the single format the migration may also hold decides
+    // nothing about them.
+    await waitFor(() =>
+      expect(setNativeFilePolicies).toHaveBeenCalledWith('m-1', onlyDocs('export-pdf')),
+    );
     expect(await screen.findByText(EN['settings.exportPolicy.saved'])).toBeInTheDocument();
   });
 
@@ -236,11 +265,8 @@ describe('the press', () => {
    * group, so this is a link to it and not a second button.
    */
   it('points at the failures already recorded, rather than reopening them', async () => {
-    renderPanel({ current: 'refuse' });
-    await userEvent.selectOptions(
-      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
-      'export-pdf',
-    );
+    renderPanel({ current: { nativeFilePolicy: 'refuse' } });
+    await userEvent.selectOptions(docs(), 'export-pdf');
     await userEvent.click(
       screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
     );
@@ -261,7 +287,7 @@ describe('a refusal is a refusal', () => {
    * one thing that must not happen is for it to look like a save that worked.
    */
   it('renders every reason the server refused, and does not claim a save', async () => {
-    setNativeFilePolicy.mockRejectedValue(
+    setNativeFilePolicies.mockRejectedValue(
       axiosError(409, {
         error: 'revision_refused',
         message: 'Some of what was asked for cannot change.',
@@ -271,11 +297,8 @@ describe('a refusal is a refusal', () => {
         ],
       }),
     );
-    renderPanel({ current: 'refuse' });
-    await userEvent.selectOptions(
-      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
-      'export-pdf',
-    );
+    renderPanel({ current: { nativeFilePolicy: 'refuse' } });
+    await userEvent.selectOptions(docs(), 'export-pdf');
     await userEvent.click(
       screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
     );
@@ -302,14 +325,14 @@ describe('a refusal is a refusal', () => {
    * the old reasons still under a screen that says the save landed.
    */
   it('clears the last refusal when the next press succeeds', async () => {
-    setNativeFilePolicy.mockRejectedValueOnce(
+    setNativeFilePolicies.mockRejectedValueOnce(
       axiosError(409, {
         error: 'revision_refused',
         refused: [{ field: 'source.type', reason: 'The system this migration copies FROM…' }],
       }),
     );
-    renderPanel({ current: 'refuse' });
-    const select = screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i);
+    renderPanel({ current: { nativeFilePolicy: 'refuse' } });
+    const select = docs();
     const press = () =>
       userEvent.click(screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }));
 
@@ -317,7 +340,7 @@ describe('a refusal is a refusal', () => {
     await press();
     expect(await screen.findByText('The system this migration copies FROM…')).toBeInTheDocument();
 
-    await userEvent.selectOptions(select, 'export-odf');
+    await userEvent.selectOptions(select, 'export-office');
     await press();
     expect(await screen.findByText(EN['settings.exportPolicy.saved'])).toBeInTheDocument();
     expect(screen.queryByText('The system this migration copies FROM…')).toBeNull();
@@ -329,14 +352,11 @@ describe('a refusal is a refusal', () => {
    * words the route wrote for this moment.
    */
   it('shows the server’s sentence for a refusal that is not a revision one', async () => {
-    setNativeFilePolicy.mockRejectedValue(
+    setNativeFilePolicies.mockRejectedValue(
       axiosError(400, { error: 'Validation error', message: 'nativeFilePolicy: unsupported' }),
     );
-    renderPanel({ current: 'refuse' });
-    await userEvent.selectOptions(
-      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
-      'export-pdf',
-    );
+    renderPanel({ current: { nativeFilePolicy: 'refuse' } });
+    await userEvent.selectOptions(docs(), 'export-pdf');
     await userEvent.click(
       screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }),
     );
@@ -381,7 +401,7 @@ describe('how many were refused by the format it had (0125 T5)', () => {
         failure({ naturalKeyHash: 'd', category: 'quota_exceeded' }),
       ]),
     );
-    renderPanel({ current: 'refuse' });
+    renderPanel({ current: { nativeFilePolicy: 'refuse' } });
     await saveExportPdf();
 
     expect(
@@ -399,7 +419,7 @@ describe('how many were refused by the format it had (0125 T5)', () => {
    */
   it('keeps the number-free sentence when the queue could not be read', async () => {
     fetchFailures.mockRejectedValue(new Error('the queue did not answer'));
-    const { qc } = renderPanel({ current: 'refuse' });
+    const { qc } = renderPanel({ current: { nativeFilePolicy: 'refuse' } });
     await saveExportPdf();
 
     // Settled in FAILURE, so there is nothing to count and never will be.
@@ -418,7 +438,7 @@ describe('how many were refused by the format it had (0125 T5)', () => {
    */
   it('keeps the number-free sentence, and the link, when the count is zero', async () => {
     fetchFailures.mockResolvedValue(queueOf([failure({ naturalKeyHash: 'a', category: 'unknown' })]));
-    const { qc } = renderPanel({ current: 'refuse' });
+    const { qc } = renderPanel({ current: { nativeFilePolicy: 'refuse' } });
     await saveExportPdf();
 
     // The queue ARRIVED and held none. Waiting for that is the whole point:
@@ -440,11 +460,8 @@ describe('how many were refused by the format it had (0125 T5)', () => {
    */
   it('asks for nothing until a save has landed', async () => {
     fetchFailures.mockResolvedValue(queueOf([]));
-    renderPanel({ current: 'refuse' });
-    await userEvent.selectOptions(
-      screen.getByLabelText(/Google Docs, Sheets, Slides and Drawings/i),
-      'export-pdf',
-    );
+    renderPanel({ current: { nativeFilePolicy: 'refuse' } });
+    await userEvent.selectOptions(docs(), 'export-pdf');
     expect(fetchFailures).not.toHaveBeenCalled();
   });
 });

@@ -290,7 +290,7 @@ const MappingDetail: React.FC = () => {
           mappingId={id}
           sourceType={detail.data.sourceType}
           domains={detail.data.syncConfig.domains}
-          current={detail.data.sourceConfig.nativeFilePolicy}
+          current={detail.data.sourceConfig}
         />
       )}
 

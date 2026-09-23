@@ -1,155 +1,259 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
  * WHAT HAPPENS TO GOOGLE DOCS, SHEETS, SLIDES AND DRAWINGS — the one control,
- * wherever the question is asked (workplan 0042 T0 Q3, extracted for 0125 T3).
+ * wherever the question is asked (workplan 0042 T0 Q3, extracted for 0125 T3,
+ * a format per kind since 0042 T9).
  *
  * A folder of them is not an edge case — it is most people's Drive — and until
  * this control existed the answer was decided by a default the owner never saw.
  * They found out when the failure queue filled with files they thought had
  * migrated.
  *
+ * ## One format per KIND, not per migration
+ *
+ * It offered one `<select>` for all four kinds, and no editable format carries
+ * all four: OpenDocument leaves every Doc behind and Microsoft Office every
+ * Slides deck, measured (0042 T3). So somebody who wanted their Docs editable
+ * in Word and their decks at all had to choose which kind to lose. The owner's
+ * decision, 2026-09-23: *"a per kind choice makes more sense for the
+ * fileformats. Split that up."* Each kind now has its own select, offering only
+ * the formats that carry it, and Office for Docs, Sheets and Drawings with
+ * OpenDocument for Slides leaves nothing behind.
+ *
  * ## Why it is a component and not a method on the wizard
  *
- * There are now TWO places the question is asked: the creation wizard, and the
+ * There are TWO places the question is asked: the creation wizard, and the
  * migration's own settings once it is running. 0125 exists because those two
  * disagreed — the appliance could change this setting and had no picker,
  * managed had a picker and could not change it — and hard rule 5 is the rule
- * that was being broken. Building a second `<select>` for the settings panel
- * would fix the missing screen and reintroduce the same class of defect one
- * level up: two choosers, drifting, and a person told different things about
- * their Docs depending on which one they happened to read.
+ * that was being broken. A second chooser for the settings panel would fix the
+ * missing screen and reintroduce the same class of defect one level up.
  *
- * So there is one chooser, and both arrivals render it. A guard holds its
- * options against `NATIVE_POLICY_COVERAGE`, so a policy that gets measured and
- * added cannot reach one screen and not the other.
+ * So there is one chooser, and both arrivals render it. A guard holds each
+ * kind's options against `NATIVE_POLICY_COVERAGE`, so a format that gets
+ * measured cannot reach one screen and not the other.
  *
- * ## The lossy sentence is not a warning to click past
+ * ## The lines under the selects are read off the choice
  *
- * An export is a RENDERING — nobody gets a Google Doc back out of an .odt — and
- * an owner who learns that after cutover learns it too late. Which is also why
- * the coverage line below the select is read off the measurements rather than
- * written by hand: a cell that changes colour changes this sentence, and nobody
- * has to remember to.
+ * An export is a RENDERING — nobody gets a Google Doc back out of an .odt —
+ * and an owner who learns that after cutover learns it too late. So what the
+ * choice leaves behind, and what arrives as a PDF nobody can edit, is said
+ * under the selects, from the same tables the selects are built from.
  */
 import React from 'react';
 import {
-  policyLeavesBehind,
+  GOOGLE_EDITOR_KINDS,
+  NATIVE_POLICY_COVERAGE,
+  NATIVE_POLICY_EXTENSIONS,
+  type GoogleEditorKind,
   type GoogleNativeFilePolicy,
 } from '@openmig/shared';
 import { useT } from '../i18n/index.tsx';
 import { nativeKindKey } from '../i18n/native-kind-key.ts';
 import { Hint } from './Hint.tsx';
 
+/** The format each Google kind is exported in: what this control shows and sets. */
+export type NativeFilePolicyByKind = Readonly<Record<GoogleEditorKind, GoogleNativeFilePolicy>>;
+
+type ExportPolicy = Exclude<GoogleNativeFilePolicy, 'refuse'>;
+
 /**
- * The four this control offers, `refuse` first and selected by default.
+ * Every kind left behind — what a migration nobody has chosen for does, and
+ * so what the wizard starts from.
  *
  * Of the two ways this can disappoint somebody — "your Docs did not migrate,
  * and here is why" and "your Docs arrived as something you cannot edit" — only
  * the first is one they can still act on.
- *
- * Exported so the guard can hold it against the measured table AND against the
- * parser both editions validate with, from the outside.
  */
-export const NATIVE_FILE_POLICY_OPTIONS: ReadonlyArray<{
-  readonly value: GoogleNativeFilePolicy;
-  readonly labelKey:
-    | 'wizard.nativePolicy.refuse'
-    | 'wizard.nativePolicy.odf'
-    | 'wizard.nativePolicy.office'
-    | 'wizard.nativePolicy.pdf';
-}> = [
-  { value: 'refuse', labelKey: 'wizard.nativePolicy.refuse' },
-  { value: 'export-odf', labelKey: 'wizard.nativePolicy.odf' },
-  { value: 'export-office', labelKey: 'wizard.nativePolicy.office' },
-  { value: 'export-pdf', labelKey: 'wizard.nativePolicy.pdf' },
-];
-
-/**
- * WHICH OF THEIR FILES THIS FORMAT WILL ACTUALLY LEAVE BEHIND.
- *
- * The line that used to sit here said an export is a rendering rather than the
- * original — true of all three formats, and silent about the one difference
- * between them that decides whether a file moves at all: OpenDocument leaves
- * every Google Doc behind and Microsoft Office leaves every Slides deck behind,
- * measured (0042 T3). A person picking "OpenDocument — .odt, .ods, .odp" was
- * choosing, unknowingly, to drop the kind of file that label starts with.
- *
- * They did find out — at discovery, and per file in the failures queue. Both
- * are after the choice, and the second is after the run.
- */
-const PolicyCoverage: React.FC<{ policy: Exclude<GoogleNativeFilePolicy, 'refuse'> }> = ({
-  policy,
-}) => {
-  const t = useT();
-  const dropped = policyLeavesBehind(policy);
-  if (dropped.length === 0) {
-    return (
-      <Hint
-        text={t('wizard.nativePolicy.carriesAll')}
-        why={t('wizard.nativePolicy.carriesAll.why')}
-      />
-    );
-  }
-  return (
-    <Hint
-      // `caution`, like the other line somebody must read before typing: this
-      // one says files will not move, and on the wizard it is the last screen
-      // where that is still a choice.
-      tone="caution"
-      text={t('wizard.nativePolicy.drops', {
-        kinds: dropped.map((kind) => t(nativeKindKey(kind))).join(', '),
-      })}
-      why={t('wizard.nativePolicy.drops.why')}
-    />
-  );
+export const LEAVE_ALL_BEHIND: NativeFilePolicyByKind = {
+  document: 'refuse',
+  spreadsheet: 'refuse',
+  presentation: 'refuse',
+  drawing: 'refuse',
 };
 
+/** One entry in a kind's select, beside "Leave behind". */
+export interface NativeFormatChoice {
+  readonly policy: ExportPolicy;
+  /** What the file lands as, such as `.docx`. */
+  readonly extension: string;
+  /**
+   * False only for the format in force when it does not carry this kind — a
+   * deck under a migration-wide Office setting. It is shown, as left behind,
+   * so the select says what the migration does rather than something nearer
+   * to what it might have meant.
+   */
+  readonly carries: boolean;
+}
+
+/**
+ * The formats a kind's select offers: each one that carries the kind, by the
+ * measured table, and the one in force whatever it is.
+ *
+ * ONE ENTRY PER FILE, not per policy. A Drawing is an `.svg` under both
+ * OpenDocument and Office, and two entries for the same file would ask
+ * somebody to choose between identical results. The entry stands for the
+ * policy in force where that is one of them, so opening the page and saving
+ * changes nothing the person did not change.
+ */
+export function formatChoicesFor(
+  kind: GoogleEditorKind,
+  inForce: GoogleNativeFilePolicy,
+): ReadonlyArray<NativeFormatChoice> {
+  const choices: NativeFormatChoice[] = [];
+  for (const policy of Object.keys(NATIVE_POLICY_COVERAGE) as ExportPolicy[]) {
+    const carries = NATIVE_POLICY_COVERAGE[policy].includes(kind);
+    if (!carries && policy !== inForce) continue;
+    const extension = NATIVE_POLICY_EXTENSIONS[policy][kind];
+    const same = choices.findIndex((c) => c.extension === extension && c.carries === carries);
+    if (same === -1) choices.push({ policy, extension, carries });
+    else if (policy === inForce) choices[same] = { policy, extension, carries };
+  }
+  return choices;
+}
+
+/**
+ * An editable format for every kind that has one: the one it is already in
+ * where that is editable and carries it, otherwise Microsoft Office where it
+ * carries the kind, OpenDocument where Office does not, and PDF only for a
+ * kind neither carries.
+ *
+ * A kind already in an editable format keeps it, so the press changes only
+ * what is left behind or arriving as a PDF: a Drawing's `.svg` under
+ * OpenDocument is the same file under Office, and switching it would count as
+ * a change of format that changes nothing.
+ *
+ * Read off the measured table rather than written down, so the day a format
+ * is measured differently this follows it. Office first because it is what the
+ * owner's own migration already uses for Docs and Sheets.
+ */
+export function editableFormats(
+  current: NativeFilePolicyByKind = LEAVE_ALL_BEHIND,
+): NativeFilePolicyByKind {
+  const editable = (policy: GoogleNativeFilePolicy, kind: GoogleEditorKind) =>
+    policy !== 'refuse' && policy !== 'export-pdf' && NATIVE_POLICY_COVERAGE[policy].includes(kind);
+  const pick = (kind: GoogleEditorKind): GoogleNativeFilePolicy =>
+    editable(current[kind], kind)
+      ? current[kind]
+      : ((['export-office', 'export-odf'] as const).find((policy) => editable(policy, kind)) ??
+        'export-pdf');
+  return {
+    document: pick('document'),
+    spreadsheet: pick('spreadsheet'),
+    presentation: pick('presentation'),
+    drawing: pick('drawing'),
+  };
+}
+
+/** The kinds this choice leaves behind: set to leave, or to a format that does not carry them. */
+export function kindsLeftBehind(value: NativeFilePolicyByKind): ReadonlyArray<GoogleEditorKind> {
+  return GOOGLE_EDITOR_KINDS.filter((kind) => {
+    const policy = value[kind];
+    return policy === 'refuse' || !NATIVE_POLICY_COVERAGE[policy].includes(kind);
+  });
+}
+
+/** The kinds this choice copies as a PDF, which nobody can edit afterwards. */
+export function kindsAsPdf(value: NativeFilePolicyByKind): ReadonlyArray<GoogleEditorKind> {
+  return GOOGLE_EDITOR_KINDS.filter((kind) => value[kind] === 'export-pdf');
+}
+
+function useChoiceLabel(): (choice: NativeFormatChoice) => string {
+  const t = useT();
+  return (choice) => {
+    const ext = choice.extension;
+    const format =
+      choice.policy === 'export-pdf'
+        ? t('wizard.nativePolicy.as.pdf', { ext })
+        : ext === '.svg'
+          ? t('wizard.nativePolicy.as.image', { ext })
+          : choice.policy === 'export-odf'
+            ? t('wizard.nativePolicy.as.odf', { ext })
+            : t('wizard.nativePolicy.as.office', { ext });
+    return choice.carries ? format : t('wizard.nativePolicy.as.leftBehind', { format });
+  };
+}
+
 export const NativeFilePolicyChooser: React.FC<{
-  /** The policy in force. A value this control does not offer shows as `refuse`. */
-  value: string;
-  onChange: (next: GoogleNativeFilePolicy) => void;
+  /** The format in force for each kind. */
+  value: NativeFilePolicyByKind;
+  onChange: (next: NativeFilePolicyByKind) => void;
   /** While a save is in flight. */
   disabled?: boolean;
   /**
-   * The select's DOM id, which its label points at. Defaulted rather than
-   * required because the wizard has exactly one; the settings panel passes its
-   * own so two of these on one page could never share an id.
+   * The prefix of each select's DOM id, which its label points at. Defaulted
+   * because the wizard has one chooser; the settings panel passes its own so
+   * two on one page could never share an id.
    */
   id?: string;
 }> = ({ value, onChange, disabled, id = 'native-file-policy' }) => {
   const t = useT();
+  const label = useChoiceLabel();
+  const names = (kinds: ReadonlyArray<GoogleEditorKind>) =>
+    kinds.map((kind) => t(nativeKindKey(kind))).join(', ');
+  const behind = kindsLeftBehind(value);
+  const asPdf = kindsAsPdf(value);
   return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700" htmlFor={id}>
-        {t('wizard.nativePolicy')}
-      </label>
-      {/* One line, the rest folded (0118 T1). Three thoughts belong here —
-          what these are, what an export costs, what happens if you decline —
-          and showing all three at once is the thing that rule exists to
-          stop. */}
+    <fieldset>
+      <legend className="block text-sm font-medium text-gray-700">{t('wizard.nativePolicy')}</legend>
+      {/* One line, the rest folded (0118 T1). */}
       <Hint text={t('wizard.nativePolicy.hint')} why={t('wizard.nativePolicy.hint.why')} />
-      <select
-        id={id}
-        className="input w-full mt-2"
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value as GoogleNativeFilePolicy)}
-      >
-        {NATIVE_FILE_POLICY_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {t(o.labelKey)}
-          </option>
+      <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
+        {GOOGLE_EDITOR_KINDS.map((kind) => (
+          <React.Fragment key={kind}>
+            <label className="text-sm text-gray-700" htmlFor={`${id}-${kind}`}>
+              {t(nativeKindKey(kind))}
+            </label>
+            <select
+              id={`${id}-${kind}`}
+              className="input w-full"
+              value={value[kind]}
+              disabled={disabled}
+              onChange={(e) =>
+                onChange({ ...value, [kind]: e.target.value as GoogleNativeFilePolicy })
+              }
+            >
+              <option value="refuse">{t('wizard.nativePolicy.leave')}</option>
+              {formatChoicesFor(kind, value[kind]).map((choice) => (
+                <option key={choice.policy} value={choice.policy}>
+                  {label(choice)}
+                </option>
+              ))}
+            </select>
+          </React.Fragment>
         ))}
-      </select>
-      {value === 'refuse' ? (
+      </div>
+      <button
+        type="button"
+        className="mt-2 text-sm font-medium text-blue-700 hover:underline disabled:opacity-50"
+        disabled={disabled}
+        onClick={() => onChange(editableFormats(value))}
+      >
+        {t('wizard.nativePolicy.editable')}
+      </button>
+      {behind.length > 0 && (
+        // `caution`, like the other line somebody must read before typing:
+        // it says files will not move, and on the wizard it is the last screen
+        // where that is still a choice.
         <Hint
-          text={t('wizard.nativePolicy.unmeasured')}
-          why={t('wizard.nativePolicy.unmeasured.why')}
+          tone="caution"
+          text={t('wizard.nativePolicy.leftBehind', { kinds: names(behind) })}
+          why={t('wizard.nativePolicy.leftBehind.why')}
         />
-      ) : (
-        <PolicyCoverage policy={value as Exclude<GoogleNativeFilePolicy, 'refuse'>} />
       )}
-    </div>
+      {asPdf.length > 0 && (
+        <Hint
+          text={t('wizard.nativePolicy.notEditable', { kinds: names(asPdf) })}
+          why={t('wizard.nativePolicy.notEditable.why')}
+        />
+      )}
+      {behind.length === 0 && asPdf.length === 0 && (
+        <Hint
+          text={t('wizard.nativePolicy.allEditable')}
+          why={t('wizard.nativePolicy.allEditable.why')}
+        />
+      )}
+    </fieldset>
   );
 };
 

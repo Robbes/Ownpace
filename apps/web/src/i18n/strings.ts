@@ -446,26 +446,29 @@ const en = {
     'They have no file to copy, only a rendering Google makes.',
   'wizard.nativePolicy.hint.why':
     'A Google Doc lives in Google, not in a file: there is nothing to copy across. Drive can render one as a document or a PDF, and that rendering is what would arrive. Leaving them behind is the alternative, and the default.',
-  'wizard.nativePolicy.refuse': 'Leave them behind, and tell me about each one',
-  'wizard.nativePolicy.odf': 'OpenDocument — .odt, .ods, .odp (drawings as .svg)',
-  'wizard.nativePolicy.office': 'Microsoft Office — .docx, .xlsx, .pptx (drawings as .svg)',
-  'wizard.nativePolicy.pdf': 'PDF — everything as .pdf',
-  // WHAT THIS FORMAT WILL ACTUALLY LEAVE BEHIND, on the screen where the choice
-  // is made. Measured, not guessed: `NATIVE_POLICY_COVERAGE` derives these from
-  // `EXPORT_STABILITY`, and a guard fails the build if the two disagree. Until
-  // 2026-09-17 this said only that an export is lossy — true of all three, and
-  // silent about the one difference between them that drops files.
-  'wizard.nativePolicy.drops': 'This format leaves {kinds} behind. They stay where they are.',
-  'wizard.nativePolicy.drops.why':
-    'Two exports of an unchanged file of that kind do not come back the same, so copying it would mean re-copying it on every pass, for ever. It is left behind instead and reported by name, exactly as if you had chosen to leave everything. Every other kind here is carried — as a rendering, not the original: fine formatting can shift, and drawings arrive as .svg because Drive offers nothing editable for them. PDF is the one format measured to carry all four, at the cost that nothing arrives editable. One choice covers the whole migration; you can change it later, though files already copied keep the format they arrived in.',
-  'wizard.nativePolicy.carriesAll':
-    'Carries all four kinds. None of them arrives editable again.',
-  'wizard.nativePolicy.carriesAll.why':
-    'This is the trade: the formats that stay editable each drop a whole kind of file, and the one that drops nothing is a PDF. Nobody gets a Google Doc back out of a .pdf — the export is a copy of how the document looks, and fine formatting can shift. One choice covers the whole migration; you can change it later, though files already copied keep the format they arrived in.',
-  'wizard.nativePolicy.unmeasured':
-    'Each one is reported by name, with a reason, for you to decide.',
-  'wizard.nativePolicy.unmeasured.why':
-    'Nothing is copied and nothing is lost: each Doc, Sheet, Slide and Drawing appears in the failure queue with its name, and you accept or retry them one at a time or all at once. Forms, My Maps, Sites and Apps Scripts always land here — Google can export those in no format at all.',
+  // ONE SELECT PER KIND (0042 T9; the owner, 2026-09-23: "a per kind choice
+  // makes more sense for the fileformats. Split that up."). Each select offers
+  // only the formats measured to carry that kind, so nothing on the list leaves
+  // its kind behind while looking as though it would copy it.
+  'wizard.nativePolicy.leave': 'Leave behind, and report each one',
+  'wizard.nativePolicy.as.odf': 'OpenDocument ({ext})',
+  'wizard.nativePolicy.as.office': 'Microsoft Office ({ext})',
+  'wizard.nativePolicy.as.pdf': 'PDF ({ext}), not editable',
+  'wizard.nativePolicy.as.image': 'Image ({ext})',
+  // The format in force for a kind it does not carry, shown as what it does.
+  'wizard.nativePolicy.as.leftBehind': '{format}: left behind',
+  'wizard.nativePolicy.editable': 'Use an editable format for every kind',
+  // WHAT THE CHOICE LEAVES BEHIND, AND WHAT CANNOT BE EDITED, on the screen
+  // where it is made. Read off the same tables the selects are built from.
+  'wizard.nativePolicy.leftBehind': '{kinds} stay behind in Google, each reported by name.',
+  'wizard.nativePolicy.leftBehind.why':
+    'Nothing is copied for them and nothing is lost: each one appears on the Failures screen with its name, and you accept or retry them one at a time or all at once. A format missing from a kind’s list was measured not to come back the same from two exports of an unchanged file, and is not offered for that kind. Forms, My Maps, Sites and Apps Scripts always stay behind: Google can export those in no format at all.',
+  'wizard.nativePolicy.notEditable': '{kinds} arrive as PDF, which nobody can edit afterwards.',
+  'wizard.nativePolicy.notEditable.why':
+    'A PDF is a copy of how the document looks: nobody gets a Google Doc back out of it, and fine formatting can shift. It is the one format measured to carry all four kinds, so it is the way out for a kind you want copied but not in an editable format.',
+  'wizard.nativePolicy.allEditable': 'All four kinds arrive as files you can edit.',
+  'wizard.nativePolicy.allEditable.why':
+    'Each arrives as a rendering Google makes, not the original: fine formatting can shift, and drawings arrive as .svg images because Drive offers no editable drawing format. You can change a format later; files already copied keep the format they arrived in.',
   // THE SETTINGS PANEL ON A RUNNING MIGRATION (0125 T3) — the screen behind the
   // remedy `policy_refused` prints per item: *"set an export policy on the
   // mapping"*. It named an action the product did not have; these are the words
@@ -483,7 +486,7 @@ const en = {
   // already there (the owner, 2026-09-23: "The export-format setting says this
   // before you save").
   'settings.exportPolicy.consequence':
-    'Google documents are copied under their new names. Old copies stay, listed as earlier exports.',
+    'Changed kinds are copied under their new names. Old copies stay, listed as earlier exports.',
   'settings.exportPolicy.consequence.why':
     'A Google document has no file name of its own: its format gives it one (Report.docx, Report.odt), and the name is how a migration recognises a file. So under a new format the next pass copies each document under its new name. Nothing on the new system is rewritten or removed: a copy made in the old format stays where it is, and the Deletions screen lists it as an earlier export, never as deleted in Google. Keep it, or remove it yourself on the new system. Where a new format gives a document the same name, each copy records which format it was made under, so a later pass reads the change as a format change and never as an edit.',
   // WHAT HAPPENS TO THE FILES THE OLD FORMAT REFUSED (0125 T5, and since 0042
@@ -2519,7 +2522,7 @@ const nl: Record<keyof typeof en, string> = {
   'settings.exportPolicy.saving': 'Opslaan…',
   'settings.exportPolicy.saved': 'Opgeslagen. De volgende ronde gebruikt het.',
   'settings.exportPolicy.consequence':
-    'Google-documenten worden onder hun nieuwe namen gekopieerd. Oude kopieën blijven, vermeld als eerdere exports.',
+    'Gewijzigde soorten worden onder hun nieuwe namen gekopieerd. Oude kopieën blijven, vermeld als eerdere exports.',
   'settings.exportPolicy.consequence.why':
     'Een Google-document heeft geen eigen bestandsnaam: het formaat geeft het er een (Rapport.docx, Rapport.odt), en aan de naam herkent een migratie een bestand. Onder een nieuw formaat kopieert de volgende ronde dus elk document onder de nieuwe naam. Op het nieuwe systeem wordt niets herschreven of verwijderd: een kopie in het oude formaat blijft staan, en het scherm Verwijderingen vermeldt die als eerdere export, nooit als verwijderd in Google. Behoud hem, of verwijder hem zelf op het nieuwe systeem. Geeft een nieuw formaat een document dezelfde naam, dan staat bij elke kopie onder welk formaat die is gemaakt, dus een latere ronde leest de wijziging als een formaatwijziging en nooit als een bewerking.',
   'settings.exportPolicy.refusedBefore':
@@ -2557,20 +2560,22 @@ const nl: Record<keyof typeof en, string> = {
     'Hiervan is geen bestand te kopiëren, alleen een weergave van Google.',
   'wizard.nativePolicy.hint.why':
     'Een Google-document staat bij Google, niet in een bestand: er is niets om over te zetten. Drive kan er een document of een PDF van maken, en díe weergave zou aankomen. Ze laten staan is het alternatief, en de standaard.',
-  'wizard.nativePolicy.refuse': 'Laat ze staan en meld ze stuk voor stuk',
-  'wizard.nativePolicy.odf': 'OpenDocument — .odt, .ods, .odp (tekeningen als .svg)',
-  'wizard.nativePolicy.office': 'Microsoft Office — .docx, .xlsx, .pptx (tekeningen als .svg)',
-  'wizard.nativePolicy.pdf': 'PDF — alles als .pdf',
-  'wizard.nativePolicy.drops': 'Dit formaat laat {kinds} staan. Die blijven waar ze zijn.',
-  'wizard.nativePolicy.drops.why':
-    'Twee exports van zo’n ongewijzigd bestand komen niet hetzelfde terug, dus kopiëren zou betekenen dat het bij elke ronde opnieuw wordt gekopieerd, eindeloos. Het blijft daarom staan en wordt met naam gemeld, net alsof u had gekozen alles te laten staan. Elke andere soort hier gaat wel mee — als weergave, niet als origineel: fijne opmaak kan verschuiven, en tekeningen komen aan als .svg omdat Google daar niets bewerkbaars voor aanbiedt. PDF is het enige formaat waarvan gemeten is dat het alle vier meeneemt, tegen de prijs dat niets bewerkbaar aankomt. Eén keuze geldt voor de hele migratie; u kunt hem later wijzigen, al houden al gekopieerde bestanden het formaat waarin ze aankwamen.',
-  'wizard.nativePolicy.carriesAll': 'Neemt alle vier de soorten mee. Geen daarvan komt bewerkbaar aan.',
-  'wizard.nativePolicy.carriesAll.why':
-    'Dat is de afweging: de formaten die bewerkbaar blijven laten elk een hele soort bestanden staan, en het formaat dat niets laat staan is een PDF. Uit een .pdf komt nooit weer een Google-document — de export legt vast hoe het document eruitziet, en fijne opmaak kan verschuiven. Eén keuze geldt voor de hele migratie; u kunt hem later wijzigen, al houden al gekopieerde bestanden het formaat waarin ze aankwamen.',
-  'wizard.nativePolicy.unmeasured':
-    'Elk bestand wordt met naam en reden gemeld, zodat u beslist.',
-  'wizard.nativePolicy.unmeasured.why':
-    'Er wordt niets gekopieerd en niets gaat verloren: elk document, elke spreadsheet, presentatie en tekening verschijnt met naam in de wachtrij, en u accepteert of probeert ze per stuk of in één keer. Formulieren, My Maps, Sites en Apps Scripts komen hier altijd terecht — die kan Google in geen enkel formaat exporteren.',
+  'wizard.nativePolicy.leave': 'Laten staan, en elk bestand melden',
+  'wizard.nativePolicy.as.odf': 'OpenDocument ({ext})',
+  'wizard.nativePolicy.as.office': 'Microsoft Office ({ext})',
+  'wizard.nativePolicy.as.pdf': 'PDF ({ext}), niet bewerkbaar',
+  'wizard.nativePolicy.as.image': 'Afbeelding ({ext})',
+  'wizard.nativePolicy.as.leftBehind': '{format}: blijft staan',
+  'wizard.nativePolicy.editable': 'Kies voor elke soort een bewerkbaar formaat',
+  'wizard.nativePolicy.leftBehind': '{kinds} blijven staan in Google, elk met naam gemeld.',
+  'wizard.nativePolicy.leftBehind.why':
+    'Er wordt niets van gekopieerd en niets gaat verloren: elk bestand verschijnt met naam op het scherm Mislukkingen, en u accepteert of probeert ze per stuk of in één keer. Een formaat dat bij een soort ontbreekt, kwam bij meting niet hetzelfde terug uit twee exports van een ongewijzigd bestand, en wordt voor die soort niet aangeboden. Formulieren, My Maps, Sites en Apps Scripts blijven altijd staan: die kan Google in geen enkel formaat exporteren.',
+  'wizard.nativePolicy.notEditable': '{kinds} komen aan als PDF, die achteraf niet te bewerken is.',
+  'wizard.nativePolicy.notEditable.why':
+    'Een PDF legt vast hoe het document eruitziet: er komt nooit weer een Google-document uit, en fijne opmaak kan verschuiven. Het is het enige formaat waarvan gemeten is dat het alle vier de soorten meeneemt, dus de uitweg voor een soort die u gekopieerd wilt hebben, maar niet in een bewerkbaar formaat.',
+  'wizard.nativePolicy.allEditable': 'Alle vier de soorten komen aan als bestanden die u kunt bewerken.',
+  'wizard.nativePolicy.allEditable.why':
+    'Elk bestand komt aan als weergave van Google, niet als origineel: fijne opmaak kan verschuiven, en tekeningen komen aan als .svg-afbeelding omdat Drive geen bewerkbaar formaat voor tekeningen aanbiedt. U kunt een formaat later wijzigen; al gekopieerde bestanden houden het formaat waarin ze aankwamen.',
   'wizard.step.migration': 'Migratie',
   'wizard.testConnections.reused': 'Al bewaard; dit controleert alleen of hij nog werkt.',
   'wizard.connectionName': 'Naam van de verbinding',

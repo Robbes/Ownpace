@@ -33,6 +33,7 @@ import { describe, it, expect } from 'vitest';
 import {
   GOOGLE_EDITOR_KINDS,
   NATIVE_POLICY_COVERAGE,
+  NATIVE_POLICY_EXTENSIONS,
   googleEditorMime,
   policyCarries,
   policyCarriesEveryKind,
@@ -42,6 +43,7 @@ import {
 } from '@openmig/shared';
 import {
   EXPORT_STABILITY,
+  NATIVE_EXPORT_EXTENSIONS,
   NATIVE_EXPORT_TYPES,
   exportStabilityOf,
 } from './google-drive-source.types.ts';
@@ -141,5 +143,27 @@ describe('every editor kind is a type the tables know', () => {
       'presentation',
       'drawing',
     ]);
+  });
+});
+
+describe('what a chooser says each format turns each kind into', () => {
+  /**
+   * THE PER-KIND CHOOSER'S LABELS ARE THE CONNECTOR'S EXTENSIONS (workplan
+   * 0042 T9). A screen offering "OpenDocument (.odp)" for Slides must be
+   * offering the file the connector writes; a table kept by hand beside the
+   * export table is how the two come to disagree about a suffix.
+   */
+  it.each(POLICIES)('%s: the extension shown for each kind is the one it lands under', (policy) => {
+    for (const kind of GOOGLE_EDITOR_KINDS) {
+      const exported = NATIVE_EXPORT_TYPES[policy][googleEditorMime(kind)];
+      expect(exported, `${policy} has no rendering for ${kind}`).toBeDefined();
+      expect(NATIVE_POLICY_EXTENSIONS[policy][kind], `${policy} on ${kind}`).toBe(
+        NATIVE_EXPORT_EXTENSIONS[exported!],
+      );
+    }
+  });
+
+  it('names every export policy, with none invented', () => {
+    expect(Object.keys(NATIVE_POLICY_EXTENSIONS).sort()).toEqual([...POLICIES].sort());
   });
 });
