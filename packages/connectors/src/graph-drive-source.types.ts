@@ -67,6 +67,8 @@ export interface GraphDriveItem {
   };
   readonly folder?: { childCount?: number };
   readonly deleted?: object;
+  /** Present on the drive's root item, which the root delta returns first. */
+  readonly root?: object;
   readonly '@odata.deltaLink'?: string;
 }
 

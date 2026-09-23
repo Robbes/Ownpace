@@ -33,6 +33,35 @@ const FILES_FACE = { face: 'Files', scope: 'Files.Read' } as const;
 /** Deeper than any real drive nests — a guard against a looping walk. */
 const MAX_FOLDER_DEPTH = 64;
 
+/** One delta read, every page: the last occurrence of each item, and where to resume. */
+interface DeltaRead {
+  readonly items: ReadonlyArray<GraphDriveItem>;
+  readonly deltaLink: string;
+}
+
+/** What one read of the whole drive holds, for this pass's listings. */
+interface DriveSnapshot {
+  /** Where the drive's change feed resumes after this read. */
+  readonly deltaLink: string;
+  /** Each folder's own files, by the folder's id. */
+  readonly filesByParent: ReadonlyMap<string, ReadonlyArray<GraphDriveItem>>;
+  /** Files in no folder the read could place. Counted by the root, once. */
+  readonly unplaced: ReadonlyArray<GraphDriveItem>;
+  /** Every file the read returned. */
+  readonly files: number;
+  /** Each folder's id, by the path `listFolders` gave it. */
+  readonly folderIdByPath: ReadonlyMap<string, string>;
+}
+
+/** A stored cursor, read back: the drive's change feed, or one folder's own delta. */
+interface ResumePoint {
+  readonly scope: 'drive' | 'folder';
+  readonly deltaLink: string;
+}
+
+const DRIVE_FEED_CURSOR = 'graph-drive-feed:';
+const FOLDER_DELTA_CURSOR = 'graph-drive-delta:';
+
 export class GraphDriveSource implements FileSource {
   private readonly config: GraphDriveSourceConfig;
   private readonly baseUrl: string;
@@ -56,6 +85,30 @@ export class GraphDriveSource implements FileSource {
    * keep its old path.
    */
   private folderPathById = new Map<string, string>();
+  /**
+   * THE WHOLE DRIVE, READ ONCE FOR THIS PASS (2026-09-22).
+   *
+   * The owner's first Microsoft preflight was still counting Files an hour
+   * in, which is the worker's limit for one attempt, and started over from
+   * the top. `listFolders` walked the drive a request per folder, one after
+   * another, and every folder's listing then asked Graph again. Microsoft's
+   * delta on the drive's root *"starts enumerating the drive's hierarchy"*:
+   * every folder and every file with the parent each lives in, a page of items
+   * at a time. So `listFolders` reads it once, builds the folders from it, and
+   * keeps each folder's files here for `listSince` to answer from.
+   *
+   * Undefined when that read named no root, and `listFolders` walked instead.
+   */
+  // Not `snapshot`: that name is the file port's own marker for an ARCHIVE
+  // (`FileSource.snapshot`), which switches off absence-based detection. The
+  // compiler refused the clash; this comment says why the name is not reused.
+  private driveRead?: DriveSnapshot;
+  /**
+   * The drive's change feed, read once per link this pass. On a later pass
+   * every folder's cursor holds the same link, so the first folder to ask
+   * reads it and every other folder is answered from that one read.
+   */
+  private changeReads = new Map<string, Promise<DeltaRead>>();
 
   constructor(
     config: GraphDriveSourceConfig,
@@ -70,7 +123,7 @@ export class GraphDriveSource implements FileSource {
   }
 
   /**
-   * Every folder in the drive, depth-first, ROOT INCLUDED.
+   * Every folder in the drive, ROOT INCLUDED, from ONE read of the drive.
    *
    * Two things this had wrong until 2026-08-17, both of which lost files
    * silently rather than failing:
@@ -83,12 +136,26 @@ export class GraphDriveSource implements FileSource {
    *    directly in the account root live in that collection and nothing else
    *    lists them.
    *
+   * And a third until 2026-09-22: it WALKED, a request per folder, one after
+   * another, and each folder's listing then asked again (see `driveRead`). It
+   * now reads the root's delta once and builds the tree from each folder's
+   * parent id. The walk stays for a read that names no root, so this can never
+   * do worse than it did.
+   *
    * Folder paths keep this connector's leading-slash form (`/Documents`),
-   * which `listSince` needs verbatim to build `…/root:/Documents:/delta`. The
-   * root is the one exception, spelled `''` — the same value `listSince`
-   * already recognised.
+   * which a folder's own delta URL needs verbatim (`…/root:/Documents:/delta`).
+   * The root is the one exception, spelled `''`.
    */
   async listFolders(): Promise<ReadonlyArray<FileFolder>> {
+    this.changeReads = new Map();
+    const read = await this.readDelta(`${this.scope}/drive/root/delta`, 'Failed to list drive items');
+    const built = this.snapshotOf(read);
+    this.driveRead = built?.snapshot;
+    return built !== undefined ? built.folders : this.walkFolders();
+  }
+
+  /** The folder-by-folder walk, kept for a drive whose delta named no root. */
+  private async walkFolders(): Promise<ReadonlyArray<FileFolder>> {
     const folders: FileFolder[] = [{ path: '' }];
     this.folderPathById = new Map();
 
@@ -150,6 +217,108 @@ export class GraphDriveSource implements FileSource {
 
     await walk(`${this.scope}/drive/root/children`, '', 0);
     return folders;
+  }
+
+  /**
+   * The folders, and each folder's files, from one read of the drive. Or
+   * undefined when the read named no root to build them under.
+   *
+   * A folder whose parent chain does not reach the root is left out rather
+   * than guessed at, and so is a file in one: the file is counted as
+   * unplaceable, by the root.
+   */
+  private snapshotOf(read: DeltaRead): { snapshot: DriveSnapshot; folders: FileFolder[] } | undefined {
+    const live = read.items.filter((item) => !item.deleted);
+    const root = live.find((item) => item.root !== undefined);
+    if (root === undefined) return undefined;
+
+    const folderById = new Map<string, GraphDriveItem>();
+    for (const item of live) {
+      if (item.folder && item.id !== root.id) folderById.set(item.id, item);
+    }
+    const pathById = new Map<string, string>([[root.id, '']]);
+    // Each chain is climbed once and remembered, so a deep tree costs its
+    // size and not its size times its depth.
+    const pathOf = (id: string, depth: number): string | undefined => {
+      const known = pathById.get(id);
+      if (known !== undefined) return known;
+      // A drive cannot nest this deep; a tree that says otherwise loops.
+      if (depth > MAX_FOLDER_DEPTH) {
+        throw new Error(
+          `OneDrive folder tree passed ${MAX_FOLDER_DEPTH} levels at folder ${id} — refusing to ` +
+            'keep climbing.',
+        );
+      }
+      const folder = folderById.get(id);
+      const parentId = folder?.parentReference?.id;
+      if (folder === undefined || parentId === undefined) return undefined;
+      const parent = pathOf(parentId, depth + 1);
+      if (parent === undefined) return undefined;
+      const path = `${parent}/${folder.name}`;
+      pathById.set(id, path);
+      return path;
+    };
+    const folders: FileFolder[] = [];
+    for (const folder of folderById.values()) {
+      const path = pathOf(folder.id, 0);
+      if (path !== undefined) folders.push({ path, name: folder.name });
+    }
+    folders.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+
+    const filesByParent = new Map<string, GraphDriveItem[]>();
+    const unplaced: GraphDriveItem[] = [];
+    let files = 0;
+    for (const item of live) {
+      if (item.folder || item.root !== undefined) continue;
+      files += 1;
+      const parentId = item.parentReference?.id;
+      if (item.name && parentId !== undefined && pathById.has(parentId)) {
+        const siblings = filesByParent.get(parentId) ?? [];
+        siblings.push(item);
+        filesByParent.set(parentId, siblings);
+      } else {
+        unplaced.push(item);
+      }
+    }
+
+    this.folderPathById = pathById;
+    return {
+      snapshot: {
+        deltaLink: read.deltaLink,
+        filesByParent,
+        unplaced,
+        files,
+        folderIdByPath: new Map([...pathById].map(([id, path]) => [path, id])),
+      },
+      folders: [{ path: '' }, ...folders],
+    };
+  }
+
+  /**
+   * One delta read, every page. Microsoft: *"The same item may appear more
+   * than once in a delta feed … You should use the last occurrence you see."*
+   */
+  private async readDelta(url: string, failure: string): Promise<DeltaRead> {
+    const byId = new Map<string, GraphDriveItem>();
+    let deltaLink = '';
+    let next: string | undefined = url;
+    while (next !== undefined) {
+      const response = await this.makeRequest({
+        url: next,
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      if (response.status !== 200) {
+        throw new Error(graphFailure(failure, response, FILES_FACE));
+      }
+      const data = JSON.parse(response.body) as GraphDriveDeltaResponse;
+      for (const item of data.value) {
+        if (item.id) byId.set(item.id, item);
+      }
+      deltaLink = data['@odata.deltaLink'] ?? deltaLink;
+      next = data['@odata.nextLink'];
+    }
+    return { items: [...byId.values()], deltaLink };
   }
 
   /**
@@ -283,9 +452,24 @@ export class GraphDriveSource implements FileSource {
   }
 
   /**
-   * List files changed since cursor (or all if undefined).
-   * Uses delta query for incremental file synchronization.
-   * Downloads file streams to the file writer.
+   * A folder's OWN files: all of them on a first read, what changed since the
+   * cursor on a later one.
+   *
+   * Three ways to answer, tried in this order:
+   *
+   *  1. NO CURSOR, and this pass read the drive (`driveRead`): from that read,
+   *     with no request at all.
+   *  2. A cursor on the drive's CHANGE FEED, which is what 1 hands out: the
+   *     feed is read once per link (`changeReads`), and every folder keeps its
+   *     own from the same read.
+   *  3. Anything else is this folder's own delta, as it always was: a cursor
+   *     from before 2026-09-22, which scoped a delta to one folder, or a
+   *     listing made without `listFolders`. When this pass did read the drive,
+   *     its next cursor moves to the drive's feed, so an old cursor is used
+   *     once and then retired.
+   *
+   * Whichever way, a folder keeps only its DIRECT children (`placementOf`):
+   * a delta is a whole subtree, and `listFolders` returns every folder.
    */
   async listSince(
     folder: FileFolder,
@@ -297,19 +481,26 @@ export class GraphDriveSource implements FileSource {
     unreadable?: number;
     listedElsewhere?: number;
   }> {
-    // Files this listing found and could not turn into a file to migrate.
-    let unreadable = 0;
-    // Parse cursor to get delta link
-    let deltaLink: string | undefined;
-    
-    if (cursor) {
-      try {
-        const graphCursor = this.decodeCursor(cursor);
-        deltaLink = graphCursor.deltaLink;
-      } catch {
-        // Invalid cursor, do full sync
-        deltaLink = undefined;
+    const isRoot = folder.path === '/' || folder.path === '';
+    // The directory this listing answers for, in the form `placementOf` compares.
+    const here = isRoot ? '' : folder.path;
+    // An unreadable cursor reads as none: a full listing, as it always did.
+    const resumed = cursor ? this.resumePointOf(cursor) : undefined;
+
+    if (resumed === undefined && this.driveRead !== undefined) {
+      return this.fromSnapshot(folder, here, isRoot, this.driveRead);
+    }
+
+    if (resumed?.scope === 'drive') {
+      let read = this.changeReads.get(resumed.deltaLink);
+      if (read === undefined) {
+        read = this.readDelta(resumed.deltaLink, 'Failed to list drive changes');
+        this.changeReads.set(resumed.deltaLink, read);
       }
+      const changes = await read;
+      // Every folder is answered from this same read, so only the root reports
+      // what it says was deleted: each removal once, not once per folder.
+      return this.fromChanges(here, isRoot, changes, isRoot, this.feedCursor(folder, changes.deltaLink));
     }
 
     // Scope the delta to THE FOLDER BEING POLLED. The files sync calls this
@@ -319,22 +510,66 @@ export class GraphDriveSource implements FileSource {
     // cost per pass — 0026 T1 item 1). Graph addresses a folder's delta by
     // path — `{scope}/drive/root:/{path}:/delta` — which scopes the response
     // server-side to that folder's DESCENDANTS: its whole subtree, not its own
-    // files. `placementOf` below keeps this folder's own; see there.
-    const folderPath = folder.path;
-    const isRoot = folderPath === '/' || folderPath === '';
-    // The directory this listing answers for, in the form `placementOf` compares.
-    const here = isRoot ? '' : folderPath;
-
+    // files. `placementOf` keeps this folder's own; see there.
     const baseUrl = isRoot
       ? `${this.scope}/drive/root/delta`
-      : `${this.scope}/drive/root:${folderPath
+      : `${this.scope}/drive/root:${folder.path
           .split('/')
           .map(encodeURIComponent)
           .join('/')}:/delta`;
+    const changes = await this.readDelta(resumed?.deltaLink || baseUrl, 'Failed to list drive changes');
+    const nextCursor =
+      this.driveRead !== undefined
+        ? this.feedCursor(folder, this.driveRead.deltaLink)
+        : { value: this.encodeCursor({ deltaLink: changes.deltaLink, folderPath: folder.path }) };
+    return this.fromChanges(here, isRoot, changes, true, nextCursor);
+  }
 
-    const url = deltaLink ?? baseUrl;
+  /** A folder's own files, from this pass's read of the whole drive. */
+  private fromSnapshot(
+    folder: FileFolder,
+    here: string,
+    isRoot: boolean,
+    snapshot: DriveSnapshot,
+  ): {
+    items: ReadonlyArray<RawFileItem>;
+    nextCursor: SyncCursor;
+    unreadable?: number;
+    listedElsewhere?: number;
+  } {
+    const id = snapshot.folderIdByPath.get(here);
+    const own = id === undefined ? [] : (snapshot.filesByParent.get(id) ?? []);
+    const built = this.toRawFileItems(own.map((item) => ({ item, dir: here })));
+    // COUNTED ONCE, by the root, like an unplaceable file in a delta below.
+    const unplaced = isRoot ? snapshot.unplaced : [];
+    for (const item of unplaced) this.warnUnplaced(item);
+    const unreadable = built.unreadable + unplaced.length;
+    // The read returned these too, for other folders. Said so the sync loop
+    // does not take a folder holding only subfolders for one that answered
+    // nothing, and withhold its cursor.
+    const listedElsewhere = snapshot.files - own.length - unplaced.length;
+    return {
+      items: built.items,
+      nextCursor: this.feedCursor(folder, snapshot.deltaLink),
+      ...(unreadable > 0 ? { unreadable } : {}),
+      ...(listedElsewhere > 0 ? { listedElsewhere } : {}),
+    };
+  }
 
-    const items: GraphDriveItem[] = [];
+  /** A folder's own files among what one delta read returned. */
+  private fromChanges(
+    here: string,
+    isRoot: boolean,
+    changes: DeltaRead,
+    reportRemovals: boolean,
+    nextCursor: SyncCursor,
+  ): {
+    items: ReadonlyArray<RawFileItem>;
+    nextCursor: SyncCursor;
+    removed?: ReadonlyArray<string>;
+    unreadable?: number;
+    listedElsewhere?: number;
+  } {
     /**
      * Item IDs Graph reported as DELETED on this poll.
      *
@@ -354,88 +589,86 @@ export class GraphDriveSource implements FileSource {
     // Folders this read returned, so a file in one the walk has not seen yet is
     // known to belong to a folder rather than to nowhere.
     const foldersInThisRead = new Set<string>();
-    let lastDeltaLink: string | undefined;
-    let nextLink: string | undefined;
-
-    // Paginate through all changes
-    do {
-      const response = await this.makeRequest({
-        url: nextLink ?? url,
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (response.status !== 200) {
-        throw new Error(graphFailure('Failed to list drive changes', response, FILES_FACE));
+    const files: GraphDriveItem[] = [];
+    for (const item of changes.items) {
+      // DELETED, and now carried up instead of discarded. Folders included: a
+      // deleted folder's children each get their own delta entry, but a folder
+      // whose id we recorded is an item too, and dropping it here would make
+      // that one silently unreportable.
+      if (item.deleted) {
+        removed.push(item.id);
+        continue;
       }
-
-      const data = JSON.parse(response.body) as GraphDriveDeltaResponse;
-      
-      for (const item of data.value) {
-        // DELETED, and now carried up instead of discarded. Folders included: a
-        // deleted folder's children each get their own delta entry, but a folder
-        // whose id we recorded is an item too, and dropping it here would make
-        // that one silently unreportable.
-        if (item.deleted) {
-          if (item.id) removed.push(item.id);
-          continue;
-        }
-
-        // Skip folders in the items list - we only want files
-        if (item.folder) {
-          foldersInThisRead.add(item.id);
-          continue;
-        }
-
-        items.push(item);
+      if (item.folder || item.root !== undefined) {
+        foldersInThisRead.add(item.id);
+        continue;
       }
-      
-      lastDeltaLink = data['@odata.deltaLink'];
-      nextLink = data['@odata.nextLink'];
-    } while (nextLink);
+      files.push(item);
+    }
 
     // Files this read returned that another folder's listing yields — see
     // `placementOf`. Reported so the sync loop can tell a folder holding only
     // subfolders from one that answered nothing.
     let listedElsewhere = 0;
-    // Build metadata-only items (no content fetch in listSince)
-    const fileItems: RawFileItem[] = [];
-    for (const item of items) {
-      try {
-        const placement = this.placementOf(item, here, foldersInThisRead);
-        if (placement === 'elsewhere') {
+    let unplaced = 0;
+    const mine: Array<{ item: GraphDriveItem; dir: string }> = [];
+    for (const item of files) {
+      const placement = this.placementOf(item, here, foldersInThisRead);
+      if (placement === 'elsewhere') {
+        listedElsewhere += 1;
+        continue;
+      }
+      if (placement === 'unplaced') {
+        // Never fall back to the bare name. That fallback is what flattened
+        // every file onto the root; a wrong key silently merges two files.
+        //
+        // COUNTED ONCE, by the root. The root's read is the one every file
+        // in the drive appears in, so counting here as well would count one
+        // file once per folder above it — the fault `placementOf` exists to
+        // remove.
+        if (isRoot) {
+          unplaced += 1;
+          this.warnUnplaced(item);
+        } else {
           listedElsewhere += 1;
-          continue;
         }
-        if (placement === 'unplaced') {
-          // Never fall back to the bare name. That fallback is what flattened
-          // every file onto the root; a wrong key silently merges two files.
-          //
-          // COUNTED ONCE, by the root. The root's read is the one every file
-          // in the drive appears in, so counting here as well would count one
-          // file once per folder above it — the fault `placementOf` exists to
-          // remove.
-          if (isRoot) {
-            unreadable += 1;
-            log.warn(
-              `[graph-drive] cannot place "${item.name}" (id ${item.id}): its parent is no ` +
-                'folder this pass walked and Graph reported no parentReference.path, so ' +
-                'where it lives cannot be named and a natural key would be a guess.',
-            );
-          } else {
-            listedElsewhere += 1;
-          }
-          continue;
-        }
+        continue;
+      }
+      mine.push({ item, dir: placement.dir });
+    }
+    const built = this.toRawFileItems(mine);
+    const unreadable = built.unreadable + unplaced;
+
+    // Omitted rather than sent as `[]` when Graph reported nothing, so "the
+    // service reported no deletions" and "this poll cannot report deletions" are
+    // not spelled the same way. A full `children` listing is the second case.
+    return {
+      items: built.items,
+      nextCursor,
+      ...(reportRemovals && removed.length > 0 ? { removed } : {}),
+      // Omitted rather than sent as 0, so "none failed" and "this listing
+      // cannot report" read differently downstream.
+      ...(unreadable > 0 ? { unreadable } : {}),
+      ...(listedElsewhere > 0 ? { listedElsewhere } : {}),
+    };
+  }
+
+  /** Metadata only: content comes from `fetch`, never from a listing. */
+  private toRawFileItems(placed: ReadonlyArray<{ item: GraphDriveItem; dir: string }>): {
+    items: RawFileItem[];
+    unreadable: number;
+  } {
+    const items: RawFileItem[] = [];
+    let unreadable = 0;
+    for (const { item, dir } of placed) {
+      try {
         // The natural key: the folder it lives in, and its own name.
-        const naturalKey = this.normalizePath(`${placement.dir}/${item.name}`);
+        const naturalKey = this.normalizePath(`${dir}/${item.name}`);
 
         // Get change detection hash (quickXorHash or cTag)
         const changeHash = item.quickXorHash || item.cTag;
-        
-        const fileItem: RawFileItem = {
+
+        items.push({
           item: {
             path: naturalKey,
             isDirectory: false,
@@ -459,9 +692,7 @@ export class GraphDriveSource implements FileSource {
           },
           // Content is NOT fetched here - use fetch() method instead
           content: undefined,
-        };
-
-        fileItems.push(fileItem);
+        });
       } catch (error) {
         // COUNTED, NOT JUST LOGGED (2026-09-07). A `log.warn` and a `continue`
         // put this file nowhere the owner looks: absent from the pass, from
@@ -472,27 +703,38 @@ export class GraphDriveSource implements FileSource {
         log.warn(`Failed to process file ${item.id}:`, error);
       }
     }
+    return { items, unreadable };
+  }
 
-    // Create next cursor from delta link
-    const nextCursor: SyncCursor = {
-      value: this.encodeCursor({
-        deltaLink: lastDeltaLink ?? '',
-        folderPath: folder.path,
-      }),
-    };
+  private warnUnplaced(item: GraphDriveItem): void {
+    log.warn(
+      `[graph-drive] cannot place "${item.name}" (id ${item.id}): its parent is no ` +
+        'folder this pass read and Graph reported no parentReference.path, so ' +
+        'where it lives cannot be named and a natural key would be a guess.',
+    );
+  }
 
-    // Omitted rather than sent as `[]` when Graph reported nothing, so "the
-    // service reported no deletions" and "this poll cannot report deletions" are
-    // not spelled the same way. A full `children` listing is the second case.
-    return {
-      items: fileItems,
-      nextCursor,
-      ...(removed.length > 0 ? { removed } : {}),
-      // Omitted rather than sent as 0, so "none failed" and "this listing
-      // cannot report" read differently downstream.
-      ...(unreadable > 0 ? { unreadable } : {}),
-      ...(listedElsewhere > 0 ? { listedElsewhere } : {}),
-    };
+  /** A cursor on the drive's change feed, held by every folder alike. */
+  private feedCursor(folder: FileFolder, deltaLink: string): SyncCursor {
+    return { value: `${DRIVE_FEED_CURSOR}${folder.path}:${deltaLink}` };
+  }
+
+  /**
+   * A stored cursor, read back, or undefined when it cannot be — which lists
+   * the folder in full, as an unreadable cursor always has.
+   */
+  private resumePointOf(cursor: SyncCursor): ResumePoint | undefined {
+    if (cursor.value.startsWith(DRIVE_FEED_CURSOR)) {
+      const parts = cursor.value.slice(DRIVE_FEED_CURSOR.length).split(':');
+      const deltaLink = parts.slice(1).join(':');
+      return parts.length < 2 || deltaLink === '' ? undefined : { scope: 'drive', deltaLink };
+    }
+    try {
+      const { deltaLink } = this.decodeCursor(cursor);
+      return deltaLink === '' ? undefined : { scope: 'folder', deltaLink };
+    } catch {
+      return undefined;
+    }
   }
 
   /** The one GET that reads an item's bytes. Used buffered and streamed alike. */
@@ -812,7 +1054,7 @@ export class GraphDriveSource implements FileSource {
    * Encode cursor for storage.
    */
   private encodeCursor(cursor: GraphDriveDeltaCursor): string {
-    return `graph-drive-delta:${cursor.folderPath}:${cursor.deltaLink}`;
+    return `${FOLDER_DELTA_CURSOR}${cursor.folderPath}:${cursor.deltaLink}`;
   }
 
   /**
@@ -821,11 +1063,11 @@ export class GraphDriveSource implements FileSource {
   private decodeCursor(cursor: SyncCursor): GraphDriveDeltaCursor {
     const value = cursor.value;
 
-    if (!value.startsWith('graph-drive-delta:')) {
+    if (!value.startsWith(FOLDER_DELTA_CURSOR)) {
       throw new Error(`Invalid cursor format: ${value}`);
     }
 
-    const parts = value.slice('graph-drive-delta:'.length).split(':');
+    const parts = value.slice(FOLDER_DELTA_CURSOR.length).split(':');
     if (parts.length < 2) {
       throw new Error(`Invalid cursor format: ${value}`);
     }
