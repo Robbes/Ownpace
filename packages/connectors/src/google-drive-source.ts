@@ -1154,6 +1154,11 @@ export class GoogleDriveSource implements FileSource {
    * Doc "Q3 report.pdf" gets one `.pdf`, not two. Case-insensitively, because
    * ".PDF" is the same claim.
    *
+   * APPENDED when the name ends in some OTHER format's suffix: a Sheet called
+   * "Budget.xls" lands as "Budget.xls.xlsx". The owner's decision (0042 T8
+   * (c), 2026-09-23): the name they gave stays whole, and the last suffix,
+   * which is the one Nextcloud types a file by, is what the bytes are.
+   *
    * THIS IS PART OF THE NATURAL KEY. The key is the path (§10, ADR-0020), and
    * the path is built from this name — so a mapping that already copied Docs
    * under a policy would see the suffixed paths as new items and copy them

@@ -1,6 +1,9 @@
 # Workplan 0126 — A task list Google kept apart
 
-## Status — 2026-09-22 (update this block at the end of every session)
+## Status — 2026-09-23 (update this block at the end of every session)
+
+**2026-09-23: the owner took D1–D5 as recommended.** *"Google Tasks, decisions D1–D5 in workplan
+0126: ok!"* Nothing waits on a decision any more, so T1 can start.
 
 **2026-09-22: planned at the owner's request; nothing built.** *"I see Google also supports tasks.
 And we support that in Nextcloud as target. We need to also be able to migrate the tasks. Take
@@ -16,8 +19,8 @@ against a live account.
 
 | Task | Status | Evidence |
 |---|---|---|
-| T0 The owner's decisions | 📋 **Open** | D1–D5 below, each with a recommendation. T1's mapping waits on D1–D3. |
-| T1 The connector: Google Tasks → VTODO | 📋 Open | A `GoogleTasksSource` in the shape of `graph-todo-source.ts`: lists as folders, tasks as VTODO, `etag` as the version. The traps are in § The source. Tests use the documented shapes, and the discovery document is the reference. |
+| T0 The owner's decisions | ✅ **Taken 2026-09-23** | All five as recommended (§ The owner's decisions). The owner: *"Google Tasks, decisions D1–D5 in workplan 0126: ok!"* |
+| T1 The connector: Google Tasks → VTODO | 📋 **Next** (unblocked by T0, 2026-09-23) | A `GoogleTasksSource` in the shape of `graph-todo-source.ts`: lists as folders, tasks as VTODO, `etag` as the version. The traps are in § The source. Tests use the documented shapes, and the discovery document is the reference. |
 | T2 The grant: a fifth Google face | 📋 Open | `tasks.readonly` joins `GOOGLE_DOMAIN_SCOPES`. `task` joins `PROVIDER_ACCOUNT_DOMAINS.google`, the consent route's faces ("FOUR, NOT FIVE" becomes five), `ACCOUNT_FACE_BUILDERS.google`, the `buildTaskSourceFromConnection` switch and the OpenAPI `domains` enum. Full list in § What "on par" means. |
 | T3 The Test and the preflight | 📋 Open | `qualifyGoogleGrant` measures the face (lists and tasks counted) instead of answering `GOOGLE_NO_TASKS`. The connection probe must stop always listing the CALENDAR face: a grant for Tasks alone fails the Test today. The preflight comes free once T2's builder arm exists (`run-discovery` goes through the same seam). |
 | T4 The screens and docs | 📋 Open | The wizard card ("calendars and contacts"), the Connections tick, the scope manifest's "Google Tasks — Not migrated" row, the feature matrix, the scope class in `docs/google-oauth-verification.md`, the domain-wide delegation table in `docs/google-workspace-setup.md`, and the tests that pin "a Google account offers no Tasks tick". |
@@ -104,19 +107,19 @@ is where "on par" matters most (T7).
   *"migrated from the account itself instead, live"*. For Google that is untrue until this ships.
   Takeout's `Tasks.json` is a second route (0116) and is not this plan.
 
-## The owner's decisions
+## The owner's decisions (taken 2026-09-23, all five as recommended)
 
-- **D1 Completed tasks, including the ones Google hides.** *Recommendation:* carry them, as
+- **D1 Completed tasks, including the ones Google hides.** *Decided:* carry them, as
   `COMPLETED`. They are the person's history, and Nextcloud Tasks hides completed tasks by default,
   so the list looks the same as before.
-- **D2 Tasks assigned from Docs or Chat.** *Recommendation:* carry them, with the link to where they
+- **D2 Tasks assigned from Docs or Chat.** *Decided:* carry them, with the link to where they
   came from in the description. They are on the person's list in Google.
-- **D3 Links (email, chat, Keep).** *Recommendation:* one readable line each in `DESCRIPTION`, which
+- **D3 Links (email, chat, Keep).** *Decided:* one readable line each in `DESCRIPTION`, which
   every client shows. `ATTACH` is tidier, but few task apps display it.
-- **D4 What cannot be carried.** *Recommendation:* report it per migration, as a count per reason,
+- **D4 What cannot be carried.** *Decided:* report it per migration, as a count per reason,
   in the shape the preflight already uses for refused Google files. Do it for To Do in the same
   change.
-- **D5 Deletions.** *Recommendation:* read `showDeleted` and pass deleted ids as reported removals,
+- **D5 Deletions.** *Decided:* read `showDeleted` and pass deleted ids as reported removals,
   as the OneDrive delta does. They go to the owner's Deletions queue, never applied automatically.
 
 ## Not in this plan
