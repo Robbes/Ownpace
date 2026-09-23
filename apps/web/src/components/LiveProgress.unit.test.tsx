@@ -197,7 +197,15 @@ describe('a stopped data type keeps its line', () => {
     expect(screen.getByText(STRINGS.en['confirm.state.stopped'])).toBeTruthy();
     expect(screen.getByText(/412 synced/)).toBeTruthy();
     expect(screen.getByText(STRINGS.en['confirm.progress.stopped'])).toBeTruthy();
+  });
+
+  it('says the three things the owner named, in both languages', () => {
+    // The copies stay, they no longer follow the source, and switching it back
+    // on continues where it stopped (0125 T7).
+    expect(STRINGS.en['confirm.progress.stopped']).toMatch(/copies stay, but no longer follow the source/);
     expect(STRINGS.en['confirm.progress.stopped.why']).toMatch(/continues where it stopped/);
+    expect(STRINGS.nl['confirm.progress.stopped']).toMatch(/kopieën blijven, maar volgen de bron niet meer/);
+    expect(STRINGS.nl['confirm.progress.stopped.why']).toMatch(/gaat verder waar het stopte/);
   });
 
   it('a skipped one still has no line: the migration never had it', () => {
