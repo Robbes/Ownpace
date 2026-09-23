@@ -1235,8 +1235,10 @@ paths:
                 domains:
                   type: array
                   minItems: 1
-                  items: { type: string, enum: [email, calendar, contact, file] }
-                  description: Which faces to consent for; each maps to one Graph read scope.
+                  items: { type: string, enum: [email, calendar, contact, file, task] }
+                  description: |
+                    Which faces to consent for; each maps to one Graph read
+                    scope. `task` is Microsoft To Do, asked as `Tasks.Read`.
                 clientId: { type: string, description: The Application (client) ID. }
                 clientSecret: { type: string, description: The client secret. }
                 tenantId:
