@@ -88,7 +88,7 @@ export class GraphTodoSource implements CalendarSource {
     this.scope = graphScopePrefix(this.baseUrl, options?.mailbox);
   }
 
-  /** Every To Do list, as a calendar folder at `/todo/lists/{id}`. */
+  /** Every To Do list, as a calendar folder at `/todo/lists/{id}` that holds VTODO. */
   async listFolders(): Promise<ReadonlyArray<CalendarFolder>> {
     const lists = await this.collect<GraphTodoList>(`${this.scope}/todo/lists`, 'To Do lists');
     return lists.map((list) => ({
@@ -96,6 +96,12 @@ export class GraphTodoSource implements CalendarSource {
       name: list.displayName,
       description: undefined,
       timezone: undefined,
+      // A task list, said out loud (workplan 0126 T6), as the Google Tasks
+      // source says it: the target's MKCALENDAR then asks for a VTODO
+      // collection instead of whatever the server makes of no set at all.
+      // Only a collection the target CREATES is affected; one that exists is
+      // found and reused.
+      components: ['VTODO'],
     }));
   }
 

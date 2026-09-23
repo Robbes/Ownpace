@@ -123,6 +123,15 @@ describe('lists are folders', () => {
     expect(seen).toHaveLength(2);
     for (const r of seen) expect(r.headers?.Authorization).toBe('Bearer mock-access-token');
   });
+
+  it('declares VTODO, so the target makes a task list and not a calendar (0126 T6)', async () => {
+    const { client } = httpByUrl({
+      [`${GRAPH}/me/todo/lists`]: { value: [{ id: 'L1', displayName: 'Groceries' }] },
+    });
+    const source = new GraphTodoSource(tokenProvider(), 'tenant-1', undefined, { httpClient: client });
+    const [folder] = await source.listFolders();
+    expect(folder?.components).toEqual(['VTODO']);
+  });
 });
 
 describe('a task is a VTODO', () => {
