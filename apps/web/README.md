@@ -1,4 +1,4 @@
-# Open Migration Web Application
+# Ownpace Web Application
 
 React-based web UI for Ownpace — **one app, both editions**
 (ADR-0026): the managed edition serves it as its portal; the self-host

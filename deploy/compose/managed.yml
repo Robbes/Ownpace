@@ -2,10 +2,14 @@
 # Postgres version aligned with deploy/compose/dev.yml (Postgres 18).
 #
 # This stack includes:
-# - PostgreSQL (ledger database)
-# - Trigger.dev (managed orchestration platform)
-# - Open Migration API & Worker
+# - PostgreSQL (ledger database) behind PgBouncer
+# - Trigger.dev (managed orchestration platform; every job runs as a deployed task —
+#   there is no worker container, workplan 0022)
+# - Zitadel (the identity provider, ADR-0042)
+# - Ownpace API
 # - Web application
+# - Gatus (the status page, workplan 0094) and Mailpit (catches outbound
+#   mail unless SMTP_HOST points at a real relay)
 # - Nextcloud (demo CalDAV/CardDAV/WebDAV backend for the T7 DoD demo — see
 #   deploy/compose/setup-managed-demo.sh)
 #
@@ -474,7 +478,6 @@ services:
     networks:
       - ownpace-network
 
-  # Open Migration API
   # The identity provider (ADR-0042).
   #
   # WHAT THIS IS FOR. Until it existed, the path from stranger to signed-in
@@ -773,6 +776,7 @@ services:
     networks:
       - ownpace-network
 
+  # Ownpace API
   api:
     build:
       context: ../..

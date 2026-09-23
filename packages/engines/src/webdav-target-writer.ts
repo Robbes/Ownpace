@@ -3,7 +3,7 @@
  * WebDAV Target Writer Implementation
  * 
  * Implements FileTargetWriter interface for WebDAV file synchronization.
- * Uses rclone for bulk operations and direct WebDAV API calls for individual operations.
+ * Talks WebDAV directly over HTTP — no rclone or other external binary (ADR-0019).
  * Follows the idempotency pattern with ledger fast-path and target-side existence checks.
  */
 

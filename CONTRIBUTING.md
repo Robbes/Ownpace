@@ -61,6 +61,10 @@ All documentation goes under `docs/`. The **only** Markdown files allowed in the
 
 (`LICENSE` has no extension.) Anything else — design, guides, runbooks, notes — belongs in `docs/`. The `docs-hygiene` job in `.github/workflows/ci.yml` enforces this allowlist.
 
+Workspace packages use the npm scope `@openmig/*`, the database role is `openmigrate` and metrics
+carry the `openmigrate_*` prefix. This is deliberate: ADR-0040 renames what is named after the
+product and keeps what is named after the scope.
+
 ## Architecture Decision Records (ADRs)
 Significant decisions are captured as ADRs in `docs/adr/`.
 - Copy `docs/adr/0000-template.md` to the next number, e.g. `0011-my-decision.md`.

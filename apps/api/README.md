@@ -1,4 +1,4 @@
-# Open Migration API
+# Ownpace API
 
 REST API for the Ownpace **managed edition** (Express 5,
 TypeScript). The self-host appliance does not run this app — it serves the
