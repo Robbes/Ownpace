@@ -1164,6 +1164,13 @@ paths:
         the migration reads (workplan 0108 T8 (b)). Any other account is
         refused with both addresses named, nothing is stored, and the link is
         left unspent.
+
+        On a grant link, every ending that did not reach the link (Google's
+        own error, no code, a failed code exchange, or a fault storing the
+        token) is worded for the person on the link, not for the owner, and
+        says the link was not used up. Only a link that can no longer be used
+        tells them to ask for a fresh one. The owner's sentence for a failed
+        exchange goes to the server log.
       security: []
       parameters:
         - { name: state, in: query, schema: { type: string } }
@@ -1171,12 +1178,15 @@ paths:
         - { name: error, in: query, schema: { type: string } }
       responses:
         '200':
-          description: The result page — granted, or Google's own refusal.
+          description: The result page — granted, or Google's own refusal (the link, if any, not used up).
           content:
             text/html:
               schema: { type: string }
         '400':
-          description: No state this server is waiting for, or no authorization code.
+          description: |
+            No state this server is waiting for, no authorization code, or a
+            code exchange Google refused. On a grant link, the link was not
+            used up.
           content:
             text/html:
               schema: { type: string }
@@ -1190,6 +1200,13 @@ paths:
               schema: { type: string }
         '409':
           description: A grant link's consent, on a link that can no longer be used. Nothing was stored.
+          content:
+            text/html:
+              schema: { type: string }
+        '500':
+          description: |
+            Storing the granted token failed on our side. Nothing was stored,
+            and on a grant link the link was not used up.
           content:
             text/html:
               schema: { type: string }

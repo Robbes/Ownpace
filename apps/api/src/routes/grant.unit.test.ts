@@ -38,6 +38,7 @@ import {
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
+import { log } from '@openmig/shared';
 
 // UUID family 5f500000-…, unused elsewhere in the repo.
 const TENANT = '5f500000-e29b-41d4-a716-446655441701';
@@ -748,6 +749,9 @@ describe('the ending', () => {
 
     expect(res.status).toBe(409);
     expect(res.text).toMatch(/Nothing was stored/);
+    // The one ending that sends them to the sender: this link cannot be used.
+    expect(res.text).toMatch(/ask the person who sent it for a fresh one/);
+    expect(res.text).not.toMatch(/not used up|still works/);
     expect((await mappingRow(MAPPING))?.source_secret_ref).toBeNull();
   });
 
@@ -774,9 +778,11 @@ describe('the ending', () => {
     const { token } = await mintLink(MAPPING);
     const res = await grantThrough(token);
     // The owner's failure page says "try again from the wizard", which means
-    // nothing to somebody who has never seen one.
+    // nothing to somebody who has never seen one. And the link was not used
+    // up, so the page no longer sends them to ask for another.
     expect(res.text).not.toMatch(/wizard/i);
-    expect(res.text).toMatch(/ask the person who sent it/i);
+    expect(res.text).toMatch(/open it again/i);
+    expect(res.text).not.toMatch(/fresh one/);
   });
 
   it('cannot be replayed: the state is single-use', async () => {
@@ -793,6 +799,128 @@ describe('the ending', () => {
       .query({ state, code: 'auth-code' });
     expect(replay.status).toBe(400);
     expect(replay.text).not.toContain(REFRESH);
+  });
+});
+
+/**
+ * GOOGLE'S SIDE DID NOT FINISH, AND THE LINK WAS NOT USED UP (2026-09-23).
+ *
+ * Every one of these endings told the person to ask for a fresh link, for a
+ * link nothing had spent, and three of them spoke to the owner instead: *"check
+ * that the Client ID and client secret belong to the same OAuth client"*, to
+ * somebody who holds no client. Each is now worded for the person on the link,
+ * the link is left exactly as it was, and the owner's sentence goes to the log,
+ * where whoever runs this can read it.
+ */
+describe("Google's side did not finish, and the link is not used up", () => {
+  async function begin(token: string): Promise<string> {
+    const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
+    return new URL(started.body.url).searchParams.get('state')!;
+  }
+  const back = (state: string, query: Record<string, string>) =>
+    request(app).get('/api/migrations/google/callback').query({ state, ...query });
+  const linkState = async (id: string) =>
+    (
+      await withTenant(driver, TENANT, (db) =>
+        listMappingLinks(db, { tenantId: TENANT, mappingId: MAPPING }),
+      )
+    ).find((l) => l.id === id)?.state;
+
+  /** Nothing stored, the link as it was, and the page saying so. */
+  async function expectNotUsedUp(res: { text: string }, id: string): Promise<void> {
+    expect(res.text).toContain('your link was not used up, so you can open it again');
+    expect(res.text).not.toMatch(/fresh one|still works/);
+    expect(res.text).not.toContain(REFRESH);
+    expect((await mappingRow(MAPPING))?.source_secret_ref).toBeNull();
+    expect(await linkState(id)).toBe('live');
+  }
+
+  it('Cancel at Google: permission not given, and nobody else is needed', async () => {
+    const { token, id } = await mintLink(MAPPING);
+    const res = await back(await begin(token), { error: 'access_denied' });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Permission was not given at Google.');
+    expect(res.text).not.toMatch(/tell the person/);
+    await expectNotUsedUp(res, id);
+  });
+
+  it('another word from Google is passed on, with whom to tell', async () => {
+    const { token, id } = await mintLink(MAPPING);
+    const res = await back(await begin(token), { error: 'admin_policy_enforced' });
+    expect(res.text).toContain('said "admin_policy_enforced"');
+    expect(res.text).toMatch(/tell the person who sent you the link/);
+    await expectNotUsedUp(res, id);
+  });
+
+  it('nothing sent back', async () => {
+    const { token, id } = await mintLink(MAPPING);
+    const res = await back(await begin(token), {});
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('Google sent nothing back');
+    await expectNotUsedUp(res, id);
+  });
+
+  const answers: ReadonlyArray<[string, () => { status: number; body: unknown }, RegExp]> = [
+    [
+      'a code Google no longer accepts',
+      () => ({ status: 400, body: { error: 'invalid_grant' } }),
+      /took too long or was sent twice/,
+    ],
+    [
+      'an application Google will not deal with',
+      () => ({ status: 401, body: { error: 'invalid_client' } }),
+      /own application[\s\S]*tell the person who sent you the link/,
+    ],
+    [
+      'permissions left unticked',
+      () => ({
+        status: 200,
+        body: { refresh_token: REFRESH, scope: 'https://www.googleapis.com/auth/userinfo.email' },
+      }),
+      /left unticked at Google/,
+    ],
+    [
+      'no lasting access',
+      () => ({ status: 200, body: { scope: GOOGLE_SOURCE_SCOPES.gmail, id_token: idTokenFor(NAMED) } }),
+      /administrator does not allow it/,
+    ],
+  ];
+  for (const [what, answer, says] of answers) {
+    it(`${what}: said for the person on the link, and the owner's sentence logged`, async () => {
+      tokenResponse = answer;
+      const warned = vi.spyOn(log, 'warn').mockImplementation(() => {});
+      try {
+        const { token, id } = await mintLink(MAPPING);
+        const res = await back(await begin(token), { code: 'auth-code' });
+        expect(res.status).toBe(400);
+        expect(res.text).toMatch(says);
+        // Never the owner's instructions: this reader holds no client.
+        expect(res.text).not.toMatch(/Client ID|client secret|redirect URI|Connect with Google/);
+        await expectNotUsedUp(res, id);
+        expect(warned.mock.calls.map((c) => c.join(' ')).join('\n')).toMatch(
+          new RegExp(`code exchange failed \\(\\w+\\) for mapping ${MAPPING}`),
+        );
+      } finally {
+        warned.mockRestore();
+      }
+    });
+  }
+
+  it('a fault on our side while storing: ours to fix, and the link was not used up', async () => {
+    const boom = vi.spyOn(SecretStore, 'encryptCredentials').mockImplementation(() => {
+      throw new Error('the key store is unreachable');
+    });
+    const quiet = vi.spyOn(log, 'error').mockImplementation(() => {});
+    try {
+      const { token, id } = await mintLink(MAPPING);
+      const res = await back(await begin(token), { code: 'auth-code' });
+      expect(res.status).toBe(500);
+      expect(res.text).toContain('ours to fix, not yours');
+      await expectNotUsedUp(res, id);
+    } finally {
+      boom.mockRestore();
+      quiet.mockRestore();
+    }
   });
 });
 
