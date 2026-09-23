@@ -506,6 +506,40 @@ an item is written after upgrading.
 docker compose -f compose.yml logs app | grep 'changed on the source, but'
 ```
 
+## How long the logs are kept
+
+Two kinds, kept two ways:
+
+- **The appliance's own errors and warnings**, a line of metadata each (time,
+  kind of error, a reference number), are kept in its database for **30 days**.
+  They go in the nightly housekeeping at 03:17, with the old run logs.
+- **What the containers print**, which `docker compose logs` shows, is capped by
+  `compose.yml` at five files of 20 MB per container. Docker keeps this by size,
+  never by age, so how many days that is depends on how much your appliance
+  logs.
+
+To keep exactly 30 days of container output instead, hand it to the host's
+journal. Create `deploy/selfhost/compose.journal.yml`:
+
+```yaml
+services:
+  postgres:
+    logging: !override
+      driver: journald
+  app:
+    logging: !override
+      driver: journald
+```
+
+In `/etc/systemd/journald.conf`, set `MaxRetentionSec=1month` (it applies to the
+whole journal), then `sudo systemctl restart systemd-journald`. From then on,
+start the appliance with both files, and read its output with `journalctl`:
+
+```sh
+docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.journal.yml up -d
+journalctl CONTAINER_NAME=ownpace-selfhost-app --since today
+```
+
 ## Backup (do this before every upgrade)
 
 The Postgres volume is the appliance's state (the ledger + cursors). Back it up

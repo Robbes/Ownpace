@@ -35,6 +35,7 @@ import { sql } from 'drizzle-orm';
 import {
   pruneRunEvents,
   pruneRuns,
+  pruneAppEvents,
   retentionDaysFromEnv,
   runRetentionDaysFromEnv,
   type PgDatabase,
@@ -105,12 +106,21 @@ export const managedRetention = schedules.task({
         `[retention] deleted ${result.deleted} run events older than ${result.cutoff.toISOString()}; nothing left.`,
       );
     }
+    // The application's own errors and warnings (0129 T3): one month, the
+    // owner's number, the same on both editions.
+    const events = await pruneAppEvents(db, now);
+    log.info(
+      `[retention] deleted ${events.deleted} application events older than ${events.cutoff.toISOString()}` +
+        (events.moreRemaining ? '; the batch ceiling stopped this pass, the next continues.' : '.'),
+    );
+
     return {
       deleted: result.deleted,
-      moreRemaining: result.moreRemaining || runsMoreRemaining,
+      moreRemaining: result.moreRemaining || runsMoreRemaining || events.moreRemaining,
       days,
       runsDeleted,
       runDays,
+      appEventsDeleted: events.deleted,
     };
   },
 });

@@ -124,6 +124,23 @@ are **not** product-named and keep their names; nothing above touches them.
   registry and the built API/web images add up; running out midway leaves a
   stack that is partly built and wholly confusing.
 - The repository cloned, and `pnpm install --frozen-lockfile` done.
+- **Container output kept for a month, and no longer** (workplan 0129 T3). No
+  compose file here sets `logging`, so every container, the compose services and
+  the task runs Trigger.dev starts alike, writes with Docker's default, which
+  keeps everything for ever. Give it to the host's journal, and let the journal
+  keep 30 days:
+
+  ```bash
+  # /etc/docker/daemon.json
+  { "log-driver": "journald" }
+
+  # /etc/systemd/journald.conf, under [Journal]
+  MaxRetentionSec=1month
+  ```
+
+  Then `sudo systemctl restart systemd-journald docker`. Only containers created
+  after that use the journal, so do it before the bring-up. `docker compose logs`
+  keeps working, and `journalctl CONTAINER_NAME=<name>` reads the same lines.
 
 **Architecture.** `DEPLOY_IMAGE_PLATFORM` decides what the task images are
 built for, **server-side** — there is no CLI flag. Get it wrong and every task

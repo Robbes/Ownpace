@@ -47,6 +47,12 @@
  * whole product exists to prevent (hard rule 2's neighbour). There is no
  * window under which this becomes safe.
  *
+ * **`app_event` is pruned at one month** (workplan 0129 T3, the owner's D2:
+ * *"Application logs and container logs: yes"*, to the one month asked for).
+ * It is the application's own errors and warnings, metadata only, kept so the
+ * operator's log page can search them; the text of each stays in the
+ * container's output, which is capped the same way where it is collected.
+ *
  * **`audit_log` is NOT pruned, and that is an owner decision rather than a
  * default.** §17 lists audit logging as a GDPR obligation, and the retention
  * period for it is a compliance question with a legal answer, not an
@@ -341,4 +347,53 @@ export async function pruneRuns(
     if (rows < batchSize) return { deleted, cutoff, moreRemaining: false, clampedBySafety };
   }
   return { deleted, cutoff, moreRemaining: true, clampedBySafety };
+}
+
+/**
+ * How long the application's own errors and warnings are kept: one month, the
+ * owner's decision (workplan 0129 D2).
+ *
+ * No override, unlike the run windows: those are sized for billing and for
+ * reading a pass, and an operator may have reasons to move them. This one is
+ * the owner's number for a log, stated once, and a deployment that wants
+ * another has a decision to make rather than a variable to find.
+ */
+export const DEFAULT_APP_EVENT_RETENTION_DAYS = 30;
+
+/**
+ * Delete the application's errors and warnings older than the window, in
+ * bounded batches (workplan 0129 T3).
+ *
+ * Nothing else is touched: `app_event` references nothing that depends on it,
+ * and it is read only by the operator's log page. `audit_log`, the other half
+ * of that page, is kept until the customer is erased (0129 D2), so the page
+ * shows a month of the one and all of the other.
+ */
+export async function pruneAppEvents(
+  db: PgDatabase,
+  now: Date,
+  options: PruneOptions = {},
+): Promise<PruneResult> {
+  const days = options.olderThanDays ?? DEFAULT_APP_EVENT_RETENTION_DAYS;
+  const batchSize = options.batchSize ?? DEFAULT_RETENTION_BATCH;
+  const maxBatches = options.maxBatches ?? DEFAULT_MAX_BATCHES;
+  if (days < 1) throw new Error(`Retention window must be at least one day, got ${days}`);
+
+  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+  let deleted = 0;
+  for (let batch = 0; batch < maxBatches; batch++) {
+    // ctid, for the reason pruneRunEvents gives. `ix_app_event_at` serves the
+    // inner read.
+    const result = await db.execute(sql`
+      DELETE FROM app_event
+       WHERE ctid IN (
+         SELECT ctid FROM app_event WHERE at < ${cutoff} LIMIT ${batchSize}
+       )
+    `);
+    const rows = rowCount(result);
+    deleted += rows;
+    if (rows < batchSize) return { deleted, cutoff, moreRemaining: false };
+  }
+  return { deleted, cutoff, moreRemaining: true };
 }

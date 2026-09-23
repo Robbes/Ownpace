@@ -21,11 +21,21 @@ reference. `recordAppEvent` never throws; each process sets its sink at start-up
 core (3) and the API (3), and the RLS, grants and erasure guards now name the table; 21
 mutations, all killed.
 
+**2026-09-23, T3 built.** The application's errors and warnings are pruned at 30 days, the
+owner's month, in bounded batches by both editions' nightly retention (`pruneAppEvents`); the
+audit log is not touched, and runs and their logs keep their 60 days. Container output: the
+appliance's `compose.yml` caps each container at five files of 20 MB, because Docker keeps
+output by size and never by age, and its guide says how to keep exactly 30 days with the host's
+journal. The managed guide points Docker's daemon default at the journal with
+`MaxRetentionSec=1month`, which also reaches the task runs Trigger.dev starts, since no compose
+file creates those. Guards: `a-month-of-the-applications-errors.unit.test.ts` (6) and
+`a-month-of-container-output.unit.test.ts` (8); 11 mutations, all killed.
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 The application's errors and warnings are recorded where the page can search them | ✅ **Built 2026-09-23** (D1, D3) | §3. A table of metadata only, written beside the log line, never instead of it. |
 | T2 The operator's log page | 📋 **Decided** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable; both editions. |
-| T3 One month for application and container logs | 📋 **Decided** (D2) | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected. |
+| T3 One month for application and container logs | ✅ **Built 2026-09-23** (D2) | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected. |
 | T4 The audit export: one JSON line per event, and a download that resumes | 📋 **Decided** (D4, D5) | §3. OpenTelemetry field names, to stdout; a backfill endpoint with a cursor; pseudonyms by default. |
 
 ## 1. What there is today

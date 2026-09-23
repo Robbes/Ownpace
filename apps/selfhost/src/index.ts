@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, retentionDaysFromEnv, runRetentionDaysFromEnv } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -1196,6 +1196,16 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           log.info(
             `[retention] deleted ${runs.deleted} runs older than ` +
               `${runs.cutoff.toISOString()}${runs.moreRemaining ? '; more still eligible, the next pass continues' : ''}`,
+          );
+        }
+
+        // The application's own errors and warnings (0129 T3): one month, the
+        // owner's number, the same on both editions.
+        const events = await pruneAppEvents(db, now);
+        if (events.deleted > 0 || events.moreRemaining) {
+          log.info(
+            `[retention] deleted ${events.deleted} application events older than ` +
+              `${events.cutoff.toISOString()}${events.moreRemaining ? '; more still eligible, the next pass continues' : ''}`,
           );
         }
       } catch (err) {
