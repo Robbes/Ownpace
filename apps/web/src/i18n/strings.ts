@@ -482,15 +482,19 @@ const en = {
   'settings.exportPolicy.consequence': 'Files already copied keep the format they arrived in.',
   'settings.exportPolicy.consequence.why':
     'Nothing on the new system is rewritten — this tool never overwrites what it did not write, so a file copied as a .pdf stays a .pdf. The new format applies to files copied from now on, including any you send back through. Comparing the two is safe: each copy records which format it was made under, so a later pass reads a format change as a format change and never as a file that was edited.',
-  // WHAT A SAVE DOES NOT DO BY ITSELF (0125 T5, offered rather than automatic).
-  'settings.exportPolicy.refusedBefore': 'Files already refused stay refused until you retry them.',
+  // WHAT HAPPENS TO THE FILES THE OLD FORMAT REFUSED (0125 T5, and since 0042
+  // T8 (b) the pass does it). A Google file's name comes from its format, so
+  // under a new one it is a new name: the next pass tries it, and closes the
+  // refusal it left under the old name. The save itself changes no row.
+  'settings.exportPolicy.refusedBefore':
+    'The next pass tries Google files the old format refused again, in this format.',
   // The same sentence with the count, used only when the count is KNOWN and
   // above zero: a queue we could not read must not read as a queue of none.
   'settings.exportPolicy.refusedBefore.count':
-    '{count} file(s) already refused stay refused until you retry them.',
+    'The next pass tries {count} Google file(s) the old format refused again, in this format.',
   'settings.exportPolicy.refusedBefore.why':
-    'Changing this setting does not reopen decisions that were already recorded — a settings save that silently emptied a queue would be a change to your ledger that nobody asked for. The Failures screen groups them by reason, so the ones left behind by the old format are one group with one button: retry all of them, and the next pass copies them in the format you just chose.',
-  'settings.exportPolicy.toFailures': 'Go to Failures to retry them',
+    'A Google file’s name comes from its format (Report.docx, Report.odt), and the name is how a migration recognises a file, so under a new format each one is new to it. The next pass tries each under its new name, and the refusal recorded under the old name closes by itself, because the file is no longer listed by it. If the new format cannot carry a file either, it stays on the Failures screen once, under its new name. Saving changes nothing by itself: the pass does it. A file you chose to leave behind stays left behind.',
+  'settings.exportPolicy.toFailures': 'See them on the Failures screen',
   'settings.exportPolicy.refused': 'This could not be changed:',
   'settings.exportPolicy.failed': 'That did not save:',
   // WHAT THIS MIGRATION COPIES, and what it may still gain (workplan 0125 T6).
@@ -2475,12 +2479,12 @@ const nl: Record<keyof typeof en, string> = {
   'settings.exportPolicy.consequence.why':
     'Op het nieuwe systeem wordt niets herschreven — dit gereedschap overschrijft nooit wat het niet zelf heeft geschreven, dus een bestand dat als .pdf is aangekomen blijft een .pdf. Het nieuwe formaat geldt voor bestanden die vanaf nu worden gekopieerd, ook voor bestanden die u opnieuw laat proberen. Vergelijken blijft veilig: bij elke kopie staat onder welk formaat die is gemaakt, dus een latere ronde leest een formaatwijziging als een formaatwijziging en nooit als een bewerkt bestand.',
   'settings.exportPolicy.refusedBefore':
-    'Al geweigerde bestanden blijven geweigerd tot u ze opnieuw laat proberen.',
+    'De volgende ronde probeert Google-bestanden die het oude formaat weigerde opnieuw, in dit formaat.',
   'settings.exportPolicy.refusedBefore.why':
-    'Deze instelling wijzigen heropent geen beslissingen die al zijn vastgelegd — een opgeslagen instelling die stilletjes een wachtrij leegmaakt, is een wijziging in uw administratie waar niemand om heeft gevraagd. Het scherm Mislukkingen groepeert ze op reden, dus de bestanden die het oude formaat heeft laten liggen vormen één groep met één knop: laat ze allemaal opnieuw proberen, dan kopieert de volgende ronde ze in het formaat dat u zojuist hebt gekozen.',
-  'settings.exportPolicy.toFailures': 'Naar Mislukkingen om ze opnieuw te proberen',
+    'De naam van een Google-bestand komt van het formaat (Rapport.docx, Rapport.odt), en aan de naam herkent een migratie een bestand, dus onder een nieuw formaat is elk bestand nieuw voor de migratie. De volgende ronde probeert elk bestand onder de nieuwe naam, en de weigering die onder de oude naam is vastgelegd, sluit vanzelf, omdat het bestand niet meer onder die naam voorkomt. Kan het nieuwe formaat een bestand ook niet meenemen, dan staat het één keer bij Mislukkingen, onder de nieuwe naam. Opslaan verandert zelf niets: de ronde doet het. Een bestand dat u hebt laten liggen, blijft liggen.',
+  'settings.exportPolicy.toFailures': 'Bekijk ze bij Mislukkingen',
   'settings.exportPolicy.refusedBefore.count':
-    '{count} al geweigerde bestand(en) blijven geweigerd totdat u ze opnieuw probeert.',
+    'De volgende ronde probeert {count} Google-bestand(en) die het oude formaat weigerde opnieuw, in dit formaat.',
   'settings.exportPolicy.refused': 'Dit kon niet worden gewijzigd:',
   'settings.exportPolicy.failed': 'Dat is niet opgeslagen:',
   'settings.kinds': 'Gegevenstypen die deze migratie kopieert',

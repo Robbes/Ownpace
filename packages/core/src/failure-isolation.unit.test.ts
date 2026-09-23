@@ -372,6 +372,9 @@ describe('a retry that the writer refuses', () => {
   it('isOnTarget refuses exactly the two states that mean "not copied"', () => {
     expect(isOnTarget('failed')).toBe(false);
     expect(isOnTarget('left_behind')).toBe(false);
+    // A failure under a name the document no longer has (0042 T8 (b)): it
+    // never reached the target either.
+    expect(isOnTarget('superseded')).toBe(false);
     for (const s of ['copied', 'updated', 'adopted', 'skipped', undefined] as const) {
       expect(isOnTarget(s), `${s} means the item IS on the target`).toBe(true);
     }
