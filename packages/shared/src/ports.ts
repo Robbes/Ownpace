@@ -2602,6 +2602,13 @@ export interface MigrationStatus {
    * "one of the two" rather than guess.
    */
   readonly failedSide?: FailureSide;
+  /**
+   * The reference the last failure was recorded under (ledger 0061, workplan
+   * 0129 T1): eight hex characters, the same on the operator's log page and
+   * on the log line with the error's text. What a person quotes. Absent when
+   * nothing has failed, or the failure predates references.
+   */
+  readonly lastErrorReference?: string;
   /** Where the last completed pass spent its wall time. Absent until one has. */
   readonly lastPassMetrics?: PassMetrics;
   /**
@@ -2698,6 +2705,8 @@ export interface MigrationStatusStore {
     error: string,
     /** Which side the error came from, when the pass could tell (0094 T5). */
     side?: FailureSide,
+    /** The reference the failure was recorded under (0129 T1), kept to be shown. */
+    reference?: string,
   ): Promise<void>;
 
   /**

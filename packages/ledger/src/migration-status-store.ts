@@ -1,5 +1,6 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import {
+  APP_EVENT_REFERENCE,
   classifyFailure,
   isFailureCategory,
   type MigrationStatusStore,
@@ -148,6 +149,9 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // And the side (0094 T5): a side that outlived its failure would send
         // somebody to rotate a credential that works.
         failedSide: null,
+        // And the reference (0061): quoting it would send somebody looking for
+        // a failure that is over.
+        lastErrorReference: null,
         // No terminal state is also a live pause (migration 0041). Cleared
         // here, in markFailed and in markSwitchedOff as well as at the top of the
         // next pass, so that a row can never carry both and let a screen
@@ -202,6 +206,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         lastError: null,
         lastErrorCategory: null,
         failedSide: null,
+        lastErrorReference: null,
       })
       .where(
         and(
@@ -218,6 +223,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
     domain: DiscoveryDomain,
     error: string,
     side?: FailureSide,
+    reference?: string,
   ): Promise<void> {
     await this.db
       .update(schemaPg.migrationStatus)
@@ -245,6 +251,12 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // message later travels to. The two are written in the same statement
         // and cannot disagree.
         lastErrorCategory: classifyFailure(error, side),
+        // The reference the failure was recorded under (0061, 0129 T1), what
+        // a person quotes. NULL written explicitly, like the side: a previous
+        // failure's reference must not stand beside this one. One of the
+        // wrong shape is dropped here rather than refused by the CHECK, which
+        // would lose the failure itself.
+        lastErrorReference: reference !== undefined && APP_EVENT_REFERENCE.test(reference) ? reference : null,
         // See markCompleted: a failure is not a scheduled pause, and a row
         // carrying both would say the domain is fine and broken at once.
         pausedReason: null,
@@ -358,6 +370,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         schemaPg.migrationStatus.lastError,
         schemaPg.migrationStatus.lastErrorCategory,
         schemaPg.migrationStatus.failedSide,
+        schemaPg.migrationStatus.lastErrorReference,
         schemaPg.migrationStatus.lastPassMetrics,
         schemaPg.migrationStatus.pausedReason,
       )
@@ -395,6 +408,11 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       // Through the guard for the same reason, though here the CHECK already
       // holds the column to two values: the guard is what the type rests on.
       ...(isFailureSide(row.status.failedSide) ? { failedSide: row.status.failedSide } : {}),
+      // The reference a person quotes (0061). The CHECK holds its shape; the
+      // test here is what the type rests on, as for the side.
+      ...(row.status.lastErrorReference && APP_EVENT_REFERENCE.test(row.status.lastErrorReference)
+        ? { lastErrorReference: row.status.lastErrorReference }
+        : {}),
       // Through the guard, never cast: `jsonb` accepts whatever the writer
       // put there, and a reason from an older or newer build must not reach a
       // screen with no sentence for it (migration 0041).

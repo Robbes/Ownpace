@@ -80,6 +80,9 @@ const EVERY_FIELD: Required<DomainStatusReport> = {
   lastError: '550 5.7.1 rejected: /Documents/tax-return-2024.pdf',
   lastErrorCategory: 'target_refused',
   failedSide: 'target',
+  // Left out of the link (0129 T1): it names nothing, but what it is for is
+  // reporting a problem, which only a signed-in owner can do.
+  lastErrorReference: '0f1e2d3c',
   lastPass: { items: 40, wallMs: 3000, sourceFetchMs: 1000, targetWriteMs: 900, ledgerMs: 50, hashMs: 20, overlap: 2.1 },
   pausedReason: { kind: 'daily-download-ceiling', provider: 'imap.gmail.com', windowResetsAt: null },
 };

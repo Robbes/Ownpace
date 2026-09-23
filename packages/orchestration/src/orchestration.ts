@@ -747,8 +747,17 @@ export async function runAllDomains(
       log.error(`[Worker] ${domain} sync failed [ref ${failed.reference}]: ${error.message}`);
       // With the side the pass tagged at the closure that threw (0094 T5,
       // second slice), so the connections page can put the line on one
-      // card; undefined when it could not tell, and the page says so.
-      await statusStore.markFailed(tenantId, mappingId, domain, error.message, failureSideOf(err));
+      // card; undefined when it could not tell, and the page says so. And
+      // with the event's reference, so the failure line shows what the log
+      // page and the log line carry (0129 T1, ledger 0061).
+      await statusStore.markFailed(
+        tenantId,
+        mappingId,
+        domain,
+        error.message,
+        failureSideOf(err),
+        failed.reference,
+      );
       await recordAppEvent(failed);
       results.push({ domain, scanned: 0, created: 0, updated: 0, skipped: 0, adopted: 0, failed: 1, error: error.message });
       // Continue to the next domain — one domain's failure must not block others.

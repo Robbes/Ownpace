@@ -1301,6 +1301,13 @@ export const migrationStatus = pgTable(
      */
     failedSide: text('failed_side', { enum: ['source', 'target'] }),
     /**
+     * The reference of the last failure (migration 0061): the eight hex
+     * characters recorded in `app_event` and on the log line with the error's
+     * text, so the failure line can show what a person quotes. Written with
+     * the category, cleared with it; the database checks the shape.
+     */
+    lastErrorReference: text('last_error_reference'),
+    /**
      * Where the last completed pass spent its wall time (see PassMetrics).
      * Counts and durations only — never folder names or addresses.
      */

@@ -1214,6 +1214,9 @@ const en = {
     'We could not classify this one. The provider\u2019s own message is below \u2014 if it does not help, send it to us and we will look.',
   // Which SIDE it happened on, when the pass could tell (0094 T5): said after
   // the remedy, so "reconnect it" points at the right account.
+  // The reference the failure was recorded under (0129 T1), what a person
+  // quotes when they report it.
+  'failure.reference': 'Reference: {reference}',
   'failure.side.source': 'It happened on the source side.',
   'failure.side.target': 'It happened on the destination side.',
   // ---------------------------------------------------------------------
@@ -2190,6 +2193,7 @@ const nl: Record<keyof typeof en, string> = {
     'We konden de server niet bereiken. Dit duurt meestal kort en wordt vanzelf opnieuw geprobeerd.',
   'failure.unknown':
     'We konden dit niet classificeren. De melding van de provider zelf staat hieronder \u2014 helpt die niet, stuur hem ons dan en we kijken mee.',
+  'failure.reference': 'Referentie: {reference}',
   'failure.side.source': 'Het gebeurde aan de bronkant.',
   'failure.side.target': 'Het gebeurde aan de doelkant.',
   // De supportschermen van de beheerder (werkplan 0110 T4). Gericht aan de

@@ -239,6 +239,12 @@ export interface DomainStatusReport {
    */
   readonly failedSide?: FailureSide;
   /**
+   * The reference the last failure was recorded under (0129 T1): what the
+   * failure line shows and a report carries, so the operator's log row and
+   * the customer's words find each other. Absent when nothing has failed.
+   */
+  readonly lastErrorReference?: string;
+  /**
    * Where the last completed pass spent its time. Absent until a pass
    * completes; never invented as zeros, because zero durations read as
    * "instant" rather than "unknown".
@@ -342,6 +348,7 @@ export function buildDomainStatusReports(
       ...(s.lastError ? { lastError: s.lastError } : {}),
       ...(s.lastErrorCategory ? { lastErrorCategory: s.lastErrorCategory } : {}),
       ...(s.failedSide ? { failedSide: s.failedSide } : {}),
+      ...(s.lastErrorReference ? { lastErrorReference: s.lastErrorReference } : {}),
       ...(s.lastPassMetrics ? { lastPass: s.lastPassMetrics } : {}),
       ...(s.pausedReason ? { pausedReason: s.pausedReason } : {}),
       lastActiveAt: s.updatedAt,
