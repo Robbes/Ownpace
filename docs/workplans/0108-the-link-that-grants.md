@@ -1,6 +1,15 @@
 # Workplan 0108 — the link that grants
 
-## Status — 2026-08-27 (update this block at the end of every session)
+## Status — 2026-09-23 (update this block at the end of every session)
+
+**2026-09-23: reopened, by two findings and one question from the owner.** Grant links ignore
+the deployment's own Google client, and they do not know the Google **account** connection the
+wizard now creates by default, so on managed a link can be issued for neither kind of Google
+source. The owner: *"Grant links: Yes, fix both"* (T6, T7). He then asked whether the person who
+grants should be shown **where from and where to**, so that nobody's account can be migrated into
+somebody else's target and read there. Yes, and more than that. The deployment's client makes that
+attack cheaper and more convincing, so the protection ships with T6 and never after it (T8). Three
+of T8's parts are open for the owner. See **Reopened 2026-09-23** below.
 
 **The build started and finished on 2026-08-27**, on the owner's word, after the design and its
 expiry amendment were merged. **All five tasks are built**, as four stacked pull requests
@@ -34,6 +43,9 @@ expiry presets stand as built.
 | T3 The owner's surface: issue, list, revoke | ✅ **Done 2026-08-27** | `link-routes.ts` (POST/GET/DELETE `…/:mappingId/links`) mounted on the migrations router, plus `GrantLinksPanel` on the mapping's hub. **The refusal comes first and nothing is written on one**: `grant-link-readiness.ts` decides the four ways a grant link is dead on arrival — no source connection, a source that is not one of the four Google kinds, no client id or secret stored, or a deployment with no `WEB_URL` — each naming what to configure, and each answering **409** (well-formed, permitted, cannot be honoured) rather than 400. It takes **booleans, never values**: `hasClientSecret`, not `clientSecret`, so a decrypted secret cannot reach a function whose whole output is a sentence that gets logged. Ordered so the owner's own fixable problem is named before the deployment's. The consent kinds are a **table, not a transliteration**, guarded against `GOOGLE_SOURCE_SCOPES` so a kind can never map to a scope that does not exist. The URL is returned **once** (POST is the only response in the product that carries a bearer secret) with the chosen expiry beside it and ADR-0035's division of labour in the payload, not just the template; GET answers state and dates and **could not** produce a URL. DELETE is idempotent — `revoked: false` for a second press — and a link id belonging to another tenant answers 404 with the row untouched. Writes need owner/admin; the READ does not, because seeing that a door exists is not being able to open it. On the panel: three lifetimes with seven pre-filled, the copy button beside a real selectable input (a browser may refuse the clipboard), an **armed** two-click revoke, refusals rendered **verbatim** (ADR-0024's prose boundary) while the four states go through `StateChip`, and **`expired` deliberately not greyed away** — it is the one row that means somebody was asked and never answered, so it stays loud and carries the re-issue nudge. Renders nothing on the appliance, whose half is unbuilt rather than forbidden. 13 route tests on **PGlite as `app_user`** (the table is read directly after every refusal — a mocked store cannot tell a refused row from a hidden one), 13 decision tests, 11 panel tests. **Found and fixed while wiring**: the openapi guard read `/api/migrations` as two files, so the three sub-routers `migrations/index.ts` mounts on itself were partly invisible — `google-oauth-routes.ts` had served `POST /google/authorize` and `GET /google/callback`, one of them the beginning of an OAuth consent, checked by nothing. The guard now resolves sub-router mounts out of the parent, and all five operations are documented. Proofs by breaking: computing the refusal and dropping it → 8 red; writing the row before the refusal → 8 red; assuming credentials present → 1; the secret in another column → 2; the list handing out addresses → 1; the role gate dropped → 1; the deployment refusal jumping the queue → 1; a fifth Google kind with no scope → 3; and on the panel — rendering on the appliance, a generic refusal, a one-click revoke, the missing nudge → 1, 1, 2, 1. |
 | T4 The migrator's page and the second ending of the consent flow | ✅ **Done 2026-08-27** | Migration 0032 gives `mailbox_mapping` a `source_secret_ref` — ADR-0035 decision 4's per-mapping credential home, `source_config_override`'s sibling and the same key-by-key merge, because the split is the same split: the client id and secret are the OWNER's on a connection several mappings may share, and the refresh token is the MIGRATOR's and true of one mapping only. `mergeMappingCredentials` is one function serving **both** credential paths (`buildDepsFromMapping` for mail, `loadDomainConnections` for the rest) so a grant cannot work for somebody's mail and not their calendar. `/grant/:link` is public, outside the chrome, and says who is asking, what is read, that it is read-only, the scope **as a scope** (ADR-0041), when the link stops working, and where the privacy policy is — all before the button. `POST /api/grant/:link/google/authorize` reads the client id **and secret server-side**; unlike the owner's route it refuses to take them from the body, so a link holder cannot aim the consent at a client of their own. **One callback serves both flows** — Google is registered against one redirect URI — and which ending runs is decided by the server's own pending state, never by the redirect. The migrator's ending calls `grantResultPage`, a function with **no parameter that could hold a token**: the owner's page hands the token to a wizard window, this one cannot. `storeGrantedToken` **spends the link before it writes**, in one transaction, so a link revoked mid-flight claims nothing and stores nothing. **Two findings.** (1) The workplan's open edge — a mapping awaiting its grant must not be runnable — needs **no new status value**: `mailbox_mapping.status` is load-bearing in a DB CHECK, in `MAPPING_LIFECYCLES` that both editions serve, and in ADR-0014's billing states, and a stored flag would go stale; waiting-for-a-grant is the *observation* that the credentials are not here yet, derived from the rows and composed exactly as a sync pass composes them. A service-account key satisfies it too — what is refused is having no way in, never a particular way in. (2) **`revoke-stored-credentials.ts` read only the `connection` table**, so a migrator's granted token would have been erased from the database and left live at Google, with the receipt reporting nothing to revoke — this file's own founding mistake, against the one token that reaches a private individual's mailbox rather than an account the customer administers. It now reads both tables. 13 flow tests on **PGlite as `app_user`** with only Google's token endpoint stubbed, 4 start-guard tests driving the real router, 5 decision tests, 9 page tests. Proofs by breaking: the link ending falling through to the owner's page → 3 red; the credential written before the link is claimed → 2; more than the migrator's half stored → 1; a caller-supplied client honoured → 1; internal ids in the read → 1; the start guard computed and dropped → 2; the guard ignoring the mapping's credential → 1; revocation narrowed back to one table → 1; and on the page, the scope shown only as a paraphrase → 1, a self-composed redirect → 1. |
 | T5 The words: manual sentences and the invitation-vs-link distinction | ✅ **Done 2026-08-27** | `docs/grant-links.md` — the customer-served guide, written for the owner who has to explain this to somebody: issuing, the four early refusals with what to fix, what the other person actually sees, the four states with **expired-unused named as the one to act on**, and the support path ADR-0035 obliges us to have (*"my link says invalid"* — the message is the same for all four causes on purpose, so the answer is always "look at the list and re-issue", not "diagnose the sentence"). It also states the **three-way revocation split** as a table: you stop the link, they stop the access they granted, deleting the migration stops everything — three different people's switches, which is what layered revocation means in practice. `google-workspace-setup.md` step 4 gains the **third way to get a refresh token**, ahead of the other two, because both of those assume you can sign in as the account being migrated and often you cannot: *"the honest way to get this token is not to ask them for their password, and not to sit beside them while they sign in."* No workplan numbers in either (customer-served guides never cite them); indexed in `docs/README.md`. **The invitation-vs-link distinction is written in code, not only in prose**, because that is where the mistake would be made: `routes/invitations.ts` carries the long version — an invitation is an offer to JOIN, authorised by a verified email claim, carrying **no token at all**, while a grant link IS a bearer credential for somebody who will never have an account — and names the cheap mistake in its actual direction (*adding a token to an invitation "so people do not have to sign in"* would create a bearer credential for a **seat** with none of the machinery one needs). `routes/grant.ts` carries the pointer back. |
+| T6 The deployment's client, when the connection stores none | 📋 **Decided 2026-09-23** (*"fix both"*); ships with T8a | `grant-link-readiness.ts` (at issue) and `loadSubject` in `routes/grant.ts` (at use) read the client pair from the source connection only, so a connection made with the deployment's client (`GOOGLE_OAUTH_CLIENT_ID/SECRET`, ADR-0041) is refused with *"Add it on the source connection"*. One resolution for both, the same one the account consent uses: the connection's own pair if it stores one, else the deployment's. Calendar, contacts and tasks always. Mail and files only where the restricted class is declared (`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`). Otherwise the refusal names both ways out. |
+| T7 A link for a Google account | 📋 **Decided 2026-09-23** (*"fix both"*) | `GOOGLE_CONSENT_KIND_TO_SOURCE` knows the four single-purpose kinds and not `google`, the kind the wizard creates by default, so on a Google account migration the owner is told *"this migration's source is 'google'. Only Gmail, Google Calendar, Google Contacts and Google Drive sources can be granted"*. The link asks for exactly the data types that migration copies (its included `scope_selection` rows, through `GOOGLE_DOMAIN_SCOPES`), the same consent the owner gets when connecting an account himself. |
+| T8 What the person who grants is told, and what binds the grant | 📋 **Proposed 2026-09-23**; (a) ships with T6; (b), (c), (d) wait on the owner | (a) The page says who asked, **from which account, to which destination**, what, for how long, and how to stop it. (b) The account that signs in must be the one the page named. (c) The person can withdraw the grant from the page. (d) An audit line per grant, a way to report a link, and a per-tenant limit. The reasoning is in **Reopened 2026-09-23** below. |
 
 ## Why this exists
 
@@ -235,6 +247,79 @@ one web page, and the decision-4 column with its `buildDepsFromMapping` preferen
 consent machinery, credential store, rate limiter, and refusal vocabulary all exist. The real
 recurring cost is the one ADR-0035 already admitted: a bearer credential means expiry,
 revocation, re-issue and a support sentence, forever.
+
+## Reopened 2026-09-23: the deployment's client, the account kind, and what the granter is told
+
+### Two findings, and the owner's answer
+
+1. **The link never inherited the deployment's client.** *Not in this plan* below says the link
+   flow *"uses whatever client the mapping carries; when the managed option exists on the owner's
+   side, the link inherits it unchanged"*. The managed option exists since ADR-0041. The link did
+   not inherit it: both `grant-link-readiness.ts` and `loadSubject` read `clientId` and
+   `clientSecret` from the source connection's stored credentials, and a connection made with the
+   deployment's client stores neither. So on managed a grant link could be issued only by an owner
+   who brought his own Google client, which ADR-0041 exists to make unnecessary (*"this is where
+   ADR-0035's grant link finally pays off"*).
+2. **The link does not know the Google account.** Its table of consent kinds predates the account
+   kind. The wizard now makes `google`, and a link refuses it with a sentence telling a Google
+   source that only Google sources can be granted.
+
+**The owner, 2026-09-23: *"Grant links: Yes, fix both."*** T6 and T7.
+
+### The owner's question: should the granter see where from and where to?
+
+*"Should someone that is asked to grant be only asked the combination of the source and target,
+so he/she can validate from where to where all is migrating? This to prevent abuse like migrate
+someones source into someone else's target/account and steal all data."*
+
+**What the page says today** (T4): the organisation's name, what is read, that it is read-only,
+the scope as a scope, when the link stops working, and the privacy policy. **It does not say where
+the data goes.** Neither does Google's consent screen, which names only the app.
+
+**The attack.** Somebody with a tenant, their own or one they took over, sets up a migration
+from the victim's Google account into a target they control, and sends the link with a plausible
+story (*"IT is moving everyone to the new system"*). Everything the victim then sees is genuine:
+Ownpace's page, and Google's own consent screen. One press, and their mail, calendars, contacts
+and files are copied to a stranger, read-only at the source, so nothing looks wrong afterwards.
+This is consent phishing, and the tool is doing exactly what it was built to do.
+
+**T6 makes it cheaper and more convincing, which is why the answer cannot wait.** Today the
+attacker has to bring their own Google client. Google names that client on its consent screen,
+and verifies it before it may ask for Gmail or Drive. With the deployment's client, Google's
+screen says **Ownpace**, a verified app. The fallback lends Ownpace's name, and Google's
+verification of it, to every link a tenant issues. It is Ownpace's own risk as well: Google can
+suspend a client that is used for abuse, and every customer on the deployment would lose Google
+at once. So the page has to carry the information the victim needs, and it ships **with** T6,
+never after it.
+
+**Recommended (T8):**
+
+- **(a) Say who, from where, to where, before the button.** Who asked: the organisation's name,
+  which anyone can choose, and the address of the owner who issued the link, which they cannot. From:
+  the account the migration expects. To: the destination's provider, its host and the account on
+  it. What: the data types, read-only. How long, and how to stop it. Then one plain sentence: continue only
+  if you know who asked and the destination is yours or your organisation's. It costs one read
+  of rows the route already joins. It shows the destination to whoever holds the link, which is
+  acceptable for a single-use link that expires, and it is information the person granting is
+  entitled to. **Ships with T6.**
+- **(b) Bind the grant to the account the page named.** After the sign-in, the account that
+  granted must be the one the migration expects. A mismatch refuses and stores nothing. It closes
+  the forwarded-link case, and it makes "From" a fact rather than a label. Reading the signed-in
+  address needs Google's basic `email` scope, which costs no verification. **For the owner:** an
+  owner who has not named the account would have to name it when issuing the link. That is one
+  field, and it is the field that makes the check possible.
+- **(c) Let the person withdraw.** A page they can return to, the 0122 progress link, offers
+  *withdraw my grant*. It revokes the token at Google, deletes it here, and the migration stops
+  for want of a credential. Today their only switch is Google's security settings, which most
+  people never find. **For the owner:** yes or no.
+- **(d) What the operator can see and do.** An audit line per grant: which tenant, which link,
+  which account granted, which destination, and when. Most of it is already in `mapping_link` and
+  the credential home. A *report this link* address on the grant page, and a per-tenant limit on
+  open grant links. **For the owner:** the report address is a commitment to read it.
+
+**Not recommended:** guessing at abuse, for example warning when a company account's destination
+is on another domain. It is wrong often enough to teach people to ignore it, and (a) and (b) give
+the person what they need to judge for themselves.
 
 ## Not in this plan
 
