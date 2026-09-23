@@ -264,6 +264,30 @@ describe('Mappings — Delete arms with the mapping name and works (0037 T5)', (
     );
   });
 
+  /**
+   * WHAT SETTING IT UP AGAIN DOES (owner, 2026-09-23).
+   *
+   * The fold used to end "copies nothing twice", and the owner asked the
+   * question that invites: delete a finished migration, set the same one up
+   * later, and is everything duplicated? It is not, but that was the only half
+   * it said. A new migration ADOPTS what it finds already there, and an
+   * adopted item never follows its source again; a copy deleted or moved on
+   * the new side matches nothing and is copied back. Someone choosing between
+   * delete and pause needs both halves before the second press.
+   */
+  it('says what setting the same migration up again does, and what pausing keeps', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
+    renderMappings();
+
+    fireEvent.click(await screen.findByTitle('Delete'));
+
+    expect(screen.getByText(/copies only what is new/)).toBeInTheDocument();
+    expect(screen.getByText(/no longer updated when it changes at the source/)).toBeInTheDocument();
+    expect(screen.getByText(/deleted or moved on the new side comes back/)).toBeInTheDocument();
+    expect(screen.getByText(/pause the migration instead/)).toBeInTheDocument();
+    expect(screen.queryByText(/copies nothing twice/)).not.toBeInTheDocument();
+  });
+
   it('a name no placeholder could show still deletes — the owner\u2019s own wall', async () => {
     // A trailing space is invisible in a text box and was, until today,
     // enough to make a migration undeletable through the product.
