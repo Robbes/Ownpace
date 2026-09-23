@@ -49,6 +49,7 @@ listed there.
 
 | class | Ownpace's scopes | what Google requires |
 |---|---|---|
+| non-sensitive | `openid`, `.../auth/userinfo.email` (grant links only, since 2026-09-23) | no verification of their own |
 | **sensitive** | contacts, calendar, tasks | brand verification: privacy policy, domain ownership, demo video, review |
 | **restricted** | Gmail `https://mail.google.com/`, Drive `drive.readonly` | the above **plus an annual third-party security assessment** |
 
@@ -74,6 +75,12 @@ IMAP door needs — are **restricted**, exactly as the table above assumed.
 and the console filed it under **Your sensitive scopes**, beside calendar and contacts. So Tasks
 stays a default face of a Google account (workplan 0126), and the verification that covers
 calendar and contacts covers it too.
+
+**Two non-sensitive scopes, added 2026-09-23** (workplan 0108 T8 (b)). A grant link now also
+asks for `openid` and `.../auth/userinfo.email`, so that the grant is accepted only from the
+account the migration names. They are Google's basic sign-in scopes, and non-sensitive. The
+*Your non-sensitive scopes* section was empty on 2026-09-20: declare the two there before a
+submission, so that the declared list matches what the product asks for.
 
 Two things the page did **not** settle, stated rather than implied away:
 
@@ -109,6 +116,8 @@ Google asks why each scope is needed. The answers are short because the product 
 | `.../auth/tasks.readonly` | Read the task lists being migrated (workplan 0126) | It is the narrow one: `.../auth/tasks` adds writing, which the product never does |
 | `https://mail.google.com/` | Read the mail being migrated over IMAP | **There is no narrower choice.** The granular `gmail.readonly` scopes belong to the REST API and are refused at the IMAP door. The scope *reads as* full mail access; the connector has no write path and Google is never a target — a property of the product, not one Google enforces, and stated rather than glossed |
 | `.../auth/drive.readonly` | Read the files being migrated | `drive.file` reaches only files the app created or the user picked; a whole-Drive migration cannot be expressed with it |
+| `openid` | Receive Google's ID token when somebody uses a grant link, which names the account that signed in (workplan 0108 T8 (b)) | Nothing is read with it; it only makes Google say who signed in |
+| `.../auth/userinfo.email` | Compare the account that signed in with the one the migration names, and refuse any other: a forwarded link, or the wrong account in the browser, connects nothing | The narrowest there is: the address and whether Google verified it. `.../auth/userinfo.profile` (name, picture) is not asked for |
 
 The honest sentence about `https://mail.google.com/` is already in
 `docs/google-workspace-setup.md` and should be in the submission in the same words. **A
