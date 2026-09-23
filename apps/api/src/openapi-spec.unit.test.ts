@@ -39,6 +39,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
+import { MICROSOFT_CONSENT_DOMAINS } from './routes/migrations/microsoft-consent.ts';
 
 const API_ROOT = join(import.meta.dirname, '..');
 
@@ -310,6 +311,20 @@ describe('the spec says the things a reader would otherwise get wrong', () => {
       responses?: Record<string, unknown>;
     };
     expect(Object.keys(apply?.responses ?? {})).toEqual(expect.arrayContaining(['202', '403']));
+  });
+
+  it("offers the Microsoft consent every face its route accepts, To Do's included", () => {
+    // The route validates `domains` against the consent's own list, which is
+    // derived from the face-to-scope map. To Do's row (`task: 'Tasks.Read'`)
+    // arrived in that map and the spec's enum stayed at four, so a client
+    // generated from the spec could not ask for the face the row was added for.
+    const post = spec.paths?.['/api/migrations/microsoft/authorize']?.post as {
+      requestBody?: {
+        content?: Record<string, { schema?: { properties?: Record<string, { items?: { enum?: string[] } }> } }>;
+      };
+    };
+    const documented = post?.requestBody?.content?.['application/json']?.schema?.properties?.domains?.items?.enum;
+    expect([...(documented ?? [])].sort()).toEqual([...MICROSOFT_CONSENT_DOMAINS].sort());
   });
 
   it('marks every stored secret write-only', () => {
