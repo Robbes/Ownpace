@@ -111,6 +111,18 @@ const Grant: React.FC = () => {
           </p>
 
           <dl className="mt-4 p-4 border border-gray-200 rounded-lg grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            {/* The company as the EU VAT register names it (0108 T8a): shown
+                only when the organisation's VAT number was checked and found
+                valid, because it is the one name here nobody typed. */}
+            {subject.data.checkedCompany && (
+              <>
+                <dt className="text-gray-600">{t('grant.company')}</dt>
+                <dd className="text-gray-900">
+                  <span className="block">{subject.data.checkedCompany}</span>
+                  <span className="block text-xs text-gray-500">{t('grant.companyChecked')}</span>
+                </dd>
+              </>
+            )}
             {subject.data.askedBy && (
               <>
                 <dt className="text-gray-600">{t('grant.askedBy')}</dt>

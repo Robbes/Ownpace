@@ -169,6 +169,18 @@ beforeAll(async () => {
       'Acme Legal',
       JSON.stringify({ contactPhone: '+31 20 123 4567' }),
     ]);
+    // A business whose VAT number VIES checked and found valid (0108 T8a): the
+    // page shows the name the register gave.
+    await q(
+      `INSERT INTO billing_party (tenant_id, kind, name, address_line1, postal_code, city, country_code, vat_number)
+       VALUES ($1,'business','Acme Legal','Keizersgracht 1','1015 AA','Amsterdam','NL','NL123456789B01')`,
+      [TENANT],
+    );
+    await q(
+      `INSERT INTO vat_consultation (tenant_id, country_code, vat_number, valid, trader_name)
+       VALUES ($1,'NL','123456789B01',true,'ACME LEGAL B.V.')`,
+      [TENANT],
+    );
     // The member who issues every link below (`mintLink`'s createdBy): the page
     // names them by the address they sign in with (0108 T8a).
     await q(`INSERT INTO tenant_member (tenant_id, user_id, email) VALUES ($1,$2,$3)`, [
@@ -298,6 +310,7 @@ describe('what the page may know before the button', () => {
     }
     expect(Object.keys(res.body).sort()).toEqual([
       'askedBy',
+      'checkedCompany',
       'expiresAt',
       'from',
       'organisation',
@@ -306,6 +319,54 @@ describe('what the page may know before the button', () => {
       'scope',
       'to',
     ]);
+  });
+
+  it('gives the company name the EU VAT register gave, when it said valid', async () => {
+    const { token } = await mintLink(MAPPING);
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.body.checkedCompany).toBe('ACME LEGAL B.V.');
+  });
+
+  it('gives no company name once the number has changed since it was checked', async () => {
+    // What was checked was the old number; nothing has checked this one.
+    const setVat = async (vat: string) => {
+      const conn = await driver.acquire();
+      try {
+        await conn.query(`UPDATE billing_party SET vat_number = $2 WHERE tenant_id = $1`, [TENANT, vat]);
+      } finally {
+        await conn.release();
+      }
+    };
+    await setVat('NL999999999B01');
+    try {
+      const { token } = await mintLink(MAPPING);
+      const res = await request(app).get(`/api/grant/${token}`);
+      expect(res.body.checkedCompany).toBeNull();
+    } finally {
+      await setVat('NL123456789B01');
+    }
+  });
+
+  it('gives no company name when the latest check said invalid, whatever an older one said', async () => {
+    const run = async (sql: string) => {
+      const conn = await driver.acquire();
+      try {
+        await conn.query(sql, [TENANT]);
+      } finally {
+        await conn.release();
+      }
+    };
+    await run(
+      `INSERT INTO vat_consultation (tenant_id, country_code, vat_number, valid, trader_name, checked_at)
+       VALUES ($1,'NL','123456789B01',false,'ACME LEGAL B.V.', now() + interval '1 minute')`,
+    );
+    try {
+      const { token } = await mintLink(MAPPING);
+      const res = await request(app).get(`/api/grant/${token}`);
+      expect(res.body.checkedCompany).toBeNull();
+    } finally {
+      await run(`DELETE FROM vat_consultation WHERE tenant_id = $1 AND valid = false`);
+    }
   });
 
   it("gives the organisation's phone number, when it gave one", async () => {

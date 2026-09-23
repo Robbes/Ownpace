@@ -33,6 +33,7 @@ import Grant from './Grant.tsx';
 const SCOPE = 'https://mail.google.com/';
 const SUBJECT = {
   organisation: 'Acme Legal',
+  checkedCompany: 'ACME LEGAL B.V.',
   askedBy: 'owner@example.org',
   organisationPhone: '+31 20 123 4567',
   reads: 'your email — messages, folders and labels',
@@ -118,6 +119,23 @@ describe('what a person sees before consenting', () => {
     const asker = screen.getByText('owner@example.org');
     const button = screen.getByRole('button', { name: /Continue with Google/ });
     expect(asker.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('names the company as the EU VAT register does, and says where that name comes from', async () => {
+    renderPage();
+    expect(await screen.findByText('Company')).toBeInTheDocument();
+    const company = screen.getByText('ACME LEGAL B.V.');
+    expect(screen.getByText('Checked in the EU VAT register (VIES).')).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: /Continue with Google/ });
+    expect(company.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows no company line when no checked name exists, rather than an unchecked one', async () => {
+    readMock.mockResolvedValue({ ...SUBJECT, checkedCompany: null });
+    renderPage();
+    expect(await screen.findByText('owner@example.org')).toBeInTheDocument();
+    expect(screen.queryByText('Company')).not.toBeInTheDocument();
+    expect(screen.queryByText(/EU VAT register/)).not.toBeInTheDocument();
   });
 
   it("gives the organisation's number to call, as a link a phone can dial", async () => {

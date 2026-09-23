@@ -14,6 +14,9 @@ import { linkClient as client } from './link-client.ts';
 
 const SubjectSchema = z.object({
   organisation: z.string(),
+  // The name the EU VAT register gave, when the organisation's VAT number was
+  // checked and found valid (0108 T8a); null otherwise.
+  checkedCompany: z.string().nullable(),
   // Who asked (0108 T8a): the issuing member's sign-in address, or null when
   // they are no longer a member.
   askedBy: z.string().nullable(),

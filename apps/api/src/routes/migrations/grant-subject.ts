@@ -29,6 +29,7 @@ import {
 import { tenantMember } from '@openmig/managed/schema-managed';
 import type { GrantLinkReadiness } from './grant-link-readiness.ts';
 import { accountOfMapping } from './account-on-connection.ts';
+import { checkedCompanyName, readVatStanding } from '../../services/vat-standing.ts';
 
 interface StoredConnection {
   readonly kind: string;
@@ -142,6 +143,21 @@ export async function readAskedBy(
     .where(and(eq(schema.mappingLink.id, linkId), eq(schema.mappingLink.tenantId, tenantId)));
   const email = rows[0]?.email.trim();
   return email ? email : null;
+}
+
+/**
+ * The company name the EU VAT register gave for this organisation (0108 T8a).
+ *
+ * The owner, 2026-09-23: *"yes, build the VIES-check-and-show-that-name. But
+ * it does require checks/lookup at fill-in of the VAT number."* The billing
+ * screen asks VIES the moment a new business number is saved, and this reads
+ * that answer through the billing page's own reading (`readVatStanding`), so
+ * the two can never disagree about whether a name was checked. Null for a
+ * consumer, and whenever the latest check of the number as stored is missing,
+ * invalid, or disclosed no name.
+ */
+export async function readCheckedCompany(db: PgDatabase, tenantId: string): Promise<string | null> {
+  return checkedCompanyName(await readVatStanding(db, tenantId));
 }
 
 /**

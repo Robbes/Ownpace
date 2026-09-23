@@ -37,6 +37,11 @@ import { run as runTable } from '@openmig/ledger/schema-pg';
 import { PgPathLifecycleStore } from '@openmig/ledger';
 import { log, type TenantId } from '@openmig/shared';
 import { NO_TIER_BILLING_CODE, NO_TIER_BILLING_REASON } from './no-bill-we-do-not-sell.ts';
+import {
+  billingPartyColumns,
+  readVatStanding,
+  vatConsultationColumns,
+} from '../../services/vat-standing.ts';
 
 /** Decimal GB, as `invoice-generation.ts` uses — a price list is not binary. */
 const BYTES_PER_GB = 1_000_000_000;
@@ -125,22 +130,6 @@ const BillingPartySchema = z
   });
 
 /**
- * The consultation as the page sees it — everything the row holds except the
- * tenant id the caller already is.
- */
-const vatConsultationColumns = {
-  id: schema.vatConsultation.id,
-  countryCode: schema.vatConsultation.countryCode,
-  vatNumber: schema.vatConsultation.vatNumber,
-  valid: schema.vatConsultation.valid,
-  requestDate: schema.vatConsultation.requestDate,
-  consultationNumber: schema.vatConsultation.consultationNumber,
-  traderName: schema.vatConsultation.traderName,
-  traderAddress: schema.vatConsultation.traderAddress,
-  checkedAt: schema.vatConsultation.checkedAt,
-} as const;
-
-/**
  * The deployment's own identity for QUALIFIED VIES checks — the ones that
  * come back with a consultation number. An instance fact (the operating
  * entity is still an accountant conversation), so it rides the environment:
@@ -168,19 +157,6 @@ function viesRequesterFromEnv(): ViesRequester | null {
 }
 
 /** One response shape for GET and PUT, so the page cannot see two dialects. */
-const billingPartyColumns = {
-  tenantId: schema.billingParty.tenantId,
-  kind: schema.billingParty.kind,
-  name: schema.billingParty.name,
-  addressLine1: schema.billingParty.addressLine1,
-  addressLine2: schema.billingParty.addressLine2,
-  postalCode: schema.billingParty.postalCode,
-  city: schema.billingParty.city,
-  countryCode: schema.billingParty.countryCode,
-  vatNumber: schema.billingParty.vatNumber,
-  createdAt: schema.billingParty.createdAt,
-  updatedAt: schema.billingParty.updatedAt,
-} as const;
 
 /**
  * GET /api/billing/usage
@@ -491,33 +467,11 @@ router.get('/party', authenticate, requireBillingRead, async (req: Authenticated
       return res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID required' });
     }
 
-    const { party, vatConsultation } = await withTenantDb(tenantId, getSharedPool(), async (db) => {
-      const rows = await db
-        .select(billingPartyColumns)
-        .from(schema.billingParty)
-        .where(eq(schema.billingParty.tenantId, tenantId));
-      const stored = rows[0] ?? null;
-
-      if (!stored || stored.kind !== 'business' || !stored.vatNumber) {
-        return { party: stored, vatConsultation: null };
-      }
-      const parsed = parseVatForVies(stored.countryCode, stored.vatNumber);
-      if (!parsed.ok) return { party: stored, vatConsultation: null };
-
-      const consultations = await db
-        .select(vatConsultationColumns)
-        .from(schema.vatConsultation)
-        .where(
-          and(
-            eq(schema.vatConsultation.tenantId, tenantId),
-            eq(schema.vatConsultation.countryCode, parsed.memberState),
-            eq(schema.vatConsultation.vatNumber, parsed.number),
-          ),
-        )
-        .orderBy(desc(schema.vatConsultation.checkedAt))
-        .limit(1);
-      return { party: stored, vatConsultation: consultations[0] ?? null };
-    });
+    // The one reading of "the number as stored, and the latest answer for it",
+    // shared with the grant page (`services/vat-standing.ts`).
+    const { party, vatConsultation } = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      readVatStanding(db, tenantId),
+    );
 
     const vatTreatment = party
       ? decideVatTreatment({
