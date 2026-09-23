@@ -25,7 +25,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refusalsFor } from '@openmig/shared';
-import { proposedRevisions } from './index.ts';
+import { exportFormatOverride, proposedRevisions } from './index.ts';
 
 const SOURCE = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf-8');
 
@@ -115,14 +115,20 @@ describe('the route honours the rule rather than restating it', () => {
     // subject, a Drive root, an archive path. Writing a fresh object here would
     // blank them, and the next pass would fall back to the connection's own
     // subject: ADR-0033's one-subject-per-mapping rule, undone by a settings save.
-    expect(SOURCE).toMatch(/sourceConfigOverride: \{ \.\.\.\(currentOverride \?\? \{\}\), nativeFilePolicy/);
+    expect(SOURCE).toMatch(
+      /sourceConfigOverride: \{ \.\.\.\(currentOverride \?\? \{\}\), \.\.\.revisedFormat \}/,
+    );
   });
 
   it('validates the policy through the shared parser, not a local list', () => {
     // Hard rule 5: a value the appliance's mapping file refuses must not be one
     // this route stores. One parser, both editions — the same argument
-    // `parseGoogleDriveSource`'s own header makes.
-    expect(SOURCE).toMatch(/parseGoogleDriveSource\(\{ nativeFilePolicy \}\)/);
+    // `parseGoogleDriveSource`'s own header makes. The route reads the format
+    // through `exportFormatOverride`, and that reads it through the parser.
+    expect(SOURCE).toContain('exportFormatOverride(body.sourceConfig ?? {})');
+    expect(() => exportFormatOverride({ nativeFilePolicy: 'export_office' })).toThrow(
+      /source\.nativeFilePolicy: unsupported "export_office"/,
+    );
   });
 
   it('no longer claims sourceConfig cannot be updated here', () => {

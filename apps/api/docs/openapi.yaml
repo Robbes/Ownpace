@@ -1814,10 +1814,19 @@ paths:
         What a live migration may change about itself (workplan 0125).
 
         The lifecycle fields (status, mode, pattern) and the Google export
-        policy (sourceConfig.nativeFilePolicy) are applied. The policy is
-        merged into THIS mapping's own source_config_override, so it reaches no
-        other migration sharing the same connection, and it is validated by the
-        same parser the appliance's mapping file goes through.
+        format are applied. The format is `sourceConfig.nativeFilePolicy` for
+        all four Google kinds, and `sourceConfig.nativeFilePolicies` for one
+        per kind (`document`, `spreadsheet`, `presentation`, `drawing`), laid
+        over it. It is merged into THIS mapping's own source_config_override,
+        so it reaches no other migration sharing the same connection, and it
+        is validated by the same parser the appliance's mapping file goes
+        through: an unknown kind or format is a `400` naming the key.
+
+        The two are one setting. `nativeFilePolicies` replaces the per-kind
+        formats as a whole, and a kind it leaves out follows
+        `nativeFilePolicy`. Sending `nativeFilePolicy` without
+        `nativeFilePolicies` clears the per-kind formats, so all four kinds
+        follow the one sent.
 
         Fields that cannot change on a migration that already holds items are
         REFUSED rather than dropped: the source or target system, the source
@@ -5461,6 +5470,28 @@ components:
             tenantId: { type: string }
             clientId: { type: string }
             clientSecret: { type: string, writeOnly: true }
+            nativeFilePolicy:
+              type: string
+              enum: [refuse, export-odf, export-office, export-pdf]
+              description: |
+                Google sources that carry files (`google-drive`, `google`):
+                the format Google Docs, Sheets, Slides and Drawings are
+                exported in. Unset means `refuse`.
+            nativeFilePolicies:
+              type: object
+              description: |
+                A format per kind (workplan 0042 T9), laid over
+                `nativeFilePolicy`; a kind left out follows it. No single
+                editable format carries all four kinds, so
+                `{ "presentation": "export-odf" }` beside `export-office`
+                keeps every kind editable. An unknown kind is refused by
+                name rather than ignored.
+              properties:
+                document: { type: string, enum: [refuse, export-odf, export-office, export-pdf] }
+                spreadsheet: { type: string, enum: [refuse, export-odf, export-office, export-pdf] }
+                presentation: { type: string, enum: [refuse, export-odf, export-office, export-pdf] }
+                drawing: { type: string, enum: [refuse, export-odf, export-office, export-pdf] }
+              additionalProperties: false
           required: [username]
         targetConfig:
           type: object

@@ -203,13 +203,20 @@ describe('what becomes of its Google Docs (owner 2026-09-17)', () => {
   it('lets a REUSED account connection be asked again, per migration', () => {
     // A shared connection says as whom we sign in; the mapping says what
     // becomes of the files. Without this, the second migration from one
-    // account would inherit the first one's export silently.
+    // account would inherit the first one's export silently. The per-kind
+    // formats are written as none (`{}`), for the same reason one step on
+    // (workplan 0042 T9): inherited, the first migration's format for decks
+    // would win over the PDF this one chose for all four.
     expect(
       sourceConfigOverride({
         sourceType: 'google',
         sourceConfig: { username: 'someone@example.invalid', nativeFilePolicy: 'export-pdf' },
       } as never),
-    ).toEqual({ user: 'someone@example.invalid', nativeFilePolicy: 'export-pdf' });
+    ).toEqual({
+      user: 'someone@example.invalid',
+      nativeFilePolicy: 'export-pdf',
+      nativeFilePolicies: {},
+    });
   });
 
   it('keeps the three single-purpose Google rows carrying the address alone', () => {

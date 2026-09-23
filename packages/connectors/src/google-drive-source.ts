@@ -43,12 +43,15 @@
 
 import {
   fileVersion,
+  googleEditorKindOf,
+  nativeFilePoliciesOf,
   permissionsNotDiscoverable,
   markNeedsDecision,
   statedFailureCategoryOf,
   withFailureCategory,
   type FailureCategory,
   type FileSource,
+  type GoogleEditorKind,
   type FileFolder,
   type FileItem,
   type PermissionGrant,
@@ -383,7 +386,14 @@ export type MeasuringInstrument = {
 export class GoogleDriveSource implements FileSource {
   private readonly baseUrl: string;
   private readonly rootFolderId: string;
+  /**
+   * The single setting, which is what a native file that is none of the four
+   * editor kinds is read under. It makes no difference to one of those: no
+   * policy has a rendering for a Form, so every one refuses it the same way.
+   */
   private readonly policy: NativeFilePolicy;
+  /** The format each editor kind is exported in — see `policyFor`. */
+  private readonly policies: Readonly<Record<GoogleEditorKind, NativeFilePolicy>>;
   /**
    * The listing `listSince` just made, held for `listKeys` to answer from.
    *
@@ -430,6 +440,25 @@ export class GoogleDriveSource implements FileSource {
     // to be wrong, only "your Docs did not migrate, and here is why" is one an
     // owner can act on.
     this.policy = config.nativeFilePolicy ?? 'refuse';
+    // Each kind's own format where the mapping gives one (0042 T9), read by the
+    // same function the revision snapshot records with, so what a migration is
+    // recorded as and what it exports cannot disagree about an unset kind.
+    this.policies = nativeFilePoliciesOf(config);
+  }
+
+  /**
+   * The policy THIS file is exported under (workplan 0042 T9).
+   *
+   * Asked per file rather than read once per source, because since the owner's
+   * decision of 2026-09-23 a Doc and a deck in the same folder can go different
+   * ways: no editable format carries all four kinds, so one setting for all of
+   * them made somebody choose which kind to lose. Every decision below — the
+   * name, the export, the refusal, the names the file had before — asks this,
+   * so no two of them can read a file under different policies.
+   */
+  private policyFor(mimeType: string): NativeFilePolicy {
+    const kind = googleEditorKindOf(mimeType);
+    return kind === undefined ? this.policy : this.policies[kind];
   }
 
   private async getJson(url: string): Promise<unknown> {
@@ -1195,7 +1224,7 @@ export class GoogleDriveSource implements FileSource {
    * fourth policy after that is no longer free to change this.
    */
   private exportedName(file: DriveFile): string {
-    return exportedNameUnder(file, this.policy);
+    return exportedNameUnder(file, this.policyFor(file.mimeType));
   }
 
   /**
@@ -1213,9 +1242,10 @@ export class GoogleDriveSource implements FileSource {
    */
   private formerPathsOf(file: DriveFile, folderPath: string, current: string): string[] {
     if (typeof file.mimeType !== 'string' || !isNativeEditorFile(file.mimeType)) return [];
+    const inForce = this.policyFor(file.mimeType);
     const paths = new Set<string>();
     for (const policy of EVERY_POLICY) {
-      if (policy === this.policy) continue;
+      if (policy === inForce) continue;
       const path = this.childPath(folderPath, exportedNameUnder(file, policy));
       if (path !== current) paths.add(path);
     }
@@ -1266,15 +1296,16 @@ export class GoogleDriveSource implements FileSource {
    * the file is ordinary and its bytes can simply be downloaded.
    */
   private exportUrlFor(file: DriveFile): string | undefined {
-    if (this.policy === 'refuse' || !isNativeEditorFile(file.mimeType)) return undefined;
-    const target = NATIVE_EXPORT_TYPES[this.policy][file.mimeType];
+    const policy = this.policyFor(file.mimeType);
+    if (policy === 'refuse' || !isNativeEditorFile(file.mimeType)) return undefined;
+    const target = NATIVE_EXPORT_TYPES[policy][file.mimeType];
     if (!target) return undefined;
     // A SECOND GATE, on purpose. `fetch` asks `refusalFor` first and throws, so
     // nothing measured-unstable reaches here today — but that is an ORDERING,
     // and an ordering is what a later edit reorders. The cost of the duplicate
     // check is a map lookup; the cost of losing it is a policy silently
     // exporting the file the measurement refused.
-    if (!this.measuring && exportStabilityOf(this.policy, file.mimeType) === 'unstable') {
+    if (!this.measuring && exportStabilityOf(policy, file.mimeType) === 'unstable') {
       return undefined;
     }
     return (
@@ -1309,12 +1340,13 @@ export class GoogleDriveSource implements FileSource {
   /** Whether this item would be refused, and why — exposed so callers can ask. */
   refusalFor(file: DriveFile): NativeFileRefused | undefined {
     if (!isNativeEditorFile(file.mimeType)) return undefined;
-    if (this.policy === 'refuse') return new NativeFileRefused(file.name, file.mimeType);
-    const map = NATIVE_EXPORT_TYPES[this.policy];
+    const policy = this.policyFor(file.mimeType);
+    if (policy === 'refuse') return new NativeFileRefused(file.name, file.mimeType);
+    const map = NATIVE_EXPORT_TYPES[policy];
     // No rendering at all — the oldest of the three refusals, and the only one
     // that is about Drive rather than about us.
     if (!map[file.mimeType]) {
-      return new NativeFileRefused(file.name, file.mimeType, this.policy);
+      return new NativeFileRefused(file.name, file.mimeType, policy);
     }
     // A rendering exists. Whether it is worth having is the measurement's
     // question.
@@ -1334,7 +1366,7 @@ export class GoogleDriveSource implements FileSource {
     // The asymmetry is the same one the whole workplan runs on: a red is
     // conclusive and a blank is not. A blank is a reason to go and measure,
     // which `EXPORT_STABILITY` now names precisely enough to act on.
-    const stability = exportStabilityOf(this.policy, file.mimeType);
+    const stability = exportStabilityOf(policy, file.mimeType);
     // The instrument is exempt from this ONE refusal and from no other: a
     // shortcut still has nothing to export, a Form still cannot be rendered,
     // and `refuse` still refuses. Only the verdict this script's own output
@@ -1342,7 +1374,7 @@ export class GoogleDriveSource implements FileSource {
     // again.
     if (this.measuring) return undefined;
     return stability === 'unstable'
-      ? new NativeFileRefused(file.name, file.mimeType, this.policy, stability)
+      ? new NativeFileRefused(file.name, file.mimeType, policy, stability)
       : undefined;
   }
 }

@@ -43,6 +43,13 @@
  * that already holds items, and names the way round it.
  */
 
+import type { GoogleNativeFilePolicy } from './config.ts';
+import {
+  GOOGLE_EDITOR_KINDS,
+  nativeFilePoliciesOf,
+  type NativeFilePolicies,
+} from './google-native-coverage.ts';
+
 /**
  * The fields a revision rule exists for, in the vocabulary BOTH editions can
  * speak.
@@ -119,15 +126,22 @@ const RULES: ReadonlyArray<Rule> = [
      * new policy applies to what is copied from here on. And since a Google
      * document's name is its format's (0042 T8 (b)), every one is copied again
      * under its new name, and the old copy stays as an earlier export.
+     *
+     * ONE FIELD FOR THE FORMAT OF ALL FOUR KINDS, also since each kind can
+     * have its own (0042 T9). What may change, and why it is safe, is the same
+     * for a Doc as for a deck, so a second row would be a second copy of this
+     * one. The consequence says "whose format changes" because a change to one
+     * kind re-copies that kind and leaves the other three alone.
      */
     field: 'source.nativeFilePolicy',
     verdict: {
       allowed: true,
       consequence:
         'Items already copied keep the format they were copied in — this tool never ' +
-        'overwrites what is on the new system. Every Google document is copied again ' +
-        'under the name the new format gives it; the copy in the old format stays, and ' +
-        'the Deletions screen lists it as an earlier export, never as a deletion.',
+        'overwrites what is on the new system. Every Google document whose format changes ' +
+        'is copied again under the name the new format gives it; the copy in the old ' +
+        'format stays, and the Deletions screen lists it as an earlier export, never as a ' +
+        'deletion.',
     },
   },
   {
@@ -349,20 +363,24 @@ export function compareRevision(
  *
  * `source.nativeFilePolicy` is recorded EFFECTIVE — absent means `refuse` to
  * the engine, and a snapshot of the literal absence would report a change the
- * first time somebody wrote the default down in their own file.
+ * first time somebody wrote the default down in their own file. See
+ * `nativeFilePolicySnapshot` for how a format per kind is recorded.
  */
 export function revisionSnapshotOf(config: {
   readonly source: {
     readonly type: string;
     readonly rootFolderId?: unknown;
-    readonly nativeFilePolicy?: unknown;
+    readonly nativeFilePolicy?: GoogleNativeFilePolicy | undefined;
+    readonly nativeFilePolicies?: NativeFilePolicies | undefined;
   };
   readonly target: { readonly type: string; readonly user?: unknown };
 }): RevisionSnapshot {
   // Declared optional-and-`unknown` rather than narrowed here: every config
   // union member satisfies it (a member without the field simply has it
   // absent), so the call site needs no cast and a source that GROWS a root
-  // folder is snapshotted the day it does.
+  // folder is snapshotted the day it does. The export formats alone are typed,
+  // because what is recorded is what they MEAN, and only a typed value can be
+  // asked that.
   const { source, target } = config;
   return {
     'source.type': source.type,
@@ -373,7 +391,27 @@ export function revisionSnapshotOf(config: {
     ...('user' in target && typeof target.user === 'string'
       ? { 'target.account': target.user }
       : {}),
-    'source.nativeFilePolicy':
-      typeof source.nativeFilePolicy === 'string' ? source.nativeFilePolicy : 'refuse',
+    'source.nativeFilePolicy': nativeFilePolicySnapshot(source),
   };
+}
+
+/**
+ * `source.nativeFilePolicy` as a snapshot records it: the format each kind is
+ * EFFECTIVELY exported in (workplan 0042 T9), as `nativeFilePoliciesOf`
+ * answers it for the connector.
+ *
+ * One format when all four kinds agree, which is every mapping written before
+ * a kind could have its own, so a snapshot already stored does not read as a
+ * change on the first boot after this. One `kind: format` pair per kind when
+ * they differ, so a change to any one kind is a change to this field. Writing
+ * the single setting out per kind is therefore not a change either.
+ */
+function nativeFilePolicySnapshot(source: {
+  readonly nativeFilePolicy?: GoogleNativeFilePolicy | undefined;
+  readonly nativeFilePolicies?: NativeFilePolicies | undefined;
+}): string {
+  const effective = nativeFilePoliciesOf(source);
+  const formats = GOOGLE_EDITOR_KINDS.map((kind) => effective[kind]);
+  if (formats.every((format) => format === effective.document)) return effective.document;
+  return GOOGLE_EDITOR_KINDS.map((kind) => `${kind}: ${effective[kind]}`).join(', ');
 }

@@ -12,6 +12,11 @@ import type { ThrottleConfig } from './throttling.ts';
 import type { SpecialUse } from './mail.ts';
 import { DISCOVERY_DOMAINS, type DiscoveryDomain } from './discovery.ts';
 import { ARCHIVE_PROVIDERS, isArchiveProvider, type ArchiveProvider } from './archive-providers.ts';
+import {
+  GOOGLE_EDITOR_KINDS,
+  type GoogleEditorKind,
+  type NativeFilePolicies,
+} from './google-native-coverage.ts';
 
 export type SourceAuth =
   | { readonly kind: 'xoauth2'; readonly tokenFromEnv: string }
@@ -224,6 +229,12 @@ export interface GoogleDriveSource {
   /** See {@link GoogleNativeFilePolicy}. Unset means `refuse`. */
   readonly nativeFilePolicy?: GoogleNativeFilePolicy;
   /**
+   * A format per kind, laid over `nativeFilePolicy` (workplan 0042 T9): a
+   * kind named here is exported its own way, and a kind left out follows the
+   * single setting. See {@link NativeFilePolicies}.
+   */
+  readonly nativeFilePolicies?: NativeFilePolicies;
+  /**
    * The account whose Drive this is — required only under domain-wide
    * delegation (ADR-0033), where it is the impersonated SUBJECT. The
    * refresh-token flow carries the identity inside the token and ignores it.
@@ -315,6 +326,8 @@ export interface GoogleAccountSource {
    * on either side could show.
    */
   readonly nativeFilePolicy?: GoogleNativeFilePolicy;
+  /** A format per kind, as on {@link GoogleDriveSource}, and carried for the same reason. */
+  readonly nativeFilePolicies?: NativeFilePolicies;
 }
 
 /**
@@ -1092,6 +1105,9 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
       ...(obj['nativeFilePolicy'] === undefined
         ? {}
         : { nativeFilePolicy: parseNativeFilePolicy(obj['nativeFilePolicy']) }),
+      ...(obj['nativeFilePolicies'] === undefined
+        ? {}
+        : { nativeFilePolicies: parseNativeFilePolicies(obj['nativeFilePolicies']) }),
     };
   }
   if (type === 'microsoft') {
@@ -1138,6 +1154,9 @@ export function parseGoogleDriveSource(obj: Record<string, unknown>): GoogleDriv
     ...(obj['nativeFilePolicy'] === undefined
       ? {}
       : { nativeFilePolicy: parseNativeFilePolicy(obj['nativeFilePolicy']) }),
+    ...(obj['nativeFilePolicies'] === undefined
+      ? {}
+      : { nativeFilePolicies: parseNativeFilePolicies(obj['nativeFilePolicies']) }),
   };
 }
 
@@ -1206,7 +1225,10 @@ function parseArchiveWhere(value: unknown): ArchiveWhere {
  * otherwise. See {@link GoogleNativeFilePolicy} for why the default is `refuse`
  * and what choosing an export still leaves unproven.
  */
-function parseNativeFilePolicy(value: unknown): GoogleNativeFilePolicy {
+function parseNativeFilePolicy(
+  value: unknown,
+  field = 'source.nativeFilePolicy',
+): GoogleNativeFilePolicy {
   if (
     value === 'refuse' ||
     value === 'export-odf' ||
@@ -1216,7 +1238,7 @@ function parseNativeFilePolicy(value: unknown): GoogleNativeFilePolicy {
     return value;
   }
   throw new ConfigError(
-    `source.nativeFilePolicy: unsupported ${JSON.stringify(value)} (expected "refuse", ` +
+    `${field}: unsupported ${JSON.stringify(value)} (expected "refuse", ` +
       '"export-odf", "export-office", or "export-pdf"). "refuse" is the default and reports ' +
       'each Google Doc, Sheet, Slide and Drawing as un-migratable with a reason; the export ' +
       'policies ask Drive to render one — ODF (.odt/.ods/.odp), Office (.docx/.xlsx/.pptx) or ' +
@@ -1228,6 +1250,39 @@ function parseNativeFilePolicy(value: unknown): GoogleNativeFilePolicy {
       '`google-drive-source.types.ts` is the live table, and the greens are five draws each ' +
       'rather than proof (workplan 0042 T3).',
   );
+}
+
+/**
+ * Validate a format per kind (workplan 0042 T9), refusing BY NAME anything it
+ * does not know: a kind that is not one of the four, and a format that is not
+ * one of the four.
+ *
+ * An unknown kind is refused rather than ignored for the reason a misspelt
+ * format is: `"slides": "export-odf"` read as nothing would leave every deck
+ * under the single setting, and the person who wrote it would find out from the
+ * Failures screen. Each format goes through `parseNativeFilePolicy`, so a
+ * spelling one kind accepts is the spelling every kind accepts.
+ */
+function parseNativeFilePolicies(value: unknown): NativeFilePolicies {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new ConfigError(
+      `source.nativeFilePolicies: expected an object naming a format per kind, such as ` +
+        `{ "presentation": "export-odf" }, got ${JSON.stringify(value)}`,
+    );
+  }
+  const policies: Partial<Record<GoogleEditorKind, GoogleNativeFilePolicy>> = {};
+  for (const [kind, policy] of Object.entries(value)) {
+    const known = GOOGLE_EDITOR_KINDS.find((k) => k === kind);
+    if (known === undefined) {
+      throw new ConfigError(
+        `source.nativeFilePolicies: unknown kind ${JSON.stringify(kind)} (expected ` +
+          `${GOOGLE_EDITOR_KINDS.map((k) => `"${k}"`).join(', ')}). A kind left out follows ` +
+          'source.nativeFilePolicy.',
+      );
+    }
+    policies[known] = parseNativeFilePolicy(policy, `source.nativeFilePolicies.${known}`);
+  }
+  return policies;
 }
 
 function parseJmapAuth(obj: Record<string, unknown>): JmapAuth {
