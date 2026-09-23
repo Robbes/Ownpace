@@ -13,6 +13,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
 import { NativeFileRefused, type DriveFile } from '@openmig/connectors';
+import { parseGoogleDriveSource } from '@openmig/shared';
 import {
   ENV_GOOGLE_CREDENTIAL_NAMES,
   STORED_GOOGLE_CREDENTIAL_NAMES,
@@ -153,6 +154,44 @@ describe('the native-file policy travels from the mapping to the connector', () 
     const source = buildGoogleDriveSourceFrom({ nativeFilePolicy: 'export-office' }, CREDS);
 
     expect(refusalFor(source, NATIVE_DOC)).toBeUndefined();
+  });
+
+  const DECK: DriveFile = {
+    id: 'deck-1',
+    name: 'Kickoff',
+    mimeType: 'application/vnd.google-apps.presentation',
+  };
+
+  it('carries a format per kind to the connector (workplan 0042 T9)', () => {
+    // Office alone refuses a deck, measured unstable; the deck's own format
+    // carries it. Dropped on the way, the deck would stay refused and nothing
+    // on either side could say why.
+    expect(
+      refusalFor(buildGoogleDriveSourceFrom({ nativeFilePolicy: 'export-office' }, CREDS), DECK),
+    ).toBeInstanceOf(NativeFileRefused);
+    const source = buildGoogleDriveSourceFrom(
+      { nativeFilePolicy: 'export-office', nativeFilePolicies: { presentation: 'export-odf' } },
+      CREDS,
+    );
+    expect(refusalFor(source, DECK)).toBeUndefined();
+    expect(refusalFor(source, NATIVE_DOC)).toBeUndefined();
+  });
+
+  it('reads it out of a Google account’s stored config, the way a pass does', () => {
+    // A pass builds the account's file face from `parseGoogleDriveSource` over
+    // the stored `{ type: 'google', user, … }` (`build-deps-from-mapping`).
+    const stored = {
+      type: 'google',
+      user: 'someone@example.invalid',
+      nativeFilePolicy: 'export-office',
+      nativeFilePolicies: { presentation: 'export-odf' },
+    };
+    const source = buildGoogleDriveSourceFrom(
+      parseGoogleDriveSource(stored),
+      CREDS,
+      STORED_GOOGLE_CREDENTIAL_NAMES,
+    );
+    expect(refusalFor(source, DECK)).toBeUndefined();
   });
 });
 

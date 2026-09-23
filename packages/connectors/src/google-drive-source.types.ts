@@ -10,7 +10,7 @@
  * see its comment below.
  */
 
-import type { GoogleNativeFilePolicy } from '@openmig/shared';
+import type { GoogleNativeFilePolicy, NativeFilePolicies } from '@openmig/shared';
 
 /** What a Drive file looks like on the wire, reduced to the fields used. */
 export interface DriveFile {
@@ -384,6 +384,11 @@ export interface GoogleDriveSourceConfig {
   readonly rootFolderId?: string;
   /** See {@link NativeFilePolicy}. Defaults to `refuse`. */
   readonly nativeFilePolicy?: NativeFilePolicy;
+  /**
+   * A format per editor kind, laid over `nativeFilePolicy` (workplan 0042 T9);
+   * a kind left out follows it. See `NativeFilePolicies` in `@openmig/shared`.
+   */
+  readonly nativeFilePolicies?: NativeFilePolicies;
 }
 
 /**

@@ -23,7 +23,7 @@
  */
 
 import { CREDENTIAL_STORE_NL, missingCredentials } from '@openmig/shared';
-import type { FileSource, GoogleNativeFilePolicy } from '@openmig/shared';
+import type { FileSource, GoogleNativeFilePolicy, NativeFilePolicies } from '@openmig/shared';
 import {
   DRIVE_READONLY_SCOPE,
   GoogleDriveSource,
@@ -47,6 +47,8 @@ export interface GoogleDriveEndpoint {
   readonly baseUrl?: string;
   readonly rootFolderId?: string;
   readonly nativeFilePolicy?: GoogleNativeFilePolicy;
+  /** A format per kind (workplan 0042 T9), passed on untouched like the single one. */
+  readonly nativeFilePolicies?: NativeFilePolicies;
 }
 
 /** The credentials as the caller found them — either flow's (ADR-0033). */
@@ -176,6 +178,9 @@ export function buildGoogleDriveSourceFrom(
     ...(endpoint.nativeFilePolicy === undefined
       ? {}
       : { nativeFilePolicy: endpoint.nativeFilePolicy }),
+    ...(endpoint.nativeFilePolicies === undefined
+      ? {}
+      : { nativeFilePolicies: endpoint.nativeFilePolicies }),
   });
 }
 

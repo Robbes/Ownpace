@@ -76,6 +76,53 @@ export function googleEditorMime(kind: GoogleEditorKind): string {
 }
 
 /**
+ * The editor kind behind a Drive MIME type, or `undefined` for anything else:
+ * a Form, a folder, a shortcut, an ordinary file.
+ */
+export function googleEditorKindOf(mimeType: string): GoogleEditorKind | undefined {
+  return GOOGLE_EDITOR_KINDS.find((kind) => googleEditorMime(kind) === mimeType);
+}
+
+/**
+ * AN EXPORT FORMAT PER KIND (the owner's decision, 2026-09-23, workplan 0042
+ * T9): *"a per kind choice makes more sense for the fileformats. Split that
+ * up."*
+ *
+ * The table below is why one format for all four could not be right: no
+ * editable format carries every kind. With one setting, somebody who wanted
+ * their Docs editable in Word and their decks at all had to choose which to
+ * lose. Per kind, Docs can go to `.docx` and the decks to `.odp`, and nothing
+ * is left behind that a format could have carried.
+ *
+ * Laid OVER `nativeFilePolicy` rather than replacing it: a kind left out here
+ * follows that single setting, so every mapping written before this reads
+ * exactly as it did, and the single setting stays the short way to say "all
+ * four the same".
+ */
+export type NativeFilePolicies = Readonly<Partial<Record<GoogleEditorKind, GoogleNativeFilePolicy>>>;
+
+/**
+ * The format each editor kind is exported in: its own choice where it has
+ * one, the single setting where it has not, and `refuse` where neither says.
+ *
+ * The one place that answers this, for the connector that exports and for the
+ * snapshot that records what a migration was set to, so the two cannot
+ * disagree about what an unset kind means.
+ */
+export function nativeFilePoliciesOf(source: {
+  readonly nativeFilePolicy?: GoogleNativeFilePolicy | undefined;
+  readonly nativeFilePolicies?: NativeFilePolicies | undefined;
+}): Readonly<Record<GoogleEditorKind, GoogleNativeFilePolicy>> {
+  const single = source.nativeFilePolicy ?? 'refuse';
+  return {
+    document: source.nativeFilePolicies?.document ?? single,
+    spreadsheet: source.nativeFilePolicies?.spreadsheet ?? single,
+    presentation: source.nativeFilePolicies?.presentation ?? single,
+    drawing: source.nativeFilePolicies?.drawing ?? single,
+  };
+}
+
+/**
  * What each export policy carries, in `GOOGLE_EDITOR_KINDS` order.
  *
  * `refuse` is absent rather than empty: it is not an export policy, it carries

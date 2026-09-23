@@ -177,12 +177,28 @@ OAuth client and the refresh token — is
 [`docs/google-workspace-setup.md`](./google-workspace-setup.md), which ends with
 one read-only command that proves them before you migrate anything.
 
-Two optional settings on the source:
+Three optional settings on the source:
 
 - `"rootFolderId"` — the folder the migration is rooted at. Unset means all of
   My Drive; a **shared drive** is named here by its own id.
-- `"nativeFilePolicy"` — what to do with Google Docs, Sheets and Slides.
-  Defaults to `"refuse"`.
+- `"nativeFilePolicy"` — what to do with Google Docs, Sheets, Slides and
+  Drawings. Defaults to `"refuse"`.
+- `"nativeFilePolicies"` — a format per kind, laid over `"nativeFilePolicy"`.
+  The kinds are `"document"`, `"spreadsheet"`, `"presentation"` and
+  `"drawing"`, and a kind left out follows `"nativeFilePolicy"`. No single
+  editable format carries all four, so this is how to keep every kind
+  editable:
+
+  ```json
+  "nativeFilePolicy": "export-office",
+  "nativeFilePolicies": { "presentation": "export-odf" }
+  ```
+
+  Docs, Sheets and Drawings go out as Office (`.docx`, `.xlsx`, `.svg`) and
+  Slides decks as `.odp`. An unknown kind or format stops the appliance at
+  startup, naming it. Changing either setting later is allowed. What is
+  already copied keeps its format, and the documents of each kind whose format
+  changed are copied again under their new names.
 
 **What is not there yet, stated plainly** (workplan 0042):
 

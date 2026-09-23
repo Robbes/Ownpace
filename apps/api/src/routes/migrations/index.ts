@@ -33,7 +33,12 @@ import {
 import { SecretStore } from '@openmig/core/secret-store';
 import { prepareTransition } from '@openmig/core/cutover-state';
 import { getTriggerClient } from '@openmig/scheduler';
-import type { TenantId, MappingId } from '@openmig/shared';
+import type {
+  GoogleNativeFilePolicy,
+  MappingId,
+  NativeFilePolicies,
+  TenantId,
+} from '@openmig/shared';
 import {
   resolveSyncJob,
   resolveCutoverJob,
@@ -176,7 +181,7 @@ export function sourceConnectionConfig(
     return parseGoogleDriveSource({
       type: 'google-drive',
       ...(cfg.rootFolderId ? { rootFolderId: cfg.rootFolderId } : {}),
-      ...(cfg.nativeFilePolicy ? { nativeFilePolicy: cfg.nativeFilePolicy } : {}),
+      ...exportFormatOf(cfg),
     }) as unknown as Record<string, unknown>;
   }
   if (body.sourceType === 'dropbox') {
@@ -259,14 +264,7 @@ export function sourceConnectionConfig(
       // hard rule 5 gives: a value one edition refuses must not be one the
       // other stores and ignores. The superRefine has already refused garbage
       // with a field-anchored message, so a throw here is a coding error.
-      ...(carriesGoogleNativeFiles(body.sourceType) && cfg.nativeFilePolicy
-        ? {
-            nativeFilePolicy: parseGoogleDriveSource({
-              type: 'google-drive',
-              nativeFilePolicy: cfg.nativeFilePolicy,
-            }).nativeFilePolicy,
-          }
-        : {}),
+      ...(carriesGoogleNativeFiles(body.sourceType) ? exportFormatOf(cfg) : {}),
     };
   }
   if (body.sourceType === 'graph') {
@@ -373,6 +371,64 @@ function refuseHalfDropboxClientPair(
 }
 
 /**
+ * The export format as a request sent it, read by the shared parser: the
+ * single format and the per-kind ones (workplan 0042 T9), each only where
+ * given. Empty is unset, as it has always been at this door for the single
+ * format: the wizard posts nothing when its box is empty. The superRefine has
+ * already refused an unreadable value with a field-anchored message, so a
+ * throw here would be a coding error rather than an input one.
+ */
+export function exportFormatOf(cfg: ExportFormatAsSent): ExportFormat {
+  const single = cfg.nativeFilePolicy === '' ? undefined : cfg.nativeFilePolicy;
+  const parsed = parseGoogleDriveSource({
+    ...(single === undefined ? {} : { nativeFilePolicy: single }),
+    ...(cfg.nativeFilePolicies === undefined ? {} : { nativeFilePolicies: cfg.nativeFilePolicies }),
+  });
+  return {
+    ...(parsed.nativeFilePolicy === undefined ? {} : { nativeFilePolicy: parsed.nativeFilePolicy }),
+    ...(parsed.nativeFilePolicies === undefined
+      ? {}
+      : { nativeFilePolicies: parsed.nativeFilePolicies }),
+  };
+}
+
+/**
+ * THE EXPORT FORMAT AS A MAPPING'S OVERRIDE CARRIES IT: the single format and
+ * the per-kind ones as ONE setting (workplan 0042 T9).
+ *
+ * One setting because a mapping's config is its connection's with this
+ * override laid over it KEY BY KEY. Written apart, a migration that chose one
+ * format for everything on a reused connection would still carry the per-kind
+ * formats the connection's first migration chose, and those win for their
+ * kinds: somebody picking PDF for all four would find their decks going out
+ * as `.odp`, for a reason no screen of theirs shows. The update route has the
+ * same problem one step later: a control offering one format for all four
+ * kinds would be contradicted by per-kind formats it cannot show.
+ *
+ * So whenever the single format is set, the per-kind ones are written too,
+ * as `{}` (every kind follows the single one) when none were given. Per-kind
+ * formats given without a single one leave the single one as it was, and a
+ * kind they do not name still follows it. Neither given writes nothing, which
+ * on a reused connection means inherit, as it always has.
+ */
+export function exportFormatOverride(cfg: ExportFormatAsSent): ExportFormat {
+  const format = exportFormatOf(cfg);
+  return format.nativeFilePolicy === undefined
+    ? format
+    : { ...format, nativeFilePolicies: format.nativeFilePolicies ?? {} };
+}
+
+interface ExportFormatAsSent {
+  readonly nativeFilePolicy?: string | undefined;
+  readonly nativeFilePolicies?: Readonly<Record<string, string>> | undefined;
+}
+
+interface ExportFormat {
+  readonly nativeFilePolicy?: GoogleNativeFilePolicy;
+  readonly nativeFilePolicies?: NativeFilePolicies;
+}
+
+/**
  * Refuse a Drive setting the CONNECTOR could not read — in the shared parser's
  * own words, for every source type whose files come out of Google Drive.
  *
@@ -390,24 +446,57 @@ function refuseHalfDropboxClientPair(
  * would refuse a shape that has been accepted since the field existed.
  */
 function refuseUnreadableDriveSettings(
-  ctx: { addIssue: (issue: { code: 'custom'; path: string[]; message: string }) => void },
+  ctx: IssueSink,
   sourceType: string,
-  sourceConfig: { rootFolderId?: string | undefined; nativeFilePolicy?: string | undefined },
+  sourceConfig: DriveSettingsAsSent,
 ): void {
   if (!carriesGoogleNativeFiles(sourceType)) return;
-  const refuse = (key: 'rootFolderId' | 'nativeFilePolicy') => {
-    try {
-      parseGoogleDriveSource({ type: 'google-drive', [key]: sourceConfig[key] });
-    } catch (err) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['sourceConfig', key],
-        message: err instanceof ConfigError ? err.message : String(err),
-      });
-    }
-  };
-  if (sourceConfig.rootFolderId) refuse('rootFolderId');
-  if (sourceConfig.nativeFilePolicy) refuse('nativeFilePolicy');
+  if (sourceConfig.rootFolderId) refuseUnreadableKey(ctx, sourceConfig, 'rootFolderId');
+  refuseUnreadableExportFormat(ctx, sourceConfig);
+}
+
+/**
+ * The export format's two keys alone, for the update route (workplan 0042
+ * T9), which has no source type in its body to gate on.
+ *
+ * An unreadable format sent to the update route used to reach
+ * `parseGoogleDriveSource` inside the handler, whose throw was answered as a
+ * server fault: a 500 saying *we* failed, for a misspelling in the request.
+ * Asked here instead, it is a 400 naming the key at fault, in the words the
+ * create route and the appliance's mapping file use.
+ */
+function refuseUnreadableExportFormat(ctx: IssueSink, sourceConfig: DriveSettingsAsSent): void {
+  if (sourceConfig.nativeFilePolicy) refuseUnreadableKey(ctx, sourceConfig, 'nativeFilePolicy');
+  if (sourceConfig.nativeFilePolicies !== undefined) {
+    refuseUnreadableKey(ctx, sourceConfig, 'nativeFilePolicies');
+  }
+}
+
+type IssueSink = {
+  addIssue: (issue: { code: 'custom'; path: string[]; message: string }) => void;
+};
+
+interface DriveSettingsAsSent {
+  readonly rootFolderId?: string | undefined;
+  readonly nativeFilePolicy?: string | undefined;
+  readonly nativeFilePolicies?: Readonly<Record<string, string>> | undefined;
+}
+
+/** One key through the shared parser, its refusal anchored on that key. */
+function refuseUnreadableKey(
+  ctx: IssueSink,
+  sourceConfig: DriveSettingsAsSent,
+  key: keyof DriveSettingsAsSent,
+): void {
+  try {
+    parseGoogleDriveSource({ type: 'google-drive', [key]: sourceConfig[key] });
+  } catch (err) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['sourceConfig', key],
+      message: err instanceof ConfigError ? err.message : String(err),
+    });
+  }
 }
 
 /**
@@ -532,7 +621,7 @@ export function sourceConfigOverride(
 
   switch (body.sourceType) {
     case 'google-drive':
-      return keep({ rootFolderId: cfg.rootFolderId, nativeFilePolicy: cfg.nativeFilePolicy });
+      return keep({ rootFolderId: cfg.rootFolderId, ...exportFormatOverride(cfg) });
     case 'dropbox':
       return keep({ rootPath: cfg.rootPath });
     case 'box':
@@ -562,7 +651,7 @@ export function sourceConfigOverride(
       // reused account connection would silently inherit the first one's
       // export choice — and a person who picked PDF for their files would have
       // no way to leave them behind next time.
-      return keep({ user: cfg.username, nativeFilePolicy: cfg.nativeFilePolicy });
+      return keep({ user: cfg.username, ...exportFormatOverride(cfg) });
     case 'graph':
       // The tenant is the app registration's, which the connection holds.
       return keep({ mailbox: cfg.username });
@@ -858,6 +947,10 @@ export const CreateMappingBase = z.object({
      *  validated by the shared parser in the superRefine, not re-enumerated
      *  here — one authority, both editions. */
     nativeFilePolicy: z.string().optional(),
+    /** A format per kind, laid over `nativeFilePolicy` (workplan 0042 T9).
+     *  Kinds and formats alike are validated by the shared parser, which
+     *  refuses an unknown kind by name rather than ignoring it. */
+    nativeFilePolicies: z.record(z.string(), z.string()).optional(),
   }),
   targetConfig: z.object({
     /**
@@ -1494,10 +1587,14 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
  * `syncConfig` is deliberately left alone: this route does not write a schedule
  * yet, and loosening a shape nothing reads would be a change with no caller.
  */
-export const UpdateMappingSchema = CreateMappingBase.partial().extend({
-  sourceConfig: CreateMappingBase.shape.sourceConfig.partial().optional(),
-  targetConfig: CreateMappingBase.shape.targetConfig.partial().optional(),
-});
+export const UpdateMappingSchema = CreateMappingBase.partial()
+  .extend({
+    sourceConfig: CreateMappingBase.shape.sourceConfig.partial().optional(),
+    targetConfig: CreateMappingBase.shape.targetConfig.partial().optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.sourceConfig) refuseUnreadableExportFormat(ctx, body.sourceConfig);
+  });
 
 /**
  * Prove a connection before creating anything (workplan 0046).
@@ -2485,13 +2582,17 @@ router.put(
        * prevent.
        *
        * Validated through the SAME parser a mapping file goes through, so a
-       * value the appliance refuses is not one this route stores.
+       * value the appliance refuses is not one this route stores; the schema
+       * has already answered an unreadable one with a 400.
+       *
+       * The single format and the per-kind ones are ONE setting here, as in a
+       * reused connection's override at create (`exportFormatOverride`,
+       * workplan 0042 T9): setting the single format clears any per-kind
+       * ones, so a control offering one format for all four kinds is never
+       * contradicted by a per-kind format it cannot show.
        */
-      const nativeFilePolicy = body.sourceConfig?.nativeFilePolicy;
-      const revisedPolicy =
-        nativeFilePolicy === undefined || nativeFilePolicy === ''
-          ? undefined
-          : parseGoogleDriveSource({ nativeFilePolicy }).nativeFilePolicy;
+      const revisedFormat = exportFormatOverride(body.sourceConfig ?? {});
+      const revisesFormat = Object.keys(revisedFormat).length > 0;
 
       const outcome = await withTenantDb(tenantId, pool, async (db) => {
         // The status this mapping holds BEFORE the write, read inside the same
@@ -2531,20 +2632,19 @@ router.put(
         // Read inside the same transaction, for the same reason the status is:
         // a merge built from a value read outside it can be written over a row
         // that moved in between.
-        const currentOverride =
-          revisedPolicy === undefined
-            ? undefined
-            : ((
-                await db
-                  .select({ o: schema.mailboxMapping.sourceConfigOverride })
-                  .from(schema.mailboxMapping)
-                  .where(
-                    and(
-                      eq(schema.mailboxMapping.id, mappingId),
-                      eq(schema.mailboxMapping.tenantId, tenantId),
-                    ),
-                  )
-              )[0]?.o as Record<string, unknown> | null | undefined);
+        const currentOverride = !revisesFormat
+          ? undefined
+          : ((
+              await db
+                .select({ o: schema.mailboxMapping.sourceConfigOverride })
+                .from(schema.mailboxMapping)
+                .where(
+                  and(
+                    eq(schema.mailboxMapping.id, mappingId),
+                    eq(schema.mailboxMapping.tenantId, tenantId),
+                  ),
+                )
+            )[0]?.o as Record<string, unknown> | null | undefined);
         const [row] = await db
           .update(schema.mailboxMapping)
           // Stamped LAST so it cannot be spread away by a field above, and
@@ -2553,9 +2653,9 @@ router.put(
           // ran through here leaving no timestamp at all (workplan 0109 T1).
           .set({
             ...updateData,
-            ...(revisedPolicy === undefined
-              ? {}
-              : { sourceConfigOverride: { ...(currentOverride ?? {}), nativeFilePolicy: revisedPolicy } }),
+            ...(revisesFormat
+              ? { sourceConfigOverride: { ...(currentOverride ?? {}), ...revisedFormat } }
+              : {}),
             updatedAt: new Date(),
           })
           .where(
