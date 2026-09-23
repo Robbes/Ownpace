@@ -213,6 +213,18 @@ const MaskedConfigSchema = z.object({
   nativeFilePolicy: z.string().optional(),
 });
 
+/**
+ * Each data type a migration has, or could gain, and why not where it cannot
+ * (workplan 0125 T6). The route that adds one accepts exactly what this calls
+ * addable, because both are `kindChoices` in shared.
+ */
+const KindChoiceSchema = z.discriminatedUnion('state', [
+  z.object({ domain: DomainEnum, state: z.literal('on') }),
+  z.object({ domain: DomainEnum, state: z.literal('addable') }),
+  z.object({ domain: DomainEnum, state: z.literal('refused'), reason: z.string() }),
+]);
+export type KindChoiceView = z.infer<typeof KindChoiceSchema>;
+
 const ConnectionRefSchema = z.object({
   id: z.string(),
   name: z.string().nullish(),
@@ -239,6 +251,9 @@ export const MappingSchema = z.object({
   mode: z.string(),
   pattern: z.string().nullish(),
   domainStatus: z.array(MappingDomainStatusSchema),
+  // Optional, and caught to undefined: a payload from an API that predates it
+  // still parses, and the panel then offers nothing rather than guessing.
+  kindChoices: z.array(KindChoiceSchema).optional().catch(undefined),
   lastSyncAt: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -912,6 +927,20 @@ export const mappingApi = {
         sourceConfig: z.object({ nativeFilePolicy: z.string() }),
         updatedAt: z.string(),
       })
+      .parse(response.data);
+  },
+
+  /**
+   * ADD ONE DATA TYPE TO A MIGRATION THAT ALREADY EXISTS (workplan 0125 T6).
+   *
+   * Accepted exactly when the detail's `kindChoices` calls it addable; any
+   * other answer is a 409 `kind_refused` whose `reason` says why, and the
+   * caller shows that sentence rather than its own guess.
+   */
+  addDomain: async (mappingId: string, domain: string) => {
+    const response = await apiClient.post(`/migrations/${mappingId}/domains`, { domain });
+    return z
+      .object({ id: z.string(), added: DomainEnum, domains: z.array(DomainEnum) })
       .parse(response.data);
   },
 

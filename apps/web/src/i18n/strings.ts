@@ -493,6 +493,18 @@ const en = {
   'settings.exportPolicy.toFailures': 'Go to Failures to retry them',
   'settings.exportPolicy.refused': 'This could not be changed:',
   'settings.exportPolicy.failed': 'That did not save:',
+  // WHAT THIS MIGRATION COPIES, and what it may still gain (workplan 0125 T6).
+  // Adding only: the page never offers to take a data type off.
+  'settings.kinds': 'Data types this migration copies',
+  'settings.kinds.add': 'Add {kind}',
+  'settings.kinds.adding': 'Adding…',
+  'settings.kinds.added': '{kind} added. The next pass copies it.',
+  // Before the press, like the export format's: what adding does and does not do.
+  'settings.kinds.consequence':
+    'An added data type is copied from the next pass. Nothing already copied changes.',
+  'settings.kinds.consequence.why':
+    'The new data type is copied in full on the next pass, the way every data type is copied the first time. The ones this migration already copies carry on where they were. A data type cannot be taken off again here: what it had copied would stay on the new system with nothing keeping it up to date.',
+  'settings.kinds.failed': 'That was not added:',
   'wizard.step.migration': 'Migration',
   'wizard.testConnections.reused': 'Already saved; this only checks it still works.',
   'wizard.connectionName': 'Connection name',
@@ -2464,6 +2476,15 @@ const nl: Record<keyof typeof en, string> = {
     '{count} al geweigerde bestand(en) blijven geweigerd totdat u ze opnieuw probeert.',
   'settings.exportPolicy.refused': 'Dit kon niet worden gewijzigd:',
   'settings.exportPolicy.failed': 'Dat is niet opgeslagen:',
+  'settings.kinds': 'Gegevenstypen die deze migratie kopieert',
+  'settings.kinds.add': '{kind} toevoegen',
+  'settings.kinds.adding': 'Toevoegen…',
+  'settings.kinds.added': '{kind} toegevoegd. De volgende ronde kopieert het.',
+  'settings.kinds.consequence':
+    'Een toegevoegd gegevenstype wordt vanaf de volgende ronde gekopieerd. Wat al gekopieerd is, verandert niet.',
+  'settings.kinds.consequence.why':
+    'Het nieuwe gegevenstype wordt bij de volgende ronde volledig gekopieerd, zoals elk gegevenstype de eerste keer. De gegevenstypen die deze migratie al kopieert, gaan verder waar ze waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
+  'settings.kinds.failed': 'Dat is niet toegevoegd:',
   'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
   'wizard.serviceAccountKey': 'Serviceaccount-sleutel',
   'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand',

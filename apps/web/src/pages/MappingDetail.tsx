@@ -59,6 +59,7 @@ import { useT } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
 import ExportPolicyPanel from '../components/ExportPolicyPanel.tsx';
+import MigrationKindsPanel from '../components/MigrationKindsPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import LiveProgress from '../components/LiveProgress.tsx';
 import StateChip from '../components/StateChip.tsx';
@@ -291,6 +292,14 @@ const MappingDetail: React.FC = () => {
           domains={detail.data.syncConfig.domains}
           current={detail.data.sourceConfig.nativeFilePolicy}
         />
+      )}
+
+      {/* WHAT THIS MIGRATION COPIES, and what it may still gain (0125 T6).
+          Beside the export format because both are settings of a migration
+          that is already running; renders nothing when there is nothing to
+          add, and nothing until the detail read lands. */}
+      {detail.data && (
+        <MigrationKindsPanel mappingId={id} choices={detail.data.kindChoices} />
       )}
 
       {/* Grant links (0108 T3) — how the person being migrated gives access to

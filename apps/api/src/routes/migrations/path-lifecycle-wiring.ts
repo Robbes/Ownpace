@@ -91,3 +91,27 @@ export async function movePathsWithMapping(
     }
   }
 }
+
+/**
+ * A kind added to a RUNNING migration takes its slot now (workplan 0125 T6).
+ *
+ * Only its own path. `movePathsWithMapping(…, 'active')` would re-activate
+ * every included path, and a path whose state has moved on from the
+ * mapping's must not be pulled back to `active` because an unrelated kind
+ * joined. A paused migration does not call this: its new kind takes its slot
+ * with the rest when it is started again.
+ *
+ * Same transaction as the `scope_selection` insert, for the reason this file
+ * exists: the billing ledger and the product state never disagree about a
+ * committed change.
+ */
+export async function activateAddedPath(
+  db: ConstructorParameters<typeof PgPathLifecycleStore>[0],
+  tenantId: string,
+  mappingId: string,
+  domain: DiscoveryDomain,
+): Promise<void> {
+  await new PgPathLifecycleStore(db).activate(tenantId as TenantId, mappingId as MappingId, domain);
+  // The month's high-water mark rises with the slot, as it does on a start.
+  await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
+}

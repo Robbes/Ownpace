@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
-import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
+import { activateAddedPath, movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgMigrationStatusStore, PgLedger, RunStore, CutoverStore } from '@openmig/ledger';
@@ -87,6 +87,8 @@ import {
   credentialFieldsFor,
   measuredNoRefusal,
   isAfterCutover,
+  kindAdditionRefusal,
+  kindChoices,
   updateTransition,
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
@@ -2374,6 +2376,21 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
         domains: scopeRows.map((r) => r.domain),
         schedule: mapping.schedule ?? undefined,
       },
+      // Each kind this migration has, or could gain, and why not where it
+      // cannot (workplan 0125 T6). The page offers exactly what this lists as
+      // addable, and `POST …/domains` accepts exactly that, because both ask
+      // `kindChoices`.
+      kindChoices: kindChoices(
+        {
+          status: mapping.status,
+          current: scopeRows.map((r) => r.domain),
+          sourceKind: sourceConn?.kind ?? '',
+          targetKind: targetConn?.kind ?? '',
+          sourceQualification: sourceConn?.qualification,
+          targetQualification: targetConn?.qualification,
+        },
+        process.env,
+      ),
       status: mapping.status,
       mode: mapping.mode,
       pattern: mapping.pattern,
@@ -3222,6 +3239,125 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     res.json({ id: mappingId, status: 'active', activated, ...(firstRun ? { firstRun } : {}) });
   } catch (error) {
     serverFault(res, 'start_failed', 'starting this migration', error);
+  }
+});
+
+/**
+ * POST /api/migrations/:mappingId/domains — ADD ONE KIND to a migration that
+ * already exists (workplan 0125 T6, the owner's decision of 2026-09-23).
+ *
+ * The day Google Tasks became a face of a Google account, the owner's running
+ * migration had no way to take them: its kinds were written once, at
+ * creation, and a second migration between the same two accounts is refused
+ * (migration 0022). This is that way.
+ *
+ * Accepted exactly when `kindChoices` calls the kind addable, which is the
+ * list the migration page offers, and refused otherwise in
+ * `kindAdditionRefusal`'s words, so the page and this door cannot disagree.
+ * Adding only: nothing here takes a kind off.
+ *
+ * One transaction: the kind is included, the migration's `updated_at` moves,
+ * so the next preflight counts afresh instead of joining one asked before the
+ * kind existed (`discoveryTriggerOptions` keys on it), and a RUNNING
+ * migration's new path takes its slot. A paused one takes it at its next
+ * start, with the rest.
+ *
+ * Nothing is enqueued. Every pass reads the included kinds afresh
+ * (`enabledDomains`), so a running migration's next pass copies the new kind.
+ */
+const AddKindSchema = z.object({ domain: z.enum(DISCOVERY_DOMAINS) });
+
+router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { mappingId } = req.params;
+    const tenantId = req.tenantId;
+    if (!mappingId || Array.isArray(mappingId)) return void res.status(400).json({ error: 'mappingId is required' });
+    if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+
+    const parsed = AddKindSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      const reason = `Send { domain } naming one kind: ${DISCOVERY_DOMAINS.join(', ')}.`;
+      return void res.status(400).json({ error: 'invalid_body', message: reason, reason });
+    }
+    const { domain } = parsed.data;
+
+    const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      const [mapping] = await db
+        .select()
+        .from(schema.mailboxMapping)
+        .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
+      if (!mapping) return { kind: 'not-found' } as const;
+
+      // The mapping's OWN connections, through its mailboxes, as the detail
+      // route reads them: the choice must be made on the rows it showed.
+      const connectionOf = async (mailboxId: string | null) => {
+        if (!mailboxId) return null;
+        const rows = await db
+          .select({ connection: schema.connection })
+          .from(schema.mailbox)
+          .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+          .where(and(eq(schema.mailbox.id, mailboxId), eq(schema.mailbox.tenantId, tenantId)));
+        return rows[0]?.connection ?? null;
+      };
+      // One after another, not `Promise.all`: these share the transaction's
+      // one client, and overlapping queries on a client is what pg 9 removes.
+      const sourceConn = await connectionOf(mapping.sourceMailboxId);
+      const targetConn = await connectionOf(mapping.targetMailboxId);
+      const scopeRows = await db
+        .select({ domain: schema.scopeSelection.domain })
+        .from(schema.scopeSelection)
+        .where(
+          and(
+            eq(schema.scopeSelection.tenantId, tenantId),
+            eq(schema.scopeSelection.mappingId, mappingId),
+            eq(schema.scopeSelection.included, true),
+          ),
+        );
+      const current = scopeRows.map((r) => r.domain);
+      const refusal = kindAdditionRefusal(
+        domain,
+        {
+          status: mapping.status,
+          current,
+          sourceKind: sourceConn?.kind ?? '',
+          targetKind: targetConn?.kind ?? '',
+          sourceQualification: sourceConn?.qualification,
+          targetQualification: targetConn?.qualification,
+        },
+        process.env,
+      );
+      if (refusal) return { kind: 'refused', reason: refusal } as const;
+
+      // An EXCLUDED row for this kind is included again rather than doubled:
+      // the pair is unique (`uk_scope_mapping_domain`).
+      await db
+        .insert(schema.scopeSelection)
+        .values({ tenantId, mappingId, domain, included: true })
+        .onConflictDoUpdate({
+          target: [schema.scopeSelection.mappingId, schema.scopeSelection.domain],
+          set: { included: true },
+        });
+      await db
+        .update(schema.mailboxMapping)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
+      if (mapping.status === 'active') await activateAddedPath(db, tenantId, mappingId, domain);
+
+      const now = new Set<string>([...current, domain]);
+      return { kind: 'added', domains: DISCOVERY_DOMAINS.filter((d) => now.has(d)) } as const;
+    });
+
+    if (outcome.kind === 'not-found') {
+      return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+    }
+    if (outcome.kind === 'refused') {
+      return void res
+        .status(409)
+        .json({ error: 'kind_refused', message: outcome.reason, reason: outcome.reason });
+    }
+    res.json({ id: mappingId, added: domain, domains: outcome.domains });
+  } catch (error) {
+    serverFault(res, 'add_kind_failed', 'adding a kind to this migration', error);
   }
 });
 

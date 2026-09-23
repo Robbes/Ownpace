@@ -1733,7 +1733,12 @@ paths:
     get:
       tags: [Migrations]
       summary: Get one migration
-      description: The stored config with the password masked — never the real secret.
+      description: |
+        The stored config with the password masked — never the real secret.
+
+        `kindChoices` lists each data type the migration copies (`on`) or could
+        gain (`addable`, or `refused` with a `reason`). It is the list
+        `POST /api/migrations/{mappingId}/domains` accepts from.
       responses:
         '200':
           description: The migration.
@@ -1838,6 +1843,57 @@ paths:
               schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/migrations/{mappingId}/domains:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+    post:
+      tags: [Migrations]
+      summary: Add a data type to a migration that already exists
+      description: |
+        Adds ONE data type (workplan 0125 T6). Accepted exactly when the
+        migration's `kindChoices` lists it as `addable`: the source serves it
+        (an account's ceiling is this deployment's), the destination receives
+        it, neither side's last Test measured that it cannot, and the migration
+        has not reached cutover.
+
+        Adding only: nothing here takes a data type off. A running migration's
+        new path takes its slot at once, a paused one's at its next start. The
+        migration's `updatedAt` moves, so the next preflight counts afresh.
+        Nothing is enqueued: the next pass copies the new data type.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain: { type: string, enum: [email, calendar, contact, file, task] }
+      responses:
+        '200':
+          description: Added.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, added, domains]
+                properties:
+                  id: { type: string }
+                  added: { type: string, enum: [email, calendar, contact, file, task] }
+                  domains:
+                    type: array
+                    description: Every data type the migration now copies, in the order they are ticked.
+                    items: { type: string, enum: [email, calendar, contact, file, task] }
+        '400':
+          description: '`invalid_body`: no `domain`, or one that names no data type.'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `kind_refused`, with a `reason` that says what to do instead: the
+            data type is already there, one side cannot carry it, the last Test
+            measured that it cannot, or the migration is past cutover.
 
   /api/migrations/{mappingId}/sync:
     parameters:
