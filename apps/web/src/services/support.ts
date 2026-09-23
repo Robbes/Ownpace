@@ -212,6 +212,53 @@ export async function listRetainedInvoices(): Promise<SupportRetainedInvoice[]> 
   return response.data.invoices;
 }
 
+/**
+ * One row of the log (workplan 0129 T2): an audit event, or one of the
+ * application's errors and warnings. Metadata only; the view it is read
+ * through has no column for anything else.
+ */
+export interface SupportLogEntry {
+  readonly id: string;
+  /** To the microsecond, in UTC: the page's cursor is made of it. */
+  readonly at: string;
+  readonly source: 'audit' | 'app';
+  readonly level: 'error' | 'warn' | 'info';
+  readonly tenant_id: string | null;
+  readonly tenant_name: string | null;
+  readonly mapping_id: string | null;
+  readonly migration_name: string | null;
+  readonly event: string;
+  readonly category: string | null;
+  readonly reference: string | null;
+  /** The member's address, a process's own name, or null. */
+  readonly actor: string | null;
+}
+
+/** What the log can be narrowed by. Every one is optional. */
+export interface SupportLogFilters {
+  readonly level?: 'error' | 'warn' | 'info';
+  readonly tenantId?: string;
+  readonly mappingId?: string;
+  readonly event?: string;
+  readonly category?: string;
+  readonly reference?: string;
+  readonly since?: string;
+  readonly before?: string;
+  readonly beforeId?: string;
+}
+
+export interface SupportLogPage {
+  readonly entries: SupportLogEntry[];
+  readonly next: { readonly before: string; readonly beforeId: string } | null;
+  readonly limit: number;
+}
+
+/** One page of the log, newest first. Every call is recorded as a search. */
+export async function readSupportLog(filters: SupportLogFilters): Promise<SupportLogPage> {
+  const response = await apiClient.get<SupportLogPage>('/support/log', { params: filters });
+  return response.data;
+}
+
 /** Level 3. There is deliberately no level 4 — see the route's own comment. */
 export async function getSupportMigration(mappingId: string): Promise<SupportMigrationDetail> {
   const response = await apiClient.get<SupportMigrationDetail>(

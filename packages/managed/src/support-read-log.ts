@@ -55,6 +55,10 @@ import type { PgDatabase } from '@openmig/ledger';
  *   people  — a search across every customer's people. No tenant to name.
  *   person  — following one result through to that account at the provider.
  *             Names the tenant: by then we know whose organisation they are in.
+ *   log     — the log page (0129 T2, managed migration 0025): the audit log and
+ *             the application's errors and warnings. A search like `people`,
+ *             so it records its filters and how many rows came back, and names
+ *             the tenant when it was filtered to one.
  */
 export const SUPPORT_VIEWS = [
   'tenants',
@@ -63,6 +67,7 @@ export const SUPPORT_VIEWS = [
   'retained_invoices',
   'people',
   'person',
+  'log',
 ] as const;
 export type SupportView = (typeof SUPPORT_VIEWS)[number];
 
@@ -84,8 +89,8 @@ export async function recordSupportRead(
     readonly tenantId: string | null;
     readonly view: SupportView;
     /**
-     * What was searched for, and how much came back — `people` only, and the
-     * database refuses them anywhere else (0019). "A search was run" is a row
+     * What was searched for, and how much came back — `people` and `log`
+     * only, and the database refuses them anywhere else (0019, 0025). "A search was run" is a row
      * that cannot be audited: it cannot tell somebody answering one email from
      * somebody enumerating the customer base, and those two facts are what
      * make it possible to.

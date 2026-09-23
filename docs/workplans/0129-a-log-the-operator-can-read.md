@@ -21,10 +21,25 @@ reference. `recordAppEvent` never throws; each process sets its sink at start-up
 core (3) and the API (3), and the RLS, grants and erasure guards now name the table; 21
 mutations, all killed.
 
+**2026-09-23, T2 for the managed edition.** Support links to **The log**: one view,
+`support_log` (managed migration 0025), over `audit_log` and `app_event`, metadata only. A row
+has its time, level (`info` for an audit row), organisation, migration, event, category and
+reference, and an audit row has who acted, shown as the member's address. The view has no
+column for `audit_log.detail`, which an investigation queries (`docs/managed-bring-up.md`
+§8c-bis shows how), and it serves an action or an actor that is not a name from code as nothing
+readable. `GET /api/support/log` reads it newest first, a hundred rows a page, with a cursor to
+the microsecond; a filter of the wrong shape is a 400 naming it; and every page served is a
+`support_read` row (`log` joined the vocabulary) with its filters and how many rows came back,
+under the organisation it was narrowed to. Ledger migration 0060 indexes `audit_log (at)`, so a
+page does not sort the whole table. The appliance's page, T2's other half, is next: it has no
+operator sign-in and no `platform_operator`, so it reads the same timeline through a route of
+its own. Guards: `a-log-the-operator-can-read` in managed (11), the API (23) and the web app
+(6), and the support-view and vocabulary guards name the new view; 33 mutations, all killed.
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 The application's errors and warnings are recorded where the page can search them | ✅ **Built 2026-09-23** (D1, D3) | §3. A table of metadata only, written beside the log line, never instead of it. |
-| T2 The operator's log page | 📋 **Decided** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable; both editions. |
+| T2 The operator's log page | 🟡 **Managed built 2026-09-23** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable; both editions. The appliance's page is next. |
 | T3 One month for application and container logs | 📋 **Decided** (D2) | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected. |
 | T4 The audit export: one JSON line per event, and a download that resumes | 📋 **Decided** (D4, D5) | §3. OpenTelemetry field names, to stdout; a backfill endpoint with a cursor; pseudonyms by default. |
 
