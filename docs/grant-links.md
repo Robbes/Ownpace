@@ -45,6 +45,7 @@ Each refusal names what to fix:
 |---|---|
 | The migration has no source connection yet | Finish setting up the source first. |
 | The source is not a Google account | Grant links cover a Google account, Gmail, Google Calendar, Google Contacts and Google Drive today. For other sources, the credential still comes to you by hand. |
+| The migration names no account | A grant is only accepted from the Google account the migration reads (see below), so a migration that names none cannot be granted. The account is set when a migration is created: create it again with the account's address. |
 | The migration has no destination yet | Set the destination first. The person you ask is shown where their data will go before they agree, so a link needs one to name. |
 | The migration copies no data types | Include at least one. A link for a Google account asks for exactly the data types the migration copies, so with none there is nothing to ask. |
 | No client id or client secret is stored, and the deployment has no Google client | Add them on the source connection — see [Google Workspace setup](./google-workspace-setup.md), step 3 — or ask whoever runs your Ownpace to set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. Your own client, when you store one, is always the one used. Half a pair is refused rather than finished with the deployment's other half. |
@@ -72,11 +73,35 @@ Before any button, the page tells them:
   sees their password, because they sign in on Google's own page;
 - **the exact permission** Google will record, so they can find it again in their own account;
 - **how long the link works**;
+- **which account to sign in with**: the one the migration reads, and that any other is refused;
 - the privacy policy and terms, before they go anywhere.
 
 Then one button. When they press it they go to Google, sign in, and land back on a page that
 says it is done. **That page contains no token and asks nothing else of them.** They can close
 it and get on with their day.
+
+### Only the account the page names
+
+The account the page shows under **From** is a condition, not a label. Google tells Ownpace
+which account signed in, and access is accepted only from that one. So a link forwarded to
+somebody else, or opened in a browser signed in to the wrong account, connects nothing. Google
+offers the named account first, so the wrong one is rarely picked by accident.
+
+For this, Google's consent screen also asks to share the person's email address. That is its
+basic permission, it needs no verification, and it appears in the exact permission the page
+shows.
+
+If somebody signs in with another account, the page names both addresses and says nothing was
+stored. **Their link still works**: they open it again and choose the right account. The access
+Google gave to the wrong account is not withdrawn by Ownpace, deliberately. Withdrawing it
+would also withdraw access that account may have given for another migration through the same
+Google application. Ownpace keeps nothing from it. If that account is not being migrated as
+well, the person can remove the access in their Google account's security settings.
+
+A Gmail address matches however its dots are placed, with or without a `+suffix`. On a company
+domain the address must match exactly, apart from capitals. If the migration names an **alias**
+of the account, sign-in is refused, and the page shows the account's own address. A
+migration's account cannot be changed afterwards, so create it again with that address.
 
 ## Managing them afterwards
 

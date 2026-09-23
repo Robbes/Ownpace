@@ -25,9 +25,10 @@ const SubjectSchema = z.object({
   reads: z.string(),
   scope: z.string(),
   // Where from and where to (workplan 0108 T8a): the account the migration
-  // reads, or null when it names none; and the kind of server it writes, its
-  // host and the account on it.
-  from: z.string().nullable(),
+  // reads, and the kind of server it writes, its host and the account on it.
+  // Never null since T8 (b): the grant is bound to that account, so the server
+  // answers no page for a migration that names none.
+  from: z.string(),
   to: z.object({
     provider: z.string(),
     host: z.string().nullable(),

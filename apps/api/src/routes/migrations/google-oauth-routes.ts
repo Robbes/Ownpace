@@ -226,8 +226,13 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   // From here the flow is known, so every remaining answer is rendered in the
   // voice of whoever is actually looking at it.
   const link = pending.link;
-  const refuse = (status: number, reason: string) =>
-    page(status, link ? grantResultPage({ ok: false, reason }) : consentResultPage({ outcome: { ok: false, reason } }));
+  const refuse = (status: number, reason: string, linkStillWorks = false) =>
+    page(
+      status,
+      link
+        ? grantResultPage({ ok: false, reason, linkStillWorks })
+        : consentResultPage({ outcome: { ok: false, reason } }),
+    );
 
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
     return refuse(
@@ -256,10 +261,15 @@ router.get('/google/callback', async (req: Request, res: Response) => {
 
   // The migrator's ending. Note what is NOT passed on from here: `outcome`
   // carries the refresh token, and only `storeGrantedToken` receives it. The
-  // page below is rendered from a boolean.
+  // page below is rendered from a boolean. It also receives the account Google
+  // says signed in, and stores nothing unless it is the one the migration
+  // names (0108 T8 (b)).
   let stored;
   try {
-    stored = await storeGrantedToken(getDbPool(), link, outcome.refreshToken);
+    stored = await storeGrantedToken(getDbPool(), link, {
+      refreshToken: outcome.refreshToken,
+      signedInAs: outcome.signedInAs,
+    });
   } catch (error) {
     log.error('[api] storing a granted credential failed:', error);
     return refuse(
@@ -269,7 +279,11 @@ router.get('/google/callback', async (req: Request, res: Response) => {
         'link — this one is ours to fix, not yours.',
     );
   }
-  if (!stored.ok) return refuse(409, stored.reason);
+  if (!stored.ok) {
+    // 403 for the wrong account: the link is good, the person is not the one
+    // it was for. 409 for a link that can no longer be used.
+    return stored.linkStillWorks ? refuse(403, stored.reason, true) : refuse(409, stored.reason);
+  }
 
   // ADR-0035's second lifetime, handed over at the one moment this person is
   // reachable (0122 T7). AFTER the credential transaction, and never inside

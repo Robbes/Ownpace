@@ -26,12 +26,17 @@ import {
 } from './grant-link-readiness.ts';
 import { GOOGLE_SOURCE_SCOPES } from './google-consent.ts';
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
+import { SIGNED_IN_ACCOUNT_SCOPES } from './signed-in-account.ts';
 import router from './link-routes.ts';
+
+/** What every link asks beside the data: who signed in (0108 T8 (b)). */
+const WHO = SIGNED_IN_ACCOUNT_SCOPES.join(' ');
 
 /** A mapping that could be granted. Each test spoils exactly one thing. */
 const READY: GrantLinkReadiness = {
   sourceKind: 'gmail',
   includedDomains: [],
+  hasNamedAccount: true,
   hasTarget: true,
   hasClientId: true,
   hasClientSecret: true,
@@ -71,6 +76,27 @@ describe('the ways a grant link is dead on arrival', () => {
     // Names the kind it actually got, so the owner is not left guessing which
     // of their migrations this was about.
     expect(refusal?.reason).toContain("'imap'");
+  });
+
+  it('refuses a migration that names no account, because the grant is bound to it (0108 T8 (b))', () => {
+    const refusal = grantLinkRefusal({ ...READY, hasNamedAccount: false });
+    expect(refusal?.code).toBe('no_named_account');
+    // Why the link would be useless, and what to do: the account is set when
+    // a migration is created, and cannot be revised afterwards.
+    expect(refusal?.reason).toMatch(/only accepted from the Google account this migration reads/);
+    expect(refusal?.reason).toMatch(/Create the migration again with that account's address/);
+  });
+
+  it('asks about the account after the Google kind and before the destination', () => {
+    // A source that is not Google has no Google account to name: the kind is
+    // the first thing wrong. The account is the source's own gap, so it comes
+    // before the destination's.
+    expect(grantLinkRefusal({ ...READY, sourceKind: 'imap', hasNamedAccount: false })?.code).toBe(
+      'source_not_google',
+    );
+    expect(grantLinkRefusal({ ...READY, hasNamedAccount: false, hasTarget: false })?.code).toBe(
+      'no_named_account',
+    );
   });
 
   it('refuses a migration with no destination, because the page must name it', () => {
@@ -128,6 +154,7 @@ describe('the ways a grant link is dead on arrival', () => {
       'hasClientId',
       'hasClientSecret',
       'hasDeploymentClient',
+      'hasNamedAccount',
       'hasTarget',
       'hasWebUrl',
       'includedDomains',
@@ -193,12 +220,27 @@ describe("the deployment's Google client, where the source stores none (0108 T6)
   });
 });
 
+describe('what every link asks beside the data (0108 T8 (b))', () => {
+  it('asks who signed in, after the data scopes, whatever the kind and whoever the client', () => {
+    for (const r of [
+      READY,
+      { ...ON_THE_DEPLOYMENTS_CLIENT, sourceKind: 'google_calendar' },
+      { ...READY, sourceKind: 'google', includedDomains: ['task'] },
+    ]) {
+      const scopes = askOf(grantLinkAsk(r)).scope.split(' ');
+      expect(scopes.slice(-2), r.sourceKind ?? '').toEqual([...SIGNED_IN_ACCOUNT_SCOPES]);
+      // …and only once, never in place of a data scope.
+      expect(scopes.length, r.sourceKind ?? '').toBe(3);
+    }
+  });
+});
+
 describe('what a single-purpose link asks for', () => {
   it('asks for its one scope and names its one data type', () => {
     const types = { gmail: 'email', google_calendar: 'calendar', google_contacts: 'contact', google_drive: 'file' };
     for (const [sourceKind, domain] of Object.entries(types)) {
       const ask = askOf(grantLinkAsk({ ...READY, sourceKind, includedDomains: ['task'] }));
-      expect(ask.scope).toBe(GOOGLE_SOURCE_SCOPES[GOOGLE_CONSENT_KIND_TO_SOURCE[sourceKind]!]);
+      expect(ask.scope).toBe(`${GOOGLE_SOURCE_SCOPES[GOOGLE_CONSENT_KIND_TO_SOURCE[sourceKind]!]} ${WHO}`);
       // The migration's own rows do not widen a single-purpose ask.
       expect(ask.domains).toEqual([domain]);
     }
@@ -212,7 +254,9 @@ describe('a link for a Google ACCOUNT (0108 T7)', () => {
     const ask = askOf(grantLinkAsk(ACCOUNT));
     const owners = googleAccountConsent(['contact', 'calendar'], {});
     if (isRefusal(owners)) throw new Error(owners.reason);
-    expect(ask.scope).toBe(owners.scope);
+    // The owner's data scopes, then who signed in: the one thing a link asks
+    // that the owner's own consent does not need to.
+    expect(ask.scope).toBe(`${owners.scope} ${WHO}`);
     expect(ask.domains).toEqual(['calendar', 'contact']);
   });
 

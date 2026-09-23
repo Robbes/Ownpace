@@ -16,6 +16,8 @@
  *
  * Google is the one thing stubbed — `exchangeCode` takes an injectable fetch,
  * so the token endpoint is a function here and everything else is the product.
+ * It answers with an ID token as Google does, naming who signed in: since
+ * 0108 T8 (b) the ending stores nothing for any account but the one named.
  */
 
 process.env.SECRET_ENCRYPTION_KEY =
@@ -58,6 +60,13 @@ const CALENDAR = '5f500000-e29b-41d4-a716-446655441734';
 const ACCOUNT_CONN = '5f500000-e29b-41d4-a716-446655441715';
 const ACCOUNT_BOX = '5f500000-e29b-41d4-a716-446655441725';
 const ACCOUNT = '5f500000-e29b-41d4-a716-446655441735';
+/** Gmail with a whole client of its own and NO account named (0108 T8 (b)). */
+const NAMELESS_CONN = '5f500000-e29b-41d4-a716-446655441716';
+const NAMELESS_BOX = '5f500000-e29b-41d4-a716-446655441726';
+const NAMELESS = '5f500000-e29b-41d4-a716-446655441736';
+
+/** The account the ready mapping reads: its connection's stored username. */
+const NAMED = 'someone@example.invalid';
 
 /** The deployment's own Google client, set only by the tests that need one. */
 const DEPLOYMENT_CLIENT_ID = 'deployment.apps.googleusercontent.com';
@@ -78,6 +87,21 @@ const { default: grantRoutes } = await import('./grant.ts');
 const { default: googleOauthRoutes } = await import('./migrations/google-oauth-routes.ts');
 const { GOOGLE_SOURCE_SCOPES } = await import('./migrations/google-consent.ts');
 const { googleAccountConsent, isRefusal } = await import('./migrations/google-account-consent.ts');
+const { SIGNED_IN_ACCOUNT_SCOPES } = await import('./migrations/signed-in-account.ts');
+
+/** What every link asks beside the data: who signed in (0108 T8 (b)). */
+const WHO = SIGNED_IN_ACCOUNT_SCOPES.join(' ');
+
+/**
+ * An ID token as Google's token endpoint answers it, for `email` signed in to
+ * the application `aud`. Unsigned: it arrives from the token endpoint itself,
+ * and nothing in the product checks a signature it has no need to.
+ */
+function idTokenFor(email: string, aud: string = CLIENT_ID): string {
+  const part = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+  const claims = { iss: 'https://accounts.google.com', aud, sub: '1', email, email_verified: true };
+  return `${part({ alg: 'RS256' })}.${part(claims)}.sig`;
+}
 
 /** Run `fn` on a deployment that carries its own Google client, then take it away. */
 async function onTheDeploymentsClient<T>(fn: () => Promise<T>): Promise<T> {
@@ -154,10 +178,15 @@ beforeAll(async () => {
 
   const creds = JSON.stringify(
     SecretStore.encryptCredentials({
-      username: 'someone@example.invalid',
+      username: NAMED,
       clientId: CLIENT_ID,
       clientSecret: CLIENT_SECRET,
     }).encrypted,
+  );
+  // The same client, and no account anywhere: not in the secret, not in the
+  // connection's config.
+  const namelessCreds = JSON.stringify(
+    SecretStore.encryptCredentials({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET }).encrypted,
   );
 
   const conn = await driver.acquire();
@@ -195,13 +224,18 @@ beforeAll(async () => {
     );
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'source','gmail','bare','{}'::jsonb,'connected')`,
+       VALUES ($1,$2,'source','gmail','bare','{"user":"bare@example.invalid"}'::jsonb,'connected')`,
       [BARE_CONN, TENANT],
     );
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'source','google_calendar','cal','{}'::jsonb,'connected')`,
+       VALUES ($1,$2,'source','google_calendar','cal','{"user":"calendar@example.invalid"}'::jsonb,'connected')`,
       [CALENDAR_CONN, TENANT],
+    );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1,$2,'source','gmail','nameless','{}'::jsonb,'connected',$3)`,
+      [NAMELESS_CONN, TENANT, namelessCreds],
     );
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
@@ -220,6 +254,7 @@ beforeAll(async () => {
       [BARE_BOX, BARE_CONN],
       [CALENDAR_BOX, CALENDAR_CONN],
       [ACCOUNT_BOX, ACCOUNT_CONN],
+      [NAMELESS_BOX, NAMELESS_CONN],
       [TARGET_BOX, TARGET_CONN],
     ]) {
       await q(
@@ -234,6 +269,7 @@ beforeAll(async () => {
       [NO_TARGET, BOX, null],
       [CALENDAR, CALENDAR_BOX, TARGET_BOX],
       [ACCOUNT, ACCOUNT_BOX, TARGET_BOX],
+      [NAMELESS, NAMELESS_BOX, TARGET_BOX],
     ]) {
       await q(
         `INSERT INTO mailbox_mapping
@@ -277,7 +313,7 @@ beforeEach(async () => {
   tokenRequests = [];
   tokenResponse = () => ({
     status: 200,
-    body: { refresh_token: REFRESH, scope: GOOGLE_SOURCE_SCOPES.gmail },
+    body: { refresh_token: REFRESH, scope: GOOGLE_SOURCE_SCOPES.gmail, id_token: idTokenFor(NAMED) },
   });
   // Each test starts from an unconnected mapping and no links.
   const conn = await driver.acquire();
@@ -296,8 +332,9 @@ describe('what the page may know before the button', () => {
     expect(res.status).toBe(200);
     expect(res.body.organisation).toBe('Acme Legal');
     expect(res.body.reads).toMatch(/your email/);
-    // The scope AS a scope (ADR-0041), not a paraphrase of one.
-    expect(res.body.scope).toBe(GOOGLE_SOURCE_SCOPES.gmail);
+    // The scope AS a scope (ADR-0041), not a paraphrase of one: the data's,
+    // and the two that say who signed in, exactly as Google will record them.
+    expect(res.body.scope).toBe(`${GOOGLE_SOURCE_SCOPES.gmail} ${WHO}`);
     expect(Date.parse(res.body.expiresAt)).toBeGreaterThan(Date.now());
   });
 
@@ -440,6 +477,17 @@ describe('what the page may know before the button', () => {
     });
   });
 
+  it('gives no page for a migration that names no account, in forwardable words (0108 T8 (b))', async () => {
+    const { token } = await mintLink(NAMELESS);
+    const get = await request(app).get(`/api/grant/${token}`);
+    expect(get.status).toBe(409);
+    expect(get.body.reason).toMatch(/it does not name the Google account it reads/);
+    expect(get.body.reason).toMatch(/tell the person who sent you the link/);
+    // Nor a consent: no sign-in could ever be accepted for it.
+    const post = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
+    expect(post.status).toBe(409);
+  });
+
   it('refuses a migration whose destination is gone, in forwardable words', async () => {
     const { token } = await mintLink(NO_TARGET);
     const get = await request(app).get(`/api/grant/${token}`);
@@ -500,12 +548,18 @@ describe('starting the consent', () => {
     const url = new URL(res.body.url);
     expect(url.origin + url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth');
     expect(url.searchParams.get('client_id')).toBe(CLIENT_ID);
-    expect(url.searchParams.get('scope')).toBe(GOOGLE_SOURCE_SCOPES.gmail);
+    expect(url.searchParams.get('scope')).toBe(`${GOOGLE_SOURCE_SCOPES.gmail} ${WHO}`);
     // The two that must never be forgotten, or the grant yields no refresh token.
     expect(url.searchParams.get('access_type')).toBe('offline');
     expect(url.searchParams.get('prompt')).toBe('consent');
     // The whole point of reading the client server-side.
     expect(res.text).not.toContain(CLIENT_SECRET);
+  });
+
+  it('offers Google the named account first (0108 T8 (b))', async () => {
+    const { token } = await mintLink(MAPPING);
+    const res = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
+    expect(new URL(res.body.url).searchParams.get('login_hint')).toBe(NAMED);
   });
 
   it('ignores a client the caller tries to supply in the body', async () => {
@@ -552,7 +606,7 @@ describe("the deployment's client, where the source stores none (0108 T6)", () =
       const page = await request(app).get(`/api/grant/${token}`);
       expect(page.status).toBe(200);
       expect(page.body.reads).toBe('your calendars and their events');
-      expect(page.body.scope).toBe(GOOGLE_SOURCE_SCOPES['google-calendar']);
+      expect(page.body.scope).toBe(`${GOOGLE_SOURCE_SCOPES['google-calendar']} ${WHO}`);
 
       const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
       expect(started.status).toBe(200);
@@ -562,7 +616,12 @@ describe("the deployment's client, where the source stores none (0108 T6)", () =
 
       tokenResponse = () => ({
         status: 200,
-        body: { refresh_token: REFRESH, scope: GOOGLE_SOURCE_SCOPES['google-calendar'] },
+        body: {
+          refresh_token: REFRESH,
+          scope: GOOGLE_SOURCE_SCOPES['google-calendar'],
+          // Issued to the application that asked: the deployment's.
+          id_token: idTokenFor('calendar@example.invalid', DEPLOYMENT_CLIENT_ID),
+        },
       });
       const state = url.searchParams.get('state')!;
       const ended = await request(app)
@@ -601,14 +660,14 @@ describe('a link for a Google ACCOUNT (0108 T7)', () => {
       expect(page.status).toBe(200);
       const owners = googleAccountConsent(['calendar', 'task'], {});
       if (isRefusal(owners)) throw new Error(owners.reason);
-      expect(page.body.scope).toBe(owners.scope);
+      expect(page.body.scope).toBe(`${owners.scope} ${WHO}`);
       expect(page.body.reads).toBe('your calendars and their events and your tasks');
       // Its own account, from the connection's config: an OAuth row stores no
       // username in its secret.
       expect(page.body.from).toBe('account@example.invalid');
 
       const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
-      expect(new URL(started.body.url).searchParams.get('scope')).toBe(owners.scope);
+      expect(new URL(started.body.url).searchParams.get('scope')).toBe(`${owners.scope} ${WHO}`);
     });
   });
 
@@ -719,6 +778,134 @@ describe('the ending', () => {
       .query({ state, code: 'auth-code' });
     expect(replay.status).toBe(400);
     expect(replay.text).not.toContain(REFRESH);
+  });
+});
+
+/**
+ * THE ACCOUNT IS A CONDITION, NOT A LABEL (workplan 0108 T8 (b)).
+ *
+ * The owner, 2026-09-23: *"bind to the account the page already named"*. The
+ * whole flow again, with Google's ID token naming who signed in, and the
+ * tables read after every ending: for any account but the named one nothing is
+ * stored, and the link is left as it was, so the right account can still use
+ * it.
+ */
+describe('the account that signs in must be the one the page named (0108 T8 (b))', () => {
+  async function begin(token: string): Promise<string> {
+    const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
+    return new URL(started.body.url).searchParams.get('state')!;
+  }
+  const end = (state: string) =>
+    request(app).get('/api/migrations/google/callback').query({ state, code: 'auth-code' });
+  const linkState = async (id: string) =>
+    (
+      await withTenant(driver, TENANT, (db) =>
+        listMappingLinks(db, { tenantId: TENANT, mappingId: MAPPING }),
+      )
+    ).find((l) => l.id === id)?.state;
+  /** Google's answer, for this account signing in (null: no ID token at all). */
+  const signedInAs = (email: string | null, aud: string = CLIENT_ID) => {
+    tokenResponse = () => ({
+      status: 200,
+      body: {
+        refresh_token: REFRESH,
+        scope: GOOGLE_SOURCE_SCOPES.gmail,
+        ...(email ? { id_token: idTokenFor(email, aud) } : {}),
+      },
+    });
+  };
+  /** Re-point the migration at another account, or back (null), as its owner could. */
+  const setSourceAccount = async (mappingId: string, user: string | null) => {
+    const conn = await driver.acquire();
+    try {
+      await conn.query('UPDATE mailbox_mapping SET source_config_override = $2::jsonb WHERE id = $1', [
+        mappingId,
+        user === null ? null : JSON.stringify({ user }),
+      ]);
+    } finally {
+      await conn.release();
+    }
+  };
+
+  it('stores nothing for ANOTHER account, says which, and leaves the link working', async () => {
+    const { token, id } = await mintLink(MAPPING);
+    signedInAs('personal@gmail.com');
+    const res = await end(await begin(token));
+
+    expect(res.status).toBe(403);
+    expect(res.text).toContain('You signed in to Google as personal@gmail.com');
+    expect(res.text).toContain(`this migration reads ${NAMED}`);
+    expect(res.text).toMatch(/your link still works/);
+    expect(res.text).not.toMatch(/fresh one/);
+    expect(res.text).not.toContain(REFRESH);
+    expect((await mappingRow(MAPPING))?.source_secret_ref).toBeNull();
+    expect(await linkState(id)).toBe('live');
+
+    // And it does: the same link, with the account it names.
+    signedInAs(NAMED);
+    const again = await end(await begin(token));
+    expect(again.status).toBe(200);
+    expect((await mappingRow(MAPPING))?.source_secret_ref).toBeTruthy();
+    expect(await linkState(id)).toBe('used');
+  });
+
+  it('accepts the named account however Google cases its address', async () => {
+    const { token } = await mintLink(MAPPING);
+    signedInAs(NAMED.toUpperCase());
+    const res = await end(await begin(token));
+    expect(res.status).toBe(200);
+    expect((await mappingRow(MAPPING))?.source_secret_ref).toBeTruthy();
+  });
+
+  it('stores nothing when Google does not say who signed in', async () => {
+    const { token, id } = await mintLink(MAPPING);
+    signedInAs(null);
+    const res = await end(await begin(token));
+    expect(res.status).toBe(403);
+    expect(res.text).toMatch(/Google did not confirm which account you signed in with/);
+    expect((await mappingRow(MAPPING))?.source_secret_ref).toBeNull();
+    expect(await linkState(id)).toBe('live');
+  });
+
+  it('stores nothing when the ID token was issued to another application', async () => {
+    const { token, id } = await mintLink(MAPPING);
+    signedInAs(NAMED, 'another.apps.googleusercontent.com');
+    const res = await end(await begin(token));
+    expect(res.status).toBe(403);
+    expect((await mappingRow(MAPPING))?.source_secret_ref).toBeNull();
+    expect(await linkState(id)).toBe('live');
+  });
+
+  it('holds the grant to the account named when it is WRITTEN, not when the consent began', async () => {
+    // The owner re-points the migration while the consent is at Google. The
+    // account compared is read in the transaction that would store the token.
+    const { token, id } = await mintLink(MAPPING);
+    const state = await begin(token);
+    await setSourceAccount(MAPPING, 'someone-else@example.invalid');
+    try {
+      signedInAs(NAMED);
+      const res = await end(state);
+      expect(res.status).toBe(403);
+      expect(res.text).toContain('this migration reads someone-else@example.invalid');
+      expect((await mappingRow(MAPPING))?.source_secret_ref).toBeNull();
+      expect(await linkState(id)).toBe('live');
+    } finally {
+      await setSourceAccount(MAPPING, null);
+    }
+  });
+
+  it('says a dead link is dead first, whoever signed in', async () => {
+    // Revoked mid-flight AND the wrong account: "your link still works" would
+    // be false, so the link's own answer comes first.
+    const { token, id } = await mintLink(MAPPING);
+    const state = await begin(token);
+    await withTenant(driver, TENANT, (db) => revokeMappingLink(db, { tenantId: TENANT, linkId: id }));
+    signedInAs('personal@gmail.com');
+    const res = await end(state);
+    expect(res.status).toBe(409);
+    expect(res.text).toMatch(/can no longer be used/);
+    expect(res.text).not.toMatch(/your link still works/);
+    expect((await mappingRow(MAPPING))?.source_secret_ref).toBeNull();
   });
 });
 

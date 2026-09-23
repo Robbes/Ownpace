@@ -25,6 +25,14 @@
  * anything about other mappings, or anything about the organisation beyond its
  * name.
  *
+ * ## From is a condition, not a label
+ *
+ * Since T8 (b) (the owner, 2026-09-23: *"bind to the account the page already
+ * named"*), the consent also asks Google who signed in, and the callback stores
+ * nothing unless it is the account the page names (`signed-in-account.ts`). So
+ * a migration that names no account is not ready, and the consent URL tells
+ * Google which account to offer first.
+ *
  * ## The other direction of the same warning
  *
  * `routes/invitations.ts` carries the long version: an invitation is an offer
@@ -113,6 +121,8 @@ function listed(items: ReadonlyArray<string>): string {
 }
 
 interface GrantSubject extends WhereFromAndTo {
+  /** Never null here: a migration that names no account is not ready (T8 (b)). */
+  readonly from: string;
   readonly organisation: string;
   readonly organisationPhone: string | null;
   readonly reads: string;
@@ -129,6 +139,7 @@ interface GrantSubject extends WhereFromAndTo {
 const FOR_THE_LINK_HOLDER: Readonly<Record<GrantLinkAskRefusalCode, string>> = {
   no_source_connection: 'it no longer exists',
   source_not_google: 'it does not connect to a Google account',
+  no_named_account: 'it does not name the Google account it reads',
   no_target: 'it has no destination to copy to',
   nothing_to_ask: 'it has nothing to copy at the moment',
   client_not_configured: 'its Google application is not set up yet',
@@ -164,6 +175,10 @@ async function loadSubject(
   if (!decided.ok) return notReady(FOR_THE_LINK_HOLDER[decided.refusal.code]);
   const where = whereFromAndTo(rows);
   if (!where) return notReady(FOR_THE_LINK_HOLDER.no_target);
+  // The decision already refused a migration that names no account; this is
+  // the same fact, read where the type can see it.
+  if (where.from === null) return notReady(FOR_THE_LINK_HOLDER.no_named_account);
+  const from = where.from;
 
   // WHOSE client, as decided — the values read only now, and only the pair
   // the decision named. The deployment's is read from the environment here
@@ -185,7 +200,7 @@ async function loadSubject(
       organisationPhone: rows.organisationPhone,
       reads: listed(decided.ask.domains.map((d) => READS[d])),
       scope: decided.ask.scope,
-      from: where.from,
+      from,
       to: where.to,
       clientId: client.clientId,
       clientSecret: client.clientSecret,
@@ -307,6 +322,9 @@ router.post(
           scope: loaded.subject.scope,
           redirectUri,
           state,
+          // Google offers the named account first. Only a convenience: the
+          // callback refuses any other account that signs in (T8 (b)).
+          loginHint: loaded.subject.from,
         }),
       });
     } catch (error) {
