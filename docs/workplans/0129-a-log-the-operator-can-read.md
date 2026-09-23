@@ -6,7 +6,7 @@
 operator, logging can be viewd and searched, keep is basic. I want retention of 1 month. And i
 want a way of export/publish auditlog records, in such a way commen logging frameworks can pick
 it up / stream it to loglakes/logsolution."* Five questions went back the same day, and all five
-were answered (§2). Nothing is built yet.
+were answered (§2); the owner then added the actor to the page. Nothing is built yet.
 
 | Task | Status | Notes |
 |---|---|---|
@@ -41,7 +41,9 @@ The questions, and the answers as given:
   until the customer is erased, as today; your export gives you a longer copy anywhere.
   Sync-pass lines: stay 2 months for billing."*
 - **D3, what the page may show:** *"Metadata only: time, level, customer, migration, event,
-  error category, reference number, searchable. No free text, per your support rule."*
+  error category, reference number, searchable. No free text, per your support rule."* And the
+  same day, for the audit log: *"do add the actor in auditlog page. The details we don't need,
+  only when investigating, and we can then query them, I assume."*
 - **D4, the export format:** *"One JSON line per audit event, using OpenTelemetry field names,
   written to stdout. Plus a download endpoint that resumes where the last one stopped, for
   backfill. Email addresses and file names replaced by pseudonyms in the export by default."*
@@ -68,9 +70,10 @@ view with the same `platform_operator` check as the others, and each view served
 in `support_read` (its screen vocabulary is a CHECK, so a new screen is a migration). On the
 appliance it is the same page, for the appliance's own operator.
 
-The audit log's `actor` and `detail` are not shown: an address is personal data, and `detail`
-is free JSON. The page shows the audit row's time, customer, migration and action (as its
-event).
+An audit row shows its time, customer, migration, actor (who did it: a person's address, or
+the process that acted) and action, as its event (D3). Its `detail` is not shown: it stays in
+`audit_log` until the customer is erased, and an investigation reads it with a database query,
+as it can today.
 
 **T3, one month.** T1's table is pruned at 30 days by the retention job that already prunes
 `run_event`, with the same batching and the same override pattern. Container output is kept for
