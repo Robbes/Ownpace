@@ -1203,10 +1203,18 @@ const en = {
   // with a bare `TypeError` five times over and the only readable account of
   // WHY was in the customer's own Nextcloud log. Nothing on this screen pointed
   // there, so the reader had a remedy naming three things that were all fine.
+  //
+  // "No space left" was "a full mailbox" until 2026-09-23, when the owner read
+  // it under a file: "the text talking about 'full mailbox' is weird to read at
+  // the Files-kind." Every remedy is shown under every kind, so none may name
+  // one kind's storage.
   'failure.targetRefused':
-    'The destination refused to accept this. Common causes are a full mailbox, a read-only folder or missing permission on the target account. If it answered with an internal error, the reason is in the destination\u2019s own log rather than in what it sent back.',
+    'The destination refused to accept this. Common causes are no space left, a read-only folder or missing permission on the target account. If it answered with an internal error, the reason is in the destination\u2019s own log rather than in what it sent back.',
+  // "Rename it in the old account" was added on 2026-09-23. The export format
+  // is a remedy only for a Google file, and a name the destination will never
+  // store (Nextcloud refuses `.htaccess`) can come from any source.
   'failure.formatRefused':
-    'The destination will not accept this KIND of file. The account itself is fine \u2014 it is this file\u2019s format or name that is not allowed there. Change the export format on the mapping, or leave these items behind.',
+    'The destination will not accept this KIND of file. The account itself is fine \u2014 it is this file\u2019s format or name that is not allowed there. Rename it in the old account, change the export format on the mapping, or leave these items behind.',
   'failure.network':
     'We could not reach the server. This is usually brief, and it retries by itself.',
   // The one whose text must carry the way OUT of self-service.
@@ -2186,9 +2194,9 @@ const nl: Record<keyof typeof en, string> = {
   'failure.sourceRefused':
     'Niet gemigreerd: het oude account wilde dit niet afgeven, dus er is niets naar het nieuwe gestuurd \u2014 daar valt niets te controleren. Probeer opnieuw als dat veranderd is, of laat deze items achter.',
   'failure.targetRefused':
-    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: een volle mailbox, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Antwoordde de bestemming met een interne fout, dan staat de reden in het logboek van de bestemming zelf en niet in het antwoord dat wij terugkregen.',
+    'De bestemming weigerde dit te accepteren. Veelvoorkomende oorzaken: geen ruimte meer, een alleen-lezen map, of ontbrekende rechten op het doelaccount. Antwoordde de bestemming met een interne fout, dan staat de reden in het logboek van de bestemming zelf en niet in het antwoord dat wij terugkregen.',
   'failure.formatRefused':
-    'De bestemming accepteert dit SOORT bestand niet. Met het account zelf is niets mis \u2014 het is de indeling of de naam van dit bestand die daar niet is toegestaan. Wijzig het exportformaat op de koppeling, of laat deze items achter.',
+    'De bestemming accepteert dit SOORT bestand niet. Met het account zelf is niets mis \u2014 het is de indeling of de naam van dit bestand die daar niet is toegestaan. Geef het in het oude account een andere naam, wijzig het exportformaat op de koppeling, of laat deze items achter.',
   'failure.network':
     'We konden de server niet bereiken. Dit duurt meestal kort en wordt vanzelf opnieuw geprobeerd.',
   'failure.unknown':

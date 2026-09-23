@@ -259,6 +259,40 @@ const RULES: ReadonlyArray<{
     // A source that will not produce a format is not a target refusing one.
     whenSource: 'source_refused',
   },
+  // A NAME NEXTCLOUD WILL NEVER STORE, OBSERVED on 2026-09-23. One file on the
+  // owner's live OneDrive → Nextcloud migration failed five times with
+  //
+  //   PUT failed for …/.htaccess with status 500:
+  //   OCP\Files\ForbiddenException — Invalid path: files/…/.htaccess
+  //
+  // and read `target_refused` through its `status 500`, so a FILE was given
+  // the remedy "a full mailbox, a read-only folder or missing permission",
+  // none of which it was. `.htaccess` is on Nextcloud's `forbidden_filenames`
+  // list by default, and its local storage answers every name on that list
+  // with exactly this exception and message, retry flag false. No pass will
+  // ever get the file in; it is the destination refusing a name, which is
+  // this category.
+  //
+  // It escapes as a 500 because `File::put()` asks whether the file exists
+  // before entering the block that converts storage exceptions. Where the
+  // conversion does run, it is a 403 `…\Sabre\Exception\Forbidden` with the
+  // same message, hence `(exception)?`. The first form is observed and the
+  // second is read in the source. Both were read in Nextcloud's
+  // `lib/private/Files/Storage/Local.php` (`getSourcePath`) and
+  // `apps/dav/lib/Connector/Sabre/File.php` on the same day. Only
+  // `Invalid path` after a forbidden refusal is matched. `Local.php` throws
+  // the same exception for a symlink it will not follow, and that one is not
+  // about a name.
+  //
+  // The other four phrases are the refusals `FilenameValidator` (Nextcloud 30
+  // and later) publishes for a name, a prefix, a character or an ending it
+  // will not store, read in the same place. They have NOT been observed here.
+  // The rule's own `forbidden file type` above is their fifth sibling.
+  {
+    category: 'format_refused',
+    test: /\b(forbidden(exception)?\W+invalid\s+path|forbidden\s+file\s+or\s+folder\s+name|forbidden\s+prefix\s+for\s+file\s+or\s+folder\s+names|not\s+allowed\s+inside\s+a\s+file\s+or\s+folder\s+name|filenames\s+must\s+not\s+end\s+with)\b/i,
+    whenSource: 'source_refused',
+  },
   // A refusal. Deliberately last of the matchers: it is the broadest, and
   // anything above it is a better answer when both fit. WHICH side refused is
   // the whole difference between "go and look at your destination" and

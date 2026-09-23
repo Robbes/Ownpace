@@ -145,3 +145,35 @@ describe('the two refusals say different things, which is the whole point', () =
     }
   });
 });
+
+describe('a remedy is read under every kind of item', () => {
+  it("names no one kind's storage", () => {
+    // 2026-09-23, under a file Nextcloud refused: "the text talking about
+    // 'full mailbox' is weird to read at the Files-kind." A category is the
+    // same under a message, a file, a card and an event, so its sentence has
+    // to read right under all of them.
+    for (const { name, map } of [
+      { name: 'FAILURE_KEY', map: FAILURE_KEY },
+      { name: 'VIEW_FAILURE_KEY', map: VIEW_FAILURE_KEY },
+    ]) {
+      for (const category of FAILURE_CATEGORIES) {
+        for (const locale of LOCALES) {
+          const sentence = sentenceFor(locale, keyFor(map, category, name), `${name}.${category}`);
+          expect(sentence, `${name}.${category} in ${locale} names a mailbox`).not.toMatch(/mailbox/i);
+        }
+      }
+    }
+  });
+
+  it('the format remedy offers a way out for a file from any source', () => {
+    // The export format is a remedy for a Google file only. A name the
+    // destination will never store (Nextcloud refuses `.htaccess`) can come
+    // from any source, and renaming it there is what lets it through.
+    for (const locale of LOCALES) {
+      const format = sentenceFor(locale, FAILURE_KEY.format_refused, 'format_refused');
+      expect(format, `the ${locale} format remedy offers no rename`).toMatch(
+        locale === 'nl' ? /andere naam/ : /\brename\b/i,
+      );
+    }
+  });
+});
