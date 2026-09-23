@@ -20,6 +20,7 @@ import {
   MAPPING_LIFECYCLES,
   MAX_ITEM_ATTEMPTS,
   DELETION_GUIDANCE,
+  MOVE_GUIDANCE,
   DELETIONS_MEANING,
   FAILURE_GUIDANCE,
   decisionSucceeded,
@@ -112,6 +113,17 @@ describe('the shared prose', () => {
 
   it('warns that apply is destructive wherever it is shown', () => {
     expect(DELETION_GUIDANCE.apply).toContain('THE ONLY DESTRUCTIVE ACTION');
+  });
+
+  it('never sends a managed customer to do by hand what the Apply beside it does', () => {
+    // Managed has served the move apply route since 2026-08-16 (0042 T2) and
+    // the Moves screen offers the button in both editions. The guidance under
+    // it still said the route was the appliance's, and to remove the old copy
+    // in the target system instead.
+    expect(MOVE_GUIDANCE.apply).not.toMatch(/appliance only|does not serve/i);
+    expect(MOVE_GUIDANCE.apply).toContain('Both editions serve it');
+    expect(MOVE_GUIDANCE.apply).toContain('receipt');
+    expect(MOVE_GUIDANCE.apply).toContain('REMOVES');
   });
 });
 
