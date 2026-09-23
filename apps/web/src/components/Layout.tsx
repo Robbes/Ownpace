@@ -15,7 +15,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft } from 'lucide-react';
+  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { mappingApi } from '../services/mapping-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
@@ -25,6 +25,7 @@ import { useLocale } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { LOCALES } from '../i18n/strings.ts';
 import BuildStamp from './BuildStamp.tsx';
+import { fetchReportingAvailable } from '../services/problem-report-service.ts';
 import PlatformPauseBanner from './PlatformPauseBanner.tsx';
 import {
   activeNavHref,
@@ -60,6 +61,15 @@ const Layout: React.FC = () => {
   });
   const { user, logout, operator, tenantCount } = useAuthStore();
   const token = useAuthStore((s) => s.token);
+  // Whether the service takes problem reports (workplan 0130): the link is
+  // offered only when a report could reach somebody.
+  const reportingAvailable =
+    useQuery({
+      queryKey: ['problem-reports', 'available'],
+      queryFn: fetchReportingAvailable,
+      enabled: !selfHostEdition && token != null,
+      staleTime: 5 * 60_000,
+    }).data === true;
 
   /**
    * SIGN OUT OF THE ISSUER TOO, not just of this tab (2026-09-01).
@@ -299,6 +309,19 @@ const Layout: React.FC = () => {
                 </button>
               ))}
             </div>
+            {/* "Report a problem" (workplan 0130), beside Sign out because it is
+                about the session, not a screen: it carries the page the person
+                is on. Offered only when the service takes reports. */}
+            {!selfHost && reportingAvailable && (
+              <Link
+                to={`/report?from=${encodeURIComponent(location.pathname)}`}
+                onClick={() => setSidebarOpen(false)}
+                className="w-full flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <MessageSquareWarning className="w-5 h-5 mr-3" />
+                {t('nav.reportProblem')}
+              </Link>
+            )}
             {!selfHost && (
               <button
                 onClick={signOut}

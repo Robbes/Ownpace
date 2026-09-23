@@ -93,6 +93,10 @@ const NOT_ASKED: Record<string, string> = {
     'Google\'s own consent screen, which no gate can press. Covered by ' +
     'routes/grant.unit.test.ts, which runs the whole flow against a real ' +
     'database with only Google\'s token endpoint replaced.',
+  '/api/problem-reports':
+    'sending one opens a real ticket on the owner\'s helpdesk, and a stack this ' +
+    'gate talks to has none set up. Covered by a-report-that-reaches-a-person.' +
+    'unit.test.ts, which drives the route with the helpdesk faked at fetch.',
 };
 
 describe('every route family is either asked for or accounted for', () => {

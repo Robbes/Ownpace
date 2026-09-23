@@ -9,12 +9,26 @@ questions/more info, and help out. These might be operational with customer data
 GitHub issues it not the right place... Devs will find there own way to GitHub issues section.
 Perhaps something that enables users to register the URL they on, the error they see
 (screenshot or similar)"*. The recommendation was Zammad, open source and made in Germany, and
-two questions went back. Both were answered (§2). Nothing is built yet.
+two questions went back. Both were answered (§2).
+
+**2026-09-23, later: T1 and T2 built.** "Report a problem" sits beside Sign out, on the
+managed edition, and only when the deployment has a Zammad set up (`ZAMMAD_URL` and
+`ZAMMAD_TOKEN`, https). It opens a form that says what goes with the report (the page, without
+any link secret; the reference and kind of error when there is one) and which address the reply
+goes to, before anything is sent. `POST /api/problem-reports` makes the ticket on the owner's
+Zammad with the reporter as its customer, in plain text, with a PNG or JPEG screenshot of at
+most 5 MB checked by its own first bytes; five reports an hour per person; its own 8 MB body
+limit, ahead of the global parser. A report Zammad refuses is answered with a reference and
+recorded as `report.not-delivered` (0129 T1). The appliance does not offer the form yet: it has
+no report route, and it will send nothing until its owner points it at a helpdesk (0129 D5).
+Set-up is step 8f of `docs/managed-bring-up.md`. Guards: `a-report-that-reaches-a-person` in the
+API (23) and the web app (7), and `a-report-link-that-can-reach-someone` (3); 23 mutations, all
+killed.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 A report form in the app | 📋 **Decided 2026-09-23** (D2) | §3. What the person writes, the page they are on, the error they see, and a screenshot if they add one. |
-| T2 The report becomes a Zammad ticket | 📋 **Decided** (D1) | §3. Created by the API on the owner's own Zammad, so a reply reaches the person by email. |
+| T1 A report form in the app | ✅ **Built 2026-09-23** (D2) | §3. What the person writes, the page they are on, the error they see, and a screenshot if they add one. |
+| T2 The report becomes a Zammad ticket | ✅ **Built 2026-09-23** (D1) | §3. Created by the API on the owner's own Zammad, so a reply reaches the person by email. |
 | T3 The failure line that says "send it to us" opens the form | 📋 **Decided** (D2) | §3. With the failure's category and reference already filled in. |
 | T4 The privacy policy names support requests | 📋 **Proposed** | §3. What is sent, where it is kept, for how long. |
 

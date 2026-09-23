@@ -6,11 +6,24 @@
 operator, logging can be viewd and searched, keep is basic. I want retention of 1 month. And i
 want a way of export/publish auditlog records, in such a way commen logging frameworks can pick
 it up / stream it to loglakes/logsolution."* Five questions went back the same day, and all five
-were answered (§2); the owner then added the actor to the page. Nothing is built yet.
+were answered (§2); the owner then added the actor to the page.
+
+**2026-09-23, later: T1 built.** The application's errors and warnings are recorded in
+`app_event` (migration 0059), which has no column a message could go in: the event is a name
+from code, and a CHECK on each text column admits nothing personal. No row-level security,
+deliberately, and the application's role may insert and nothing else, so no customer reads it.
+Recorded: every 500 the API answers (`api.<code>`, under the reference the person was shown),
+every data type whose pass fails (`sync.<domain>.failed`, with the category the progress strip
+shows), and a pass that could not read a collection's keys or the owner's bin (the two
+warnings that cost a pass its moves and deletions). Each log line carries the event's
+reference. `recordAppEvent` never throws; each process sets its sink at start-up. Guards:
+`an-error-the-operator-can-find.unit.test.ts` in shared (18), ledger (13), orchestration (6),
+core (3) and the API (3), and the RLS, grants and erasure guards now name the table; 21
+mutations, all killed.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 The application's errors and warnings are recorded where the page can search them | 📋 **Decided 2026-09-23** (D1, D3) | §3. A table of metadata only, written beside the log line, never instead of it. |
+| T1 The application's errors and warnings are recorded where the page can search them | ✅ **Built 2026-09-23** (D1, D3) | §3. A table of metadata only, written beside the log line, never instead of it. |
 | T2 The operator's log page | 📋 **Decided** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable; both editions. |
 | T3 One month for application and container logs | 📋 **Decided** (D2) | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected. |
 | T4 The audit export: one JSON line per event, and a download that resumes | 📋 **Decided** (D4, D5) | §3. OpenTelemetry field names, to stdout; a backfill endpoint with a cursor; pseudonyms by default. |

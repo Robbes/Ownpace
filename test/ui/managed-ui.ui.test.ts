@@ -109,6 +109,17 @@ const FIXTURES: Record<string, unknown> = {
    * the same to the screen, and the banner renders nothing for either.
    */
   [`GET /api/platform-pause`]: { held: false },
+  /**
+   * WHETHER TO OFFER "REPORT A PROBLEM" (workplan 0130), asked by the layout on
+   * every signed-in page, like the hold above: the link beside Sign out is
+   * shown only when the deployment has a helpdesk to send a report to.
+   *
+   * `available: true` is the answer of a deployment with its Zammad set up, so
+   * the link renders on every page this suite opens, and the form it leads to
+   * is opened below. Without this fixture every page logs a 404, which is how
+   * this entry came to be written.
+   */
+  [`GET /api/problem-reports/available`]: { available: true },
   // The build stamp in the sidebar asks the server what IT is running
   // (services/build-identity.ts). Answered from the ROOT package.json rather
   // than a literal, for the same reason every other consumer reads it there:
@@ -497,6 +508,21 @@ describe('the build stamp', () => {
     // always would train the reader to stop looking at it.
     expect(await l.text(), 'the stamp claimed a mismatch where there is none').not.toContain('UI v');
     expectClean(l, 'the build stamp');
+    await l.page.close();
+  });
+});
+
+describe('Report a problem (workplan 0130)', () => {
+  it('opens the form from the link beside Sign out, carrying the page it came from', async () => {
+    const l = await open('/mappings');
+    await l.page.getByRole('link', { name: 'Report a problem' }).click(); // nav.reportProblem
+    await l.page.waitForURL((u) => u.pathname === '/report', { timeout: 10_000 });
+
+    expect(new URL(l.page.url()).searchParams.get('from')).toBe('/mappings');
+    // Said before anything is sent: what goes with the report, and the page.
+    await l.page.locator('text=Sent with your report:').waitFor({ timeout: 10_000 }); // report.sentWith
+    expect(await l.text()).toContain('the page you were on: /mappings'); // report.page
+    expectClean(l, 'the report form');
     await l.page.close();
   });
 });
