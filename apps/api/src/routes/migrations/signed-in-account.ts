@@ -113,35 +113,51 @@ export function sameGoogleAccount(a: string, b: string): boolean {
   return x !== null && x === googleAccountKey(b);
 }
 
+/** Which of the three ways a sign-in was refused: a code for the record, never an address. */
+export type SignedInAccountRefusalCode = 'no_named_account' | 'unconfirmed' | 'another_account';
+
+export interface SignedInAccountRefusal {
+  readonly code: SignedInAccountRefusalCode;
+  /** The sentence for the person who just signed in. */
+  readonly reason: string;
+}
+
 /**
  * Why this sign-in may not grant for this migration, in the words of the person
  * who just signed in, or null when it may.
  *
  * Every refusal here leaves the link unspent, so each says what to do with the
  * SAME link: open it again. The address they signed in with is theirs, shown in
- * their own browser, and naming it is what lets them see the mistake.
+ * their own browser, and naming it is what lets them see the mistake. The code
+ * is what the audit record keeps (0108 T8 (d)), and it carries no address.
  */
 export function signedInAccountRefusal(
   named: string | null | undefined,
   signedInAs: string | null,
-): string | null {
+): SignedInAccountRefusal | null {
   if (!named || !namesAGoogleAccount(named)) {
-    return (
-      'This migration no longer names the Google account it reads, so your permission ' +
-      'could not be checked against it. Please tell the person who sent you the link.'
-    );
+    return {
+      code: 'no_named_account',
+      reason:
+        'This migration no longer names the Google account it reads, so your permission ' +
+        'could not be checked against it. Please tell the person who sent you the link.',
+    };
   }
   if (signedInAs === null) {
-    return (
-      `Google did not confirm which account you signed in with, so it could not be checked ` +
-      `against ${named}. Open your link again and sign in as ${named}.`
-    );
+    return {
+      code: 'unconfirmed',
+      reason:
+        `Google did not confirm which account you signed in with, so it could not be checked ` +
+        `against ${named}. Open your link again and sign in as ${named}.`,
+    };
   }
   if (!sameGoogleAccount(named, signedInAs)) {
-    return (
-      `You signed in to Google as ${signedInAs}, but this migration reads ${named}. Open ` +
-      `your link again and choose ${named} at Google.`
-    );
+    return {
+      code: 'another_account',
+      reason:
+        `You signed in to Google as ${signedInAs}, but this migration reads ${named}. Open ` +
+        `your link again and choose ${named} at Google.`,
+    };
   }
   return null;
 }

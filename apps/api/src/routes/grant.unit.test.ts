@@ -135,6 +135,20 @@ async function mappingRow(id: string): Promise<Record<string, unknown> | undefin
   }
 }
 
+/** The audit rows recorded under `action`, oldest first (0108 T8 (d)). */
+async function auditRows(action: string): Promise<Array<Record<string, unknown>>> {
+  const conn = await driver.acquire();
+  try {
+    const r = await conn.query(
+      'SELECT tenant_id, actor, action, entity, detail, at FROM audit_log WHERE action = $1 ORDER BY at',
+      [action],
+    );
+    return r.rows as Array<Record<string, unknown>>;
+  } finally {
+    await conn.release();
+  }
+}
+
 async function connectionRow(id: string): Promise<Record<string, unknown> | undefined> {
   const conn = await driver.acquire();
   try {
@@ -320,6 +334,7 @@ beforeEach(async () => {
   try {
     await conn.query('DELETE FROM mapping_link');
     await conn.query('UPDATE mailbox_mapping SET source_secret_ref = NULL');
+    await conn.query('DELETE FROM audit_log');
   } finally {
     await conn.release();
   }
@@ -906,6 +921,80 @@ describe('the account that signs in must be the one the page named (0108 T8 (b))
     expect(res.text).toMatch(/can no longer be used/);
     expect(res.text).not.toMatch(/your link still works/);
     expect((await mappingRow(MAPPING))?.source_secret_ref).toBeNull();
+  });
+});
+
+/**
+ * THE AUDIT LINE (workplan 0108 T8 (d), the owner's decision of 2026-09-23).
+ *
+ * One record per grant, in the grant's own transaction: which link, which
+ * account granted, which destination, and when. And one per refused sign-in,
+ * which keeps the refusal and NOT the address that signed in: that belongs to
+ * somebody who granted nothing, and `audit_log` is never pruned.
+ */
+describe('the record of every grant (0108 T8 (d))', () => {
+  /** Start a consent, then (optionally) interfere, then end it signed in as `email`. */
+  async function grantAs(token: string, email: string | null, midFlight?: () => Promise<unknown>) {
+    tokenResponse = () => ({
+      status: 200,
+      body: {
+        refresh_token: REFRESH,
+        scope: GOOGLE_SOURCE_SCOPES.gmail,
+        ...(email ? { id_token: idTokenFor(email) } : {}),
+      },
+    });
+    const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
+    const state = new URL(started.body.url).searchParams.get('state')!;
+    await midFlight?.();
+    return request(app).get('/api/migrations/google/callback').query({ state, code: 'auth-code' });
+  }
+
+  it('records the grant: which link, which account, which destination, and when', async () => {
+    const { token, id } = await mintLink(MAPPING);
+    const before = Date.now();
+    expect((await grantAs(token, NAMED)).status).toBe(200);
+
+    const rows = await auditRows('mapping.granted');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ tenant_id: TENANT, actor: 'grant-link', entity: 'mapping' });
+    expect(rows[0]!.detail).toEqual({
+      mappingId: MAPPING,
+      linkId: id,
+      account: NAMED,
+      to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'dest@example.org' },
+    });
+    expect(new Date(String(rows[0]!.at)).getTime()).toBeGreaterThanOrEqual(before - 1000);
+    // Never the credential, in any form.
+    expect(JSON.stringify(rows[0])).not.toContain(REFRESH);
+    expect(await auditRows('mapping.grant_refused')).toEqual([]);
+  });
+
+  it('records nothing as granted when the grant does not land', async () => {
+    // Revoked mid-flight: the claim fails, and the record with it.
+    const { token, id } = await mintLink(MAPPING);
+    const res = await grantAs(token, NAMED, () =>
+      withTenant(driver, TENANT, (db) => revokeMappingLink(db, { tenantId: TENANT, linkId: id })),
+    );
+    expect(res.status).toBe(409);
+    expect(await auditRows('mapping.granted')).toEqual([]);
+    // Nor as a refused sign-in: nobody's account was refused, the link was.
+    expect(await auditRows('mapping.grant_refused')).toEqual([]);
+  });
+
+  it('records a refused sign-in by its reason, and keeps no address that signed in', async () => {
+    const { token, id } = await mintLink(MAPPING);
+    expect((await grantAs(token, 'personal@gmail.com')).status).toBe(403);
+    expect((await grantAs(token, null)).status).toBe(403);
+
+    const refused = await auditRows('mapping.grant_refused');
+    expect(refused.map((r) => r.detail)).toEqual([
+      { mappingId: MAPPING, linkId: id, refused: 'another_account' },
+      { mappingId: MAPPING, linkId: id, refused: 'unconfirmed' },
+    ]);
+    expect(refused.every((r) => r.actor === 'grant-link' && r.tenant_id === TENANT)).toBe(true);
+    expect(JSON.stringify(refused)).not.toContain('personal@gmail.com');
+    // The refusal rolled the claim back; its record is not a grant.
+    expect(await auditRows('mapping.granted')).toEqual([]);
   });
 });
 

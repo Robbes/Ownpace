@@ -128,20 +128,24 @@ describe('what the person who signed in is told', () => {
 
   it('both addresses, and to choose the named one, when it is another account', () => {
     const said = signedInAccountRefusal('someone@example.org', 'personal@gmail.com');
-    expect(said).toMatch(/You signed in to Google as personal@gmail\.com/);
-    expect(said).toMatch(/this migration reads someone@example\.org/);
-    expect(said).toMatch(/choose someone@example\.org at Google/);
+    expect(said?.code).toBe('another_account');
+    expect(said?.reason).toMatch(/You signed in to Google as personal@gmail\.com/);
+    expect(said?.reason).toMatch(/this migration reads someone@example\.org/);
+    expect(said?.reason).toMatch(/choose someone@example\.org at Google/);
   });
 
   it('which account to sign in as, when Google did not say who signed in', () => {
     const said = signedInAccountRefusal('someone@example.org', null);
-    expect(said).toMatch(/Google did not confirm which account you signed in with/);
-    expect(said).toMatch(/sign in as someone@example\.org/);
+    expect(said?.code).toBe('unconfirmed');
+    expect(said?.reason).toMatch(/Google did not confirm which account you signed in with/);
+    expect(said?.reason).toMatch(/sign in as someone@example\.org/);
   });
 
   it('whom to tell, when the migration no longer names an account', () => {
     for (const named of [null, '', 'me']) {
-      expect(signedInAccountRefusal(named, 'someone@example.org')).toMatch(
+      const said = signedInAccountRefusal(named, 'someone@example.org');
+      expect(said?.code).toBe('no_named_account');
+      expect(said?.reason).toMatch(
         /no longer names the Google account it reads.*tell the person who sent you the link/,
       );
     }

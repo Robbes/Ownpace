@@ -389,6 +389,36 @@ Notes:
 4. Start the new app tier; watch health checks and per-tenant run success.
 5. Roll-forward preferred; if a release misbehaves, restore from backup rather than reversing schema.
 
+## Grant links: who granted what
+
+A grant link (see [grant-links.md](./grant-links.md)) lets somebody connect their own Google
+account to a tenant's migration. Every grant is recorded in `audit_log` (workplan 0108 T8 (d)):
+which link, which account granted, and which destination, with the tenant and the moment as the
+row's own. The owner, on 2026-09-23: *"yes, all those, so auditline, limit and report."* This is
+where to start when somebody reports a link they did not expect.
+
+```bash
+docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
+  "SELECT at, tenant_id, action, detail
+     FROM audit_log
+    WHERE action IN ('mapping.granted', 'mapping.grant_refused')
+    ORDER BY at DESC LIMIT 50;"
+```
+
+- **`mapping.granted`**: `detail` holds `mappingId`, `linkId`, `account` (the Google account that
+  granted, which is always the one the migration names) and `to` (the destination's kind, host
+  and account). It is written in the grant's own transaction, so a grant without a record, or a
+  record without a grant, cannot exist.
+- **`mapping.grant_refused`**: somebody signed in with another account (`another_account`), or
+  Google did not say who signed in (`unconfirmed`), or the migration names no account any more
+  (`no_named_account`). Nothing was stored and the link still works. **The address that signed
+  in is deliberately not kept**: it belongs to somebody who granted nothing, and `audit_log` is
+  never pruned. Several refusals on one `linkId` mean the link is being tried by the wrong
+  person or with the wrong account.
+
+The link id is the part of a grant link's URL before the dot, so a link somebody forwards to you
+can be found in `mapping_link` and in these rows without the rest of it.
+
 ## Tenant offboarding (GDPR right to erasure, §17)
 
 > ⚠️ **This section was rewritten 2026-08-18 (workplan 0085).** It previously
