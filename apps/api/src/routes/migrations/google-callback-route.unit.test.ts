@@ -108,3 +108,44 @@ describe('the callback page, with helmet in front of it', () => {
     expect(directive(res.headers['content-security-policy'], 'script-src')).toBe("script-src 'self'");
   });
 });
+
+/**
+ * THE OWNER'S ENDING KEEPS THE OWNER'S WORDS (2026-09-23).
+ *
+ * A grant link's refusals are worded for the person on the link now. The
+ * owner's consent shares this callback and holds the client, so its
+ * sentences name what to check, and nothing about a link it does not have.
+ */
+describe("the owner's refusals, beside a grant link's", () => {
+  const begin = () =>
+    consentFlows.begin({ clientId: 'cid', clientSecret: 'a-test-value', scope: SCOPE, redirectUri: REDIRECT });
+
+  it("Google's own error is passed on as the owner reads it", async () => {
+    const res = await request(app).get(
+      `/api/migrations/google/callback?state=${encodeURIComponent(begin())}&error=access_denied`,
+    );
+    expect(res.text).toContain('Google reported: access_denied. Nothing was granted and nothing was stored.');
+    expect(res.text).not.toMatch(/your link|Permission was not given/);
+  });
+
+  it('no code is said in the owner’s words', async () => {
+    const res = await request(app).get(
+      `/api/migrations/google/callback?state=${encodeURIComponent(begin())}`,
+    );
+    expect(res.text).toContain('Google sent no authorization code back.');
+    expect(res.text).not.toMatch(/your link|sent nothing back/);
+  });
+
+  it('a refused exchange keeps what to check, for the one who can check it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: 'invalid_client' }), { status: 401 })),
+    );
+    const res = await request(app).get(
+      `/api/migrations/google/callback?state=${encodeURIComponent(begin())}&code=the-code`,
+    );
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('Check that the Client ID and client secret belong to the same OAuth client');
+    expect(res.text).not.toMatch(/your link/);
+  });
+});
