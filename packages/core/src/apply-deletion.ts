@@ -715,6 +715,8 @@ async function relocationCheck(
     readonly moveAcknowledgedAt?: string;
     readonly contentHash?: string;
     readonly targetId?: string;
+    readonly movedByIdentity?: boolean;
+    readonly sourceRef?: string;
   },
 ): Promise<Extract<ApplyDeletionOutcome, { ok: false }> | undefined> {
   const { tenantId, mappingId, domain, ledger } = deps;
@@ -812,6 +814,33 @@ async function relocationCheck(
         'one would remove both. Nothing was removed.',
     };
   }
+  // A RENAMED GOOGLE DOCUMENT, PAIRED BY ITS OWN ID (ADR-0030, amended; 0042
+  // T10, the owner's decision of 2026-09-23: "Apply may remove the old copy of
+  // a renamed Google document"). Its two copies are two exports that differ
+  // byte for byte (a pair whose bytes matched was recorded as a bytes pair), so
+  // the bytes gates below could never pass. What stands in for them is the
+  // same line held another way: the new copy is the SAME DRIVE DOCUMENT (same
+  // id), WRITTEN BY THIS MIGRATION (the status check above), and — asked of the
+  // target itself before anything is removed — PRESENT THERE. The ambiguity
+  // gate has nothing to count either: an id names one document, where a hash
+  // can name any number of files.
+  //
+  // The id must be the one the pair was made by. A row whose move was paired
+  // by bytes goes through the bytes gates, whatever ids it carries.
+  if (row.movedByIdentity === true) {
+    if (!row.sourceRef || arrival.sourceRef !== row.sourceRef) {
+      return {
+        ok: false,
+        code: 'relocation_unconfirmed',
+        reason:
+          'This rename was recognised by the document’s own id, and the new copy no longer ' +
+          'carries that id, so there is no way to tell it is the same document. Nothing was ' +
+          'removed.',
+      };
+    }
+    return undefined;
+  }
+
   // An UNKNOWN hash is not a matching hash. Both sides default to `''` when a
   // row never recorded one, and `'' === ''` would sail through this gate on two
   // rows that say nothing about each other — on the one path that destroys a
@@ -1139,6 +1168,20 @@ export async function autoApplyRelocations(
     // a hash with every other, so under auto-apply they are simply never
     // eligible; a human can still apply one, looking.
     const row = await ledger.find(tenantId, mappingId, domain, move.naturalKeyHash);
+    // A RENAMED GOOGLE DOCUMENT, paired by its own id and not by bytes (0042
+    // T10). A person may apply it, looking at both names; unattended apply
+    // acts only on a pair whose bytes are the whole proof, so this one waits in
+    // the queue. Said as what it is, rather than as a hash count of one.
+    if (row?.movedByIdentity === true) {
+      leftForReview.push({
+        naturalKeyHash: move.naturalKeyHash,
+        code: 'paired_by_identity',
+        reason:
+          'This rename was recognised by the Google document’s own id, not by equal bytes, ' +
+          'and unattended apply removes only byte-for-byte pairs. Review it in the Moves queue.',
+      });
+      continue;
+    }
     const sharers = row?.contentHash ? (hashCount.get(row.contentHash) ?? 0) : 0;
     if (sharers !== 2) {
       leftForReview.push({

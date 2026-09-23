@@ -651,7 +651,7 @@ export class PgLedger implements Ledger {
     tenantId: TenantId,
     mappingId: MappingId,
     domain: DiscoveryDomain,
-  ): Promise<Array<{ naturalKeyHash: string; contentHash: string; collection: string }>> {
+  ): ReturnType<Ledger['placedItems']> {
     const rows = await this.db
       .select({
         naturalKeyHash: schemaPg.item.naturalKeyHash,
@@ -664,6 +664,7 @@ export class PgLedger implements Ledger {
         deletionAcknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
         deletionAppliedAt: schemaPg.item.deletionAppliedAt,
         supersededByNaturalKeyHash: schemaPg.item.supersededByNaturalKeyHash,
+        sourceRefHref: schemaPg.item.sourceRefHref,
       })
       .from(schemaPg.item)
       .where(
@@ -726,6 +727,9 @@ export class PgLedger implements Ledger {
       ...(r.supersededByNaturalKeyHash
         ? { supersededByNaturalKeyHash: r.supersededByNaturalKeyHash }
         : {}),
+      // The source's own handle — a Drive file's id — which a renamed Google
+      // document is paired by (0042 T10). Absent where none was recorded.
+      ...(r.sourceRefHref ? { sourceRef: r.sourceRefHref } : {}),
     }));
   }
 
@@ -1225,12 +1229,15 @@ export class PgLedger implements Ledger {
     naturalKeyHash: string,
     toCollection: string,
     toNaturalKeyHash?: string,
+    pairedBy: 'content' | 'identity' = 'content',
   ): Promise<void> {
     const toKey = toNaturalKeyHash ?? null;
     await this.db
       .update(schemaPg.item)
       .set({
         movedToCollection: toCollection,
+        // How the pair was made (0042 T10): what Apply asks of the new copy.
+        movedByIdentity: pairedBy === 'identity',
         // Present only for a RELOCATION — a key-changing move (ADR-0030).
         // Mail and calendar keep their key when they move and pass nothing.
         movedToNaturalKeyHash: toKey,
@@ -1283,6 +1290,7 @@ export class PgLedger implements Ledger {
         // owner remove a target copy on the strength of a relocation the source
         // has since undone.
         movedToNaturalKeyHash: null,
+        movedByIdentity: false,
         // The recording date describes the move that just ceased to exist; a
         // NEXT move to the same place must read as fresh, not pre-aged past
         // ADR-0031's gate.
@@ -1858,8 +1866,9 @@ export class PgLedger implements Ledger {
           // word, and it could only speak about the row being removed.
           //
           // Same conditions as core's: written by us, still on the target, same
-          // bytes, and not this row. Duplicated on purpose, in SQL, because a
-          // future caller that forgets one must not be able to reach this write.
+          // bytes (or, for a pair made by id, the same document), and not this
+          // row. Duplicated on purpose, in SQL, because a future caller that
+          // forgets one must not be able to reach this write.
           sql`EXISTS (
             SELECT 1 FROM ${schemaPg.item} AS arrival
              WHERE arrival.tenant_id = ${tenantId}
@@ -1868,9 +1877,19 @@ export class PgLedger implements Ledger {
                AND arrival.natural_key_hash = ${schemaPg.item.movedToNaturalKeyHash}
                AND arrival.natural_key_hash <> ${schemaPg.item.naturalKeyHash}
                AND arrival.status IN ('copied', 'updated')
-               AND arrival.content_hash IS NOT NULL
-               AND arrival.content_hash <> ''
-               AND arrival.content_hash = ${schemaPg.item.contentHash}
+               AND (
+                 -- Paired by bytes (ADR-0030): the new copy holds the same bytes.
+                 (arrival.content_hash IS NOT NULL
+                   AND arrival.content_hash <> ''
+                   AND arrival.content_hash = ${schemaPg.item.contentHash})
+                 -- Paired by the document's own id (0042 T10): a renamed Google
+                 -- document whose two exports differ byte for byte. The new
+                 -- copy is the same Drive document, written by this migration.
+                 OR (${schemaPg.item.movedByIdentity}
+                   AND arrival.source_ref_href IS NOT NULL
+                   AND arrival.source_ref_href <> ''
+                   AND arrival.source_ref_href = ${schemaPg.item.sourceRefHref})
+               )
           )`,
         ),
       )
@@ -1933,6 +1952,8 @@ export class PgLedger implements Ledger {
       ...(row.movedToNaturalKeyHash
         ? { movedToNaturalKeyHash: row.movedToNaturalKeyHash }
         : {}),
+      // Only when true, so every move paired by bytes reads as it always did.
+      ...(row.movedByIdentity ? { movedByIdentity: true } : {}),
       ...(row.movedRecordedAt
         ? {
             movedRecordedAt:

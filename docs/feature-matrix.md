@@ -259,7 +259,11 @@ or renamed file is 🔁 detected by content-hash correlation and may be **applie
 copy removed only after the target itself confirms the bytes exist under the new key
 (ADR-0030 and its amendments) — and, per mapping opt-in, applied **unattended** behind four
 extra gates (ADR-0031: unique pairing, survived-a-pass, breaker-decides-for-the-pass,
-per-pass cap, `system:auto-apply` audit rows, digest narration). Deletions: a file in the
+per-pass cap, `system:auto-apply` audit rows, digest narration). A renamed or moved **Google
+document** exported as Office or OpenDocument has other bytes in every export, so it is paired
+by its **Drive id** instead (ADR-0030, amended 2026-09-23): its old copy is removed only when
+the new one is the same Drive document, written by this migration and confirmed on the target,
+and only by a person, never unattended. Deletions: a file in the
 source's **bin** is positive evidence, reported at once; an emptied bin falls back to
 absence-counting (`inferred`, two clean passes, and gate 3 bars applying it).
 

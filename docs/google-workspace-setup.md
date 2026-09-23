@@ -530,7 +530,9 @@ Stated here rather than discovered:
   performed, reported at once with positive evidence, and the Deletions queue may offer
   removing the target's copy on it. An emptied bin falls back to absence-counting.
 - **A moved or renamed file leaves the old copy on the target.** It is detected and reported;
-  making the target follow it is an action you approve per file, from the Moves queue.
+  making the target follow it is an action you approve per file, from the Moves queue. A Google
+  Doc, Sheet, Slides deck or Drawing is recognised by its Drive id, so renaming one is reported
+  as a move, never as a deletion, whatever format it is exported in.
 - **Two files with the same name in the same folder cannot both be migrated.** The natural key
   is the path, and the ledger's unique index on it makes that a hard stop, not a setting.
 

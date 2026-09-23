@@ -157,6 +157,11 @@ Rename one migrated file **in Drive**, same folder — `report.pdf` →
 - **Expect:** the row resolves with the server's own sentence; the OLD name is
   gone from the target; the new one is still there. In Drive: nothing changed —
   the token cannot write.
+- **Also with a Google Doc**, if Docs are exported as Microsoft Office: rename
+  one in Drive. Each export of it has other bytes, so it is recognised by its
+  Drive id. **Expect** the same *renamed* row, and **not** a deletion two passes
+  later. **Remove the old copy** works the same; unattended apply leaves it for
+  you.
 - **Also worth one deliberate minute:** rename another file and answer **keep**
   this time. The row moves to *Already decided* and the remove button is gone —
   and stays gone: `keep` is final by design, enforced on the server and in the

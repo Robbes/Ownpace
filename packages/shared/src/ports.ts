@@ -1060,6 +1060,12 @@ export interface LedgerRecord {
    */
   readonly movedToNaturalKeyHash?: string;
   /**
+   * The move above was paired by the source's own id, not by equal bytes
+   * (workplan 0042 T10): a renamed Google document whose two exports differ
+   * byte for byte. Apply then asks for the same id instead of the same bytes.
+   */
+  readonly movedByIdentity?: boolean;
+  /**
    * When the move above was RECORDED (migration 0013). Re-stamped when the
    * destination changes — a move somewhere new is a new report — and cleared
    * with the move. The queue's age, and ADR-0031's survived-a-pass gate.
@@ -1345,6 +1351,12 @@ export interface Ledger {
        * the mark when the old name is given again.
        */
       supersededByNaturalKeyHash?: string;
+      /**
+       * The source's own handle for the item, where it recorded one — for a
+       * Drive file, its id. What a renamed Google document is paired by
+       * (workplan 0042 T10).
+       */
+      sourceRef?: string;
     }>
   >;
   /**
@@ -1448,6 +1460,10 @@ export interface Ledger {
    * renamed, correlated by content hash — and leave it unset when the key
    * survived, which is every mail and calendar move. Only the first kind can
    * be applied, because only there is there a new copy to point at.
+   *
+   * `pairedBy: 'identity'` records that the relocation was paired by the
+   * source's own id rather than by equal bytes — a renamed Google document
+   * (workplan 0042 T10) — which changes what Apply asks of the new copy.
    */
   recordMove(
     tenantId: TenantId,
@@ -1456,6 +1472,7 @@ export interface Ledger {
     naturalKeyHash: string,
     toCollection: string,
     toNaturalKeyHash?: string,
+    pairedBy?: 'content' | 'identity',
   ): Promise<void>;
   /**
    * Write one attribution row to the audit log (workplan 0048).

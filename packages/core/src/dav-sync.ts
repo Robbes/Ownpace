@@ -447,6 +447,11 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     // has removals. Falls back to the path for any source with no handle of its
     // own, so a blank is never recorded as if it meant something.
     sourceRef: (item) => item.item.sourceRef || item.item.path,
+    // WHAT PAIRS A RENAMED GOOGLE DOCUMENT (0042 T10): the id the source says
+    // survives a rename, for the items whose bytes may not pair them. The Drive
+    // source sets it to the same id it records as `sourceRef`, which is what a
+    // disappeared row is compared by. Absent for every other file.
+    identity: (item) => item.item.sourceIdentity,
     // HOW A FILE'S BYTES BECOME A STORED HASH, and the one branch in it.
     //
     // Whole-file sha256 for everything the customer stored. For a RENDERING —

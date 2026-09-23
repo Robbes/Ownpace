@@ -13,6 +13,7 @@
 
 - A **correlated relocation** (disappearance + same-content-hash arrival in one pass) is positive evidence; `apply` may remove the OLD copy. Recorded by `movedToNaturalKeyHash` — a cross-folder move and a rename are the same event.
 - All ADR-0024 gates stand, plus: the arrival must be **ours** (`copied`/`updated`, same `contentHash`, never `adopted` — refusal `relocation_unconfirmed`); the target is **asked** (`hasItem`) immediately before removal; a two-halves mass-relocation breaker; `keep` enforced server-side.
+- A **renamed Google document** (a Doc, Sheet, Slides deck or Drawing, copied as an export) is paired by its **Drive file id**, because two Office or OpenDocument exports of it are not byte-identical (owner, 2026-09-23). Where the two exports' bytes still match (PDF, SVG), the pair is an ordinary bytes pair, as before. Where they differ, the pair is recorded as such (`moved_by_identity`), and its `apply` asks for the **same id** in place of the same `contentHash`: the arrival is ours (`copied`/`updated`) with the same `source_ref`, and the target is asked (`hasItem`) as for every relocation. Unattended apply (ADR-0031) leaves those pairs for a person.
 - Relocated rows no longer count as absent — no phantom deletions. Manual relocation apply is served by both editions: the appliance answers once the old copy is removed, and the managed edition queues `run-apply-relocation` and answers with a receipt (the managed route since 2026-08-16, workplan 0042 T2). ADR-0031's auto path applies them unattended where a mapping opts in.
 
 ## Context
@@ -276,6 +277,51 @@ finding, and the correct resolution of it.
 
 Recorded here because the refutation is itself the useful result: the destructive path has now
 survived an audit round without producing a defect, which is the first time that has been true.
+
+## Amendment, 2026-09-23: a renamed Google document is paired by its Drive id
+
+**The defect.** A Google Doc, Sheet or Slides deck has no bytes of its own: each pass copies a
+fresh export, and two exports of an unchanged document are not byte-identical once the format
+is a zip (Office or OpenDocument — measured in workplan 0042 T3). So the pairing this ADR rests
+on, a disappearance matched to an arrival carrying the same `contentHash`, never paired a
+renamed document. Its old name went missing, two clean passes later it was reported as
+**deleted in Google**, and both copies stayed on the target. A throwaway probe through the
+real sync loop showed it (workplan 0042 T10). PDF and SVG exports were not affected: their
+bytes repeat.
+
+**The owner's decisions, 2026-09-23:** *"Yes, pair renamed Google documents by their Drive id"*
+and *"Yes, Apply may remove the old copy of a renamed Google filetype/document."*
+
+**What changed.**
+
+- The Drive source gives a Google document its Drive file id as `FileItem.sourceIdentity`
+  (every other file keeps pairing by bytes). **Before** it looks at bytes, the detector pairs a
+  disappeared row whose recorded `source_ref` is an id this pass lists under another name that
+  has a copy on the target. Where the two exports' bytes still match (PDF and SVG repeat), the
+  move is recorded as a bytes pair, exactly as before, so `apply` and unattended apply treat it
+  as they always did. Where they differ, it is recorded with `moved_by_identity = true`
+  (migration 0058).
+- It asks what is listed **now**, not only what arrived this pass, so a rename the pass did not
+  see happen is paired too: one from before this amendment, whose old name was already reported
+  as a deletion, or one whose new name failed its first copy. The absence the old name ran up,
+  and any deletion reported from it, are cleared when it is paired. A name with no copy on the
+  target pairs nothing yet. The pairing is not consumed: an id names one document, and every
+  old name it left is an old copy of that one document.
+- A Google document's arrival is kept out of the bytes index, so it is never paired with
+  another file's old name by the bytes one export happens to have. An earlier export of the
+  same document (a format switch, 0042 T8 (b)) carries its own mark and is never paired.
+- `apply` holds the same line another way. For a pair made by bytes nothing changes. For a pair
+  made by identity the bytes gates cannot pass, so in their place: the arrival is the **same
+  Drive document** (same `source_ref`), **written by this migration** (`copied`/`updated`), and
+  **present on the target** (asked, as for every relocation). The ledger's own re-check under
+  the write (gate 7) accepts exactly those two alternatives, and the ambiguity gate has nothing
+  to count, because an id names one document where a hash can name any number of files.
+- Every other gate stands: switched on per mapping, the target can remove and can be asked,
+  ownership, both mass breakers, `keep` wins, and a copy somebody edited on the target is left
+  alone (the ETag).
+- Unattended apply (ADR-0031) does not act on these pairs. Its whole safety argument is that
+  the bytes are the proof when nobody is looking; an identity pair waits in the Moves queue
+  with the reason `paired_by_identity`.
 
 ## Consequences
 
