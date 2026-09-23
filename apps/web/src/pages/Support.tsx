@@ -71,7 +71,9 @@ import {
   readSupportLog,
   type SupportLogEntry,
   type SupportLogFilters,
+  type SupportLogPage,
 } from '../services/support.ts';
+import { readApplianceLog } from '../services/operating-service.ts';
 import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
 import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
@@ -1171,18 +1173,32 @@ const lastDayBefore = (before: string): string => {
   return Number.isNaN(at) ? '' : new Date(at - DAY_MS).toISOString().slice(0, 10);
 };
 
+/** Where a log page reads from, and where it lives (0129 T2, and D5 for the appliance). */
+interface LogPageProps {
+  /** One page of the log, for these filters. */
+  readonly read: (filters: SupportLogFilters) => Promise<SupportLogPage>;
+  /** The page's own address: its filters and its cursor are kept in the query. */
+  readonly path: string;
+  /**
+   * The managed operator's screen: every fetch is a recorded support read, so
+   * it says so first, and it sits under Support. The appliance's owner reads
+   * their own log, which records nothing and has no Support to return to.
+   */
+  readonly operator: boolean;
+}
+
 /**
  * The log (workplan 0129 T2): the audit log and the application's errors and
- * warnings, newest first, a hundred rows a page. Metadata only, as the view
+ * warnings, newest first, a hundred rows a page. Metadata only, as the reader
  * serves it; what an audit event changed is not on this screen.
  *
  * The filters live in the address, so a search is a link: an organisation's
  * page and a migration's page open this one filtered to them, and "Older" is
- * the same page with a cursor. Every fetch is recorded as a search
- * (managed migration 0025), so a page is fetched once and never again behind
- * the operator's back (`ONCE`).
+ * the same page with a cursor. On the managed edition every fetch is recorded
+ * as a search (managed migration 0025), so a page is fetched once and never
+ * again behind the operator's back (`ONCE`).
  */
-export const SupportLog: React.FC = () => {
+const LogPage: React.FC<LogPageProps> = ({ read, path, operator }) => {
   const t = useT();
   const { dateTime } = useFormatters();
   const [params, setParams] = useSearchParams();
@@ -1194,8 +1210,8 @@ export const SupportLog: React.FC = () => {
     }),
   ) as SupportLogFilters;
   const query = useQuery({
-    queryKey: ['support', 'log', filters],
-    queryFn: () => readSupportLog(filters),
+    queryKey: ['log', path, filters],
+    queryFn: () => read(filters),
     retry: false,
     ...ONCE,
   });
@@ -1234,7 +1250,7 @@ export const SupportLog: React.FC = () => {
       else next.set(key, value);
     }
     const q = next.toString();
-    return q ? `/support/log?${q}` : '/support/log';
+    return q ? `${path}?${q}` : path;
   };
 
   const page = query.data;
@@ -1255,9 +1271,16 @@ export const SupportLog: React.FC = () => {
 
   return (
     <div>
-      <Heading title={t('support.log.heading')} back={{ to: '/support', label: t('support.back') }} />
-      <Disclosure />
-      <Hint className="mb-4" text={t('support.log.lead')} why={t('support.log.lead.why')} />
+      <Heading
+        title={t('support.log.heading')}
+        {...(operator ? { back: { to: '/support', label: t('support.back') } } : {})}
+      />
+      {operator && <Disclosure />}
+      <Hint
+        className="mb-4"
+        text={t('support.log.lead')}
+        why={t(operator ? 'support.log.lead.why' : 'log.lead.why')}
+      />
 
       <form className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" onSubmit={search}>
         <div>
@@ -1437,3 +1460,13 @@ export const SupportLog: React.FC = () => {
     </div>
   );
 };
+
+/** The managed operator's log, under Support: every page served is a recorded read. */
+export const SupportLog: React.FC = () => (
+  <LogPage read={readSupportLog} path="/support/log" operator />
+);
+
+/** The appliance's log, for its own owner (0129 D5: "same page"). */
+export const ApplianceLog: React.FC = () => (
+  <LogPage read={readApplianceLog} path="/log" operator={false} />
+);

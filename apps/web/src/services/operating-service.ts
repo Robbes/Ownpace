@@ -36,6 +36,8 @@ import type {
   ShareGrantRow,
   MappingAttention,
   TenantAttention,
+  LogFilters,
+  OperatorLogPage,
 } from '@openmig/shared';
 import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition.ts';
 import { onUnauthorized } from './api.ts';
@@ -100,6 +102,16 @@ export async function fetchAttention(): Promise<{
       '/attention?all=true',
     )
   ).data;
+}
+
+/**
+ * One page of the appliance's log (workplan 0129 T2, D5): the audit log and
+ * the application's errors and warnings, newest first, the page the managed
+ * operator gets under Support. The same filters, checked by the same rules on
+ * the appliance (`parseLogFilters`).
+ */
+export async function readApplianceLog(filters: LogFilters): Promise<OperatorLogPage> {
+  return (await client.get<OperatorLogPage>('/log', { params: filters })).data;
 }
 
 export async function fetchDeletions(mappingId?: string): Promise<DeletionsResponse> {

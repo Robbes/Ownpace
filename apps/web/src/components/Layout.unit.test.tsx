@@ -296,6 +296,8 @@ describe('somebody who is in no organisation (the operator)', () => {
     const names = linkNames();
     for (const label of HIDDEN) expect(names).toContain(label);
     expect(names).toContain('Access requests');
+    // Managed's log is under Support; the appliance's `/log` would redirect.
+    expect(names).not.toContain('Log');
   });
 
   it('leaves the appliance exactly as it was', () => {
@@ -310,5 +312,7 @@ describe('somebody who is in no organisation (the operator)', () => {
     const names = linkNames();
     expect(names).toContain('Setup checklist');
     expect(names).toContain('Attention');
+    // The owner's log (0129 D5), on the appliance only: managed has no `/log`.
+    expect(names).toContain('Log');
   });
 });

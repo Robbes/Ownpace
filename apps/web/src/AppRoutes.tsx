@@ -35,6 +35,7 @@ import {
   SupportMigrationDetail,
   SupportRetainedInvoices,
   SupportLog,
+  ApplianceLog,
 } from './pages/Support.tsx';
 import Invitations from './pages/Invitations.tsx';
 import Decisions from './pages/Decisions.tsx';
@@ -306,6 +307,16 @@ const AppRoutes: React.FC = () => {
           element={
             <SelfhostOnly>
               <Failures />
+            </SelfhostOnly>
+          }
+        />
+        {/* The owner's log (0129 D5: "same page" as the managed operator's).
+            Appliance only: managed has no `/log`, its log is under Support. */}
+        <Route
+          path="log"
+          element={
+            <SelfhostOnly>
+              <ApplianceLog />
             </SelfhostOnly>
           }
         />

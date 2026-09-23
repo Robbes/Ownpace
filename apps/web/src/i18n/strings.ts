@@ -32,6 +32,7 @@ const en = {
   'nav.failures': 'Failures',
   'nav.check': 'Check',
   'nav.finish': 'Finish',
+  'nav.log': 'Log',
   'nav.tenants': 'Tenants',
   'nav.billing': 'Billing',
   'nav.signOut': 'Sign out',
@@ -1380,6 +1381,10 @@ const en = {
   'support.log.lead': 'The audit log and the application’s errors and warnings, newest first. Metadata only.',
   'support.log.lead.why':
     'What an audit event changed is not shown here: it stays in the database, for an investigation to query. The text of an error stays in the server’s output, on the line with the same reference. Every page of this log you open is recorded, with its filters.',
+  // The appliance's own log page (0129 D5): the same page, for its owner, and
+  // nothing recorded about reading it.
+  'log.lead.why':
+    'What an audit event changed is not shown here: it stays in the database, for an investigation to query. The text of an error stays in the appliance\u2019s output, on the line with the same reference.',
   'support.log.level': 'Level',
   'support.log.level.any': 'Any',
   'support.log.level.error': 'Error',
@@ -2158,6 +2163,7 @@ const nl: Record<keyof typeof en, string> = {
   'nav.failures': 'Mislukkingen',
   'nav.check': 'Verificatie',
   'nav.finish': 'Afronden',
+  'nav.log': 'Logboek',
   'nav.tenants': 'Organisaties',
   'nav.billing': 'Facturering',
   'nav.signOut': 'Uitloggen',
@@ -2327,6 +2333,8 @@ const nl: Record<keyof typeof en, string> = {
   'support.log.lead': 'Het auditlog en de fouten en waarschuwingen van de applicatie, nieuwste eerst. Alleen metadata.',
   'support.log.lead.why':
     'Wat een auditgebeurtenis veranderde staat hier niet: dat blijft in de database, om bij een onderzoek op te vragen. De tekst van een fout blijft in de uitvoer van de server, op de regel met dezelfde referentie. Elke pagina van dit logboek die je opent wordt vastgelegd, met de filters.',
+  'log.lead.why':
+    'Wat een auditgebeurtenis veranderde staat hier niet: dat blijft in de database, om bij een onderzoek op te vragen. De tekst van een fout blijft in de uitvoer van de appliance, op de regel met dezelfde referentie.',
   'support.log.level': 'Niveau',
   'support.log.level.any': 'Alle',
   'support.log.level.error': 'Fout',

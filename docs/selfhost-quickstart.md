@@ -507,6 +507,19 @@ an item is written after upgrading.
 docker compose -f compose.yml logs app | grep 'changed on the source, but'
 ```
 
+## The log page
+
+**Log**, in the menu (`/ui/log`), shows what went wrong and what was done, newest
+first: the appliance's own errors and warnings, and the audit log, in one list. A
+row has its time, level, organisation, migration, event and kind of error. An
+error has the reference number its failure showed on screen, and an audit row
+has who acted. The list shows metadata only, never the contents of a mail or a
+file.
+
+Filter by level, migration, event, kind of error, reference or time. A filtered
+view is a link you can keep. It is the same page the managed service's operator
+gets under Support. Here it is yours, so nothing records that you read it.
+
 ## How long the logs are kept
 
 Two kinds, kept two ways:

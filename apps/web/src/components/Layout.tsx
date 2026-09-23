@@ -15,7 +15,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning } from 'lucide-react';
+  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { mappingApi } from '../services/mapping-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
@@ -170,6 +170,8 @@ const Layout: React.FC = () => {
           { name: t('nav.failures'), href: '/failures', icon: AlertTriangle },
           { name: t('nav.check'), href: '/verify', icon: ListChecks },
           { name: t('nav.finish'), href: '/finish', icon: Flag },
+          // The owner's log (0129 D5): what went wrong and what was done.
+          { name: t('nav.log'), href: '/log', icon: ScrollText },
         ]
       : []),
     // The §11.1 drift decision queue (0028 T1): tenant-level in BOTH editions
