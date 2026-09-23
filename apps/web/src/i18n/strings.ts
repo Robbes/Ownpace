@@ -707,10 +707,17 @@ const en = {
   // for something unrecoverable. This removes rows in our own database; the
   // mail, calendars and files at either provider are not reached at all.
   // Saying which is which is the part that makes one press enough.
+  // WHAT SETTING IT UP AGAIN DOES (owner, 2026-09-23). The fold ended "copies
+  // nothing twice", the half that sounds safe. A new migration does recognise
+  // what is already there (ADR-0020: the writers match by Message-ID, UID or
+  // path), but a match is ADOPTED, and an adopted item never follows its
+  // source again (`classifyKnownItem` answers 'leave-adopted'). A copy that
+  // was deleted or moved on the new side matches nothing, so it is copied
+  // back. Pausing keeps the record, and with it the updates.
   'mappings.delete.explain':
     'Removes the migration’s settings and record; nothing at your source or destination is touched.',
   'mappings.delete.more':
-    'No mail, calendars, contacts or files are deleted anywhere. Setting the same migration up again starts a fresh record and copies nothing twice.',
+    'No mail, calendars, contacts or files are deleted anywhere. Set the same migration up again later and it recognises what is already there and copies only what is new. What it finds already there is no longer updated when it changes at the source, and anything you deleted or moved on the new side comes back. To keep changes flowing, pause the migration instead.',
   'mappings.delete.confirm': 'Delete migration',
   'mappings.delete.cancel': 'Cancel',
   'mappings.delete.failed': 'The migration was not deleted.',
@@ -2680,7 +2687,7 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.delete.explain':
     'Verwijdert instellingen en registratie van de migratie; bij uw bron of bestemming wordt niets aangeraakt.',
   'mappings.delete.more':
-    'Er wordt nergens e-mail, agenda, contact of bestand verwijderd. Dezelfde migratie opnieuw instellen begint met een nieuwe registratie en kopieert niets dubbel.',
+    'Er wordt nergens e-mail, agenda, contact of bestand verwijderd. Stelt u later dezelfde migratie opnieuw in, dan herkent die wat er al staat en kopieert alleen wat nieuw is. Wat er al stond, wordt niet meer bijgewerkt als het bij de bron verandert, en wat u aan de nieuwe kant hebt verwijderd of verplaatst, komt terug. Wilt u wijzigingen blijven meenemen, pauzeer dan de migratie in plaats van die te verwijderen.',
   'mappings.delete.confirm': 'Migratie verwijderen',
   'mappings.delete.cancel': 'Annuleren',
   'mappings.delete.failed': 'De migratie is niet verwijderd.',
