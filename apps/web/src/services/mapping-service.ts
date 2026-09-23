@@ -164,6 +164,12 @@ export const MappingDomainStatusSchema = z.object({
   lastErrorCategory: z.enum(FAILURE_CATEGORIES).optional().catch(undefined),
   /** Which side the pass named when it failed (0094 T5); same rule as above. */
   failedSide: z.enum(FAILURE_SIDES).optional().catch(undefined),
+  /**
+   * The reference the failure was recorded under (0129 T1): what the strip
+   * shows and a report carries. Eight hex characters or dropped, by the same
+   * rule as above.
+   */
+  lastErrorReference: z.string().regex(/^[0-9a-f]{8}$/).optional().catch(undefined),
   /** PassMetrics — counts and durations only, never names or addresses. */
   lastPass: z.record(z.string(), z.number()).optional(),
   /**

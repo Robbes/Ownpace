@@ -69,6 +69,8 @@ export interface LiveProgressRow {
   readonly lastErrorCategory?: FailureCategory;
   /** Which side the pass named when it failed (0094 T5); absent when it could not tell. */
   readonly failedSide?: FailureSide;
+  /** The reference the failure was recorded under (0129 T1); absent when there is none. */
+  readonly lastErrorReference?: string;
   /**
    * Why this data type stopped on purpose, when it did (migration 0041).
    * Absent while nothing is holding it up.
@@ -183,6 +185,14 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
               // under the sentence above rather than instead of it — the
               // category is coarse and actionable, this is precise.
               <span className="basis-full font-mono text-xs text-red-800">{d.lastError}</span>
+            )}
+            {d.lastErrorReference && (
+              // What somebody quotes (0129 T1): the reference the failure was
+              // recorded under, which finds the operator's log row and the
+              // server's line with the whole message.
+              <span className="basis-full text-xs text-gray-600">
+                {t('failure.reference', { reference: d.lastErrorReference })}
+              </span>
             )}
           </li>
         ))}

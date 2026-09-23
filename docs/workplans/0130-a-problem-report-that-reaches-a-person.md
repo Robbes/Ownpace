@@ -25,11 +25,21 @@ Set-up is step 8f of `docs/managed-bring-up.md`. Guards: `a-report-that-reaches-
 API (23) and the web app (7), and `a-report-link-that-can-reach-someone` (3); 23 mutations, all
 killed.
 
+**2026-09-23, T3's first half: the failure line has a reference to carry.** A failed data type's
+reference lived only in `app_event`, which the application's role cannot read, so nothing on the
+customer's screen could fill the form's reference in. Now the status row keeps the reference its
+failure was recorded under (`last_error_reference`, ledger migration 0061), beside the category:
+written by both catch sites with the event's own reference, cleared when a pass completes or
+pauses, eight hex characters or nothing by CHECK. The progress strip shows it under the error, on
+both editions, and a progress link does not carry it: its reader cannot report. The link to the
+form is the second half. Guards: `a-failure-with-its-reference` in ledger (6), orchestration
+(2), shared (3) and the web app (4), and the stranger guard's fixture names the field.
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 A report form in the app | ✅ **Built 2026-09-23** (D2) | §3. What the person writes, the page they are on, the error they see, and a screenshot if they add one. |
 | T2 The report becomes a Zammad ticket | ✅ **Built 2026-09-23** (D1) | §3. Created by the API on the owner's own Zammad, so a reply reaches the person by email. |
-| T3 The failure line that says "send it to us" opens the form | 📋 **Decided** (D2) | §3. With the failure's category and reference already filled in. |
+| T3 The failure line that says "send it to us" opens the form | 🟡 **Half built 2026-09-23** (D2) | §3. With the failure's category and reference already filled in. The reference now reaches the strip; the link is next. |
 | T4 The privacy policy names support requests | 📋 **Proposed** | §3. What is sent, where it is kept, for how long. |
 
 ## 1. What there is today

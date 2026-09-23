@@ -694,14 +694,16 @@ export const runDeltaSync = schemaTask({
           // stopped telling about "last sync".
           try {
             await withTenant(pool, tenantId, async (db) => {
-              // With the side the pass tagged (0094 T5, second slice) —
-              // the same call orchestration's runOneDomain makes.
+              // With the side the pass tagged (0094 T5, second slice) and
+              // the event's reference (0129 T1) — the same call
+              // orchestration's runOneDomain makes.
               await new PgMigrationStatusStore(db).markFailed(
                 tenantId,
                 mappingId,
                 domain,
                 errorMessage,
                 failureSideOf(error),
+                failed.reference,
               );
             });
           } catch (statusErr) {
