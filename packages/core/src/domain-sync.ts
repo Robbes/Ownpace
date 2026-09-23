@@ -176,6 +176,16 @@ export interface FolderLike {
   readonly name?: string;
 }
 
+/**
+ * The collection path a folder's items are recorded under: its path, else its
+ * name, else `'/'` for the root (why the root is never `''` is said where the
+ * pass uses it). One rule, because the pass needs it twice: for a folder it
+ * lists, and for one it stopped before reaching.
+ */
+function collectionPathOf(folder: FolderLike): string {
+  return folder.path ? folder.path : folder.name ? folder.name : '/';
+}
+
 /** What to do about an item the ledger already has. See `classifyKnownItem`. */
 export type KnownItemAction =
   /** Nothing to do — the copy is current, or we cannot tell that it isn't. */
@@ -1067,17 +1077,31 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   const startedAtMs = now();
   /** Collections listed for this domain that the pass never got to. */
   let collectionsNotReached = 0;
+  /**
+   * THE COLLECTIONS THIS PASS DID NOT FINISH: never opened, or stopped inside.
+   *
+   * The fifth place a pause has to be respected, after the four `paused()`
+   * names below: whether a pass may conclude that something is GONE. An item
+   * of a collection this pass did not finish is missing from its seen-set
+   * because nobody looked, not because the source lost it. Read as gone, it
+   * was counted absent, and two stopped passes in a row reported every file
+   * past the stop as deleted at the source.
+   */
+  const unfinishedCollections = new Set<string>();
 
   /**
    * HAS THIS PASS STOPPED TAKING NEW WORK?
    *
    * One question, two reasons today, and every site that must respect a pause
-   * asks it here instead of naming the reasons itself. There are FOUR such
+   * asks it here instead of naming the reasons itself. There are FIVE such
    * sites — whether to list folders at all, whether to open the next folder,
-   * whether to scan the next item, and whether the folder's cursor may
-   * advance — and the last one is the dangerous one: a cursor advanced past a
-   * pause retires work nobody did, and the next pass, the one the pause
-   * promises, would never list it again.
+   * whether to scan the next item, whether the folder's cursor may advance,
+   * and whether the pass may conclude that something is gone
+   * (`unfinishedCollections`). The fourth is the dangerous one for work: a
+   * cursor advanced past a pause retires work nobody did, and the next pass,
+   * the one the pause promises, would never list it again. The fifth is the
+   * dangerous one for reports: it went unasked, and a stopped pass counted
+   * every file it never reached as missing.
    *
    * That is precisely the shape this repository keeps paying for — a set of
    * conditions that agree by hand until somebody adds a third and updates
@@ -1126,7 +1150,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // act on would spend the source's rate budget to learn nothing.
   stopIfPastDeadline();
 
-  const folders = paused() ? [] : await listFolders();
+  const listedNothing = paused();
+  const folders = listedNothing ? [] : await listFolders();
+  // Stopped before listing a single folder: nothing was looked at, so nothing
+  // may be concluded from what was not seen.
+  if (listedNothing) fullyEnumerated = false;
 
   for (const folder of folders) {
     // Set mid-pass by the pre-fetch gate below: stop LISTING new folders too.
@@ -1134,6 +1162,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // collections still to go" is a different sentence from "finished".
     if (paused() || stopIfPastDeadline()) {
       collectionsNotReached += 1;
+      unfinishedCollections.add(collectionPathOf(folder));
       continue;
     }
     const collectionId = await ensureCollection(folder);
@@ -1155,7 +1184,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // folder a single full re-list. Cursors are non-authoritative (ADR-0020),
     // the re-list is idempotent, and no other folder is affected — a far
     // cheaper price than two subtly different names for the same collection.
-    const collectionPath = folder.path ? folder.path : folder.name ? folder.name : '/';
+    const collectionPath = collectionPathOf(folder);
     const prev = cursors ? await cursors.get(tenantId, mappingId, collectionPath) : undefined;
     const { items, nextCursor, removed, listedElsewhere } = await listSince(folder, prev);
     const seenHere = seenByCollection.get(collectionPath) ?? new Set<string>();
@@ -1208,7 +1237,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       // or a single file store holding a hundred gigabytes. A pass that could
       // only stop between folders would run until its runner killed it, which
       // is the failure this deadline exists to remove.
-      if (paused() || stopIfPastDeadline()) return;
+      if (paused() || stopIfPastDeadline()) {
+        unfinishedCollections.add(collectionPath);
+        return;
+      }
       scanned += 1;
       let naturalKeyHash = naturalKey(item);
       // Beside the hash, never derived from it: a sha256 cannot be turned back
@@ -2009,14 +2041,16 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 
   // THE NAMES A DOCUMENT OUTGREW (0042 T8 (b)). Only after a pass that listed
   // everything, because a former name is superseded only when this pass did not
-  // list it, and on a pass that could not list a folder that means nothing.
+  // list it, and on a pass that could not list a folder that means nothing. Nor
+  // on one that stopped before finishing a folder: a name it never reached is
+  // not a name the source stopped giving.
   //
   // Not gated on the source's authority, unlike the detector below. This claims
   // nothing about what exists: the document is right here under its current
   // name, and the only rows it touches are failures that never reached the
   // target. A name still listed is left alone, because a real file can carry
   // it: an uploaded `Deck.pptx` beside a Slides deck called `Deck`.
-  if (formerNames.length > 0 && fullyEnumerated) {
+  if (formerNames.length > 0 && fullyEnumerated && unfinishedCollections.size === 0) {
     const seenAnywhere = new Set<string>();
     for (const keys of seenByCollection.values()) for (const k of keys) seenAnywhere.add(k);
     const unlisted = formerNames.filter((f) => !seenAnywhere.has(f.formerNaturalKeyHash));
@@ -2058,6 +2092,13 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // disappearance is the deletion signal. See `sourceIsAuthorityOnExistence`
   // for the consequence that leaves behind.
   if (domain === 'file' && fullyEnumerated && sourceIsAuthorityOnExistence) {
+    if (unfinishedCollections.size > 0) {
+      log.info(
+        `[sync] ${domain}: this pass stopped before finishing ${unfinishedCollections.size} ` +
+          'folder(s), so nothing in them is counted as missing or reported as moved until a ' +
+          'pass finishes them. Nothing was concluded from what was not looked at.',
+      );
+    }
     const found = await detectPathKeyedMoves({
       tenantId,
       mappingId,
@@ -2066,6 +2107,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       seenByCollection,
       createdThisPass,
       listedByIdentity,
+      unfinishedCollections,
     });
     moved += found.moves.length;
     moves.push(...found.moves);
@@ -2401,9 +2443,12 @@ async function detectPathKeyedMoves(args: {
     string,
     ReadonlyArray<{ naturalKeyHash: string; collection: string }>
   >;
+  /** Collections the pass stopped before finishing: nothing in them is concluded. */
+  unfinishedCollections: ReadonlySet<string>;
 }): Promise<{ moves: ItemMove[]; deletions: ItemDeletion[]; drift: number }> {
   const { tenantId, mappingId, domain, ledger, seenByCollection, createdThisPass, listedByIdentity } =
     args;
+  const { unfinishedCollections } = args;
 
   // Content hash -> the new items carrying it, consumed as they are matched.
   // Consuming matters: three identical files deleted and one created is one
@@ -2458,6 +2503,13 @@ async function detectPathKeyedMoves(args: {
       }
       continue;
     }
+
+    // NOT SEEN, BUT NOT LOOKED FOR EITHER: its collection is one this pass
+    // stopped before finishing. Nothing about it can be concluded — not a
+    // disappearance to count, not the old half of a move — until a pass
+    // finishes that collection. A collection absent from the source's own
+    // folder list is still gone, and read as such below.
+    if (unfinishedCollections.has(row.collection)) continue;
 
     // AN EARLIER EXPORT, already explained: the document is listed under the
     // name the current export policy gives it, and this copy is what the old
