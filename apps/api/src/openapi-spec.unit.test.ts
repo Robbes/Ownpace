@@ -39,6 +39,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
+import { GOOGLE_ACCOUNT_CONSENT_DOMAINS } from './routes/migrations/google-account-consent.ts';
 import { MICROSOFT_CONSENT_DOMAINS } from './routes/migrations/microsoft-consent.ts';
 
 const API_ROOT = join(import.meta.dirname, '..');
@@ -313,20 +314,6 @@ describe('the spec says the things a reader would otherwise get wrong', () => {
     expect(Object.keys(apply?.responses ?? {})).toEqual(expect.arrayContaining(['202', '403']));
   });
 
-  it("offers the Microsoft consent every face its route accepts, To Do's included", () => {
-    // The route validates `domains` against the consent's own list, which is
-    // derived from the face-to-scope map. To Do's row (`task: 'Tasks.Read'`)
-    // arrived in that map and the spec's enum stayed at four, so a client
-    // generated from the spec could not ask for the face the row was added for.
-    const post = spec.paths?.['/api/migrations/microsoft/authorize']?.post as {
-      requestBody?: {
-        content?: Record<string, { schema?: { properties?: Record<string, { items?: { enum?: string[] } }> } }>;
-      };
-    };
-    const documented = post?.requestBody?.content?.['application/json']?.schema?.properties?.domains?.items?.enum;
-    expect([...(documented ?? [])].sort()).toEqual([...MICROSOFT_CONSENT_DOMAINS].sort());
-  });
-
   it('marks every stored secret write-only', () => {
     // Reads the component the create body $refs, rather than the ref itself.
     const components = (spec as { components?: { schemas?: Record<string, unknown> } }).components;
@@ -341,4 +328,117 @@ describe('the spec says the things a reader would otherwise get wrong', () => {
       );
     }
   });
+});
+
+/**
+ * The consent doors a wizard starts from, and where each one's refusals come
+ * from: `error: <name>.error` in a handler passes on another module's refusal,
+ * and `passedOn` says which module that is, so its codes are read too.
+ */
+interface ConsentDoor {
+  readonly path: string;
+  readonly provider: string;
+  readonly handler: string;
+  /** What `domains` may carry, for a door that takes the account ask. */
+  readonly domains?: ReadonlyArray<string>;
+  readonly passedOn: Readonly<Record<string, string>>;
+}
+
+const CONSENT_DOORS: ReadonlyArray<ConsentDoor> = [
+  {
+    path: '/api/migrations/google/authorize',
+    provider: 'google',
+    handler: 'src/routes/migrations/google-oauth-routes.ts',
+    domains: GOOGLE_ACCOUNT_CONSENT_DOMAINS,
+    passedOn: {
+      client: '../../packages/shared/src/google-deployment-client.ts',
+      consent: 'src/routes/migrations/google-account-consent.ts',
+    },
+  },
+  {
+    path: '/api/migrations/microsoft/authorize',
+    provider: 'microsoft',
+    handler: 'src/routes/migrations/microsoft-oauth-routes.ts',
+    domains: MICROSOFT_CONSENT_DOMAINS,
+    passedOn: { client: '../../packages/shared/src/microsoft-deployment-client.ts' },
+  },
+  {
+    // Files only, so no `domains`: the App's own permissions are the ask.
+    path: '/api/migrations/dropbox/authorize',
+    provider: 'dropbox',
+    handler: 'src/routes/migrations/dropbox-oauth-routes.ts',
+    passedOn: { client: '../../packages/shared/src/dropbox-deployment-client.ts' },
+  },
+];
+
+interface DocumentedPost {
+  requestBody?: {
+    content?: Record<
+      string,
+      { schema?: { required?: string[]; properties?: Record<string, { items?: { enum?: string[] } }> } }
+    >;
+  };
+  responses?: Record<string, { description?: string }>;
+}
+
+const documentedPost = (path: string) => spec.paths?.[path]?.post as DocumentedPost | undefined;
+const documentedBody = (path: string) =>
+  documentedPost(path)?.requestBody?.content?.['application/json']?.schema;
+
+/** Every refusal code a door answers with: its handler's own, and those it passes on. */
+function refusalsOf(door: ConsentDoor): { codes: string[]; passedOn: string[] } {
+  const src = read(door.handler);
+  const start = src.indexOf(`router.post('/${door.provider}/authorize'`);
+  const end = src.indexOf(`router.get('/${door.provider}/callback'`);
+  expect(start, `${door.handler} should serve the authorize route`).toBeGreaterThan(-1);
+  expect(end, `${door.handler} should serve the callback after it`).toBeGreaterThan(start);
+  const handler = src.slice(start, end);
+  const literal = (text: string) => [...text.matchAll(/error: '([a-z_]+)'/g)].map((m) => m[1]!);
+  const codes = [
+    ...literal(handler),
+    ...Object.values(door.passedOn).flatMap((file) => literal(read(file))),
+  ];
+  return {
+    codes: [...new Set(codes)].sort(),
+    passedOn: [...handler.matchAll(/error: (\w+)\.error/g)].map((m) => m[1]!).sort(),
+  };
+}
+
+describe('each consent door documents what its route does', () => {
+  // Both routes were right and both specs were behind. Microsoft's `domains`
+  // enum stayed at four when To Do's scope row arrived; Google's body went on
+  // requiring a client pair after ADR-0041 made the deployment's own client
+  // the fallback, and its refusals stopped at the ones it had before that. So
+  // each fact below is read from the code, not from a second list kept here.
+  for (const door of CONSENT_DOORS) {
+    describe(door.path, () => {
+      const { domains } = door;
+      if (domains) {
+        it('offers every face its route accepts, and no other', () => {
+          const documented = documentedBody(door.path)?.properties?.domains?.items?.enum;
+          expect([...(documented ?? [])].sort()).toEqual([...domains].sort());
+        });
+      }
+
+      it("requires no client pair: with none sent, the deployment's own client serves", () => {
+        const body = documentedBody(door.path);
+        expect(body, 'the request body schema should be found').toBeDefined();
+        expect(body?.required ?? []).not.toContain('clientId');
+        expect(body?.required ?? []).not.toContain('clientSecret');
+      });
+
+      it('names exactly the refusals the route answers with', () => {
+        const { codes, passedOn } = refusalsOf(door);
+        // A refusal passed on from a module the table does not name would keep
+        // that module's codes out of the comparison below.
+        expect(passedOn, 'each passed-on refusal needs its module in CONSENT_DOORS').toEqual(
+          Object.keys(door.passedOn).sort(),
+        );
+        expect(codes.length, 'the extractor should find the refusals').toBeGreaterThanOrEqual(5);
+        const said = documentedPost(door.path)?.responses?.['400']?.description ?? '';
+        const documented = [...new Set([...said.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]!))].sort();
+        expect(documented).toEqual(codes);
+      });
+    });
+  }
 });

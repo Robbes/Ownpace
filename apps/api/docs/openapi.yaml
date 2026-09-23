@@ -1002,11 +1002,19 @@ paths:
   /api/migrations/google/authorize:
     post:
       tags: [Migrations]
-      summary: Start a Google consent against the customer's own client
+      summary: Start a Google consent — Connect with Google
       description: |
         Returns the URL to send a browser to, plus the redirect URI Google must
         have registered — a wrong one fails at Google's screen, so the caller is
         given the exact string to register.
+
+        **Whose client** (ADR-0041). The caller's whole pair (`clientId`,
+        `clientSecret`) wins; with neither sent, the deployment's own client
+        (`GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET`) is used, so a
+        deployment that configured one asks nobody for a secret. Half a pair is
+        refused before anything is begun: the missing half would come from a
+        different application, and Google would refuse the mix at its token
+        endpoint hours later, from a sync pass.
 
         **Two shapes, and the ask is exactly what was named.** `sourceType` is
         one Google source and one scope: nothing can widen a Gmail consent into
@@ -1040,10 +1048,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [clientId, clientSecret]
               properties:
-                clientId: { type: string }
-                clientSecret: { type: string, writeOnly: true }
+                clientId: { type: string, description: The caller's own OAuth client ID. Both halves or neither. }
+                clientSecret: { type: string, writeOnly: true, description: Its secret. Both halves or neither. }
                 sourceType:
                   type: string
                   description: The single-purpose ask. Mutually exclusive with `domains`.
@@ -1089,10 +1096,13 @@ paths:
                     items: { type: string }
         '400':
           description: |
-            `invalid_body` (neither shape), `no_domains_ticked` (an empty tick
-            set), `unknown_domain` (not one of the five), `not_on_this_account`
-            (a face this account kind does not serve, naming the source that
-            does), or `raw_ip_callback`.
+            `invalid_body` (neither shape), `half_client_pair` (one half of a
+            client pair), `no_google_client` (nothing sent and nothing
+            configured, naming both ways forward), `no_domains_ticked` (an
+            empty tick set), `unknown_domain` (not one of the five),
+            `not_on_this_account` (a face this account kind does not serve,
+            naming the source that does), `raw_ip_callback` or
+            `unreachable_callback`.
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /api/migrations/google/callback:
