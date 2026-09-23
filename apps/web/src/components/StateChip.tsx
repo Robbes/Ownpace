@@ -68,13 +68,19 @@ export const STATE_TABLE = {
     done: { key: 'state.lifecycle.done', tone: 'emerald' },
     continuous: { key: 'state.lifecycle.continuous', tone: 'blue' },
   },
-  /** Per-domain pass state (migration_status.state). */
+  /** Per-domain pass state (migration_status.state).
+   *
+   *  `stopped` is YELLOW, the colour of a paused migration, and never the
+   *  muted grey `skipped` wears (0125 T7). Both are switched off, but a
+   *  stopped data type has copies on the target that no longer follow the
+   *  source, and grey is the colour this table gives to what needs nothing. */
   domain: {
     pending: { key: 'confirm.state.pending', tone: 'gray' },
     in_progress: { key: 'confirm.state.in_progress', tone: 'blue' },
     completed: { key: 'confirm.state.completed', tone: 'green' },
     failed: { key: 'confirm.state.failed', tone: 'red' },
     skipped: { key: 'confirm.state.skipped', tone: 'muted' },
+    stopped: { key: 'confirm.state.stopped', tone: 'yellow' },
   },
   /** Run status (RunReport.status). `success` keeps "Succeeded". */
   run: {

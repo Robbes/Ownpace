@@ -31,7 +31,7 @@ import {
   primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { DISCOVERY_DOMAINS } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, DOMAIN_STATES } from '@openmig/shared';
 
 // ========================= Tenancy & connections =========================
 
@@ -1221,9 +1221,14 @@ export const migrationStatus = pgTable(
       .notNull()
       .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
     domain: text('domain', { enum: DISCOVERY_DOMAINS }).notNull(),
-    state: text('state', {
-      enum: ['pending', 'in_progress', 'completed', 'failed', 'skipped'],
-    })
+    /**
+     * `skipped` and `stopped` are both a data type the mapping does not run,
+     * and they are not the same claim (workplan 0125 T7, migration 0057).
+     * `skipped` has nothing on the target. `stopped` has copies there that no
+     * longer follow the source, and switching it back on continues where it
+     * stopped. `markSwitchedOff` picks between them.
+     */
+    state: text('state', { enum: DOMAIN_STATES })
       .notNull()
       .default('pending'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),

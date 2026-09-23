@@ -212,7 +212,8 @@ for (const domain of domains) {
   // 1. Check if enabled in config
   const domainConfig = config.domains?.[domain];
   if (!domainConfig?.enabled) {
-    await statusStore.markSkipped(tenantId, mappingId, domain);
+    // `stopped` when it has copies, `skipped` when it has none (0125 T7).
+    await statusStore.markSwitchedOff(tenantId, mappingId, domain);
     continue;
   }
 

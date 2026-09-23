@@ -156,8 +156,10 @@ export function buildCompletionReport(inputs: CompletionReportInputs): Completio
 
   // Only ENABLED domains judge completion: a skipped domain is the owner's
   // scoping decision, not unfinished work (the same rule DomainSyncResult's
-  // `disabled` comment records).
-  const enabled = inputs.domains.filter((d) => d.state !== 'skipped');
+  // `disabled` comment records). A stopped one is switched off too, so it is
+  // no more unfinished than a skipped one; the document names it below
+  // instead (0125 T7).
+  const enabled = inputs.domains.filter((d) => d.state !== 'skipped' && d.state !== 'stopped');
   const allComplete = enabled.length > 0 && enabled.every((d) => d.state === 'completed');
   const decisionsPending =
     queues.movesOpen > 0 || queues.deletionsOpen > 0 || queues.failuresNeedingDecision > 0;
@@ -230,6 +232,17 @@ export function renderCompletionReportMarkdown(report: CompletionReport): string
     lines.push(
       `${skipped.map((d) => d.domain).join(', ')}: not selected for this migration — ` +
         'not synced, not checked (an owner scoping decision, not unfinished work).',
+    );
+  }
+  // Switched off AFTER copying (0125 T7), and not the sentence above: those
+  // copies are on the target, and the reader must not take them for current.
+  const stopped = report.domains.filter((d) => d.state === 'stopped');
+  if (stopped.length > 0) {
+    lines.push('');
+    lines.push(
+      `${stopped.map((d) => `${d.domain} (${d.itemsSynced} ${d.itemsSynced === 1 ? 'copy' : 'copies'})`).join(', ')}: ` +
+        'stopped — switched off after copying. The copies stay on the target as they were when ' +
+        'it stopped and no longer follow the source; switching it back on continues where it stopped.',
     );
   }
   lines.push('');

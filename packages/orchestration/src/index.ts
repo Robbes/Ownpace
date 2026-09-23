@@ -23,6 +23,7 @@
 
 export {
   runAllDomains,
+  recordSwitchedOff,
   discoverAllDomains,
   verifyMapping,
   applianceOpener,
@@ -30,4 +31,5 @@ export {
   applyMappingRelocation,
   planDomainLanes,
   type DomainSyncResult,
+  type StoppedDomain,
 } from './orchestration.ts';

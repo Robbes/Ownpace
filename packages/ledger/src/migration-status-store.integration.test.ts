@@ -210,10 +210,12 @@ describe('PgMigrationStatusStore', () => {
     });
   });
 
-  describe('markSkipped', () => {
-    it('transitions status to skipped', async () => {
+  describe('markSwitchedOff', () => {
+    it('transitions a data type with nothing copied to skipped', async () => {
       await statusStore.initDomainStatus(TENANT_ID, MAPPING_ID, 'calendar');
-      await statusStore.markSkipped(TENANT_ID, MAPPING_ID, 'calendar');
+      expect(await statusStore.markSwitchedOff(TENANT_ID, MAPPING_ID, 'calendar')).toEqual({
+        state: 'skipped',
+      });
 
       const rows = await db
         .select()

@@ -22,13 +22,13 @@
  */
 
 import { z } from 'zod';
-import { DISCOVERY_DOMAINS, MAPPING_LIFECYCLES } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, DOMAIN_STATES, MAPPING_LIFECYCLES } from '@openmig/shared';
 import type { DiscoveryDomain, MappingLifecycle } from '@openmig/shared';
 import { linkClient as client } from './link-client.ts';
 
 const RowSchema = z.object({
   domain: z.enum(DISCOVERY_DOMAINS as unknown as [DiscoveryDomain, ...DiscoveryDomain[]]),
-  state: z.enum(['pending', 'in_progress', 'completed', 'failed', 'skipped']),
+  state: z.enum(DOMAIN_STATES),
   itemsSynced: z.number(),
   itemsFailed: z.number(),
   bytesTransferred: z.number(),

@@ -173,9 +173,9 @@ describe('no row carries both a terminal state and a live pause', () => {
     expect(after.paused_reason).toBeNull();
   });
 
-  it('a skipped domain clears it', async () => {
+  it('a switched-off domain clears it', async () => {
     await store.markPaused(TENANT, MAPPING, 'email', CEILING);
-    await store.markSkipped(TENANT, MAPPING, 'email');
+    await store.markSwitchedOff(TENANT, MAPPING, 'email');
     const after = await row();
     expect(after.state).toBe('skipped');
     expect(after.paused_reason).toBeNull();

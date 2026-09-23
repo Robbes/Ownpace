@@ -2532,12 +2532,35 @@ export interface LedgerVerificationReader {
 /**
  * Migration status for a domain sync.
  */
+/**
+ * Every state a data type's pass can be in: ONE list, read by the ledger's
+ * column, the status store and both web schemas, so a state added here is
+ * added everywhere or fails to compile (the lesson `DISCOVERY_DOMAINS` taught).
+ * The database's CHECK is the one copy that cannot import it; migration 0057
+ * is its last widening, and a test on PGlite writes every value through it.
+ */
+export const DOMAIN_STATES = [
+  'pending',
+  'in_progress',
+  'completed',
+  'failed',
+  'skipped',
+  'stopped',
+] as const;
+export type DomainState = (typeof DOMAIN_STATES)[number];
+
 export interface MigrationStatus {
   readonly id: string;
   readonly tenantId: TenantId;
   readonly mappingId: MappingId;
   readonly domain: DiscoveryDomain;
-  readonly state: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped';
+  /**
+   * `skipped` and `stopped` are both a data type the mapping does not run
+   * (workplan 0125 T7). `skipped` has nothing on the target. `stopped` has
+   * `itemsSynced` copies there that no longer follow the source, and
+   * switching it back on continues where it stopped.
+   */
+  readonly state: DomainState;
   readonly itemsSynced: number;
   readonly itemsFailed: number;
   readonly bytesTransferred: number;
@@ -2574,8 +2597,17 @@ export interface MigrationStatus {
 }
 
 /**
+ * What a data type the mapping does not run was recorded as (workplan 0125
+ * T7): `stopped`, with the copies it has on the target, or `skipped` when it
+ * has none. `copies` is the number `itemsSynced` reports for it.
+ */
+export type SwitchedOffState =
+  | { readonly state: 'stopped'; readonly copies: number }
+  | { readonly state: 'skipped' };
+
+/**
  * Port for tracking per-domain migration status.
- * State is maintained (pending/in_progress/completed/failed/skipped),
+ * State is maintained (pending/in_progress/completed/failed/skipped/stopped),
  * while item counts are DERIVED from the item ledger records.
  */
 /**
@@ -2652,9 +2684,26 @@ export interface MigrationStatusStore {
   ): Promise<void>;
 
   /**
-   * Mark a domain sync as skipped (e.g., disabled or no work).
+   * Record a data type the mapping does not run (workplan 0125 T7).
+   *
+   * `stopped` when it has copies on the target, `skipped` when it has none,
+   * decided in the same statement that writes it, from the items
+   * `itemsSynced` counts. Before this, every switched-off data type was
+   * `skipped`, the word for one the migration never had, and its copies
+   * stopped following the source without a word.
    */
-  markSkipped(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<void>;
+  markSwitchedOff(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+  ): Promise<SwitchedOffState>;
+
+  /**
+   * A data type switched back on is no longer `stopped`: it is `pending` until
+   * its next pass starts. Only a `stopped` row changes; any other state is
+   * left as the last pass wrote it.
+   */
+  markSwitchedOn(tenantId: TenantId, mappingId: MappingId, domain: DiscoveryDomain): Promise<void>;
 
   /**
    * Get the migration status for a mapping, including DERIVED counts from item records.

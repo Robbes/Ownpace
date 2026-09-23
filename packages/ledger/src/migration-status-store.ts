@@ -10,15 +10,32 @@ import {
   isFailureSide,
   isPauseReason,
   type PauseReason,
+  type SwitchedOffState,
+  type DomainState,
 } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
 import type { DiscoveryDomain, FailureSide } from '@openmig/shared';
 
 /**
+ * The item statuses `itemsSynced` counts, and the ones that make a
+ * switched-off data type `stopped` rather than `skipped` (workplan 0125 T7).
+ * One list, so the number on the status page and the number the startup line
+ * gives are the same number.
+ */
+const SYNCED_STATUSES = ['copied', 'updated', 'skipped'] as const;
+
+/** Rows from `db.execute`, which some drivers return bare and some under `rows`. */
+function resultRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  const rows = (result as { rows?: unknown } | null)?.rows;
+  return Array.isArray(rows) ? (rows as T[]) : [];
+}
+
+/**
  * PostgreSQL implementation of MigrationStatusStore.
- * State is maintained (pending/in_progress/completed/failed/skipped),
+ * State is maintained (pending/in_progress/completed/failed/skipped/stopped),
  * while item counts are DERIVED from the item ledger records.
  */
 export class PgMigrationStatusStore implements MigrationStatusStore {
@@ -119,7 +136,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // must be reported as itself, and this one was reporting as a live
         // failure long after it stopped being one).
         //
-        // Cleared HERE and not in markSkipped: 'completed' is the one state
+        // Cleared HERE and not in markSwitchedOff: 'completed' is the one state
         // that positively asserts the domain finished, so 'there is no last
         // error' is true rather than merely unknown. Per-item failures are
         // unaffected -- they live in the failure queue and are counted in
@@ -132,7 +149,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // somebody to rotate a credential that works.
         failedSide: null,
         // No terminal state is also a live pause (migration 0041). Cleared
-        // here, in markFailed and in markSkipped as well as at the top of the
+        // here, in markFailed and in markSwitchedOff as well as at the top of the
         // next pass, so that a row can never carry both and let a screen
         // render "finished" and "waiting" at once.
         pausedReason: null,
@@ -242,25 +259,62 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       );
   }
 
-  async markSkipped(
+  async markSwitchedOff(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+  ): Promise<SwitchedOffState> {
+    // ONE STATEMENT counts, decides and writes, so the word and the number come
+    // from the same moment: a copy removed between a count and a write cannot
+    // leave `stopped` over nothing. An upsert, so no caller has to remember to
+    // create the row first. `paused_reason` is cleared for the reason
+    // markCompleted gives: a data type nobody is copying is not one waiting
+    // for a window to reset.
+    const statuses = sql.join(
+      SYNCED_STATUSES.map((s) => sql`${s}`),
+      sql`, `,
+    );
+    const result = await this.db.execute(sql`
+      WITH copies AS (
+        SELECT count(*)::int AS n
+          FROM item
+         WHERE tenant_id = ${tenantId}::uuid
+           AND mapping_id = ${mappingId}::uuid
+           AND domain = ${domain}
+           AND status IN (${statuses})
+      )
+      INSERT INTO migration_status (id, tenant_id, mapping_id, domain, state, started_at, updated_at)
+      SELECT gen_random_uuid(), ${tenantId}::uuid, ${mappingId}::uuid, ${domain},
+             CASE WHEN copies.n > 0 THEN 'stopped' ELSE 'skipped' END, now(), now()
+        FROM copies
+      ON CONFLICT (tenant_id, mapping_id, domain) DO UPDATE
+         SET state = EXCLUDED.state,
+             paused_reason = NULL,
+             updated_at = now()
+      RETURNING state, (SELECT n FROM copies) AS copies
+    `);
+    const [row] = resultRows<{ state: string; copies: number | string }>(result);
+    return row?.state === 'stopped'
+      ? { state: 'stopped', copies: Number(row.copies) }
+      : { state: 'skipped' };
+  }
+
+  async markSwitchedOn(
     tenantId: TenantId,
     mappingId: MappingId,
     domain: DiscoveryDomain,
   ): Promise<void> {
     await this.db
       .update(schemaPg.migrationStatus)
-      .set({
-        state: 'skipped',
-        // See markCompleted. A domain nobody is copying is not one waiting
-        // for a window to reset.
-        pausedReason: null,
-        updatedAt: sql`now()`,
-      })
+      .set({ state: 'pending', updatedAt: sql`now()` })
       .where(
         and(
           eq(schemaPg.migrationStatus.tenantId, tenantId),
           eq(schemaPg.migrationStatus.mappingId, mappingId),
           eq(schemaPg.migrationStatus.domain, domain),
+          // Only what a switch-off wrote. A data type that completed, failed or
+          // is mid-pass keeps the state its last pass gave it.
+          eq(schemaPg.migrationStatus.state, 'stopped'),
         ),
       );
   }
@@ -273,9 +327,9 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
     const rows = await this.db
       .select({
         status: schemaPg.migrationStatus,
-        itemsSynced: sql<number>`COUNT(CASE WHEN ${schemaPg.item.status} IN ('copied', 'updated', 'skipped') THEN 1 END)`,
+        itemsSynced: sql<number>`COUNT(CASE WHEN ${inArray(schemaPg.item.status, [...SYNCED_STATUSES])} THEN 1 END)`,
         itemsFailed: sql<number>`COUNT(CASE WHEN ${schemaPg.item.status} = 'failed' THEN 1 END)`,
-        bytesTransferred: sql<number | null>`COALESCE(SUM(CASE WHEN ${schemaPg.item.status} IN ('copied', 'updated', 'skipped') THEN ${schemaPg.item.sizeBytes} ELSE 0 END), 0)`,
+        bytesTransferred: sql<number | null>`COALESCE(SUM(CASE WHEN ${inArray(schemaPg.item.status, [...SYNCED_STATUSES])} THEN ${schemaPg.item.sizeBytes} ELSE 0 END), 0)`,
       })
       .from(schemaPg.migrationStatus)
       .leftJoin(
@@ -314,12 +368,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       tenantId: row.status.tenantId as TenantId,
       mappingId: row.status.mappingId as MappingId,
       domain: row.status.domain as DiscoveryDomain,
-      state: row.status.state as
-        | 'pending'
-        | 'in_progress'
-        | 'completed'
-        | 'failed'
-        | 'skipped',
+      state: row.status.state as DomainState,
       itemsSynced: Number(row.itemsSynced),
       itemsFailed: Number(row.itemsFailed),
       bytesTransferred: Number(row.bytesTransferred ?? 0),

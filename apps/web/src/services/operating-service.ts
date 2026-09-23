@@ -30,6 +30,7 @@ import type {
   DiscoveryRecord,
   ScopeManifest,
   StatusReport,
+  DomainStatusReport,
   DecisionRow,
   MappingLifecycle,
   ShareGrantRow,
@@ -611,6 +612,26 @@ export async function applyShareFolder(
 
 export async function fetchStatus(): Promise<StatusReport> {
   return (await client.get<StatusReport>('/status')).data;
+}
+
+/**
+ * One migration's per-data-type rows, from whichever payload this edition
+ * serves them on (0125 T7): the appliance's `/status`, filtered to this
+ * mapping, or managed's `GET /migrations/{id}`. Both are
+ * `buildDomainStatusReports` rows, which is what lets one screen read either
+ * without an edition fork.
+ */
+export async function fetchMappingDomains(
+  mappingId: string,
+): Promise<readonly DomainStatusReport[]> {
+  if (isSelfHost()) {
+    const status = await fetchStatus();
+    return status.mappings.find((m) => m.mappingId === mappingId)?.domains ?? [];
+  }
+  const detail = (
+    await client.get<{ domainStatus?: DomainStatusReport[] }>(mappingPath(mappingId))
+  ).data;
+  return detail.domainStatus ?? [];
 }
 
 /**

@@ -40,6 +40,7 @@ import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
 // probe text — this was the fifth copy of it (workplan 0113 T5).
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import PausedBecause from './PausedBecause.tsx';
+import { Hint } from './Hint.tsx';
 
 export const DOMAIN_KEY = DOMAIN_STRING_KEY satisfies Record<
   DomainStatusReport['domain'],
@@ -85,6 +86,9 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
   const t = useT();
   const { locale } = useLocale();
   const { relativeToNow } = useFormatters();
+  // `skipped` is a data type the migration never had, so it has no line. A
+  // `stopped` one keeps its line (0125 T7): it has copies on the target, and
+  // hiding it is the silence that made a switched-off data type invisible.
   const running = domains.filter((d) => d.state !== 'skipped');
   if (running.length === 0) return null;
   return (
@@ -146,6 +150,16 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
               <span className="text-gray-500">
                 {t('confirm.progress.lastActive')} {relativeToNow(d.lastActiveAt)}
               </span>
+            )}
+            {d.state === 'stopped' && (
+              // Switched off after copying: the count beside the chip is how
+              // many copies stay, and this says they no longer follow.
+              <Hint
+                className="basis-full"
+                tone="note"
+                text={t('confirm.progress.stopped')}
+                why={t('confirm.progress.stopped.why')}
+              />
             )}
             {d.pausedReason && (
               // Stopped on purpose, and why. Its own line rather than a chip:

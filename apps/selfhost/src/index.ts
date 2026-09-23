@@ -30,11 +30,13 @@ import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusS
 import { InProcessScheduler } from '@openmig/scheduler/in-process';
 import {
   runAllDomains,
+  recordSwitchedOff,
   discoverAllDomains,
   verifyMapping,
   applyMappingDeletion,
   applyMappingRelocation,
 } from '@openmig/orchestration';
+import { switchedOffLine } from './switched-off.ts';
 import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
 import {
   qualificationReportLines,
@@ -972,6 +974,32 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     });
 
     const status = await mappingStatus(m);
+
+    // 0125 T7: a data type the file switched off is said, not refused. Its
+    // status is written now, `stopped` when it has copies, so the page is
+    // right from the moment the appliance is up, and each one with copies gets
+    // a line. Not for a finished migration: nothing follows the source there,
+    // so a line would single out one data type for what is true of all of
+    // them, and editing the file afterwards must not rewrite its record.
+    if (status !== 'done') {
+      try {
+        for (const { domain, copies } of await recordSwitchedOff(
+          configWithCorrectMappingId,
+          statusStore,
+        )) {
+          log.info(`[selfhost] ${switchedOffLine(m.config.mappingId, domain, copies)}`);
+        }
+      } catch (err) {
+        // Like the lost-ledger check below: never worth taking the appliance
+        // down for, and never swallowed either (rule 9). The next pass writes
+        // the same state.
+        log.warn(
+          `[selfhost] ${m.config.mappingId}: could not record its switched-off data types: ` +
+            `${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
     if (runsPasses(status)) {
       scheduleMapping(m);
       // ADR-0020's on-startup half (0026 T1 item 5): an ACTIVE mapping whose

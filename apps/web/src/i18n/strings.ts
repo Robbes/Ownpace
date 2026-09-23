@@ -1354,6 +1354,11 @@ const en = {
   // every time on these screens came from a completion. A migration that is
   // working must never look like one that has died.
   'confirm.progress.lastActive': 'last active',
+  // A data type switched off after copying (0125 T7). Said, because silence
+  // is what was wrong: its copies stopped following the source without a word.
+  'confirm.progress.stopped': 'Switched off: these copies stay, but no longer follow the source.',
+  'confirm.progress.stopped.why':
+    'Nothing was removed. The copies and their record stay where they are, as they were when it stopped. Switching it back on continues where it stopped: new items are copied, edits are picked up, and deletions at the source are reported.',
   // One state, three reasons (see pause-reason.ts). The word is the same
   // wherever it appears; the sentence under it says which of the three.
   'pause.label': 'Paused',
@@ -1380,6 +1385,7 @@ const en = {
   'confirm.state.completed': 'Completed',
   'confirm.state.failed': 'Failed',
   'confirm.state.skipped': 'Skipped',
+  'confirm.state.stopped': 'Stopped',
   'confirm.foundInSource': 'What we found in your source',
   'confirm.starting': 'Starting…',
   'verify.title': 'Check the migration',
@@ -1572,6 +1578,13 @@ const en = {
   'finish.step3.finished': 'The pass has run and finished.',
   'finish.step3.queued':
     'Queued as a job; it lands in the run history, so re-check the queues shortly.',
+  // A stopped data type is the one this step's promise leaves out (0125 T7):
+  // nobody may finish believing its copies are current.
+  'finish.step3.stopped.one': '{kind} is stopped and not in this pass: its one copy stays as it was.',
+  'finish.step3.stopped.many': '{kind} is stopped and not in this pass: its {count} copies stay as they were.',
+  'finish.step3.stopped.why':
+    'It was switched off after copying. Its copies stay on the new system, but what changed on the old one since then has not reached them. If they must be current, switch it back on and let a pass run before you finish.',
+  'finish.step3.stoppedUnread': 'Could not read whether a data type is stopped:',
   'finish.step4.title': 'Move delivery to the new system',
   'finish.step4.body':
     'Change MX/DNS and reconfigure clients so new mail arrives on the new system.',
@@ -3117,6 +3130,9 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.progress.leftAsIs.why':
     'Deze stonden al op het nieuwe systeem, of zijn daar sindsdien gewijzigd, en zijn daarom precies gelaten zoals ze zijn. Er is niets overheen gekopieerd en er is niets verloren gegaan: dit gereedschap overschrijft nooit wat het niet zelf heeft geschreven. Ze staan hier apart van de kopieën omdat er niets met ze is gebeurd — en dat is precies het punt.',
   'confirm.progress.lastActive': 'laatst actief',
+  'confirm.progress.stopped': 'Uitgeschakeld: deze kopieën blijven, maar volgen de bron niet meer.',
+  'confirm.progress.stopped.why':
+    'Er is niets verwijderd. De kopieën en hun administratie blijven waar ze zijn, zoals ze waren toen het stopte. Weer inschakelen gaat verder waar het stopte: nieuwe items worden gekopieerd, wijzigingen worden opgepakt en verwijderingen in de bron worden gemeld.',
   'pause.label': 'Gepauzeerd',
   'pause.ceiling':
     '{provider} heeft de daglimiet voor downloaden bereikt. Kopiëren gaat verder na {resets}.',
@@ -3137,6 +3153,7 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.state.completed': 'Voltooid',
   'confirm.state.failed': 'Mislukt',
   'confirm.state.skipped': 'Overgeslagen',
+  'confirm.state.stopped': 'Gestopt',
   'confirm.foundInSource': 'Wat we in uw bron hebben gevonden',
   'confirm.starting': 'Bezig met starten…',
   'verify.title': 'Verifieer de migratie',
@@ -3315,6 +3332,11 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step3.finished': 'De ronde is uitgevoerd en voltooid.',
   'finish.step3.queued':
     'In de wachtrij als taak; het komt in de uitvoeringsgeschiedenis, controleer de wachtrijen straks opnieuw.',
+  'finish.step3.stopped.one': '{kind} is gestopt en niet in deze ronde: de ene kopie blijft zoals die was.',
+  'finish.step3.stopped.many': '{kind} is gestopt en niet in deze ronde: de {count} kopieën blijven zoals ze waren.',
+  'finish.step3.stopped.why':
+    'Het is uitgeschakeld nadat er gekopieerd was. De kopieën blijven op het nieuwe systeem, maar wat sindsdien op het oude veranderde, heeft ze niet bereikt. Moeten ze actueel zijn, schakel het dan weer in en laat een ronde lopen voordat u afrondt.',
+  'finish.step3.stoppedUnread': 'Kon niet lezen of een gegevenstype gestopt is:',
   'finish.step4.title': 'Zet de e-mailbezorging om naar het nieuwe systeem',
   'finish.step4.body':
     'Wijzig MX/DNS en configureer de clients opnieuw zodat nieuwe e-mail op het nieuwe systeem aankomt.',

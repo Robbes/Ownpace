@@ -33,10 +33,11 @@ import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { AlertCircle, AlertTriangle, Check, Flag, Loader2, Circle } from 'lucide-react';
-import type { FinishAccepted, MappingLifecycle } from '@openmig/shared';
+import type { DomainStatusReport, FinishAccepted, MappingLifecycle } from '@openmig/shared';
 import {
   fetchDeletions,
   fetchFailures,
+  fetchMappingDomains,
   fetchMoves,
   fetchStatus,
   fetchVerifyReport,
@@ -45,7 +46,9 @@ import {
   requestFinalPass,
   FinishRefusedError,
 } from '../services/operating-service.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import { formatNumber } from '../i18n/datetime.ts';
+import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { Hint } from '../components/Hint.tsx';
 import MappingHubLink from '../components/MappingHubLink.tsx';
 import PermissionsHandover from '../components/finish/PermissionsHandover.tsx';
@@ -105,12 +108,21 @@ interface FinishRow {
   readonly id: string;
   readonly lifecycle: MappingLifecycle;
   readonly needingDecision: number;
+  /**
+   * The data types switched off after copying (0125 T7). Step 3 names each
+   * one: its copies stay as they were, and the final pass leaves it out.
+   */
+  readonly stopped: ReadonlyArray<Pick<DomainStatusReport, 'domain' | 'itemsSynced'>>;
 }
+
+const stoppedIn = (domains: readonly DomainStatusReport[] | undefined) =>
+  (domains ?? []).filter((d) => d.state === 'stopped');
 
 const Finish: React.FC = () => {
   const queryClient = useQueryClient();
   const t = useT();
   const { dateTime } = useFormatters();
+  const { locale } = useLocale();
   const { mappingId: routeMappingId } = useParams<{ mappingId: string }>();
   const [outcomes, setOutcomes] = React.useState<Record<string, Outcome>>({});
   const [deliveryMoved, setDeliveryMoved] = React.useState<Record<string, boolean>>({});
@@ -139,6 +151,15 @@ const Finish: React.FC = () => {
   const deletions = useQuery({
     queryKey: ['deletions', routeMappingId],
     queryFn: () => fetchDeletions(routeMappingId),
+  });
+  // Per-mapping mode only: this migration's data types, from whichever payload
+  // its edition serves them on, so step 3 can name a stopped one (0125 T7).
+  // The whole-appliance mode already has them, in `/status`.
+  const mappingDomains = useQuery({
+    queryKey: ['mapping-domains', routeMappingId],
+    queryFn: () => fetchMappingDomains(routeMappingId!),
+    enabled: Boolean(routeMappingId),
+    refetchOnWindowFocus: true,
   });
   // Step 1's claim, finally checked (0038 T3): the report endpoint is a
   // documented safe status read — it starts nothing. Both editions serve it.
@@ -247,6 +268,7 @@ const Finish: React.FC = () => {
           id: routeMappingId!,
           lifecycle: env.migrationStatus,
           needingDecision: env.needsDecision.length,
+          stopped: stoppedIn(mappingDomains.data),
         },
       ];
     }
@@ -255,6 +277,7 @@ const Finish: React.FC = () => {
       id: m.mappingId,
       lifecycle: m.migrationStatus,
       needingDecision: m.domains.reduce((n, d) => n + d.itemsNeedingDecision, 0),
+      stopped: stoppedIn(m.domains),
     }));
   }
 
@@ -581,6 +604,36 @@ const Finish: React.FC = () => {
                   )}
                   {passState === 'queued' && (
                     <p className="mt-1 text-gray-600">{t('finish.step3.queued')}</p>
+                  )}
+                  {/* THE DATA TYPES THIS PASS LEAVES OUT (0125 T7). The step
+                      promises the new system reflects the old one as of now,
+                      and a stopped data type is the exception: its copies
+                      stay as they were when it was switched off. Named here,
+                      so nobody finishes believing those copies are current. */}
+                  {m.stopped.map((d) => (
+                    <Hint
+                      key={d.domain}
+                      className="mt-1"
+                      tone="caution"
+                      text={t(
+                        d.itemsSynced === 1 ? 'finish.step3.stopped.one' : 'finish.step3.stopped.many',
+                        {
+                          kind: t(DOMAIN_STRING_KEY[d.domain]),
+                          count: formatNumber(d.itemsSynced, locale),
+                        },
+                      )}
+                      why={t('finish.step3.stopped.why')}
+                    />
+                  ))}
+                  {perMapping && mappingDomains.error != null && (
+                    // Unread is not "none stopped" (rule 9): this is the
+                    // screen where believing that costs the most.
+                    <p className="mt-1 text-amber-800">
+                      {t('finish.step3.stoppedUnread')}{' '}
+                      {mappingDomains.error instanceof Error
+                        ? mappingDomains.error.message
+                        : String(mappingDomains.error)}
+                    </p>
                   )}
                   {typeof passState === 'object' && (
                     <p className="mt-1 text-amber-800">
