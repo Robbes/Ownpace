@@ -49,7 +49,7 @@ listed there.
 
 | class | Ownpace's scopes | what Google requires |
 |---|---|---|
-| **sensitive** | contacts, calendar; tasks believed so (see below) | brand verification: privacy policy, domain ownership, demo video, review |
+| **sensitive** | contacts, calendar, tasks | brand verification: privacy policy, domain ownership, demo video, review |
 | **restricted** | Gmail `https://mail.google.com/`, Drive `drive.readonly` | the above **plus an annual third-party security assessment** |
 
 ✅ **Verified 2026-09-20, from the console itself.** The owner read the project's *Google Auth
@@ -70,7 +70,12 @@ So the cheap slice is cheap: contacts (`.../auth/carddav`, the scope
 **sensitive**, and Drive and every Gmail scope — including the `https://mail.google.com/` the
 IMAP door needs — are **restricted**, exactly as the table above assumed.
 
-Three things the page did **not** settle, stated rather than implied away:
+✅ **Tasks, read 2026-09-23.** The owner declared `.../auth/tasks.readonly` (Google Tasks API)
+and the console filed it under **Your sensitive scopes**, beside calendar and contacts. So Tasks
+stays a default face of a Google account (workplan 0126), and the verification that covers
+calendar and contacts covers it too.
+
+Two things the page did **not** settle, stated rather than implied away:
 
 - The calendar scope the product asks for is the full `.../auth/calendar`
   (`GOOGLE_CALDAV_SCOPE`), and that one was not on the page; its read-only sibling
@@ -81,10 +86,6 @@ Three things the page did **not** settle, stated rather than implied away:
   accepts it, and this product never writes a source.
 - There is no `.../auth/caldav` scope. Older notes (ADR-0041, workplan 0089) use that name
   for the calendar scope; the product has always asked for `.../auth/calendar`.
-- **Tasks came later** (workplan 0126, 2026-09-23): `.../auth/tasks.readonly`, under the
-  **Google Tasks API**, was not declared when the page was read. It is believed sensitive,
-  like the other two, which is why Tasks is a default face. Declare it (and enable the API),
-  then read its row: a *restricted* verdict would move Tasks off the default list.
 
 Two Gmail rows on the page, `gmail.readonly` and `gmail.metadata`, are REST scopes the product
 never requests. They should be removed before a submission: any Gmail scope on the declared
