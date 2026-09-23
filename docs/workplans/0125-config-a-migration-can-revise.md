@@ -1,6 +1,15 @@
 # Workplan 0125 — Config a migration can revise
 
-## Status — 2026-09-19 (update this block at the end of every session)
+## Status — 2026-09-23 (update this block at the end of every session)
+
+**2026-09-23: T6, a running migration may GAIN a data type (owner decision).** The day Google
+Tasks became a face of a Google account (0126), the owner reconnected with Tasks ticked and his
+running migration had no way to take them: `scope_selection` was written once, at creation. A
+second migration between the same two accounts is refused (migration 0022), and deleting and
+recreating would have adopted everything already copied. His answer to *"add a kind to a running
+migration?"*: **yes**. Adding only, §10. `kindChoices` in `shared` decides, per data type, on,
+addable, or refused and why; the migration page shows that list and `POST …/domains` accepts
+exactly what it calls addable.
 
 **2026-09-19, later: T2 is built — the appliance now has something to compare against.**
 The owner picked **A** (2026-09-19): persist the revision-relevant fields at boot and compare on
@@ -129,6 +138,7 @@ what hard rule 5 forbids about what a setting can *mean*.
 | T3 Managed's edit path | ✅ Done — §5 | The route applies the export policy and refuses what T1 refuses, all at once; **the form is on the migration's page**, and the update body is partial all the way down so a revision can reach the rule at all. |
 | T4 `policy_refused`, and an error that carries its own category | ✅ Done — §6 | Ninth category, migration 0051 (COMMENT only, as 0048 predicted). `NativeFileRefused` states its category; `classifyFailure` prefers a stated one. The owner's thirty split 21/9 the next time they are attempted. |
 | T5 What happens to items refused under the old policy | ✅ Done — §7 | **Offered**, never automatic: a save says the already-refused stay refused and links to the group press, which `resolveFailureGroup` already clears `parkedAt` for. **The count landed 2026-09-19**, read from the failures queue only once a save has landed, and shown only when it is known and above zero — `undefined` (could not ask) and `0` (asked, none) both keep the number-free sentence and the link. |
+| T6 A running migration gains a data type | ✅ Done — §10 | **Owner, 2026-09-23: yes, add-only.** `kind-addition.ts` in `shared`: `kindChoices` (on / addable / refused with a reason) and `kindAdditionRefusal`, read by the detail route, the new `POST /api/migrations/:id/domains` and the migration page's panel, so the three cannot disagree. One transaction: the scope row, `updated_at` (the next preflight counts afresh), and for a running migration the new path's slot, only its own. The appliance is unchanged (§10, one question for the owner). |
 
 ## 1. What the owner found
 
@@ -417,3 +427,40 @@ that stops because of it.
 - **A second export measurement.** `EXPORT_STABILITY` is filled (0042 T0 Q3, closed 2026-09-17);
   T1 leans on it and adds nothing to it.
 - **Re-reading items to heal old categories.** See §6: rows keep what they were given.
+
+## 10. T6 — a running migration gains a data type
+
+**The owner's decision, 2026-09-23:** a migration that already exists may gain a data type. Not
+lose one: a data type taken off would leave what it copied on the target with nothing keeping it
+in step, and nothing in this plan decides what those copies then are.
+
+**One rule, three readers.** `kindChoices` (`packages/shared/src/kind-addition.ts`) lists, in the
+order a person ticks them, each data type the migration has (`on`) and each one both sides could
+carry: `addable`, or `refused` with the reason. The rules are the ones the migration was created
+under, from the same tables:
+
+- the source serves it: an account's ceiling is this deployment's (`providerAccountDomains`), a
+  single-purpose source serves its one kind (`SOURCE_TYPE_DOMAINS`), and a source whose ceiling
+  nothing declares (a plain IMAP server) is offered nothing new;
+- the target receives it (`TARGET_TYPE_DOMAINS`);
+- neither side's last Test measured that it cannot (`measuredNoRefusal`; an unknown never refuses);
+- the migration has not reached cutover (`isAfterCutover`).
+
+`GET /api/migrations/:id` carries the list, the migration page shows it
+(`MigrationKindsPanel`, beside the export format), and `POST /api/migrations/:id/domains`
+accepts exactly what it calls addable, refusing anything else with `kindAdditionRefusal`'s
+sentence (409 `kind_refused`).
+
+**What an add moves, in one transaction:** the `scope_selection` row; the migration's
+`updated_at`, which the preflight's join key includes, so the next count is asked afresh; and,
+for a running migration, the new data type's path takes its slot through `activateAddedPath`.
+Only its own: `movePathsWithMapping` would re-activate every path. A paused migration's new path
+takes its slot at the next start, with the rest. Nothing is enqueued; every pass reads the
+included data types afresh (`enabledDomains`), so the next pass copies the new one in full.
+
+**The appliance is unchanged.** Its mapping file already adds a data type (`domains.<kind>.enabled`)
+and the boot comparison (T2) does not look at data types, so it can also *remove* one without a
+word. **Open for the owner:** should the appliance's boot check refuse a removed data type, as it
+refuses a changed root folder? That would be a new refusal for self-hosters, so it is not made
+here.
+
