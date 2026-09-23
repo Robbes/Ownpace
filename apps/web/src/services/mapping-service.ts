@@ -2,7 +2,7 @@
 import apiClient from './api.ts';
 import { z } from 'zod';
 import type { ProbeOutcome } from '@openmig/shared';
-import { FAILURE_CATEGORIES, FAILURE_SIDES, MAPPING_LIFECYCLES } from '@openmig/shared';
+import { DOMAIN_STATES, FAILURE_CATEGORIES, FAILURE_SIDES, MAPPING_LIFECYCLES } from '@openmig/shared';
 import type {
   DiscoveryRecord,
   FailureCategory,
@@ -136,7 +136,7 @@ export const MappingListItemSchema = z.object({
  *  edition's payload without an adapter fork. */
 export const MappingDomainStatusSchema = z.object({
   domain: DomainEnum,
-  state: z.enum(['pending', 'in_progress', 'completed', 'failed', 'skipped']),
+  state: z.enum(DOMAIN_STATES),
   itemsSynced: z.number(),
   itemsFailed: z.number(),
   bytesTransferred: z.number(),

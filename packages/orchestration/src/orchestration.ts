@@ -333,6 +333,46 @@ export function domainsFromConfig(
   return domains;
 }
 
+/** A data type the mapping file switched off that still has copies on the target. */
+export interface StoppedDomain {
+  readonly domain: DiscoveryDomain;
+  /** The number `itemsSynced` reports for it, so the line and the page agree. */
+  readonly copies: number;
+}
+
+/**
+ * WHAT EACH DATA TYPE THE MAPPING FILE SWITCHED OFF IS NOW (workplan 0125 T7).
+ *
+ * The owner, 2026-09-23: *"don't refuse but do the 3 steps"*. A switched-off
+ * data type loses nothing: its copies and its ledger rows stay, and switching
+ * it back on continues where it stopped. What was wrong is that it was silent.
+ *
+ * The appliance calls this at startup, so the status says `stopped` the moment
+ * it is up rather than at the next pass, which is fifteen minutes away by
+ * default and never comes for a paused migration. Each pass writes the same
+ * state again through `runAllDomains`. A data type switched back on loses its
+ * `stopped` here too, for the same reason in the other direction.
+ *
+ * Returns the stopped ones, with their counts, for the startup line.
+ */
+export async function recordSwitchedOff(
+  config: MappingConfig,
+  statusStore: MigrationStatusStore,
+): Promise<StoppedDomain[]> {
+  const tenantId = config.tenantId as TenantId;
+  const mappingId = config.mappingId as MappingId;
+  const stopped: StoppedDomain[] = [];
+  for (const { name: domain, enabled } of domainsFromConfig(config)) {
+    if (enabled) {
+      await statusStore.markSwitchedOn(tenantId, mappingId, domain);
+      continue;
+    }
+    const now = await statusStore.markSwitchedOff(tenantId, mappingId, domain);
+    if (now.state === 'stopped') stopped.push({ domain, copies: now.copies });
+  }
+  return stopped;
+}
+
 /**
  * Run all enabled domains for one mapping config, with status tracking.
  *
@@ -362,11 +402,12 @@ export async function runAllDomains(
 
   // Every domain gets a status row and a decision, enabled or not, before any
   // work starts — so a caller polling status never sees a domain that simply
-  // is not there yet.
+  // is not there yet. A switched-off one is `stopped` when it has copies and
+  // `skipped` when it has none (0125 T7), never the one word for both.
   for (const { name: domain, enabled } of domains) {
     await statusStore.initDomainStatus(tenantId, mappingId, domain);
     if (!enabled) {
-      await statusStore.markSkipped(tenantId, mappingId, domain);
+      await statusStore.markSwitchedOff(tenantId, mappingId, domain);
       results.push({ domain, scanned: 0, created: 0, updated: 0, skipped: 0, adopted: 0, failed: 0, disabled: true });
     }
   }

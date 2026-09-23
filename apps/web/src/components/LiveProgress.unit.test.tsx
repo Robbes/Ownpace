@@ -177,3 +177,36 @@ describe('which side it happened on (workplan 0094 T5, second slice)', () => {
     }
   });
 });
+
+/**
+ * A DATA TYPE SWITCHED OFF AFTER COPYING (workplan 0125 T7).
+ *
+ * The strip hid every switched-off data type, because they were all `skipped`
+ * and `skipped` means one the migration never had. A calendar with four
+ * hundred copies that no longer follow the source vanished from the page with
+ * them. `stopped` keeps its line, its count and a sentence; `skipped` still
+ * has none.
+ */
+describe('a stopped data type keeps its line', () => {
+  const calendar = (state: LiveProgressRow['state']) =>
+    row({ domain: 'calendar', state, itemsSynced: 412, itemsFailed: 0 });
+
+  it('shows it, with how many copies stay and that they no longer follow the source', () => {
+    render(<LiveProgress domains={[calendar('stopped')]} />);
+    expect(screen.getByText('Calendar')).toBeTruthy();
+    expect(screen.getByText(STRINGS.en['confirm.state.stopped'])).toBeTruthy();
+    expect(screen.getByText(/412 synced/)).toBeTruthy();
+    expect(screen.getByText(STRINGS.en['confirm.progress.stopped'])).toBeTruthy();
+    expect(STRINGS.en['confirm.progress.stopped.why']).toMatch(/continues where it stopped/);
+  });
+
+  it('a skipped one still has no line: the migration never had it', () => {
+    render(<LiveProgress domains={[calendar('skipped')]} />);
+    expect(screen.queryByText('Calendar')).toBeNull();
+  });
+
+  it('says it only of a stopped one', () => {
+    render(<LiveProgress domains={[calendar('completed')]} />);
+    expect(screen.queryByText(STRINGS.en['confirm.progress.stopped'])).toBeNull();
+  });
+});

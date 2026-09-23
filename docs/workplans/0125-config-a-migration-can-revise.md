@@ -2,6 +2,32 @@
 
 ## Status — 2026-09-23 (update this block at the end of every session)
 
+**2026-09-23, later still: T7 is BUILT, all three steps.** A switched-off data type with copies is
+`stopped` (migration 0057 widens the state CHECK), and `skipped` keeps its meaning: switched off
+with nothing copied.
+
+- **The word, in one statement.** `markSwitchedOff` counts the data type's items in the same
+  statement that writes its state, from the same list `itemsSynced` counts (`copied`, `updated`,
+  `skipped`), so the startup line and the status page give one number. It replaces `markSkipped`;
+  there is no longer a way to write `skipped` over copies.
+- **(1) The startup line.** `recordSwitchedOff` runs for every migration that is not `done`, before
+  it is scheduled, and the appliance says one line per stopped data type: *"acme-mail:
+  domains.calendar is switched off. Its 412 copies stay on the target and no longer follow the
+  source; switching it back on continues where it stopped."* It writes the state too, so the page
+  is right from boot rather than from the next pass, and a data type switched back on is `pending`
+  at once rather than `stopped` until its pass. A finished migration is left as it was.
+- **(2) The status.** Every pass records the same thing through `runAllDomains`. The progress strip
+  keeps a stopped data type's line (a `skipped` one still has none), in yellow, with its count and
+  *"Switched off: these copies stay, but no longer follow the source."* The completion report
+  names it apart from a data type nobody selected.
+- **(3) Finish.** Step 3, *Run one final pass*, names each stopped data type: *"Calendar is stopped
+  and not in this pass: its 412 copies stay as they were."* Both modes of the checklist read it;
+  per mapping, from whichever payload the edition serves (`fetchMappingDomains`), and a failed read
+  says so rather than reading as none.
+- **Proved** against real Postgres on PGlite: the store (which items count, the upsert, switching
+  back on), and the appliance booted twice with the ledger edited between, for the line, the status,
+  switching back on and a finished migration. Managed writes no `stopped` yet; that is 0128 T4.
+
 **2026-09-23, later: the appliance's switched-off data type is DECIDED: said, not refused (T7).**
 The owner: *"yes, don't refuse but do the 3 steps that you proposed"*. A boot refusal would stop
 every migration on the appliance, and its web page, over a change that loses nothing and can be
@@ -145,7 +171,7 @@ what hard rule 5 forbids about what a setting can *mean*.
 | T4 `policy_refused`, and an error that carries its own category | ✅ Done — §6 | Ninth category, migration 0051 (COMMENT only, as 0048 predicted). `NativeFileRefused` states its category; `classifyFailure` prefers a stated one. The owner's thirty split 21/9 the next time they are attempted. |
 | T5 What happens to items refused under the old policy | ✅ Done — §7 | **Offered**, never automatic: a save says the already-refused stay refused and links to the group press, which `resolveFailureGroup` already clears `parkedAt` for. **The count landed 2026-09-19**, read from the failures queue only once a save has landed, and shown only when it is known and above zero — `undefined` (could not ask) and `0` (asked, none) both keep the number-free sentence and the link. |
 | T6 A running migration gains a data type | ✅ Done — §10 | **Owner, 2026-09-23: yes, add-only.** `kind-addition.ts` in `shared`: `kindChoices` (on / addable / refused with a reason) and `kindAdditionRefusal`, read by the detail route, the new `POST /api/migrations/:id/domains` and the migration page's panel, so the three cannot disagree. One transaction: the scope row, `updated_at` (the next preflight counts afresh), and for a running migration the new path's slot, only its own. The appliance is unchanged; the owner's answer to §10's question is T7. |
-| T7 A switched-off data type is said, not refused | 📋 Open — §10 | **Owner, 2026-09-23: don't refuse; do the three steps.** (1) At startup, one line per switched-off data type that has copies: how many stay, that they no longer follow the source, and that switching it back on continues where it stopped. (2) Status says `stopped`, with that count, where `markSkipped` (`runAllDomains`) says `SKIPPED` today, so it no longer reads like a data type the migration never had. (3) The Finish checklist names a stopped data type, so nobody finishes believing those copies are current. The word and its meaning are the ones 0128 T4 would give managed. |
+| T7 A switched-off data type is said, not refused | ✅ Done — §10 | **Owner, 2026-09-23: don't refuse; do the three steps.** (1) At startup, one line per switched-off data type that has copies: how many stay, that they no longer follow the source, and that switching it back on continues where it stopped. (2) Status says `stopped`, with that count, where `markSkipped` (`runAllDomains`) says `SKIPPED` today, so it no longer reads like a data type the migration never had. (3) The Finish checklist names a stopped data type, so nobody finishes believing those copies are current. The word and its meaning are the ones 0128 T4 would give managed. |
 
 ## 1. What the owner found
 
@@ -488,4 +514,9 @@ What was wrong is that it was **silent**. `markSkipped` gave a switched-off data
 `SKIPPED` as one the migration never had, and its copies stopped following the source without a
 word, to be found at the end, if at all. T7 is the three steps that say it: a startup line, a
 `stopped` status with the count, and the Finish checklist naming it.
+
+**Built 2026-09-23.** `stopped` is a state of its own (migration 0057), written by
+`markSwitchedOff` when the data type has copies and never otherwise. The appliance records it at
+startup and on every pass, says the line at startup, and the Finish checklist and the completion
+report name it. The status block at the top has the detail.
 

@@ -19,6 +19,7 @@ import type { StatusReport } from '@openmig/shared';
 
 const {
   fetchStatus,
+  fetchMappingDomains,
   fetchFailures,
   fetchMoves,
   fetchDeletions,
@@ -38,6 +39,7 @@ const {
   }
   return {
     fetchStatus: vi.fn(),
+    fetchMappingDomains: vi.fn(),
     fetchFailures: vi.fn(),
     fetchMoves: vi.fn(),
     fetchDeletions: vi.fn(),
@@ -51,6 +53,7 @@ const {
 vi.mock('../services/operating-service', () => ({
   fetchVerifyReport,
   fetchStatus,
+  fetchMappingDomains,
   fetchFailures,
   fetchMoves,
   fetchDeletions,
@@ -115,6 +118,7 @@ beforeEach(() => {
   fetchMoves.mockResolvedValue(emptyQueue);
   fetchDeletions.mockResolvedValue(emptyQueue);
   fetchVerifyReport.mockResolvedValue({ state: 'never-run' });
+  fetchMappingDomains.mockResolvedValue([]);
 });
 
 describe('the cutover order', () => {
@@ -451,3 +455,91 @@ describe('the checklist checks what it claims to check (0038 T3)', () => {
   });
 });
 
+
+/**
+ * THE DATA TYPE THE FINAL PASS LEAVES OUT (workplan 0125 T7).
+ *
+ * Step 3 promises the new system reflects the old one "as of right now", and
+ * a data type switched off after copying is the exception: its copies stay as
+ * they were when it stopped. The owner: the Finish checklist names it, *"so
+ * nobody finishes believing those copies are current"*.
+ */
+describe('a stopped data type is named where the final pass is', () => {
+  const calendar = (state: 'stopped' | 'skipped' | 'completed', itemsSynced: number) => ({
+    domain: 'calendar' as const,
+    state,
+    itemsSynced,
+    itemsFailed: 0,
+    bytesTransferred: 0,
+    itemsRetrying: 0,
+    itemsNeedingDecision: 0,
+  });
+
+  function withCalendar(row: ReturnType<typeof calendar>): StatusReport {
+    const report = statusReport('active');
+    return {
+      ...report,
+      mappings: [{ ...report.mappings[0]!, domains: [...report.mappings[0]!.domains, row] }],
+    };
+  }
+
+  it('names it, with how many copies stay as they were', async () => {
+    fetchStatus.mockResolvedValue(withCalendar(calendar('stopped', 412)));
+    renderScreen();
+    expect(
+      await screen.findByText(
+        'Calendar is stopped and not in this pass: its 412 copies stay as they were.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('says one copy as one copy', async () => {
+    fetchStatus.mockResolvedValue(withCalendar(calendar('stopped', 1)));
+    renderScreen();
+    expect(
+      await screen.findByText('Calendar is stopped and not in this pass: its one copy stays as it was.'),
+    ).toBeInTheDocument();
+  });
+
+  for (const [state, synced, what] of [
+    ['skipped', 0, 'a data type the migration never had'],
+    ['completed', 412, 'one that ran'],
+  ] as const) {
+    it(`says nothing of ${what}`, async () => {
+      fetchStatus.mockResolvedValue(withCalendar(calendar(state, synced)));
+      renderScreen();
+      await screen.findByText(/Run one final pass/);
+      expect(screen.queryByText(/is stopped and not in this pass/)).not.toBeInTheDocument();
+    });
+  }
+
+  function renderPerMapping(id = 'acme-mail') {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[`/mappings/${id}/finish`]}>
+          <Routes>
+            <Route path="/mappings/:mappingId/finish" element={<Finish />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('names it in the per-mapping checklist too, from this migration’s own rows', async () => {
+    fetchMappingDomains.mockResolvedValue([calendar('stopped', 7)]);
+    renderPerMapping();
+    expect(
+      await screen.findByText('Calendar is stopped and not in this pass: its 7 copies stay as they were.'),
+    ).toBeInTheDocument();
+    expect(fetchMappingDomains).toHaveBeenCalledWith('acme-mail');
+  });
+
+  it('says it could not read them, rather than implying none is stopped', async () => {
+    fetchMappingDomains.mockRejectedValue(new Error('the status read timed out'));
+    renderPerMapping();
+    expect(
+      await screen.findByText(/Could not read whether a data type is stopped: the status read timed out/),
+    ).toBeInTheDocument();
+  });
+});

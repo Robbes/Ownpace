@@ -323,11 +323,24 @@ curl -s http://127.0.0.1:8081/status | jq
 ```
 
 You get per-mapping, per-domain state derived from the ledger: `state`
-(pending/in_progress/completed/failed/skipped), `itemsSynced`, `itemsFailed`,
+(pending/in_progress/completed/failed/skipped/stopped), `itemsSynced`, `itemsFailed`,
 `bytesTransferred`, `lastSyncedAt`, and `lastError` **verbatim** when a domain
 failed (nothing is masked). Each domain also carries `itemsRetrying` and
 `itemsNeedingDecision` — see the next section. `/status` only ever surfaces
 those fields — it never echoes your config or credentials.
+
+`skipped` and `stopped` are both a data type your mapping file does not run.
+`skipped` has nothing on the target. `stopped` was switched off
+(`domains.<kind>.enabled: false`) after it copied something: its `itemsSynced`
+copies stay on the target as they were, and no longer follow the source.
+Nothing is removed. Switch it back on and restart, and the next pass continues
+where it stopped: new items are copied, edits are picked up, and deletions at
+the source are reported. The appliance says so at startup too, one line per
+stopped data type:
+
+```text
+[selfhost] acme-mail: domains.calendar is switched off. Its 412 copies stay on the target and no longer follow the source; switching it back on continues where it stopped.
+```
 
 ## 7. Items that would not migrate
 

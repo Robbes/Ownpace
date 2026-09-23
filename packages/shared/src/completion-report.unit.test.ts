@@ -78,6 +78,20 @@ describe('the verdict is derived, never hand-set', () => {
     expect(report.verdict).toBe('complete');
   });
 
+  it('nor does a STOPPED one: it is switched off too, and the document names it instead (0125 T7)', () => {
+    const report = buildCompletionReport(
+      inputs({ domains: [domain(), domain({ domain: 'calendar', state: 'stopped' })] }),
+    );
+    expect(report.verdict).toBe('complete');
+  });
+
+  it('a stopped domain alone is not a migration that completed', () => {
+    const report = buildCompletionReport(
+      inputs({ domains: [domain({ domain: 'calendar', state: 'stopped' })] }),
+    );
+    expect(report.verdict).toBe('in_progress');
+  });
+
   it('an in-progress or failed enabled domain makes it a progress snapshot', () => {
     for (const state of ['in_progress', 'failed', 'pending'] as const) {
       const report = buildCompletionReport(
@@ -155,6 +169,26 @@ describe('the Markdown document', () => {
       ),
     );
     expect(md).toContain('calendar: not selected for this migration');
+  });
+
+  it('names a stopped domain and its copies, and never as one nobody selected (0125 T7)', () => {
+    const md = renderCompletionReportMarkdown(
+      buildCompletionReport(
+        inputs({
+          domains: [
+            domain(),
+            domain({ domain: 'calendar', state: 'stopped', itemsSynced: 412 }),
+            domain({ domain: 'task', state: 'stopped', itemsSynced: 1 }),
+          ],
+        }),
+      ),
+    );
+    expect(md).toContain(
+      'calendar (412 copies), task (1 copy): stopped — switched off after copying. The copies ' +
+        'stay on the target as they were when it stopped and no longer follow the source; ' +
+        'switching it back on continues where it stopped.',
+    );
+    expect(md).not.toContain('not selected for this migration');
   });
 
   it('an edition without receipts SAYS so — zeros would read as "nothing was ever removed"', () => {

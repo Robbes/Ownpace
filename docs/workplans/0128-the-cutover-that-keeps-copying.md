@@ -124,6 +124,11 @@ It revisits 0125 T6's *adding only*. That decision refused removal because nothi
 the copies of a removed data type then are. 0125 T7 decides it now: they are stopped, the
 product says so, and they can be resumed. A stop is not the removal T6 refused; it is a pause for one data type.
 
+The word already exists (0125 T7, built 2026-09-23): `migration_status.state = 'stopped'`
+(migration 0057), which the progress strip, the Finish checklist and the completion report
+render in both editions. T4 is the managed writer, and one difference from the appliance: a
+data type the owner stops on purpose is stopped even with nothing copied yet.
+
 ## 4. Decisions for the owner
 
 **D1 — keep copying through the grace period (T2)?**

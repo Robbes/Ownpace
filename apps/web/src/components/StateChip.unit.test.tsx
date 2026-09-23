@@ -44,6 +44,17 @@ describe('the canonical state table', () => {
     expect(screen.queryByText('cutover')).not.toBeInTheDocument();
   });
 
+  it('paints a stopped data type as needing a look, never in the grey of one nobody had (0125 T7)', () => {
+    // Both are switched off. A stopped one has copies on the target that no
+    // longer follow the source; grey is this table's colour for what needs
+    // nothing, and a stopped data type drawn in it would be the silence T7
+    // exists to end.
+    expect(STATE_TABLE.domain.stopped.tone).toBe('yellow');
+    expect(STATE_TABLE.domain.stopped.tone).not.toBe(STATE_TABLE.domain.skipped.tone);
+    render(<StateChip entity="domain" state="stopped" />);
+    expect(screen.getByText('Stopped').className).toContain('bg-yellow-100');
+  });
+
   it('reserves the wachtrij words for queued — pending is "In afwachting" in NL, both entities', () => {
     // The fleet's dictionary read: "Pending" rendered as both "In wachtrij"
     // (runs) and "In afwachting" (domains). One word now.

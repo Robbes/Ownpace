@@ -1060,6 +1060,23 @@ when that one ends. That also means the pass you get back may have started befor
 you asked, so if you need one that definitely saw a specific change, check the
 result and run it again if not.
 
+**A data type switched off is not in that pass** (workplan 0125 T7). Setting
+`domains.<kind>.enabled: false` in a mapping file after it copied something
+removes nothing and is not refused at startup. The copies and their ledger rows
+stay; they just stop following the source. The appliance says so in three places:
+
+- at startup, one line per such data type: *"acme-mail: domains.calendar is
+  switched off. Its 412 copies stay on the target and no longer follow the
+  source; switching it back on continues where it stopped."*;
+- `/status` gives it the state `stopped`, with those copies as `itemsSynced`,
+  where it used to say `skipped` (which now means switched off with nothing
+  copied);
+- the Finish screen's step 3 names it, because the final pass leaves it out.
+
+If those copies must be current when you finish, switch it back on and restart:
+the next pass continues where it stopped (new items are copied, edits are picked
+up, deletions at the source are reported), and then finish.
+
 ## Health & troubleshooting
 
 - **API or tasks won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and
