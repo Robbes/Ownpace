@@ -170,6 +170,9 @@ describe('the lines under the selects', () => {
     expect(line).toContain(EN[nativeKindKey('presentation')]);
     expect(line).not.toContain(EN[nativeKindKey('document')]);
     expect(line).not.toContain(EN[nativeKindKey('drawing')]);
+    // And never beside the promise that everything arrives: a screen saying
+    // both is a screen somebody reads the wrong half of.
+    expect(screen.queryByText(EN['wizard.nativePolicy.allEditable'])).toBeNull();
   });
 
   it('names exactly the kinds that arrive as a PDF nobody can edit', () => {
