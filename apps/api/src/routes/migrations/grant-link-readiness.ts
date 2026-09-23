@@ -38,12 +38,14 @@
  * It also decides that a link is never issued for a migration with no
  * destination: the page says where the data goes before the button (T8a),
  * and a page with nothing to say there is the consent-phishing page with one
- * line missing.
+ * line missing. Nor for one that names no source account (T8 (b)): the grant is
+ * bound to that account, so with none named no sign-in could ever be accepted.
  */
 
 import { providerAccountDomains, type DiscoveryDomain } from '@openmig/shared';
 import { GOOGLE_SOURCE_SCOPES, type GoogleConsentSourceType } from './google-consent.ts';
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
+import { SIGNED_IN_ACCOUNT_SCOPES } from './signed-in-account.ts';
 
 /**
  * `connection.kind` → the consent vocabulary, for the four Google sources.
@@ -103,6 +105,12 @@ export interface GrantLinkReadiness {
    * link asks for. A single-purpose kind is its one type and ignores this.
    */
   readonly includedDomains: ReadonlyArray<string>;
+  /**
+   * Whether the migration names the Google account it reads, as an address
+   * (T8 (b)). The grant is bound to it: any other account that signs in is
+   * refused, so a link for a migration that names none could never be used.
+   */
+  readonly hasNamedAccount: boolean;
   /** Whether the migration has a destination. The page names it (T8a). */
   readonly hasTarget: boolean;
   /** Whether the stored source credentials carry a non-empty client id. */
@@ -125,6 +133,7 @@ export interface GrantLinkReadiness {
 export type GrantLinkAskRefusalCode =
   | 'no_source_connection'
   | 'source_not_google'
+  | 'no_named_account'
   | 'no_target'
   | 'nothing_to_ask'
   | 'client_not_configured'
@@ -141,7 +150,10 @@ export interface GrantLinkRefusal {
 export interface GrantLinkAsk {
   /** Whose Google application the consent runs against — never its values. */
   readonly client: 'connection' | 'deployment';
-  /** The scope string Google will record, space-joined. */
+  /**
+   * The scope string Google will record, space-joined: the data types' scopes,
+   * then the two that say who signed in (`SIGNED_IN_ACCOUNT_SCOPES`, T8 (b)).
+   */
   readonly scope: string;
   /** The data types it covers, in the scope table's order. */
   readonly domains: ReadonlyArray<DiscoveryDomain>;
@@ -213,6 +225,18 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
         'still comes to you by hand.',
     );
   }
+  if (!r.hasNamedAccount) {
+    // The owner's decision of 2026-09-23 (T8 (b)): *"bind to the account the
+    // page already named (so filled in by the requester/facilitator)"*. With
+    // nothing named there is nothing to bind to, and every sign-in would be
+    // refused at the end of the consent rather than here.
+    return refuse(
+      'no_named_account',
+      'A grant is only accepted from the Google account this migration reads, and it ' +
+        'names none, so nobody could use the link. Create the migration again with that ' +
+        "account's address.",
+    );
+  }
   if (!r.hasTarget) {
     return refuse(
       'no_target',
@@ -282,7 +306,12 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
       );
     }
   }
-  return { ok: true, ask: { client, scope, domains } };
+  // Who signed in, asked beside the data: the ending compares it with the
+  // account the page named, and refuses anything else (T8 (b)).
+  return {
+    ok: true,
+    ask: { client, scope: [scope, ...SIGNED_IN_ACCOUNT_SCOPES].join(' '), domains },
+  };
 }
 
 /**

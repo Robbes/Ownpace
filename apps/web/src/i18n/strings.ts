@@ -894,13 +894,15 @@ const en = {
   'grant.phone': 'Phone',
   'grant.from': 'From',
   'grant.to': 'To',
-  'grant.fromAnyAccount': 'The Google account you sign in with',
   'grant.toWhere': '{provider} at {host}',
   'grant.check': 'Do you know who asked? Is the destination yours or your organisation’s? Only then continue.',
   'grant.readOnly':
     'Read-only. Nothing is ever deleted or changed in your account, and nobody — not the organisation, not Ownpace — ever sees your password. You sign in to Google yourself, on Google’s own page.',
   'grant.scopeIntro': 'Google will record this permission as:',
   'grant.until': 'This link works until {date}.',
+  // The account is a condition (0108 T8 (b)): what to sign in with, and why
+  // Google also asks for their address.
+  'grant.signInAs': 'Sign in as {account}. Google shares your address to confirm it; other accounts are refused.',
   'grant.connect': 'Continue with Google',
   'grant.connecting': 'Opening Google…',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
@@ -2868,13 +2870,13 @@ const nl: Record<keyof typeof en, string> = {
   'grant.phone': 'Telefoon',
   'grant.from': 'Van',
   'grant.to': 'Naar',
-  'grant.fromAnyAccount': 'Het Google-account waarmee u inlogt',
   'grant.toWhere': '{provider} op {host}',
   'grant.check': 'Kent u de vrager? Is de bestemming van u of uw organisatie? Alleen dan doorgaan.',
   'grant.readOnly':
     'Alleen lezen. Er wordt nooit iets verwijderd of gewijzigd in uw account, en niemand — niet de organisatie, niet Ownpace — ziet ooit uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf.',
   'grant.scopeIntro': 'Google legt deze toestemming vast als:',
   'grant.until': 'Deze link werkt tot {date}.',
+  'grant.signInAs': 'Log in als {account}. Google deelt uw adres ter controle; andere accounts worden geweigerd.',
   'grant.connect': 'Doorgaan met Google',
   'grant.connecting': 'Google wordt geopend…',
   'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden behandeld:',

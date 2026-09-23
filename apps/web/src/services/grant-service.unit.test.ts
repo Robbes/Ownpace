@@ -42,7 +42,30 @@ describe('the grant subject, as the page receives it', () => {
     });
   });
 
-  it('keeps an account the migration does not name as null, not as a missing field', async () => {
+  it('keeps what the server cannot say as null, not as a missing field', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        organisation: 'Acme Legal',
+        checkedCompany: null,
+        askedBy: null,
+        organisationPhone: null,
+        reads: 'your contacts',
+        scope: 'https://www.googleapis.com/auth/contacts.readonly',
+        from: 'someone@example.invalid',
+        to: { provider: 'jmap', host: null, account: null },
+        expiresAt: '2026-09-30T00:00:00.000Z',
+      },
+    });
+    const subject = await grantApi.read('abc.def');
+    expect(subject.checkedCompany).toBeNull();
+    expect(subject.askedBy).toBeNull();
+    expect(subject.organisationPhone).toBeNull();
+    expect(subject.to.host).toBeNull();
+  });
+
+  it('refuses a subject that names no account to sign in with (0108 T8 (b))', async () => {
+    // The server answers no page for such a migration. A subject without one
+    // is not a page this screen can draw truthfully: "sign in as nobody".
     getMock.mockResolvedValue({
       data: {
         organisation: 'Acme Legal',
@@ -56,11 +79,6 @@ describe('the grant subject, as the page receives it', () => {
         expiresAt: '2026-09-30T00:00:00.000Z',
       },
     });
-    const subject = await grantApi.read('abc.def');
-    expect(subject.from).toBeNull();
-    expect(subject.checkedCompany).toBeNull();
-    expect(subject.askedBy).toBeNull();
-    expect(subject.organisationPhone).toBeNull();
-    expect(subject.to.host).toBeNull();
+    await expect(grantApi.read('abc.def')).rejects.toThrow();
   });
 });

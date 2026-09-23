@@ -24,6 +24,11 @@
  * and the destination it writes are the two facts only the person granting can
  * check, so they come before the button, with one plain question beside them.
  *
+ * **Which account to sign in with** (0108 T8 (b)). From is a condition, not a
+ * label: the server refuses any other account that signs in, and stores
+ * nothing. Said before the button, together with why Google will also ask to
+ * share their address, which is how the account is checked.
+ *
  * **What will be read, and that it is read-only.** In plain words AND as the
  * scope Google itself will record (ADR-0041's operative rule: the scopes are
  * shown as scopes). The plain sentence is what a person understands; the scope
@@ -142,9 +147,7 @@ const Grant: React.FC = () => {
               </>
             )}
             <dt className="text-gray-600">{t('grant.from')}</dt>
-            <dd className="text-gray-900 break-all">
-              {subject.data.from ?? t('grant.fromAnyAccount')}
-            </dd>
+            <dd className="text-gray-900 break-all">{subject.data.from}</dd>
             <dt className="text-gray-600">{t('grant.to')}</dt>
             <dd className="text-gray-900 break-all">
               {subject.data.to.account && <span className="block">{subject.data.to.account}</span>}
@@ -173,6 +176,13 @@ const Grant: React.FC = () => {
 
           <p className="mt-4 text-sm text-gray-600">
             {t('grant.until', { date: dateTime(subject.data.expiresAt) })}
+          </p>
+
+          {/* The account is a condition, not a label (0108 T8 (b)): any other
+              account that signs in is refused and nothing is kept. Said before
+              the button, with why Google will also ask for their address. */}
+          <p className="mt-4 text-sm font-medium text-gray-900 break-words">
+            {t('grant.signInAs', { account: subject.data.from })}
           </p>
 
           <button

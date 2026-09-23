@@ -159,10 +159,16 @@ describe('what a person sees before consenting', () => {
     expect(screen.queryByText('Asked by')).not.toBeInTheDocument();
   });
 
-  it('says it reads the account they sign in with, where the migration names none', async () => {
-    readMock.mockResolvedValue({ ...SUBJECT, from: null });
+  it('says which account to sign in with, and that any other is refused, before the button (0108 T8 (b))', async () => {
+    // The account is a condition, not a label: the server stores nothing for
+    // any other, so the person is told before they go to Google, with why
+    // Google will also ask to share their address.
     renderPage();
-    expect(await screen.findByText('The Google account you sign in with')).toBeInTheDocument();
+    const line = await screen.findByText(
+      'Sign in as someone@example.invalid. Google shares your address to confirm it; other accounts are refused.',
+    );
+    const button = screen.getByRole('button', { name: /Continue with Google/ });
+    expect(line.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('names a destination with no host by its kind alone', async () => {

@@ -38,6 +38,7 @@ import {
   type GoogleGrantDomain,
 } from '@openmig/orchestration/account-qualification';
 import type { ProgressPageUrl } from './progress-page-url.ts';
+import { SIGNED_IN_ACCOUNT_SCOPES, accountInIdToken } from './signed-in-account.ts';
 
 export const GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 export const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -287,6 +288,13 @@ export function consentUrl(p: {
   scope: string;
   redirectUri: string;
   state: string;
+  /**
+   * The account Google should offer first (0108 T8 (b)): the grant link's
+   * named account, so the person is not asked to pick it out of every account
+   * their browser knows. A convenience only; what binds the grant is the check
+   * at the callback (`signed-in-account.ts`).
+   */
+  loginHint?: string;
 }): string {
   const q = new URLSearchParams({
     client_id: p.clientId,
@@ -326,11 +334,23 @@ export function consentUrl(p: {
     include_granted_scopes: 'true',
     state: p.state,
   });
+  if (p.loginHint) q.set('login_hint', p.loginHint);
   return `${GOOGLE_AUTH_ENDPOINT}?${q.toString()}`;
 }
 
 export type ExchangeResult =
-  | { readonly ok: true; readonly refreshToken: string; readonly grantedScopes: ReadonlyArray<string> }
+  | {
+      readonly ok: true;
+      readonly refreshToken: string;
+      readonly grantedScopes: ReadonlyArray<string>;
+      /**
+       * The account that signed in, as Google's ID token vouches for it, or
+       * null when there is none: the owner's consent asks for no `openid`, and
+       * Google's answer then carries no ID token. The grant link's ending
+       * refuses without one (0108 T8 (b)).
+       */
+      readonly signedInAs: string | null;
+    }
   | { readonly ok: false; readonly reason: string };
 
 /**
@@ -345,6 +365,12 @@ export type ExchangeResult =
  * ask "missing": it looked for the space-joined string as if it were one
  * scope, which no grant can ever contain. A single-scope ask is the
  * one-element case of this, not a separate rule.
+ *
+ * THE TWO THAT SAY WHO SIGNED IN ARE NOT JUDGED HERE (0108 T8 (b)). A grant
+ * link also asks for `openid` and the basic email scope, and their proof is the
+ * ID token itself, which the link's ending reads and refuses without. Judging
+ * them a second time, by how Google happens to enumerate them, would only add
+ * a way for a good grant to be refused.
  */
 export function unsatisfiedScopes(asked: string, granted: ReadonlyArray<string>): string[] {
   // Read off the scope table (`grantSatisfiesAskedScope`) since 2026-09-23,
@@ -353,6 +379,7 @@ export function unsatisfiedScopes(asked: string, granted: ReadonlyArray<string>)
   return asked
     .split(/\s+/)
     .filter((scope) => scope.length > 0)
+    .filter((scope) => !SIGNED_IN_ACCOUNT_SCOPES.includes(scope))
     .filter((scope) => !grantSatisfiesAskedScope(scope, granted));
 }
 
@@ -405,6 +432,7 @@ export async function exchangeCode(
   const json = (await res.json().catch(() => ({}))) as {
     refresh_token?: string;
     scope?: string;
+    id_token?: unknown;
   };
   const granted = (json.scope ?? '').split(' ').filter((s) => s.length > 0);
   const missing = unsatisfiedScopes(p.askedScope, granted);
@@ -428,7 +456,12 @@ export async function exchangeCode(
         'the policy permits.',
     };
   }
-  return { ok: true, refreshToken: json.refresh_token, grantedScopes: granted };
+  return {
+    ok: true,
+    refreshToken: json.refresh_token,
+    grantedScopes: granted,
+    signedInAs: accountInIdToken(json.id_token, p.clientId),
+  };
 }
 
 /** HTML-escape for text nodes. */
@@ -537,14 +570,25 @@ export function consentResultPage(p: {
 export function grantResultPage(
   outcome:
     | { readonly ok: true; readonly progressUrl?: ProgressPageUrl }
-    | { readonly ok: false; readonly reason: string },
+    | {
+        readonly ok: false;
+        readonly reason: string;
+        /**
+         * Set when the link was never spent, so the person should open the
+         * SAME link again rather than ask for another (0108 T8 (b): a sign-in
+         * with the wrong account is refused before the link is claimed).
+         */
+        readonly linkStillWorks?: boolean;
+      },
 ): string {
   if (!outcome.ok) {
     return (
       `<main style="${PAGE_STYLE}"><h1>That did not complete</h1>` +
       `<p>${esc(outcome.reason)}</p>` +
-      '<p>Nothing was stored. If you were sent a link, ask the person who sent it for a ' +
-      'fresh one — issuing another takes them a moment.</p></main>'
+      (outcome.linkStillWorks
+        ? '<p>Nothing was stored, and your link still works.</p></main>'
+        : '<p>Nothing was stored. If you were sent a link, ask the person who sent it for a ' +
+          'fresh one — issuing another takes them a moment.</p></main>')
     );
   }
   // `esc` on a URL this function itself was handed: it goes into an href and

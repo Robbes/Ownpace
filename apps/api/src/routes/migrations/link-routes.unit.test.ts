@@ -72,6 +72,10 @@ const ACCOUNT_MAPPING = '5f4f0000-e29b-41d4-a716-446655441636';
 const DEPLOYMENT_GMAIL_CONN = '5f4f0000-e29b-41d4-a716-446655441617';
 const DEPLOYMENT_GMAIL_BOX = '5f4f0000-e29b-41d4-a716-446655441627';
 const DEPLOYMENT_GMAIL_MAPPING = '5f4f0000-e29b-41d4-a716-446655441637';
+/** Gmail with a whole client of its own and NO account named (0108 T8 (b)). */
+const NAMELESS_CONN = '5f4f0000-e29b-41d4-a716-446655441618';
+const NAMELESS_BOX = '5f4f0000-e29b-41d4-a716-446655441628';
+const NAMELESS_MAPPING = '5f4f0000-e29b-41d4-a716-446655441638';
 
 /** Run `fn` on a deployment that carries its own Google client (ADR-0041). */
 async function onTheDeploymentsClient<T>(fn: () => Promise<T>, scopeClass?: string): Promise<T> {
@@ -150,6 +154,15 @@ beforeAll(async () => {
     }).encrypted,
   );
 
+  // The same client, and no account: an OAuth row keeps its address in the
+  // connection's config, and this one has none there either.
+  const namelessCreds = JSON.stringify(
+    SecretStore.encryptCredentials({
+      clientId: 'client.apps.googleusercontent.com',
+      clientSecret: 'not-a-real-secret',
+    }).encrypted,
+  );
+
   await withClient(async (q) => {
     for (const [id, name] of [
       [TENANT, 'links'],
@@ -164,7 +177,7 @@ beforeAll(async () => {
     );
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'source','gmail','g-bare','{}'::jsonb,'connected')`,
+       VALUES ($1,$2,'source','gmail','g-bare','{"user":"bare@example.invalid"}'::jsonb,'connected')`,
       [BARE_CONN, TENANT],
     );
     await q(
@@ -174,13 +187,18 @@ beforeAll(async () => {
     );
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'source','google','account','{}'::jsonb,'connected')`,
+       VALUES ($1,$2,'source','google','account','{"user":"account@example.invalid"}'::jsonb,'connected')`,
       [ACCOUNT_CONN, TENANT],
     );
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
-       VALUES ($1,$2,'source','gmail','g-deployment','{}'::jsonb,'connected')`,
+       VALUES ($1,$2,'source','gmail','g-deployment','{"user":"gmail@example.invalid"}'::jsonb,'connected')`,
       [DEPLOYMENT_GMAIL_CONN, TENANT],
+    );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1,$2,'source','gmail','g-nameless','{}'::jsonb,'connected',$3)`,
+      [NAMELESS_CONN, TENANT, namelessCreds],
     );
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
@@ -193,6 +211,7 @@ beforeAll(async () => {
       [IMAP_BOX, IMAP_CONN],
       [ACCOUNT_BOX, ACCOUNT_CONN],
       [DEPLOYMENT_GMAIL_BOX, DEPLOYMENT_GMAIL_CONN],
+      [NAMELESS_BOX, NAMELESS_CONN],
       [TARGET_BOX, TARGET_CONN],
     ]) {
       await q(
@@ -208,6 +227,7 @@ beforeAll(async () => {
       [NO_TARGET_MAPPING, GOOGLE_BOX, null],
       [ACCOUNT_MAPPING, ACCOUNT_BOX, TARGET_BOX],
       [DEPLOYMENT_GMAIL_MAPPING, DEPLOYMENT_GMAIL_BOX, TARGET_BOX],
+      [NAMELESS_MAPPING, NAMELESS_BOX, TARGET_BOX],
     ]) {
       await q(
         `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status)
@@ -267,6 +287,16 @@ describe('issuing refuses BEFORE it writes', () => {
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('client_not_configured');
     expect(await rowsFor(UNCONFIGURED_MAPPING)).toEqual([]);
+  });
+
+  it('refuses a migration that names no account, and writes nothing (0108 T8 (b))', async () => {
+    // Its client is whole and its destination is set: the one thing missing is
+    // the account every sign-in is held to, so no sign-in could be accepted.
+    const res = await request(app).post(`/api/migrations/${NAMELESS_MAPPING}/links`).send({});
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('no_named_account');
+    expect(res.body.reason).toMatch(/names none/);
+    expect(await rowsFor(NAMELESS_MAPPING)).toEqual([]);
   });
 
   it('refuses a migration with no destination, and writes nothing', async () => {

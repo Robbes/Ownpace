@@ -29,6 +29,7 @@ import {
 import { tenantMember } from '@openmig/managed/schema-managed';
 import type { GrantLinkReadiness } from './grant-link-readiness.ts';
 import { accountOfMapping } from './account-on-connection.ts';
+import { namesAGoogleAccount } from './signed-in-account.ts';
 import { checkedCompanyName, readVatStanding } from '../../services/vat-standing.ts';
 
 interface StoredConnection {
@@ -200,6 +201,7 @@ export function grantReadiness(
     return {
       sourceKind: null,
       includedDomains: [],
+      hasNamedAccount: false,
       hasTarget: false,
       hasClientId: false,
       hasClientSecret: false,
@@ -210,6 +212,7 @@ export function grantReadiness(
   return {
     sourceKind: rows.source.kind,
     includedDomains: rows.includedDomains,
+    hasNamedAccount: namesAGoogleAccount(namedAccount(rows)),
     hasTarget: rows.target !== null,
     hasClientId: credential(creds, 'clientId') !== '',
     hasClientSecret: credential(creds, 'clientSecret') !== '',
@@ -246,6 +249,15 @@ export interface WhereFromAndTo {
 }
 
 /**
+ * The account the migration reads, as a pass uses it (`accountOfMapping`): the
+ * page's **From**, and since T8 (b) the only account whose sign-in is accepted.
+ * Null when it names none.
+ */
+export function namedAccount(rows: GrantRows): string | null {
+  return accountOfMapping(rows.source, rows.sourceOverride) ?? null;
+}
+
+/**
  * The accounts are the ones a pass uses (`accountOfMapping`), and the provider
  * is the target connection's kind, for the page to put a name to. Null when
  * the migration has no destination, which `grantLinkAsk` refuses before any
@@ -254,7 +266,7 @@ export interface WhereFromAndTo {
 export function whereFromAndTo(rows: GrantRows): WhereFromAndTo | null {
   if (!rows.target) return null;
   return {
-    from: accountOfMapping(rows.source, rows.sourceOverride) ?? null,
+    from: namedAccount(rows),
     to: {
       provider: rows.target.kind,
       host: hostOf(rows.target.config),

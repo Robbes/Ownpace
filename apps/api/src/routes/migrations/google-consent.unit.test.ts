@@ -101,6 +101,14 @@ describe('the consent URL: what must never be forgotten', () => {
     );
     expect(url.searchParams.get('include_granted_scopes')).toBe('true');
   });
+
+  it('offers the named account first when given one, and names nobody otherwise (0108 T8 (b))', () => {
+    const base = { clientId: 'cid', scope: PENDING.scope, redirectUri: PENDING.redirectUri, state: 's.x' };
+    const hinted = new URL(consentUrl({ ...base, loginHint: 'someone@example.org' }));
+    expect(hinted.searchParams.get('login_hint')).toBe('someone@example.org');
+    // The owner's own consent names nobody: they pick their own account.
+    expect(new URL(consentUrl(base)).searchParams.has('login_hint')).toBe(false);
+  });
 });
 
 describe('one scope table, not two (0106 T1b)', () => {
@@ -153,7 +161,50 @@ describe('the exchange: granted is read, never assumed', () => {
 
   it('hands back the refresh token when the grant covers the ask', async () => {
     const r = await exchange({ refresh_token: 'rt', scope: PENDING.scope });
-    expect(r).toEqual({ ok: true, refreshToken: 'rt', grantedScopes: [PENDING.scope] });
+    // No `openid` asked, no ID token answered: nobody is vouched for, which is
+    // the owner's own consent, where nobody needs to be.
+    expect(r).toEqual({ ok: true, refreshToken: 'rt', grantedScopes: [PENDING.scope], signedInAs: null });
+  });
+
+  it("says who signed in, from Google's ID token for THIS application (0108 T8 (b))", async () => {
+    const idToken = (claims: Record<string, unknown>) =>
+      ['{}', JSON.stringify(claims)].map((p) => Buffer.from(p).toString('base64url')).join('.') + '.sig';
+    const claims = {
+      iss: 'https://accounts.google.com',
+      aud: 'cid',
+      email: 'someone@example.org',
+      email_verified: true,
+    };
+    const mine = await exchange({ refresh_token: 'rt', scope: PENDING.scope, id_token: idToken(claims) });
+    expect(mine.ok && mine.signedInAs).toBe('someone@example.org');
+    // Issued to another application: it vouches for nobody here.
+    const theirs = await exchange({
+      refresh_token: 'rt',
+      scope: PENDING.scope,
+      id_token: idToken({ ...claims, aud: 'another-client' }),
+    });
+    expect(theirs.ok).toBe(true);
+    expect(theirs.ok && theirs.signedInAs).toBeNull();
+  });
+
+  it('does not judge the two who-signed-in scopes by how Google enumerates them; the ID token is their proof', async () => {
+    const asked = `${PENDING.scope} openid https://www.googleapis.com/auth/userinfo.email`;
+    const r = await exchangeCode(
+      { code: 'c', clientId: 'cid', clientSecret: 'shh', redirectUri: PENDING.redirectUri, askedScope: asked },
+      vi.fn(async () =>
+        new Response(JSON.stringify({ refresh_token: 'rt', scope: PENDING.scope })),
+      ) as unknown as typeof fetch,
+    );
+    expect(r.ok).toBe(true);
+    // …while the data scope beside them is still judged.
+    const short = await exchangeCode(
+      { code: 'c', clientId: 'cid', clientSecret: 'shh', redirectUri: PENDING.redirectUri, askedScope: asked },
+      vi.fn(async () =>
+        new Response(JSON.stringify({ refresh_token: 'rt', scope: 'openid' })),
+      ) as unknown as typeof fetch,
+    );
+    expect(short.ok).toBe(false);
+    if (!short.ok) expect(short.reason).toContain(`missing ${PENDING.scope}.`);
   });
 
   it('a NARROWER grant refuses with the missing scope named — never stores a token that fails later', async () => {
@@ -408,6 +459,27 @@ describe('the result page: one origin, no leaks', () => {
     });
     expect(page).toContain('access_denied');
     expect(page).not.toContain('postMessage');
+  });
+});
+
+describe("the link holder's ending, when nothing was stored", () => {
+  it('says to ask for a fresh link when this one can no longer be used', () => {
+    const page = grantResultPage({ ok: false, reason: 'This link can no longer be used.' });
+    expect(page).toContain('This link can no longer be used.');
+    expect(page).toMatch(/ask the person who sent it for a fresh one/);
+  });
+
+  it('says the SAME link still works when it was never spent (0108 T8 (b))', () => {
+    // The wrong account signed in: the link was not claimed, and asking for
+    // another would cost the sender a round trip for nothing.
+    const page = grantResultPage({
+      ok: false,
+      reason: 'You signed in to Google as personal@gmail.com, but this migration reads someone@example.org.',
+      linkStillWorks: true,
+    });
+    expect(page).toContain('your link still works');
+    expect(page).not.toMatch(/fresh one/);
+    expect(page).toContain('Nothing was stored');
   });
 });
 

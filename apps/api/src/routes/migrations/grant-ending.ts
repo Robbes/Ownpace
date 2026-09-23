@@ -19,9 +19,26 @@
  * credential and *then* discover the owner had said no, which is the one
  * outcome a kill switch exists to prevent.
  *
- * Both statements run in ONE tenant-scoped transaction, so a failure to write
- * the credential un-spends the link rather than leaving a migrator holding a
- * dead link and a mapping holding nothing.
+ * **Between the two, whose account it is** (0108 T8 (b), the owner's decision
+ * of 2026-09-23). The account that signed in must be the one the migration
+ * names, read in this same transaction, so it is the account named at the
+ * moment the credential would be written. Checked AFTER the claim, so a link
+ * that is dead says so first, whoever signed in; and a wrong account rolls the
+ * claim back, so the link still works for the right one.
+ *
+ * All of it runs in ONE tenant-scoped transaction, so a failure to write the
+ * credential un-spends the link rather than leaving a migrator holding a dead
+ * link and a mapping holding nothing.
+ *
+ * ## A wrong account's token is dropped, not revoked
+ *
+ * It is never stored, never logged and never shown, and it goes out of scope
+ * with this request. It is NOT revoked at Google, deliberately: the consent
+ * asks with `include_granted_scopes`, and revoking a token that represents a
+ * combined grant revokes every scope of that grant. The wrong account is often
+ * one the same person is migrating on another link, through the same Google
+ * application, and revoking would stop that migration. What stays behind is an
+ * entry under that account's third-party access that nothing here can use.
  *
  * ## What is stored is only the migrator's half
  *
@@ -46,6 +63,8 @@ import { SecretStore } from '@openmig/core/secret-store';
 import { log } from '@openmig/shared';
 import { withTenantDb } from '../../middleware/auth.ts';
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
+import { namedAccount, readGrantRows } from './grant-subject.ts';
+import { signedInAccountRefusal } from './signed-in-account.ts';
 
 /** The link the consent belonged to, as the pending state recorded it. */
 export interface GrantTarget {
@@ -54,7 +73,33 @@ export interface GrantTarget {
   readonly tenantId: string;
 }
 
-export type GrantStoreResult = { ok: true } | { ok: false; reason: string };
+/** What the person's consent brought back, as far as the ending may use it. */
+export interface GrantedAccess {
+  readonly refreshToken: string;
+  /** The account Google says signed in, or null when it did not say (0108 T8 (b)). */
+  readonly signedInAs: string | null;
+}
+
+export type GrantStoreResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: string;
+      /** True when the link was left unspent, so the SAME link can be used again. */
+      linkStillWorks?: boolean;
+    };
+
+/**
+ * Thrown inside the transaction to roll the claim back when the wrong account
+ * signed in, and caught outside it. A return would commit the spent link.
+ */
+class AnotherAccountSignedIn extends Error {
+  readonly reason: string;
+  constructor(reason: string) {
+    super('the account that signed in is not the one the migration names');
+    this.reason = reason;
+  }
+}
 
 /**
  * Claim the link and store the granted token, or refuse having stored nothing.
@@ -67,47 +112,62 @@ export type GrantStoreResult = { ok: true } | { ok: false; reason: string };
 export async function storeGrantedToken(
   source: Pool | LedgerDriver,
   target: GrantTarget,
-  refreshToken: string,
+  granted: GrantedAccess,
 ): Promise<GrantStoreResult> {
-  const encrypted = JSON.stringify(SecretStore.encryptCredentials({ refreshToken }).encrypted);
+  const encrypted = JSON.stringify(
+    SecretStore.encryptCredentials({ refreshToken: granted.refreshToken }).encrypted,
+  );
 
-  return withTenantDb(target.tenantId, source, async (db) => {
-    const spent = await spendMappingLink(db, {
-      tenantId: target.tenantId,
-      linkId: target.linkId,
+  try {
+    return await withTenantDb(target.tenantId, source, async (db) => {
+      const spent = await spendMappingLink(db, {
+        tenantId: target.tenantId,
+        linkId: target.linkId,
+      });
+      if (!spent) {
+        return {
+          ok: false as const,
+          reason:
+            'This link can no longer be used — it may have been used already, it may have ' +
+            'expired, or the person who sent it may have withdrawn it. Nothing was stored.',
+        };
+      }
+
+      const rows = await readGrantRows(db, target.tenantId, target.mappingId);
+      const refusal = signedInAccountRefusal(rows ? namedAccount(rows) : null, granted.signedInAs);
+      if (refusal) throw new AnotherAccountSignedIn(refusal);
+
+      const updated = await db
+        .update(schema.mailboxMapping)
+        .set({ sourceSecretRef: encrypted, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.mailboxMapping.id, target.mappingId),
+            eq(schema.mailboxMapping.tenantId, target.tenantId),
+          ),
+        )
+        .returning({ id: schema.mailboxMapping.id });
+
+      if (updated.length === 0) {
+        // The mapping went away between the consent starting and finishing. Throw
+        // rather than return: the transaction must roll back so the link is not
+        // left spent for a grant that did not land (hard rule 9 — this is a
+        // genuine fault, not a refusal, and the caller reports it as one).
+        throw new Error(
+          `grant ending: mapping ${target.mappingId} no longer exists for its tenant, so the ` +
+            'granted credential has nowhere to go',
+        );
+      }
+      return { ok: true as const };
     });
-    if (!spent) {
-      return {
-        ok: false as const,
-        reason:
-          'This link can no longer be used — it may have been used already, it may have ' +
-          'expired, or the person who sent it may have withdrawn it. Nothing was stored.',
-      };
+  } catch (error) {
+    // The one refusal that has to undo the claim. Everything else thrown is a
+    // fault, and goes on up as one.
+    if (error instanceof AnotherAccountSignedIn) {
+      return { ok: false, reason: error.reason, linkStillWorks: true };
     }
-
-    const updated = await db
-      .update(schema.mailboxMapping)
-      .set({ sourceSecretRef: encrypted, updatedAt: new Date() })
-      .where(
-        and(
-          eq(schema.mailboxMapping.id, target.mappingId),
-          eq(schema.mailboxMapping.tenantId, target.tenantId),
-        ),
-      )
-      .returning({ id: schema.mailboxMapping.id });
-
-    if (updated.length === 0) {
-      // The mapping went away between the consent starting and finishing. Throw
-      // rather than return: the transaction must roll back so the link is not
-      // left spent for a grant that did not land (hard rule 9 — this is a
-      // genuine fault, not a refusal, and the caller reports it as one).
-      throw new Error(
-        `grant ending: mapping ${target.mappingId} no longer exists for its tenant, so the ` +
-          'granted credential has nowhere to go',
-      );
-    }
-    return { ok: true as const };
-  });
+    throw error;
+  }
 }
 
 /**
