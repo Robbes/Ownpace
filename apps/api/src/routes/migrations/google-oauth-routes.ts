@@ -30,6 +30,7 @@ import {
   grantResultPage,
   rawIpCallbackRefusal,
   unreachableCallbackRefusal,
+  type ExchangeRefusalCode,
   type GoogleConsentSourceType,
 } from './google-consent.ts';
 // The SHARED store: this file holds the owner's beginning and the one ending,
@@ -180,6 +181,44 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
 });
 
 /**
+ * What a person on a grant link reads when Google's side of the consent did
+ * not finish.
+ *
+ * The owner's sentences name the client, the secret and the redirect URI,
+ * because the owner holds them and can act. This reader holds none of it, so
+ * each sentence says what went wrong and, where they cannot fix it, whom to
+ * tell (the rule `FOR_THE_LINK_HOLDER` in `grant.ts` follows). None of these
+ * reached the link, and the page says so: until 2026-09-23 every one of them
+ * told the person to ask for a fresh link, for a link that still worked.
+ */
+const EXCHANGE_FOR_THE_LINK_HOLDER: Readonly<Record<ExchangeRefusalCode, string>> = {
+  unreachable: 'Google could not be reached just now, so your permission did not arrive.',
+  refused:
+    "Google turned down this migration's own application, so your permission did not arrive. " +
+    'Nothing you can do from here will fix that; please tell the person who sent you the link.',
+  code_rejected:
+    'Google did not accept the sign-in when it came back, which happens when it took too long ' +
+    'or was sent twice.',
+  scope_missing:
+    'Some of the permissions this migration asks for were left unticked at Google. Open your ' +
+    'link again and leave every one of them ticked.',
+  no_refresh_token:
+    'Google would not give lasting access to this account, which usually means its ' +
+    'administrator does not allow it. Please tell the person who sent you the link.',
+};
+
+/** Google's own `error` on the way back, for the person on a grant link. */
+function atGoogleForTheLinkHolder(said: string): string {
+  // Cancel, or closing the consent without allowing: their choice, and the
+  // one answer here that needs nobody else.
+  if (said === 'access_denied') return 'Permission was not given at Google.';
+  return (
+    `Google stopped before permission was given, and said "${said}". Please tell the person ` +
+    'who sent you the link.'
+  );
+}
+
+/**
  * ONE callback address for two flows, because Google is told one redirect URI
  * and a second would have to be registered by every customer (workplan 0108
  * T4). Which flow this is comes off the PENDING STATE — the server's own record
@@ -226,23 +265,35 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   // From here the flow is known, so every remaining answer is rendered in the
   // voice of whoever is actually looking at it.
   const link = pending.link;
-  const refuse = (status: number, reason: string, linkStillWorks = false) =>
+  // `linkAfter` is what is true of a grant link after this refusal, when it
+  // is not used up (see `grantResultPage`); the owner's ending has no link.
+  const refuse = (status: number, reason: string, linkAfter?: 'works' | 'unused') =>
     page(
       status,
       link
-        ? grantResultPage({ ok: false, reason, linkStillWorks })
+        ? grantResultPage({ ok: false, reason, ...(linkAfter ? { link: linkAfter } : {}) })
         : consentResultPage({ outcome: { ok: false, reason } }),
     );
 
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
+    const said = req.query.error;
     return refuse(
       200,
-      `Google reported: ${req.query.error}. Nothing was granted and nothing was stored.`,
+      link
+        ? atGoogleForTheLinkHolder(said)
+        : `Google reported: ${said}. Nothing was granted and nothing was stored.`,
+      'unused',
     );
   }
   const code = typeof req.query.code === 'string' ? req.query.code : '';
   if (!code) {
-    return refuse(400, 'Google sent no authorization code back.');
+    return refuse(
+      400,
+      link
+        ? 'Google sent nothing back, so your permission did not arrive.'
+        : 'Google sent no authorization code back.',
+      'unused',
+    );
   }
   const outcome = await exchangeCode({
     code,
@@ -257,7 +308,15 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     return page(outcome.ok ? 200 : 400, consentResultPage({ webOrigin: webOrigin(), outcome }));
   }
 
-  if (!outcome.ok) return refuse(400, outcome.reason);
+  if (!outcome.ok) {
+    // The owner's sentence names what to check, and nobody who can check it is
+    // reading this page, so it goes where the one who runs this can find it.
+    log.warn(
+      `[api] a grant link's code exchange failed (${outcome.code}) for mapping ` +
+        `${link.mappingId}: ${outcome.reason}`,
+    );
+    return refuse(400, EXCHANGE_FOR_THE_LINK_HOLDER[outcome.code], 'unused');
+  }
 
   // The migrator's ending. Note what is NOT passed on from here: `outcome`
   // carries the refresh token, and only `storeGrantedToken` receives it. The
@@ -272,17 +331,22 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     });
   } catch (error) {
     log.error('[api] storing a granted credential failed:', error);
+    // The claim and the write are one transaction, so a throw here rolled the
+    // claim back with it: the link was not used up.
     return refuse(
       500,
       'Your permission was given, but something on our side went wrong storing it, so it ' +
         'was not kept. Nothing is connected yet. Please tell the person who sent you the ' +
         'link — this one is ours to fix, not yours.',
+      'unused',
     );
   }
   if (!stored.ok) {
     // 403 for the wrong account: the link is good, the person is not the one
     // it was for. 409 for a link that can no longer be used.
-    return stored.linkStillWorks ? refuse(403, stored.reason, true) : refuse(409, stored.reason);
+    return stored.linkStillWorks
+      ? refuse(403, stored.reason, 'works')
+      : refuse(409, stored.reason);
   }
 
   // ADR-0035's second lifetime, handed over at the one moment this person is

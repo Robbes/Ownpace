@@ -2,6 +2,17 @@
 
 ## Status — 2026-09-23 (update this block at the end of every session)
 
+**2026-09-23, later that evening: an ending that did not reach the link says so.** Google's own
+error (Cancel), no code, a failed code exchange and a fault storing the token all leave the link
+unspent, and every one of them still told the person to ask for a fresh link. Three also spoke
+to the owner (*"check that the Client ID and client secret belong to the same OAuth client"*).
+Each is now worded for the person on the link, by the rule `FOR_THE_LINK_HOLDER` follows, and
+says their link was not used up. The exchange's failures carry a code (`unreachable`,
+`refused`, `code_rejected`, `scope_missing`, `no_refresh_token`), and `invalid_grant` is told
+apart from a refused client because it is the one a person can retry. The owner's sentence goes
+to the server log with the migration's id. Only a link that can no longer be used asks for a
+fresh one; `grant-links.md` has the table.
+
 **2026-09-23, the same evening: T8 (d)'s audit line is built.** Every grant writes a
 `mapping.granted` row to `audit_log` in its own transaction: which link, which account granted,
 and which destination (the tenant and the moment are the row's own). Every sign-in the ending

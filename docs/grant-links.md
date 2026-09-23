@@ -130,6 +130,25 @@ things, held by two different people, and that is the point:
 | access already granted | the person who granted it | their Google account's security settings, under the apps that have access |
 | everything, permanently | you | delete the migration |
 
+## When Google's side does not finish
+
+The person can press Cancel at Google, untick a permission, or come back after the consent
+has gone stale. Google can also refuse this migration's application. None of these reaches
+the link, so the page they land on says **their link was not used up** and they can open it
+again. It is worded for them, not for you:
+
+| what happened | what they read |
+|---|---|
+| they pressed Cancel | Permission was not given at Google. |
+| they left a permission unticked | Open the link again and leave every permission ticked. |
+| the sign-in took too long, or was sent twice | Google did not accept the sign-in when it came back. |
+| Google turned down the application | Nothing they can do fixes it; tell the person who sent the link. |
+| the account's administrator blocks lasting access | Tell the person who sent the link. |
+
+Only a link that can no longer be used (spent, expired or withdrawn) tells them to ask you for a
+fresh one. When Google turned down the application, its exact answer is in the server log,
+beside the migration's id. That is where to look before you check the source connection.
+
 ## "My link says it does not work"
 
 The message a refused link shows is the same for every reason — used already, expired,

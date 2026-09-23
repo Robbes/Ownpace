@@ -351,7 +351,33 @@ export type ExchangeResult =
        */
       readonly signedInAs: string | null;
     }
-  | { readonly ok: false; readonly reason: string };
+  | { readonly ok: false; readonly code: ExchangeRefusalCode; readonly reason: string };
+
+/**
+ * Which way the code exchange failed, beside the owner's sentence for it.
+ *
+ * The `reason` is written for the owner, who holds the client and can act on
+ * it ("check that the Client ID and client secret belong to the same OAuth
+ * client"). A person on a grant link holds none of that, so their page is
+ * worded from the code instead (`google-oauth-routes.ts`), by the rule
+ * `FOR_THE_LINK_HOLDER` already follows: say what is wrong, and whom to tell.
+ */
+export type ExchangeRefusalCode =
+  | 'unreachable'
+  | 'refused'
+  | 'code_rejected'
+  | 'scope_missing'
+  | 'no_refresh_token';
+
+/** Google's `error` field from a token endpoint body, when there is one. */
+function googleErrorCode(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    return typeof parsed.error === 'string' ? parsed.error : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Which of the asked scopes the granted set does NOT satisfy. A broader scope
@@ -414,6 +440,7 @@ export async function exchangeCode(
   } catch (err) {
     return {
       ok: false,
+      code: 'unreachable',
       reason: `Google's token endpoint could not be reached: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
@@ -423,6 +450,11 @@ export async function exchangeCode(
     const body = await res.text().catch(() => '(no body)');
     return {
       ok: false,
+      // `invalid_grant` is about the CODE, not the client: it expired, it was
+      // sent twice, or it came back to another redirect URI. The first two are
+      // a person's to retry, so it is told apart from a client Google will not
+      // deal with, which nobody on a grant link can fix.
+      code: googleErrorCode(body) === 'invalid_grant' ? 'code_rejected' : 'refused',
       reason:
         `Google refused the code exchange (HTTP ${res.status}): ${body.slice(0, 300)}. ` +
         'Check that the Client ID and client secret belong to the same OAuth client the ' +
@@ -439,6 +471,7 @@ export async function exchangeCode(
   if (missing.length > 0) {
     return {
       ok: false,
+      code: 'scope_missing',
       reason:
         `Google granted less than was asked: the consent is missing ${missing.join(' ')}. ` +
         `Granted: ${granted.length > 0 ? granted.join(', ') : '(nothing enumerated)'}. ` +
@@ -449,6 +482,7 @@ export async function exchangeCode(
   if (!json.refresh_token) {
     return {
       ok: false,
+      code: 'no_refresh_token',
       reason:
         'Google answered without a refresh token. access_type=offline and prompt=consent ' +
         'were both sent, so this usually means a Workspace policy blocks offline access ' +
@@ -574,21 +608,31 @@ export function grantResultPage(
         readonly ok: false;
         readonly reason: string;
         /**
-         * Set when the link was never spent, so the person should open the
-         * SAME link again rather than ask for another (0108 T8 (b): a sign-in
-         * with the wrong account is refused before the link is claimed).
+         * What is true of the link, when it is not used up. Absent means it
+         * can no longer be used, and only then is the person told to ask for
+         * a fresh one, because that costs the sender a round trip.
+         *
+         * - `works`: the link was claimed and given back, so it is known to
+         *   work (0108 T8 (b): a sign-in with the wrong account is refused
+         *   inside the claim's own transaction).
+         * - `unused`: nothing here reached the link at all, because Google's
+         *   side did not finish or ours failed before the claim. Nothing spent
+         *   it, which is all this page knows, so it says that and no more.
          */
-        readonly linkStillWorks?: boolean;
+        readonly link?: 'works' | 'unused';
       },
 ): string {
   if (!outcome.ok) {
+    const after =
+      outcome.link === 'works'
+        ? 'Nothing was stored, and your link still works.'
+        : outcome.link === 'unused'
+          ? 'Nothing was stored, and your link was not used up, so you can open it again.'
+          : 'Nothing was stored. If you were sent a link, ask the person who sent it for a ' +
+            'fresh one — issuing another takes them a moment.';
     return (
       `<main style="${PAGE_STYLE}"><h1>That did not complete</h1>` +
-      `<p>${esc(outcome.reason)}</p>` +
-      (outcome.linkStillWorks
-        ? '<p>Nothing was stored, and your link still works.</p></main>'
-        : '<p>Nothing was stored. If you were sent a link, ask the person who sent it for a ' +
-          'fresh one — issuing another takes them a moment.</p></main>')
+      `<p>${esc(outcome.reason)}</p><p>${after}</p></main>`
     );
   }
   // `esc` on a URL this function itself was handed: it goes into an href and

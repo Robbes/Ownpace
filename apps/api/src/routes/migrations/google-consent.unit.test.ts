@@ -213,6 +213,7 @@ describe('the exchange: granted is read, never assumed', () => {
     if (!r.ok) {
       expect(r.reason).toContain(PENDING.scope);
       expect(r.reason).toContain('granted less than was asked');
+      expect(r.code).toBe('scope_missing');
     }
   });
 
@@ -290,7 +291,10 @@ describe('the exchange: granted is read, never assumed', () => {
   it('an answer without a refresh token is a refusal with the policy cause named', async () => {
     const r = await exchange({ scope: PENDING.scope });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toContain('without a refresh token');
+    if (!r.ok) {
+      expect(r.reason).toContain('without a refresh token');
+      expect(r.code).toBe('no_refresh_token');
+    }
   });
 
   it("a refused exchange carries Google's status and words, and never the secret", async () => {
@@ -300,7 +304,32 @@ describe('the exchange: granted is read, never assumed', () => {
       expect(r.reason).toContain('400');
       expect(r.reason).toContain('invalid_client');
       expect(r.reason).not.toContain('shh');
+      expect(r.code).toBe('refused');
     }
+  });
+
+  it('a code Google no longer accepts is told apart from a client it will not deal with', async () => {
+    const r = await exchange({ error: 'invalid_grant', error_description: 'Bad Request' }, false);
+    expect(r).toMatchObject({ ok: false, code: 'code_rejected' });
+    // The owner's sentence is the same either way: it names what to check.
+    if (!r.ok) expect(r.reason).toContain('invalid_grant');
+  });
+
+  it('an endpoint that cannot be reached is its own refusal, not a refused exchange', async () => {
+    const r = await exchangeCode(
+      {
+        code: 'the-code',
+        clientId: 'cid',
+        clientSecret: 'shh',
+        redirectUri: PENDING.redirectUri,
+        askedScope: PENDING.scope,
+      },
+      vi.fn(async () => {
+        throw new Error('getaddrinfo ENOTFOUND oauth2.googleapis.com');
+      }) as unknown as typeof fetch,
+    );
+    expect(r).toMatchObject({ ok: false, code: 'unreachable' });
+    if (!r.ok) expect(r.reason).toContain('could not be reached');
   });
 });
 
@@ -475,11 +504,26 @@ describe("the link holder's ending, when nothing was stored", () => {
     const page = grantResultPage({
       ok: false,
       reason: 'You signed in to Google as personal@gmail.com, but this migration reads someone@example.org.',
-      linkStillWorks: true,
+      link: 'works',
     });
     expect(page).toContain('your link still works');
     expect(page).not.toMatch(/fresh one/);
     expect(page).toContain('Nothing was stored');
+  });
+
+  it('says the link was not used up when nothing reached it, and claims no more than that', () => {
+    // Google's side did not finish, so the link was never claimed. Whether it
+    // is still in date is not something this page read, so it does not say
+    // "still works"; it says what is known, and what to do.
+    const page = grantResultPage({ ok: false, reason: 'Permission was not given at Google.', link: 'unused' });
+    expect(page).toContain('Permission was not given at Google.');
+    expect(page).toContain('your link was not used up, so you can open it again');
+    expect(page).not.toMatch(/still works|fresh one/);
+  });
+
+  it('escapes the reason it is handed', () => {
+    const page = grantResultPage({ ok: false, reason: '<script>alert(1)</script>', link: 'unused' });
+    expect(page).not.toContain('<script>alert(1)');
   });
 });
 
