@@ -126,33 +126,31 @@ describe('what each kind’s select is allowed to offer', () => {
    * wrong about the setting, and one that showed nothing would be wrong
    * about both.
    */
-  it('shows a format in force that leaves its kind behind, as left behind', () => {
-    render(
-      <NativeFilePolicyChooser
-        value={choice({ presentation: 'export-office' })}
-        onChange={() => {}}
-      />,
-    );
-    const slides = selectFor('presentation');
-    expect(slides.value).toBe('export-office');
-    expect(slides.selectedOptions[0]?.textContent).toBe(
-      EN['wizard.nativePolicy.as.leftBehind'].replace(
-        '{format}',
-        EN['wizard.nativePolicy.as.office'].replace('{ext}', '.pptx'),
-      ),
-    );
-    // And never offered where it is not in force.
-    expect(formatChoicesFor('presentation', 'refuse').map((c) => c.policy)).not.toContain(
+  it('offers every format for every kind, now that every format carries every kind', () => {
+    // Since 2026-09-23 (ADR-0046, amended). What the chooser does with a
+    // format that does NOT carry a kind is held with a table that has one, in
+    // `a-format-that-leaves-a-kind-behind.unit.test.tsx`.
+    for (const kind of GOOGLE_EDITOR_KINDS) {
+      expect(formatChoicesFor(kind, 'refuse').every((c) => c.carries), kind).toBe(true);
+    }
+    expect(formatChoicesFor('document', 'refuse').map((c) => c.policy)).toEqual([
+      'export-odf',
       'export-office',
-    );
+      'export-pdf',
+    ]);
+    expect(formatChoicesFor('presentation', 'refuse').map((c) => c.policy)).toEqual([
+      'export-odf',
+      'export-office',
+      'export-pdf',
+    ]);
   });
 });
 
 describe('the lines under the selects', () => {
   /**
-   * READ OFF THE CHOICE AND THE MEASUREMENTS, never off a format's name. A
-   * person choosing Office for Slides is choosing to leave every deck behind,
-   * and this line is the only place that is said before the run.
+   * READ OFF THE CHOICE AND THE TABLE, never off a format's name. Today only
+   * a kind set to leave behind stays behind; a format that drops a kind would
+   * be named too (held in `a-format-that-leaves-a-kind-behind`).
    */
   it('names exactly the kinds left behind, and nothing it carries', () => {
     render(
@@ -167,7 +165,8 @@ describe('the lines under the selects', () => {
     );
     const line = screen.getByText(/stay behind in Google/).textContent ?? '';
     expect(line).toContain(EN[nativeKindKey('spreadsheet')]);
-    expect(line).toContain(EN[nativeKindKey('presentation')]);
+    // A deck under Office is carried since 2026-09-23.
+    expect(line).not.toContain(EN[nativeKindKey('presentation')]);
     expect(line).not.toContain(EN[nativeKindKey('document')]);
     expect(line).not.toContain(EN[nativeKindKey('drawing')]);
     // And never beside the promise that everything arrives: a screen saying
@@ -205,16 +204,16 @@ describe('the lines under the selects', () => {
 
 describe('an editable format for every kind', () => {
   /**
-   * THE COMBINATION NO SINGLE FORMAT COULD BE: Office where it carries the
-   * kind, OpenDocument where it does not. Read off the table, so a format
-   * measured differently tomorrow changes the button rather than leaving it
-   * pressing somebody into a refusal.
+   * Office where it carries the kind, OpenDocument where it does not, read off
+   * the table. Office carries every kind since 2026-09-23, so it is Office for
+   * all four; the OpenDocument fallback is held with a table where Office drops
+   * a kind (`a-format-that-leaves-a-kind-behind`).
    */
   it('is read off the table, and leaves nothing behind', () => {
     expect(editableFormats()).toEqual({
       document: 'export-office',
       spreadsheet: 'export-office',
-      presentation: 'export-odf',
+      presentation: 'export-office',
       drawing: 'export-office',
     });
     expect(kindsLeftBehind(editableFormats())).toEqual([]);
@@ -230,7 +229,7 @@ describe('an editable format for every kind', () => {
     ).toEqual({
       document: 'export-office',
       spreadsheet: 'export-odf',
-      presentation: 'export-odf',
+      presentation: 'export-office',
       drawing: 'export-odf',
     });
   });
@@ -244,7 +243,7 @@ describe('an editable format for every kind', () => {
     render(<Harness from={LEAVE_ALL_BEHIND} />);
     await userEvent.click(screen.getByRole('button', { name: EN['wizard.nativePolicy.editable'] }));
     expect(selectFor('document').value).toBe('export-office');
-    expect(selectFor('presentation').value).toBe('export-odf');
+    expect(selectFor('presentation').value).toBe('export-office');
     expect(screen.getByText(EN['wizard.nativePolicy.allEditable'])).toBeInTheDocument();
   });
 

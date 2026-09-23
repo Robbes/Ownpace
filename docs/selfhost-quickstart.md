@@ -202,14 +202,14 @@ Three optional settings on the source:
 
 **What is not there yet, stated plainly** (workplan 0042):
 
-- **Google Docs, Sheets, Slides and Drawings are refused by default, one by
-  one, with the reason** — they are not files and have no bytes.
+- **Google Docs, Sheets, Slides and Drawings are left behind by default, one
+  by one, with the reason** — they are not files and have no bytes.
   `"export-pdf"`, `"export-office"` and `"export-odf"` ask Drive to render one
-  instead. All twelve combinations were measured on a real tenant (workplan
-  0042 T3): `export-pdf` carries all four kinds, `export-office` refuses Slides
-  and `export-odf` refuses Docs, per file, because those exports change
-  between calls. A document is exported again only when Drive's modified time
-  for it moves, so an export that differs byte for byte is not re-copied.
+  instead, for all four with `nativeFilePolicy` or per kind with
+  `nativeFilePolicies`, and every format carries every kind. A document is
+  exported again only when Drive's modified time for it moves, so an export
+  that differs byte for byte (Slides as `.pptx` and Docs as `.odt` do,
+  measured in workplan 0042 T3) is not re-copied.
 - **No incremental delta.** Every pass lists every folder. The ledger still
   makes the second pass copy nothing; it costs a listing, not a re-copy.
 - **Drive's `removed` flag is never trusted** — Google sets it for losing

@@ -727,13 +727,16 @@ Nothing in this amendment is built. It records the decision the three tasks in
   the file pass's `fetchRaw` drops the marker, so every export is stored with a whole-file hash.
   `nativeFilePolicy` still defaults to `refuse` — that is the owner's per-migration choice and
   always was — but choosing `export-office` is a supported thing to do.
-- **AND IT RESCUES A DOC AND A SHEET, NOT A DECK.** The connector refuses a Google Slides file
-  under `export-office` for measured instability, per item, inside the sync loop's boundary. The
-  preflight counts what a policy will refuse and the confirm screen names it before the run
-  (owner's decision, 2026-09-16). An **unmeasured** combination is recorded and NOT refused: a
-  blank is not a red, and refusing on one would turn off paths that work today. **The refused
-  deck has somewhere to go** — `export-pdf` was measured stable on a Slide the same day (see the
-  2026-09-16 addendum below), and the refusal names it, derived from the measurement table.
+- **NO COMBINATION IS REFUSED FOR WHAT IT MEASURED (since 2026-09-23).** From 2026-09-16 the
+  connector refused a Google Slides file under `export-office` and a Doc under `export-odf`,
+  whose exports differ in content between two draws of an unchanged file, because copying one
+  meant copying it again on every pass. That no longer follows: a rewrite follows the source's
+  version, which for a Google document is its `modifiedTime` (#1083), and a renamed document is
+  paired by its Drive id ([ADR-0030](./0030-relocation-is-positive-evidence.md), amended), so
+  nothing depends on the bytes. Every format carries every kind, chosen per kind (0042 T9).
+  `EXPORT_STABILITY` stays as the record of what was measured, and the instrument measures
+  through the connector like any caller. The preflight still counts what a choice leaves behind,
+  a kind set not to export, and the confirm screen names it before the run.
 - **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
   `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
   uncompressed bytes. Excluded — member timestamps, member order, compression method and level,

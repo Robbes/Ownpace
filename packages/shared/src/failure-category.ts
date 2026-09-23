@@ -49,7 +49,8 @@
  * All three arguments above are about OTHER PEOPLE'S errors. None of them
  * covers an error this codebase built itself. `NativeFileRefused` branches on
  * exactly why a Google file is not going — this migration's policy, a type
- * Drive cannot render, a measured-unstable export — and then throws prose for
+ * Drive cannot render, and until 2026-09-23 a measured-unstable export — and
+ * then throws prose for
  * this function to guess at; it guessed `unknown` on thirty of the owner's
  * files, whose remedy is *"send it to us and we will look"* about a refusal we
  * wrote one line earlier.

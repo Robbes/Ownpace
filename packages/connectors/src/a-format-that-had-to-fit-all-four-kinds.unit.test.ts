@@ -92,11 +92,13 @@ describe('each kind in its own format', () => {
       'Kickoff.odp',
       'Diagram.svg',
     ]);
-    // And the preflight counts nothing left behind, where under the single
-    // setting alone it counted the deck.
+    // And the preflight counts nothing left behind. Under the single setting
+    // alone it counted the deck until 2026-09-23, when the refusal of a
+    // measured-unstable export went (ADR-0046, amended); now one format can
+    // carry all four too.
     expect(source.nativeRefusals()).toEqual({});
     const single = await listed({ baseUrl: BASE, nativeFilePolicy: 'export-office' });
-    expect(single.source.nativeRefusals()).toEqual({ presentation: 1 });
+    expect(single.source.nativeRefusals()).toEqual({});
   });
 
   it('exports the deck as ODF and the Doc as Office, from one source', async () => {
@@ -151,28 +153,26 @@ describe('each kind in its own format', () => {
     expect(source.refusalFor(DOC)).toBeUndefined();
   });
 
-  it('still refuses a measured-unstable pair when it is a kind’s own choice', async () => {
-    // A per-kind format is not a way round the measurement: Slides under
-    // Office stay refused whether the single setting or the deck's own says so.
+  it('exports a measured-unstable pair, as a kind’s own choice or the single one', async () => {
+    // Refused until 2026-09-23: Slides under Office, Docs under OpenDocument.
+    // Their exports differ between draws, and that no longer matters: a rewrite
+    // follows Drive's modified time (ADR-0046, amended).
     const config: GoogleDriveSourceConfig = {
       baseUrl: BASE,
-      nativeFilePolicy: 'export-pdf',
+      nativeFilePolicy: 'export-odf',
       nativeFilePolicies: { presentation: 'export-office' },
     };
     const { transport, calls } = drive(ALL);
     const source = new GoogleDriveSource(transport, config);
 
-    await expect(source.fetch(itemFor(DECK))).rejects.toThrow(/NOT byte-stable/);
-    expect(calls.some((url) => url.includes('/export')), 'the refused deck left Google').toBe(
-      false,
-    );
-    // The way out it names is read off the measurements, and PDF is one.
-    await expect(source.fetch(itemFor(DECK))).rejects.toThrow(/"export-pdf"/);
-    // And it is a choice for this kind, on the screen that makes it, not a
-    // switch of one setting for all four.
-    await expect(source.fetch(itemFor(DECK))).rejects.toThrow(
-      /Choose one for this kind under Export format for Google files, or: Move the Slides deck/,
-    );
+    await source.fetch(itemFor(DECK));
+    await source.fetch(itemFor(DOC));
+    const exports = calls.filter((url) => url.includes('/export')).map(decodeURIComponent);
+    expect(exports).toHaveLength(2);
+    expect(exports[0]).toContain('presentationml');
+    expect(exports[1]).toContain('application/vnd.oasis.opendocument.text');
+    expect(source.refusalFor(DECK)).toBeUndefined();
+    expect(source.refusalFor(DOC)).toBeUndefined();
   });
 
   it('gives a Form no way out, whatever each kind is set to', () => {

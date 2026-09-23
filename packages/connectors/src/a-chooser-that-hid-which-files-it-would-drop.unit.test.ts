@@ -24,9 +24,14 @@
  * `NATIVE_POLICY_COVERAGE` in `@openmig/shared` is that fact where the chooser
  * can read it — `apps/web` depends on `shared` and not on this package, which
  * is correct and is why the table cannot simply be imported. THIS FILE IS THE
- * JOIN: the shared table is derived here from the measurements and asserted
- * equal, so a cell that flips colour breaks the build rather than leaving a
+ * JOIN: the shared table is derived here from what the connector DOES and
+ * asserted equal, so a change there breaks the build rather than leaving a
  * stale promise in front of a customer.
+ *
+ * **Since 2026-09-23 every policy carries every kind.** The two refusals the
+ * chooser warned about went (ADR-0046, amended): a rewrite follows Drive's
+ * modified time rather than the bytes, and a renamed document is paired by its
+ * Drive id. The join stays, because it is what makes the next empty cell show.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -41,11 +46,11 @@ import {
   type GoogleEditorKind,
   type GoogleNativeFilePolicy,
 } from '@openmig/shared';
+import { GoogleDriveSource } from './google-drive-source.ts';
 import {
   EXPORT_STABILITY,
   NATIVE_EXPORT_EXTENSIONS,
   NATIVE_EXPORT_TYPES,
-  exportStabilityOf,
 } from './google-drive-source.types.ts';
 
 type ExportPolicy = Exclude<GoogleNativeFilePolicy, 'refuse'>;
@@ -53,30 +58,31 @@ type ExportPolicy = Exclude<GoogleNativeFilePolicy, 'refuse'>;
 const POLICIES = Object.keys(NATIVE_EXPORT_TYPES) as ExportPolicy[];
 
 /**
- * What a policy carries, derived from the two tables the connector acts on.
- *
- * **`unstable` is the only thing that drops a file**, and that is the whole
- * subtlety of this derivation. `refusalFor` refuses a combination the table
- * calls `unstable` and copies everything else, `unmeasured` included — a blank
- * is recorded, not acted on (`google-drive-source.ts`: "ONLY `unstable`
- * REFUSES"). Deriving from `=== 'stable'` instead would put a warning on the
- * wizard for a type nobody has measured, about a refusal that never happens.
+ * What a policy carries, asked of the connector itself: the kinds it does not
+ * refuse under that policy. Not derived from the tables, which is how this
+ * used to work and how it would go stale: the connector decides, so the
+ * connector is asked.
  */
 function derivedCoverage(policy: ExportPolicy): GoogleEditorKind[] {
-  return GOOGLE_EDITOR_KINDS.filter((kind) => {
-    const mime = googleEditorMime(kind);
-    // A policy with no rendering for a type cannot carry it however green the
-    // stability column is; both tables are maintained by hand.
-    if (NATIVE_EXPORT_TYPES[policy][mime] === undefined) return false;
-    return exportStabilityOf(policy, mime) !== 'unstable';
-  });
+  const source = new GoogleDriveSource(async () => {
+    throw new Error('asking what is refused needs no request');
+  }, { nativeFilePolicy: policy });
+  return GOOGLE_EDITOR_KINDS.filter(
+    (kind) =>
+      source.refusalFor({ id: 'x', name: 'x', mimeType: googleEditorMime(kind) }) === undefined,
+  );
 }
 
-describe('the shared coverage table IS the measurements', () => {
+describe('the shared coverage table IS what the connector does', () => {
   it.each(POLICIES)('%s carries exactly what the tables say it carries', (policy) => {
     // THE HEADLINE. One assertion per policy rather than one over all three, so
     // a failure names which format's sentence has gone wrong.
     expect(policyCarries(policy)).toEqual(derivedCoverage(policy));
+    // And the derivation is not vacuous: a kind the policy has no rendering
+    // for would drop out of it.
+    for (const kind of derivedCoverage(policy)) {
+      expect(NATIVE_EXPORT_TYPES[policy][googleEditorMime(kind)]).toBeDefined();
+    }
   });
 
   it('covers every export policy, with none invented', () => {
@@ -95,19 +101,18 @@ describe('the shared coverage table IS the measurements', () => {
 });
 
 describe('what the wizard will actually say', () => {
-  it('OpenDocument leaves Google Docs behind — the label starts with .odt', () => {
-    // The sharpest case, and the reason this file exists.
-    expect(policyLeavesBehind('export-odf')).toEqual(['document']);
+  it('OpenDocument carries Google Docs now: the label starts with .odt', () => {
+    // It left every Doc behind until 2026-09-23, the sharpest case and the
+    // reason this file exists.
+    expect(policyLeavesBehind('export-odf')).toEqual([]);
   });
 
-  it('Microsoft Office leaves the decks behind', () => {
-    expect(policyLeavesBehind('export-office')).toEqual(['presentation']);
+  it('Microsoft Office carries the decks now', () => {
+    expect(policyLeavesBehind('export-office')).toEqual([]);
   });
 
-  it('PDF is the only policy that leaves nothing behind', () => {
-    expect(policyLeavesBehind('export-pdf')).toEqual([]);
-    const complete = POLICIES.filter(policyCarriesEveryKind);
-    expect(complete).toEqual(['export-pdf']);
+  it('every policy leaves nothing behind', () => {
+    expect(POLICIES.filter(policyCarriesEveryKind)).toEqual(POLICIES);
   });
 
   it('names what it drops in the same order every time', () => {

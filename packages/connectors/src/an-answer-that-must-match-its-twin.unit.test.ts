@@ -22,6 +22,10 @@
  * failure row with a reason; the other half get the nightly rewrite the table
  * exists to prevent, and the table looks fully populated either way.
  *
+ * (That was the stake until 2026-09-23. No measurement refuses an export since
+ * then (ADR-0046, amended), so what is at stake now is the record itself: one
+ * request with two answers in a table people read to decide what to measure.)
+ *
  * A comment saying "keep these two together" is the thing this repo has
  * already watched expire once — the Drawing was "deliberately absent" from
  * `DriveFileKind` on reasoning that was sound when written and a hole by the
@@ -34,7 +38,6 @@ import {
   NATIVE_EXPORT_TYPES,
   exportStabilityOf,
   nativeFileWord,
-  stablePoliciesFor,
   type NativeFilePolicy,
 } from './google-drive-source.types.ts';
 
@@ -113,31 +116,13 @@ describe('policies that issue the same request carry the same answer', () => {
   });
 });
 
-describe('the measurement reaches the advice', () => {
-  it('a Drawing has all three, the last of them measured separately', () => {
-    // Two from the shared SVG request, the third from its own PDF run.
-    expect([...stablePoliciesFor('application/vnd.google-apps.drawing')].sort()).toEqual([
-      'export-odf',
-      'export-office',
-      'export-pdf',
-    ]);
-  });
-
-  it('the Slide has two, and one of them keeps it editable', () => {
-    // It had exactly one — `export-pdf` — until 2026-09-17, when `export-odf`
-    // on a deck came back container-only and therefore `stable`. That is not a
-    // cosmetic change to this list: a deck refused under `export-office` can
-    // now be sent somewhere it stays EDITABLE, where before the only measured
-    // answer was a fixed rendering.
-    expect([...stablePoliciesFor('application/vnd.google-apps.presentation')].sort()).toEqual([
-      'export-odf',
-      'export-pdf',
-    ]);
-  });
-
+describe('the measurements and the renderings agree', () => {
+  // (Two tests here read the way-out advice a measured-unstable refusal gave.
+  // That refusal went on 2026-09-23, and the advice with it; see ADR-0046,
+  // amended. What stays is the check that keeps the two tables honest.)
   it('every stable entry can actually be rendered by that policy', () => {
-    // `stablePoliciesFor` consults both tables; this checks the tables agree at
-    // the source, so a green never names a format Drive would answer 400 for.
+    // The two tables are kept by hand; this checks they agree at the source, so
+    // a green is never recorded for a format Drive would answer 400 for.
     for (const policy of POLICIES) {
       for (const [source, stability] of Object.entries(EXPORT_STABILITY[policy])) {
         if (stability !== 'stable') continue;

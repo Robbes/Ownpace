@@ -730,7 +730,7 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     // used to be an amber panel — Docs, Sheets and Slides reported one by
     // one, the guide that proves the values — is under More (0118 T1).
     expect(screen.getByText(/Uses your own Google OAuth client and a read-only token/)).toBeVisible();
-    expect(screen.getByText(/Google Docs, Sheets and Slides are reported as un-migratable/)).not.toBeVisible();
+    expect(screen.getByText(/have no file to copy until you choose a format for each kind/)).not.toBeVisible();
     // No host/port for a Drive — the OAuth client ID gates instead.
     expect(screen.queryByPlaceholderText('imap.example.com')).not.toBeInTheDocument();
     expect(nextButton()).toBeDisabled();
@@ -794,7 +794,8 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
     // fileformat to transform it in to and then store in target?" — and since
     // 0042 T9 (the owner, 2026-09-23: "a per kind choice makes more sense for
     // the fileformats") one answer per KIND, chosen where the folder is
-    // chosen. Each select offers only the formats measured to carry its kind.
+    // chosen. Each select offers the formats that carry its kind, which since
+    // 2026-09-23 is every format for every kind (ADR-0046, amended).
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
 
@@ -804,9 +805,9 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
       expect(select, label).toHaveValue('refuse');
       return [...select.options].map((o) => o.value);
     };
-    expect(offered('Google Docs')).toEqual(['refuse', 'export-office', 'export-pdf']);
+    expect(offered('Google Docs')).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
     expect(offered('Google Sheets')).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
-    expect(offered('Google Slides')).toEqual(['refuse', 'export-odf', 'export-pdf']);
+    expect(offered('Google Slides')).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
     // One .svg for a Drawing, whichever document family makes it.
     expect(offered('Google Drawings')).toEqual(['refuse', 'export-odf', 'export-pdf']);
   });
@@ -838,15 +839,14 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
    * half that puts it on the screen.
    */
   it('carries all four kinds, editable, one press away', () => {
-    // THE COMBINATION NO SINGLE FORMAT COULD BE: OpenDocument drops every Doc
-    // and Office every deck, so until each kind had its own select, keeping
-    // Docs editable meant losing the decks.
+    // Office for all four now. Until 2026-09-23 OpenDocument dropped every Doc
+    // and Office every deck, so the press had to mix them (Slides as .odp).
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /Google Drive/ }));
     fireEvent.click(screen.getByRole('button', { name: /Use an editable format for every kind/ }));
 
     expect(screen.getByLabelText('Google Docs')).toHaveValue('export-office');
-    expect(screen.getByLabelText('Google Slides')).toHaveValue('export-odf');
+    expect(screen.getByLabelText('Google Slides')).toHaveValue('export-office');
     expect(screen.getByText(/All four kinds arrive as files you can edit/)).toBeVisible();
     expect(screen.queryByText(/stay behind in Google/)).not.toBeInTheDocument();
   });
@@ -1272,9 +1272,9 @@ describe('CreateMapping — the export chooser follows the FILES (owner 2026-09-
       expect(select, label).toHaveValue('refuse');
       return [...select.options].map((o) => o.value);
     };
-    expect(offered('Google Docs')).toEqual(['refuse', 'export-office', 'export-pdf']);
+    expect(offered('Google Docs')).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
     expect(offered('Google Sheets')).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
-    expect(offered('Google Slides')).toEqual(['refuse', 'export-odf', 'export-pdf']);
+    expect(offered('Google Slides')).toEqual(['refuse', 'export-odf', 'export-office', 'export-pdf']);
     expect(offered('Google Drawings')).toEqual(['refuse', 'export-odf', 'export-pdf']);
   });
 

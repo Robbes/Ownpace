@@ -17,11 +17,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDecisionError, statedFailureCategoryOf, classifyFailure } from '@openmig/shared';
 import { NativeFileRefused, EXPORTABLE_NATIVE_TYPES, DRIVE_SHORTCUT_MIME } from './google-drive-source.ts';
-import {
-  NATIVE_EXPORT_EXTENSIONS,
-  NATIVE_EXPORT_TYPES,
-  stablePoliciesFor,
-} from './google-drive-source.types.ts';
+import { NATIVE_EXPORT_EXTENSIONS, NATIVE_EXPORT_TYPES } from './google-drive-source.types.ts';
 
 const G = 'application/vnd.google-apps.';
 
@@ -127,11 +123,11 @@ describe('the refusal calls each file what its owner calls it', () => {
     ['presentation', 'Slides deck'],
     ['drawing', 'Drawing'],
   ])('calls a %s a "%s"', (mime, word) => {
-    const e = new NativeFileRefused('Thema-avond', `${G}${mime}`, 'export-office', 'unstable');
+    // Asked of the refusal every one of the four can still meet: a kind set
+    // not to export. (The measured-unstable refusal, which also named the
+    // file in its way out, went on 2026-09-23 with the refusal itself.)
+    const e = new NativeFileRefused('Thema-avond', `${G}${mime}`);
     expect(e.message).toContain(`is a Google ${word}`);
-    // And in the way out too, not just the opening — the sentence that tells
-    // somebody what to do is the one they act on.
-    expect(e.message).toContain(`Move the ${word} out of scope`);
   });
 
   it('never leaks the raw MIME suffix for one of those four', () => {
@@ -139,7 +135,7 @@ describe('the refusal calls each file what its owner calls it', () => {
     // ... move the presentation out of scope". Asserted as an absence because
     // that is how it would arrive — one interpolation somebody missed.
     for (const mime of ['document', 'spreadsheet', 'presentation']) {
-      const e = new NativeFileRefused('Thema-avond', `${G}${mime}`, 'export-office', 'unstable');
+      const e = new NativeFileRefused('Thema-avond', `${G}${mime}`);
       expect(e.message, `${mime} leaked into the sentence`).not.toContain(` ${mime}`);
     }
   });
@@ -157,44 +153,6 @@ describe('the refusal calls each file what its owner calls it', () => {
     ).toMatch(/refusedNative\.set\(\s*kind/);
     const tally = source.slice(source.indexOf('this.refusedNative.set') - 200);
     expect(tally.slice(0, 260)).toMatch(/slice\(GOOGLE_NATIVE_PREFIX\.length\)/);
-  });
-});
-
-describe('the way out does not say the same policy twice', () => {
-  it('reads as one clause when export-pdf is the only alternative', () => {
-    // Was: `"export-pdf" is measured stable for a Slides deck ("export-pdf" is
-    // not editable afterwards)` — the name twice in a row, which reads as a
-    // stutter and buries the only thing the clause is there to say.
-    //
-    // THE EXAMPLE MOVED on 2026-09-17 and the rule did not. A deck used to be
-    // the one-alternative case; `export-odf` on a deck then measured
-    // container-only, so a deck has two and takes the branch below. A DOC is
-    // the one-alternative case now — `export-odf` is genuinely unstable for
-    // one, so `export-pdf` stands alone. If that ever stops being true this
-    // reds again, and the single-alternative wording needs a live example or
-    // it is dead prose.
-    const e = new NativeFileRefused('Q3 report', `${G}document`, 'export-office', 'unstable');
-    expect(e.message).toContain('"export-pdf" is measured stable for a Doc, though a PDF is not editable afterwards');
-    expect(e.message.match(/"export-pdf"/g), 'names export-pdf more than once').toHaveLength(1);
-  });
-
-  it('keeps the parenthetical when there are two, because it says WHICH', () => {
-    // With two alternatives the aside is doing real work: it is the difference
-    // between them, and it is the reason to prefer the other one.
-    const e = new NativeFileRefused('Q3 report', `${G}document`, 'export-odf', 'unstable');
-    expect(e.message).toContain('"export-office" and "export-pdf" are measured stable for a Doc ("export-pdf" is not editable afterwards)');
-  });
-
-  it('a refused DECK now gets an editable alternative, which it never had', () => {
-    // The product change hiding inside a table edit. Until `export-odf` on a
-    // deck was measured, the only measured way to carry a refused deck was a
-    // PDF — a fixed rendering. Now the sentence leads with a format that
-    // stays editable and marks the lossy one as the aside.
-    const e = new NativeFileRefused('Thema-avond', `${G}presentation`, 'export-office', 'unstable');
-    expect(e.message).toContain(
-      '"export-odf" and "export-pdf" are measured stable for a Slides deck ' +
-        '("export-pdf" is not editable afterwards)',
-    );
   });
 });
 
@@ -236,30 +194,23 @@ describe('NativeFileRefused states which KIND of refusal this is', () => {
     expect(statedFailureCategoryOf(e)).toBe('source_refused');
   });
 
-  it('a measured-unstable export is policy_refused, because another policy carries it', () => {
-    // Drive CAN export this one; what this migration declined is what the
-    // export is worth. The sentence names the policies that are measured
-    // stable, and the category says the same thing to the ledger.
-    const e = new NativeFileRefused('Q3 report', `${G}document`, 'export-office', 'unstable');
-    expect(e.message).toContain('is measured stable for a Doc');
-    expect(statedFailureCategoryOf(e)).toBe('policy_refused');
-  });
-
   it('a policy with no rendering is policy_refused: choose one that covers it', () => {
     const e = new NativeFileRefused('Q3 report', `${G}document`, 'export-pdf');
     expect(statedFailureCategoryOf(e)).toBe('policy_refused');
   });
 
   it.each([...EXPORTABLE_NATIVE_TYPES])(
-    'every policy in force on %s still leaves a stable one to switch TO',
+    'every policy in force on %s still leaves another one to switch TO',
     (mimeType) => {
       // THE GUARD THAT MAKES `policy_refused` HONEST, and it is over the
-      // measurement table rather than over the constructor.
+      // rendering table rather than over the constructor.
       //
       // The category promises a person that changing a setting carries these
       // items. That promise is true today for a reason nothing states: every
-      // exportable type has at least two policies measured stable, so whichever
-      // one is in force there is another to move to. Nothing enforced it, and
+      // exportable type has at least two policies that render it (since
+      // 2026-09-23 no measurement refuses one, so rendering is the whole
+      // question), so whichever is in force there is another to move to.
+      // Nothing enforced it, and
       // the way it would break is ordinary — Google releases a type, somebody
       // adds it to `EXPORTABLE_NATIVE_TYPES` so the refusal stops telling
       // people it can never be exported, and nobody runs the instrument. Its
@@ -270,8 +221,11 @@ describe('NativeFileRefused states which KIND of refusal this is', () => {
       // Conditioning the constructor on it instead was tried and removed: the
       // branch cannot fire, so no test could prove it. This can, and it names
       // the type.
+      const renders = (
+        Object.keys(NATIVE_EXPORT_TYPES) as Array<keyof typeof NATIVE_EXPORT_TYPES>
+      ).filter((policy) => NATIVE_EXPORT_TYPES[policy][mimeType] !== undefined);
       for (const inForce of ['refuse', 'export-odf', 'export-office', 'export-pdf'] as const) {
-        const alternatives = stablePoliciesFor(mimeType).filter((p) => p !== inForce);
+        const alternatives = renders.filter((policy) => policy !== inForce);
         expect(
           alternatives.length,
           `under ${inForce} a refused ${mimeType} would be policy_refused with nowhere to go`,
@@ -290,13 +244,11 @@ describe('NativeFileRefused states which KIND of refusal this is', () => {
       ...EXPORTABLE_NATIVE_TYPES,
     ]) {
       for (const policy of ['refuse', 'export-odf', 'export-office', 'export-pdf'] as const) {
-        for (const stability of ['stable', 'unstable'] as const) {
-          const e = new NativeFileRefused('X', mimeType, policy, stability);
-          const stated = statedFailureCategoryOf(e);
-          expect(stated, `${mimeType} / ${policy} / ${stability}`).toBeDefined();
-          expect(classifyFailure(e.message, 'source', stated)).toBe(stated);
-          expect(classifyFailure(e.message, 'source', stated)).not.toBe('unknown');
-        }
+        const e = new NativeFileRefused('X', mimeType, policy);
+        const stated = statedFailureCategoryOf(e);
+        expect(stated, `${mimeType} / ${policy}`).toBeDefined();
+        expect(classifyFailure(e.message, 'source', stated)).toBe(stated);
+        expect(classifyFailure(e.message, 'source', stated)).not.toBe('unknown');
       }
     }
   });

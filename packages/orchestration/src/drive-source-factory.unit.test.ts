@@ -162,22 +162,49 @@ describe('the native-file policy travels from the mapping to the connector', () 
     mimeType: 'application/vnd.google-apps.presentation',
   };
 
-  it('carries a format per kind to the connector (workplan 0042 T9)', () => {
-    // Office alone refuses a deck, measured unstable; the deck's own format
-    // carries it. Dropped on the way, the deck would stay refused and nothing
-    // on either side could say why.
+  /**
+   * What each document is LISTED as, which is what it arrives as: the name
+   * carries the suffix of the format its kind is exported in.
+   */
+  async function listedAs(build: () => unknown): Promise<string[]> {
+    stubNetwork({ files: [NATIVE_DOC, DECK] });
+    try {
+      const source = build() as {
+        listSince(folder: { path: string }): Promise<{ items: ReadonlyArray<{ item: { path: string } }> }>;
+      };
+      return (await source.listSince({ path: '' })).items.map((i) => i.item.path).sort();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  }
+
+  it('carries a format per kind to the connector (workplan 0042 T9)', async () => {
+    // Office for everything, OpenDocument for decks: the deck arrives as a
+    // `.odp`. Dropped on the way, it would arrive as the `.pptx` nobody chose
+    // for it, and nothing on either side could say why. (Until 2026-09-23 this
+    // read a refusal, because Office refused a deck. No format refuses one
+    // now, so the format itself is what is looked at.)
     expect(
-      refusalFor(buildGoogleDriveSourceFrom({ nativeFilePolicy: 'export-office' }, CREDS), DECK),
-    ).toBeInstanceOf(NativeFileRefused);
-    const source = buildGoogleDriveSourceFrom(
-      { nativeFilePolicy: 'export-office', nativeFilePolicies: { presentation: 'export-odf' } },
+      await listedAs(() => buildGoogleDriveSourceFrom({ nativeFilePolicy: 'export-office' }, CREDS)),
+    ).toEqual(['Kickoff.pptx', 'Notes.docx']);
+    expect(
+      await listedAs(() =>
+        buildGoogleDriveSourceFrom(
+          { nativeFilePolicy: 'export-office', nativeFilePolicies: { presentation: 'export-odf' } },
+          CREDS,
+        ),
+      ),
+    ).toEqual(['Kickoff.odp', 'Notes.docx']);
+    // And a kind set to stay behind stays behind, while the rest is carried.
+    const deckBehind = buildGoogleDriveSourceFrom(
+      { nativeFilePolicy: 'export-office', nativeFilePolicies: { presentation: 'refuse' } },
       CREDS,
     );
-    expect(refusalFor(source, DECK)).toBeUndefined();
-    expect(refusalFor(source, NATIVE_DOC)).toBeUndefined();
+    expect(refusalFor(deckBehind, DECK)).toBeInstanceOf(NativeFileRefused);
+    expect(refusalFor(deckBehind, NATIVE_DOC)).toBeUndefined();
   });
 
-  it('reads it out of a Google account’s stored config, the way a pass does', () => {
+  it('reads it out of a Google account’s stored config, the way a pass does', async () => {
     // A pass builds the account's file face from `parseGoogleDriveSource` over
     // the stored `{ type: 'google', user, … }` (`build-deps-from-mapping`).
     const stored = {
@@ -186,12 +213,15 @@ describe('the native-file policy travels from the mapping to the connector', () 
       nativeFilePolicy: 'export-office',
       nativeFilePolicies: { presentation: 'export-odf' },
     };
-    const source = buildGoogleDriveSourceFrom(
-      parseGoogleDriveSource(stored),
-      CREDS,
-      STORED_GOOGLE_CREDENTIAL_NAMES,
-    );
-    expect(refusalFor(source, DECK)).toBeUndefined();
+    expect(
+      await listedAs(() =>
+        buildGoogleDriveSourceFrom(
+          parseGoogleDriveSource(stored),
+          CREDS,
+          STORED_GOOGLE_CREDENTIAL_NAMES,
+        ),
+      ),
+    ).toEqual(['Kickoff.odp', 'Notes.docx']);
   });
 });
 

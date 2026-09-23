@@ -181,7 +181,15 @@ export interface WebDAVSource {
  *
  * `export-odf` is refused for a Doc by the same rule, one format earlier.
  *
- * **The asymmetry still decides everything here.** A red verdict is conclusive:
+ * **AND SINCE 2026-09-23, NEITHER IS (ADR-0046, amended).** A document is now
+ * copied again when Drive says it was edited, never because its bytes differ
+ * (#1083), and a renamed one is paired by its Drive id (ADR-0030, amended). So
+ * an export that differs between draws is copied once, and again only after an
+ * edit: no combination is refused for what it measured, and every format
+ * carries every kind.
+ *
+ * **The asymmetry decided everything here while a measurement could refuse,**
+ * and it is still how to read the record. A red verdict is conclusive:
  * the claim a policy needs is universal — every document, every pass — so one
  * counterexample settles it. Five identical draws are not the mirror image; they
  * are one document, of one type, on one tenant, on one day — so a green here
@@ -1242,13 +1250,8 @@ function parseNativeFilePolicy(
       '"export-odf", "export-office", or "export-pdf"). "refuse" is the default and reports ' +
       'each Google Doc, Sheet, Slide and Drawing as un-migratable with a reason; the export ' +
       'policies ask Drive to render one — ODF (.odt/.ods/.odp), Office (.docx/.xlsx/.pptx) or ' +
-      'PDF — which is lossy. All twelve combinations were measured on a real tenant by ' +
-      '2026-09-17, and a policy is NOT all-or-nothing: "export-odf" carries everything but a ' +
-      'Doc, "export-office" everything but a Slides deck, and "export-pdf" all four. The two ' +
-      'refused combinations are byte-unstable and would re-copy that file on every pass, so ' +
-      'they are refused per item while the rest of the folder migrates. `EXPORT_STABILITY` in ' +
-      '`google-drive-source.types.ts` is the live table, and the greens are five draws each ' +
-      'rather than proof (workplan 0042 T3).',
+      'PDF — which is lossy, and each carries all four kinds. Set one here for all four, or ' +
+      'one per kind with "nativeFilePolicies" (workplan 0042 T9).',
   );
 }
 
