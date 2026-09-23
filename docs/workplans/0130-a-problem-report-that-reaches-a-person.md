@@ -22,7 +22,7 @@ limit, ahead of the global parser. A report Zammad refuses is answered with a re
 recorded as `report.not-delivered` (0129 T1). The appliance does not offer the form yet: it has
 no report route, and it will send nothing until its owner points it at a helpdesk (0129 D5).
 Set-up is step 8f of `docs/managed-bring-up.md`. Guards: `a-report-that-reaches-a-person` in the
-API (23) and the web app (6), and `a-report-link-that-can-reach-someone` (3); 21 mutations, all
+API (23) and the web app (7), and `a-report-link-that-can-reach-someone` (3); 23 mutations, all
 killed.
 
 | Task | Status | Notes |

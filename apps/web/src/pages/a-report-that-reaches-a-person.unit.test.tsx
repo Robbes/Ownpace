@@ -7,10 +7,13 @@
  * What arrives in the URL (the page, a reference, a category) is anybody's to
  * edit, so the form shows and sends the page as a report records it, without a
  * link secret or a query, and drops a reference or a category that is not one.
+ * And a report that could not be delivered keeps what the person wrote, as
+ * the refusal tells them it does.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -32,6 +35,13 @@ vi.mock('../services/api.ts', async (importOriginal) => {
     },
   };
 });
+
+/** An axios-shaped refusal, the way the real apiClient delivers one. */
+const refusal = (status: number, data: unknown): AxiosError => {
+  const err = new AxiosError(`Request failed with status code ${status}`);
+  err.response = { status, statusText: 'Bad Gateway', headers: {}, config: { headers: new AxiosHeaders() }, data };
+  return err;
+};
 
 const renderPage = (path: string) =>
   render(
@@ -93,6 +103,32 @@ describe('Report a problem', () => {
       description: 'The Moves screen is empty',
       page: '/grant/:link/google',
       reference: '0a1b2c3d',
+    });
+    expect(
+      await screen.findByText(
+        EN['report.sent'].replace('{ticket}', '31001').replace('{email}', 'someone@example.invalid'),
+      ),
+    ).toBeVisible();
+  });
+
+  it('keeps what the person wrote when the report could not be delivered, and sends it again', async () => {
+    const said =
+      'Your report could not be delivered just now. What you wrote is still in the form: ' +
+      'try again in a moment. Reference 0a1b2c3d.';
+    postMock.mockRejectedValueOnce(refusal(502, { error: 'report_not_delivered', reason: said }));
+    renderPage('/report?from=%2F');
+    const description = await screen.findByLabelText(EN['report.description']);
+    await userEvent.type(description, 'The Moves screen is empty');
+    await userEvent.click(screen.getByRole('button', { name: EN['report.send'] }));
+
+    expect(await screen.findByText(said)).toBeVisible();
+    expect(description).toHaveValue('The Moves screen is empty');
+
+    await userEvent.click(screen.getByRole('button', { name: EN['report.send'] }));
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2));
+    expect(postMock).toHaveBeenLastCalledWith('/problem-reports', {
+      description: 'The Moves screen is empty',
+      page: '/',
     });
     expect(
       await screen.findByText(
