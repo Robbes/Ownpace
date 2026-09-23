@@ -108,7 +108,7 @@ describe('the table is what decides, not this file', () => {
     // reviewed in a diff, with no new branch anywhere. This asserts the branch
     // really is absent — every served face asks, and every unserved one is
     // refused, both read off the table rather than listed here.
-    const all = ['email', 'calendar', 'contact', 'file'] as const;
+    const all = ['email', 'calendar', 'contact', 'file', 'task'] as const;
     const served = PROVIDER_ACCOUNT_DOMAINS.google;
     for (const domain of all) {
       const result = googleAccountConsent([domain]);
@@ -118,5 +118,18 @@ describe('the table is what decides, not this file', () => {
     // And the whole served set asks in one go — the owner's "tick google and
     // pick the object types" in its intended form.
     expect(ask([...served]).domains).toEqual([...served]);
+  });
+
+  it('asks one scope per face ticked, so a face with no grant name cannot drop out silently (0126 T2)', () => {
+    // `GRANT_DOMAIN` is partial, and `grantNamesFor` drops a face with no
+    // line. Without this count, a missing `task` line would echo `task` back
+    // in `domains` while the consent screen never asked for it.
+    expect(ask(['task']).scope).toBe(GOOGLE_SCOPES_ASKED_BY_DOMAIN.task);
+    const all = ask([...PROVIDER_ACCOUNT_DOMAINS.google]);
+    expect(all.scope.split(' ')).toHaveLength(all.domains.length);
+  });
+
+  it('names the faces it serves the way a sentence lists them', () => {
+    expect(refusal(['email']).reason).toContain('serves calendar, contact and task.');
   });
 });

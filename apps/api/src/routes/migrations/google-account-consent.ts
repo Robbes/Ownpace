@@ -16,25 +16,26 @@
  * empty tick set, deliberately, and says callers must refuse rather than
  * default. This is that caller.
  *
- * ## Why two faces and not four, and why that is a REFUSAL rather than a gap
+ * ## Why three faces and not five, and why that is a REFUSAL rather than a gap
  *
- * `PROVIDER_ACCOUNT_DOMAINS.google` is `['calendar', 'contact']`. Not a
- * technical limit — Google's own pricing of its scopes. Calendar and carddav
- * are *sensitive* (brand verification, free); Gmail's `https://mail.google.com/`
- * and `drive.readonly` are *restricted*, needing an annual third-party security
- * assessment (`docs/google-oauth-verification.md`). One consent inviting all
- * four would push the MANAGED client into the restricted tier **for every
- * customer, including one who only wanted contacts**.
+ * `PROVIDER_ACCOUNT_DOMAINS.google` is `['calendar', 'contact', 'task']`. Not
+ * a technical limit — Google's own pricing of its scopes. Calendar, carddav
+ * and `tasks.readonly` are *sensitive* (brand verification, free); Gmail's
+ * `https://mail.google.com/` and `drive.readonly` are *restricted*, needing an
+ * annual third-party security assessment (`docs/google-oauth-verification.md`).
+ * One consent inviting all five would push the MANAGED client into the
+ * restricted tier **for every customer, including one who only wanted
+ * contacts**.
  *
  * So a tick for mail or files on a `google` ACCOUNT is refused here, and the
  * refusal names the way through rather than the wall: the single-purpose
  * `gmail` and `google-drive` sources still exist and still work, each asking
  * its own one scope. That is what "cohabit" meant in T3b — the account kind
- * does not replace them, and while it cannot serve all four, saying so is
+ * does not replace them, and while it cannot serve all five, saying so is
  * better than silently asking for less than the person ticked.
  *
- * A silent narrowing would be the worse failure: somebody ticks four faces,
- * approves a consent screen showing two, and finds out weeks later that mail
+ * A silent narrowing would be the worse failure: somebody ticks five faces,
+ * approves a consent screen showing three, and finds out weeks later that mail
  * was never in the grant. The qualification record would eventually say so
  * (0106 T1a reads what a grant actually carries), but weeks late and to
  * somebody who thought they had already answered the question.
@@ -63,22 +64,19 @@ import {
  * next vocabulary that joins is a line in a table instead of a rule somebody
  * has to remember.
  *
- * PARTIAL, AND THE GAP IS THE POINT (workplan 0113). There is no entry for
- * `task`, because there is no Google scope to ask for: Google's own CalDAV
- * guide states the implementation supports neither VTODO nor VJOURNAL, and its
- * tasks live behind a separate REST API this product does not speak (0113 T6,
- * deliberately out of v1). A missing entry therefore means "Google cannot
- * serve this face" — which is true, and which `providerAccountDomains` already
- * says by leaving `task` off the google row. Anything reading this map filters
- * to the faces the account carries first, so the gap is never reached; it is
- * `Partial` so that a future domain Google also cannot serve is a missing line
- * rather than a lie.
+ * `task` has had an entry since 2026-09-23 (workplan 0126 T2): not over
+ * Google's CalDAV, which carries no VTODO, but over the Tasks API and its
+ * `tasks.readonly` scope. Every discovery domain now has one. The map stays
+ * `Partial` so that a future domain Google cannot serve is a missing line
+ * rather than a lie; anything reading it filters to the faces the account
+ * carries first, and `grantNamesFor` drops what has no line.
  */
 const GRANT_DOMAIN: Readonly<Partial<Record<DiscoveryDomain, GoogleGrantDomain>>> = {
   email: 'mail',
   calendar: 'calendar',
   contact: 'contact',
   file: 'file',
+  task: 'task',
 };
 
 /** Which single-purpose source still serves a face the account kind cannot. */
@@ -106,30 +104,35 @@ export function isRefusal(
 }
 
 /**
- * The four Google faces, in the order `domainsToScopes` emits scopes in. One
+ * The five Google faces, in the order `domainsToScopes` emits scopes in. One
  * order for both halves of the answer — see the note where it is used.
  *
- * FOUR, NOT FIVE: `task` is a domain of the product, not a face of a Google
- * account (0113). Google's CalDAV carries no VTODO at all, so there is nothing
- * here to order.
+ * FIVE SINCE 2026-09-23: `task` joined last (workplan 0126 T2), over the Tasks
+ * API rather than CalDAV, which carries no VTODO at Google.
  */
-const ORDER: ReadonlyArray<DiscoveryDomain> = ['email', 'calendar', 'contact', 'file'];
+const ORDER: ReadonlyArray<DiscoveryDomain> = ['email', 'calendar', 'contact', 'file', 'task'];
 
 const KNOWN = ORDER;
 
 /**
  * The grant names for these domains, dropping any Google cannot serve.
  *
- * The drop is unreachable from both callers — one filters through `ORDER` and
- * the other through `providerAccountDomains('google')`, and neither yields
- * `task`. It is written once, here, rather than asserted away at each site:
- * a filter that can be read is better than a `!` that has to be trusted, and
- * when a sixth domain arrives this is where it declines to become a scope.
+ * The drop is unreachable from both callers today — every domain `ORDER` and
+ * `providerAccountDomains('google')` can yield has a line in `GRANT_DOMAIN`.
+ * It is written once, here, rather than asserted away at each site: a filter
+ * that can be read is better than a `!` that has to be trusted, and when a
+ * sixth domain arrives this is where it declines to become a scope.
  */
 function grantNamesFor(domains: ReadonlyArray<DiscoveryDomain>): GoogleGrantDomain[] {
   return domains
     .map((d) => GRANT_DOMAIN[d])
     .filter((g): g is GoogleGrantDomain => g !== undefined);
+}
+
+/** `a`, `a and b`, `a, b and c`: a list as a sentence says it. */
+function listed(items: ReadonlyArray<string>): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
 const isDiscoveryDomain = (value: string): value is DiscoveryDomain =>
@@ -152,8 +155,8 @@ export function googleAccountConsent(
     return {
       error: 'unknown_domain',
       reason:
-        `Not something this product migrates: ${unknown.join(', ')}. The four are email, ` +
-        'calendar, contact and file.',
+        `Not something this product migrates: ${unknown.join(', ')}. The five are email, ` +
+        'calendar, contact, file and task.',
     };
   }
 
@@ -184,7 +187,7 @@ export function googleAccountConsent(
     return {
       error: 'not_on_this_account',
       reason:
-        `A Google account connection here serves ${served.join(' and ')}. Gmail and Drive need ` +
+        `A Google account connection here serves ${listed(served)}. Gmail and Drive need ` +
         'scopes Google classes as restricted, which are not on this deployment’s ' +
         `application. Connect them as their own source instead: ${ways}.`,
     };

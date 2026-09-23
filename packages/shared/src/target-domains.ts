@@ -248,7 +248,7 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
   },
   google: {
     name: 'Google',
-    // Honest about WHY it is not all four: the missing faces are a scope
+    // Honest about WHY it is not all five: the missing faces are a scope
     // Google prices differently, not a face this product cannot drive.
     //
     // And this is the NARROW deployment's sentence. One whose own application
@@ -257,8 +257,8 @@ const CONSTRAINED_SOURCE_PROSE: Partial<
     // property of the product and becomes a property of the deployment
     // (ADR-0041, owner decision 2026-09-01).
     reads:
-      'the object types you granted — calendars and contacts today; mail and ' +
-      'files need a Google security assessment we have not bought yet, and ' +
+      'the object types you granted — calendars, contacts and tasks today; mail ' +
+      'and files need a Google security assessment we have not bought yet, and ' +
       'the single-purpose Gmail and Google Drive sources still serve those',
   },
   dropbox: { name: 'Dropbox', reads: 'the Dropbox API only' },

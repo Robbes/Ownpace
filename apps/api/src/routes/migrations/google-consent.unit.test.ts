@@ -213,6 +213,29 @@ describe('the exchange: granted is read, never assumed', () => {
     expect(r.ok).toBe(true);
   });
 
+  it('the broader Tasks scope satisfies the read-only Tasks ask, and no other face’s (0126 T2)', async () => {
+    const ask = (askedScope: string, scope: string) =>
+      exchangeCode(
+        { code: 'c', clientId: 'cid', clientSecret: 'shh', redirectUri: PENDING.redirectUri, askedScope },
+        vi.fn(async () => new Response(JSON.stringify({ refresh_token: 'rt', scope }))) as unknown as typeof fetch,
+      );
+    const tasks = 'https://www.googleapis.com/auth/tasks.readonly';
+    expect((await ask(tasks, 'https://www.googleapis.com/auth/tasks')).ok).toBe(true);
+
+    // Read off the scope table per face: Drive's broader scope is not a
+    // Tasks grant, and a Tasks grant is not a calendar one.
+    expect((await ask(tasks, 'https://www.googleapis.com/auth/drive')).ok).toBe(false);
+    const short = await ask(
+      `https://www.googleapis.com/auth/calendar ${tasks}`,
+      'https://www.googleapis.com/auth/tasks',
+    );
+    expect(short.ok).toBe(false);
+    if (!short.ok) {
+      expect(short.reason).toContain('missing https://www.googleapis.com/auth/calendar.');
+      expect(short.reason).not.toContain(`missing ${tasks}`);
+    }
+  });
+
   it('an answer without a refresh token is a refusal with the policy cause named', async () => {
     const r = await exchange({ scope: PENDING.scope });
     expect(r.ok).toBe(false);

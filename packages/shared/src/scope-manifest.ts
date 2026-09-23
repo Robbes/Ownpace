@@ -157,7 +157,10 @@ export const SCOPE_MANIFEST: ScopeManifest = {
   // between `detail` and `more` and changed no promise, and this version is
   // what tells a reader the promise SET changed. Moving it for a rewrite would
   // make the one signal that matters cheap.
-  version: '2026-08-06',
+  //
+  // Bumped on 2026-09-23 because the set DID change: Google Tasks moved from
+  // "does not migrate" to "migrates" (workplan 0126 T2).
+  version: '2026-09-23',
   migrates: [
     { item: 'Email', detail: 'Folders incl. Sent / Drafts / Archive, flags/keywords, timestamps.' },
     { item: 'Calendar', detail: 'Events, recurrence, attendees (ICS).' },
@@ -181,6 +184,17 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       item: 'Files',
       detail: 'Google Drive: files and folders, over WebDAV or JMAP.',
       more: FILES_MORE,
+      appliesTo: ['google'],
+    },
+    {
+      item: 'Tasks',
+      detail: 'Google Tasks: every list and task, completed and assigned ones included.',
+      more:
+        "Read over Google's Tasks API, because its CalDAV carries no tasks. Subtasks keep " +
+        'their parent; links, and where an assigned task came from, become lines in its ' +
+        'description; a task deleted in Google goes to your Deletions queue and is never ' +
+        'removed for you. Two things the API does not have cannot be carried: a time of day ' +
+        'on a due date, and a repeat.',
       appliesTo: ['google'],
     },
     {
@@ -298,7 +312,6 @@ export const SCOPE_MANIFEST: ScopeManifest = {
     // a Google source every one of them used to be silent — the only list on
     // the screen was somebody else's.
     { item: 'Google Keep', detail: 'Not migrated.', appliesTo: ['google'] },
-    { item: 'Google Tasks', detail: 'Not migrated.', appliesTo: ['google'] },
     {
       item: 'Google Photos',
       detail: 'Not migrated \u2014 not reachable through the Drive API this tool uses.',
