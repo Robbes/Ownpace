@@ -749,6 +749,9 @@ describe('the ending', () => {
 
     expect(res.status).toBe(409);
     expect(res.text).toMatch(/Nothing was stored/);
+    // The one ending that sends them to the sender: this link cannot be used.
+    expect(res.text).toMatch(/ask the person who sent it for a fresh one/);
+    expect(res.text).not.toMatch(/not used up|still works/);
     expect((await mappingRow(MAPPING))?.source_secret_ref).toBeNull();
   });
 
