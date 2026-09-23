@@ -26,7 +26,7 @@
 
 import React from 'react';
 import { useParams } from 'react-router';
-import type { ApplyReceipt, DeletionsQueue, ItemDeletion } from '@openmig/shared';
+import type { ApplyReceipt, DeletionsQueue, EarlierExport, ItemDeletion } from '@openmig/shared';
 import { mayOfferApply } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen.tsx';
 import { ApplyDeletionsPanel } from '../components/queues/ApplyDeletionsPanel.tsx';
@@ -77,6 +77,45 @@ const Row: React.FC<{
     </div>
   </ItemRow>
 );
+
+/**
+ * A copy an earlier export policy left (workplan 0042 T8 (b), second half).
+ *
+ * Its own row, not a `Row` with an evidence badge: nothing was deleted at the
+ * source, and an evidence word here would say it was. It never has a delete
+ * button; the owner keeps it or removes it on the new system.
+ */
+const EarlierRow: React.FC<{
+  e: EarlierExport;
+  outcome?: ItemOutcome;
+  actions?: React.ReactNode;
+}> = ({ e, outcome, actions }) => {
+  const t = useT();
+  return (
+    <ItemRow>
+      <DomainTag domain={e.domain} />
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-sky-50 text-sky-800 border-sky-200"
+        title={t('deletions.earlierExport.badgeTitle')}
+      >
+        {t('deletions.earlierExport.badge')}
+      </span>
+      <span className="text-gray-900 flex-1 min-w-0 truncate" title={e.collection}>
+        {e.collection}
+      </span>
+      <HashChip hash={e.naturalKeyHash} />
+      <div className="flex items-center gap-2 ml-auto">
+        {outcome?.state === 'done' ? (
+          <Resolved effect={outcome.effect} />
+        ) : outcome?.state === 'refused' ? (
+          <Refused text={outcome.text} />
+        ) : (
+          actions
+        )}
+      </div>
+    </ItemRow>
+  );
+};
 
 const isTerminal = (r: ApplyReceipt): boolean =>
   r.state === 'applied' || r.state === 'refused' || r.state === 'failed';
@@ -240,13 +279,48 @@ const Deletions: React.FC<{
           ))}
         </QueueSection>
 
+        {/* Only when there are some: most migrations have no Google
+            documents, and an empty section about export formats would be a
+            question nobody asked. */}
+        {queue.earlierExports.waiting.length > 0 && (
+          <>
+            <p className="text-sm text-gray-600 mb-2">{t('deletions.earlierExports.intro')}</p>
+            <QueueSection
+              title={t('deletions.earlierExports')}
+              count={queue.earlierExports.waiting.length}
+              empty=""
+            >
+              {queue.earlierExports.waiting.map((e) => (
+                <EarlierRow
+                  key={e.naturalKeyHash}
+                  e={e}
+                  outcome={outcomes[e.naturalKeyHash]}
+                  actions={
+                    <ActionButton
+                      pending={outcomes[e.naturalKeyHash]?.state === 'pending'}
+                      onClick={() =>
+                        act(e.naturalKeyHash, () => keepDeletion(mappingId, e.naturalKeyHash))
+                      }
+                    >
+                      {t('deletions.keep')}
+                    </ActionButton>
+                  }
+                />
+              ))}
+            </QueueSection>
+          </>
+        )}
+
         <QueueSection
           title={t('queue.alreadyDecided')}
-          count={queue.acknowledged.length}
+          count={queue.acknowledged.length + queue.earlierExports.kept.length}
           empty={t('deletions.empty.acknowledged')}
         >
           {queue.acknowledged.map((d) => (
             <Row key={d.naturalKeyHash} d={d} />
+          ))}
+          {queue.earlierExports.kept.map((e) => (
+            <EarlierRow key={e.naturalKeyHash} e={e} />
           ))}
         </QueueSection>
 

@@ -35,8 +35,12 @@
  *
  * Items already copied keep the format they were copied in — this product does
  * not overwrite what is on a target (hard rule 2), so the new policy applies to
- * what is copied from here on. That is a fact somebody should have before they
- * press, not a thing they discover about their own migration afterwards.
+ * what is copied from here on. And since a Google document's name is its
+ * format's, every one is copied again under its new name, while the old copy
+ * stays and the Deletions screen lists it as an earlier export (0042 T8 (b):
+ * the owner, 2026-09-23, *"The export-format setting says this before you
+ * save"*). Facts somebody should have before they press, not things they
+ * discover about their own migration afterwards.
  *
  * ## And a refusal is shown as a refusal
  *

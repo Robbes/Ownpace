@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { DeletionsResponse, ItemDeletion } from '@openmig/shared';
+import type { DeletionsResponse, EarlierExport, ItemDeletion } from '@openmig/shared';
 import {
   DELETIONS_MEANING,
   DELETION_CONFIRMATIONS,
@@ -86,9 +86,14 @@ function queue(over: Partial<DeletionsResponse['x']> = {}): DeletionsResponse {
       acknowledged: [],
       whatThisMeans: DELETIONS_MEANING,
       howToResolve: DELETION_GUIDANCE,
+      earlierExports: { waiting: [], kept: [] },
       ...over,
     },
   };
+}
+
+function earlier(over: Partial<EarlierExport> & { naturalKeyHash: string }): EarlierExport {
+  return { domain: 'file', collection: 'Reports', exportedAs: 'h-new', ...over };
 }
 
 function renderScreen() {
@@ -406,3 +411,64 @@ describe('the as-of label (0036 T1)', () => {
   });
 });
 
+
+/**
+ * Copies an earlier export policy left (workplan 0042 T8 (b), second half; the
+ * owner, 2026-09-23: *"Deletions lists it as 'an earlier export', not as
+ * 'deleted in Google'."*).
+ */
+describe('earlier exports', () => {
+  it('are listed under their own heading, never as a deletion, and never with a delete button', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ earlierExports: { waiting: [earlier({ naturalKeyHash: 'h-old-docx' })], kept: [] } }),
+    );
+    renderScreen();
+
+    expect(await screen.findByText('Earlier exports')).toBeInTheDocument();
+    expect(screen.getByText(/The documents were not deleted in Google/)).toBeInTheDocument();
+    expect(screen.getByText('earlier export')).toBeInTheDocument();
+    // No evidence word: nothing was deleted at the source.
+    for (const word of ['reported', 'trashed', 'inferred']) {
+      expect(screen.queryByText(word)).not.toBeInTheDocument();
+    }
+    expect(screen.getByText('Keep our copy')).toBeInTheDocument();
+    expect(screen.queryByText('Delete it here too')).not.toBeInTheDocument();
+  });
+
+  it('are kept through the same keep call as a deletion', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({ earlierExports: { waiting: [earlier({ naturalKeyHash: 'h-old-docx' })], kept: [] } }),
+    );
+    keepDeletion.mockResolvedValue({ status: 'ok', action: 'keep', naturalKeyHash: 'h-old-docx', effect: 'Kept.' });
+    renderScreen();
+
+    fireEvent.click(await screen.findByText('Keep our copy'));
+
+    await waitFor(() => expect(keepDeletion).toHaveBeenCalledWith('acme-mail', 'h-old-docx'));
+  });
+
+  it('show no section at all when there are none', async () => {
+    fetchDeletions.mockResolvedValue(queue());
+    renderScreen();
+
+    expect(await screen.findByText('Nothing is waiting on a decision.')).toBeInTheDocument();
+    expect(screen.queryByText('Earlier exports')).not.toBeInTheDocument();
+  });
+
+  it('once kept, appear under what was already decided', async () => {
+    fetchDeletions.mockResolvedValue(
+      queue({
+        earlierExports: {
+          waiting: [],
+          kept: [earlier({ naturalKeyHash: 'h-kept-docx', acknowledgedAt: '2026-09-23T12:00:00Z' })],
+        },
+      }),
+    );
+    renderScreen();
+
+    expect(await screen.findByText('earlier export')).toBeInTheDocument();
+    expect(screen.queryByText('Earlier exports')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nothing has been decided yet.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Keep our copy')).not.toBeInTheDocument();
+  });
+});

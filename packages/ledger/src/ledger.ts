@@ -8,6 +8,7 @@ import {
   type ItemMove,
   type MoveAction,
   type ItemDeletion,
+  type EarlierExport,
   type DeletionAction,
   DELETION_CONFIRMATIONS,
   type TenantId,
@@ -1645,6 +1646,50 @@ export class PgLedger implements Ledger {
     });
   }
 
+  async listEarlierExports(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain?: DiscoveryDomain,
+  ): Promise<EarlierExport[]> {
+    const rows = await this.db
+      .select({
+        domain: schemaPg.item.domain,
+        naturalKeyHash: schemaPg.item.naturalKeyHash,
+        collection: schemaPg.item.collection,
+        exportedAs: schemaPg.item.supersededByNaturalKeyHash,
+        markedAt: schemaPg.item.supersededAt,
+        acknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
+      })
+      .from(schemaPg.item)
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          // A copy with the mark: our own (`copied`/`updated`), never removed.
+          // A `superseded` row carries the same column for another reason (a
+          // failure that closed) and is not a copy at all.
+          inArray(schemaPg.item.status, ['copied', 'updated']),
+          isNotNull(schemaPg.item.supersededByNaturalKeyHash),
+          isNull(schemaPg.item.deletionAppliedAt),
+          ...(domain ? [eq(schemaPg.item.domain, domain)] : []),
+        ),
+      )
+      // Open first (NULLS FIRST, for the reason `listDeletions` spells out),
+      // then the longest waiting.
+      .orderBy(
+        sql`${schemaPg.item.deletionAcknowledgedAt} ASC NULLS FIRST, ${schemaPg.item.supersededAt} ASC NULLS LAST, ${schemaPg.item.naturalKeyHash} ASC`,
+      );
+    const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : String(v));
+    return rows.map((r) => ({
+      domain: r.domain as EarlierExport['domain'],
+      naturalKeyHash: r.naturalKeyHash,
+      collection: r.collection,
+      exportedAs: r.exportedAs ?? '',
+      ...(r.markedAt ? { markedAt: iso(r.markedAt) } : {}),
+      ...(r.acknowledgedAt ? { acknowledgedAt: iso(r.acknowledgedAt) } : {}),
+    }));
+  }
+
   async resolveDeletion(
     tenantId: TenantId,
     mappingId: MappingId,
@@ -1678,6 +1723,12 @@ export class PgLedger implements Ledger {
             gte(schemaPg.item.absentPasses, DELETION_CONFIRMATIONS),
             isNotNull(schemaPg.item.deletionReportedAt),
             isNotNull(schemaPg.item.deletionTrashedAt),
+            // An earlier export (0042 T8 (b), second half): known on sight,
+            // like a report, and the owner's to keep. Our own copy only.
+            and(
+              isNotNull(schemaPg.item.supersededByNaturalKeyHash),
+              inArray(schemaPg.item.status, ['copied', 'updated']),
+            ),
           ),
           isNull(schemaPg.item.deletionAcknowledgedAt),
         ),

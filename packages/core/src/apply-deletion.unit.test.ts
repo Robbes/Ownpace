@@ -573,6 +573,41 @@ describe('gate 6: the mass-deletion circuit breaker', () => {
     }
   }
 
+  it('does not count earlier exports: a format switch leaves a real deletion appliable (0042 T8 (b))', async () => {
+    // Switching the export format makes EVERY Google document's old copy an
+    // earlier export at once. Counted as pending deletions they would raise
+    // this breaker, and every genuine removal in the domain would be refused
+    // until the owner had worked through all of them.
+    const ledger = new MemoryLedger();
+    for (let i = 0; i < MASS_DELETION_MIN_ITEMS; i++) {
+      await ledger.recordIfAbsent(
+        baseRow({ itemType: 'file', naturalKeyHash: `doc-${i}`, targetId: `t-${i}`, collection: 'Docs' }),
+      );
+    }
+    const renamed = MASS_DELETION_MIN_ITEMS - 1;
+    const marked = await ledger.markEarlierExports(
+      TENANT,
+      MAPPING,
+      'file',
+      Array.from({ length: renamed }, (_, i) => ({
+        formerNaturalKeyHash: `doc-${i}`,
+        naturalKeyHash: `doc-${i}-new`,
+      })),
+    );
+    expect(marked).toHaveLength(renamed);
+    // And one real deletion, which the source itself reported.
+    const deleted = `doc-${MASS_DELETION_MIN_ITEMS - 1}`;
+    await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', deleted);
+    const target = fakeRemover({ kind: 'deleted' });
+
+    const outcome = await applyDeletion(
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'file', ledger, target, allowApplyDeletions: true },
+      deleted,
+    );
+
+    expect(outcome).toEqual({ ok: true, kind: 'deleted' });
+  });
+
   it('does not fire below MASS_DELETION_MIN_ITEMS, however high the share', async () => {
     const ledger = new MemoryLedger();
     // One item total, and it is the one being deleted — 100% pending, but the

@@ -7,6 +7,7 @@ import type {
   ItemFailure,
   ItemMove,
   ItemDeletion,
+  EarlierExport,
   DeletionAction,
   Ledger,
   LedgerRecord,
@@ -1172,6 +1173,41 @@ export class MemoryLedger implements Ledger {
     );
   }
 
+  /**
+   * Mirrors `PgLedger.listEarlierExports`: a marked copy that is ours and was
+   * never removed, open ones first. This fake keeps no date for the mark, so
+   * within each group it orders by key; Postgres's "longest waiting first" is
+   * pinned by the ledger's own test against a real database.
+   */
+  listEarlierExports(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain?: LedgerRecord['itemType'],
+  ): Promise<EarlierExport[]> {
+    const out: EarlierExport[] = [];
+    for (const r of this.rows.values()) {
+      if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
+      if (domain && r.itemType !== domain) continue;
+      if (r.status !== 'copied' && r.status !== 'updated') continue;
+      if (!r.supersededByNaturalKeyHash || r.deletionAppliedAt !== undefined) continue;
+      out.push({
+        domain: r.itemType,
+        naturalKeyHash: r.naturalKeyHash,
+        collection: r.collection ?? '',
+        exportedAs: r.supersededByNaturalKeyHash,
+        ...(r.deletionAcknowledgedAt ? { acknowledgedAt: r.deletionAcknowledgedAt } : {}),
+      });
+    }
+    return Promise.resolve(
+      out.sort(
+        (a, b) =>
+          Number(a.acknowledgedAt !== undefined) - Number(b.acknowledgedAt !== undefined) ||
+          (a.markedAt ?? '').localeCompare(b.markedAt ?? '') ||
+          a.naturalKeyHash.localeCompare(b.naturalKeyHash),
+      ),
+    );
+  }
+
   resolveDeletion(
     tenantId: LedgerRecord['tenantId'],
     mappingId: LedgerRecord['mappingId'],
@@ -1185,10 +1221,14 @@ export class MemoryLedger implements Ledger {
       // CONFIRMED and open only, as in Postgres — where "confirmed" is enough
       // consecutive absences, OR the source having said so outright, OR the item
       // sitting in the owner's bin.
+      // …or an earlier export, which is known on sight too (0042 T8 (b)).
+      const earlierExport =
+        r.supersededByNaturalKeyHash !== undefined && (r.status === 'copied' || r.status === 'updated');
       if (
         (r.absentPasses ?? 0) < DELETION_CONFIRMATIONS &&
         r.deletionReportedAt === undefined &&
-        r.deletionTrashedAt === undefined
+        r.deletionTrashedAt === undefined &&
+        !earlierExport
       ) {
         continue;
       }

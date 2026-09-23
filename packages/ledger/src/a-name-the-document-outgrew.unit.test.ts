@@ -376,6 +376,73 @@ describe('markEarlierExports', () => {
   });
 });
 
+describe('what the owner is shown, and what they can do', () => {
+  const copy = (naturalKeyHash: string, over: Partial<LedgerRecord> = {}) =>
+    ledger((l) =>
+      l.recordIfAbsent(row(naturalKeyHash, { status: 'copied', targetId: `t/${naturalKeyHash}`, ...over })),
+    );
+  const mark = (former: string, current: string, ref: string) =>
+    ledger((l) => l.markEarlierExports(TENANT, MAPPING, 'file', [name(former, current, ref)]));
+
+  it('lists an earlier export as one, and NOT as a deletion', async () => {
+    await copy('report-docx', { sourceRef: 'doc-1', collection: 'Reports' });
+    await mark('report-docx', 'report-odt', 'doc-1');
+
+    const earlier = await ledger((l) => l.listEarlierExports(TENANT, MAPPING));
+    expect(earlier).toEqual([
+      expect.objectContaining({
+        domain: 'file',
+        naturalKeyHash: 'report-docx',
+        collection: 'Reports',
+        exportedAs: 'report-odt',
+        markedAt: expect.any(String),
+      }),
+    ]);
+    expect(earlier[0]?.acknowledgedAt).toBeUndefined();
+    // The breaker, the digests, the report and Finish all read this list, and
+    // a format switch must not tell any of them a document was deleted.
+    expect(await ledger((l) => l.listDeletions(TENANT, MAPPING))).toEqual([]);
+  });
+
+  it('lists neither a closed failure nor a removed copy', async () => {
+    await failed('deck', 'deck-1');
+    await ledger((l) => l.supersedeFormerNames(TENANT, MAPPING, 'file', [name('deck', 'deck-odp', 'deck-1')]));
+
+    expect(await ledger((l) => l.listEarlierExports(TENANT, MAPPING))).toEqual([]);
+  });
+
+  it('lets the owner keep one, which moves it to what was decided', async () => {
+    await copy('report-docx', { sourceRef: 'doc-1' });
+    await mark('report-docx', 'report-odt', 'doc-1');
+
+    expect(await ledger((l) => l.resolveDeletion(TENANT, MAPPING, 'report-docx', 'keep'))).toBe(true);
+
+    const [kept] = await ledger((l) => l.listEarlierExports(TENANT, MAPPING));
+    expect(kept?.acknowledgedAt).toEqual(expect.any(String));
+    // Still ours, still on the target: keeping changes nothing else.
+    expect((await stored())['report-docx']).toEqual({ status: 'copied', by: 'report-odt', at: true });
+  });
+
+  it('keeps nothing that is not a confirmed deletion or an earlier export', async () => {
+    await copy('plain-copy', { sourceRef: 'doc-9' });
+    expect(await ledger((l) => l.resolveDeletion(TENANT, MAPPING, 'plain-copy', 'keep'))).toBe(false);
+  });
+
+  it('puts the open ones first, the longest waiting first among them', async () => {
+    await copy('b-docx', { sourceRef: 'doc-b' });
+    await copy('a-docx', { sourceRef: 'doc-a' });
+    await copy('kept-docx', { sourceRef: 'doc-k' });
+    await mark('b-docx', 'b-odt', 'doc-b');
+    await mark('kept-docx', 'kept-odt', 'doc-k');
+    await ledger((l) => l.resolveDeletion(TENANT, MAPPING, 'kept-docx', 'keep'));
+    await mark('a-docx', 'a-odt', 'doc-a');
+
+    const order = (await ledger((l) => l.listEarlierExports(TENANT, MAPPING))).map((e) => e.naturalKeyHash);
+
+    expect(order).toEqual(['b-docx', 'a-docx', 'kept-docx']);
+  });
+});
+
 /** When a row was marked, as the database holds it. */
 async function supersededAt(naturalKeyHash: string): Promise<string | null> {
   const conn = await driver.acquire();

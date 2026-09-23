@@ -1771,6 +1771,16 @@ export interface Ledger {
     domain?: DiscoveryDomain,
   ): Promise<ItemDeletion[]>;
   /**
+   * The copies on the target that an earlier export policy left, still ours
+   * and never removed (0042 T8 (b), second half): open ones first, then kept.
+   * See {@link EarlierExport} for why these are not deletions.
+   */
+  listEarlierExports(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain?: DiscoveryDomain,
+  ): Promise<EarlierExport[]>;
+  /**
    * Apply an owner decision to one vanished item.
    *
    * Returns false when nothing under that key is CONFIRMED and still open — it
@@ -2063,6 +2073,35 @@ export interface ItemMove {
  * data because a listing was throttled is the worst thing this product could do.
  */
 export type DeletionEvidence = 'reported' | 'trashed' | 'inferred';
+
+/**
+ * A copy on the target that an earlier export policy left (workplan 0042 T8
+ * (b), second half; the owner's decision of 2026-09-23: *"An old copy in
+ * Nextcloud is never deleted for you. Deletions lists it as 'an earlier
+ * export', not as 'deleted in Google'."*).
+ *
+ * NOT an `ItemDeletion`, deliberately. Nothing was deleted at the source: the
+ * same document is listed there under the name the current policy gives it,
+ * and copied under that name. Counted as a deletion it would raise the
+ * mass-deletion breaker the day an owner switches format (every Google
+ * document at once), and every digest, report and checklist that says
+ * "deleted on the old system" would say it of documents that are not. So it
+ * has its own listing, shown on the Deletions screen as what it is, and it
+ * counts in none of those.
+ */
+export interface EarlierExport {
+  readonly domain: DiscoveryDomain;
+  /** The earlier copy's key. Same anchor, same §17 reason, as `ItemFailure.naturalKeyHash`. */
+  readonly naturalKeyHash: string;
+  /** Where it was copied from. */
+  readonly collection: string;
+  /** The document's current copy: the key the current export policy gives it. */
+  readonly exportedAs: string;
+  /** When a pass first found it an earlier export. */
+  readonly markedAt?: string;
+  /** Set once the owner has said to keep it. */
+  readonly acknowledgedAt?: string;
+}
 
 /**
  * An item the SOURCE no longer has, which the target still holds.
