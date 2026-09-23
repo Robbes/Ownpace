@@ -953,8 +953,13 @@ export interface LedgerRecord {
      */
     | 'superseded';
   /**
-   * The row that took over from a `superseded` one: the same document under
-   * the name the current export policy gives it. Absent on every other row.
+   * The same document under the name the current export policy gives it.
+   *
+   * On a `superseded` row, the row that took over from it (0042 T8 (b)). On a
+   * copy still on the target (`copied` or `updated`), the row it is an earlier
+   * export of: the document was exported again under another name, and this
+   * copy is what the earlier policy left (`Ledger.markEarlierExports`). Absent
+   * on every other row.
    */
   readonly supersededByNaturalKeyHash?: string;
   /**
@@ -1333,6 +1338,13 @@ export interface Ledger {
        * distinguishable rather than absent.
        */
       deletionAppliedAt?: string;
+      /**
+       * The key this copy is an earlier export of (0042 T8 (b), second half):
+       * the document is listed under the name the current export policy gives
+       * it. Carried so the detector leaves an explained copy alone, and clears
+       * the mark when the old name is given again.
+       */
+      supersededByNaturalKeyHash?: string;
     }>
   >;
   /**
@@ -1636,6 +1648,44 @@ export interface Ledger {
     domain: DiscoveryDomain,
     formerNames: ReadonlyArray<FormerName>,
   ): Promise<ReadonlyArray<{ readonly naturalKeyHash: string; readonly supersededBy: string }>>;
+  /**
+   * Mark the copies a document left ON THE TARGET under names it no longer has
+   * (workplan 0042 T8 (b), second half; the owner's decision of 2026-09-23).
+   *
+   * `supersedeFormerNames`'s other half, over the same pairs. That one closes a
+   * failure, because nothing of it reached the target. This one is for a copy
+   * that did: the document's earlier export (`Report.docx` after a switch to
+   * `export-odf`). Nothing is removed or closed. The row is marked as an
+   * earlier export of the key that took over (`supersededByNaturalKeyHash` on
+   * a row still `copied` or `updated`), which keeps it out of the deletion
+   * detector, because the document was exported again, not deleted in Google,
+   * and puts it in the Deletions queue as what it is, for the owner to keep or
+   * remove.
+   *
+   * Our own copies only (`copied`, `updated`) that were never removed: an
+   * `adopted` file was on the target before the migration arrived and is the
+   * owner's, whatever its name. Matched by the source's handle as
+   * `supersedeFormerNames` matches. A row already marked for the same key is
+   * left as it is. Returns the rows newly marked, with the key each is an
+   * earlier export of.
+   */
+  markEarlierExports(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    formerNames: ReadonlyArray<FormerName>,
+  ): Promise<ReadonlyArray<{ readonly naturalKeyHash: string; readonly exportedAs: string }>>;
+  /**
+   * The name an earlier export had is a current name again (the policy was
+   * switched back), so the copy is no longer an earlier export of anything.
+   * A no-op on a row that is not one.
+   */
+  clearEarlierExport(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    naturalKeyHash: string,
+  ): Promise<void>;
   /**
    * Note that a complete scan did not find this item, and return how many
    * consecutive scans that now makes.

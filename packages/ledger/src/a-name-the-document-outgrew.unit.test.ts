@@ -258,3 +258,134 @@ describe('the readers that would otherwise count it', () => {
     expect(counted).toEqual({ count: 1, bytes: 40, samples: ['deck-odp'], keys: ['deck-odp'] });
   });
 });
+
+/**
+ * THE SECOND HALF, against the real store (0042 T8 (b); the owner, 2026-09-23:
+ * *"An old copy in Nextcloud is never deleted for you. Deletions lists it as
+ * 'an earlier export', not as 'deleted in Google'."*).
+ */
+describe('markEarlierExports', () => {
+  /** Our copy of a document under the name an earlier export policy gave it. */
+  const copy = (naturalKeyHash: string, over: Partial<LedgerRecord> = {}) =>
+    ledger((l) =>
+      l.recordIfAbsent(row(naturalKeyHash, { status: 'copied', targetId: `t/${naturalKeyHash}`, ...over })),
+    );
+
+  it('marks our copy under a former name as an earlier export, and changes nothing else', async () => {
+    await copy('report-docx', { sourceRef: 'doc-1' });
+
+    const marked = await ledger((l) =>
+      l.markEarlierExports(TENANT, MAPPING, 'file', [name('report-docx', 'report-odt', 'doc-1')]),
+    );
+
+    expect(marked).toEqual([{ naturalKeyHash: 'report-docx', exportedAs: 'report-odt' }]);
+    // Still ours, still on the target: nothing is closed and nothing removed.
+    expect((await stored())['report-docx']).toEqual({ status: 'copied', by: 'report-odt', at: true });
+  });
+
+  it('resets its absence count: it was renamed by the policy, not missed', async () => {
+    await copy('report-docx', { sourceRef: 'doc-1' });
+    await ledger((l) => l.recordAbsent(TENANT, MAPPING, 'file', 'report-docx'));
+
+    await ledger((l) =>
+      l.markEarlierExports(TENANT, MAPPING, 'file', [name('report-docx', 'report-odt', 'doc-1')]),
+    );
+
+    expect((await ledger((l) => l.find(TENANT, MAPPING, 'file', 'report-docx')))?.absentPasses ?? 0).toBe(0);
+  });
+
+  it('marks once: a later pass finds it marked and keeps the first date', async () => {
+    await copy('report-docx', { sourceRef: 'doc-1' });
+    const pair = [name('report-docx', 'report-odt', 'doc-1')];
+    await ledger((l) => l.markEarlierExports(TENANT, MAPPING, 'file', pair));
+    const first = await supersededAt('report-docx');
+
+    const again = await ledger((l) => l.markEarlierExports(TENANT, MAPPING, 'file', pair));
+
+    expect(again).toEqual([]);
+    expect(await supersededAt('report-docx')).toBe(first);
+  });
+
+  it('leaves alone a failure, a file that was there before us, a removed copy and another document’s copy', async () => {
+    await failed('failed-docx', 'doc-1');
+    await copy('adopted-docx', { status: 'adopted', sourceRef: 'doc-2' });
+    await copy('removed-docx', { sourceRef: 'doc-3' });
+    await ledger(async (l) => {
+      // The ledger's own conditional apply needs positive evidence; a report is one.
+      await l.recordReportedDeletion(TENANT, MAPPING, 'file', 'removed-docx');
+      await l.applyDeletion(TENANT, MAPPING, 'file', 'removed-docx');
+    });
+    await copy('theirs-docx', { sourceRef: 'an-uploaded-file' });
+
+    const marked = await ledger((l) =>
+      l.markEarlierExports(TENANT, MAPPING, 'file', [
+        name('failed-docx', 'failed-odt', 'doc-1'),
+        name('adopted-docx', 'adopted-odt', 'doc-2'),
+        name('removed-docx', 'removed-odt', 'doc-3'),
+        name('theirs-docx', 'theirs-odt', 'doc-4'),
+      ]),
+    );
+
+    expect(marked).toEqual([]);
+    const now = await stored();
+    for (const key of ['failed-docx', 'adopted-docx', 'removed-docx', 'theirs-docx']) {
+      expect(now[key]?.by, key).toBeNull();
+    }
+  });
+
+  it('finds a copy past the first chunk of former names', async () => {
+    await copy('needle', { sourceRef: 'doc-1' });
+    const haystack = Array.from({ length: 1500 }, (_, i) => name(`nothing-${i}`, `current-${i}`));
+    haystack.push(name('needle', 'needle-now', 'doc-1'));
+
+    const marked = await ledger((l) => l.markEarlierExports(TENANT, MAPPING, 'file', haystack));
+
+    expect(marked).toEqual([{ naturalKeyHash: 'needle', exportedAs: 'needle-now' }]);
+  });
+
+  it('is carried by placedItems, so the detector can leave it alone', async () => {
+    await copy('report-docx', { sourceRef: 'doc-1' });
+    await ledger((l) =>
+      l.markEarlierExports(TENANT, MAPPING, 'file', [name('report-docx', 'report-odt', 'doc-1')]),
+    );
+
+    const placed = await ledger((l) => l.placedItems(TENANT, MAPPING, 'file'));
+
+    expect(placed).toEqual([
+      expect.objectContaining({ naturalKeyHash: 'report-docx', supersededByNaturalKeyHash: 'report-odt' }),
+    ]);
+  });
+
+  it('is cleared when the name is given again, on a copy only', async () => {
+    await copy('report-docx', { sourceRef: 'doc-1' });
+    await failed('deck', 'deck-1');
+    await ledger(async (l) => {
+      await l.markEarlierExports(TENANT, MAPPING, 'file', [name('report-docx', 'report-odt', 'doc-1')]);
+      await l.supersedeFormerNames(TENANT, MAPPING, 'file', [name('deck', 'deck-odp', 'deck-1')]);
+    });
+
+    await ledger(async (l) => {
+      await l.clearEarlierExport(TENANT, MAPPING, 'file', 'report-docx');
+      await l.clearEarlierExport(TENANT, MAPPING, 'file', 'deck');
+    });
+
+    const now = await stored();
+    expect(now['report-docx']).toEqual({ status: 'copied', by: null, at: false });
+    // A closed failure keeps its link to the row that took over.
+    expect(now.deck).toEqual({ status: 'superseded', by: 'deck-odp', at: true });
+  });
+});
+
+/** When a row was marked, as the database holds it. */
+async function supersededAt(naturalKeyHash: string): Promise<string | null> {
+  const conn = await driver.acquire();
+  try {
+    const r = await conn.query(
+      'SELECT superseded_at::text AS at FROM item WHERE mapping_id = $1 AND natural_key_hash = $2',
+      [MAPPING, naturalKeyHash],
+    );
+    return (r.rows[0] as { at: string | null } | undefined)?.at ?? null;
+  } finally {
+    await conn.release();
+  }
+}

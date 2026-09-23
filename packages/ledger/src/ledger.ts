@@ -199,6 +199,110 @@ export class PgLedger implements Ledger {
     return superseded;
   }
 
+  /**
+   * Mark the copies a document left on the target under names it no longer has
+   * (0042 T8 (b), second half). See the port for what the mark means.
+   *
+   * Read and written the way `supersedeFormerNames` is, for its reason: a pass
+   * lists thousands of files and a policy switch leaves at most one earlier
+   * export per native document. Each write re-checks, in its own statement,
+   * that the copy is still ours and still on the target, so a removal that
+   * lands in between wins. A row already marked for the same key is not
+   * written again, so `superseded_at` keeps the pass that first found it.
+   *
+   * The absence count is reset with the mark: this copy was not missed, it was
+   * renamed by the policy, and a count carried over would put it back in front
+   * of the detector the moment the mark was cleared.
+   */
+  async markEarlierExports(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    formerNames: ReadonlyArray<FormerName>,
+  ): Promise<ReadonlyArray<{ readonly naturalKeyHash: string; readonly exportedAs: string }>> {
+    const claims = new Map<string, FormerName[]>();
+    for (const name of formerNames) {
+      if (name.formerNaturalKeyHash === name.naturalKeyHash) continue;
+      const list = claims.get(name.formerNaturalKeyHash) ?? [];
+      list.push(name);
+      claims.set(name.formerNaturalKeyHash, list);
+    }
+    const formers = [...claims.keys()];
+    const marked: Array<{ naturalKeyHash: string; exportedAs: string }> = [];
+    for (let at = 0; at < formers.length; at += SUPERSEDE_CHUNK) {
+      const placed = await this.db
+        .select({
+          naturalKeyHash: schemaPg.item.naturalKeyHash,
+          sourceRefHref: schemaPg.item.sourceRefHref,
+          supersededBy: schemaPg.item.supersededByNaturalKeyHash,
+        })
+        .from(schemaPg.item)
+        .where(
+          and(
+            eq(schemaPg.item.tenantId, tenantId),
+            eq(schemaPg.item.mappingId, mappingId),
+            eq(schemaPg.item.domain, domain),
+            inArray(schemaPg.item.status, ['copied', 'updated']),
+            isNull(schemaPg.item.deletionAppliedAt),
+            inArray(schemaPg.item.naturalKeyHash, formers.slice(at, at + SUPERSEDE_CHUNK)),
+          ),
+        );
+      for (const row of placed) {
+        const candidates = claims.get(row.naturalKeyHash) ?? [];
+        const claimant = row.sourceRefHref
+          ? candidates.find((c) => c.sourceRef === row.sourceRefHref)
+          : candidates[0];
+        if (!claimant || row.supersededBy === claimant.naturalKeyHash) continue;
+        const written = await this.db
+          .update(schemaPg.item)
+          .set({
+            supersededByNaturalKeyHash: claimant.naturalKeyHash,
+            supersededAt: sql`now()`,
+            absentPasses: 0,
+            updatedAt: sql`now()`,
+          })
+          .where(
+            and(
+              eq(schemaPg.item.tenantId, tenantId),
+              eq(schemaPg.item.mappingId, mappingId),
+              eq(schemaPg.item.domain, domain),
+              eq(schemaPg.item.naturalKeyHash, row.naturalKeyHash),
+              inArray(schemaPg.item.status, ['copied', 'updated']),
+              isNull(schemaPg.item.deletionAppliedAt),
+            ),
+          )
+          .returning({ naturalKeyHash: schemaPg.item.naturalKeyHash });
+        if (written.length > 0) {
+          marked.push({ naturalKeyHash: row.naturalKeyHash, exportedAs: claimant.naturalKeyHash });
+        }
+      }
+    }
+    return marked;
+  }
+
+  async clearEarlierExport(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    naturalKeyHash: string,
+  ): Promise<void> {
+    await this.db
+      .update(schemaPg.item)
+      .set({ supersededByNaturalKeyHash: null, supersededAt: null, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(schemaPg.item.tenantId, tenantId),
+          eq(schemaPg.item.mappingId, mappingId),
+          eq(schemaPg.item.domain, domain),
+          eq(schemaPg.item.naturalKeyHash, naturalKeyHash),
+          // Only the mark on a copy. A `superseded` failure keeps its link to
+          // the row that took over.
+          inArray(schemaPg.item.status, ['copied', 'updated']),
+          isNotNull(schemaPg.item.supersededByNaturalKeyHash),
+        ),
+      );
+  }
+
   async recordIfAbsent(record: LedgerRecord): Promise<LedgerRecord> {
     // Try to insert; if conflict, return existing row
     const inserted = await this.db
@@ -558,6 +662,7 @@ export class PgLedger implements Ledger {
         absentPasses: schemaPg.item.absentPasses,
         deletionAcknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
         deletionAppliedAt: schemaPg.item.deletionAppliedAt,
+        supersededByNaturalKeyHash: schemaPg.item.supersededByNaturalKeyHash,
       })
       .from(schemaPg.item)
       .where(
@@ -614,6 +719,11 @@ export class PgLedger implements Ledger {
                 ? r.deletionAppliedAt.toISOString()
                 : String(r.deletionAppliedAt),
           }
+        : {}),
+      // An earlier export's mark (0042 T8 (b), second half), so the detector
+      // leaves it alone.
+      ...(r.supersededByNaturalKeyHash
+        ? { supersededByNaturalKeyHash: r.supersededByNaturalKeyHash }
         : {}),
     }));
   }
