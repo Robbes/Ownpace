@@ -95,12 +95,14 @@ The file face resolves its own root, since Nextcloud serves files at
 `…/remote.php/dav/`.
 
 Also a source: **Google** (`google`, workplan 0106 T3b) — the same account shape on the
-grant side. One connection row, one OAuth grant, several faces: **calendars and contacts
-today**. Mail and files are absent for a reason that is Google's rather than ours — it
-prices `calendar` and `carddav` as *sensitive* scopes (brand verification, free) and
-Gmail's `https://mail.google.com/` and `drive.readonly` as *restricted*, needing an annual
-third-party security assessment. Asking for all four in one consent would push the managed
-client into that tier for every customer, including one who only wanted their contacts. So
+grant side. One connection row, one OAuth grant, several faces: **calendars, contacts and
+tasks today** (tasks over Google's Tasks API since workplan 0126). Mail and files are absent
+for a reason that is Google's rather than ours — it prices `calendar` and `carddav` as
+*sensitive* scopes (brand verification, free), believed to include `tasks.readonly` until the
+console confirms it, and Gmail's `https://mail.google.com/` and `drive.readonly` as
+*restricted*, needing an annual third-party security assessment. Asking for all five in one
+consent would push the managed client into that tier for every customer, including one who
+only wanted their contacts. So
 `gmail`, `google-calendar`, `google-contacts` and `google-drive` **stay and cohabit**: a
 person migrating a mailbox uses `gmail` today, and when the assessment is bought those
 faces join `google` rather than the kinds being replaced. The constraint binds the managed
@@ -159,7 +161,12 @@ the calendars, reached by the same credential. **Microsoft To Do** is the second
 Graph serves it under `Tasks.Read`, and because a To Do list is not a CalDAV collection the
 `graph-todo-source` connector builds the `VTODO` itself — a full listing per pass, Graph's own
 status and importance kept beside the lossy RFC 5545 mapping, the checklist as lines in the
-description, the recurrence as an `RRULE`. Google Tasks needs its own API.
+description, the recurrence as an `RRULE`. **Google Tasks** is the third (workplan 0126), and
+for the same reason: Google's CalDAV carries no `VTODO`, so `google-tasks-source` reads the
+Tasks API and builds the `VTODO` itself. It carries every list, including the tasks completed
+in Google's own apps and the ones assigned from Docs or Chat, with subtasks under their parent.
+Due dates arrive as dates, because Google keeps no time of day. Repeats are not carried,
+because the API has none. A task deleted in Google goes to the Deletions queue.
 
 ## Contacts
 
@@ -384,5 +391,5 @@ These hold across all object types, and are features rather than gaps:
 | Apple (iCloud) against a real Apple Account — the app-specific password's dashed form, the username's local-part-vs-address question, and the first live face counts | ⏳ built, unproven | `apple-supervised-run.md`; workplan 0115 |
 | iCloud Drive as a live source | 🚫 impossible — Apple publishes no API to anyone | Files section above; the archive route is workplan 0116 |
 | Microsoft To Do as a task source | ✅ `graph-todo-source`: the account kind's fifth face, `Tasks.Read` asked only when ticked; unmeasured against a live tenant (needs a consent nobody in CI can press) | workplan 0114 T9 |
-| Google Tasks as a task source | ⛔ not built — needs the Tasks API; Google's CalDAV carries no `VTODO` at any scope tier | workplan 0113 T6 |
+| Google Tasks as a task source | ✅ `google-tasks-source`: the Google account's third face, `tasks.readonly` asked only when ticked; unmeasured against a live account | workplan 0126 |
 | Sieve rules, signatures, OOF, ACLs, invitation state, version history | 🚫 out of scope, stated per domain above | this document |
