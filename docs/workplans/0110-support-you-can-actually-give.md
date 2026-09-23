@@ -1,6 +1,26 @@
 # Workplan 0110 — support you can actually give
 
-## Status — 2026-09-17 (update this block at the end of every session)
+## Status — 2026-09-23 (update this block at the end of every session)
+
+**2026-09-23: a name Nextcloud will not store, and a mailbox under a file.** The owner's
+live OneDrive → Nextcloud migration had one file fail five times. It was a `.htaccess`, which
+Nextcloud refuses by name wherever it is put (`forbidden_filenames`, default `['.htaccess']`).
+The line was `status 500: OCP\Files\ForbiddenException — Invalid path: …`, so it read
+`target_refused`, and the Failures page put *"a full mailbox, a read-only folder or missing
+permission"* under a FILE. The owner: *"the text talking about 'full mailbox' is weird to
+read at the Files-kind."*
+
+Three things changed. **(1)** Nextcloud's refusal of a name now reads `format_refused`: the
+observed 500, the 403 that Nextcloud's DAV layer converts it to elsewhere (read in its source,
+not observed), and the four refusals Nextcloud 30's `FilenameValidator` publishes for a name,
+prefix, character or ending (a 400 that was `unknown`). **(2)** `failure.targetRefused` says
+*"no space left"* where it said *"a full mailbox"*. Every remedy is shown under every kind,
+and a guard now holds that none names a mailbox. **(3)** `failure.formatRefused` offers
+*"Rename it in the old account"* before the export format. That setting exists only for a
+Google file, and a name the destination refuses can come from any source.
+
+Rows already written keep the category they were given, as 0048 and 0051 decided. They take
+the new one when next attempted.
 
 **2026-09-17: T3's other half — an ITEM's failure has a category too.** The owner named the
 gap: `migration_status.last_error_category` has given the DOMAIN level a remedy in the
