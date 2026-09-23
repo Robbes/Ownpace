@@ -10,7 +10,7 @@ import express from 'express';
 import type { Request, Response, NextFunction, Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
+import { accessLog } from './access-log.ts';
 import { runMigrations, migrationConnectionString, poolerInFront } from '@openmig/ledger';
 
 // Import types
@@ -82,7 +82,9 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3123',
   credentials: true,
 }));
-app.use(morgan('combined'));
+// Without the link credentials, OAuth codes and query values `combined` wrote
+// out in full: `access-log.ts` says what is kept and why.
+app.use(accessLog());
 app.use(express.json());
 // Mollie posts webhooks as application/x-www-form-urlencoded (id=<paymentId>).
 app.use(express.urlencoded({ extended: false }));
