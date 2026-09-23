@@ -719,11 +719,13 @@ Nothing in this amendment is built. It records the decision the three tasks in
 
 ## [ADR-0046: A rendering is compared by its parts, not by its bytes](./0046-a-rendering-is-compared-by-its-parts.md)
 
-- **BUILT, and live.** A rendering a source marks as such (`RawFileItem.rendering`, set only by
-  Drive's `files.export` branch) is hashed by `containerContentHash`; the target re-read is asked
-  for the same scheme the row was stored in; the confirmed list says `container-parts` rather
-  than "by hash". `nativeFilePolicy` still defaults to `refuse` — that is the owner's per-migration
-  choice and always was — but choosing `export-office` is now a supported thing to do.
+- **BUILT, BUT NOT YET REACHING THE LEDGER (0042 T8 (e)).** A rendering a source marks as such
+  (`RawFileItem.rendering`, set only by Drive's `files.export` branch) is meant to be hashed by
+  `containerContentHash`, with the target re-read in the row's own scheme and the confirmed list
+  saying `container-parts` rather than "by hash". All of that is built, and none of it is reached:
+  the file pass's `fetchRaw` drops the marker, so every export is stored with a whole-file hash.
+  `nativeFilePolicy` still defaults to `refuse` — that is the owner's per-migration choice and
+  always was — but choosing `export-office` is a supported thing to do.
 - **AND IT RESCUES A DOC AND A SHEET, NOT A DECK.** The connector refuses a Google Slides file
   under `export-office` for measured instability, per item, inside the sync loop's boundary. The
   preflight counts what a policy will refuse and the confirm screen names it before the run

@@ -28,6 +28,7 @@ Two things still come **before** the app, and for reasons stronger than habit:
    the app first would either test with Docs refused (fine, but it answers
    nothing) or tempt you to enable an unmeasured export — the one failure mode
    where every pass rewrites every document forever while every write succeeds.
+   (Passed 2026-09-16 and 17; see the note at the top of Stage 1.)
    The probe also proves the credentials through the *same code the appliance
    runs* — same env names, same token provider, same transport — so a later app
    failure can never be a credentials mystery. And with one extra variable it
@@ -47,6 +48,12 @@ Everything else: test through the app, exactly as you prefer.
 ---
 
 ## Stage 1 — the Drive probe (any machine with the repo, ~15 min once credentials exist)
+
+> **Done 2026-09-16 and 17.** The probe measured all twelve (policy, type) combinations. The
+> verdicts are in workplan 0042 T3 and in `EXPORT_STABILITY`, the policies can be chosen per
+> migration, and the two unstable combinations are refused per file. Since #1083 a document is
+> exported again only when Drive's modified time for it moves, so the rewrite-forever failure
+> no longer happens through an unstable export. The probe remains the way to re-take a verdict.
 
 Follow [`google-workspace-setup.md`](./google-workspace-setup.md) §1–4 once: Cloud
 project, Drive API, consent screen, OAuth client, and the refresh token via the
