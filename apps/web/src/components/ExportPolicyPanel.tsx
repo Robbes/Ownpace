@@ -230,13 +230,15 @@ const ExportPolicyPanel: React.FC<{
               <span className="text-sm text-green-700">{t('settings.exportPolicy.saved')}</span>
             )}
           </div>
-          {/* WHAT A CHANGED POLICY DOES NOT DO BY ITSELF (0125 T5, offered
-              rather than automatic). The items refused under the old policy
-              stay refused until somebody says to try them again: a settings
-              save that silently reset a queue of decisions would be the bulk
-              mutation of the ledger this codebase consistently refuses to
-              make. The Failures page already groups them and presses them as
-              a group, so this is a link to it, not a second button. */}
+          {/* WHAT HAPPENS TO THE ITEMS THE OLD POLICY REFUSED (0125 T5; since
+              0042 T8 (b) the pass does it, not this save). A Google file's
+              name comes from its format, so under a new one the next pass
+              lists it under a new name and tries it, and closes the refusal
+              left under the old name once that name is gone from the listing.
+              The save resets nothing, which is still the rule: a settings save
+              that silently emptied a queue of decisions would be the bulk
+              mutation this codebase refuses to make. The link is for watching
+              it happen, not a second button. */}
           {saved !== null && (
             <Hint
               className="mt-2"

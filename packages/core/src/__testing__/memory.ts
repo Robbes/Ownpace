@@ -3,6 +3,7 @@ import type {
   CursorStore,
   DiscoveryDomain,
   FailureAction,
+  FormerName,
   ItemFailure,
   ItemMove,
   ItemDeletion,
@@ -298,6 +299,34 @@ export class MemoryLedger implements Ledger {
     return Promise.resolve(undefined);
   }
 
+  /**
+   * Mirrors `PgLedger.supersedeFormerNames`: only a `failed` row under a former
+   * name, and a row that records a source handle only for the document with the
+   * same one.
+   */
+  supersedeFormerNames(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    domain: LedgerRecord['itemType'],
+    formerNames: ReadonlyArray<FormerName>,
+  ): Promise<ReadonlyArray<{ readonly naturalKeyHash: string; readonly supersededBy: string }>> {
+    const superseded: Array<{ naturalKeyHash: string; supersededBy: string }> = [];
+    for (const name of formerNames) {
+      if (name.formerNaturalKeyHash === name.naturalKeyHash) continue;
+      const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash: name.formerNaturalKeyHash });
+      const row = this.rows.get(k);
+      if (!row || row.status !== 'failed') continue;
+      if (row.sourceRef !== undefined && row.sourceRef !== '' && row.sourceRef !== name.sourceRef) continue;
+      this.rows.set(k, {
+        ...row,
+        status: 'superseded',
+        supersededByNaturalKeyHash: name.naturalKeyHash,
+      });
+      superseded.push({ naturalKeyHash: name.formerNaturalKeyHash, supersededBy: name.naturalKeyHash });
+    }
+    return Promise.resolve(superseded);
+  }
+
   recordIfAbsent(record: LedgerRecord): Promise<LedgerRecord> {
     const k = this.key(record);
     const existing = this.rows.get(k);
@@ -361,6 +390,8 @@ export class MemoryLedger implements Ledger {
       // is not in the SET clause either.
       createdAt: existing.createdAt,
     };
+    // PgLedger sets the superseded link to NULL on every update (0042 T8 (b)).
+    delete (merged as { supersededByNaturalKeyHash?: string }).supersededByNaturalKeyHash;
     this.rows.set(k, merged);
     return Promise.resolve(merged);
   }
@@ -424,6 +455,10 @@ export class MemoryLedger implements Ledger {
           ...(record.naturalKey !== undefined && record.naturalKey !== ''
             ? { naturalKey: record.naturalKey }
             : {}),
+          // And the source's handle, by the same rule (0042 T8 (b)).
+          ...(record.sourceRef !== undefined && record.sourceRef !== ''
+            ? { sourceRef: record.sourceRef }
+            : {}),
         }
       : {
           ...record,
@@ -433,6 +468,9 @@ export class MemoryLedger implements Ledger {
           lastError: error,
           lastErrorCategory,
         };
+    // Failing under a name makes it a current name again, as PgLedger's SET
+    // says (0042 T8 (b)).
+    delete (merged as { supersededByNaturalKeyHash?: string }).supersededByNaturalKeyHash;
     this.rows.set(k, merged);
     return Promise.resolve(merged);
   }
@@ -476,7 +514,7 @@ export class MemoryLedger implements Ledger {
     for (const r of this.rows.values()) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
       if (r.itemType !== domain) continue;
-      if (r.status === 'failed' || r.status === 'left_behind') continue;
+      if (r.status === 'failed' || r.status === 'left_behind' || r.status === 'superseded') continue;
       if (!r.collection) continue;
       out.push({
         naturalKeyHash: r.naturalKeyHash,

@@ -256,7 +256,7 @@ export class NativeFileRefused extends Error {
       message =
         `"${name}" is a Google ${kind}: it has no file to copy until Drive exports one, and this ` +
         'migration is set not to export. Choose a format under Export format for Google files, ' +
-        'then try again — or leave it behind.';
+        'and the next pass copies it in that format and closes this line — or leave it behind.';
     } else if (stability === 'unstable') {
       category = 'policy_refused';
       // MEASURED, not suspected. Drive CAN export this one — the refusal is
@@ -282,6 +282,32 @@ export class NativeFileRefused extends Error {
     markNeedsDecision(this);
     withFailureCategory(category, this);
   }
+}
+
+/**
+ * Every export policy, `refuse` first: every policy a document's name can come
+ * from. Derived from the export table, so a policy added there is a former name
+ * looked for here (0042 T8 (b)).
+ */
+const EVERY_POLICY: ReadonlyArray<NativeFilePolicy> = [
+  'refuse',
+  ...(Object.keys(NATIVE_EXPORT_TYPES) as Array<Exclude<NativeFilePolicy, 'refuse'>>),
+];
+
+/**
+ * The name a Drive file gets under `policy`. `GoogleDriveSource.exportedName`
+ * says why the name matters: it is part of the natural key.
+ */
+function exportedNameUnder(file: DriveFile, policy: NativeFilePolicy): string {
+  if (policy === 'refuse' || !isNativeEditorFile(file.mimeType)) return file.name;
+  const target = NATIVE_EXPORT_TYPES[policy][file.mimeType];
+  if (!target) return file.name;
+  const ext = NATIVE_EXPORT_EXTENSIONS[target];
+  // No extension known for an export we do map is a gap in the table, not a
+  // reason to rename the file: leave the name alone rather than inventing a
+  // suffix. The guard test makes this branch unreachable.
+  if (!ext) return file.name;
+  return file.name.toLowerCase().endsWith(ext) ? file.name : `${file.name}${ext}`;
 }
 
 export function isNativeEditorFile(mimeType: string): boolean {
@@ -535,8 +561,9 @@ export class GoogleDriveSource implements FileSource {
       }
       // The SAME name for the path and the item, so the natural key and what
       // the owner sees on the target cannot disagree about the suffix.
+      const path = this.childPath(folder.path, this.exportedName(file));
       items.push({
-        item: this.toFileItem(file, this.childPath(folder.path, this.exportedName(file))),
+        item: this.toFileItem(file, path, this.formerPathsOf(file, folder.path, path)),
       });
     }
 
@@ -1168,21 +1195,38 @@ export class GoogleDriveSource implements FileSource {
    * fourth policy after that is no longer free to change this.
    */
   private exportedName(file: DriveFile): string {
-    if (this.policy === 'refuse' || !isNativeEditorFile(file.mimeType)) return file.name;
-    const target = NATIVE_EXPORT_TYPES[this.policy][file.mimeType];
-    if (!target) return file.name;
-    const ext = NATIVE_EXPORT_EXTENSIONS[target];
-    // No extension known for an export we do map is a gap in the table, not a
-    // reason to rename the file: leave the name alone rather than inventing a
-    // suffix. The guard test makes this branch unreachable.
-    if (!ext) return file.name;
-    return file.name.toLowerCase().endsWith(ext) ? file.name : `${file.name}${ext}`;
+    return exportedNameUnder(file, this.policy);
   }
 
-  private toFileItem(file: DriveFile, path: string): FileItem {
+  /**
+   * The paths this document would have under the OTHER export policies
+   * (0042 T8 (b)), for `FileItem.formerPaths`.
+   *
+   * The comment above is why this exists. The name is part of the key, so the
+   * day an owner switches policy, every Google document is listed under a key
+   * the ledger has never seen, and a failure recorded under the old key (most
+   * often a refused Slides deck) is never listed again. Naming the old keys is
+   * what lets the pass close those failures instead of leaving them on the
+   * Failures screen for good. Computed with the same function as the current
+   * name, so the two cannot disagree about a suffix. Empty for a file whose name
+   * is its own.
+   */
+  private formerPathsOf(file: DriveFile, folderPath: string, current: string): string[] {
+    if (typeof file.mimeType !== 'string' || !isNativeEditorFile(file.mimeType)) return [];
+    const paths = new Set<string>();
+    for (const policy of EVERY_POLICY) {
+      if (policy === this.policy) continue;
+      const path = this.childPath(folderPath, exportedNameUnder(file, policy));
+      if (path !== current) paths.add(path);
+    }
+    return [...paths];
+  }
+
+  private toFileItem(file: DriveFile, path: string, formerPaths: ReadonlyArray<string> = []): FileItem {
     return {
       path,
       name: this.exportedName(file),
+      ...(formerPaths.length > 0 ? { formerPaths } : {}),
       isDirectory: false,
       size: Number.parseInt(file.size ?? '0', 10) || 0,
       // Drive's MD5, for binary files only — see `FileItem.contentHash` for why

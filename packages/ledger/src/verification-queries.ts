@@ -104,7 +104,11 @@ export function createLedgerVerificationReader(
             // on the target forever and block a cutover they already approved.
             // Everything else — 'failed' included — still counts, because a
             // failed item IS missing and the operator must see that.
-            ne(schema.item.status, 'left_behind')
+            ne(schema.item.status, 'left_behind'),
+            // And a name the document no longer has (0042 T8 (b)): the same
+            // document has its own row under its current name, so counting
+            // this one would report it missing twice, and forever.
+            ne(schema.item.status, 'superseded'),
           )
         );
       return result[0]?.count ?? 0;
@@ -126,7 +130,11 @@ export function createLedgerVerificationReader(
             // on the target forever and block a cutover they already approved.
             // Everything else — 'failed' included — still counts, because a
             // failed item IS missing and the operator must see that.
-            ne(schema.item.status, 'left_behind')
+            ne(schema.item.status, 'left_behind'),
+            // And a name the document no longer has (0042 T8 (b)): the same
+            // document has its own row under its current name, so counting
+            // this one would report it missing twice, and forever.
+            ne(schema.item.status, 'superseded'),
           )
         );
       return result[0]?.total ?? 0;
@@ -150,7 +158,11 @@ export function createLedgerVerificationReader(
             // on the target forever and block a cutover they already approved.
             // Everything else — 'failed' included — still counts, because a
             // failed item IS missing and the operator must see that.
-            ne(schema.item.status, 'left_behind')
+            ne(schema.item.status, 'left_behind'),
+            // And a name the document no longer has (0042 T8 (b)): the same
+            // document has its own row under its current name, so counting
+            // this one would report it missing twice, and forever.
+            ne(schema.item.status, 'superseded'),
           )
         )
         .orderBy(schema.item.naturalKeyHash)
@@ -179,7 +191,11 @@ export function createLedgerVerificationReader(
             // on the target forever and block a cutover they already approved.
             // Everything else — 'failed' included — still counts, because a
             // failed item IS missing and the operator must see that.
-            ne(schema.item.status, 'left_behind')
+            ne(schema.item.status, 'left_behind'),
+            // And a name the document no longer has (0042 T8 (b)): the same
+            // document has its own row under its current name, so counting
+            // this one would report it missing twice, and forever.
+            ne(schema.item.status, 'superseded'),
           )
         );
       

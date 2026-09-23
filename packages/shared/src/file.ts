@@ -88,6 +88,18 @@ export interface FileItem {
   readonly group?: string;
   /** Source reference (opaque handle for fetching). */
   readonly sourceRef: string;
+  /**
+   * The paths this item would have under the source's OTHER export policies
+   * (workplan 0042 T8 (b)).
+   *
+   * Only a document whose name the export decides has any: a Google Doc called
+   * `Report` is `Report` when refused, `Report.docx` under Office, `Report.odt`
+   * under OpenDocument. The path is the natural key, so switching the policy
+   * lists the same document under a new key. These are what let a pass close
+   * the failure it left under the old one. Never the item's current path, and
+   * absent for every file whose name is its own.
+   */
+  readonly formerPaths?: ReadonlyArray<string>;
 }
 
 /**

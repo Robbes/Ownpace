@@ -394,6 +394,9 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     upsert: async (parentId, raw, _item, options) =>
       target.upsertFile(parentId, raw as RawFileItem, options),
     naturalKey: (item) => fileNaturalKeyHash(item.item.path),
+    // The same function over the names the document would have under another
+    // export policy, so the loop compares like with like (0042 T8 (b)).
+    formerNaturalKeys: (item) => (item.item.formerPaths ?? []).map(fileNaturalKeyHash),
     // The path, which is what a person searches their old account for.
     naturalKeyText: (item) => item.item.path,
     // NO `displayName`, deliberately: the key above IS the name. A second copy

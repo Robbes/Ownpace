@@ -14,6 +14,7 @@ import {
   MAX_ITEM_ATTEMPTS,
   isDecisionError,
   statedFailureCategoryOf,
+  type FormerName,
   type Ledger,
   type LedgerRecord,
   type ItemFailure,
@@ -272,6 +273,13 @@ export function classifyKnownItem(
   // the fast-path and skipped it, so the item was never retried and never
   // reported. Silent data loss with a green count next to it.
   if (known.status === 'left_behind') return 'left-behind';
+  // A NAME THE DOCUMENT HAD UNDER ANOTHER EXPORT POLICY, listed again (0042 T8
+  // (b)). A row is superseded only while its name is not listed, so seeing the
+  // name again means the policy was switched back and it is a current name.
+  // Nothing was ever copied under it, so it is tried like a failure with
+  // attempts left. A skip would be the permanent silence these states exist to
+  // prevent.
+  if (known.status === 'superseded') return 'retry-failed';
   // REMOVED ON PURPOSE, and the source is showing it again.
   //
   // Not re-copied, deliberately. Re-creating it would be the natural reading of
@@ -472,6 +480,18 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * a removal report — they fall back to absence-counting.
    */
   readonly sourceRef?: (item: Item) => string | undefined;
+  /**
+   * The natural-key hashes this item would have had under the source's OTHER
+   * export policies (workplan 0042 T8 (b)).
+   *
+   * Only a Google-native document has any: its name is the export policy's
+   * choice (`Report`, `Report.docx`, `Report.odt`) and the name is the key, so
+   * a policy switch makes the same document a new key. Hashed through the same
+   * function as `naturalKey`, so the two can be compared. After a pass that
+   * listed everything, a `failed` row under one of these names, which the pass
+   * did not list, is superseded by the name it listed (`supersedeFormerNames`).
+   */
+  readonly formerNaturalKeys?: (item: Item) => ReadonlyArray<string>;
   /** Extract natural key from item */
   /**
    * The item's natural-key hash, or undefined when it cannot be known from the
@@ -751,6 +771,17 @@ export interface DomainSyncResult {
    */
   readonly reappearedAfterRemoval: number;
   /**
+   * Failures closed because the same document is listed under the name the
+   * current export policy gives it (workplan 0042 T8 (b)).
+   *
+   * A Google-native document's name comes from the export policy, and the name
+   * is the key, so a policy switch lists the same document under a new key.
+   * The failure under the old name, most often a refused Slides deck, was
+   * never listed again and sat on the Failures screen for good. Counted so the
+   * pass says it closed them rather than letting them vanish.
+   */
+  readonly superseded: number;
+  /**
    * Where this pass's wall time went. Always present — the caller persists it
    * for §19's dashboards and feeds it to the metrics registry.
    */
@@ -854,6 +885,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     ensureCollection,
     sourceVersion,
     sourceRef,
+    formerNaturalKeys,
     listCollectionKeys,
     listDiscardedKeys,
     sourceIsAuthorityOnExistence,
@@ -882,6 +914,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   // The source lists a key again after `apply` removed the target's copy for
   // it. Never re-created — see `DomainSyncResult.reappearedAfterRemoval`.
   let reappearedAfterRemoval = 0;
+  // Failures closed because the same document is listed under the name the
+  // current export policy gives it. See `DomainSyncResult.superseded`.
+  let superseded = 0;
   const failures: ItemFailure[] = [];
   /**
    * Consecutive failures, reset by any success.
@@ -929,6 +964,12 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   const seenByCollection = new Map<string, Set<string>>();
   /** Items created THIS pass — the other half of the correlation. */
   const createdThisPass: Array<{ naturalKeyHash: string; contentHash: string; collection: string }> = [];
+  /**
+   * The names each listed document would have had under another export policy
+   * (0042 T8 (b)), held until the pass has listed everything, because only then
+   * does "this pass did not list that name" mean anything.
+   */
+  const formerNames: FormerName[] = [];
   /**
    * True only while the key set of EVERY folder so far is known to be complete.
    *
@@ -1146,6 +1187,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       let itemName = displayName?.(item);
       const version = sourceVersion?.(item);
       if (naturalKeyHash !== undefined) seenHere.add(naturalKeyHash);
+      if (naturalKeyHash !== undefined && formerNaturalKeys) {
+        const current = naturalKeyHash;
+        const ref = sourceRef?.(item);
+        for (const former of formerNaturalKeys(item)) {
+          if (former === current) continue;
+          formerNames.push({
+            formerNaturalKeyHash: former,
+            naturalKeyHash: current,
+            ...(ref !== undefined ? { sourceRef: ref } : {}),
+          });
+        }
+      }
 
       // Set when this item is a REWRITE of a copy we already made, not a new
       // item. It carries the existing row, whose createdAt and identity the
@@ -1687,6 +1740,10 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
               // never report one, since the check excludes an empty stored
               // collection.
               collection: collectionPath,
+              // The source's own handle, which a failure used to leave out. It
+              // is what tells a failure under a name the document no longer has
+              // from one that belongs to a different object (0042 T8 (b)).
+              ...(sourceRef?.(item) !== undefined ? { sourceRef: sourceRef(item) } : {}),
               contentHash: ch,
               targetId: '',
               createdAt: new Date().toISOString(),
@@ -1905,6 +1962,33 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     }
   }
 
+  // THE NAMES A DOCUMENT OUTGREW (0042 T8 (b)). Only after a pass that listed
+  // everything, because a former name is superseded only when this pass did not
+  // list it, and on a pass that could not list a folder that means nothing.
+  //
+  // Not gated on the source's authority, unlike the detector below. This claims
+  // nothing about what exists: the document is right here under its current
+  // name, and the only rows it touches are failures that never reached the
+  // target. A name still listed is left alone, because a real file can carry
+  // it: an uploaded `Deck.pptx` beside a Slides deck called `Deck`.
+  if (formerNames.length > 0 && fullyEnumerated) {
+    const seenAnywhere = new Set<string>();
+    for (const keys of seenByCollection.values()) for (const k of keys) seenAnywhere.add(k);
+    const unlisted = formerNames.filter((f) => !seenAnywhere.has(f.formerNaturalKeyHash));
+    if (unlisted.length > 0) {
+      const closed = await timed(phases, 'ledgerWriteMs', () =>
+        ledger.supersedeFormerNames(tenantId, mappingId, domain, unlisted),
+      );
+      superseded = closed.length;
+      if (superseded > 0) {
+        log.info(
+          `[sync] ${domain}: closed ${superseded} failure(s) left under a name the export policy ` +
+            'no longer gives. The same documents are listed under their current names.',
+        );
+      }
+    }
+  }
+
   // The path-keyed half, which can only run once every folder has been listed.
   //
   // The third deletion producer, and the one that also yields `moves` and the
@@ -2004,6 +2088,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     needsDecision,
     leftBehind,
     reappearedAfterRemoval,
+    superseded,
     failures,
     moved,
     moves,

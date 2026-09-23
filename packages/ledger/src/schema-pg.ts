@@ -477,6 +477,11 @@ export const item = pgTable(
         'left_behind',
         'deleted_source',
         'tombstoned',
+        // A name this document had under another export policy, now recorded
+        // under the one the current policy gives it (0042 T8 (b)). Terminal
+        // like `left_behind` but no decision: it is tried again only if the
+        // name itself comes back. See migration 0056.
+        'superseded',
       ],
     })
       .notNull()
@@ -548,6 +553,10 @@ export const item = pgTable(
     // again somewhere else: a decision about one layout is not consent to
     // every future one.
     moveAcknowledgedAt: timestamp('move_acknowledged_at', { withTimezone: true }),
+    // The row that took over from a `superseded` one, and when (migration
+    // 0056). NULL on every other row.
+    supersededByNaturalKeyHash: text('superseded_by_natural_key_hash'),
+    supersededAt: timestamp('superseded_at', { withTimezone: true }),
     // What the TARGET said when a confirmation pass last re-read this item
     // (workplan 0117 T2, migration 0045). NULL = never asked.
     //

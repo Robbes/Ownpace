@@ -943,7 +943,20 @@ export interface LedgerRecord {
      * a tombstoned row makes §20 verification expect bytes that were removed
      * on purpose.
      */
-    | 'tombstoned';
+    | 'tombstoned'
+    /**
+     * A name this document had under another export policy, now recorded
+     * under the one the current policy gives it (workplan 0042 T8 (b),
+     * migration 0056). Only a row that never reached the target ends this
+     * way, so it is not on the target, not an open problem, and not a
+     * decision: if the name itself comes back, the row is tried again.
+     */
+    | 'superseded';
+  /**
+   * The row that took over from a `superseded` one: the same document under
+   * the name the current export policy gives it. Absent on every other row.
+   */
+  readonly supersededByNaturalKeyHash?: string;
   /**
    * The SOURCE collection this item lived in when we copied it.
    *
@@ -1167,6 +1180,19 @@ export interface ShareGrantRow {
 }
 
 /** Idempotency ledger. UNIQUE(tenantId, mappingId, itemType, naturalKeyHash). Non-destructive. */
+/**
+ * One name a listed document would have had under another export policy
+ * (workplan 0042 T8 (b)). See `Ledger.supersedeFormerNames`.
+ */
+export interface FormerName {
+  /** The key the document had, or would have had, under another policy. */
+  readonly formerNaturalKeyHash: string;
+  /** The key this pass listed it under. */
+  readonly naturalKeyHash: string;
+  /** The source's own handle for the document, when it has one. */
+  readonly sourceRef?: string;
+}
+
 export interface Ledger {
   /** Look up an existing record by natural key. */
   find(
@@ -1587,6 +1613,30 @@ export interface Ledger {
     sourceRef: string,
   ): Promise<LedgerRecord | undefined>;
   /**
+   * Close the failures a document left under names it no longer has (workplan
+   * 0042 T8 (b), migration 0056).
+   *
+   * A Google-native document's name comes from the export policy, and the name
+   * is the key, so every policy switch gives it a new one. Each pair says: this
+   * pass listed the document under `naturalKeyHash`, and under another policy
+   * it would have been `formerNaturalKeyHash`. The caller passes only former
+   * names this pass did NOT list, because a real file can carry the same name
+   * (an uploaded `Deck.pptx` beside a Slides deck called `Deck`) and a name
+   * still listed is still somebody's.
+   *
+   * A row under a former name becomes `superseded` only when it is `failed`,
+   * and when it records no source handle or the same one as the document: a
+   * row that says it belongs to a different object is left alone. Anything that
+   * reached the target is never touched here. Returns each superseded row with
+   * the key that took over from it.
+   */
+  supersedeFormerNames(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    formerNames: ReadonlyArray<FormerName>,
+  ): Promise<ReadonlyArray<{ readonly naturalKeyHash: string; readonly supersededBy: string }>>;
+  /**
    * Note that a complete scan did not find this item, and return how many
    * consecutive scans that now makes.
    *
@@ -1769,7 +1819,15 @@ export function isOnTarget(status: LedgerRecord['status']): boolean {
   // removed. The row survives as the record of that, so it MUST NOT read as "on
   // the target" — §20 would expect bytes that were removed on purpose and report
   // them as missing, turning a completed decision into a verification failure.
-  return status !== 'failed' && status !== 'left_behind' && status !== 'tombstoned';
+  //
+  // `superseded` never reached the target at all: only a row that failed under
+  // a name the document no longer has is ever given it (0042 T8 (b)).
+  return (
+    status !== 'failed' &&
+    status !== 'left_behind' &&
+    status !== 'tombstoned' &&
+    status !== 'superseded'
+  );
 }
 
 /** One item that would not migrate, and what can be done about it. */

@@ -17,10 +17,17 @@ import {
   classifyFailure,
   isFailureCategory,
   type FailureSide,
+  type FormerName,
 } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
-import { eq, and, ne, gt, gte, isNull, isNotNull, or, desc, sql } from 'drizzle-orm';
+import { eq, and, ne, gt, gte, inArray, isNull, isNotNull, or, desc, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
+
+/**
+ * Former names read per query in `supersedeFormerNames`: far inside Postgres's
+ * 65,535 bind parameters, and a pass's worth of Google documents in a few reads.
+ */
+const SUPERSEDE_CHUNK = 1000;
 
 /**
  * A user-supplied needle as a LITERAL for `LIKE … ESCAPE '\\'`.
@@ -111,6 +118,85 @@ export class PgLedger implements Ledger {
       )
       .limit(1);
     return result.length === 0 ? undefined : this.mapRowToRecord(result[0]!);
+  }
+
+  /**
+   * Close the failures a document left under names it no longer has (0042 T8 (b)).
+   *
+   * A pass lists a few thousand files and a policy switch leaves a few dozen
+   * failures behind, so this READS the failed rows under any former name, in
+   * chunks well inside the bind-parameter limit, and writes only the handful it
+   * finds. Each write re-checks `failed` in its own statement, so a Retry or an
+   * accept that lands in between wins and nothing is superseded over it.
+   *
+   * A row that records a source handle is superseded only by the document with
+   * that same handle. A row with none, which is every failure written before
+   * `recordFailure` learned to keep one, is superseded by the first document
+   * that claims its name: the caller has already dropped any name this pass
+   * still listed, which is what keeps a real file of that name out of it.
+   */
+  async supersedeFormerNames(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+    formerNames: ReadonlyArray<FormerName>,
+  ): Promise<ReadonlyArray<{ readonly naturalKeyHash: string; readonly supersededBy: string }>> {
+    const claims = new Map<string, FormerName[]>();
+    for (const name of formerNames) {
+      // A document is never its own former name.
+      if (name.formerNaturalKeyHash === name.naturalKeyHash) continue;
+      const list = claims.get(name.formerNaturalKeyHash) ?? [];
+      list.push(name);
+      claims.set(name.formerNaturalKeyHash, list);
+    }
+    const formers = [...claims.keys()];
+    const superseded: Array<{ naturalKeyHash: string; supersededBy: string }> = [];
+    for (let at = 0; at < formers.length; at += SUPERSEDE_CHUNK) {
+      const failed = await this.db
+        .select({
+          naturalKeyHash: schemaPg.item.naturalKeyHash,
+          sourceRefHref: schemaPg.item.sourceRefHref,
+        })
+        .from(schemaPg.item)
+        .where(
+          and(
+            eq(schemaPg.item.tenantId, tenantId),
+            eq(schemaPg.item.mappingId, mappingId),
+            eq(schemaPg.item.domain, domain),
+            eq(schemaPg.item.status, 'failed'),
+            inArray(schemaPg.item.naturalKeyHash, formers.slice(at, at + SUPERSEDE_CHUNK)),
+          ),
+        );
+      for (const row of failed) {
+        const candidates = claims.get(row.naturalKeyHash) ?? [];
+        const claimant = row.sourceRefHref
+          ? candidates.find((c) => c.sourceRef === row.sourceRefHref)
+          : candidates[0];
+        if (!claimant) continue;
+        const written = await this.db
+          .update(schemaPg.item)
+          .set({
+            status: 'superseded',
+            supersededByNaturalKeyHash: claimant.naturalKeyHash,
+            supersededAt: sql`now()`,
+            updatedAt: sql`now()`,
+          })
+          .where(
+            and(
+              eq(schemaPg.item.tenantId, tenantId),
+              eq(schemaPg.item.mappingId, mappingId),
+              eq(schemaPg.item.domain, domain),
+              eq(schemaPg.item.naturalKeyHash, row.naturalKeyHash),
+              eq(schemaPg.item.status, 'failed'),
+            ),
+          )
+          .returning({ naturalKeyHash: schemaPg.item.naturalKeyHash });
+        if (written.length > 0) {
+          superseded.push({ naturalKeyHash: row.naturalKeyHash, supersededBy: claimant.naturalKeyHash });
+        }
+      }
+    }
+    return superseded;
   }
 
   async recordIfAbsent(record: LedgerRecord): Promise<LedgerRecord> {
@@ -248,6 +334,11 @@ export class PgLedger implements Ledger {
         ...(record.displayName !== undefined && record.displayName !== ''
           ? { displayName: record.displayName }
           : {}),
+        // A superseded row written again is a current name again (the export
+        // policy was switched back), so the link to the row that took over
+        // from it no longer says anything (0042 T8 (b)).
+        supersededByNaturalKeyHash: null,
+        supersededAt: null,
         lastSyncedAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -337,6 +428,10 @@ export class PgLedger implements Ledger {
           ...(options.park ? { parkedAt: parked } : {}),
           lastError: error,
           lastErrorCategory: category,
+          // Failing under a name makes it a current name again, as in
+          // `recordUpdate` (0042 T8 (b)).
+          supersededByNaturalKeyHash: null,
+          supersededAt: null,
           updatedAt: sql`now()`,
           // Deliberately NOT content_hash or source_version: a failed attempt
           // wrote nothing, so both still describe what is actually on the
@@ -370,6 +465,13 @@ export class PgLedger implements Ledger {
           // that could have identified them.
           ...(record.displayName !== undefined && record.displayName !== ''
             ? { displayName: record.displayName }
+            : {}),
+          // And the source's own handle, by the same rule (0042 T8 (b)). It is
+          // how a failure left under a name the document no longer has is told
+          // apart from one that belongs to a different object with that name;
+          // a failed row used to record none.
+          ...(record.sourceRef !== undefined && record.sourceRef !== ''
+            ? { sourceRefHref: record.sourceRef }
             : {}),
         })
         .where(
@@ -409,6 +511,7 @@ export class PgLedger implements Ledger {
         sizeBytes: record.sizeBytes !== undefined ? BigInt(record.sizeBytes) : null,
         status: 'failed',
         targetRef: { id: record.targetId },
+        sourceRefHref: record.sourceRef !== undefined && record.sourceRef !== '' ? record.sourceRef : null,
         sourceVersion: record.sourceVersion ?? null,
         // No `target_version`, deliberately, and for the same reason this path
         // leaves content_hash alone on an existing row: a failed attempt wrote
@@ -466,6 +569,10 @@ export class PgLedger implements Ledger {
           // so its absence from a later listing says nothing about a move.
           ne(schemaPg.item.status, 'failed'),
           ne(schemaPg.item.status, 'left_behind'),
+          // Never placed either: a failure under a name the document no longer
+          // has (0042 T8 (b)). Left in, it would be counted absent every pass
+          // and reported as a deletion of something that was never copied.
+          ne(schemaPg.item.status, 'superseded'),
           // `''` is "collection never recorded", which is every row written
           // before the column was populated. Such a row cannot say where the
           // item came from, so it can neither move nor go missing as far as
@@ -1658,6 +1765,9 @@ export class PgLedger implements Ledger {
       // Left off entirely when there is none, so "not recorded" stays
       // distinguishable from "recorded as empty".
       ...(row.sourceRefHref ? { sourceRef: row.sourceRefHref } : {}),
+      ...(row.supersededByNaturalKeyHash
+        ? { supersededByNaturalKeyHash: row.supersededByNaturalKeyHash }
+        : {}),
       ...(row.movedToCollection ? { movedToCollection: row.movedToCollection } : {}),
       ...(row.movedToNaturalKeyHash
         ? { movedToNaturalKeyHash: row.movedToNaturalKeyHash }

@@ -51,6 +51,8 @@ const EVERY_STATUS: ReadonlyArray<LedgerRecord['status']> = [
   'left_behind',
   'deleted_source',
   'tombstoned',
+  // A failure under a name the document no longer has (0042 T8 (b)).
+  'superseded',
 ];
 
 const item = (over: Partial<ConfirmableItem> = {}): ConfirmableItem => ({
@@ -282,6 +284,7 @@ describe('the reads the ledger makes unnecessary', () => {
       'skipped',
       'failed',
       'left_behind',
+      'superseded',
       'adopted',
       'tombstoned',
       undefined,
@@ -293,6 +296,12 @@ describe('the reads the ledger makes unnecessary', () => {
       hash: 0,
     });
     expect(await confirmOne('file', item({ status: undefined }), counting)).toEqual({
+      state: 'never-placed',
+      claim: 'none',
+    });
+    // Said outright, because the property test below compares a status's rows
+    // with each other and cannot see a switch that answers nothing at all.
+    expect(await confirmOne('file', item({ status: 'superseded' }), counting)).toEqual({
       state: 'never-placed',
       claim: 'none',
     });

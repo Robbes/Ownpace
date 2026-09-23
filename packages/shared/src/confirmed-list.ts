@@ -302,6 +302,10 @@ export function rowFor(args: {
     case 'skipped':
     case 'failed':
     case 'left_behind':
+    case 'superseded':
+      // `superseded` is a failure under a name the document no longer has
+      // (0042 T8 (b)): never placed, and the same document has its own row
+      // under its current name.
       return { state: 'never-placed', claim: 'none' };
 
     // Rule 2 — the customer's own bytes, both shapes.
@@ -366,6 +370,7 @@ export function needsTargetRead(status: LedgerRecord['status']): boolean {
     case 'skipped':
     case 'failed':
     case 'left_behind':
+    case 'superseded':
     case 'adopted':
     case 'tombstoned':
       return false;
