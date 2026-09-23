@@ -2275,6 +2275,10 @@ paths:
                 type: object
                 properties:
                   organisation: { type: string }
+                  checkedCompany:
+                    type: string
+                    nullable: true
+                    description: The company name the EU VAT register (VIES) gave, when the organisation's VAT number as stored was checked and found valid; null otherwise.
                   askedBy:
                     type: string
                     nullable: true

@@ -63,6 +63,7 @@ import {
   credential,
   grantReadiness,
   readAskedBy,
+  readCheckedCompany,
   readGrantRows,
   storedCredentials,
   whereFromAndTo,
@@ -214,9 +215,16 @@ router.get(
       const { linkId, tenantId, mappingId, expiresAt } = req.mappingLink!;
       const loaded = await loadSubject(tenantId, mappingId);
       if (!loaded.ok) return void res.status(409).json({ error: 'not_ready', reason: loaded.reason });
-      const askedBy = await withTenantDb(tenantId, pool(), (db) => readAskedBy(db, tenantId, linkId));
+      const { askedBy, checkedCompany } = await withTenantDb(tenantId, pool(), async (db) => ({
+        askedBy: await readAskedBy(db, tenantId, linkId),
+        checkedCompany: await readCheckedCompany(db, tenantId),
+      }));
       res.json({
         organisation: loaded.subject.organisation,
+        // The name the EU VAT register gave, when the organisation's VAT number
+        // was checked and found valid (0108 T8a, the owner's decision of
+        // 2026-09-23). Unlike `organisation`, nobody chose it for this page.
+        checkedCompany,
         // Who asked (0108 T8a): the issuing member's sign-in address, and a
         // number to call when the organisation gave one — optional, by the
         // owner's decision of 2026-09-23.

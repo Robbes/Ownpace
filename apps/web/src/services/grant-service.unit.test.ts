@@ -20,6 +20,7 @@ describe('the grant subject, as the page receives it', () => {
     getMock.mockResolvedValue({
       data: {
         organisation: 'Acme Legal',
+        checkedCompany: 'ACME LEGAL B.V.',
         askedBy: 'owner@example.org',
         organisationPhone: '+31 20 123 4567',
         reads: 'your contacts',
@@ -30,6 +31,7 @@ describe('the grant subject, as the page receives it', () => {
       },
     });
     const subject = await grantApi.read('abc.def');
+    expect(subject.checkedCompany).toBe('ACME LEGAL B.V.');
     expect(subject.askedBy).toBe('owner@example.org');
     expect(subject.organisationPhone).toBe('+31 20 123 4567');
     expect(subject.from).toBe('someone@example.invalid');
@@ -44,6 +46,7 @@ describe('the grant subject, as the page receives it', () => {
     getMock.mockResolvedValue({
       data: {
         organisation: 'Acme Legal',
+        checkedCompany: null,
         askedBy: null,
         organisationPhone: null,
         reads: 'your contacts',
@@ -55,6 +58,7 @@ describe('the grant subject, as the page receives it', () => {
     });
     const subject = await grantApi.read('abc.def');
     expect(subject.from).toBeNull();
+    expect(subject.checkedCompany).toBeNull();
     expect(subject.askedBy).toBeNull();
     expect(subject.organisationPhone).toBeNull();
     expect(subject.to.host).toBeNull();

@@ -58,7 +58,9 @@ Before any button, the page tells them:
 - **who is asking** — your organisation, by name, and the address **you** sign in to Ownpace
   with, so they know which person is asking and not only which organisation. If your
   organisation has a phone number set, they see that too, so they can call and check it is
-  really you;
+  really you. And if your invoice details carry a business VAT number that the EU VAT register
+  (VIES) confirmed, they see your company's name as the register gives it: the one name on the
+  page nobody typed for it;
 - **from which account, and to where** — the account the migration reads, and its destination:
   which kind of server, where it is, and the account on it. Then one question: *do you know
   who asked, and is the destination yours or your organisation's? Only then continue.* This

@@ -888,6 +888,8 @@ const en = {
   'grant.reads': 'You are about to give access to {reads}.',
   // Where from and where to (workplan 0108 T8a): what lets a person tell their
   // own migration from a stranger's, whose every other screen is genuine.
+  'grant.company': 'Company',
+  'grant.companyChecked': 'Checked in the EU VAT register (VIES).',
   'grant.askedBy': 'Asked by',
   'grant.phone': 'Phone',
   'grant.from': 'From',
@@ -2860,6 +2862,8 @@ const nl: Record<keyof typeof en, string> = {
   'grant.loading': 'Een moment…',
   'grant.asking': '{organisation} verhuist uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
   'grant.reads': 'U staat op het punt toegang te geven tot {reads}.',
+  'grant.company': 'Bedrijf',
+  'grant.companyChecked': 'Gecontroleerd in het EU-btw-register (VIES).',
   'grant.askedBy': 'Gevraagd door',
   'grant.phone': 'Telefoon',
   'grant.from': 'Van',
