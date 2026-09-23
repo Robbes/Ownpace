@@ -1,10 +1,13 @@
 # ADR-0046: A rendering is compared by its parts, not by its bytes
 
 - **Status:** **Accepted 2026-09-16** — by the owner, as proposed, the same day it was written
-  and the same day the measurement landed. **Decided but NOT YET BUILT**: the tree still hashes
-  every file whole, and 0042 T7 is where the build is tracked. That gap is deliberate and
-  recorded rather than discovered, so nobody reads this register entry as a description of the
-  code.
+  and the same day the measurement landed. **Built in 0042 T7, but the ledger does not yet
+  receive the per-part hash** (0042 T8 (e), found 2026-09-22 and re-read 2026-09-23). The file
+  pass's `fetchRaw` rebuilds the raw item from `item`, `content` and `body` only, so the
+  `rendering` marker that Drive's export sets never reaches `contentHash`, and every export is
+  stored with a whole-file hash. Since #1083 a version, not this hash, decides whether a file is
+  rewritten. What else reads the hash is (e)'s open question. Until 2026-09-23 this line said
+  "NOT YET BUILT" while the first operative rule said "BUILT, and live". Neither was true.
 - **Date:** 2026-09-16; accepted 2026-09-16
 - **Deciders:** owner
 - **Relates to:** [ADR-0024](./0024-deletion-needs-corroborated-evidence.md) (what counts as
@@ -24,11 +27,13 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **BUILT, and live.** A rendering a source marks as such (`RawFileItem.rendering`, set only by
-  Drive's `files.export` branch) is hashed by `containerContentHash`; the target re-read is asked
-  for the same scheme the row was stored in; the confirmed list says `container-parts` rather
-  than "by hash". `nativeFilePolicy` still defaults to `refuse` — that is the owner's per-migration
-  choice and always was — but choosing `export-office` is now a supported thing to do.
+- **BUILT, BUT NOT YET REACHING THE LEDGER (0042 T8 (e)).** A rendering a source marks as such
+  (`RawFileItem.rendering`, set only by Drive's `files.export` branch) is meant to be hashed by
+  `containerContentHash`, with the target re-read in the row's own scheme and the confirmed list
+  saying `container-parts` rather than "by hash". All of that is built, and none of it is reached:
+  the file pass's `fetchRaw` drops the marker, so every export is stored with a whole-file hash.
+  `nativeFilePolicy` still defaults to `refuse` — that is the owner's per-migration choice and
+  always was — but choosing `export-office` is a supported thing to do.
 - **AND IT RESCUES A DOC AND A SHEET, NOT A DECK.** The connector refuses a Google Slides file
   under `export-office` for measured instability, per item, inside the sync loop's boundary. The
   preflight counts what a policy will refuse and the confirm screen names it before the run
@@ -288,3 +293,20 @@ themes: packaging around not much content. Images, embedded fonts and charts are
 PDF renderer is known to vary on (font subset tags, image recompression), so a content-rich deck
 is a different question and an unmeasured one. The green is real, the asymmetry still holds, and
 the next measurement worth taking is named in workplan 0042 T3.
+
+## 2026-09-23: built, and not reaching the ledger
+
+Workplan 0042 T8 (e) found that the build stops one step short. Drive's `fetch` marks an export
+`rendering: true`, and `contentHash` in the file pass branches on that marker. But the file
+pass's `fetchRaw` rebuilds the raw item from `item`, `content` and `body` only, so the marker
+never arrives. Every export has been stored with a whole-file hash, no row carries `zip1:`, and
+the confirmed list has never had cause to say `container-parts`. The guard for the wiring reads
+source text, which is why it stayed green.
+
+This is not the nightly rewrite the decision was written against. Since #1083 (2026-09-22) the
+file domain's change signal is the source's version, and a Google-native file's version is its
+`modifiedTime`, so an unstable export no longer causes a rewrite at all. What still reads the
+stored hash is relocation (ADR-0030 correlates by content hash) and verification. Whether the
+marker should now be passed through, and what that changes for those two, is 0042 T8 (e)'s
+open question. The status line and the first operative rule were corrected the same day; they
+had said "not yet built" and "built, and live", and neither was true.
