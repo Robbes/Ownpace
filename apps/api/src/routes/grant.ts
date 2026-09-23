@@ -15,12 +15,15 @@
  * in order to decide: **who is asking** (the organisation's name — consenting
  * to an anonymous request is not consenting), **what will be read**, **which
  * scope** in Google's own words, **until when** the link works, and — since
- * 2026-09-23 (0108 T8a) — **from which account and to which destination**.
- * Without the last two, a stranger who set up a migration from somebody's
- * account into a server of their own could send a link whose every screen was
- * genuine: this one and Google's. It does not answer with the mapping id, the
- * tenant id, the owner's email, the client id, anything about other mappings,
- * or anything about the organisation beyond its name.
+ * 2026-09-23 (0108 T8a) — **who asked, from which account, and to which
+ * destination**. Without those, a stranger who set up a migration from
+ * somebody's account into a server of their own could send a link whose every
+ * screen was genuine: this one and Google's. *Who asked* is the address of the
+ * member who issued the link. T4 left it out, and the owner reversed that on
+ * 2026-09-23: *"It has to be clear who is facilitating a migration of someone
+ * else."* It does not answer with the mapping id, the tenant id, the client id,
+ * anything about other mappings, or anything about the organisation beyond its
+ * name.
  *
  * ## The other direction of the same warning
  *
@@ -59,6 +62,7 @@ import { grantLinkAsk, type GrantLinkAskRefusalCode } from './migrations/grant-l
 import {
   credential,
   grantReadiness,
+  readAskedBy,
   readGrantRows,
   storedCredentials,
   whereFromAndTo,
@@ -205,11 +209,14 @@ router.get(
   linkAuth,
   async (req: MappingLinkRequest, res: Response) => {
     try {
-      const { tenantId, mappingId, expiresAt } = req.mappingLink!;
+      const { linkId, tenantId, mappingId, expiresAt } = req.mappingLink!;
       const loaded = await loadSubject(tenantId, mappingId);
       if (!loaded.ok) return void res.status(409).json({ error: 'not_ready', reason: loaded.reason });
+      const askedBy = await withTenantDb(tenantId, pool(), (db) => readAskedBy(db, tenantId, linkId));
       res.json({
         organisation: loaded.subject.organisation,
+        // Who asked (0108 T8a): the issuing member's sign-in address.
+        askedBy,
         reads: loaded.subject.reads,
         // The scope in Google's own words, beside the plain sentence rather
         // than behind it: a person consenting is entitled to the exact string

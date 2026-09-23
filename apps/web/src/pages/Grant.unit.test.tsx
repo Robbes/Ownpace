@@ -33,6 +33,7 @@ import Grant from './Grant.tsx';
 const SCOPE = 'https://mail.google.com/';
 const SUBJECT = {
   organisation: 'Acme Legal',
+  askedBy: 'owner@example.org',
   reads: 'your email — messages, folders and labels',
   scope: SCOPE,
   from: 'someone@example.invalid',
@@ -108,6 +109,21 @@ describe('what a person sees before consenting', () => {
     for (const before of [from, check]) {
       expect(before.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
+  });
+
+  it('says who asked, by address, before the button (0108 T8a)', async () => {
+    renderPage();
+    expect(await screen.findByText('Asked by')).toBeInTheDocument();
+    const asker = screen.getByText('owner@example.org');
+    const button = screen.getByRole('button', { name: /Continue with Google/ });
+    expect(asker.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('leaves out who asked when the server cannot say, rather than a blank', async () => {
+    readMock.mockResolvedValue({ ...SUBJECT, askedBy: null });
+    renderPage();
+    expect(await screen.findByText('someone@example.invalid')).toBeInTheDocument();
+    expect(screen.queryByText('Asked by')).not.toBeInTheDocument();
   });
 
   it('says it reads the account they sign in with, where the migration names none', async () => {

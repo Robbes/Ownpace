@@ -20,6 +20,7 @@ describe('the grant subject, as the page receives it', () => {
     getMock.mockResolvedValue({
       data: {
         organisation: 'Acme Legal',
+        askedBy: 'owner@example.org',
         reads: 'your contacts',
         scope: 'https://www.googleapis.com/auth/contacts.readonly',
         from: 'someone@example.invalid',
@@ -28,6 +29,7 @@ describe('the grant subject, as the page receives it', () => {
       },
     });
     const subject = await grantApi.read('abc.def');
+    expect(subject.askedBy).toBe('owner@example.org');
     expect(subject.from).toBe('someone@example.invalid');
     expect(subject.to).toEqual({
       provider: 'nextcloud',
@@ -40,6 +42,7 @@ describe('the grant subject, as the page receives it', () => {
     getMock.mockResolvedValue({
       data: {
         organisation: 'Acme Legal',
+        askedBy: null,
         reads: 'your contacts',
         scope: 'https://www.googleapis.com/auth/contacts.readonly',
         from: null,
@@ -49,6 +52,7 @@ describe('the grant subject, as the page receives it', () => {
     });
     const subject = await grantApi.read('abc.def');
     expect(subject.from).toBeNull();
+    expect(subject.askedBy).toBeNull();
     expect(subject.to.host).toBeNull();
   });
 });

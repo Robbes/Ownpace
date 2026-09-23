@@ -34,6 +34,7 @@ import {
   expiryFromDays,
 } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
+import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
 
 // UUID family 5f500000-…, unused elsewhere in the repo.
@@ -136,6 +137,8 @@ beforeAll(async () => {
   process.env.WEB_URL = 'https://app.example';
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
+  // The managed chain too: who asked is a `tenant_member` row (0108 T8a).
+  await runManagedMigrations({ driver, logger: () => {} });
 
   // Google's token endpoint, replaced. `exchangeCode` uses the global fetch by
   // default, and the callback route calls it without injecting one — so this is
@@ -161,6 +164,13 @@ beforeAll(async () => {
   try {
     const q = (sql: string, p: unknown[] = []) => conn.query(sql, p);
     await q('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'Acme Legal']);
+    // The member who issues every link below (`mintLink`'s createdBy): the page
+    // names them by the address they sign in with (0108 T8a).
+    await q(`INSERT INTO tenant_member (tenant_id, user_id, email) VALUES ($1,$2,$3)`, [
+      TENANT,
+      'rob',
+      'owner@example.org',
+    ]);
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
        VALUES ($1,$2,'source','gmail','g','{}'::jsonb,'connected',$3)`,
@@ -282,6 +292,7 @@ describe('what the page may know before the button', () => {
       expect(body, `${leak} must not reach a link holder`).not.toContain(leak);
     }
     expect(Object.keys(res.body).sort()).toEqual([
+      'askedBy',
       'expiresAt',
       'from',
       'organisation',
@@ -289,6 +300,31 @@ describe('what the page may know before the button', () => {
       'scope',
       'to',
     ]);
+  });
+
+  it('says who asked: the issuing member, by the address they sign in with', async () => {
+    // The owner, 2026-09-23: "It has to be clear who is facilitating a
+    // migration of someone else." An organisation's name is anyone's to choose.
+    const { token } = await mintLink(MAPPING);
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.body.askedBy).toBe('owner@example.org');
+    // The member's address, never their account id.
+    expect(JSON.stringify(res.body)).not.toContain('"rob"');
+  });
+
+  it('says nothing about who asked when the issuer is no longer a member, rather than guessing', async () => {
+    const { token } = await withTenant(driver, TENANT, (db) =>
+      issueMappingLink(db, {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        purpose: 'grant',
+        createdBy: 'somebody-who-left',
+        expiresAt: expiryFromDays(7),
+      }),
+    );
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.askedBy).toBeNull();
   });
 
   it('says from which account and to which destination (0108 T8a)', async () => {

@@ -14,7 +14,10 @@
  * organisation's name comes from the server, so the page cannot be made to
  * claim somebody else asked.
  *
- * **From where, and to where** (workplan 0108 T8a, 2026-09-23). Somebody with
+ * **Who asked, from where, and to where** (workplan 0108 T8a, 2026-09-23).
+ * Who asked is the address of the member who issued the link, the one they
+ * sign in with: the owner, *"It has to be clear who is facilitating a
+ * migration of someone else."* Somebody with
  * a tenant of their own can set up a migration from another person's account
  * into a server they control and send the link with a plausible story. This
  * page and Google's consent screen would both be genuine. The account it reads
@@ -108,6 +111,12 @@ const Grant: React.FC = () => {
           </p>
 
           <dl className="mt-4 p-4 border border-gray-200 rounded-lg grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            {subject.data.askedBy && (
+              <>
+                <dt className="text-gray-600">{t('grant.askedBy')}</dt>
+                <dd className="text-gray-900 break-all">{subject.data.askedBy}</dd>
+              </>
+            )}
             <dt className="text-gray-600">{t('grant.from')}</dt>
             <dd className="text-gray-900 break-all">
               {subject.data.from ?? t('grant.fromAnyAccount')}

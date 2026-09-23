@@ -22,6 +22,7 @@ import * as schema from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { googleDeploymentClient, type GoogleClientEnv } from '@openmig/shared';
+import { tenantMember } from '@openmig/managed/schema-managed';
 import type { GrantLinkReadiness } from './grant-link-readiness.ts';
 import { accountOfMapping } from './account-on-connection.ts';
 
@@ -100,6 +101,36 @@ export async function readGrantRows(
     targetOverride: row.targetOverride,
     includedDomains: scope.map((s) => s.domain),
   };
+}
+
+/**
+ * Who asked: the address of the member who issued this link (0108 T8a).
+ *
+ * The owner, 2026-09-23: *"It has to be clear who is facilitating a migration
+ * of someone else."* So the page names a person, not only an organisation,
+ * whose name anyone can choose. It is the address the member signs in with,
+ * the one their identity provider verified, rather than anything typed for the
+ * page, so it can be checked and reported. Null when the member who issued the
+ * link has no membership row any more.
+ */
+export async function readAskedBy(
+  db: PgDatabase,
+  tenantId: string,
+  linkId: string,
+): Promise<string | null> {
+  const rows = await db
+    .select({ email: tenantMember.email })
+    .from(schema.mappingLink)
+    .innerJoin(
+      tenantMember,
+      and(
+        eq(tenantMember.tenantId, schema.mappingLink.tenantId),
+        eq(tenantMember.userId, schema.mappingLink.createdBy),
+      ),
+    )
+    .where(and(eq(schema.mappingLink.id, linkId), eq(schema.mappingLink.tenantId, tenantId)));
+  const email = rows[0]?.email.trim();
+  return email ? email : null;
 }
 
 /**

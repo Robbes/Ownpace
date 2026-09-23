@@ -50,7 +50,8 @@ Each refusal names what to fix:
 
 Before any button, the page tells them:
 
-- **who is asking** — your organisation, by name;
+- **who is asking** — your organisation, by name, and the address **you** sign in to Ownpace
+  with, so they know which person is asking and not only which organisation;
 - **from which account, and to where** — the account the migration reads, and its destination:
   which kind of server, where it is, and the account on it. Then one question: *do you know
   who asked, and is the destination yours or your organisation's? Only then continue.* This

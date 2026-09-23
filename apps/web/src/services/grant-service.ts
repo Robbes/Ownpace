@@ -14,6 +14,9 @@ import { linkClient as client } from './link-client.ts';
 
 const SubjectSchema = z.object({
   organisation: z.string(),
+  // Who asked (0108 T8a): the issuing member's sign-in address, or null when
+  // they are no longer a member.
+  askedBy: z.string().nullable(),
   reads: z.string(),
   scope: z.string(),
   // Where from and where to (workplan 0108 T8a): the account the migration
