@@ -281,10 +281,20 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     listFolders: () => source.listFolders(),
     listSince: (folder, cursor) => source.listSince(folder, cursor),
     fetchRaw: async (item) => {
-      const raw = item.vcard;
-      return { 
-        raw: { item: item.item, vcard: raw } as RawContact,
-        sizeBytes: Buffer.from(raw, 'utf8').length 
+      // The rest of the card, from a source whose listing cannot carry all of
+      // it (`ContactSource.fetch`): a Microsoft contact's photo is a request of
+      // its own. Asked here, for a card being written and inside the loop's
+      // bounded concurrency, as a file's bytes are.
+      //
+      // This used to write `item.vcard`, the LISTED card, for every source.
+      // Graph's listing leaves the photo out on purpose and its `fetch` was
+      // meant to add it, but nothing called that `fetch`: every Microsoft
+      // contact arrived with its name and numbers and without its face
+      // (owner's report, 2026-09-23).
+      const full = source.fetch ? await source.fetch(item) : item;
+      return {
+        raw: { item: full.item, vcard: full.vcard } as RawContact,
+        sizeBytes: Buffer.from(full.vcard, 'utf8').length,
       };
     },
     upsert: async (folderId, raw, _item, options) =>
