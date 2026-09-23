@@ -481,6 +481,17 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    */
   readonly sourceRef?: (item: Item) => string | undefined;
   /**
+   * WHAT PAIRS THIS ITEM ACROSS A RENAME WHEN ITS BYTES MAY NOT (workplan 0042
+   * T10): the source's own id, for an item whose content hash is no reliable
+   * evidence of sameness — a Google document, exported afresh every pass.
+   * Compared with the `sourceRef` a disappeared row recorded, so it must be the
+   * same id that hook returns for this item.
+   *
+   * Optional, and absent for every item whose bytes pair it, which is every
+   * item but those.
+   */
+  readonly identity?: (item: Item) => string | undefined;
+  /**
    * The natural-key hashes this item would have had under the source's OTHER
    * export policies (workplan 0042 T8 (b)).
    *
@@ -895,6 +906,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     ensureCollection,
     sourceVersion,
     sourceRef,
+    identity,
     formerNaturalKeys,
     listCollectionKeys,
     listDiscardedKeys,
@@ -976,7 +988,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    */
   const seenByCollection = new Map<string, Set<string>>();
   /** Items created THIS pass — the other half of the correlation. */
-  const createdThisPass: Array<{ naturalKeyHash: string; contentHash: string; collection: string }> = [];
+  const createdThisPass: Array<{
+    naturalKeyHash: string;
+    contentHash: string;
+    collection: string;
+    identity?: string;
+  }> = [];
+  /**
+   * Every name each Google document is listed under THIS pass, by the id the
+   * source gives it (workplan 0042 T10) — what pairs a document's old name
+   * with the name it has now, whether or not the rename happened this pass.
+   */
+  const listedByIdentity = new Map<string, Array<{ naturalKeyHash: string; collection: string }>>();
   /**
    * The names each listed document would have had under another export policy
    * (0042 T8 (b)), held until the pass has listed everything, because only then
@@ -1200,6 +1223,13 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       let itemName = displayName?.(item);
       const version = sourceVersion?.(item);
       if (naturalKeyHash !== undefined) seenHere.add(naturalKeyHash);
+      // And under the document's own id, where the source gives one (0042 T10).
+      const listedAs = identity?.(item);
+      if (listedAs && naturalKeyHash !== undefined) {
+        const names = listedByIdentity.get(listedAs) ?? [];
+        names.push({ naturalKeyHash, collection: collectionPath });
+        listedByIdentity.set(listedAs, names);
+      }
       if (naturalKeyHash !== undefined && formerNaturalKeys) {
         const current = naturalKeyHash;
         const ref = sourceRef?.(item);
@@ -1634,10 +1664,12 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           // The "arrived" half of a path-keyed move. Only genuinely NEW items
           // qualify: an adopted or rewritten item was already accounted for
           // under this key, so it cannot be the destination of one.
+          const pairedBy = identity?.(item);
           createdThisPass.push({
             naturalKeyHash,
             contentHash: ch,
             collection: collectionPath,
+            ...(pairedBy ? { identity: pairedBy } : {}),
           });
         }
         else if (result.adopted) {
@@ -2033,6 +2065,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       ledger,
       seenByCollection,
       createdThisPass,
+      listedByIdentity,
     });
     moved += found.moves.length;
     moves.push(...found.moves);
@@ -2357,15 +2390,30 @@ async function detectPathKeyedMoves(args: {
   domain: DiscoveryDomain;
   ledger: Ledger;
   seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
-  createdThisPass: ReadonlyArray<{ naturalKeyHash: string; contentHash: string; collection: string }>;
+  createdThisPass: ReadonlyArray<{
+    naturalKeyHash: string;
+    contentHash: string;
+    collection: string;
+    identity?: string;
+  }>;
+  /** Every name each Google document is listed under this pass, by its id (0042 T10). */
+  listedByIdentity: ReadonlyMap<
+    string,
+    ReadonlyArray<{ naturalKeyHash: string; collection: string }>
+  >;
 }): Promise<{ moves: ItemMove[]; deletions: ItemDeletion[]; drift: number }> {
-  const { tenantId, mappingId, domain, ledger, seenByCollection, createdThisPass } = args;
+  const { tenantId, mappingId, domain, ledger, seenByCollection, createdThisPass, listedByIdentity } =
+    args;
 
   // Content hash -> the new items carrying it, consumed as they are matched.
   // Consuming matters: three identical files deleted and one created is one
   // move and two deletions, not three moves.
   const arrivals = new Map<string, Array<{ naturalKeyHash: string; collection: string }>>();
   for (const c of createdThisPass) {
+    // A Google document's arrival is paired by its own id, below, and is kept
+    // OUT of this index (0042 T10): its bytes are one export among many, and
+    // must never pair it with another file's old name.
+    if (c.identity) continue;
     if (!c.contentHash) continue;
     const list = arrivals.get(c.contentHash) ?? [];
     list.push({ naturalKeyHash: c.naturalKeyHash, collection: c.collection });
@@ -2377,6 +2425,8 @@ async function detectPathKeyedMoves(args: {
   let drift = 0;
 
   const placed = await ledger.placedItems(tenantId, mappingId, domain);
+  /** Our copies by key, for the names a Google document is listed under now. */
+  const placedByKey = new Map(placed.map((p) => [p.naturalKeyHash, p]));
   for (const row of placed) {
     // A row whose copy has already been REMOVED takes no further part in this.
     //
@@ -2462,6 +2512,64 @@ async function detectPathKeyedMoves(args: {
             : {}),
         });
       }
+      continue;
+    }
+
+    // A RENAMED GOOGLE DOCUMENT, paired by its own id (0042 T10, the owner's
+    // decision of 2026-09-23). Its old name is gone, and this pass lists the
+    // same Drive id under another name that has a copy on the target: that is
+    // the same document under the name it has now, whatever the bytes of its
+    // exports. Before this, the pair was never made, and two clean passes later
+    // the old name was reported as deleted in Google while both copies stayed
+    // on the target.
+    //
+    // Asked of what is listed NOW rather than of what arrived this pass, so a
+    // rename the pass did not see happen is paired too: one from before ids
+    // paired anything, whose old name is already reported as a deletion, or
+    // one whose new name failed its first copy. A name with no copy recorded
+    // pairs nothing yet; whether that copy is still on the target is Apply's
+    // question, asked of the target itself. Not consumed: an id names one
+    // document, and every old name it left is an old copy of that one document.
+    //
+    // The row's own name is never among them: a row listed under its own name
+    // is seen, above, and one listed in another folder was given its move by
+    // the pass itself before this ran. An earlier export of the same document
+    // (a format switch) never gets here either: it carries its mark and was
+    // passed over above.
+    const sameDocument = row.sourceRef
+      ? listedByIdentity
+          .get(row.sourceRef)
+          ?.find((name) => placedByKey.has(name.naturalKeyHash))
+      : undefined;
+    if (sameDocument) {
+      // WHAT APPLY WILL ASK OF THE NEW COPY. Where the two exports are still
+      // byte-identical (PDF and SVG are), the pair is a bytes pair, exactly as
+      // it was before ids paired anything: Apply's bytes gates, and unattended
+      // apply, treat it as they always did. Only where the bytes differ is the
+      // id the evidence, and the new copy owes the same id instead.
+      const sameBytes =
+        !!row.contentHash &&
+        row.contentHash === placedByKey.get(sameDocument.naturalKeyHash)?.contentHash;
+      await ledger.recordMove(
+        tenantId,
+        mappingId,
+        domain,
+        row.naturalKeyHash,
+        sameDocument.collection,
+        sameDocument.naturalKeyHash,
+        sameBytes ? 'content' : 'identity',
+      );
+      // And the absence a rename seen late had run up goes, with any deletion
+      // reported from it: the Deletions queue stops saying that a document was
+      // deleted in Google while it is listed under its new name.
+      await ledger.clearAbsent(tenantId, mappingId, domain, row.naturalKeyHash);
+      moves.push({
+        domain,
+        naturalKeyHash: row.naturalKeyHash,
+        from: row.collection,
+        to: sameDocument.collection,
+        toNaturalKeyHash: sameDocument.naturalKeyHash,
+      });
       continue;
     }
 

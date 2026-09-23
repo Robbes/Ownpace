@@ -100,6 +100,18 @@ export interface FileItem {
    * absent for every file whose name is its own.
    */
   readonly formerPaths?: ReadonlyArray<string>;
+  /**
+   * What pairs this item across a rename or a move when its bytes may not
+   * (workplan 0042 T10, the owner's decision of 2026-09-23): the source's own
+   * id, which a rename does not change.
+   *
+   * Set only for a Google document, whose every pass copies a fresh export:
+   * two exports of an unchanged document are not byte-identical once the
+   * format is a zip. Where they still are (PDF, SVG), the pair is recorded as
+   * a bytes pair, as before. For every other file the bytes pair a rename, as
+   * ADR-0030 has always done, and this stays absent.
+   */
+  readonly sourceIdentity?: string;
 }
 
 /**

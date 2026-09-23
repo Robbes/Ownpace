@@ -543,6 +543,7 @@ export class MemoryLedger implements Ledger {
       deletionAcknowledgedAt?: string;
       deletionAppliedAt?: string;
       supersededByNaturalKeyHash?: string;
+      sourceRef?: string;
     }>
   > {
     const out: Array<{
@@ -556,6 +557,7 @@ export class MemoryLedger implements Ledger {
       deletionAcknowledgedAt?: string;
       deletionAppliedAt?: string;
       supersededByNaturalKeyHash?: string;
+      sourceRef?: string;
     }> = [];
     for (const r of this.rows.values()) {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
@@ -579,6 +581,7 @@ export class MemoryLedger implements Ledger {
         ...(r.supersededByNaturalKeyHash
           ? { supersededByNaturalKeyHash: r.supersededByNaturalKeyHash }
           : {}),
+        ...(r.sourceRef ? { sourceRef: r.sourceRef } : {}),
       });
     }
     return Promise.resolve(out);
@@ -847,6 +850,7 @@ export class MemoryLedger implements Ledger {
     naturalKeyHash: string,
     toCollection: string,
     toNaturalKeyHash?: string,
+    pairedBy: 'content' | 'identity' = 'content',
   ): Promise<void> {
     const k = this.key({ tenantId, mappingId, itemType: domain, naturalKeyHash });
     const existing = this.rows.get(k);
@@ -862,6 +866,7 @@ export class MemoryLedger implements Ledger {
       ...existing,
       movedToCollection: toCollection,
       movedToNaturalKeyHash: toNaturalKeyHash,
+      movedByIdentity: pairedBy === 'identity' ? true : undefined,
       // Same condition as the acknowledgement clear, in the other direction:
       // a new destination is a new report and re-stamps; a pass re-observing
       // keeps the original recording date (migration 0013).
@@ -893,6 +898,7 @@ export class MemoryLedger implements Ledger {
       // would let an owner remove a copy on the strength of a relocation the
       // source has since undone.
       movedToNaturalKeyHash: undefined,
+      movedByIdentity: undefined,
       movedRecordedAt: undefined,
       moveAcknowledgedAt: undefined,
     });
@@ -1319,7 +1325,12 @@ export class MemoryLedger implements Ledger {
       if (!arrival) continue;
       if (arrival.naturalKeyHash === r.naturalKeyHash) continue;
       if (arrival.status !== 'copied' && arrival.status !== 'updated') continue;
-      if (!arrival.contentHash || arrival.contentHash !== r.contentHash) continue;
+      // By bytes, or by the document's own id for a renamed Google document
+      // (0042 T10) — the SQL's two alternatives, in the same order.
+      const sameBytes = !!arrival.contentHash && arrival.contentHash === r.contentHash;
+      const sameDocument =
+        r.movedByIdentity === true && !!arrival.sourceRef && arrival.sourceRef === r.sourceRef;
+      if (!sameBytes && !sameDocument) continue;
 
       this.rows.set(k, {
         ...r,

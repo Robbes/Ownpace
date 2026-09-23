@@ -543,6 +543,11 @@ export const item = pgTable(
     // an `apply` may remove the old copy only when this says where the new one
     // is.
     movedToNaturalKeyHash: text('moved_to_natural_key_hash'),
+    // TRUE when the move above was paired by the source's own id rather than
+    // by equal bytes (migration 0058, workplan 0042 T10): a renamed Google
+    // document whose two exports differ byte for byte. What Apply reads to
+    // decide which proof the new copy owes: the same id, or the same bytes.
+    movedByIdentity: boolean('moved_by_identity').notNull().default(false),
     // When the move above was RECORDED (migration 0013). Re-stamped when the
     // destination changes — a move somewhere new is a new report — and cleared
     // with the move. What lets the queue say how long a report has sat, and

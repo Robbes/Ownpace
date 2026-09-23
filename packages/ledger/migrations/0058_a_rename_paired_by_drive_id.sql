@@ -1,0 +1,21 @@
+-- A RENAME PAIRED BY THE DOCUMENT'S OWN ID (workplan 0042 T10, the owner's
+-- decisions of 2026-09-23: "Yes, pair renamed Google documents by their Drive
+-- id" and "Yes, Apply may remove the old copy of a renamed Google document").
+--
+-- A move on a path-keyed source is found by pairing a disappearance with an
+-- arrival that carries the same bytes (ADR-0030). A Google Doc, Sheet or Slides
+-- deck has no bytes of its own: each pass copies a fresh export, and two
+-- exports of an unchanged document are not byte-identical once the format is a
+-- zip (Office, OpenDocument). So a renamed document was never paired. Its old
+-- name went missing, and two clean passes later it was reported as deleted in
+-- Google, while both copies stayed on the target.
+--
+-- Such a document is now paired by its Drive file id, which a rename does not
+-- change. Where its two exports are still byte-identical (PDF, SVG), the move
+-- is recorded as a bytes pair, as before. Otherwise `moved_by_identity` records
+-- that the move was paired by the id, because it is what Apply's check must
+-- read: for an identity pair the proof that the new copy stands for the old one
+-- is the same id, written by this migration and present on the target, not
+-- equal bytes. Every existing move was paired by bytes, so the default is false.
+
+ALTER TABLE public.item ADD COLUMN moved_by_identity boolean NOT NULL DEFAULT false;

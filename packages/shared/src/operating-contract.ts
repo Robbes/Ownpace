@@ -792,7 +792,9 @@ export const MOVE_GUIDANCE: MoveGuidance = {
     `REMOVES the target's old copy. Allowed where the same operation on a ` +
     `deletion would not be, for one reason: the same bytes are already on the ` +
     `target under the key the source moved the item to, written by this migration, ` +
-    `and that is re-checked at the moment of removal. Off unless the mapping sets ` +
+    `and that is re-checked at the moment of removal. For a renamed Google document ` +
+    `whose new export differs byte for byte, it is the same document instead, ` +
+    `recognised by its Drive id. Off unless the mapping sets ` +
     `allowApplyDeletions — the same switch, because it is the same capability — ` +
     `and refused for a copy somebody has edited on the target, for one this ` +
     `migration did not write, and while the mass-deletion breaker is up (ADR-0030). ` +

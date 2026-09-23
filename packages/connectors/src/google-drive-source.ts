@@ -1291,6 +1291,14 @@ export class GoogleDriveSource implements FileSource {
       // path (§10, ADR-0020) — it is how `fetch` finds the bytes again, and it
       // is stable across renames and moves in a way the path is not.
       sourceRef: file.id,
+      // AND WHAT PAIRS A RENAMED GOOGLE DOCUMENT (0042 T10). Its bytes are a
+      // fresh export every pass, never the same twice once the format is a
+      // zip, so the content hash that pairs a renamed file cannot pair it. The
+      // id can: a rename does not change it. Only for a document Drive
+      // exports; every other file's bytes pair it, as before.
+      ...(typeof file.mimeType === 'string' && isNativeEditorFile(file.mimeType)
+        ? { sourceIdentity: file.id }
+        : {}),
     };
   }
 
