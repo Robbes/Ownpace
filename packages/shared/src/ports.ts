@@ -218,6 +218,27 @@ export interface ContactSource {
     /** Hrefs the server reported as removed. See `CalendarSource.listSince`. */
     removed?: ReadonlyArray<string>;
   }>;
+  /**
+   * The rest of ONE card, for the pass that is about to write it.
+   *
+   * A listing is what a source can afford to read for every card at once, and
+   * for Graph that is not the whole card: a contact's fields come in the delta
+   * page, and its photo is a request of its own (`/contacts/{id}/photo/$value`).
+   * A source whose listing already carries the whole card leaves this out, and
+   * the listed card is written as before.
+   *
+   * The sync loop calls it once per card it WRITES, and never for one it skips
+   * as already copied. It runs inside the loop's bounded concurrency, where a
+   * file's download happens too. A throw fails that card, which is tried again.
+   * Returning the listed card unchanged is how a source says there was nothing
+   * to add.
+   *
+   * Optional, unlike `FileSource.fetch`, because a listed card is a complete
+   * card for every source but one. Until 2026-09-23 that one had a `fetch` that
+   * nothing called, since it was not on this port, so no Microsoft contact
+   * ever reached its destination with its photo.
+   */
+  fetch?(item: RawContact): Promise<RawContact>;
 }
 
 /**

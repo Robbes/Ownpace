@@ -172,7 +172,7 @@ because the API has none. A task deleted in Google goes to the Deletions queue.
 
 | | generic CardDAV | Microsoft 365 | Google |
 |---|---|---|---|
-| **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`) — wired in workplan 0054, same story as calendars, **including the same page-one-forever delta loop and `/$delta` path, both fixed in workplan 0059**; appliance mapping files; shared via `source.mailbox` | ✅ CardDAV with OAuth (`google-contacts`, workplan 0045) — **run against the owner's real Google account**, not yet against a second one |
+| **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`) — wired in workplan 0054, same story as calendars, **including the same page-one-forever delta loop and `/$delta` path, both fixed in workplan 0059**; appliance mapping files; shared via `source.mailbox`. **Photos only since 2026-09-23**: Graph lists a contact without its photo, and nothing fetched it, so every Microsoft contact arrived without one (owner's report). The photo is now read per card when the card is written | ✅ CardDAV with OAuth (`google-contacts`, workplan 0045) — **run against the owner's real Google account**, not yet against a second one |
 | **Target** | ✅ CardDAV | — | 🚫 never a target |
 
 Also a target: **JMAP** (workplan 0031 T2), **Soverin** (`soverin`) and **Nextcloud**

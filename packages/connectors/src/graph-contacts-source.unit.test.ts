@@ -6,7 +6,7 @@
  * - Contact folder enumeration via /me/contactFolders
  * - Delta query with @odata.deltaLink
  * - Graph contact → vCard 4.0 field mapping
- * - Photo handling with BASE64 encoding
+ * - The photo, read as bytes when a card is written, as a vCard 4.0 data: URI
  * - UID mapping (Graph id as fallback when vCard UID is absent)
  * - Multi-value field handling (emails, phones, addresses)
  * - Delta chaining for incremental sync
@@ -35,6 +35,9 @@ const defaultToken: OAuth2Token = {
 };
 
 // Mock HTTP client
+/** A JPEG's first bytes, and two that are not valid UTF-8, so a text decode would change them. */
+const PHOTO_BYTES = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0xc3, 0x28]);
+
 function createMockHttpClient(responses: HttpResponse[]): HttpClient {
   let callCount = 0;
   return {
@@ -272,22 +275,28 @@ it('follows nextLink to the SECOND page instead of re-requesting the first', asy
       const mockClient: HttpClient = {
         request: vi.fn().mockImplementation((options: { url: string }) => {
           urls.push(options.url);
+          // Bytes, as a server sends a photo: not text, and not base64.
           return Promise.resolve({
             status: 200,
-            body: Buffer.from('fake-image-data').toString('base64'),
+            body: '',
+            bodyBytes: Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]),
             headers: { 'content-type': 'image/jpeg' },
           });
         }),
       };
       const source = new GraphContactsSource(tokenProvider, 'test-tenant-id', undefined, { httpClient: mockClient });
 
+      const listed = 'BEGIN:VCARD\r\nVERSION:4.0\r\nUID:c-default-1\r\nFN:Ada Lovelace\r\nEND:VCARD';
       const fetched = await source.fetch({
-        uid: 'c-default-1',
-        type: 'person',
-        name: 'Ada Lovelace',
-        sourcePath: '/contacts/c-default-1',
-        vcard: '',
-        version: '4.0',
+        item: {
+          uid: 'c-default-1',
+          type: 'person',
+          name: 'Ada Lovelace',
+          sourcePath: '/contacts/c-default-1',
+          vcard: listed,
+          version: '4.0',
+        },
+        vcard: listed,
       } as never);
 
       expect(urls).toEqual(['https://graph.microsoft.com/v1.0/me/contacts/c-default-1/photo/$value']);
@@ -299,7 +308,10 @@ it('follows nextLink to the SECOND page instead of re-requesting the first', asy
         httpClient: createMockHttpClient([]),
       });
       await expect(
-        source.fetch({ uid: 'x', type: 'person', name: 'x', sourcePath: '/somewhere/else', vcard: '', version: '4.0' } as never),
+        source.fetch({
+          item: { uid: 'x', type: 'person', name: 'x', sourcePath: '/somewhere/else', vcard: '', version: '4.0' },
+          vcard: '',
+        } as never),
       ).rejects.toThrow(/Invalid sourcePath format/);
     });
   });
@@ -804,10 +816,11 @@ it('follows nextLink to the SECOND page instead of re-requesting the first', asy
           }),
           headers: {},
         },
-        // Photo data fetched via fetch() method
+        // The photo, fetched via fetch(), as the bytes a server sends.
         {
           status: 200,
-          body: Buffer.from('fake-image-data').toString('base64'),
+          body: '',
+          bodyBytes: PHOTO_BYTES,
           headers: { 'content-type': 'image/jpeg' },
         },
       ]);
@@ -829,13 +842,16 @@ it('follows nextLink to the SECOND page instead of re-requesting the first', asy
       expect(result.items[0]!.item.photo).toBeUndefined();
 
       // Fetch the contact with photo via fetch() method
-      const fetched = await source.fetch(result.items[0]!.item);
+      const fetched = await source.fetch(result.items[0]!);
 
-      // Now photo should be present
-      expect(fetched.item.photo).toBeDefined();
-      expect(fetched.item.photo?.data).toBe(Buffer.from('fake-image-data').toString('base64'));
-      expect(fetched.item.photo?.mimeType).toBe('image/jpeg');
-      expect(fetched.vcard).toContain('PHOTO;ENCODING=base64;TYPE=image/jpeg:');
+      // Now photo should be present, as vCard 4.0 carries one: a data: URI.
+      const base64 = Buffer.from(PHOTO_BYTES).toString('base64');
+      expect(fetched.item.photo).toEqual({ data: base64, mimeType: 'image/jpeg' });
+      expect(fetched.vcard).toContain(`\r\nPHOTO:data:image/jpeg;base64,${base64}\r\nEND:VCARD`);
+      expect(fetched.vcard).not.toContain('ENCODING=');
+      // And everything the listing wrote is still there: the photo is ADDED.
+      expect(fetched.vcard).toContain('FN:Photo Contact');
+      expect(fetched.vcard.replace(/\r\nPHOTO:[^\r]*/, '')).toBe(result.items[0]!.vcard);
     });
 
   describe('UID mapping (Graph id as fallback)', () => {

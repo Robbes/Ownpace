@@ -9,7 +9,7 @@
  * - Contact folder enumeration: the default folder ({scope}/contacts) first, then {scope}/contactFolders
  * - Delta query for incremental contact synchronization
  * - vCard 4.0 format generation from Graph contacts
- * - Photo handling with BASE64 encoding
+ * - The photo, read per card when it is written (`fetch`), as a vCard 4.0 `data:` URI
  * - UID mapping (Graph id used as fallback when vCard UID is absent)
  * - Multi-value field support (emails, phones, addresses)
  * - Rate limiting and throttling support
@@ -21,9 +21,9 @@
  */
 
 import { graphFailure } from './graph-refusal.ts';
-import type { ContactSource, ContactFolder, RawContact, SyncCursor, ContactPhone, ContactEmail, ContactAddress, ContactUrl, EmailType, UrlType, Contact } from '@openmig/shared';
+import type { ContactSource, ContactFolder, RawContact, SyncCursor, ContactPhone, ContactEmail, ContactAddress, ContactUrl, EmailType, UrlType, ContactPhoto } from '@openmig/shared';
 import type { TokenProvider } from '@openmig/shared';
-import type { GraphContactsSourceConfig, GraphContactFolder, GraphContact, GraphContactsDeltaCursor, VCardFieldMapping, GraphContactWithPhoto } from './graph-contacts-source.types.ts';
+import type { GraphContactsSourceConfig, GraphContactFolder, GraphContact, GraphContactsDeltaCursor, VCardFieldMapping } from './graph-contacts-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { graphScopePrefix } from './graph-scope.ts';
 import type { ThrottleLimiter } from '@openmig/shared';
@@ -292,13 +292,35 @@ export class GraphContactsSource implements ContactSource {
   }
 
   /**
-   * Fetch full raw data for a contact including photo (implements ContactSource interface).
+   * The contact's photo, added to the card the listing made (`ContactSource.fetch`).
+   *
+   * THREE DEFECTS, ONE SYMPTOM (owner's report, 2026-09-23: a contact that
+   * reached Nextcloud "has the data, but not the photo"). Any one of them
+   * alone would have lost every Microsoft contact's photo:
+   *
+   *  1. Nothing called this. The sync wrote the LISTED card, which leaves the
+   *     photo out on purpose, and `fetch` was not on the port at all.
+   *  2. Had it been called, it would have REPLACED that card. It mapped a
+   *     contact made of nothing but its id, so the written card would have
+   *     kept the photo and lost the name, numbers and addresses.
+   *  3. The photo was read as TEXT. The default client decoded every response
+   *     as UTF-8, which destroys a JPEG irreversibly (`HttpResponse.bodyBytes`
+   *     measures it), and the decoded text was then used as if it were base64.
+   *
+   * And the line it would have written, `PHOTO;ENCODING=base64;TYPE=…`, is not
+   * how a vCard 4.0 carries an image. RFC 6350 §6.2.4 makes it a `data:` URI,
+   * and it is the only form Nextcloud's photo reader accepts in a 4.0 card
+   * (`PhotoCache::getPhotoFromVObject`: a URI-typed PHOTO must be `data:`).
+   *
+   * So: the listed card, untouched, plus one `PHOTO:data:…` line, from the
+   * photo's bytes. No photo (Graph answers 404) is the common case and returns
+   * the listed card as it came. Any other refusal throws, so the card fails
+   * and is tried again rather than being written without its face.
    */
-  async fetch(item: Contact): Promise<RawContact> {
-    // Extract contact ID from sourcePath
-    const sourcePath = item.sourcePath;
+  async fetch(listed: RawContact): Promise<RawContact> {
+    const sourcePath = listed.item.sourcePath;
     if (!sourcePath) {
-      throw new Error(`Contact missing sourcePath: ${JSON.stringify(item)}`);
+      throw new Error('Contact missing sourcePath: its photo cannot be read');
     }
 
     // Either shape: `/contactFolders/{folderId}/contacts/{id}` for a folder
@@ -312,23 +334,11 @@ export class GraphContactsSource implements ContactSource {
     const collection = this.collectionFor(inFolder ? `/contactFolders/${inFolder[1]!}` : DEFAULT_CONTACTS_PATH);
     const contactId = inFolder ? inFolder[2]! : inDefault![1]!;
 
-    // Fetch photo
-    const contactWithPhoto = await this.fetchContactWithPhoto({ id: contactId } as GraphContact, collection.url);
+    const photo = await this.readPhoto(collection.url, contactId);
+    if (!photo) return listed;
 
-    // Re-map vCard with photo
-    const vcard = this.mapToVCard4(contactWithPhoto);
-
-    return {
-      item: {
-        ...item,
-        photo: contactWithPhoto.photoData ? {
-          data: contactWithPhoto.photoData,
-          mimeType: contactWithPhoto.photoMimeType || 'image/jpeg',
-        } : item.photo,
-        vcard,
-      },
-      vcard,
-    };
+    const vcard = withPhoto(listed.vcard, photo);
+    return { item: { ...listed.item, photo, vcard }, vcard };
   }
 
   // Private helper methods
@@ -441,71 +451,44 @@ export class GraphContactsSource implements ContactSource {
   }
 
   /**
-   * Fetch contact photo if available.
+   * The contact's photo as bytes, or nothing when it has none.
+   *
+   * Read from `bodyBytes`, never from `body`: a photo decoded as UTF-8 text is
+   * a different, broken photo, and nothing downstream could tell.
    */
-  private async fetchContactWithPhoto(contact: GraphContact, collectionUrl: string): Promise<GraphContact & { photoData?: string; photoMimeType?: string }> {
-    const result: GraphContact & { photoData?: string; photoMimeType?: string } = { ...contact };
-
-    // Try to get photo from the photo endpoint
-    if (contact.photo?.id || contact.id) {
-      try {
-        const photoUrl = `${collectionUrl}/${contact.id}/photo/$value`;
-        const response = await this.makeRequest({
-          url: photoUrl,
-          method: 'GET',
-          headers: {
-            'Accept': 'image/*, application/json',
-          },
-        });
-
-        if (response.status === 200) {
-          // Get content type
-          const contentType = response.headers['content-type'] || 'image/jpeg';
-          
-          // Convert binary data to base64
-          let binaryData: string;
-          if (typeof response.body === 'string') {
-            binaryData = response.body;
-          } else {
-            // Handle ArrayBuffer or other binary formats
-            binaryData = this.arrayBufferToBase64(response.body as ArrayBuffer);
-          }
-
-          result.photoData = binaryData;
-          result.photoMimeType = contentType.startsWith('image/') ? contentType : 'image/jpeg';
-        }
-      } catch {
-        // Photo fetch failed, continue without photo
-        // This is expected for contacts without photos
-      }
+  private async readPhoto(collectionUrl: string, contactId: string): Promise<ContactPhoto | undefined> {
+    const response = await this.makeRequest({
+      url: `${collectionUrl}/${contactId}/photo/$value`,
+      method: 'GET',
+      headers: { Accept: 'image/*' },
+    });
+    // A contact without a photo is Graph's 404, and it is the usual answer.
+    if (response.status === 404) return undefined;
+    if (response.status !== 200) {
+      throw new Error(graphFailure('Failed to read a contact photo', response, CONTACTS_FACE));
     }
-
-    return result;
-  }
-
-  /**
-   * Convert ArrayBuffer to base64 string.
-   */
-  private arrayBufferToBase64(buffer: ArrayBuffer): string {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(Number(bytes[i]));
+    const bytes = response.bodyBytes;
+    if (!bytes) {
+      throw new Error(
+        'The HTTP client returned no bodyBytes for a contact photo, so its bytes cannot be read. ' +
+          'Writing the card without it would lose the photo without saying so.',
+      );
     }
-    return this.btoa(binary);
-  }
-
-  /**
-   * Base64 encode a string.
-   */
-  private btoa(str: string): string {
-    return Buffer.from(str, 'binary').toString('base64');
+    if (bytes.length === 0) return undefined;
+    const mimeType = imageTypeOf(response.headers['content-type'], bytes);
+    if (!mimeType) {
+      // Not an image this can name. A wrong type is worse than none: the card
+      // is written without the photo, and the log says so without a byte of it.
+      log.warn('Graph contacts: a contact photo was not a recognised image type and was left out');
+      return undefined;
+    }
+    return { data: Buffer.from(bytes).toString('base64'), mimeType };
   }
 
   /**
    * Map Graph contact to vCard 4.0 format.
    */
-  private mapToVCard4(contact: GraphContact & { photoData?: string; photoMimeType?: string }): string {
+  private mapToVCard4(contact: GraphContact): string {
     const mapping = this.mapContactToVCardFields(contact);
     
     const lines: string[] = [];
@@ -578,11 +561,8 @@ export class GraphContactsSource implements ContactSource {
       lines.push(`BDAY:${this.escapeVCardValue(mapping.bday)}`);
     }
     
-    // PHOTO (Base64 encoded)
-    if (mapping.photo) {
-      const photoParams = `;ENCODING=base64;TYPE=${mapping.photo.mimeType}`;
-      lines.push(`PHOTO${photoParams}:${mapping.photo.data}`);
-    }
+    // No PHOTO here: the listing has none to give. `fetch` adds it, from the
+    // photo's own request, to the card this builds (`withPhoto`).
     
     // CATEGORIES
     if (mapping.categories && mapping.categories.length > 0) {
@@ -599,7 +579,7 @@ export class GraphContactsSource implements ContactSource {
   /**
    * Map Graph contact to vCard field mapping structure.
    */
-  private mapContactToVCardFields(contact: GraphContactWithPhoto): VCardFieldMapping {
+  private mapContactToVCardFields(contact: GraphContact): VCardFieldMapping {
     // Extract name components
     const givenName = contact.givenName || '';
     const familyName = contact.surname || '';
@@ -632,13 +612,6 @@ export class GraphContactsSource implements ContactSource {
       categories: contact.categories,
     };
     
-    // Add photo if available
-    if (contact.photoData) {
-      mapping.photo = {
-        data: contact.photoData,
-        mimeType: contact.photoMimeType || 'image/jpeg',
-      };
-    }
     
     // Add organization
     if (contact.companyName) {
@@ -1033,7 +1006,48 @@ export class GraphContactsSource implements ContactSource {
 }
 
 /**
+ * The card with its photo, the way vCard 4.0 carries one: a `data:` URI
+ * (RFC 6350 §6.2.4), added as one line before `END:VCARD`. Nothing else in the
+ * card is touched.
+ */
+export function withPhoto(vcard: string, photo: ContactPhoto): string {
+  const end = vcard.lastIndexOf('END:VCARD');
+  if (end === -1) throw new Error('A card without END:VCARD cannot take a photo');
+  const before = vcard.slice(0, end);
+  const newline = before.endsWith('\r\n') || before.endsWith('\n') ? '' : '\r\n';
+  return `${before}${newline}PHOTO:data:${photo.mimeType};base64,${photo.data}\r\n${vcard.slice(end)}`;
+}
+
+/** The four image formats a photo arrives in, by the bytes they cannot help starting with. */
+const IMAGE_MAGIC: ReadonlyArray<readonly [(b: Uint8Array) => boolean, string]> = [
+  [(b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff, 'image/jpeg'],
+  [(b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47, 'image/png'],
+  [(b) => b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38, 'image/gif'],
+  [
+    (b) =>
+      b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50,
+    'image/webp',
+  ],
+];
+
+/**
+ * What the photo is: the type Graph states when it states an image type, and
+ * otherwise the type its first bytes show. `undefined` when neither says.
+ */
+export function imageTypeOf(contentType: string | undefined, bytes: Uint8Array): string | undefined {
+  const stated = contentType?.split(';')[0]?.trim().toLowerCase();
+  if (stated && /^image\/[a-z0-9.+-]+$/.test(stated)) return stated;
+  return IMAGE_MAGIC.find(([matches]) => matches(bytes))?.[1];
+}
+
+/**
  * Create a default HTTP client using Node.js fetch.
+ *
+ * It reads the BYTES and decodes text only when asked. It used to call
+ * `response.text()`, which is right for Graph's JSON and ruins a photo: the
+ * decode replaces every byte that is not valid UTF-8, and there is no way
+ * back. The same fix `webdav-source.ts` made for file content.
  */
 function createDefaultHttpClient(): HttpClient {
   return {
@@ -1044,15 +1058,20 @@ function createDefaultHttpClient(): HttpClient {
         body: typeof options.body === 'string' ? options.body : undefined,
       });
 
-      const body = await response.text();
+      const bytes = new Uint8Array(await response.arrayBuffer());
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         headers[key] = value;
       });
 
+      let text: string | undefined;
       return {
         status: response.status,
-        body,
+        get body(): string {
+          text ??= new TextDecoder().decode(bytes);
+          return text;
+        },
+        bodyBytes: bytes,
         headers,
       };
     },

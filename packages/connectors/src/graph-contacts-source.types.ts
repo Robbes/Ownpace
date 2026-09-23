@@ -181,16 +181,6 @@ export interface GraphContactListResponse {
 }
 
 /**
- * Graph contact with photo data (extended type for photo handling).
- */
-export interface GraphContactWithPhoto extends GraphContact {
-  /** Photo data as base64 */
-  photoData?: string;
-  /** Photo MIME type */
-  photoMimeType?: string;
-}
-
-/**
  * Graph API response for delta query.
  */
 export interface GraphContactsDeltaQueryResponse {
@@ -265,11 +255,6 @@ export interface VCardFieldMapping {
   note?: string;
   /** vCard BDAY */
   bday?: string;
-  /** vCard PHOTO */
-  photo?: {
-    data: string; // base64 encoded
-    mimeType: string;
-  };
   /** vCard CATEGORIES */
   categories?: string[];
 }
