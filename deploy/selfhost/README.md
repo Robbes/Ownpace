@@ -35,7 +35,7 @@ The full NAS/Pi/WSL2 walkthrough, backup (different on PGlite — no
 | `selfhost.env.example` | Env template — copy to `.env`, `chmod 600`. |
 | `config/*.json` | Your mapping configs (each is scheduled). `*.example` is ignored. |
 | `setup-stalwart.sh` / `setup-nextcloud-users.sh` | Test/e2e target provisioning (Stalwart's two-phase bring-up can't be one compose service). |
-| `../../apps/selfhost/Dockerfile` | The app image (source-ships-TS, runs under `tsx`). |
+| `../../apps/selfhost/Dockerfile` | The app image — runs the bundled appliance payload (`node start.mjs`, no `tsx`), the same directory the Windows appliance ships. |
 
 ## Image channels (§22.1)
 
@@ -48,7 +48,8 @@ What `images.yml` actually publishes to ghcr (0025 T1/T3 — this section said
 - **`sha-<commit>`** — every `edge` publish also lands under its commit, so
   any past build stays addressable.
 - **`X.Y.Z`** — published when a release tag is cut. The first is
-  **`0.1.0-rc.1`** (2026-08-04, prerelease). **`latest`** appears only with
+  **`0.1.0-rc.1`** (2026-08-04, prerelease), published under the pre-rename path
+  `ghcr.io/robbes/open-migrate-selfhost` (ADR-0040); `ownpace-selfhost` release tags start at v0.1.0. **`latest`** appears only with
   the first non-prerelease tag — SemVer's hyphen rule, enforced by
   metadata-action's `latest=auto` — so as long as only rc tags exist there is
   deliberately no `latest`, and production pinning means a version or a
