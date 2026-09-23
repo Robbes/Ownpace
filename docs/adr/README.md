@@ -42,7 +42,7 @@ first.
 | [0014](./0014-cost-recovery-billing.md) | Managed billing | **Amended 2026-08-20** — four tiers on active paths, no per-GB/compute line; "no profit" retired (cross-subsidy) |
 | [0015](./0015-backup-scope.md) | Backup scope — stack DR vs end-user data vs optional extra backup | Accepted — extra-backup bullet retracted 2026-08-02 |
 | [0016](./0016-ledger-schema-v1.md) | Ledger schema v1 | Accepted — access-layer clause superseded by 0023; managed tables moved by 0036 |
-| [0017](./0017-migration-tooling.md) | Migration tooling — Drizzle Kit (+ Atlas lint), not Liquibase | Accepted — Atlas lint built 2026-08-02; two chains since 0036 |
+| [0017](./0017-migration-tooling.md) | Migration tooling — Drizzle Kit (+ Atlas lint), not Liquibase | Accepted — authoring/applying half superseded by 0045 (2026-09-09); Atlas lint (built 2026-08-02) and the Liquibase/Flyway rejection stand; two chains since 0036 |
 | [0018](./0018-jmap-primary-target.md) | JMAP is the primary target protocol; IMAP/DAV is the parallel second family | Accepted — per-domain sequencing settled 2026-08-05/06; calendars stay CalDAV |
 | [0019](./0019-packaging-runtime-targets.md) | Packaging & runtime targets — container-first, optional Tauri tray, prefer JS-native engines for portability | Accepted — Tauri deferred by 0027; no shell-out engines since 2026-07-30 |
 | [0020](./0020-ledger-rebuildable-cache-recovery.md) | The ledger is a rebuildable cache — recovery via target reindex (natural-key adoption) | Accepted |
@@ -59,14 +59,14 @@ first.
 | [0031](./0031-auto-apply-relocations.md) | Auto-applying relocations — what unattended would require | Accepted 2026-08-16 — built the same day |
 | [0032](./0032-sharing-queue-target-native-invites.md) | The sharing queue — re-sharing on the target as an owner decision, invites through the target's own messaging | Accepted 2026-08-16 — first slice built |
 | [0033](./0033-domain-wide-delegation.md) | Whole-tenant Google migration — domain-wide delegation, opt-in and stated | Accepted 2026-08-17 — first slice built |
-| [0034](./0034-appliance-configuration-surface.md) | Personal / Organisation / Managed — naming the deployments, and giving each the configuration door it needs | Proposed 2026-08-17 — open questions resolved by the owner 2026-08-19; accept/reject of the reasoning outstanding |
-| [0035](./0035-who-signs-in-and-who-gets-a-link.md) | Who signs in, and who just gets a link | Proposed 2026-08-17 — substance owner-decided; restated 2026-08-19 |
+| [0034](./0034-appliance-configuration-surface.md) | Personal / Organisation / Managed — naming the deployments, and giving each the configuration door it needs | Accepted 2026-09-20 (owner: "yes on all 3"); proposed 2026-08-17, open questions resolved 2026-08-19 |
+| [0035](./0035-who-signs-in-and-who-gets-a-link.md) | Who signs in, and who just gets a link | Accepted 2026-09-20 (owner: "yes on all 3"); substance owner-decided 2026-08-17, restated 2026-08-19 |
 | [0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md) | The managed edition is its own package and its own migration chain | Accepted 2026-08-19 — its parked two-repo options closed by 0039; the enforced boundary stands |
 | [0037](./0037-keys-credentials-and-transport-floors.md) | One credential store, two key providers, and TLS floors | Accepted 2026-08-19 |
 | [0038](./0038-operative-rules-and-the-growing-record.md) | Operative rules — keeping a growing decision record loadable | Accepted 2026-08-19 (this convention) |
 | [0039](./0039-no-open-core-and-what-ops-privacy-means.md) | No open-core — closed with a trigger; and what "private ops" means | Accepted 2026-08-19 (resolves the 0009 vs 0036 conflict) |
-| [0040](./0040-the-service-is-ownpace.md) | The service is Ownpace; the project keeps its own name | Accepted 2026-08-20 — three open follow-ups (repo rename, NOTICE assertion, backup naming) |
-| [0041](./0041-who-owns-the-oauth-client.md) | Who owns the OAuth client — managed brings its own, the appliance never does | Accepted 2026-08-21 |
+| [0040](./0040-the-service-is-ownpace.md) | The service is Ownpace; the project keeps its own name | Accepted 2026-08-20 — repository renamed and the mark asserted in NOTICE; still open (the owner's): an EUTM filing, the proprietor named in NOTICE, backup naming |
+| [0041](./0041-who-owns-the-oauth-client.md) | Who owns the OAuth client — managed brings its own, the appliance never does | Accepted 2026-08-26 |
 | [0042](./0042-who-holds-the-passwords.md) | Who holds the passwords — an issuer we can replace | Accepted 2026-08-22 — the first identity decision in the register. Accepted on condition the replaceability be confirmed; confirming it found the key-set URL was guessed and worked with neither candidate |
 | [0043](./0043-a-migration-is-silent-by-default.md) | A migration is silent by default — outward mail is a human-pressed action | Accepted 2026-08-25 |
 | [0044](./0044-the-books-are-not-ours.md) | The books are not ours — an external bookkeeping system is the record for invoices | Accepted 2026-08-28 |
@@ -91,9 +91,8 @@ first.
   extractor" and both halves have moved: the rich extractor is retracted, and there are no
   shell-out engines left at all (`0019`'s update). Read its status line before its Decision.
 
-**`0022` has no status line.** It is the one ADR written from a different template — bare-bold
-metadata instead of list bullets — so the extractor that builds this table finds nothing to
-report. The decision itself (a pnpm override for the `semver` chain rather than migrating off
+**`0022` uses the older bare-bold template** — its status is a `**Status:**` line rather than a
+list bullet, and its row above is maintained from that line. The decision itself (a pnpm override for the `semver` chain rather than migrating off
 `imap-simple`) has since been overtaken: [workplan 0032](../workplans/0032-imapflow-migration.md)
 did the migration, and the vulnerable chain is absent from the lockfile rather than overridden.
-Giving it a status line is worth doing next time anyone touches it.
+The `semver` override remains in `pnpm-workspace.yaml`.
