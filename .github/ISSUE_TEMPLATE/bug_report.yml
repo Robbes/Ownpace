@@ -65,4 +65,4 @@ body:
     attributes:
       label: Which domains were involved?
       multiple: true
-      options: [mail, calendar, contacts, files, none / not applicable]
+      options: [mail, calendar, contacts, files, tasks, none / not applicable]

@@ -29,8 +29,9 @@ Published builds — no toolchain needed:
 ## Quickstart (from source)
 
 ### Prerequisites
-- Node.js 24+ (or use [Corepack](https://nodejs.org/api/corepack.html))
-- pnpm (via `corepack enable pnpm`)
+- Node.js 24 (the version CI and the images use; `engines` allows newer)
+- pnpm 11 — `corepack enable pnpm` on Node 24; Node 25+ no longer ships Corepack, so run
+  `npm install -g corepack` first (or install pnpm directly)
 - Docker (for integration tests and dev stack)
 
 ### Installation
@@ -103,7 +104,7 @@ Active development, pre-release. License: Apache-2.0 (see `LICENSE`). "Ownpace" 
 trademark of Archico B.V. — the code is free, the name is not; see [`TRADEMARK.md`](./TRADEMARK.md).
 
 The **migration core** is done and property-tested for idempotency: O365 → JMAP/IMAP-DAV mail,
-plus calendar/contacts/files/tasks domains (worker `runAllDomains` orchestration) and the
+plus calendar/contacts/files/tasks domains (`runAllDomains` in `packages/orchestration`) and the
 cutover machine.
 
 The **managed edition** runs on one execution plane (workplan 0022): every job — sync, verify,

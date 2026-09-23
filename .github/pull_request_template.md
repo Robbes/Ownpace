@@ -20,7 +20,7 @@ genuinely does not, rather than deleting the line.
 - [ ] No secrets, and no credentials in fixtures or examples
 - [ ] **Idempotency intact** — a re-run converges, it does not duplicate
 - [ ] **Non-destructive intact** — nothing deletes outside the gated `apply` path (ADR-0024)
-- [ ] **Self-host intact** — no managed-only dependency reaches `packages/` or `apps/selfhost`
+- [ ] **Self-host intact** — no managed-only dependency reaches `apps/selfhost` or a `packages/*` other than `packages/managed` (ADR-0036)
 - [ ] No docker debris left running
 
 ## Anything you are unsure about
