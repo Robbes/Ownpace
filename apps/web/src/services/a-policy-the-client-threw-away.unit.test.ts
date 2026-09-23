@@ -18,7 +18,9 @@
  * screen: the wire was right, the schema was silent, and nothing was red.
  */
 import { describe, it, expect } from 'vitest';
-import { MappingSchema } from './mapping-service.ts';
+import type { AxiosAdapter } from 'axios';
+import apiClient from './api.ts';
+import { MappingSchema, mappingApi } from './mapping-service.ts';
 
 /** What GET /api/migrations/:id answers, trimmed to what this is about. */
 const detailPayload = (sourceConfig: Record<string, unknown>) => ({
@@ -86,5 +88,45 @@ describe('the policy survives the parse', () => {
     );
     expect(parsed.sourceConfig.username).toBe('owner@acme.test');
     expect(parsed.targetConfig.username).toBe('anna@nc.test');
+  });
+});
+
+describe('the save a running migration makes', () => {
+  /**
+   * ALL FOUR KINDS, AND NOTHING ELSE (workplan 0042 T9). Every kind named, so
+   * no single format the migration also carries decides one of them; and
+   * nothing else in `sourceConfig`, because the route refuses what it may not
+   * change, and a body padded with fields this save did not mean is refused
+   * for the wrong reason.
+   */
+  it('puts a format for every kind, and only that', async () => {
+    const original = apiClient.defaults.adapter;
+    let sent: { method?: string; url?: string; body?: unknown } = {};
+    const capture: AxiosAdapter = async (config) => {
+      const body = JSON.parse(String(config.data)) as { sourceConfig: unknown };
+      sent = { method: config.method, url: config.url, body };
+      return {
+        data: { id: 'm-1', sourceConfig: body.sourceConfig, updatedAt: '2026-09-23T00:00:00.000Z' },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      };
+    };
+    apiClient.defaults.adapter = capture;
+    try {
+      const policies = {
+        document: 'export-office',
+        spreadsheet: 'export-office',
+        presentation: 'export-odf',
+        drawing: 'export-office',
+      };
+      await mappingApi.setNativeFilePolicies('m-1', policies);
+      expect(sent.method).toBe('put');
+      expect(sent.url).toBe('/migrations/m-1');
+      expect(sent.body).toEqual({ sourceConfig: { nativeFilePolicies: policies } });
+    } finally {
+      apiClient.defaults.adapter = original;
+    }
   });
 });

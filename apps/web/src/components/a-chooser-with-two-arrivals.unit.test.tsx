@@ -232,15 +232,23 @@ describe('an editable format for every kind', () => {
     });
   });
 
+  const Harness: React.FC<{ from: NativeFilePolicyByKind }> = ({ from }) => {
+    const [value, setValue] = React.useState<NativeFilePolicyByKind>(from);
+    return <NativeFilePolicyChooser value={value} onChange={setValue} />;
+  };
+
   it('is one press away', async () => {
-    const Harness: React.FC = () => {
-      const [value, setValue] = React.useState<NativeFilePolicyByKind>(LEAVE_ALL_BEHIND);
-      return <NativeFilePolicyChooser value={value} onChange={setValue} />;
-    };
-    render(<Harness />);
+    render(<Harness from={LEAVE_ALL_BEHIND} />);
     await userEvent.click(screen.getByRole('button', { name: EN['wizard.nativePolicy.editable'] }));
     expect(selectFor('document').value).toBe('export-office');
     expect(selectFor('presentation').value).toBe('export-odf');
     expect(screen.getByText(EN['wizard.nativePolicy.allEditable'])).toBeInTheDocument();
+  });
+
+  it('leaves what is already editable as it is, on the screen too', async () => {
+    render(<Harness from={choice({ spreadsheet: 'export-odf' })} />);
+    await userEvent.click(screen.getByRole('button', { name: EN['wizard.nativePolicy.editable'] }));
+    expect(selectFor('spreadsheet').value).toBe('export-odf');
+    expect(selectFor('document').value).toBe('export-office');
   });
 });

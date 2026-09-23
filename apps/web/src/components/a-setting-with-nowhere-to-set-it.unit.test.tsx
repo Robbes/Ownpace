@@ -220,6 +220,21 @@ describe('before the press', () => {
   });
 
   /**
+   * A CHANGE TO ANY ONE KIND IS A CHANGE (workplan 0042 T9): switching the
+   * decks alone, the case the per-kind choice exists for, must be savable.
+   */
+  it('can be pressed once any one kind differs, not only the Docs', async () => {
+    renderPanel({ current: { nativeFilePolicy: 'export-office' } });
+    expect(screen.getByRole('button', { name: EN['settings.exportPolicy.save'] })).toBeDisabled();
+    await userEvent.selectOptions(
+      screen.getByLabelText(EN['discovery.refusedNative.kind.presentation']),
+      'export-odf',
+    );
+    expect(screen.getByRole('button', { name: EN['settings.exportPolicy.save'] })).toBeEnabled();
+    expect(screen.getByText(EN['settings.exportPolicy.consequence'])).toBeInTheDocument();
+  });
+
+  /**
    * THE CONSEQUENCE IS STATED BEFORE THE PRESS, NOT AFTER.
    *
    * Items already copied keep the format they were copied in, because this
