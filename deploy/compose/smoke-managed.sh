@@ -180,6 +180,36 @@ fail_at() { # fail_at [reason] — set the flag AND record where it fired
 # the run was speaking without every call site repeating it.
 note() { SECTION="$*"; printf '\n--- %s ---\n' "$*"; }
 
+# WHO ELSE IS ON THIS STACK (E2E (managed) #195, 2026-09-23).
+#
+# This gate runs on the long-lived stack on the Spark, and GitHub starts the
+# nightly hours late, in the owner's working morning. On #195 the API container
+# was recreated in the middle of the run by something outside it, most likely a
+# deploy on the same box: the web container went in the same minute. The section
+# that happened to be running, the progress link, answered 000 and the verdict
+# blamed the progress link. The same API answered the cutover section ten
+# minutes later as if nothing had happened.
+#
+# So the run notes when the API container started, before the first section,
+# and the verdict asks again. Nothing in this script restarts it, so a different
+# answer means something outside the run did, or it crashed. Every check after
+# that moment may have run against a different build, which is a failure of the
+# run, and the verdict says so in those words.
+api_started_at() { docker inspect -f '{{.State.StartedAt}}' "$API_CONTAINER" 2>/dev/null || echo "unknown"; }
+api_restart_check() { # api_restart_check <when it started, noted before the first section>
+  local now
+  now="$(api_started_at)"
+  if [ "$now" != "$1" ]; then
+    echo "!!! the API container restarted during this run: it started at $1, and now at $now."
+    echo "!!! nothing in this script restarts it, so something outside the run did (a deploy"
+    echo "!!! on this box, most often) or it crashed ('docker logs $API_CONTAINER' says which)."
+    echo "!!! Checks after that moment may have run against a different build, so a failure"
+    echo "!!! among them is about the restart."
+    fail_at "the API container restarted under the run (started $1, then $now)"
+  fi
+}
+API_STARTED_AT="$(api_started_at)"
+
 # WHICH MODE THIS STACK IS IN, read before anything mints a token — the identity
 # section far below asks the same question, but the first `mint` happens long
 # before it and the answer changes what that token means.
@@ -5369,6 +5399,7 @@ fi
 
 # ---------- verdict ----------
 note "verdict"
+api_restart_check "$API_STARTED_AT"
 echo "verify: $VERIFY_RESULT   apply: $APPLY_RESULT"
 if [ "$fail" = "0" ]; then
   echo "SMOKE PASS — evidence in $OUT"
