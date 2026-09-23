@@ -26,6 +26,7 @@ import type { TokenProvider } from '@openmig/shared';
 import type { GraphContactsSourceConfig, GraphContactFolder, GraphContact, GraphContactsDeltaCursor, VCardFieldMapping } from './graph-contacts-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { graphScopePrefix } from './graph-scope.ts';
+import { graphItemVersion } from './graph-item-version.ts';
 import type { ThrottleLimiter } from '@openmig/shared';
 import { log } from '@openmig/shared';
 
@@ -253,6 +254,10 @@ export class GraphContactsSource implements ContactSource {
             // Photo is NOT fetched here - use fetch() method instead
             photo: undefined,
             categories: contact.categories,
+            // The version an edit is detected by. Absent until 2026-09-23, so
+            // a contact edited in Outlook after its first copy was never
+            // copied again (`graphItemVersion`).
+            ...graphItemVersion(contact),
             sourcePath: `${collection.sourcePrefix}/${contact.id}`,
             vcard,
             version: '4.0',

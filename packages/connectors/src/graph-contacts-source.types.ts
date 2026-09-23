@@ -98,8 +98,11 @@ export interface GraphContact {
   readonly photo?: GraphContactPhoto;
   /** Photo blob (for fetching full photo) */
   readonly photoId?: string;
-  /** Change key for optimistic concurrency */
+  /** The item's version: it changes every time the contact does (`graphItemVersion`). */
   readonly changeKey?: string;
+  /** The same validator as a weak ETag. */
+  readonly '@odata.etag'?: string;
+  readonly lastModifiedDateTime?: string;
   /** OData next link for pagination */
   readonly '@odata.nextLink'?: string;
   /** OData delta link for incremental sync */
