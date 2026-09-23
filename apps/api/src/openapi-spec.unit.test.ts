@@ -108,6 +108,9 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   // the writes are an operator's, and everything under `/api/support` is
   // unreachable by anyone else.
   { prefix: '/api/platform-pause', files: ['src/routes/platform-pause.ts'] },
+  // "Report a problem" (workplan 0130). Mounted ahead of the global JSON
+  // parser, with a larger limit of its own, for the screenshot.
+  { prefix: '/api/problem-reports', files: ['src/routes/problem-reports.ts'] },
 ];
 
 const METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;

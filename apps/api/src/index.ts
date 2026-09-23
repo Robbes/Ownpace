@@ -49,6 +49,7 @@ import invitationRoutes from './routes/invitations.ts';
 import readyRoutes from './routes/ready.ts';
 import supportRoutes from './routes/support.ts';
 import platformPauseRoutes from './routes/platform-pause.ts';
+import { problemReportRoutes } from './routes/problem-reports.ts';
 import { assertProductionAuthConfig, getDbPool, selectAuthMode } from './middleware/auth.ts';
 import { assertProductionUrlConfig } from './config-guards.ts';
 import { serverFault } from './server-fault.ts';
@@ -91,6 +92,9 @@ app.use(cors({
 // Without the link credentials, OAuth codes and query values `combined` wrote
 // out in full: `access-log.ts` says what is kept and why.
 app.use(accessLog());
+// "Report a problem" (workplan 0130), BEFORE the global JSON parser: its body
+// carries a screenshot, and it parses with a larger limit of its own.
+app.use('/api/problem-reports', problemReportRoutes());
 app.use(express.json());
 // Mollie posts webhooks as application/x-www-form-urlencoded (id=<paymentId>).
 app.use(express.urlencoded({ extended: false }));

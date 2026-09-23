@@ -41,6 +41,7 @@ import Deletions from './pages/Deletions.tsx';
 import Moves from './pages/Moves.tsx';
 import Connections from './pages/Connections.tsx';
 import Docs from './pages/Docs.tsx';
+import ReportProblem from './pages/ReportProblem.tsx';
 import Setup from './pages/Setup.tsx';
 import Sharing from './pages/Sharing.tsx';
 import Failures from './pages/Failures.tsx';
@@ -324,6 +325,17 @@ const AppRoutes: React.FC = () => {
             wizard panels and refusals are links here (workplan 0063). */}
         <Route path="docs" element={<Docs />} />
         <Route path="docs/:slug" element={<Docs />} />
+        {/* "Report a problem" (workplan 0130): managed only for now. The
+            appliance has no report route, and its form waits for an owner
+            who points it at a helpdesk of their own. */}
+        <Route
+          path="report"
+          element={
+            <ManagedOnly>
+              <ReportProblem />
+            </ManagedOnly>
+          }
+        />
         {/* The §20 gate and the end of the shadow sync. Verify has the
             same two mount points as the queues and for the same reason:
             the appliance scans every configured mapping in one run, a

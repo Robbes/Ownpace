@@ -1292,6 +1292,36 @@ consent entirely). Both render as sentences, so the person knows to ask
 somebody rather than press the button again. `docs/microsoft-setup.md` is the
 customer-facing version of all of this.
 
+### 8f. Problem reports — your own Zammad *(optional)*
+
+"Report a problem", beside Sign out, turns a customer's report into a ticket on
+**your own, self-hosted Zammad** (workplan 0130): what they wrote, the page they
+were on (without any link secret), the reference and kind of error on their
+screen, and a screenshot if they add one. The customer is the ticket's customer,
+so your reply from Zammad reaches them by email.
+
+It is off until you set it up, and while it is off the link is not shown at all.
+In Zammad:
+
+1. As an admin, allow API tokens: **Settings → System → API → Token Access**.
+2. As the agent the tickets should come from, create a personal token with the
+   `ticket.agent` permission: **your profile → Token Access**.
+3. Note the group new reports should land in (`Users` is the one a fresh Zammad
+   starts with).
+
+Then in `deploy/compose/.env`:
+
+```
+ZAMMAD_URL='https://help.example.eu'
+ZAMMAD_TOKEN='<the token from step 2>'
+ZAMMAD_GROUP='Users'
+```
+
+Only https is accepted (http only for `localhost`): the token travels with every
+ticket. Restart the API, sign in, and the link appears; send yourself a test
+report. A report that Zammad refuses is answered with a reference, and recorded
+for the log page as `report.not-delivered`.
+
 ### 9. `tasks` — the task environment, then the deploy
 
 ```bash

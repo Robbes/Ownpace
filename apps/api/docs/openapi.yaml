@@ -103,6 +103,11 @@ tags:
       Facts about the platform itself rather than about a customer. Read by
       anyone signed in, because they explain a customer's own screen; written
       only by an operator, and the database is what decides that.
+  - name: Reports
+    description: |
+      "Report a problem" (workplan 0130): a signed-in customer's report,
+      delivered as a ticket on the owner's own Zammad, whose reply reaches the
+      customer by email. Offered only when the deployment has a Zammad set up.
 
 paths:
   /health:
@@ -3541,6 +3546,86 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /api/problem-reports/available:
+    get:
+      tags: [Reports]
+      summary: Whether this service takes problem reports
+      description: |
+        `true` only when the deployment has a Zammad set up (`ZAMMAD_URL` and
+        `ZAMMAD_TOKEN`, https). The app offers the form only then: a form that
+        can send nowhere is not shown.
+      responses:
+        '200':
+          description: The answer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+                required: [available]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/problem-reports:
+    post:
+      tags: [Reports]
+      summary: Send a problem report
+      description: |
+        Becomes a ticket on the owner's Zammad, with the signed-in person as its
+        customer. Carries what the person wrote, the page they were on (a grant
+        or view link written as `:link`, and no query, redacted here again
+        whatever the browser sent), the error's reference and category when
+        there is one, and a PNG or JPEG screenshot (at most 5 MB, checked by
+        its own first bytes). Parsed with an 8 MB body limit of its own, ahead
+        of the API's global parser. Five reports an hour per person.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description: { type: string, maxLength: 5000 }
+                page: { type: string, description: A path on this site. }
+                reference: { type: string, pattern: '^[0-9a-f]{8}$' }
+                category: { type: string }
+                screenshot:
+                  type: object
+                  properties:
+                    data: { type: string, description: The image, base64. }
+                  required: [data]
+              required: [description, page]
+      responses:
+        '201':
+          description: Delivered, with the ticket's number.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket: { type: string }
+                required: [ticket]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/BadRequest' }
+        '429':
+          description: Several reports from this person in the last hour. Carries `Retry-After`.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Seconds to wait.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '502':
+          description: Zammad did not take the ticket. Carries a reference the log page finds.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: This deployment has no Zammad set up.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /api/scope-manifest:
     get:
       tags: [Discovery]
