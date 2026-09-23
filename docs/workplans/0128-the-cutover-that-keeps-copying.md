@@ -1,0 +1,159 @@
+# Workplan 0128 — The cutover that keeps copying
+
+## Status — 2026-09-23 (update this block at the end of every session)
+
+**2026-09-23: opened from the owner's answers.** Two things came out of one conversation about
+the cutover.
+
+1. **The cutover's final sync copies mail only.** This was found on 2026-09-22 while checking the
+   owner's Google → Nextcloud migration. The owner acknowledged the advice: the final sync runs
+   the pass the scheduler runs, over every data type the migration has, and the gate verifies
+   those same data types (T1).
+2. **The owner's question:** *"reason on if the sync can first stay operational, and one will
+   decide after the successful cutover to 1) end the migration or 2) keep syncing (for example if
+   someone moves MX before he/she ends contacts). At step 2 (Keep syncing) one might need to be
+   able to deactivate kinds, like mail, to explicit keep sync for files and contacts. That is like
+   similar to when one keeps android and contacts in Google, while wanting all contact reasonable
+   fresh in the target elsewhere."* It can, and §2 says why it is safe. This plan answers in three
+   parts (T2–T4), two of which wait on the owner (§4).
+
+| Task | Status | Notes |
+|---|---|---|
+| T1 The final sync covers every data type | 📋 **Decided 2026-09-23** | §3. The pass the scheduler runs, not a mail reconcile of its own; the gate verifies the same data types, and a migration without mail no longer fails on email. |
+| T2 Passes keep running through the grace period | 📋 **Proposed**; waits on D1 | §3. From execute until the grace period ends, the migration keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. |
+| T3 The ending is a choice: end, or keep copying which data types | 📋 **Proposed** with T4 | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. |
+| T4 A data type can be stopped and resumed | 📋 **Proposed**; waits on D2 | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. |
+
+## 1. What happens today
+
+The cutover is the operator's procedure for moving a mail domain (`run-cutover` in
+`apps/worker/src/jobs/run-cutover.ts`, and `apps/worker/src/cli/cutover-commands.ts`):
+
+1. **prepare**: a final sync, then the verification gate, stopping at `READY_FOR_CUTOVER`;
+2. **approve**;
+3. **execute**: the mapping becomes `cutover`, and the cutover ledger moves to
+   `CUTOVER_IN_PROGRESS` and then `GRACE_PERIOD`, 72 hours by default
+   (`gracePeriodDurationHours`);
+4. the MX record is switched by hand;
+5. **complete**.
+
+It runs from the command line or the API (`POST /api/migrations/:id/cutover`). The web app has
+no button for it: `mappingApi.triggerCutover` has no caller. The web app's own ending is the
+Finish checklist (ADR-0026). Its final pass is the ordinary pass (`requestFinalPass` →
+`run-delta-sync`), which already covers every data type.
+
+Three facts decide the rest.
+
+- **The final sync is mail only.** `prepareCutover`'s `runFinalSync` builds
+  `buildDepsFromMapping` and runs `runShadowPass`, the mail reconcile. On a migration with more
+  than mail, calendars, contacts, files and tasks that changed since the last scheduled pass are
+  not in it. On a migration without mail, building the mail target refuses
+  (`refuseDomainTheTargetCannotCarry('mail', kind)`), so preparation fails at its first step,
+  with a sentence about email nobody selected. The gate builds `buildDepsFromMapping` first as
+  well, and fails the same way.
+- **Nothing is copied after execute.** `runsPasses` is `active | continuous`, so a mapping in
+  `cutover` is never scheduled, and a manual pass answers 409. Yet `cutover-state.ts` defines the
+  grace period as *"Both systems active, monitoring for discrepancies"*. For those 72 hours, mail
+  that still reaches the old server while the MX change propagates is copied only if the owner
+  later enters the continuous lane, and never if they finish. So is anything edited in the old
+  account in that time.
+- **Keeping on copying is all or nothing.** The continuous lane (0117 T1) is entered from
+  `cutover` or `done`, and it runs every data type the migration has. Contacts cannot keep flowing
+  while mail stops. After the MX move the old mailbox receives next to nothing. Once its account
+  is closed, every mail pass fails, while the contacts the owner wanted kept fresh are still in
+  Google.
+
+## 2. Why the sync can keep running after the cutover
+
+0117 did the hard part. After cutover the source is no longer the authority on what exists
+(0117 D4). In every state `isAfterCutover` names, the deletion detectors are absent rather than
+gated, and `cutover` is one of those states. A pass in that mode copies what is new and what
+changed at the source, and never mirrors a deletion. The continuous lane runs exactly that way
+today. So T2 adds no new kind of pass: it changes **when** the existing one runs.
+
+**What it costs.** `cutover` holds no slot (`holdsASlot`, ADR-0014). A grace period with passes
+running is short and bounded: a courtesy, not a lane. When it ends, passes stop as they do today
+unless the owner chose to keep copying. The continuous lane holds a slot (0117 D6, D8). So T2
+does not change what anybody pays.
+
+## 3. The tasks
+
+### T1 — the final sync covers every data type (decided)
+
+The final sync runs the pass the scheduler runs, which is the per-data-type loop in
+`run-delta-sync` over `enabledDomains`, rather than a mail reconcile of its own. The gate verifies
+the same data types, and builds only what the migration has. A test drives a cutover preparation
+of a calendar, contacts and files migration through the real preparation step: before the change
+it fails on email, and after it the final sync reports a count per data type.
+
+### T2 — passes keep running through the grace period (proposed; D1)
+
+From execute until the grace period ends, the migration keeps being scheduled, under the
+after-cutover rules. That is what the grace period's own definition promises, and it is exactly
+the window in which mail still reaches the old server. When the grace period ends and the owner
+has chosen nothing, passes stop as they do today. Nothing is ended for them, and T3's choice
+stays open.
+
+For the build: the rule depends on the time, which `runsPasses` cannot read from a status word
+alone. The appliance's tick and the managed poller's query (`PASS_RUNNING_STATES`) both need the
+grace period's end (`gracePeriodEndsAt` on the cutover ledger). One function has to say it for
+both, as `runsPasses` does now.
+
+### T3 — the ending is a choice (proposed with T4)
+
+Wherever a migration ends, which means the Finish checklist's last step, and the end of the grace
+period, the owner gets two answers side by side:
+
+- **End the migration**: `done`. Passes stop, the slot is released, and what is copied stays.
+- **Keep copying**: the continuous lane, under the after-cutover rules. It holds a slot, and the
+  offer carries D8's sentence as it does now. Keeping asks **which data types** continue, with
+  all of them ticked, so mail can be left out while contacts and calendars keep flowing.
+
+Today the lane is a second step after finishing, and it takes every data type at once.
+
+### T4 — stop and resume a data type (proposed; D2)
+
+On a running migration (`active` or `continuous`), each data type can be **stopped** and
+**resumed** from the migration page, beside the add panel (0125 T6). Stopped means what 0125 T7
+makes it mean on the appliance, with the same word. The copies stay, the record stays, they no
+longer follow the source, and resuming continues where it stopped. This is the part of the
+owner's example that T3 alone does not cover. Mail can be stopped later, on the day the old
+mailbox closes, without touching the rest.
+
+It revisits 0125 T6's *adding only*. That decision refused removal because nothing decided what
+the copies of a removed data type then are. 0125 T7 decides it now: they are stopped, the
+product says so, and they can be resumed. A stop is not the removal T6 refused; it is a pause for one data type.
+
+## 4. Decisions for the owner
+
+**D1 — keep copying through the grace period (T2)?**
+
+- **(a) Yes, bounded by the grace period, and slotless.** *Recommended.* It catches the mail
+  that arrives during the MX change, keeps what "both systems active" promises, and changes no
+  price.
+- **(b) Yes, until the owner chooses, however long that takes.** A free continuous lane for
+  anyone who never chooses.
+- **(c) No.** Keep today's stop at execute, and rely on T3's choice being made quickly.
+
+**D2 — does a stopped data type keep its slot (T4)?** Pausing keeps its slot on purpose: it is
+reserved capacity, and the pricing page says so. The case that motivates a stop is different.
+The mail of an account that no longer exists will never be resumed, and billing a slot for it for as long
+as contacts keep flowing would charge for nothing.
+
+- **(a) It releases its slot.** Simple, and fair to the dead mailbox. The side effect is that
+  stopping every data type becomes a pause that costs nothing.
+- **(b) It keeps its slot, like a pause.** Simple, but the dead mailbox is billed for as long as
+  the contacts flow.
+- **(c) It keeps its slot while the migration is `active`, and releases it in the continuous
+  lane.** *Recommended.* Before cutover, a stop is usually short, for example a data type that
+  keeps failing while the rest finishes. That is what a pause is for, and a pause keeps its slot.
+  After cutover, a stop is usually for good. The tier reads the month's peak (0109 T2), so
+  stopping and resuming within a month cannot lower a bill. It needs one sentence on the pricing
+  page, beside D8's.
+
+## Not in this plan
+
+- Two-way sync, or writing back to the old account.
+- Removing anything at the source: that is 0117 T3, the drain, deferred by 0117 D1.
+- A button for the operator's cutover procedure in the web app. The Finish checklist is the web
+  app's ending (ADR-0026), and T3 changes its last step, not its order.
